@@ -1,6 +1,7 @@
 ---
 title: "Kafka Connect"
 ---
+
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
  - contributor license agreements.  See the NOTICE file distributed with
@@ -44,16 +45,19 @@ The Apache Iceberg Sink Connector for Kafka Connect is a sink connector for writ
 ## Installation
 
 The connector zip archive is created as part of the Iceberg build. You can run the build via:
+
 ```bash
 ./gradlew -x test -x integrationTest clean build
 ```
+
 The zip archive will be found under `./kafka-connect/kafka-connect-runtime/build/distributions`. There is
 one distribution that bundles the Hive Metastore client and related dependencies, and one that does not.
 Copy the distribution archive into the Kafka Connect plugins directory on all nodes.
 
 ## Requirements
 
-The sink relies on [KIP-447](https://cwiki.apache.org/confluence/display/KAFKA/KIP-447%3A+Producer+scalability+for+exactly+once+semantics)
+The sink relies
+on [KIP-447](https://cwiki.apache.org/confluence/display/KAFKA/KIP-447%3A+Producer+scalability+for+exactly+once+semantics)
 for exactly-once semantics. This requires Kafka 2.5 or later.
 
 ## Configuration
@@ -62,6 +66,7 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 |--------------------------------------------|------------------------------------------------------------------------------------------------------------------|
 | iceberg.tables                             | Comma-separated list of destination tables                                                                       |
 | iceberg.tables.dynamic-enabled             | Set to `true` to route to a table specified in `routeField` instead of using `routeRegex`, default is `false`    |
+| iceberg.tables.route-with                  | Class to use for routing records from topics to tables                                                           |
 | iceberg.tables.route-field                 | For multi-table fan-out, the name of the field used to route records to tables                                   |
 | iceberg.tables.default-commit-branch       | Default branch for commits, main is used if not specified                                                        |
 | iceberg.tables.default-id-columns          | Default comma-separated list of columns that identify a row in tables (primary key)                              |
@@ -72,10 +77,12 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.tables.schema-case-insensitive     | Set to `true` to look up table columns by case-insensitive name, default is `false` for case-sensitive           |
 | iceberg.tables.auto-create-props.*         | Properties set on new tables during auto-create                                                                  |
 | iceberg.tables.write-props.*               | Properties passed through to Iceberg writer initialization, these take precedence                                |
-| iceberg.table.<_table-name_\>.commit-branch | Table-specific branch for commits, use `iceberg.tables.default-commit-branch` if not specified                   |
-| iceberg.table.<_table-name_\>.id-columns    | Comma-separated list of columns that identify a row in the table (primary key)                                   |
-| iceberg.table.<_table-name_\>.partition-by  | Comma-separated list of partition fields to use when creating the table                                          |
-| iceberg.table.<_table-name_\>.route-regex   | The regex used to match a record's `routeField` to a table                                                       |
+| iceberg.table.\<table name\>.commit-branch | Table-specific branch for commits, use `iceberg.tables.default-commit-branch` if not specified                   |
+| iceberg.table.\<table name\>.id-columns    | Comma-separated list of columns that identify a row in the table (primary key)                                   |
+| iceberg.table.\<table name\>.partition-by  | Comma-separated list of partition fields to use when creating the table                                          |
+| iceberg.table.\<table name\>.route-regex   | The regex used to match a record's `routeField` to a table                                                       |
+| iceberg.table.\<table name\>.topics        | Comma-separated list of topic names to route to the table                                                        |
+| iceberg.table.\<table name\>.topic-regex   | The regex used to match a record's Kafka topic to a table                                                        |
 | iceberg.control.topic                      | Name of the control topic, default is `control-iceberg`                                                          |
 | iceberg.control.group-id-prefix            | Prefix for the control consumer group, default is `cg-control`                                                   |
 | iceberg.control.commit.interval-ms         | Commit interval in msec, default is 300,000 (5 min)                                                              |
@@ -88,9 +95,28 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.hadoop.*                           | Properties passed through to the Hadoop configuration                                                            |
 | iceberg.kafka.*                            | Properties passed through to control topic Kafka client initialization                                           |
 
-If `iceberg.tables.dynamic-enabled` is `false` (the default) then you must specify `iceberg.tables`. If
-`iceberg.tables.dynamic-enabled` is `true` then you must specify `iceberg.tables.route-field` which will
-contain the name of the table.
+If `iceberg.tables.route-with` is `org.apache.iceberg.connect.data.RecordRouter$DynamicRecordRouter`,
+or `iceberg.tables.dynamic-enabled` is true, you must specify `iceberg.tables.route-field` which will contain the name
+of the table. Tables will be dynamically created and named using the value in the field specified in the route field.
+
+If `iceberg.tables.route-with` is `org.apache.iceberg.connect.data.RecordRouter$StaticRecordRouter`,
+or `iceberg.tables.route-field` is specified but `iceberg.tables.dynamic-enabled` is false, you must specify
+`iceberg.tables` and `iceberg.table.\<table name\>.route-regex` for each table. Records will be routed only to a
+table whose route regex matches the value in the route field.
+
+If `iceberg.tables.route-with` is `org.apache.iceberg.connect.data.RecordRouter$TopicNameRecordRouter`, then you must
+specify `iceberg.tables` and `iceberg.table.\<table name\>.topics` for each table. Records will be routed to a table
+whose topics list contains the record's topic.
+
+If `iceberg.tables.route-with` is `org.apache.iceberg.connect.data.RecordRouter$TopicRegexRecordRouter`,
+then you must specify `iceberg.tables` and `iceberg.table.\<table name\>.topic-regex` for each table. Records will be
+routed to a table whose topic regex matches the record's topic.
+
+If `iceberg.tables.route-with` is unset and there is no `iceberg.tables.route-field` specified, records are routed to
+all the tables from all the topics.
+
+For backwards compatibility, setting `iceberg.tables.dynamic-enabled` to `true` will take precedence over the
+`iceberg.tables.route-with` configuration.
 
 ### Kafka configuration
 
@@ -126,6 +152,7 @@ catalog types, you need to instead set `iceberg.catalog.catalog-impl` to the nam
 
 NOTE: Use the distribution that includes the HMS client (or include the HMS client yourself). Use `S3FileIO` when
 using S3 for storage and `GCSFileIO` when using GCS (the default is `HadoopFileIO` with `HiveCatalog`).
+
 ```
 "iceberg.catalog.type": "hive",
 "iceberg.catalog.uri": "thrift://hive:9083",
@@ -173,21 +200,26 @@ full details on configuring catalogs.
 
 ### Azure ADLS configuration example
 
-When using ADLS, Azure requires the passing of AZURE_CLIENT_ID, AZURE_TENANT_ID, and AZURE_CLIENT_SECRET for its Java SDK.
+When using ADLS, Azure requires the passing of AZURE_CLIENT_ID, AZURE_TENANT_ID, and AZURE_CLIENT_SECRET for its Java
+SDK.
 If you're running Kafka Connect in a container, be sure to inject those values as environment variables. See the
-[Azure Identity Client library for Java](https://learn.microsoft.com/en-us/java/api/overview/azure/identity-readme?view=azure-java-stable) for more information.
+[Azure Identity Client library for Java](https://learn.microsoft.com/en-us/java/api/overview/azure/identity-readme?view=azure-java-stable)
+for more information.
 
 An example of these would be:
+
 ```
 AZURE_CLIENT_ID=e564f687-7b89-4b48-80b8-111111111111
 AZURE_TENANT_ID=95f2f365-f5b7-44b1-88a1-111111111111
 AZURE_CLIENT_SECRET="XXX"
 ```
+
 Where the CLIENT_ID is the Application ID of a registered application under
 [App Registrations](https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade), the TENANT_ID is
 from your [Azure Tenant Properties](https://portal.azure.com/#view/Microsoft_AAD_IAM/TenantProperties.ReactView), and
 the CLIENT_SECRET is created within the "Certificates & Secrets" section, under "Manage" after choosing your specific
-App Registration. You might have to choose "Client secrets" in the middle panel and the "+" in front of "New client secret"
+App Registration. You might have to choose "Client secrets" in the middle panel and the "+" in front of "New client
+secret"
 to generate one. Be sure to set this variable to the Value and not the Id.
 
 It's also important that the App Registration is granted the Role Assignment "Storage Blob Data Contributor" in your
@@ -204,7 +236,8 @@ Then, within the Connector's configuration, you'll want to include the following
 ```
 
 Where `storage-container-name` is the container name within your Azure Storage Account, `/warehouse` is the location
-within that container where your Apache Iceberg files will be written by default (or if iceberg.tables.auto-create-enabled=true),
+within that container where your Apache Iceberg files will be written by default (or if
+iceberg.tables.auto-create-enabled=true),
 and the `include-credentials` parameter passes along the Azure Java client credentials along. This will configure the
 Iceberg Sink connector to connect to the REST catalog implementation at `iceberg.catalog.uri` to obtain the required
 Connection String for the ADLSv2 client
@@ -212,7 +245,8 @@ Connection String for the ADLSv2 client
 ### Google GCS configuration example
 
 By default, Application Default Credentials (ADC) will be used to connect to GCS. Details on how ADC works can
-be found in the [Google Cloud documentation](https://cloud.google.com/docs/authentication/application-default-credentials).
+be found in
+the [Google Cloud documentation](https://cloud.google.com/docs/authentication/application-default-credentials).
 
 ```
 "iceberg.catalog.type": "rest",
@@ -239,7 +273,9 @@ This assumes the source topic already exists and is named `events`.
 #### Control topic
 
 If your Kafka cluster has `auto.create.topics.enable` set to `true` (the default), then the control topic will be
-automatically created. If not, then you will need to create the topic first. The default topic name is `control-iceberg`:
+automatically created. If not, then you will need to create the topic first. The default topic name is
+`control-iceberg`:
+
 ```bash
 bin/kafka-topics.sh  \
   --command-config command-config.props \
@@ -248,6 +284,7 @@ bin/kafka-topics.sh  \
   --topic control-iceberg \
   --partitions 1
 ```
+
 *NOTE: Clusters running on Confluent Cloud have `auto.create.topics.enable` set to `false` by default.*
 
 #### Iceberg catalog configuration
@@ -263,17 +300,19 @@ This example writes all incoming records to a single table.
 #### Create the destination table
 
 ```sql
-CREATE TABLE default.events (
-    id STRING,
-    type STRING,
-    ts TIMESTAMP,
-    payload STRING)
-PARTITIONED BY (hours(ts))
+CREATE TABLE default.events
+(
+    id      STRING,
+    type    STRING,
+    ts      TIMESTAMP,
+    payload STRING
+) PARTITIONED BY (hours(ts))
 ```
 
 #### Connector config
 
 This example config connects to a Iceberg REST catalog.
+
 ```json
 {
   "name": "events-sink",
@@ -299,19 +338,21 @@ will be skipped.
 #### Create two destination tables
 
 ```sql
-CREATE TABLE default.events_list (
-    id STRING,
-    type STRING,
-    ts TIMESTAMP,
-    payload STRING)
-PARTITIONED BY (hours(ts));
+CREATE TABLE default.events_list
+(
+    id      STRING,
+    type    STRING,
+    ts      TIMESTAMP,
+    payload STRING
+) PARTITIONED BY (hours(ts));
 
-CREATE TABLE default.events_create (
-    id STRING,
-    type STRING,
-    ts TIMESTAMP,
-    payload STRING)
-PARTITIONED BY (hours(ts));
+CREATE TABLE default.events_create
+(
+    id      STRING,
+    type    STRING,
+    ts      TIMESTAMP,
+    payload STRING
+) PARTITIONED BY (hours(ts));
 ```
 
 #### Connector config
@@ -363,6 +404,80 @@ See above for creating two tables.
   }
 }
 ```
+
+### Topic name based multi-table routing
+
+This assumes that the source topics `events_create` and `events_list` already exist and are named as such.
+
+This example writes to tables whose `topics` property includes the topic of the record. The records read from
+topic `events_create` are routed to the `default.events_create` table and records read from the topic `events_list`
+are routed to the `default.events_list` table.
+
+#### Create two destination tables
+
+See above for creating two tables.
+
+#### Connector config
+
+```json
+{
+  "name": "events-sink",
+  "config": {
+    "connector.class": "org.apache.iceberg.connect.IcebergSinkConnector",
+    "tasks.max": "2",
+    "topics": "events_create,events_list",
+    "iceberg.tables": "default.events_list,default.events_create",
+    "iceberg.tables.route-with": "org.apache.iceberg.connect.data.RecordRouter$TopicNameRecordRouter",
+    "iceberg.table.default.events_list.topics": "events_list",
+    "iceberg.table.default.events_create.topics": "events_create",
+    "iceberg.catalog.type": "rest",
+    "iceberg.catalog.uri": "https://localhost",
+    "iceberg.catalog.credential": "<credential>",
+    "iceberg.catalog.warehouse": "<warehouse name>"
+  }
+}
+```
+
+### Topic regex based multi-table routing
+
+This assumes that the source topics `events_create` and `events_list` already exist and are named as such.
+
+This example writes to tables whose `topic-regex` property matches the topic of the record. The records read from
+topic `events_create` are routed to the `default.events_create` table and records read from the topic `events_list`
+are routed to the `default.events_list` table. The regex based routing is particularly useful when the source topics
+of the connector are specified using `topic.regex` configuration.
+
+#### Create two destination tables
+
+See above for creating two tables.
+
+#### Connector config
+
+```json
+{
+  "name": "events-sink",
+  "config": {
+    "connector.class": "org.apache.iceberg.connect.IcebergSinkConnector",
+    "tasks.max": "2",
+    "topics": "events_create,events_list",
+    "iceberg.tables": "default.events_list,default.events_create",
+    "iceberg.tables.route-with": "org.apache.iceberg.connect.data.RecordRouter$TopicRegexRecordRouter",
+    "iceberg.table.default.events_list.topic-regex": "events_list",
+    "iceberg.table.default.events_create.topic-regex": "events_create",
+    "iceberg.catalog.type": "rest",
+    "iceberg.catalog.uri": "https://localhost",
+    "iceberg.catalog.credential": "<credential>",
+    "iceberg.catalog.warehouse": "<warehouse name>"
+  }
+}
+```
+
+### Custom routing of records
+
+Routing records from Kafka to tables can be customized by providing your own implementation of the `RecordRouter`.
+Implementations must inherit `org.apache.iceberg.connect.data.RecordRouter`. To write a record to a table,
+implementations can call the `writeToTable` method of the `RecordRouter`. You can then set `iceberg.tables.route-with`
+to the class name of your plugin. The class must be available at runtime to the Kafka connect workers.
 
 ## SMTs for the Apache Iceberg Sink Connector
 

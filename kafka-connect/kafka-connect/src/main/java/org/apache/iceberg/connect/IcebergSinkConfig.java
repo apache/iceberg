@@ -28,6 +28,7 @@ import java.util.Properties;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.IcebergBuild;
+import org.apache.iceberg.connect.data.RecordRouter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -53,6 +54,8 @@ public class IcebergSinkConfig extends AbstractConfig {
   public static final String INTERNAL_TRANSACTIONAL_SUFFIX_PROP =
       "iceberg.coordinator.transactional.suffix";
   private static final String ROUTE_REGEX = "route-regex";
+  private static final String TOPICS = "topics";
+  private static final String TOPIC_REGEX = "topic-regex";
   private static final String ID_COLUMNS = "id-columns";
   private static final String PARTITION_BY = "partition-by";
   private static final String COMMIT_BRANCH = "commit-branch";
@@ -66,6 +69,7 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   private static final String CATALOG_NAME_PROP = "iceberg.catalog";
   private static final String TABLES_PROP = "iceberg.tables";
+  private static final String TABLES_ROUTE_WITH_PROP = "iceberg.tables.route-with";
   private static final String TABLES_DYNAMIC_PROP = "iceberg.tables.dynamic-enabled";
   private static final String TABLES_ROUTE_FIELD_PROP = "iceberg.tables.route-field";
   private static final String TABLES_DEFAULT_COMMIT_BRANCH = "iceberg.tables.default-commit-branch";
@@ -121,6 +125,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         null,
         Importance.HIGH,
         "Comma-delimited list of destination tables");
+    configDef.define(
+        TABLES_ROUTE_WITH_PROP,
+        ConfigDef.Type.CLASS,
+        null,
+        Importance.MEDIUM,
+        "Routing mechanism for the tables: FIELD_VALUE, FIELD_REGEX, TOPIC_NAME, TOPIC_REGEX");
     configDef.define(
         TABLES_DYNAMIC_PROP,
         ConfigDef.Type.BOOLEAN,
@@ -335,6 +345,10 @@ public class IcebergSinkConfig extends AbstractConfig {
     return getBoolean(TABLES_DYNAMIC_PROP);
   }
 
+  public <T extends RecordRouter> Class<T> tablesRouteWith() {
+    return (Class<T>) getClass(TABLES_ROUTE_WITH_PROP);
+  }
+
   public String tablesRouteField() {
     return getString(TABLES_ROUTE_FIELD_PROP);
   }
@@ -365,6 +379,11 @@ public class IcebergSinkConfig extends AbstractConfig {
           String routeRegexStr = tableConfig.get(ROUTE_REGEX);
           Pattern routeRegex = routeRegexStr == null ? null : Pattern.compile(routeRegexStr);
 
+          String topics = tableConfig.get(TOPICS);
+
+          String topicRegexStr = tableConfig.get(TOPIC_REGEX);
+          Pattern topicRegex = topicRegexStr == null ? null : Pattern.compile(topicRegexStr);
+
           String idColumnsStr = tableConfig.getOrDefault(ID_COLUMNS, tablesDefaultIdColumns());
           List<String> idColumns = stringToList(idColumnsStr, ",");
 
@@ -375,7 +394,8 @@ public class IcebergSinkConfig extends AbstractConfig {
           String commitBranch =
               tableConfig.getOrDefault(COMMIT_BRANCH, tablesDefaultCommitBranch());
 
-          return new TableSinkConfig(routeRegex, idColumns, partitionBy, commitBranch);
+          return new TableSinkConfig(
+              routeRegex, topics, topicRegex, idColumns, partitionBy, commitBranch);
         });
   }
 
