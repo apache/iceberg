@@ -1304,13 +1304,12 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     table.updateSpec().addField(Expressions.bucket("data", 16)).commit();
     table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
     table.updateSpec().addField("data").commit();
-    assertThat(table.specs().size()).as("Should have 3 total specs").isEqualTo(3);
+    assertThat(table.specs()).as("Should have 3 total specs").hasSize(3);
     PartitionSpec current = table.spec();
     table.expireSnapshots().cleanExpiredMeta(true).commit();
 
     Table loaded = catalog.loadTable(TABLE);
-    assertThat(loaded.specs().values())
-        .hasSameElementsAs(Lists.asList(spec, current, new PartitionSpec[0]));
+    assertThat(loaded.specs().values()).containsExactly(spec, current);
   }
 
   @Test

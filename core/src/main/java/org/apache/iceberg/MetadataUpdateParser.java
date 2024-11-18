@@ -128,7 +128,7 @@ public class MetadataUpdateParser {
   private static final String VIEW_VERSION_ID = "view-version-id";
 
   // RemovePartitionSpecs
-  private static final String PARTITION_SPEC_IDS = "partition-spec-ids";
+  private static final String SPEC_IDS = "spec-ids";
 
   private static final Map<Class<? extends MetadataUpdate>, String> ACTIONS =
       ImmutableMap.<Class<? extends MetadataUpdate>, String>builder()
@@ -321,7 +321,7 @@ public class MetadataUpdateParser {
       case SET_CURRENT_VIEW_VERSION:
         return readCurrentViewVersionId(jsonNode);
       case REMOVE_PARTITION_SPECS:
-        return readRemoveUnusedSpecs(jsonNode);
+        return readRemovePartitionSpecs(jsonNode);
       default:
         throw new UnsupportedOperationException(
             String.format("Cannot convert metadata update action to json: %s", action));
@@ -459,7 +459,7 @@ public class MetadataUpdateParser {
 
   private static void writeRemovePartitionSpecs(
       MetadataUpdate.RemovePartitionSpecs metadataUpdate, JsonGenerator gen) throws IOException {
-    JsonUtil.writeIntegerArray(PARTITION_SPEC_IDS, metadataUpdate.specIds(), gen);
+    JsonUtil.writeIntegerArray(SPEC_IDS, metadataUpdate.specIds(), gen);
   }
 
   private static MetadataUpdate readAssignUUID(JsonNode node) {
@@ -612,8 +612,7 @@ public class MetadataUpdateParser {
     return new MetadataUpdate.SetCurrentViewVersion(JsonUtil.getInt(VIEW_VERSION_ID, node));
   }
 
-  private static MetadataUpdate readRemoveUnusedSpecs(JsonNode node) {
-    return new MetadataUpdate.RemovePartitionSpecs(
-        JsonUtil.getIntegerSet(PARTITION_SPEC_IDS, node));
+  private static MetadataUpdate readRemovePartitionSpecs(JsonNode node) {
+    return new MetadataUpdate.RemovePartitionSpecs(JsonUtil.getIntegerSet(SPEC_IDS, node));
   }
 }

@@ -1671,9 +1671,9 @@ public class TestRemoveSnapshots extends TestBase {
             file.location(),
             append.manifestListLocation(),
             delete.manifestListLocation());
-    assertThat(Iterables.getOnlyElement(table.specs().keySet()))
+    assertThat(table.specs().keySet())
         .as("Only id_bucket + data_bucket transform should exist")
-        .isEqualTo(idAndDataBucketSpec.specId());
+        .containsExactly(idAndDataBucketSpec.specId());
   }
 
   @TestTemplate
@@ -1700,9 +1700,9 @@ public class TestRemoveSnapshots extends TestBase {
         .commit();
 
     assertThat(deletedFiles).containsExactlyInAnyOrder(append.manifestListLocation());
-    assertThat(Iterables.getOnlyElement(table.specs().keySet()))
+    assertThat(table.specs().keySet())
         .as("Only data_bucket transform should exist")
-        .isEqualTo(dataBucketSpec.specId());
+        .containsExactly(dataBucketSpec.specId());
   }
 
   private Set<String> manifestPaths(Snapshot snapshot, FileIO io) {
