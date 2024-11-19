@@ -34,7 +34,6 @@ import org.apache.iceberg.util.DataFileSet;
 /** {@link AppendFiles Append} implementation that adds a new manifest file for the write. */
 class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private final String tableName;
-  private final TableOperations ops;
   private final PartitionSpec spec;
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
   private final DataFileSet newFiles = DataFileSet.create();
@@ -46,8 +45,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   FastAppend(String tableName, TableOperations ops) {
     super(ops);
     this.tableName = tableName;
-    this.ops = ops;
-    this.spec = ops.current().spec();
+    this.spec = ops().current().spec();
   }
 
   @Override
@@ -69,7 +67,8 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   @Override
   protected Map<String, String> summary() {
     summaryBuilder.setPartitionSummaryLimit(
-        ops.current()
+        ops()
+            .current()
             .propertyAsInt(
                 TableProperties.WRITE_PARTITION_SUMMARY_LIMIT,
                 TableProperties.WRITE_PARTITION_SUMMARY_LIMIT_DEFAULT));
@@ -118,8 +117,8 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   }
 
   private ManifestFile copyManifest(ManifestFile manifest) {
-    TableMetadata current = ops.current();
-    InputFile toCopy = ops.io().newInputFile(manifest);
+    TableMetadata current = ops().current();
+    InputFile toCopy = ops().io().newInputFile(manifest);
     EncryptedOutputFile newManifestFile = newManifestOutputFile();
     return ManifestFiles.copyAppendManifest(
         current.formatVersion(),
@@ -151,7 +150,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     Iterables.addAll(manifests, appendManifestsWithMetadata);
 
     if (snapshot != null) {
-      manifests.addAll(snapshot.allManifests(ops.io()));
+      manifests.addAll(snapshot.allManifests(ops().io()));
     }
 
     return manifests;
@@ -160,7 +159,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   @Override
   public Object updateEvent() {
     long snapshotId = snapshotId();
-    Snapshot snapshot = ops.current().snapshot(snapshotId);
+    Snapshot snapshot = ops().current().snapshot(snapshotId);
     long sequenceNumber = snapshot.sequenceNumber();
     return new CreateSnapshotEvent(
         tableName, operation(), snapshotId, sequenceNumber, snapshot.summary());
