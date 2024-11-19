@@ -103,7 +103,7 @@ public class SparkPositionDeletesRewrite implements Write {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.queryId = writeInfo.queryId();
-    this.format = writeConf.deleteFileFormat();
+    this.format = table.formatVersion() >= 3 ? FileFormat.PUFFIN : writeConf.deleteFileFormat();
     this.targetFileSize = writeConf.targetDeleteFileSize();
     this.deleteGranularity = writeConf.deleteGranularity();
     this.writeSchema = writeSchema;
