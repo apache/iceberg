@@ -27,6 +27,7 @@ import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.BiFunction;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
@@ -232,7 +233,8 @@ public final class PartitionStatsHandler {
             ((HasTableOperations) table)
                 .operations()
                 .metadataFileLocation(
-                    fileFormat.addExtension(String.format("partition-stats-%d", snapshotId))));
+                    fileFormat.addExtension(
+                        String.format(Locale.ROOT, "partition-stats-%d", snapshotId))));
   }
 
   private static PartitionStatsRecord recordToPartitionStatsRecord(Record record) {
