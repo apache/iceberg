@@ -1,0 +1,63 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+  branches:
+    include:
+      - cccs-release
+      - iceberg-*
+
+pr:
+  branches:
+    include:
+      - cccs-release
+      - iceberg-*
+
+pool:
+  vmImage: ubuntu-latest
+
+
+variables:
+  - group: MAVEN_PUBLISH_ARGS
+  - name: isPublish
+    value: $[eq(variables['Build.SourceBranch'], 'refs/heads/cccs-release')]
+
+steps:
+  - task: Gradle@2
+    displayName: 'Build org.cccs.iceberg'
+    inputs:
+      workingDirectory: ''
+      gradleWrapperFile: 'gradlew'
+      gradleOptions: '-Xmx3072m'
+      javaHomeOption: 'JDKVersion'
+      jdkVersionOption: '1.8'
+      jdkArchitectureOption: 'x64'
+      publishJUnitResults: true
+      testResultsFiles: '**/TEST-*.xml'
+      tasks: 'build -x test -x integrationTest'
+  - script: |
+      ./cccs-publish.sh
+    condition: succeeded()
+    displayName: 'Copy spark jars'    
+  - task: PublishBuildArtifacts@1
+    condition: succeeded()
+    inputs:
+      PathtoPublish: "$(Build.SourcesDirectory)/build"
+      ArtifactName: "iceberg"
+      publishLocation: "Container"    
+  - task: Gradle@2
+    displayName: 'Publish org.cccs.iceberg'
+    condition: and(succeeded(), eq(variables.isPublish, true))
+    inputs:
+      workingDirectory: ''
+      gradleWrapperFile: 'gradlew'
+      gradleOptions: '-Xmx3072m'
+      javaHomeOption: 'JDKVersion'
+      jdkVersionOption: '1.8'
+      jdkArchitectureOption: 'x64'
+      publishJUnitResults: true
+      testResultsFiles: '**/TEST-*.xml'
+      tasks: 'publish'
+      options: '-PmavenUser=$(MAVENUSER) -PmavenPassword=$(MAVENPWD)'

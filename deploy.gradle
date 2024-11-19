@@ -17,13 +17,17 @@
  * under the License.
  */
 
-if (project.hasProperty('release') && jdkVersion != '11') {
-  throw new GradleException("Releases must be built with Java 11")
+if (project.hasProperty('release') && jdkVersion != '8') {
+  throw new GradleException("Releases must be built with Java 8")
 }
 
 subprojects {
+  if (it.name == 'iceberg-open-api') {
+    // don't publish iceberg-open-api
+    return
+  }
+
   def isBom = it.name == 'iceberg-bom'
-  def isOpenApi = it.name == 'iceberg-open-api'
 
   apply plugin: 'maven-publish'
   apply plugin: 'signing'
@@ -72,9 +76,6 @@ subprojects {
         apache(MavenPublication) {
           if (isBom) {
             from components.javaPlatform
-          } else if (isOpenApi) {
-            artifact testJar
-            artifact testFixturesJar
           } else {
             if (tasks.matching({task -> task.name == 'shadowJar'}).isEmpty()) {
               from components.java
@@ -93,7 +94,10 @@ subprojects {
             }
           }
 
-          groupId = 'org.apache.iceberg'
+          // CCCS modification starts
+          groupId = 'cccs.ap.iceberg'
+          version = "1.7.0.0-SNAPSHOT"
+          // CCCS modification ends
           pom {
             name = 'Apache Iceberg'
             description = 'A table format for huge analytic datasets'
@@ -120,20 +124,35 @@ subprojects {
         }
       }
 
+      // CCCS modification: starts
+      // repositories {
+      //   maven {
+      //     credentials {
+      //       username project.hasProperty('mavenUser') ? "$mavenUser" : ""
+      //       password project.hasProperty('mavenPassword') ? "$mavenPassword" : ""
+      //     }
+      //     // upload to the releases repository using ./gradlew -Prelease publish
+      //     def apacheSnapshotsRepoUrl = 'https://repository.apache.org/content/repositories/snapshots'
+      //     def apacheReleasesRepoUrl = 'https://repository.apache.org/service/local/staging/deploy/maven2'
+      //     def snapshotsRepoUrl = project.hasProperty('mavenSnapshotsRepo') ? "$mavenSnapshotsRepo" : "$apacheSnapshotsRepoUrl"
+      //     def releasesRepoUrl = project.hasProperty('mavenReleasesRepo') ? "$mavenReleasesRepo" : "$apacheReleasesRepoUrl"
+      //     url = project.hasProperty('release') ? releasesRepoUrl : snapshotsRepoUrl
+      //   }
+      // }
       repositories {
         maven {
+          url 'https://pkgs.dev.azure.com/cccs-stratus/_packaging/cccs-stratus/maven/v1'
+          name 'cccs-stratus'
+          authentication {
+            basic(BasicAuthentication)
+          }          
           credentials {
-            username project.hasProperty('mavenUser') ? "$mavenUser" : ""
-            password project.hasProperty('mavenPassword') ? "$mavenPassword" : ""
+            username project.findProperty('mavenUser')
+            password project.findProperty('mavenPassword')
           }
-          // upload to the releases repository using ./gradlew -Prelease publish
-          def apacheSnapshotsRepoUrl = 'https://repository.apache.org/content/repositories/snapshots'
-          def apacheReleasesRepoUrl = 'https://repository.apache.org/service/local/staging/deploy/maven2'
-          def snapshotsRepoUrl = project.hasProperty('mavenSnapshotsRepo') ? "$mavenSnapshotsRepo" : "$apacheSnapshotsRepoUrl"
-          def releasesRepoUrl = project.hasProperty('mavenReleasesRepo') ? "$mavenReleasesRepo" : "$apacheReleasesRepoUrl"
-          url = project.hasProperty('release') ? releasesRepoUrl : snapshotsRepoUrl
         }
-      }
+      }      
+      // CCCS modification: ends
     }
 
     if (project.hasProperty('release')) {
