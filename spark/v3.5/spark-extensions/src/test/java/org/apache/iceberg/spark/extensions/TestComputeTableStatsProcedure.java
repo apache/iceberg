@@ -117,8 +117,7 @@ public class TestComputeTableStatsProcedure extends ExtensionsTestBase {
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     StatisticsFile statisticsFile = table.statisticsFiles().get(0);
     BlobMetadata blobMetadata = statisticsFile.blobMetadata().get(0);
-    assertThat(
-            blobMetadata.properties().get(NDVSketchUtil.APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY))
-        .isNotNull();
+    assertThat(blobMetadata.properties())
+        .containsKey(NDVSketchUtil.APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY);
   }
 }
