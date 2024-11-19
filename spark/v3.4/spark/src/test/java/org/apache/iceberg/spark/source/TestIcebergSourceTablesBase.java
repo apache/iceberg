@@ -2205,15 +2205,15 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     long s1 = table.currentSnapshot().snapshotId();
 
     withSQLConf(
-            // set write option through session configuration
-            ImmutableMap.of("spark.datasource.iceberg.snapshot-property.foo", "bar"),
-            () -> {
-              df.select("id", "data")
-                      .write()
-                      .format("iceberg")
-                      .mode(SaveMode.Append)
-                      .save(loadLocation(tableIdentifier));
-            });
+        // set write option through session configuration
+        ImmutableMap.of("spark.datasource.iceberg.snapshot-property.foo", "bar"),
+        () -> {
+          df.select("id", "data")
+              .write()
+              .format("iceberg")
+              .mode(SaveMode.Append)
+              .save(loadLocation(tableIdentifier));
+        });
 
     table.refresh();
     Assert.assertEquals("bar", table.currentSnapshot().summary().get("foo"));
@@ -2222,8 +2222,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         // set read option through session configuration
         ImmutableMap.of("spark.datasource.iceberg.snapshot-id", String.valueOf(s1)),
         () -> {
-          Dataset<Row> result =
-              spark.read().format("iceberg").load(loadLocation(tableIdentifier));
+          Dataset<Row> result = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
           List<SimpleRecord> actual = result.as(Encoders.bean(SimpleRecord.class)).collectAsList();
           Assert.assertEquals("Number of rows should match", initialRecords.size(), actual.size());
           Assert.assertEquals("Result rows should match", initialRecords, actual);
