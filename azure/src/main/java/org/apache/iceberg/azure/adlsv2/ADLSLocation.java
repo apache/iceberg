@@ -39,13 +39,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * For compatibility, locations using the wasb scheme are also accepted but will use the Azure Data
  * Lake Storage Gen2 REST APIs instead of the Blob Storage REST APIs.
  *
- * or
- *
- * <pre>{@code wasb[s]://<container>@<storageAccount>.blob.core.windows.net/<path>}</pre>
- *
- * For compatibility, locations using the wasb scheme are also accepted but will use the Azure Data
- * Lake Storage Gen2 REST APIs instead of the Blob Storage REST APIs.
- *
  * <p>See <a
  * href="https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-introduction-abfs-uri#uri-syntax">Azure
  * Data Lake Storage URI</a>
