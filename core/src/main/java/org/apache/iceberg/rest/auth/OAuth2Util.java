@@ -54,11 +54,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class OAuth2Util {
-  private OAuth2Util() {}
+  private OAuth2Util() {
+  }
 
   private static final Logger LOG = LoggerFactory.getLogger(OAuth2Util.class);
 
-  // valid scope tokens are from ascii 0x21 to 0x7E, excluding 0x22 (") and 0x5C (\)
+  // valid scope tokens are from ascii 0x21 to 0x7E, excluding 0x22 (") and 0x5C
+  // (\)
   private static final Pattern VALID_SCOPE_TOKEN = Pattern.compile("^[!-~&&[^\"\\\\]]+$");
   private static final Splitter SCOPE_DELIMITER = Splitter.on(" ");
   private static final Joiner SCOPE_JOINER = Joiner.on(" ");
@@ -70,7 +72,11 @@ public class OAuth2Util {
   private static final Splitter CREDENTIAL_SPLITTER = Splitter.on(":").limit(2).trimResults();
   private static final String GRANT_TYPE = "grant_type";
   private static final String CLIENT_CREDENTIALS = "client_credentials";
-  private static final String TOKEN_EXCHANGE = "urn:ietf:params:oauth:grant-type:token-exchange";
+  // CCCS EDIT
+  private static final String TOKEN_EXCHANGE = "urn:ietf:params:oauth:grant-type:jwt-bearer";
+  private static final String REQUESTED_TOKEN_USE = "requested_token_use";
+  private static final String ON_BEHALF_OF = "on_behalf_of";
+  // END CCCS EDIT
   private static final String SCOPE = "scope";
 
   // Client credentials flow
@@ -82,14 +88,13 @@ public class OAuth2Util {
   private static final String SUBJECT_TOKEN_TYPE = "subject_token_type";
   private static final String ACTOR_TOKEN = "actor_token";
   private static final String ACTOR_TOKEN_TYPE = "actor_token_type";
-  private static final Set<String> VALID_TOKEN_TYPES =
-      Sets.newHashSet(
-          OAuth2Properties.ACCESS_TOKEN_TYPE,
-          OAuth2Properties.REFRESH_TOKEN_TYPE,
-          OAuth2Properties.ID_TOKEN_TYPE,
-          OAuth2Properties.SAML1_TOKEN_TYPE,
-          OAuth2Properties.SAML2_TOKEN_TYPE,
-          OAuth2Properties.JWT_TOKEN_TYPE);
+  private static final Set<String> VALID_TOKEN_TYPES = Sets.newHashSet(
+      OAuth2Properties.ACCESS_TOKEN_TYPE,
+      OAuth2Properties.REFRESH_TOKEN_TYPE,
+      OAuth2Properties.ID_TOKEN_TYPE,
+      OAuth2Properties.SAML1_TOKEN_TYPE,
+      OAuth2Properties.SAML2_TOKEN_TYPE,
+      OAuth2Properties.JWT_TOKEN_TYPE);
 
   // response serialization
   private static final String ACCESS_TOKEN = "access_token";
@@ -130,9 +135,9 @@ public class OAuth2Util {
 
   public static Map<String, String> buildOptionalParam(Map<String, String> properties) {
     // these are some options oauth params based on specification
-    // for any new optional oauth param, define the constant and add the constant to this list
-    Set<String> optionalParamKeys =
-        ImmutableSet.of(OAuth2Properties.AUDIENCE, OAuth2Properties.RESOURCE);
+    // for any new optional oauth param, define the constant and add the constant to
+    // this list
+    Set<String> optionalParamKeys = ImmutableSet.of(OAuth2Properties.AUDIENCE, OAuth2Properties.RESOURCE);
     ImmutableMap.Builder<String, String> optionalParamBuilder = ImmutableMap.builder();
     // add scope too,
     optionalParamBuilder.put(
@@ -156,20 +161,18 @@ public class OAuth2Util {
       String scope,
       String oauth2ServerUri,
       Map<String, String> optionalOAuthParams) {
-    Map<String, String> request =
-        tokenExchangeRequest(
-            subjectToken,
-            subjectTokenType,
-            scope != null ? ImmutableList.of(scope) : ImmutableList.of(),
-            optionalOAuthParams);
+    Map<String, String> request = tokenExchangeRequest(
+        subjectToken,
+        subjectTokenType,
+        scope != null ? ImmutableList.of(scope) : ImmutableList.of(),
+        optionalOAuthParams);
 
-    OAuthTokenResponse response =
-        client.postForm(
-            oauth2ServerUri,
-            request,
-            OAuthTokenResponse.class,
-            headers,
-            ErrorHandlers.oauthErrorHandler());
+    OAuthTokenResponse response = client.postForm(
+        oauth2ServerUri,
+        request,
+        OAuthTokenResponse.class,
+        headers,
+        ErrorHandlers.oauthErrorHandler());
     response.validate();
 
     return response;
@@ -185,22 +188,20 @@ public class OAuth2Util {
       String scope,
       String oauth2ServerUri,
       Map<String, String> optionalParams) {
-    Map<String, String> request =
-        tokenExchangeRequest(
-            subjectToken,
-            subjectTokenType,
-            actorToken,
-            actorTokenType,
-            scope != null ? ImmutableList.of(scope) : ImmutableList.of(),
-            optionalParams);
+    Map<String, String> request = tokenExchangeRequest(
+        subjectToken,
+        subjectTokenType,
+        actorToken,
+        actorTokenType,
+        scope != null ? ImmutableList.of(scope) : ImmutableList.of(),
+        optionalParams);
 
-    OAuthTokenResponse response =
-        client.postForm(
-            oauth2ServerUri,
-            request,
-            OAuthTokenResponse.class,
-            headers,
-            ErrorHandlers.oauthErrorHandler());
+    OAuthTokenResponse response = client.postForm(
+        oauth2ServerUri,
+        request,
+        OAuthTokenResponse.class,
+        headers,
+        ErrorHandlers.oauthErrorHandler());
     response.validate();
 
     return response;
@@ -254,19 +255,17 @@ public class OAuth2Util {
       String scope,
       String oauth2ServerUri,
       Map<String, String> optionalParams) {
-    Map<String, String> request =
-        clientCredentialsRequest(
-            credential,
-            scope != null ? ImmutableList.of(scope) : ImmutableList.of(),
-            optionalParams);
+    Map<String, String> request = clientCredentialsRequest(
+        credential,
+        scope != null ? ImmutableList.of(scope) : ImmutableList.of(),
+        optionalParams);
 
-    OAuthTokenResponse response =
-        client.postForm(
-            oauth2ServerUri,
-            request,
-            OAuthTokenResponse.class,
-            headers,
-            ErrorHandlers.oauthErrorHandler());
+    OAuthTokenResponse response = client.postForm(
+        oauth2ServerUri,
+        request,
+        OAuthTokenResponse.class,
+        headers,
+        ErrorHandlers.oauthErrorHandler());
     response.validate();
 
     return response;
@@ -314,6 +313,9 @@ public class OAuth2Util {
 
     ImmutableMap.Builder<String, String> formData = ImmutableMap.builder();
     formData.put(GRANT_TYPE, TOKEN_EXCHANGE);
+    // CCCS EDIT
+    formData.put(REQUESTED_TOKEN_USE, ON_BEHALF_OF);
+    // END CCCS EDIT
     formData.put(SCOPE, toScope(scopes));
     formData.put(SUBJECT_TOKEN, subjectToken);
     formData.put(SUBJECT_TOKEN_TYPE, subjectTokenType);
@@ -402,11 +404,10 @@ public class OAuth2Util {
     Preconditions.checkArgument(
         json.isObject(), "Cannot parse token response from non-object: %s", json);
 
-    OAuthTokenResponse.Builder builder =
-        OAuthTokenResponse.builder()
-            .withToken(JsonUtil.getString(ACCESS_TOKEN, json))
-            .withTokenType(JsonUtil.getString(TOKEN_TYPE, json))
-            .withIssuedTokenType(JsonUtil.getStringOrNull(ISSUED_TOKEN_TYPE, json));
+    OAuthTokenResponse.Builder builder = OAuthTokenResponse.builder()
+        .withToken(JsonUtil.getString(ACCESS_TOKEN, json))
+        .withTokenType(JsonUtil.getString(TOKEN_TYPE, json))
+        .withIssuedTokenType(JsonUtil.getStringOrNull(ISSUED_TOKEN_TYPE, json));
 
     if (json.has(EXPIRES_IN)) {
       builder.setExpirationInSeconds(JsonUtil.getInt(EXPIRES_IN, json));
@@ -420,10 +421,12 @@ public class OAuth2Util {
   }
 
   /**
-   * If the token is a JWT, extracts the expiration timestamp from the ext claim or null.
+   * If the token is a JWT, extracts the expiration timestamp from the ext claim
+   * or null.
    *
    * @param token a token String
-   * @return The epoch millisecond the token expires at or null if it's not a valid JWT.
+   * @return The epoch millisecond the token expires at or null if it's not a
+   *         valid JWT.
    */
   static Long expiresAtMillis(String token) {
     if (null == token) {
@@ -521,41 +524,40 @@ public class OAuth2Util {
      * Attempt to refresh the session token using the token exchange flow.
      *
      * @param client a RESTClient
-     * @return interval to wait before calling refresh again, or null if no refresh is needed
+     * @return interval to wait before calling refresh again, or null if no refresh
+     *         is needed
      */
     public Pair<Integer, TimeUnit> refresh(RESTClient client) {
       if (token() != null && config.keepRefreshed()) {
         AtomicReference<OAuthTokenResponse> ref = new AtomicReference<>(null);
-        boolean isSuccessful =
-            Tasks.foreach(ref)
-                .suppressFailureWhenFinished()
-                .retry(tokenRefreshNumRetries)
-                .onFailure(
-                    (holder, err) -> {
-                      // attempt to refresh using the client credential instead of the parent token
-                      holder.set(refreshExpiredToken(client));
-                      if (holder.get() == null) {
-                        LOG.warn("Failed to refresh token", err);
-                      }
-                    })
-                .exponentialBackoff(
-                    COMMIT_MIN_RETRY_WAIT_MS_DEFAULT,
-                    COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
-                    COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
-                    2.0 /* exponential */)
-                .run(holder -> holder.set(refreshCurrentToken(client)));
+        boolean isSuccessful = Tasks.foreach(ref)
+            .suppressFailureWhenFinished()
+            .retry(tokenRefreshNumRetries)
+            .onFailure(
+                (holder, err) -> {
+                  // attempt to refresh using the client credential instead of the parent token
+                  holder.set(refreshExpiredToken(client));
+                  if (holder.get() == null) {
+                    LOG.warn("Failed to refresh token", err);
+                  }
+                })
+            .exponentialBackoff(
+                COMMIT_MIN_RETRY_WAIT_MS_DEFAULT,
+                COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
+                COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
+                2.0 /* exponential */)
+            .run(holder -> holder.set(refreshCurrentToken(client)));
 
         if (!isSuccessful || ref.get() == null) {
           return null;
         }
 
         OAuthTokenResponse response = ref.get();
-        this.config =
-            AuthConfig.builder()
-                .from(config())
-                .token(response.token())
-                .tokenType(response.issuedTokenType())
-                .build();
+        this.config = AuthConfig.builder()
+            .from(config())
+            .token(response.token())
+            .tokenType(response.issuedTokenType())
+            .build();
         Map<String, String> currentHeaders = this.headers;
         this.headers = RESTUtil.merge(currentHeaders, authHeaders(config.token()));
 
@@ -586,8 +588,7 @@ public class OAuth2Util {
 
     private OAuthTokenResponse refreshExpiredToken(RESTClient client) {
       if (credential() != null) {
-        Map<String, String> basicHeaders =
-            RESTUtil.merge(headers(), basicAuthHeaders(credential()));
+        Map<String, String> basicHeaders = RESTUtil.merge(headers(), basicAuthHeaders(credential()));
         return refreshToken(
             client,
             basicHeaders,
@@ -604,9 +605,9 @@ public class OAuth2Util {
     /**
      * Schedule refresh for a token using an expiration interval.
      *
-     * @param client a RESTClient
-     * @param executor a ScheduledExecutorService in which to run the refresh
-     * @param session AuthSession to refresh
+     * @param client          a RESTClient
+     * @param executor        a ScheduledExecutorService in which to run the refresh
+     * @param session         AuthSession to refresh
      * @param expiresAtMillis The epoch millis at which the token expires at
      */
     @SuppressWarnings("FutureReturnValueIgnored")
@@ -645,14 +646,13 @@ public class OAuth2Util {
         String token,
         Long defaultExpiresAtMillis,
         AuthSession parent) {
-      AuthSession session =
-          new AuthSession(
-              parent.headers(),
-              AuthConfig.builder()
-                  .from(parent.config())
-                  .token(token)
-                  .tokenType(OAuth2Properties.ACCESS_TOKEN_TYPE)
-                  .build());
+      AuthSession session = new AuthSession(
+          parent.headers(),
+          AuthConfig.builder()
+              .from(parent.config())
+              .token(token)
+              .tokenType(OAuth2Properties.ACCESS_TOKEN_TYPE)
+              .build());
 
       long startTimeMillis = System.currentTimeMillis();
       Long expiresAtMillis = session.expiresAtMillis();
@@ -689,14 +689,13 @@ public class OAuth2Util {
         String credential,
         AuthSession parent) {
       long startTimeMillis = System.currentTimeMillis();
-      OAuthTokenResponse response =
-          fetchToken(
-              client,
-              parent.headers(),
-              credential,
-              parent.scope(),
-              parent.oauth2ServerUri(),
-              parent.optionalOAuthParams());
+      OAuthTokenResponse response = fetchToken(
+          client,
+          parent.headers(),
+          credential,
+          parent.scope(),
+          parent.oauth2ServerUri(),
+          parent.optionalOAuthParams());
       return fromTokenResponse(client, executor, response, startTimeMillis, parent, credential);
     }
 
@@ -725,15 +724,14 @@ public class OAuth2Util {
       if (issuedTokenType == null) {
         issuedTokenType = OAuth2Properties.ACCESS_TOKEN_TYPE;
       }
-      AuthSession session =
-          new AuthSession(
-              parent.headers(),
-              AuthConfig.builder()
-                  .from(parent.config())
-                  .token(response.token())
-                  .tokenType(issuedTokenType)
-                  .credential(credential)
-                  .build());
+      AuthSession session = new AuthSession(
+          parent.headers(),
+          AuthConfig.builder()
+              .from(parent.config())
+              .token(response.token())
+              .tokenType(issuedTokenType)
+              .credential(credential)
+              .build());
 
       Long expiresAtMillis = session.expiresAtMillis();
       if (null == expiresAtMillis && response.expiresInSeconds() != null) {
@@ -754,17 +752,16 @@ public class OAuth2Util {
         String tokenType,
         AuthSession parent) {
       long startTimeMillis = System.currentTimeMillis();
-      OAuthTokenResponse response =
-          exchangeToken(
-              client,
-              parent.headers(),
-              token,
-              tokenType,
-              parent.token(),
-              parent.tokenType(),
-              parent.scope(),
-              parent.oauth2ServerUri(),
-              parent.optionalOAuthParams());
+      OAuthTokenResponse response = exchangeToken(
+          client,
+          parent.headers(),
+          token,
+          tokenType,
+          parent.token(),
+          parent.tokenType(),
+          parent.scope(),
+          parent.oauth2ServerUri(),
+          parent.optionalOAuthParams());
       return fromTokenResponse(client, executor, response, startTimeMillis, parent);
     }
   }
