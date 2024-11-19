@@ -2205,44 +2205,28 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     long s1 = table.currentSnapshot().snapshotId();
 
     withSQLConf(
-        // set write option through session configuration
-        ImmutableMap.of("spark.datasource.iceberg.overwrite-mode", "dynamic"),
-        () -> {
-          // overwrite with 2*id to replace record 2, append 4 and 6
-          df.withColumn("id", df.col("id").multiply(2))
-              .select("id", "data")
-              .write()
-              .format("iceberg")
-              .mode(SaveMode.Overwrite)
-              .save(loadLocation(tableIdentifier));
-        });
+            // set write option through session configuration
+            ImmutableMap.of("spark.datasource.iceberg.snapshot-property.foo", "bar"),
+            () -> {
+              df.select("id", "data")
+                      .write()
+                      .format("iceberg")
+                      .mode(SaveMode.Append)
+                      .save(loadLocation(tableIdentifier));
+            });
 
     table.refresh();
-
-    Dataset<Row> result = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-    List<SimpleRecord> actual =
-        result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    List<SimpleRecord> expected =
-        Lists.newArrayList(
-            new SimpleRecord(1, "a"),
-            new SimpleRecord(2, "a"),
-            new SimpleRecord(3, "c"),
-            new SimpleRecord(4, "b"),
-            new SimpleRecord(6, "c"));
-    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
-    Assert.assertEquals("Result rows should match", expected, actual);
+    Assert.assertEquals("bar", table.currentSnapshot().summary().get("foo"));
 
     withSQLConf(
         // set read option through session configuration
         ImmutableMap.of("spark.datasource.iceberg.snapshot-id", String.valueOf(s1)),
         () -> {
-          Dataset<Row> s1Result =
+          Dataset<Row> result =
               spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-          List<SimpleRecord> s1Actual =
-              s1Result.as(Encoders.bean(SimpleRecord.class)).collectAsList();
-          Assert.assertEquals(
-              "Number of rows should match", initialRecords.size(), s1Actual.size());
-          Assert.assertEquals("Result rows should match", initialRecords, s1Actual);
+          List<SimpleRecord> actual = result.as(Encoders.bean(SimpleRecord.class)).collectAsList();
+          Assert.assertEquals("Number of rows should match", initialRecords.size(), actual.size());
+          Assert.assertEquals("Result rows should match", initialRecords, actual);
         });
   }
 
