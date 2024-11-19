@@ -74,6 +74,9 @@ public class TestRowDelta extends V2TableTestBase {
     assertThat(snap.sequenceNumber()).isEqualTo(1);
     assertThat(snap.operation()).isEqualTo(DataOperations.DELETE);
     assertThat(snap.deleteManifests(table.io())).hasSize(1);
+    assertThat(snap.dataManifests(table.io())).hasSize(0);
+    assertThat(snap.addedDeleteFiles(table.io())).hasSize(2);
+    assertThat(snap.addedDataFiles(table.io())).hasSize(0);
   }
 
   @TestTemplate
