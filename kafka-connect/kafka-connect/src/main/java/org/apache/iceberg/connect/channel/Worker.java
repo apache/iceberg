@@ -51,7 +51,7 @@ class Worker extends Channel {
     // pass transient consumer group ID to which we never commit offsets
     super(
         "worker",
-        IcebergSinkConfig.DEFAULT_CONTROL_GROUP_PREFIX + UUID.randomUUID(),
+        config.prefixControlGroup() + UUID.randomUUID(),
         config,
         clientFactory,
         context);
