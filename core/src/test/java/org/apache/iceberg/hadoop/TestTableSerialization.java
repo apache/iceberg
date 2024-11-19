@@ -67,6 +67,7 @@ public class TestTableSerialization extends HadoopTableTestBase {
     assertThat(serializableTable).isInstanceOf(HasTableOperations.class);
     assertThat(((HasTableOperations) serializableTable).operations())
         .isInstanceOf(StaticTableOperations.class);
+    assertThat(serializableTable.formatVersion()).isEqualTo(2);
   }
 
   @Test
@@ -106,6 +107,7 @@ public class TestTableSerialization extends HadoopTableTestBase {
       assertThatThrownBy(() -> ((HasTableOperations) serializableTable).operations())
           .isInstanceOf(UnsupportedOperationException.class)
           .hasMessageEndingWith("does not support operations()");
+      assertThat(serializableTable.formatVersion()).isEqualTo(2);
     }
   }
 

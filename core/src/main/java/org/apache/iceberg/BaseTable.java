@@ -280,6 +280,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
     return name();
   }
 
+  @Override
+  public int formatVersion() {
+    return ops.current().formatVersion();
+  }
+
   Object writeReplace() {
     return SerializableTable.copyOf(this);
   }

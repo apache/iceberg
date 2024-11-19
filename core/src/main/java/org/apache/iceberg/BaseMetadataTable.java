@@ -212,6 +212,11 @@ public abstract class BaseMetadataTable extends BaseReadOnlyTable implements Ser
     return name();
   }
 
+  @Override
+  public int formatVersion() {
+    return table().formatVersion();
+  }
+
   final Object writeReplace() {
     return SerializableTable.copyOf(this);
   }
