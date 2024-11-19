@@ -1356,4 +1356,44 @@ public class TestExpireSnapshotsAction extends TestBase {
     assertThat(deletedFiles).doesNotContain(FILE_C.location());
     assertThat(deletedFiles).doesNotContain(FILE_D.location());
   }
+
+  @Test
+  public void testDeletedFileSize() throws Exception {
+    table.newAppend().appendFile(FILE_A).commit();
+    long t1 = rightAfterSnapshot();
+    table.newAppend().appendFile(FILE_B).commit();
+
+    table.newDelete().deleteFile(FILE_A).commit();
+    long t2 = rightAfterSnapshot();
+
+    ExpireSnapshots.Result resultsPre =
+        SparkActions.get().expireSnapshots(table).expireOlderThan(t1).execute();
+    checkExpirationResults(0L, 0L, 0L, 0L, 1L, resultsPre);
+
+    ExpireSnapshots.Result results =
+        SparkActions.get().expireSnapshots(table).expireOlderThan(t2).retainLast(1).execute();
+    checkExpirationResults(1L, 0L, 0L, 1L, 1L, results);
+
+    assertThat(table.snapshots())
+        .as("Table does not have one snapshot after expiration")
+        .hasSize(1);
+    assertThat(results.deletedFilesSizeInBytes())
+        .as("Expire snapshot result does not have 10 as deleted file size bytes")
+        .isEqualTo(10);
+
+    table.newAppend().appendFile(FILE_C).commit();
+    long t3 = rightAfterSnapshot();
+
+    ExpireSnapshots.Result results2 =
+        SparkActions.get().expireSnapshots(table).expireOlderThan(t3).execute();
+    checkExpirationResults(1L, 0L, 0L, 1L, 2L, results);
+    assertThat(table.snapshots())
+        .as("Table does not have one snapshot after expiration")
+        .hasSize(1);
+    assertThat(results2.deletedFilesSizeInBytes())
+        .as("Expire snapshot result does not have 20 as deleted file size bytes")
+        .isEqualTo(20);
+
+    table.newAppend().appendFile(FILE_D).commit();
+  }
 }

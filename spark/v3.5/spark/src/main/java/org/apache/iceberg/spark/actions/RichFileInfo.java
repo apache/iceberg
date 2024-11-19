@@ -16,28 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.io;
+package org.apache.iceberg.spark.actions;
 
-import java.util.ArrayList;
-import java.util.Collection;
+public class RichFileInfo extends FileInfo {
+  private long sizeInBytes;
 
-public interface SupportsBulkOperations extends FileIO {
-  /**
-   * Delete the files at the given paths.
-   *
-   * @param pathsToDelete The paths to delete
-   * @throws BulkDeletionFailureException in case of failure to delete at least 1 file
-   */
-  void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException;
+  public RichFileInfo(String path, String type, long sizeInBytes) {
+    super(path, type); // Call constructor of superclass FileInfo
+    this.sizeInBytes = sizeInBytes;
+  }
 
-  default void deleteFilesWithSummary(Iterable<FileInfoSummary> pathsToDelete)
-      throws BulkDeletionFailureException {
-    Collection<String> paths = new ArrayList<>();
-
-    for (FileInfoSummary fileInfo : pathsToDelete) {
-      paths.add(fileInfo.location());
-    }
-
-    deleteFiles(paths);
+  // Getter and setter for sizeInBytes
+  public long sizeInBytes() {
+    return sizeInBytes;
   }
 }
