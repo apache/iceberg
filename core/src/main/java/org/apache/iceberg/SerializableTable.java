@@ -69,6 +69,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   private transient volatile Map<Integer, PartitionSpec> lazySpecs = null;
   private transient volatile SortOrder lazySortOrder = null;
   private final UUID uuid;
+  private final int formatVersion;
 
   protected SerializableTable(Table table) {
     this.name = table.name();
@@ -85,6 +86,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     this.encryption = table.encryption();
     this.refs = SerializableMap.copyOf(table.refs());
     this.uuid = table.uuid();
+    this.formatVersion = table.formatVersion();
   }
 
   /**
@@ -266,6 +268,11 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   @Override
   public UUID uuid() {
     return uuid;
+  }
+
+  @Override
+  public int formatVersion() {
+    return formatVersion;
   }
 
   @Override
