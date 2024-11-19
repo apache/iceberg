@@ -45,7 +45,7 @@ import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.parser.ParseException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -694,25 +694,21 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_data_files('n', table => 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Named and positional arguments cannot be mixed");
+        .hasMessage("Named and positional arguments cannot be mixed");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.rewrite_data_files('n', 't')", catalogName))
-        .isInstanceOf(ParseException.class)
-        .satisfies(
-            exception -> {
-              ParseException parseException = (ParseException) exception;
-              assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
-              assertThat(parseException.getMessageParameters().get("error")).isEqualTo("'CALL'");
-            });
+        .isInstanceOf(NoSuchProcedureException.class)
+        .hasMessage("Procedure custom.rewrite_data_files not found");
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files()", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Missing required parameters: [table]");
+        .hasMessageContaining("Missing required parameters: [table]");
 
     assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_data_files(table => 't', table => 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageEndingWith("Duplicate procedure argument: table");
+        .hasMessageEndingWith(
+            "Could not build name to arg map: Duplicate procedure argument: table");
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
@@ -899,7 +895,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .containsKey(CatalogProperties.APP_ID)
         .containsEntry(EnvironmentContext.ENGINE_NAME, "spark")
         .hasEntrySatisfying(
-            EnvironmentContext.ENGINE_VERSION, v -> assertThat(v).startsWith("3.5"));
+            EnvironmentContext.ENGINE_VERSION, v -> assertThat(v).startsWith("4.0"));
   }
 
   private void createTable() {

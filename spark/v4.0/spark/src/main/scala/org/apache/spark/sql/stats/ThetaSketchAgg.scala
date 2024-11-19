@@ -29,6 +29,7 @@ import org.apache.datasketches.theta.UpdateSketch
 import org.apache.iceberg.spark.SparkSchemaUtil
 import org.apache.iceberg.types.Conversions
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.analysis
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.aggregate.ImperativeAggregate
 import org.apache.spark.sql.catalyst.expressions.aggregate.TypedImperativeAggregate
@@ -56,7 +57,7 @@ case class ThetaSketchAgg(
   private lazy val icebergType = SparkSchemaUtil.convert(child.dataType)
 
   def this(colName: String) = {
-    this(col(colName).expr, 0, 0)
+    this(analysis.UnresolvedAttribute.quotedString(colName), 0, 0)
   }
 
   override def dataType: DataType = BinaryType

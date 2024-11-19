@@ -29,11 +29,13 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.catalyst.expressions.ApplyFunctionExpression;
 import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.expressions.objects.StaticInvoke;
@@ -228,7 +230,12 @@ public class TestSystemFunctionPushDownInRowLevelOperations extends ExtensionsTe
               DistributionMode.NONE.modeName());
 
           Dataset<Row> changeDF = spark.table(tableName).where(cond).limit(2).select("id");
-          changeDF.coalesce(1).writeTo(tableName(CHANGES_TABLE_NAME)).create();
+          try {
+            changeDF.coalesce(1).writeTo(tableName(CHANGES_TABLE_NAME)).create();
+          } catch (TableAlreadyExistsException e) {
+            throw new AlreadyExistsException(
+                "Cannot create table %s as it already exists", CHANGES_TABLE_NAME);
+          }
 
           List<Expression> calls =
               executeAndCollectFunctionCalls(
@@ -260,7 +267,12 @@ public class TestSystemFunctionPushDownInRowLevelOperations extends ExtensionsTe
               DistributionMode.NONE.modeName());
 
           Dataset<Row> changeDF = spark.table(tableName).where(cond).limit(2).select("id");
-          changeDF.coalesce(1).writeTo(tableName(CHANGES_TABLE_NAME)).create();
+          try {
+            changeDF.coalesce(1).writeTo(tableName(CHANGES_TABLE_NAME)).create();
+          } catch (TableAlreadyExistsException e) {
+            throw new AlreadyExistsException(
+                "Cannot create table %s as it already exists", CHANGES_TABLE_NAME);
+          }
 
           List<Expression> calls =
               executeAndCollectFunctionCalls(
@@ -291,7 +303,12 @@ public class TestSystemFunctionPushDownInRowLevelOperations extends ExtensionsTe
 
           Dataset<Row> changeDF =
               spark.table(tableName).where(cond).limit(2).selectExpr("id + 1 as id");
-          changeDF.coalesce(1).writeTo(tableName(CHANGES_TABLE_NAME)).create();
+          try {
+            changeDF.coalesce(1).writeTo(tableName(CHANGES_TABLE_NAME)).create();
+          } catch (TableAlreadyExistsException e) {
+            throw new AlreadyExistsException(
+                "Cannot create table %s as it already exists", CHANGES_TABLE_NAME);
+          }
 
           List<Expression> calls =
               executeAndCollectFunctionCalls(

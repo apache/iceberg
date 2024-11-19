@@ -17,22 +17,18 @@
  * under the License.
  */
 
-// add enabled Spark version modules to the build
-def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
+package org.apache.spark.sql.catalyst.plans.logical
 
-if (sparkVersions.contains("3.3")) {
-  apply from: file("$projectDir/v3.3/build.gradle")
-}
+import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.types.DataTypeUtils
+import org.apache.spark.sql.catalyst.util.truncatedString
+import org.apache.spark.sql.connector.iceberg.catalog.Procedure
 
-if (sparkVersions.contains("3.4")) {
-  apply from: file("$projectDir/v3.4/build.gradle")
-}
+case class IcebergCall(procedure: Procedure, args: Seq[Expression]) extends LeafCommand {
+  override lazy val output: Seq[Attribute] = DataTypeUtils.toAttributes(procedure.outputType)
 
-if (sparkVersions.contains("3.5")) {
-  apply from: file("$projectDir/v3.5/build.gradle")
-}
-
-
-if (sparkVersions.contains("4.0")) {
-  apply from: file("$projectDir/v4.0/build.gradle")
+  override def simpleString(maxFields: Int): String = {
+    s"IcebergCall${truncatedString(output.toSeq, "[", ", ", "]", maxFields)} ${procedure.description}"
+  }
 }

@@ -62,6 +62,7 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.jupiter.api.AfterEach;
@@ -251,13 +252,8 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
         .hasMessage("Named and positional arguments cannot be mixed");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.remove_orphan_files('n', 't')", catalogName))
-        .isInstanceOf(ParseException.class)
-        .satisfies(
-            exception -> {
-              ParseException parseException = (ParseException) exception;
-              assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
-              assertThat(parseException.getMessageParameters().get("error")).isEqualTo("'CALL'");
-            });
+        .isInstanceOf(NoSuchProcedureException.class)
+        .hasMessage("Procedure custom.remove_orphan_files not found");
 
     assertThatThrownBy(() -> sql("CALL %s.system.remove_orphan_files()", catalogName))
         .isInstanceOf(AnalysisException.class)
@@ -358,7 +354,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
                     "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
                     catalogName, tableIdent, tempViewName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("file_path does not exist. Available: ");
+        .hasMessageContaining("No such struct field `file_path` in ");
 
     spark
         .createDataset(Lists.newArrayList(), Encoders.tuple(Encoders.INT(), Encoders.TIMESTAMP()))
@@ -412,7 +408,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
     assertThat(TestHelpers.deleteFiles(table)).as("Should have 1 delete file").hasSize(1);
     Path deleteManifestPath = new Path(TestHelpers.deleteManifests(table).iterator().next().path());
     Path deleteFilePath =
-        new Path(String.valueOf(TestHelpers.deleteFiles(table).iterator().next().location()));
+        new Path(String.valueOf(TestHelpers.deleteFiles(table).iterator().next().path()));
 
     // wait to ensure files are old enough
     waitUntilAfter(System.currentTimeMillis());

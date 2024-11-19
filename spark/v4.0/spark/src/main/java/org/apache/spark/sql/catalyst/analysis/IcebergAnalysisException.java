@@ -16,23 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.spark.sql.catalyst.analysis;
 
-// add enabled Spark version modules to the build
-def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
+import org.apache.spark.QueryContext;
+import org.apache.spark.sql.AnalysisException;
+import scala.Option;
+import scala.collection.immutable.Map$;
 
-if (sparkVersions.contains("3.3")) {
-  apply from: file("$projectDir/v3.3/build.gradle")
-}
-
-if (sparkVersions.contains("3.4")) {
-  apply from: file("$projectDir/v3.4/build.gradle")
-}
-
-if (sparkVersions.contains("3.5")) {
-  apply from: file("$projectDir/v3.5/build.gradle")
-}
-
-
-if (sparkVersions.contains("4.0")) {
-  apply from: file("$projectDir/v4.0/build.gradle")
+public class IcebergAnalysisException extends AnalysisException {
+  public IcebergAnalysisException(String message) {
+    super(
+        message,
+        Option.empty(),
+        Option.empty(),
+        Option.empty(),
+        Option.empty(),
+        Map$.MODULE$.<String, String>empty(),
+        new QueryContext[0]);
+  }
 }

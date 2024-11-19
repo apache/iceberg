@@ -19,15 +19,14 @@
 
 package org.apache.spark.sql.catalyst.analysis
 
-import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.expressions.Cast
-import org.apache.spark.sql.catalyst.plans.logical.Call
+import org.apache.spark.sql.catalyst.plans.logical.IcebergCall
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.rules.Rule
 
 object ProcedureArgumentCoercion extends Rule[LogicalPlan] {
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
-    case c @ Call(procedure, args) if c.resolved =>
+    case c @ IcebergCall(procedure, args) if c.resolved =>
       val params = procedure.parameters
 
       val newArgs = args.zipWithIndex.map { case (arg, index) =>
@@ -36,7 +35,7 @@ object ProcedureArgumentCoercion extends Rule[LogicalPlan] {
         val argType = arg.dataType
 
         if (paramType != argType && !Cast.canUpCast(argType, paramType)) {
-          throw new AnalysisException(
+          throw new IcebergAnalysisException(
             s"Wrong arg type for ${param.name}: cannot cast $argType to $paramType")
         }
 

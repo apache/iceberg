@@ -95,7 +95,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        jvm: [11, 17, 21]
+        jvm: [17, 21]
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-java@v4
@@ -108,7 +108,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        jvm: [11, 17, 21]
+        jvm: [17, 21]
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-java@v4
