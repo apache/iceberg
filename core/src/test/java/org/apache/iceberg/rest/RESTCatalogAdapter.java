@@ -298,7 +298,11 @@ public class RESTCatalogAdapter implements RESTClient {
         if (asNamespaceCatalog != null) {
           Namespace ns;
           if (vars.containsKey("parent")) {
-            ns = RESTUtil.decodeNamespace(vars.get("parent"));
+            ns =
+                Namespace.of(
+                    RESTUtil.NAMESPACE_SPLITTER
+                        .splitToStream(vars.get("parent"))
+                        .toArray(String[]::new));
           } else {
             ns = Namespace.empty();
           }
