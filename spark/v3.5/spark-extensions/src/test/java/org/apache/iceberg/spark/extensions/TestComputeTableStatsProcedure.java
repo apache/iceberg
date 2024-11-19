@@ -90,6 +90,7 @@ public class TestComputeTableStatsProcedure extends ExtensionsTestBase {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
         tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')", tableName);
     assertThatThrownBy(
             () ->
                 sql(
