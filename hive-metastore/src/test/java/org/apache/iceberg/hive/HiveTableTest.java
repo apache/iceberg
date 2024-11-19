@@ -377,7 +377,7 @@ public class HiveTableTest extends HiveTableBaseTest {
         .containsExactly(TABLE_IDENTIFIER, identifier);
     catalog.setListAllTables(false); // reset to default.
 
-    // create an iceberg table with the same name
+    // create an iceberg table with name collision with hive table
     assertThatThrownBy(() -> catalog.createTable(identifier, SCHEMA, PartitionSpec.unpartitioned()))
         .isInstanceOf(NoSuchIcebergTableException.class)
         .hasMessageStartingWith(String.format("Not an iceberg table: hive.%s", identifier));
@@ -386,6 +386,12 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     assertThat(catalog.tableExists(TABLE_IDENTIFIER)).isTrue();
     HIVE_METASTORE_EXTENSION.metastoreClient().dropTable(DB_NAME, hiveTableName);
+
+    // create an iceberg table after hive table dropped
+    catalog.createTable(identifier, SCHEMA, PartitionSpec.unpartitioned());
+    assertThat(catalog.tableExists(identifier)).isTrue();
+    catalog.dropTable(identifier, true);
+    assertThat(catalog.tableExists(identifier)).isFalse();
   }
 
   private org.apache.hadoop.hive.metastore.api.Table createHiveTable(

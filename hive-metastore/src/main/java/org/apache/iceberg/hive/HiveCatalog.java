@@ -413,6 +413,25 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   }
 
   @Override
+  public boolean tableExists(TableIdentifier identifier) {
+    if (!isValidIdentifier(identifier)) {
+      return false;
+    }
+    String database = identifier.namespace().level(0);
+    try {
+      Table table = clients.run(client -> client.getTable(database, identifier.name()));
+      HiveOperationsBase.validateTableIsIceberg(table, fullTableName(name, identifier));
+      return true;
+    } catch (NoSuchTableException | NoSuchObjectException e) {
+      return false;
+    } catch (TException e) {
+      throw new RuntimeException("Failed to check table existence of " + identifier, e);
+    } catch (InterruptedException e) {
+      throw new RuntimeException("Interrupted in call to check table existence", e);
+    }
+  }
+
+  @Override
   public void createNamespace(Namespace namespace, Map<String, String> meta) {
     Preconditions.checkArgument(
         !namespace.isEmpty(), "Cannot create namespace with invalid name: %s", namespace);
