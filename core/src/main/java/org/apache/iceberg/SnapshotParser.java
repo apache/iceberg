@@ -31,8 +31,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.JsonUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SnapshotParser {
+  private static final Logger LOG = LoggerFactory.getLogger(SnapshotParser.class);
 
   private SnapshotParser() {}
 
@@ -81,6 +84,9 @@ public class SnapshotParser {
       // write just the location. manifests should not be embedded in JSON along with a list
       generator.writeStringField(MANIFEST_LIST, manifestList);
     } else {
+      LOG.warn(
+          "Support for embedded manifests are deprecated since Iceberg 1.8.0, will be removed in either 1.9.0 or 2.0.0");
+
       // embed the manifest list in the JSON, v1 only
       JsonUtil.writeStringArray(
           MANIFESTS,
@@ -158,6 +164,9 @@ public class SnapshotParser {
           manifestList);
 
     } else {
+      LOG.warn(
+          "Support for embedded manifests are deprecated since Iceberg 1.8.0, will be removed in either 1.9.0 or 2.0.0");
+
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be
       // loaded lazily, if it is needed
       return new BaseSnapshot(

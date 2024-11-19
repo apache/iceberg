@@ -73,6 +73,12 @@ class BaseSnapshot implements Snapshot {
     this.v1ManifestLocations = null;
   }
 
+  /**
+   * Constructor with embedded manifests
+   *
+   * @deprecated since 1.8.0, will be removed 1.9.0 or 2.0.0
+   */
+  @Deprecated
   BaseSnapshot(
       long sequenceNumber,
       long snapshotId,

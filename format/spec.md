@@ -654,17 +654,17 @@ The `first_row_id` is only inherited for added data files. The inherited value m
 
 A snapshot consists of the following fields:
 
-| v1         | v2         | v3         | Field                        | Description                                                                                                                        |
-| ---------- | ---------- |------------|------------------------------|------------------------------------------------------------------------------------------------------------------------------------|
-| _required_ | _required_ | _required_ | **`snapshot-id`**            | A unique long ID                                                                                                                   |
-| _optional_ | _optional_ | _optional_ | **`parent-snapshot-id`**     | The snapshot ID of the snapshot's parent. Omitted for any snapshot with no parent                                                  |
-|            | _required_ | _required_ | **`sequence-number`**        | A monotonically increasing long that tracks the order of changes to a table                                                        |
-| _required_ | _required_ | _required_ | **`timestamp-ms`**           | A timestamp when the snapshot was created, used for garbage collection and table inspection                                        |
-| _optional_ | _required_ | _required_ | **`manifest-list`**          | The location of a manifest list for this snapshot that tracks manifest files with additional metadata                              |
-| _optional_ |            |            | **`manifests`**              | A list of manifest file locations. Must be omitted if `manifest-list` is present                                                   |
-| _optional_ | _required_ | _required_ | **`summary`**                | A string map that summarizes the snapshot changes, including `operation` as a _required_ field (see below)                         |
-| _optional_ | _optional_ | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created                                                                     |
-|            |            | _optional_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage) |
+| v1         | v2         | v3         | Field                        | Description                                                                                                                         |
+| ---------- | ---------- |------------|------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| _required_ | _required_ | _required_ | **`snapshot-id`**            | A unique long ID                                                                                                                    |
+| _optional_ | _optional_ | _optional_ | **`parent-snapshot-id`**     | The snapshot ID of the snapshot's parent. Omitted for any snapshot with no parent                                                   |
+|            | _required_ | _required_ | **`sequence-number`**        | A monotonically increasing long that tracks the order of changes to a table                                                         |
+| _required_ | _required_ | _required_ | **`timestamp-ms`**           | A timestamp when the snapshot was created, used for garbage collection and table inspection                                         |
+| _optional_ | _required_ | _required_ | **`manifest-list`**          | The location of a manifest list for this snapshot that tracks manifest files with additional metadata                               |
+| _optional_ |            |            | ~~**`manifests`**~~          | ~~A list of manifest file locations. Must be omitted if `manifest-list` is present.~~ (**Deprecated**: use `manifest-list` instead) |
+| _optional_ | _required_ | _required_ | **`summary`**                | A string map that summarizes the snapshot changes, including `operation` as a _required_ field (see below)                          |
+| _optional_ | _optional_ | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created                                                                      |
+|            |            | _optional_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage)         |
 
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
 
