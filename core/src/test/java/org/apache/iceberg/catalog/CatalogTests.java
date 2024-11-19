@@ -2729,12 +2729,13 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       List<CharSequence> paths =
           Streams.stream(tasks)
               .map(FileScanTask::file)
-              .map(DataFile::path)
+              .map(DataFile::location)
               .collect(Collectors.toList());
       assertThat(paths).as("Should contain expected number of data files").hasSize(files.length);
       assertThat(CharSequenceSet.of(paths))
           .as("Should contain correct file paths")
-          .isEqualTo(CharSequenceSet.of(Iterables.transform(Arrays.asList(files), DataFile::path)));
+          .isEqualTo(
+              CharSequenceSet.of(Iterables.transform(Arrays.asList(files), DataFile::location)));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -2744,7 +2745,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       Streams.stream(tasks)
           .map(FileScanTask::file)
-          .filter(file -> file.path().equals(dataFile.path()))
+          .filter(file -> file.location().equals(dataFile.location()))
           .forEach(file -> assertThat(file.specId()).as("Spec ID should match").isEqualTo(specId));
     } catch (IOException e) {
       throw new UncheckedIOException(e);

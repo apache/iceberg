@@ -175,7 +175,7 @@ public class CatalogUtil {
                 for (ManifestEntry<?> entry : reader.entries()) {
                   // intern the file path because the weak key map uses identity (==) instead of
                   // equals
-                  String path = entry.file().path().toString().intern();
+                  String path = entry.file().location().intern();
                   Boolean alreadyDeleted = deletedFiles.putIfAbsent(path, true);
                   if (alreadyDeleted == null || !alreadyDeleted) {
                     pathsToDelete.add(path);

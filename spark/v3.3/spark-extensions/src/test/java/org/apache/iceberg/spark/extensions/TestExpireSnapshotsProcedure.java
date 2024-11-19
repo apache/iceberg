@@ -52,7 +52,7 @@ import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Encoders;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -178,8 +178,12 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.custom.expire_snapshots('n', 't')", catalogName))
         .as("Should not resolve procedures in arbitrary namespaces")
-        .isInstanceOf(NoSuchProcedureException.class)
-        .hasMessageContaining("not found");
+        .satisfies(
+            exception -> {
+              ParseException parseException = (ParseException) exception;
+              Assert.assertEquals("PARSE_SYNTAX_ERROR", parseException.getErrorClass());
+              Assert.assertEquals("Syntax error at or near 'CALL'", parseException.message());
+            });
 
     assertThatThrownBy(() -> sql("CALL %s.system.expire_snapshots()", catalogName))
         .as("Should reject calls without all required args")

@@ -31,8 +31,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Test;
 
 public class TestCherrypickSnapshotProcedure extends SparkExtensionsTestBase {
@@ -178,8 +179,13 @@ public class TestCherrypickSnapshotProcedure extends SparkExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.custom.cherrypick_snapshot('n', 't', 1L)", catalogName))
         .as("Should not resolve procedures in arbitrary namespaces")
-        .isInstanceOf(NoSuchProcedureException.class)
-        .hasMessageContaining("not found");
+        .isInstanceOf(ParseException.class)
+        .satisfies(
+            exception -> {
+              ParseException parseException = (ParseException) exception;
+              Assert.assertEquals("PARSE_SYNTAX_ERROR", parseException.getErrorClass());
+              Assert.assertEquals("Syntax error at or near 'CALL'", parseException.message());
+            });
 
     assertThatThrownBy(() -> sql("CALL %s.system.cherrypick_snapshot('t')", catalogName))
         .as("Should reject calls without all required args")

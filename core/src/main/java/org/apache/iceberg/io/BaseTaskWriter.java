@@ -92,7 +92,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         .executeWith(ThreadPools.getWorkerPool())
         .throwFailureWhenFinished()
         .noRetry()
-        .run(file -> io.deleteFile(file.path().toString()));
+        .run(file -> io.deleteFile(file.location()));
   }
 
   @Override

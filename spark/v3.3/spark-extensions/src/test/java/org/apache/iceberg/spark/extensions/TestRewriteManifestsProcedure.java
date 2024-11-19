@@ -30,8 +30,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.RowFactory;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -284,8 +284,12 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.custom.rewrite_manifests('n', 't')", catalogName))
         .as("Should not resolve procedures in arbitrary namespaces")
-        .isInstanceOf(NoSuchProcedureException.class)
-        .hasMessageContaining("not found");
+        .satisfies(
+            exception -> {
+              ParseException parseException = (ParseException) exception;
+              Assert.assertEquals("PARSE_SYNTAX_ERROR", parseException.getErrorClass());
+              Assert.assertEquals("Syntax error at or near 'CALL'", parseException.message());
+            });
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_manifests()", catalogName))
         .as("Should reject calls without all required args")

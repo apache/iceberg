@@ -885,7 +885,8 @@ public class TestTableMetadata {
 
   @Test
   public void testVersionValidation() {
-    int unsupportedVersion = TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1;
+    int supportedVersion = TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION;
+    int unsupportedVersion = supportedVersion + 1;
     assertThatThrownBy(
             () ->
                 new TableMetadata(
@@ -914,7 +915,62 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Unsupported format version: v" + unsupportedVersion);
+        .hasMessage(
+            "Unsupported format version: v%s (supported: v%s)",
+            unsupportedVersion, supportedVersion);
+
+    assertThatThrownBy(
+            () ->
+                TableMetadata.newTableMetadata(
+                    TEST_SCHEMA,
+                    PartitionSpec.unpartitioned(),
+                    SortOrder.unsorted(),
+                    TEST_LOCATION,
+                    ImmutableMap.of(),
+                    unsupportedVersion))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Unsupported format version: v%s (supported: v%s)",
+            unsupportedVersion, supportedVersion);
+
+    // should be allowed in the supported version
+    assertThat(
+            new TableMetadata(
+                null,
+                supportedVersion,
+                UUID.randomUUID().toString(),
+                TEST_LOCATION,
+                SEQ_NO,
+                System.currentTimeMillis(),
+                LAST_ASSIGNED_COLUMN_ID,
+                7,
+                ImmutableList.of(TEST_SCHEMA),
+                SPEC_5.specId(),
+                ImmutableList.of(SPEC_5),
+                SPEC_5.lastAssignedFieldId(),
+                3,
+                ImmutableList.of(SORT_ORDER_3),
+                ImmutableMap.of(),
+                -1L,
+                ImmutableList.of(),
+                null,
+                ImmutableList.of(),
+                ImmutableList.of(),
+                ImmutableMap.of(),
+                ImmutableList.of(),
+                ImmutableList.of(),
+                ImmutableList.of()))
+        .isNotNull();
+
+    assertThat(
+            TableMetadata.newTableMetadata(
+                TEST_SCHEMA,
+                PartitionSpec.unpartitioned(),
+                SortOrder.unsorted(),
+                TEST_LOCATION,
+                ImmutableMap.of(),
+                supportedVersion))
+        .isNotNull();
   }
 
   @Test
@@ -1640,46 +1696,6 @@ public class TestTableMetadata {
   public void testConstructV3Metadata() {
     TableMetadata.newTableMetadata(
         TEST_SCHEMA,
-        PartitionSpec.unpartitioned(),
-        SortOrder.unsorted(),
-        TEST_LOCATION,
-        ImmutableMap.of(),
-        3);
-  }
-
-  @Test
-  public void testV3TimestampNanoTypeSupport() {
-    Schema v3Schema =
-        new Schema(
-            Types.NestedField.required(3, "id", Types.LongType.get()),
-            Types.NestedField.required(4, "data", Types.StringType.get()),
-            Types.NestedField.required(
-                5,
-                "struct",
-                Types.StructType.of(
-                    Types.NestedField.optional(
-                        6, "ts_nanos", Types.TimestampNanoType.withZone()))));
-
-    for (int unsupportedFormatVersion : ImmutableList.of(1, 2)) {
-      assertThatThrownBy(
-              () ->
-                  TableMetadata.newTableMetadata(
-                      v3Schema,
-                      PartitionSpec.unpartitioned(),
-                      SortOrder.unsorted(),
-                      TEST_LOCATION,
-                      ImmutableMap.of(),
-                      unsupportedFormatVersion))
-          .isInstanceOf(IllegalStateException.class)
-          .hasMessage(
-              "Invalid schema for v%s:\n"
-                  + "- Invalid type for struct.ts_nanos: timestamptz_ns is not supported until v3",
-              unsupportedFormatVersion);
-    }
-
-    // should be allowed in v3
-    TableMetadata.newTableMetadata(
-        v3Schema,
         PartitionSpec.unpartitioned(),
         SortOrder.unsorted(),
         TEST_LOCATION,

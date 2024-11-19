@@ -138,7 +138,7 @@ public class TestRewriteManifests extends TestBase {
     List<DataFile> files;
     List<Long> ids;
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifests.get(0), table.io())) {
-      if (reader.iterator().next().path().equals(FILE_A.path())) {
+      if (reader.iterator().next().location().equals(FILE_A.location())) {
         files = Arrays.asList(FILE_A, FILE_B);
         ids = Arrays.asList(manifestAppendId, fileAppendId);
       } else {
@@ -164,7 +164,7 @@ public class TestRewriteManifests extends TestBase {
 
     // cluster by path will split the manifest into two
 
-    table.rewriteManifests().clusterBy(file -> file.path()).commit();
+    table.rewriteManifests().clusterBy(file -> file.location()).commit();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
     assertThat(manifests).hasSize(2);
@@ -198,7 +198,7 @@ public class TestRewriteManifests extends TestBase {
     List<DataFile> files;
     List<Long> ids;
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifests.get(0), table.io())) {
-      if (reader.iterator().next().path().equals(FILE_A.path())) {
+      if (reader.iterator().next().location().equals(FILE_A.location())) {
         files = Arrays.asList(FILE_A, FILE_B);
         ids = Arrays.asList(appendIdA, appendIdB);
       } else {
@@ -237,7 +237,7 @@ public class TestRewriteManifests extends TestBase {
         .rewriteIf(
             manifest -> {
               try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
-                return !reader.iterator().next().path().equals(FILE_A.path());
+                return !reader.iterator().next().location().equals(FILE_A.location());
               } catch (IOException x) {
                 throw new RuntimeIOException(x);
               }
@@ -251,7 +251,7 @@ public class TestRewriteManifests extends TestBase {
     List<DataFile> files;
     List<Long> ids;
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifests.get(0), table.io())) {
-      if (reader.iterator().next().path().equals(FILE_B.path())) {
+      if (reader.iterator().next().location().equals(FILE_B.location())) {
         files = Arrays.asList(FILE_B, FILE_C);
         ids = Arrays.asList(appendIdB, appendIdC);
       } else {
@@ -312,7 +312,7 @@ public class TestRewriteManifests extends TestBase {
         .rewriteIf(
             manifest -> {
               try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
-                return !reader.iterator().next().path().equals(FILE_A.path());
+                return !reader.iterator().next().location().equals(FILE_A.location());
               } catch (IOException x) {
                 throw new RuntimeIOException(x);
               }
@@ -332,7 +332,7 @@ public class TestRewriteManifests extends TestBase {
     List<DataFile> files;
     List<Long> ids;
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifests.get(0), table.io())) {
-      if (reader.iterator().next().path().equals(FILE_A.path())) {
+      if (reader.iterator().next().location().equals(FILE_A.location())) {
         files = Arrays.asList(FILE_A, FILE_B);
         ids = Arrays.asList(appendIdA, appendIdB);
       } else {
@@ -850,7 +850,7 @@ public class TestRewriteManifests extends TestBase {
         .rewriteIf(
             manifest -> {
               try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, table.io())) {
-                return !reader.iterator().next().path().equals(FILE_B.path());
+                return !reader.iterator().next().location().equals(FILE_B.location());
               } catch (IOException x) {
                 throw new RuntimeIOException(x);
               }
@@ -1107,7 +1107,7 @@ public class TestRewriteManifests extends TestBase {
     assertManifestCounts(table, 1, 1);
 
     // rewrite manifests and cluster entries by file path
-    table.rewriteManifests().clusterBy(file -> file.path().toString()).commit();
+    table.rewriteManifests().clusterBy(ContentFile::location).commit();
 
     Snapshot rewriteSnapshot = table.currentSnapshot();
 

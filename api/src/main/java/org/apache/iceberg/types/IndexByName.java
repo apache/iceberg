@@ -177,6 +177,11 @@ public class IndexByName extends TypeUtil.SchemaVisitor<Map<String, Integer>> {
   }
 
   @Override
+  public Map<String, Integer> variant() {
+    return nameToId;
+  }
+
+  @Override
   public Map<String, Integer> primitive(Type.PrimitiveType primitive) {
     return nameToId;
   }

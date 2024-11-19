@@ -275,13 +275,13 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(tasks).as("Should have one task").hasSize(1);
 
     FileScanTask task = (FileScanTask) tasks.get(0);
-    assertThat(task.file().path())
+    assertThat(task.file().location())
         .as("Should have the correct data file path")
-        .isEqualTo(unpartitionedFile.path());
+        .isEqualTo(unpartitionedFile.location());
     assertThat(task.deletes()).as("Should have one associated delete file").hasSize(1);
-    assertThat(task.deletes().get(0).path())
+    assertThat(task.deletes().get(0).location())
         .as("Should have expected delete file")
-        .isEqualTo(unpartitionedPosDeletes.path());
+        .isEqualTo(unpartitionedPosDeletes.location());
 
     // add a second delete file
     DeleteFile unpartitionedEqDeletes = unpartitionedEqDeletes(unpartitioned.spec());
@@ -289,13 +289,14 @@ public abstract class DeleteFileIndexTestBase<
 
     tasks = Lists.newArrayList(newScan(unpartitioned).planFiles().iterator());
     task = (FileScanTask) tasks.get(0);
-    assertThat(task.file().path())
+    assertThat(task.file().location())
         .as("Should have the correct data file path")
-        .isEqualTo(unpartitionedFile.path());
+        .isEqualTo(unpartitionedFile.location());
     assertThat(task.deletes()).as("Should have two associated delete files").hasSize(2);
-    assertThat(Sets.newHashSet(Iterables.transform(task.deletes(), ContentFile::path)))
+    assertThat(Sets.newHashSet(Iterables.transform(task.deletes(), ContentFile::location)))
         .as("Should have expected delete files")
-        .isEqualTo(Sets.newHashSet(unpartitionedPosDeletes.path(), unpartitionedEqDeletes.path()));
+        .isEqualTo(
+            Sets.newHashSet(unpartitionedPosDeletes.location(), unpartitionedEqDeletes.location()));
   }
 
   @TestTemplate
@@ -308,13 +309,13 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(tasks).as("Should have one task").hasSize(1);
 
     FileScanTask task = (FileScanTask) tasks.get(0);
-    assertThat(task.file().path())
+    assertThat(task.file().location())
         .as("Should have the correct data file path")
-        .isEqualTo(FILE_A.path());
+        .isEqualTo(FILE_A.location());
     assertThat(task.deletes()).as("Should have one associated delete file").hasSize(1);
-    assertThat(task.deletes().get(0).path())
+    assertThat(task.deletes().get(0).location())
         .as("Should have only pos delete file")
-        .isEqualTo(fileADeletes().path());
+        .isEqualTo(fileADeletes().location());
   }
 
   @TestTemplate
@@ -327,13 +328,13 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(tasks).as("Should have one task").hasSize(1);
 
     FileScanTask task = (FileScanTask) tasks.get(0);
-    assertThat(task.file().path())
+    assertThat(task.file().location())
         .as("Should have the correct data file path")
-        .isEqualTo(FILE_A.path());
+        .isEqualTo(FILE_A.location());
     assertThat(task.deletes()).as("Should have one associated delete file").hasSize(1);
-    assertThat(task.deletes().get(0).path())
+    assertThat(task.deletes().get(0).location())
         .as("Should have only pos delete file")
-        .isEqualTo(FILE_A_EQ_1.path());
+        .isEqualTo(FILE_A_EQ_1.location());
   }
 
   @TestTemplate
@@ -346,9 +347,9 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(tasks).as("Should have one task").hasSize(1);
 
     FileScanTask task = (FileScanTask) tasks.get(0);
-    assertThat(task.file().path())
+    assertThat(task.file().location())
         .as("Should have the correct data file path")
-        .isEqualTo(FILE_B.path());
+        .isEqualTo(FILE_B.location());
     assertThat(task.deletes()).as("Should have no delete files to apply").hasSize(0);
   }
 
@@ -364,9 +365,9 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(tasks).as("Should have one task").hasSize(1);
 
     FileScanTask task = (FileScanTask) tasks.get(0);
-    assertThat(task.file().path())
+    assertThat(task.file().location())
         .as("Should have the correct data file path")
-        .isEqualTo(FILE_A.path());
+        .isEqualTo(FILE_A.location());
     assertThat(task.deletes()).as("Should have no delete files to apply").hasSize(0);
   }
 
@@ -391,13 +392,13 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(tasks).as("Should have one task").hasSize(1);
 
     FileScanTask task = (FileScanTask) tasks.get(0);
-    assertThat(task.file().path())
+    assertThat(task.file().location())
         .as("Should have the correct data file path")
-        .isEqualTo(FILE_A.path());
+        .isEqualTo(FILE_A.location());
     assertThat(task.deletes()).as("Should have one associated delete file").hasSize(1);
-    assertThat(task.deletes().get(0).path())
+    assertThat(task.deletes().get(0).location())
         .as("Should have expected delete file")
-        .isEqualTo(unpartitionedEqDeletes.path());
+        .isEqualTo(unpartitionedEqDeletes.location());
   }
 
   @TestTemplate
@@ -423,13 +424,13 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(tasks).as("Should have one task").hasSize(1);
 
     FileScanTask task = (FileScanTask) tasks.get(0);
-    assertThat(task.file().path())
+    assertThat(task.file().location())
         .as("Should have the correct data file path")
-        .isEqualTo(FILE_A.path());
+        .isEqualTo(FILE_A.location());
     assertThat(task.deletes()).as("Should have two associated delete files").hasSize(2);
-    assertThat(Sets.newHashSet(Iterables.transform(task.deletes(), ContentFile::path)))
+    assertThat(Sets.newHashSet(Iterables.transform(task.deletes(), ContentFile::location)))
         .as("Should have expected delete files")
-        .isEqualTo(Sets.newHashSet(unpartitionedEqDeletes.path(), FILE_A_EQ_1.path()));
+        .isEqualTo(Sets.newHashSet(unpartitionedEqDeletes.location(), FILE_A_EQ_1.location()));
   }
 
   @TestTemplate
@@ -440,13 +441,13 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(tasks).as("Should have one task").hasSize(1);
 
     FileScanTask task = (FileScanTask) tasks.get(0);
-    assertThat(task.file().path())
+    assertThat(task.file().location())
         .as("Should have the correct data file path")
-        .isEqualTo(FILE_A.path());
+        .isEqualTo(FILE_A.location());
     assertThat(task.deletes()).as("Should have one associated delete file").hasSize(1);
-    assertThat(task.deletes().get(0).path())
+    assertThat(task.deletes().get(0).location())
         .as("Should have only pos delete file")
-        .isEqualTo(fileADeletes().path());
+        .isEqualTo(fileADeletes().location());
   }
 
   @TestTemplate
@@ -481,13 +482,13 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(tasks).as("Should have one task").hasSize(1);
 
     FileScanTask task = tasks.get(0);
-    assertThat(task.file().path())
+    assertThat(task.file().location())
         .as("Should have the correct data file path")
-        .isEqualTo(unpartitionedFile.path());
+        .isEqualTo(unpartitionedFile.location());
     assertThat(task.deletes()).as("Should have one associated delete file").hasSize(1);
-    assertThat(task.deletes().get(0).path())
+    assertThat(task.deletes().get(0).location())
         .as("Should have only pos delete file")
-        .isEqualTo(unpartitionedPosDeleteFile.path());
+        .isEqualTo(unpartitionedPosDeleteFile.location());
   }
 
   @TestTemplate
@@ -548,13 +549,13 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(tasks).as("Should have one task").hasSize(1);
 
     FileScanTask task = (FileScanTask) tasks.get(0);
-    assertThat(task.file().path())
+    assertThat(task.file().location())
         .as("Should have the correct data file path")
-        .isEqualTo(FILE_A.path());
+        .isEqualTo(FILE_A.location());
     assertThat(task.deletes()).as("Should have two associated delete files").hasSize(2);
-    assertThat(Sets.newHashSet(Iterables.transform(task.deletes(), ContentFile::path)))
+    assertThat(Sets.newHashSet(Iterables.transform(task.deletes(), ContentFile::location)))
         .as("Should have expected delete files")
-        .isEqualTo(Sets.newHashSet(FILE_A_EQ_1.path(), fileADeletes().path()));
+        .isEqualTo(Sets.newHashSet(FILE_A_EQ_1.location(), fileADeletes().location()));
   }
 
   @TestTemplate
@@ -575,8 +576,10 @@ public abstract class DeleteFileIndexTestBase<
 
     // all files must be reported as referenced
     CharSequenceSet paths =
-        CharSequenceSet.of(Iterables.transform(group.referencedDeleteFiles(), ContentFile::path));
-    assertThat(paths).contains(file1.path(), file2.path(), file3.path(), file4.path());
+        CharSequenceSet.of(
+            Iterables.transform(group.referencedDeleteFiles(), ContentFile::location));
+    assertThat(paths)
+        .contains(file1.location(), file2.location(), file3.location(), file4.location());
 
     // position deletes are indexed by their data sequence numbers
     // so that position deletes can apply to data files added in the same snapshot
@@ -609,8 +612,10 @@ public abstract class DeleteFileIndexTestBase<
 
     // all files must be reported as referenced
     CharSequenceSet paths =
-        CharSequenceSet.of(Iterables.transform(group.referencedDeleteFiles(), ContentFile::path));
-    assertThat(paths).contains(file1.path(), file2.path(), file3.path(), file4.path());
+        CharSequenceSet.of(
+            Iterables.transform(group.referencedDeleteFiles(), ContentFile::location));
+    assertThat(paths)
+        .contains(file1.location(), file2.location(), file3.location(), file4.location());
 
     // equality deletes are indexed by data sequence number - 1 to apply to next snapshots
     assertThat(group.filter(0, FILE_A)).isEqualTo(new DeleteFile[] {file1, file2, file3, file4});

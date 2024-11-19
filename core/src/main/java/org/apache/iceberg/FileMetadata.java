@@ -94,7 +94,7 @@ public class FileMetadata {
         this.partitionData = DataFiles.copyPartitionData(spec, toCopy.partition(), partitionData);
       }
       this.content = toCopy.content();
-      this.filePath = toCopy.path().toString();
+      this.filePath = toCopy.location();
       this.format = toCopy.format();
       this.recordCount = toCopy.recordCount();
       this.fileSizeInBytes = toCopy.fileSizeInBytes();
