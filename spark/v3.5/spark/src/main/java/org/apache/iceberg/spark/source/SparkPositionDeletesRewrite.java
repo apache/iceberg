@@ -30,6 +30,7 @@ import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.ClusteredPositionDeleteWriter;
@@ -103,7 +104,8 @@ public class SparkPositionDeletesRewrite implements Write {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.queryId = writeInfo.queryId();
-    this.format = writeConf.deleteFileFormat();
+    this.format =
+        TableUtil.formatVersion(table) >= 3 ? FileFormat.PUFFIN : writeConf.deleteFileFormat();
     this.targetFileSize = writeConf.targetDeleteFileSize();
     this.deleteGranularity = writeConf.deleteGranularity();
     this.writeSchema = writeSchema;
@@ -113,6 +115,17 @@ public class SparkPositionDeletesRewrite implements Write {
     this.partition = partition;
     this.writeProperties = writeConf.writeProperties();
   }
+
+  //  private Table underlyingTable(Table table) {
+  //    if (table instanceof SerializableTable.SerializableMetadataTable) {
+  //      return underlyingTable(
+  //          ((SerializableTable.SerializableMetadataTable) table).underlyingTable());
+  //    } else if (table instanceof BaseMetadataTable) {
+  //      return ((BaseMetadataTable) table).table();
+  //    }
+  //
+  //    return table;
+  //  }
 
   @Override
   public BatchWrite toBatch() {

@@ -27,6 +27,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
@@ -180,6 +181,10 @@ class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
       Preconditions.checkArgument(
           noEqualityDeleteConf || fullEqualityDeleteConf,
           "Equality field IDs and equality delete row schema must be set together");
+
+      if (null != positionDeleteRowSchema && TableUtil.formatVersion(table) >= 3) {
+        this.deleteFileFormat = FileFormat.PUFFIN;
+      }
 
       return new GenericFileWriterFactory(
           table,
