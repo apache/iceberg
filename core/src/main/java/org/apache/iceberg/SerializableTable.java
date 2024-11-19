@@ -400,7 +400,11 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
 
   @Override
   public StaticTableOperations operations() {
-    return (StaticTableOperations) ((BaseTable) lazyTable()).operations();
+    if (lazyTable() instanceof BaseMetadataTable) {
+      return (StaticTableOperations) ((BaseMetadataTable) lazyTable()).table().operations();
+    } else {
+      return (StaticTableOperations) ((BaseTable) lazyTable()).operations();
+    }
   }
 
   private String errorMsg(String operation) {

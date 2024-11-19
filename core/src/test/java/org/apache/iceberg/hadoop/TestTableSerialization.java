@@ -102,6 +102,9 @@ public class TestTableSerialization extends HadoopTableTestBase {
       Table serializableTable = SerializableTable.copyOf(metadataTable);
       TestHelpers.assertSerializedAndLoadedMetadata(
           serializableTable, TestHelpers.KryoHelpers.roundTripSerialize(serializableTable));
+      assertThat(serializableTable).isInstanceOf(HasTableOperations.class);
+      assertThat(((HasTableOperations) serializableTable).operations())
+          .isInstanceOf(StaticTableOperations.class);
     }
   }
 
