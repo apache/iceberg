@@ -154,6 +154,10 @@ spark.read
     .table("catalog.db.table")
 ```
 
+Iceberg 1.8.0 and later support setting read options by Spark session configuration `spark.datasource.iceberg.<key>=<value>`
+when using DataFrame to read Iceberg tables, for example: `spark.datasource.iceberg.split-size=512m`, it has lower priority
+than options explicitly passed to DataFrameReader.
+
 | Spark option    | Default               | Description                                                                               |
 | --------------- | --------------------- | ----------------------------------------------------------------------------------------- |
 | snapshot-id     | (latest)              | Snapshot ID of the table snapshot to read                                                 |
@@ -165,17 +169,22 @@ spark.read
 | batch-size  | As per table property | Overrides this table's read.parquet.vectorization.batch-size                                          |
 | stream-from-timestamp | (none) | A timestamp in milliseconds to stream from; if before the oldest known ancestor snapshot, the oldest will be used |
 
+
 ### Write options
 
-Spark write options are passed when configuring the DataFrameWriter, like this:
+Spark write options are passed when configuring the DataFrameWriterV2, like this:
 
 ```scala
 // write with Avro instead of Parquet
-df.write
+df.writeTo("catalog.db.table")
     .option("write-format", "avro")
     .option("snapshot-property.key", "value")
-    .insertInto("catalog.db.table")
+    .append()
 ```
+
+Iceberg 1.8.0 and later support setting write options by Spark session configuration `spark.datasource.iceberg.<key>=<value>`
+when using DataFrame to write Iceberg tables, for example: `spark.datasource.iceberg.write-format=orc`, it has lower priority
+than options explicitly passed to DataFrameWriterV2.
 
 | Spark option           | Default                    | Description                                                  |
 | ---------------------- | -------------------------- | ------------------------------------------------------------ |
