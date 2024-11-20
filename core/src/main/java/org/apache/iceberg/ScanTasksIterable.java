@@ -157,10 +157,15 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
 
     @Override
     public FileScanTask next() {
-      UnboundBaseFileScanTask unboundBaseFileScanTask =
-          (UnboundBaseFileScanTask) fileScanTasks.remove(0);
-      Integer specId = unboundBaseFileScanTask.file().specId();
-      return unboundBaseFileScanTask.bind(specsById.get(specId), caseSensitive);
+      FileScanTask task = fileScanTasks.remove(0);
+      if (task instanceof UnboundBaseFileScanTask) {
+        // bind partition spec data to task
+        UnboundBaseFileScanTask unboundBaseFileScanTask = (UnboundBaseFileScanTask) task;
+        Integer specId = task.file().specId();
+        return unboundBaseFileScanTask.bind(specsById.get(specId), caseSensitive);
+      } else {
+        return task;
+      }
     }
 
     private void fetchScanTasks(String withPlanTask) {

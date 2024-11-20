@@ -2714,8 +2714,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Test
   public void testPlanTableScanAndFetchScanTasksWithCompletedStatusAndNestedPlanTasks()
       throws IOException {
-    // TODO for some reason this test has class cast exception for UnboundBaseFileScanTask
-    //  even though the above dont face this issue
     Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK);
     assertBoundFileScanTasks(table, SPEC);
   }
