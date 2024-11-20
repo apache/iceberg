@@ -27,6 +27,8 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.actions.NDVSketchUtil;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -112,6 +114,17 @@ public class TestComputeTableStatsProcedure extends ExtensionsTestBase {
                     catalogName, tableIdent, 1234L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Snapshot not found");
+  }
+
+  @TestTemplate
+  public void testProcedureWithInvalidTable() {
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.compute_table_stats(table => '%s', snapshot_id => %dL)",
+                    catalogName, TableIdentifier.of(Namespace.of("default"), "abcd"), 1234L))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("Couldn't load table");
   }
 
   void verifyTableStats(String tableName) throws NoSuchTableException, ParseException {
