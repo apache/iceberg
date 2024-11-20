@@ -941,9 +941,9 @@ as an `UPDATE_AFTER` image, resulting in the following pre/post update images:
 
 ### `compute_table_stats`
 
-This procedure calculates the Number of Distinct Values (NDV) stats for a specified table.
-By default, it uses the latest snapshot of the table and analyzes all columns to compute the stats.
-The procedure can be optionally configured to compute stats for a specific snapshot and/or a subset of columns.
+This procedure calculates the Number of Distinct Values (NDV) statistics for a specified table.
+By default, statistics are computed for all columns using the table's current snapshot.
+The procedure can be optionally configured to compute statistics for a specific snapshot and/or a subset of columns.
 
 | Argument Name | Required? | Type          | Description                         |
 |---------------|-----------|---------------|-------------------------------------|
