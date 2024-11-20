@@ -27,7 +27,9 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.table.api.TableEnvironment;
@@ -98,6 +100,8 @@ public class TestMetadataTableReadableMetrics extends CatalogTestBase {
           optional(8, "fixedCol", Types.FixedType.ofLength(3)),
           optional(9, "binaryCol", Types.BinaryType.get()));
 
+  private Map<String, Long> columnNameSizeMap;
+
   private Table createPrimitiveTable() throws IOException {
     Table table =
         catalog.createTable(
@@ -133,6 +137,14 @@ public class TestMetadataTableReadableMetrics extends CatalogTestBase {
 
     File testFile = File.createTempFile("junit", null, temp.toFile());
     DataFile dataFile = FileHelpers.writeDataFile(table, Files.localOutput(testFile), records);
+    Map<Integer, Long> columnSizes = dataFile.columnSizes();
+    columnNameSizeMap = new HashMap<>();
+    for (Map.Entry<Integer, Long> entry : columnSizes.entrySet()) {
+      int fieldId = entry.getKey();
+      long sizeInBytes = entry.getValue();
+      Types.NestedField field = PRIMITIVE_SCHEMA.findField(fieldId);
+      columnNameSizeMap.put(field.name(), sizeInBytes);
+    }
     table.newAppend().appendFile(dataFile).commit();
     return table;
   }
@@ -217,27 +229,34 @@ public class TestMetadataTableReadableMetrics extends CatalogTestBase {
 
     Row binaryCol =
         Row.of(
-            52L,
+            columnNameSizeMap.get("binaryCol"),
             4L,
             2L,
             null,
             Base64.getDecoder().decode("1111"),
             Base64.getDecoder().decode("2222"));
-    Row booleanCol = Row.of(32L, 4L, 0L, null, false, true);
-    Row decimalCol = Row.of(85L, 4L, 1L, null, new BigDecimal("1.00"), new BigDecimal("2.00"));
-    Row doubleCol = Row.of(85L, 4L, 0L, 1L, 1.0D, 2.0D);
+    Row booleanCol = Row.of(columnNameSizeMap.get("booleanCol"), 4L, 0L, null, false, true);
+    Row decimalCol =
+        Row.of(
+            columnNameSizeMap.get("decimalCol"),
+            4L,
+            1L,
+            null,
+            new BigDecimal("1.00"),
+            new BigDecimal("2.00"));
+    Row doubleCol = Row.of(columnNameSizeMap.get("doubleCol"), 4L, 0L, 1L, 1.0D, 2.0D);
     Row fixedCol =
         Row.of(
-            44L,
+            columnNameSizeMap.get("fixedCol"),
             4L,
             2L,
             null,
             Base64.getDecoder().decode("1111"),
             Base64.getDecoder().decode("2222"));
-    Row floatCol = Row.of(71L, 4L, 0L, 2L, 0f, 0f);
-    Row intCol = Row.of(71L, 4L, 0L, null, 1, 2);
-    Row longCol = Row.of(79L, 4L, 0L, null, 1L, 2L);
-    Row stringCol = Row.of(79L, 4L, 0L, null, "1", "2");
+    Row floatCol = Row.of(columnNameSizeMap.get("floatCol"), 4L, 0L, 2L, 0f, 0f);
+    Row intCol = Row.of(columnNameSizeMap.get("intCol"), 4L, 0L, null, 1, 2);
+    Row longCol = Row.of(columnNameSizeMap.get("longCol"), 4L, 0L, null, 1L, 2L);
+    Row stringCol = Row.of(columnNameSizeMap.get("stringCol"), 4L, 0L, null, "1", "2");
 
     List<Row> expected =
         Lists.newArrayList(
