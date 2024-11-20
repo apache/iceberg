@@ -100,6 +100,13 @@ public class PositionDeletesTable extends BaseMetadataTable {
   }
 
   @Override
+  public int formatVersion() {
+    // mainly needed in SparkPositionDeletesRewrite when determining whether to rewrite V2 position
+    // deletes to DVs
+    return table().formatVersion();
+  }
+
+  @Override
   public Map<String, String> properties() {
     // The write properties are needed by PositionDeletesRewriteAction,
     // these properties should respect the ones of BaseTable.
