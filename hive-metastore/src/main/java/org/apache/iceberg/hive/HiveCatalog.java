@@ -417,6 +417,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     if (!isValidIdentifier(identifier)) {
       return false;
     }
+
     String database = identifier.namespace().level(0);
     try {
       Table table = clients.run(client -> client.getTable(database, identifier.name()));
