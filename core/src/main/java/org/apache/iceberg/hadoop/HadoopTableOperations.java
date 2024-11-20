@@ -365,7 +365,14 @@ public class HadoopTableOperations implements TableOperations {
       }
 
       if (fs.exists(dst)) {
-        throw new CommitFailedException("Version %d already exists: %s", nextVersion, dst);
+        CommitFailedException cfe =
+            new CommitFailedException("Version %d already exists: %s", nextVersion, dst);
+        RuntimeException re = tryDelete(src);
+        if (re != null) {
+          cfe.addSuppressed(re);
+        }
+
+        throw cfe;
       }
 
       if (!fs.rename(src, dst)) {
