@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.procedures;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ComputeTableStats;
+import org.apache.iceberg.actions.ComputeTableStats.Result;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -83,7 +84,6 @@ public class ComputeTableStatsProcedure extends BaseProcedure {
   public InternalRow[] call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
     Identifier tableIdent = input.ident(TABLE_PARAM);
-
     Long snapshotId = input.asLong(SNAPSHOT_ID_PARAM, null);
     String[] columns = input.asStringArray(COLUMNS_PARAM, null);
 
@@ -91,19 +91,21 @@ public class ComputeTableStatsProcedure extends BaseProcedure {
         tableIdent,
         table -> {
           ComputeTableStats action = actions().computeTableStats(table);
+
           if (snapshotId != null) {
             action.snapshot(snapshotId);
           }
+
           if (columns != null) {
             action.columns(columns);
           }
 
-          ComputeTableStats.Result result = action.execute();
+          Result result = action.execute();
           return toOutputRows(result);
         });
   }
 
-  private InternalRow[] toOutputRows(ComputeTableStats.Result result) {
+  private InternalRow[] toOutputRows(Result result) {
     StatisticsFile statisticsFile = result.statisticsFile();
     if (statisticsFile != null) {
       InternalRow row = newInternalRow(UTF8String.fromString(statisticsFile.path()));
