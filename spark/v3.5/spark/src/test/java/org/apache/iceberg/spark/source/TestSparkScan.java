@@ -44,7 +44,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSQLProperties;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.iceberg.spark.functions.BucketFunction;
 import org.apache.iceberg.spark.functions.DaysFunction;
@@ -56,6 +58,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.catalog.CatalogColumnStat;
 import org.apache.spark.sql.connector.catalog.functions.BoundFunction;
 import org.apache.spark.sql.connector.expressions.Expression;
 import org.apache.spark.sql.connector.expressions.FieldReference;
@@ -407,6 +410,372 @@ public class TestSparkScan extends TestBaseWithCatalog {
     expectedTwoNDVs.put("id", 4L);
     expectedTwoNDVs.put("data", 2L);
     withSQLConf(reportColStatsEnabled, () -> checkColStatisticsReported(scan, 4L, expectedTwoNDVs));
+  }
+
+  @TestTemplate
+  public void testTableWithAllStatsUsingSessionConf() throws NoSuchTableException {
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "a"),
+            new SimpleRecord(null, "b"));
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    SparkScanBuilder defaultScanBuilder =
+        new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
+    SparkScan defaultScan = (SparkScan) defaultScanBuilder.build();
+
+    Map<String, String> reportColStatsDisabled =
+        ImmutableMap.of(
+            SQLConf.CBO_ENABLED().key(), "true", SparkSQLProperties.REPORT_COLUMN_STATS, "false");
+
+    Map<String, String> reportColStatsEnabled =
+        ImmutableMap.of(
+            SQLConf.CBO_ENABLED().key(),
+            "true",
+            SparkSQLProperties.DERIVE_STATS_FROM_MANIFEST_ENABLED,
+            "true");
+
+    GenericStatisticsFile statisticsFile =
+        new GenericStatisticsFile(
+            snapshotId,
+            "/test/statistics/file.puffin",
+            100,
+            42,
+            ImmutableList.of(
+                new GenericBlobMetadata(
+                    APACHE_DATASKETCHES_THETA_V1,
+                    snapshotId,
+                    1,
+                    ImmutableList.of(1),
+                    ImmutableMap.of("ndv", "3"))));
+
+    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+
+    checkColStatisticsNotReported(defaultScan, 4L);
+    withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(defaultScan, 4L));
+
+    Map<String, Long> expectedNdvValues = Maps.newHashMap();
+    Map<String, String> expectedMinValues = Maps.newHashMap();
+    Map<String, String> expectedMaxValues = Maps.newHashMap();
+    Map<String, Long> expectedNullCountValues = Maps.newHashMap();
+
+    expectedNdvValues.put("id", 3L);
+    expectedMinValues.put("id", "1");
+    expectedMaxValues.put("id", "3");
+    expectedNullCountValues.put("id", 1L);
+    withSQLConf(
+        reportColStatsEnabled,
+        () -> {
+          SparkScanBuilder scanBuilder =
+              new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
+          SparkScan scan = (SparkScan) scanBuilder.build();
+          checkColStatisticsReported(
+              scan,
+              4L,
+              expectedNdvValues,
+              expectedMinValues,
+              expectedMaxValues,
+              expectedNullCountValues);
+        });
+  }
+
+  @TestTemplate
+  public void testTableWithAllStatsUsingTableProperty() throws NoSuchTableException {
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "a"),
+            new SimpleRecord(null, "b"));
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    SparkScanBuilder defaultScanBuilder =
+        new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
+    SparkScan defaultScan = (SparkScan) defaultScanBuilder.build();
+
+    Map<String, String> reportColStatsDisabled =
+        ImmutableMap.of(
+            SQLConf.CBO_ENABLED().key(), "true", SparkSQLProperties.REPORT_COLUMN_STATS, "false");
+
+    Map<String, String> reportColStatsEnabled =
+        ImmutableMap.of(
+            SQLConf.CBO_ENABLED().key(),
+            "true",
+            SparkSQLProperties.DERIVE_STATS_FROM_MANIFEST_ENABLED,
+            "false");
+
+    GenericStatisticsFile statisticsFile =
+        new GenericStatisticsFile(
+            snapshotId,
+            "/test/statistics/file.puffin",
+            100,
+            42,
+            ImmutableList.of(
+                new GenericBlobMetadata(
+                    APACHE_DATASKETCHES_THETA_V1,
+                    snapshotId,
+                    1,
+                    ImmutableList.of(1),
+                    ImmutableMap.of("ndv", "3"))));
+
+    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+
+    checkColStatisticsNotReported(defaultScan, 4L);
+    withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(defaultScan, 4L));
+
+    Map<String, Long> expectedNdvValues = Maps.newHashMap();
+    Map<String, String> expectedMinValues = Maps.newHashMap();
+    Map<String, String> expectedMaxValues = Maps.newHashMap();
+    Map<String, Long> expectedNullCountValues = Maps.newHashMap();
+
+    expectedNdvValues.put("id", 3L);
+    expectedMinValues.put("id", "1");
+    expectedMaxValues.put("id", "3");
+    expectedNullCountValues.put("id", 1L);
+    withSQLConf(
+        reportColStatsEnabled,
+        () -> {
+          CaseInsensitiveStringMap options =
+              new CaseInsensitiveStringMap(
+                  ImmutableMap.of(SparkReadOptions.DERIVE_STATS_FROM_MANIFEST_ENABLED, "true"));
+          SparkScanBuilder scanBuilder = new SparkScanBuilder(spark, table, options);
+          SparkScan scan = (SparkScan) scanBuilder.build();
+          checkColStatisticsReported(
+              scan,
+              4L,
+              expectedNdvValues,
+              expectedMinValues,
+              expectedMaxValues,
+              expectedNullCountValues);
+        });
+  }
+
+  @TestTemplate
+  public void testTableStatsOnBooleanColumn() {
+    String columnName = "boolean_col";
+    String type = "BOOLEAN";
+
+    createTable(columnName, type, "true", "false", "NULL", "NULL");
+    testTableWithNdvAndStatsFromManifest(columnName, 2L, "false", "true", 2L);
+  }
+
+  @TestTemplate
+  public void testTableStatsOnStringColumn() {
+    String columnName = "string_col";
+    String type = "STRING";
+
+    createTable(columnName, type, "'a'", "'b'", "'c'", "NULL");
+    testTableWithNdvAndStatsFromManifest(columnName, 3L, "a", "b", 1L);
+  }
+
+  @TestTemplate
+  public void testTableStatsOnIntColumn() {
+    String columnName = "int_col";
+    String type = "INT";
+
+    createTable(columnName, type, 1, 2, 3, "NULL");
+    testTableWithNdvAndStatsFromManifest(columnName, 3L, "1", "3", 1L);
+  }
+
+  @TestTemplate
+  public void testTableStatsOnLongColumn() {
+    String columnName = "long_col";
+    String type = "BIGINT";
+
+    createTable(columnName, type, 10, 20, 30, "NULL");
+    testTableWithNdvAndStatsFromManifest(columnName, 3L, "10", "30", 1L);
+  }
+
+  @TestTemplate
+  public void testTableStatsOnFloatColumn() {
+    String columnName = "float_col";
+    String type = "FLOAT";
+
+    createTable(columnName, type, 1.0, 2.0, 3.0, "NULL");
+    testTableWithNdvAndStatsFromManifest(columnName, 3L, "1.0", "3.0", 1L);
+  }
+
+  @TestTemplate
+  public void testTableStatsOnDoubleColumn() {
+    String columnName = "double_col";
+    String type = "DOUBLE";
+
+    createTable(columnName, type, 1.0, 2.0, 3.0, "NULL");
+    testTableWithNdvAndStatsFromManifest(columnName, 3L, "1.0", "3.0", 1L);
+  }
+
+  @TestTemplate
+  public void testTableStatsOnDecimalColumn() {
+    String columnName = "decimal_col";
+    String type = "DECIMAL(20,2)";
+
+    createTable(columnName, type, 1.11, 2.22, 3.33, "NULL");
+    testTableWithNdvAndStatsFromManifest(columnName, 3L, "1.11", "3.33", 1L);
+  }
+
+  @TestTemplate
+  public void testTableStatsOnDateColumn() {
+    String columnName = "date_col";
+    String type = "DATE";
+
+    createTable(
+        columnName,
+        type,
+        "cast('2024-01-01' as date)",
+        "cast('2024-01-02' as date)",
+        "cast('2024-01-03' as date)",
+        "NULL");
+    testTableWithNdvAndStatsFromManifest(
+        columnName,
+        3L,
+        convertToSparkInternalValue("2024-01-01", columnName),
+        convertToSparkInternalValue("2024-01-03", columnName),
+        1L);
+  }
+
+  @TestTemplate
+  public void testTableStatsOnTimesStampColumn() {
+    String columnName = "timeStamp_col";
+    String type = "TIMESTAMP";
+
+    sql("SET TIME ZONE 'UTC'");
+    createTable(
+        columnName,
+        type,
+        "cast('2024-01-01 12:00:00' as timestamp)",
+        "cast('2024-01-01 12:15:00' as timestamp)",
+        "cast('2024-01-01 12:30:00' as timestamp)",
+        "NULL");
+    sql("SET TIME ZONE local");
+    testTableWithNdvAndStatsFromManifest(
+        columnName,
+        3L,
+        convertToSparkInternalValue("2024-01-01 12:00:00.0", columnName),
+        convertToSparkInternalValue("2024-01-01 12:30:00.0", columnName),
+        1L);
+  }
+
+  @TestTemplate
+  public void testTableStatsOnTimeStamptzColumn() {
+    String columnName = "timeStamptz_col";
+    String type = "TIMESTAMP_NTZ";
+
+    createTable(
+        columnName,
+        type,
+        "cast('2024-01-01T12:00:00' as timestamp_ntz)",
+        "cast('2024-01-01T12:15:00' as timestamp_ntz)",
+        "cast('2024-01-01T12:30:00' as timestamp_ntz)",
+        "NULL");
+    testTableWithNdvAndStatsFromManifest(
+        columnName,
+        3L,
+        convertToSparkInternalValue("2024-01-01 12:00:00.0", columnName),
+        convertToSparkInternalValue("2024-01-01 12:30:00.0", columnName),
+        1L);
+  }
+
+  private void createTable(String columnName, String type, Object... values) {
+    sql(String.format("CREATE TABLE %s (%s %s) USING iceberg", tableName, columnName, type));
+    sql(
+        "INSERT INTO %s VALUES (%s),(%s),(%s),(%s)",
+        tableName, values[0], values[1], values[2], values[3]);
+  }
+
+  // Converts Date,TimeStamp,TimesStampNTZ Columns Min,Max to Spark Internal Values
+  public String convertToSparkInternalValue(String value, String colName) {
+    Table table = validationCatalog.loadTable(tableIdent);
+    return String.valueOf(
+        CatalogColumnStat.fromExternalString(
+            value, colName, SparkSchemaUtil.convert(table.schema().findType(colName)), 2));
+  }
+
+  public void testTableWithNdvAndStatsFromManifest(
+      String columnName,
+      Long expectedNdv,
+      String expectedMin,
+      String expectedMax,
+      Long expectedNullCount) {
+    Table table = validationCatalog.loadTable(tableIdent);
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    SparkScanBuilder defaultScanBuilder =
+        new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
+    SparkScan defaultScan = (SparkScan) defaultScanBuilder.build();
+
+    Map<String, String> reportColStatsDisabled =
+        ImmutableMap.of(
+            SQLConf.CBO_ENABLED().key(), "true", SparkSQLProperties.REPORT_COLUMN_STATS, "false");
+
+    Map<String, String> reportColStatsEnabled =
+        ImmutableMap.of(
+            SQLConf.CBO_ENABLED().key(),
+            "true",
+            SparkSQLProperties.DERIVE_STATS_FROM_MANIFEST_ENABLED,
+            "true");
+
+    GenericStatisticsFile statisticsFile =
+        new GenericStatisticsFile(
+            snapshotId,
+            "/test/statistics/file.puffin",
+            100,
+            42,
+            ImmutableList.of(
+                new GenericBlobMetadata(
+                    APACHE_DATASKETCHES_THETA_V1,
+                    snapshotId,
+                    1,
+                    ImmutableList.of(1),
+                    ImmutableMap.of("ndv", String.valueOf(expectedNdv)))));
+
+    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+
+    checkColStatisticsNotReported(defaultScan, 4L);
+    withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(defaultScan, 4L));
+
+    Map<String, Long> expectedNdvValues = Maps.newHashMap();
+    Map<String, String> expectedMinValues = Maps.newHashMap();
+    Map<String, String> expectedMaxValues = Maps.newHashMap();
+    Map<String, Long> expectedNullCountValues = Maps.newHashMap();
+
+    expectedNdvValues.put(columnName, expectedNdv);
+    expectedMinValues.put(columnName, expectedMin);
+    expectedMaxValues.put(columnName, expectedMax);
+    expectedNullCountValues.put(columnName, expectedNullCount);
+    withSQLConf(
+        reportColStatsEnabled,
+        () -> {
+          SparkScanBuilder scanBuilder =
+              new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
+          SparkScan scan = (SparkScan) scanBuilder.build();
+          checkColStatisticsReported(
+              scan,
+              4L,
+              expectedNdvValues,
+              expectedMinValues,
+              expectedMaxValues,
+              expectedNullCountValues);
+        });
   }
 
   @TestTemplate
@@ -1034,6 +1403,62 @@ public class TestSparkScan extends TestBaseWithCatalog {
       for (Map.Entry<String, Long> entry : expectedNDVs.entrySet()) {
         assertThat(
                 columnStats.get(FieldReference.column(entry.getKey())).distinctCount().getAsLong())
+            .isEqualTo(entry.getValue());
+      }
+    }
+  }
+
+  private void checkColStatisticsReported(
+      SparkScan scan,
+      long expectedRowCount,
+      Map<String, Long> expectedNDVs,
+      Map<String, String> expectedMin,
+      Map<String, String> expectedMax,
+      Map<String, Long> expectedNumNulls) {
+    Statistics stats = scan.estimateStatistics();
+    assertThat(stats.numRows().getAsLong()).isEqualTo(expectedRowCount);
+
+    Map<NamedReference, ColumnStatistics> columnStats = stats.columnStats();
+    if (expectedNDVs.isEmpty()) {
+      assertThat(columnStats.values().stream().allMatch(value -> value.distinctCount().isEmpty()))
+          .isTrue();
+    } else {
+      for (Map.Entry<String, Long> entry : expectedNDVs.entrySet()) {
+        assertThat(
+                columnStats.get(FieldReference.column(entry.getKey())).distinctCount().getAsLong())
+            .isEqualTo(entry.getValue());
+      }
+    }
+    if (expectedMin.isEmpty()) {
+      assertThat(columnStats.values().stream().allMatch(value -> value.min().isEmpty())).isTrue();
+    } else {
+      for (Map.Entry<String, String> entry : expectedMin.entrySet()) {
+        if (columnStats.get(FieldReference.column(entry.getKey())).min().isPresent()) {
+          assertThat(
+                  String.valueOf(
+                      columnStats.get(FieldReference.column(entry.getKey())).min().get()))
+              .isEqualTo(entry.getValue());
+        }
+      }
+    }
+    if (expectedMax.isEmpty()) {
+      assertThat(columnStats.values().stream().allMatch(value -> value.max().isEmpty())).isTrue();
+    } else {
+      for (Map.Entry<String, String> entry : expectedMax.entrySet()) {
+        if (columnStats.get(FieldReference.column(entry.getKey())).max().isPresent()) {
+          assertThat(
+                  String.valueOf(
+                      columnStats.get(FieldReference.column(entry.getKey())).max().get()))
+              .isEqualTo(entry.getValue());
+        }
+      }
+    }
+    if (expectedNumNulls.isEmpty()) {
+      assertThat(columnStats.values().stream().allMatch(value -> value.nullCount().isEmpty()))
+          .isTrue();
+    } else {
+      for (Map.Entry<String, Long> entry : expectedNumNulls.entrySet()) {
+        assertThat(columnStats.get(FieldReference.column(entry.getKey())).nullCount().getAsLong())
             .isEqualTo(entry.getValue());
       }
     }

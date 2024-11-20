@@ -55,6 +55,7 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkAggregates;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
 import org.apache.iceberg.types.Type;
@@ -73,6 +74,7 @@ import org.apache.spark.sql.connector.read.SupportsPushDownAggregates;
 import org.apache.spark.sql.connector.read.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.connector.read.SupportsPushDownV2Filters;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
+import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -394,21 +396,29 @@ public class SparkScanBuilder
         });
   }
 
-  @Override
-  public Scan build() {
+  public Scan build(boolean withStats) {
     if (localScan != null) {
       return localScan;
     } else {
-      return buildBatchScan();
+      return buildBatchScan(withStats);
     }
   }
 
-  private Scan buildBatchScan() {
+  @Override
+  public Scan build() {
+    boolean cboEnabled =
+        Boolean.parseBoolean(spark.conf().get(SQLConf.CBO_ENABLED().key(), "false"));
+    boolean reportColumnsStats =
+        Boolean.parseBoolean(spark.conf().get(SparkSQLProperties.REPORT_COLUMN_STATS, "true"));
+    return build(cboEnabled && reportColumnsStats);
+  }
+
+  private Scan buildBatchScan(boolean withStats) {
     Schema expectedSchema = schemaWithMetadataColumns();
     return new SparkBatchQueryScan(
         spark,
         table,
-        buildIcebergBatchScan(false /* not include Column Stats */, expectedSchema),
+        buildIcebergBatchScan(withStats, expectedSchema),
         readConf,
         expectedSchema,
         filterExpressions,

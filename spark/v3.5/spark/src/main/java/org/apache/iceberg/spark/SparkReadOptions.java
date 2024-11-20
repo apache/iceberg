@@ -95,4 +95,7 @@ public class SparkReadOptions {
   public static final String TIMESTAMP_AS_OF = "timestampAsOf";
 
   public static final String AGGREGATE_PUSH_DOWN_ENABLED = "aggregate-push-down-enabled";
+
+  public static final String DERIVE_STATS_FROM_MANIFEST_ENABLED =
+      "derive-stats-from-manifest-enabled";
 }
