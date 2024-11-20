@@ -615,7 +615,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     Map<String, String> queryParams = Maps.newHashMap();
     if (!namespace.isEmpty()) {
-      queryParams.put("parent", RESTUtil.NAMESPACE_JOINER.join(namespace.levels()));
+      queryParams.put("parent", RESTUtil.encodeNamespace(namespace));
     }
 
     ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();

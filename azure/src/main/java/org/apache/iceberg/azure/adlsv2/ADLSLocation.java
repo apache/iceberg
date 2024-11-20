@@ -25,26 +25,17 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * This class represents a fully qualified location to a file or directory in Azure Data Lake
- * Storage Gen2 storage.
+ * This class represents a fully qualified location in Azure expressed as a URI.
  *
- * <p>Locations follow a URI like structure to identify resources
+ * <p>Locations follow the conventions used by Hadoop's Azure support, i.e.
  *
- * <pre>{@code abfs[s]://[<container>@]<storageAccount>.dfs.core.windows.net/<path>}</pre>
+ * <pre>{@code abfs[s]://[<container>@]<storage account host>/<file path>}</pre>
  *
- * or
- *
- * <pre>{@code wasb[s]://<container>@<storageAccount>.blob.core.windows.net/<path>}</pre>
- *
- * For compatibility, locations using the wasb scheme are also accepted but will use the Azure Data
- * Lake Storage Gen2 REST APIs instead of the Blob Storage REST APIs.
- *
- * <p>See <a
- * href="https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-introduction-abfs-uri#uri-syntax">Azure
- * Data Lake Storage URI</a>
+ * <p>See <a href="https://hadoop.apache.org/docs/stable/hadoop-azure/abfs.html">Hadoop Azure
+ * Support</a>
  */
 class ADLSLocation {
-  private static final Pattern URI_PATTERN = Pattern.compile("^(abfss?|wasbs?)://([^/?#]+)(.*)?$");
+  private static final Pattern URI_PATTERN = Pattern.compile("^abfss?://([^/?#]+)(.*)?$");
 
   private final String storageAccount;
   private final String container;
@@ -62,19 +53,19 @@ class ADLSLocation {
 
     ValidationException.check(matcher.matches(), "Invalid ADLS URI: %s", location);
 
-    String authority = matcher.group(2);
+    String authority = matcher.group(1);
     String[] parts = authority.split("@", -1);
     if (parts.length > 1) {
       this.container = parts[0];
-      String host = parts[1];
-      this.storageAccount = host.split("\\.", -1)[0];
+      this.storageAccount = parts[1];
     } else {
       this.container = null;
-      this.storageAccount = authority.split("\\.", -1)[0];
+      this.storageAccount = authority;
     }
 
-    String uriPath = matcher.group(3);
-    this.path = uriPath == null ? "" : uriPath.startsWith("/") ? uriPath.substring(1) : uriPath;
+    String uriPath = matcher.group(2);
+    uriPath = uriPath == null ? "" : uriPath.startsWith("/") ? uriPath.substring(1) : uriPath;
+    this.path = uriPath.split("\\?", -1)[0].split("#", -1)[0];
   }
 
   /** Returns Azure storage account. */
