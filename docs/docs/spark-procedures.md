@@ -936,3 +936,40 @@ as an `UPDATE_AFTER` image, resulting in the following pre/post update images:
 |-----|--------|--------------|
 | 3   | Robert | UPDATE_BEFORE|
 | 3   | Dan    | UPDATE_AFTER |
+
+## Table stats
+
+### `compute_table_stats`
+
+This procedure calculates the Number of Distinct Values (NDV) stats for a specified table.
+By default, it uses the latest snapshot of the table and analyzes all columns to compute the stats.
+The procedure can be optionally configured to compute stats for a specific snapshot and/or a subset of columns.
+
+| Argument Name | Required? | Type          | Description                         |
+|---------------|-----------|---------------|-------------------------------------|
+| `table`       | ✔️        | string        | Name of the table                   |
+| `snapshot_id` |           | string        | id of the snapshot to collect stats |
+| `columns`     |           | array<string> | columns to collect stats            |
+
+### Output
+
+| Output Name       | Type   | Description                                     |
+|-------------------|--------|-------------------------------------------------|
+| `statistics_file` | string | path to stats file created from by this command |
+
+### Examples
+
+Collect stats of the latest snapshot of table `my_table`
+```sql
+CALL catalog_name.system.compute_table_stats('my_table');
+```
+
+Collect stats of the snapshot with id `snap1` of table `my_table`
+```sql
+CALL catalog_name.system.compute_table_stats(snapshot_id => 'snap1', table => 'my_table' );
+```
+
+Collect stats of the snapshot with id `snap1` of table `my_table` for columns `col1` and `col2`
+```sql
+CALL catalog_name.system.compute_table_stats(snapshot_id => 'snap1', table => 'my_table', columns => array('col1', 'col2') );
+```
