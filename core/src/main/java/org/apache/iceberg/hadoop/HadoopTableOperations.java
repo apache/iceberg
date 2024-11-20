@@ -374,6 +374,7 @@ public class HadoopTableOperations implements TableOperations {
         if (re != null) {
           cfe.addSuppressed(re);
         }
+
         throw cfe;
       }
 
