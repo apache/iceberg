@@ -212,7 +212,7 @@ Notes:
 1. Timestamp values _without time zone_ represent a date and time of day regardless of zone: the time value is independent of zone adjustments (`2017-11-16 17:10:34` is always retrieved as `2017-11-16 17:10:34`).
 2. Timestamp values _with time zone_ represent a point in time: values are stored as UTC and do not retain a source time zone (`2017-11-16 17:10:34 PST` is stored/retrieved as `2017-11-17 01:10:34 UTC` and these values are considered identical).
 3. Character strings must be stored as UTF-8 encoded byte arrays.
-4. CRS (coordinate reference system) is a mapping of how coordinates refer to precise locations on earth. A custom crs can be specified by a string, which is a table property whose value is the crs representation, and with an additional '.type' suffix is optionally another table property whose value describes the representation's encoding. Fixed and cannot be changed by schema evolution.
+4. CRS (coordinate reference system) is a mapping of how coordinates refer to locations on earth. A custom crs can be specified by a string, which is a table property whose value is the crs representation, and with an additional '.type' suffix is optionally another table property whose value describes the representation's encoding. Fixed and cannot be changed by schema evolution.
 
 For details on how to serialize a schema to JSON, see Appendix C.
 
