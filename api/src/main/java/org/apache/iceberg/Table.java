@@ -374,11 +374,7 @@ public interface Table {
     return null;
   }
 
-  /**
-   * Returns the format version of the table
-   *
-   * @return the format version of the table
-   */
+  /** Returns the format version of the table */
   default int formatVersion() {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " doesn't implement formatVersion");
