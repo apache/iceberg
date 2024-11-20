@@ -495,7 +495,7 @@ public class SparkTableUtil {
         stagingDir,
         partitionFilter,
         checkDuplicateFiles,
-        executorService(parallelism));
+        migrationService(parallelism));
   }
 
   /**
@@ -719,7 +719,7 @@ public class SparkTableUtil {
         spec,
         stagingDir,
         checkDuplicateFiles,
-        executorService(parallelism));
+        migrationService(parallelism));
   }
 
   /**
@@ -981,16 +981,16 @@ public class SparkTableUtil {
   }
 
   @Nullable
-  public static ExecutorService executorService(int parallelism) {
-    return parallelism == 1 ? null : new ExecutorServiceFactory(parallelism);
+  public static ExecutorService migrationService(int parallelism) {
+    return parallelism == 1 ? null : new LazyExecutorService(parallelism);
   }
 
-  private static class ExecutorServiceFactory implements ExecutorService, Serializable {
+  private static class LazyExecutorService implements ExecutorService, Serializable {
 
     private final int parallelism;
     private volatile ExecutorService service;
 
-    ExecutorServiceFactory(int parallelism) {
+    LazyExecutorService(int parallelism) {
       this.parallelism = parallelism;
     }
 
