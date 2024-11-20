@@ -133,7 +133,8 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     this.branch = writeConf.branch();
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.writeRequirements = writeConf.positionDeltaRequirements(command);
-    this.context = new Context(dataSchema, writeConf, info, writeRequirements);
+    this.context =
+        new Context(dataSchema, writeConf, info, writeRequirements, table.formatVersion());
     this.writeProperties = writeConf.writeProperties();
   }
 
@@ -779,13 +780,14 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
         Schema dataSchema,
         SparkWriteConf writeConf,
         LogicalWriteInfo info,
-        SparkWriteRequirements writeRequirements) {
+        SparkWriteRequirements writeRequirements,
+        int formatVersion) {
       this.dataSchema = dataSchema;
       this.dataSparkType = info.schema();
       this.dataFileFormat = writeConf.dataFileFormat();
       this.targetDataFileSize = writeConf.targetDataFileSize();
       this.deleteSparkType = info.rowIdSchema().get();
-      this.deleteFileFormat = writeConf.deleteFileFormat();
+      this.deleteFileFormat = formatVersion >= 3 ? FileFormat.PUFFIN : writeConf.deleteFileFormat();
       this.targetDeleteFileSize = writeConf.targetDeleteFileSize();
       this.deleteGranularity = writeConf.deleteGranularity();
       this.metadataSparkType = info.metadataSchema().get();

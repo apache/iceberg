@@ -181,6 +181,10 @@ class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
           noEqualityDeleteConf || fullEqualityDeleteConf,
           "Equality field IDs and equality delete row schema must be set together");
 
+      if (null != positionDeleteRowSchema && table.formatVersion() >= 3) {
+        this.deleteFileFormat = FileFormat.PUFFIN;
+      }
+
       return new GenericFileWriterFactory(
           table,
           dataFileFormat,
