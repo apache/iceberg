@@ -1102,7 +1102,7 @@ public class TableMetadata implements Serializable {
     /**
      * Add a new schema.
      *
-     * @deprecated since 1.8.0, will be removed 1.9.0 or 2.0.0, use AddSchema(schema).
+     * @deprecated since 1.8.0, will be removed in 1.9.0 or 2.0.0, use AddSchema(schema).
      */
     @Deprecated
     public Builder addSchema(Schema schema, int newLastColumnId) {
