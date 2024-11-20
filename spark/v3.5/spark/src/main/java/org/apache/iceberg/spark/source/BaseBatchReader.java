@@ -34,6 +34,8 @@ import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.spark.OrcBatchReadConf;
+import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
@@ -41,7 +43,8 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
-  private final int batchSize;
+  private final ParquetBatchReadConf parquetConf;
+  private final OrcBatchReadConf orcConf;
 
   BaseBatchReader(
       Table table,
@@ -49,9 +52,11 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Schema tableSchema,
       Schema expectedSchema,
       boolean caseSensitive,
-      int batchSize) {
+      ParquetBatchReadConf parquetConf,
+      OrcBatchReadConf orcConf) {
     super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
-    this.batchSize = batchSize;
+    this.parquetConf = parquetConf;
+    this.orcConf = orcConf;
   }
 
   protected CloseableIterable<ColumnarBatch> newBatchIterable(
@@ -64,7 +69,8 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       SparkDeleteFilter deleteFilter) {
     switch (format) {
       case PARQUET:
-        return newParquetIterable(inputFile, start, length, residual, idToConstant, deleteFilter);
+        return newParquetIterable(
+            inputFile, start, length, residual, idToConstant, deleteFilter, parquetConf.limit());
 
       case ORC:
         return newOrcIterable(inputFile, start, length, residual, idToConstant);
@@ -81,7 +87,8 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       long length,
       Expression residual,
       Map<Integer, ?> idToConstant,
-      SparkDeleteFilter deleteFilter) {
+      SparkDeleteFilter deleteFilter,
+      Integer limit) {
     // get required schema if there are deletes
     Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema();
     boolean hasPositionDelete = deleteFilter != null ? deleteFilter.hasPosDeletes() : false;
@@ -97,22 +104,29 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       }
     }
 
-    return Parquet.read(inputFile)
-        .project(projectedSchema)
-        .split(start, length)
-        .createBatchedReaderFunc(
-            fileSchema ->
-                VectorizedSparkParquetReaders.buildReader(
-                    requiredSchema, fileSchema, idToConstant, deleteFilter))
-        .recordsPerBatch(batchSize)
-        .filter(residual)
-        .caseSensitive(caseSensitive())
-        // Spark eagerly consumes the batches. So the underlying memory allocated could be reused
-        // without worrying about subsequent reads clobbering over each other. This improves
-        // read performance as every batch read doesn't have to pay the cost of allocating memory.
-        .reuseContainers()
-        .withNameMapping(nameMapping())
-        .build();
+    Parquet.ReadBuilder readerBuilder =
+        Parquet.read(inputFile)
+            .project(projectedSchema)
+            .split(start, length)
+            .createBatchedReaderFunc(
+                fileSchema ->
+                    VectorizedSparkParquetReaders.buildReader(
+                        requiredSchema, fileSchema, idToConstant, deleteFilter))
+            .recordsPerBatch(parquetConf.batchSize())
+            .filter(residual)
+            .caseSensitive(caseSensitive())
+            // Spark eagerly consumes the batches. So the underlying memory allocated could be
+            // reused
+            // without worrying about subsequent reads clobbering over each other. This improves
+            // read performance as every batch read doesn't have to pay the cost of allocating
+            // memory.
+            .reuseContainers()
+            .withNameMapping(nameMapping());
+    if (limit != null && limit > 0) {
+      readerBuilder = readerBuilder.pushedlimit(limit);
+    }
+
+    return readerBuilder.build();
   }
 
   private CloseableIterable<ColumnarBatch> newOrcIterable(
@@ -134,7 +148,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         .createBatchedReaderFunc(
             fileSchema ->
                 VectorizedSparkOrcReaders.buildReader(expectedSchema(), fileSchema, idToConstant))
-        .recordsPerBatch(batchSize)
+        .recordsPerBatch(orcConf.batchSize())
         .filter(residual)
         .caseSensitive(caseSensitive())
         .withNameMapping(nameMapping())

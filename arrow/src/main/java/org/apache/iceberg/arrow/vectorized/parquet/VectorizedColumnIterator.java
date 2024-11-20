@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.arrow.vectorized.parquet;
 
+import java.util.Locale;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
@@ -69,12 +70,24 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
   }
 
   public abstract class BatchReader {
-    public void nextBatch(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
+    public void nextBatch(
+        int numValsToRead, FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
       int rowsReadSoFar = 0;
-      while (rowsReadSoFar < batchSize && hasNext()) {
+      while (rowsReadSoFar < batchSize && hasNext() && rowsReadSoFar < numValsToRead) {
         advance();
+        int expectedBatchSize;
+        if (numValsToRead < 0) {
+          throw new IllegalStateException(
+              String.format(
+                  Locale.ROOT,
+                  "Cannot read a negative number of values. numValsToRead = %d",
+                  numValsToRead));
+        } else {
+          expectedBatchSize = Math.min(batchSize - rowsReadSoFar, numValsToRead - rowsReadSoFar);
+        }
+
         int rowsInThisBatch =
-            nextBatchOf(fieldVector, batchSize - rowsReadSoFar, rowsReadSoFar, typeWidth, holder);
+            nextBatchOf(fieldVector, expectedBatchSize, rowsReadSoFar, typeWidth, holder);
         rowsReadSoFar += rowsInThisBatch;
         triplesRead += rowsInThisBatch;
         fieldVector.setValueCount(rowsReadSoFar);

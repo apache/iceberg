@@ -1030,11 +1030,14 @@ acceptedBreaks:
       new: "class org.apache.iceberg.types.Types.NestedField"
       justification: "new Constructor added"
     org.apache.iceberg:iceberg-core:
+    - code: "java.method.visibilityReduced"
+      old: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
+      new: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
+      justification: "Deprecations for 1.6.0 release"
     - code: "java.element.noLongerDeprecated"
       old: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
       new: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
-      justification: "Constructor became private as part of deprecations cleanup for\
-        \ 1.6.0 release"
+      justification: "Constructor became private as part of deprecations cleanup for 1.6.0 release"
     - code: "java.element.noLongerDeprecated"
       old: "method void org.apache.iceberg.rest.auth.OAuth2Util.AuthSession::<init>(java.util.Map<java.lang.String,\
         \ java.lang.String>, java.lang.String, java.lang.String, java.lang.String,\
@@ -1057,10 +1060,6 @@ acceptedBreaks:
       justification: "Deprecations for 1.6.0 release"
     - code: "java.method.removed"
       old: "method org.apache.iceberg.DataFiles.Builder org.apache.iceberg.DataFiles.Builder::withEqualityFieldIds(java.util.List<java.lang.Integer>)"
-      justification: "Deprecations for 1.6.0 release"
-    - code: "java.method.visibilityReduced"
-      old: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
-      new: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
       justification: "Deprecations for 1.6.0 release"
   "1.6.0":
     org.apache.iceberg:iceberg-common:
@@ -1145,6 +1144,27 @@ acceptedBreaks:
       new: "method org.apache.iceberg.BaseMetastoreOperations.CommitStatus org.apache.iceberg.BaseMetastoreTableOperations::checkCommitStatus(java.lang.String,\
         \ org.apache.iceberg.TableMetadata)"
       justification: "Removing deprecated code"
+    org.apache.iceberg:iceberg-parquet:
+    - code: "java.method.numberOfParametersChanged"
+      old: "method void org.apache.iceberg.parquet.ParquetReader<T>::<init>(org.apache.iceberg.io.InputFile,\
+        \ org.apache.iceberg.Schema, org.apache.parquet.ParquetReadOptions, java.util.function.Function<org.apache.parquet.schema.MessageType,\
+        \ org.apache.iceberg.parquet.ParquetValueReader<?>>, org.apache.iceberg.mapping.NameMapping,\
+        \ org.apache.iceberg.expressions.Expression, boolean, boolean)"
+      new: "method void org.apache.iceberg.parquet.ParquetReader<T>::<init>(org.apache.iceberg.io.InputFile,\
+        \ org.apache.iceberg.Schema, org.apache.parquet.ParquetReadOptions, java.util.function.Function<org.apache.parquet.schema.MessageType,\
+        \ org.apache.iceberg.parquet.ParquetValueReader<?>>, org.apache.iceberg.mapping.NameMapping,\
+        \ org.apache.iceberg.expressions.Expression, boolean, boolean, java.lang.Integer)"
+      justification: "{limit push down}"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method void org.apache.iceberg.parquet.VectorizedParquetReader<T>::<init>(org.apache.iceberg.io.InputFile,\
+        \ org.apache.iceberg.Schema, org.apache.parquet.ParquetReadOptions, java.util.function.Function<org.apache.parquet.schema.MessageType,\
+        \ org.apache.iceberg.parquet.VectorizedReader<?>>, org.apache.iceberg.mapping.NameMapping,\
+        \ org.apache.iceberg.expressions.Expression, boolean, boolean, int)"
+      new: "method void org.apache.iceberg.parquet.VectorizedParquetReader<T>::<init>(org.apache.iceberg.io.InputFile,\
+        \ org.apache.iceberg.Schema, org.apache.parquet.ParquetReadOptions, java.util.function.Function<org.apache.parquet.schema.MessageType,\
+        \ org.apache.iceberg.parquet.VectorizedReader<?>>, org.apache.iceberg.mapping.NameMapping,\
+        \ org.apache.iceberg.expressions.Expression, boolean, boolean, int, java.lang.Integer)"
+      justification: "{limit push down}"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"
