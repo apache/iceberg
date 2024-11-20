@@ -400,11 +400,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
 
   @Override
   public StaticTableOperations operations() {
-    if (lazyTable() instanceof BaseMetadataTable) {
-      return (StaticTableOperations) ((BaseMetadataTable) lazyTable()).table().operations();
-    } else {
-      return (StaticTableOperations) ((BaseTable) lazyTable()).operations();
-    }
+    return (StaticTableOperations) ((BaseTable) lazyTable()).operations();
   }
 
   private String errorMsg(String operation) {
@@ -424,6 +420,12 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     @Override
     protected Table newTable(TableOperations ops, String tableName) {
       return MetadataTableUtils.createMetadataTableInstance(ops, baseTableName, tableName, type);
+    }
+
+    @Override
+    public StaticTableOperations operations() {
+      throw new UnsupportedOperationException(
+          this.getClass().getName() + " does not support operations()");
     }
 
     public MetadataTableType type() {

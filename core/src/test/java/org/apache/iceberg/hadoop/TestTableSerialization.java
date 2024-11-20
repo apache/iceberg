@@ -19,6 +19,7 @@
 package org.apache.iceberg.hadoop;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -102,9 +103,9 @@ public class TestTableSerialization extends HadoopTableTestBase {
       Table serializableTable = SerializableTable.copyOf(metadataTable);
       TestHelpers.assertSerializedAndLoadedMetadata(
           serializableTable, TestHelpers.KryoHelpers.roundTripSerialize(serializableTable));
-      assertThat(serializableTable).isInstanceOf(HasTableOperations.class);
-      assertThat(((HasTableOperations) serializableTable).operations())
-          .isInstanceOf(StaticTableOperations.class);
+      assertThatThrownBy(() -> ((HasTableOperations) serializableTable).operations())
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessageEndingWith("does not support operations()");
     }
   }
 
