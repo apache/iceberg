@@ -466,7 +466,7 @@ public class MetadataUpdateParser {
     int lastColumnId;
     if (node.has(LAST_COLUMN_ID)) {
       LOG.warn(
-          "Field last-column-id of MetadataUpdate.AddSchema is since 1.8.0, will be removed 1.9.0 or 2.0.0");
+          "Field last-column-id of MetadataUpdate.AddSchema is deprecated since Iceberg 1.8.0, will be removed in 1.9.0 or 2.0.0");
       lastColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
     } else {
       lastColumnId = schema.highestFieldId();
