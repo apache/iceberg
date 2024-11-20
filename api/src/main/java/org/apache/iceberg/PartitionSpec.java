@@ -88,6 +88,12 @@ public class PartitionSpec implements Serializable {
     return lazyFieldList();
   }
 
+  public List<PartitionField> activeFields() {
+    return this.fields().stream()
+        .filter(f -> this.schema.findField(f.sourceId()) != null)
+        .collect(Collectors.toList());
+  }
+
   public boolean isPartitioned() {
     return fields.length > 0 && fields().stream().anyMatch(f -> !f.transform().isVoid());
   }
@@ -131,7 +137,12 @@ public class PartitionSpec implements Serializable {
           for (PartitionField field : fields) {
             Type sourceType = schema.findType(field.sourceId());
             Type resultType = field.transform().getResultType(sourceType);
-            structFields.add(Types.NestedField.optional(field.fieldId(), field.name(), resultType));
+
+            // When the source field has been dropped we cannot determine the type
+            if (resultType != null) {
+              structFields.add(
+                  Types.NestedField.optional(field.fieldId(), field.name(), resultType));
+            }
           }
 
           this.lazyPartitionType = Types.StructType.of(structFields);
@@ -632,9 +643,7 @@ public class PartitionSpec implements Serializable {
       // https://iceberg.apache.org/spec/#partition-transforms
       // We don't care about the source type since a VoidTransform is always compatible and skip the
       // checks
-      if (!transform.equals(Transforms.alwaysNull())) {
-        ValidationException.check(
-            sourceType != null, "Cannot find source column for partition field: %s", field);
+      if (sourceType != null && !transform.equals(Transforms.alwaysNull())) {
         ValidationException.check(
             sourceType.isPrimitiveType(),
             "Cannot partition by non-primitive source field: %s",
