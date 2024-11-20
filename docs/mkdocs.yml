@@ -79,3 +79,4 @@ nav:
   - Javadoc: ../../javadoc/latest/
   - PyIceberg: https://py.iceberg.apache.org/
   - IcebergRust: https://rust.iceberg.apache.org/
+  - IcebergGo: https://pkg.go.dev/github.com/apache/iceberg-go/
