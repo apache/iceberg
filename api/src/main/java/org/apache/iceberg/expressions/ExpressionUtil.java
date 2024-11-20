@@ -337,9 +337,9 @@ public class ExpressionUtil {
               pred.op(), pred.term(), (T) sanitize(pred.literal(), now, today));
         case IN:
         case NOT_IN:
-          Iterable<String> iter =
-              () -> pred.literals().stream().map(lit -> sanitize(lit, now, today)).iterator();
-          return new UnboundPredicate<>(pred.op(), pred.term(), (Iterable<T>) iter);
+          Iterable<T> iter =
+              () -> pred.literals().stream().map(lit -> (T) sanitize(lit, now, today)).iterator();
+          return new UnboundPredicate<>(pred.op(), pred.term(), iter);
         default:
           throw new UnsupportedOperationException(
               "Cannot sanitize unsupported predicate type: " + pred.op());
