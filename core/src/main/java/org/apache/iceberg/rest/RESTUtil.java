@@ -18,13 +18,18 @@
  */
 package org.apache.iceberg.rest;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import java.io.UncheckedIOException;
 import java.io.UnsupportedEncodingException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import org.apache.hc.core5.net.URIBuilder;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -214,5 +219,45 @@ public class RESTUtil {
     }
 
     return Namespace.of(levels);
+  }
+
+  /** Builds a request URI from a base URI and an {@link HTTPRequest}. */
+  public static URI buildRequestUri(HTTPRequest request) {
+    // if full path is provided, use the input path as path
+    String path = request.path();
+    if (path.startsWith("/")) {
+      throw new RESTException(
+          "Received a malformed path for a REST request: %s. Paths should not start with /", path);
+    }
+    String fullPath =
+        (path.startsWith("https://") || path.startsWith("http://"))
+            ? path
+            : String.format("%s/%s", request.baseUri(), path);
+    try {
+      URIBuilder builder = new URIBuilder(stripTrailingSlash(fullPath));
+      request.parameters().forEach(builder::addParameter);
+      return builder.build();
+    } catch (URISyntaxException e) {
+      throw new RESTException(
+          "Failed to create request URI from base %s, params %s", fullPath, request.parameters());
+    }
+  }
+
+  /**
+   * Encodes the body of an HTTP request as a String. By convention, maps are encoded as form data
+   * and other objects are encoded as JSON.
+   */
+  public static String encodeRequestBody(HTTPRequest request) {
+    Object body = request.body();
+    if (body instanceof Map) {
+      return encodeFormData((Map<?, ?>) body);
+    } else if (body != null) {
+      try {
+        return request.mapper().writeValueAsString(body);
+      } catch (JsonProcessingException e) {
+        throw new RESTException(e, "Failed to encode request body: %s", body);
+      }
+    }
+    return null;
   }
 }

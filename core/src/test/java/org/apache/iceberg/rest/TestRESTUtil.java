@@ -20,11 +20,20 @@ package org.apache.iceberg.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.net.URI;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
+import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestRESTUtil {
 
@@ -138,5 +147,101 @@ public class TestRESTUtil {
     String formString = "client_id=12345&client_secret=" + asString;
 
     assertThat(RESTUtil.decodeFormData(formString)).isEqualTo(expected);
+  }
+
+  @ParameterizedTest
+  @MethodSource
+  public void buildRequestUri(HTTPRequest request, URI expected) {
+    assertThat(RESTUtil.buildRequestUri(request)).isEqualTo(expected);
+  }
+
+  public static Stream<Arguments> buildRequestUri() {
+    return Stream.of(
+        Arguments.of(
+            HTTPRequest.builder()
+                .baseUri(URI.create("http://localhost:8080/foo"))
+                .method(HTTPMethod.GET)
+                .path("v1/namespaces/ns/tables/") // trailing slash should be removed
+                .setParameter("pageToken", "1234")
+                .setParameter("pageSize", "10")
+                .build(),
+            URI.create(
+                "http://localhost:8080/foo/v1/namespaces/ns/tables?pageToken=1234&pageSize=10")),
+        Arguments.of(
+            HTTPRequest.builder()
+                .baseUri(URI.create("http://localhost:8080/foo"))
+                .method(HTTPMethod.GET)
+                .path("https://authserver.com/token") // absolute path HTTPS
+                .build(),
+            URI.create("https://authserver.com/token")),
+        Arguments.of(
+            HTTPRequest.builder()
+                .baseUri(URI.create("http://localhost:8080/foo"))
+                .method(HTTPMethod.GET)
+                .path("http://authserver.com/token") // absolute path HTTP
+                .build(),
+            URI.create("http://authserver.com/token")));
+  }
+
+  @Test
+  public void buildRequestUriFailures() {
+    HTTPRequest request =
+        HTTPRequest.builder()
+            .baseUri(URI.create("http://localhost"))
+            .method(HTTPMethod.GET)
+            .path("/v1/namespaces") // wrong leading slash
+            .build();
+    assertThatThrownBy(() -> RESTUtil.buildRequestUri(request))
+        .isInstanceOf(RESTException.class)
+        .hasMessageContaining("Paths should not start with /");
+    HTTPRequest request2 =
+        HTTPRequest.builder()
+            .baseUri(URI.create("http://localhost"))
+            .method(HTTPMethod.GET)
+            .path(" not a valid path") // wrong path
+            .build();
+    assertThatThrownBy(() -> RESTUtil.buildRequestUri(request2))
+        .isInstanceOf(RESTException.class)
+        .hasMessageContaining("Failed to create request URI");
+  }
+
+  @ParameterizedTest
+  @MethodSource
+  public void encodeRequestBody(HTTPRequest request, String expected) {
+    assertThat(RESTUtil.encodeRequestBody(request)).isEqualTo(expected);
+  }
+
+  public static Stream<Arguments> encodeRequestBody() {
+    return Stream.of(
+        // form data
+        Arguments.of(
+            HTTPRequest.builder()
+                .baseUri(URI.create("http://localhost"))
+                .method(HTTPMethod.POST)
+                .path("token")
+                .body(
+                    ImmutableMap.of(
+                        "grant_type", "urn:ietf:params:oauth:grant-type:token-exchange",
+                        "subject_token", "token",
+                        "subject_token_type", "urn:ietf:params:oauth:token-type:access_token",
+                        "scope", "catalog"))
+                .build(),
+            "grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange&"
+                + "subject_token=token&"
+                + "subject_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Aaccess_token&"
+                + "scope=catalog"),
+        // JSON
+        Arguments.of(
+            HTTPRequest.builder()
+                .baseUri(URI.create("http://localhost"))
+                .method(HTTPMethod.POST)
+                .path("v1/namespaces/ns") // trailing slash should be removed
+                .body(
+                    CreateNamespaceRequest.builder()
+                        .withNamespace(Namespace.of("ns"))
+                        .setProperties(ImmutableMap.of("prop1", "value1"))
+                        .build())
+                .build(),
+            "{\"namespace\":[\"ns\"],\"properties\":{\"prop1\":\"value1\"}}"));
   }
 }
