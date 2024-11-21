@@ -51,7 +51,7 @@ class Worker extends Channel {
     // pass transient consumer group ID to which we never commit offsets
     super(
         "worker",
-        config.prefixControlGroup() + UUID.randomUUID(),
+        config.prefixControlConsumerGroup() + UUID.randomUUID(),
         config,
         clientFactory,
         context);

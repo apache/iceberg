@@ -77,7 +77,7 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.table.\<table name\>.partition-by  | Comma-separated list of partition fields to use when creating the table                                          |
 | iceberg.table.\<table name\>.route-regex   | The regex used to match a record's `routeField` to a table                                                       |
 | iceberg.control.topic                      | Name of the control topic, default is `control-iceberg`                                                          |
-| iceberg.control.group-id-prefix            | Prefix for the control consuler group, default is `cg-control`                                                   |
+| iceberg.control.consumer-group-id-prefix   | Prefix for the control consumer group, default is `cg-control`                                                   |
 | iceberg.control.commit.interval-ms         | Commit interval in msec, default is 300,000 (5 min)                                                              |
 | iceberg.control.commit.timeout-ms          | Commit timeout interval in msec, default is 30,000 (30 sec)                                                      |
 | iceberg.control.commit.threads             | Number of threads to use for commits, default is (cores * 2)                                                     |
