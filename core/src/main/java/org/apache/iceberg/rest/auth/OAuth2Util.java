@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.ErrorHandlers;
+import org.apache.iceberg.rest.HTTPRequest;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.ResourcePaths;
@@ -451,16 +452,21 @@ public class OAuth2Util {
   }
 
   /** Class to handle authorization headers and token refresh. */
-  public static class AuthSession {
+  public static class AuthSession implements org.apache.iceberg.rest.auth.AuthSession {
     private static int tokenRefreshNumRetries = 5;
     private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes
     private static final long MIN_REFRESH_WAIT_MILLIS = 10;
     private volatile Map<String, String> headers;
     private volatile AuthConfig config;
 
-    public AuthSession(Map<String, String> baseHeaders, AuthConfig config) {
-      this.headers = RESTUtil.merge(baseHeaders, authHeaders(config.token()));
+    public AuthSession(Map<String, String> headers, AuthConfig config) {
+      this.headers = ImmutableMap.copyOf(headers);
       this.config = config;
+    }
+
+    @Override
+    public void authenticate(HTTPRequest.Builder request) {
+      this.headers.forEach(request::setHeaderIfAbsent);
     }
 
     public Map<String, String> headers() {
@@ -485,6 +491,11 @@ public class OAuth2Util {
 
     public synchronized void stopRefreshing() {
       this.config = ImmutableAuthConfig.copyOf(config).withKeepRefreshed(false);
+    }
+
+    @Override
+    public void close() {
+      stopRefreshing();
     }
 
     public String credential() {
@@ -645,14 +656,14 @@ public class OAuth2Util {
         String token,
         Long defaultExpiresAtMillis,
         AuthSession parent) {
-      AuthSession session =
-          new AuthSession(
-              parent.headers(),
-              AuthConfig.builder()
-                  .from(parent.config())
-                  .token(token)
-                  .tokenType(OAuth2Properties.ACCESS_TOKEN_TYPE)
-                  .build());
+      Map<String, String> headers = RESTUtil.merge(parent.headers(), authHeaders(token));
+      AuthConfig config =
+          AuthConfig.builder()
+              .from(parent.config())
+              .token(token)
+              .tokenType(OAuth2Properties.ACCESS_TOKEN_TYPE)
+              .build();
+      AuthSession session = new AuthSession(headers, config);
 
       long startTimeMillis = System.currentTimeMillis();
       Long expiresAtMillis = session.expiresAtMillis();
@@ -725,15 +736,15 @@ public class OAuth2Util {
       if (issuedTokenType == null) {
         issuedTokenType = OAuth2Properties.ACCESS_TOKEN_TYPE;
       }
-      AuthSession session =
-          new AuthSession(
-              parent.headers(),
-              AuthConfig.builder()
-                  .from(parent.config())
-                  .token(response.token())
-                  .tokenType(issuedTokenType)
-                  .credential(credential)
-                  .build());
+      Map<String, String> headers = RESTUtil.merge(parent.headers(), authHeaders(response.token()));
+      AuthConfig config =
+          AuthConfig.builder()
+              .from(parent.config())
+              .token(response.token())
+              .tokenType(issuedTokenType)
+              .credential(credential)
+              .build();
+      AuthSession session = new AuthSession(headers, config);
 
       Long expiresAtMillis = session.expiresAtMillis();
       if (null == expiresAtMillis && response.expiresInSeconds() != null) {

@@ -21,6 +21,7 @@ package org.apache.iceberg.rest.auth;
 import java.util.Map;
 import javax.annotation.Nullable;
 import org.apache.iceberg.rest.ResourcePaths;
+import org.apache.iceberg.util.PropertyUtil;
 import org.immutables.value.Value;
 
 /**
@@ -28,8 +29,8 @@ import org.immutables.value.Value;
  * org.apache.iceberg.rest.auth.OAuth2Util.AuthSession}.
  */
 @Value.Style(redactedMask = "****")
-@SuppressWarnings("ImmutablesStyle")
 @Value.Immutable
+@SuppressWarnings({"ImmutablesStyle", "SafeLoggingPropagation"})
 public interface AuthConfig {
   @Nullable
   @Value.Redacted
@@ -47,7 +48,7 @@ public interface AuthConfig {
     return OAuth2Properties.CATALOG_SCOPE;
   }
 
-  @Value.Lazy
+  @Value.Default
   @Nullable
   default Long expiresAtMillis() {
     return OAuth2Util.expiresAtMillis(token());
@@ -68,5 +69,44 @@ public interface AuthConfig {
 
   static ImmutableAuthConfig.Builder builder() {
     return ImmutableAuthConfig.builder();
+  }
+
+  static AuthConfig fromProperties(Map<String, String> properties) {
+    String scope = properties.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE);
+    Map<String, String> optionalOAuthParams = OAuth2Util.buildOptionalParam(properties);
+    String oauth2ServerUri =
+        properties.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
+    boolean keepRefreshed =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            OAuth2Properties.TOKEN_REFRESH_ENABLED,
+            OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
+    return builder()
+        .credential(properties.get(OAuth2Properties.CREDENTIAL))
+        .token(properties.get(OAuth2Properties.TOKEN))
+        .scope(scope)
+        .oauth2ServerUri(oauth2ServerUri)
+        .optionalOAuthParams(optionalOAuthParams)
+        .keepRefreshed(keepRefreshed)
+        .expiresAtMillis(expiresAtMillis(properties))
+        .build();
+  }
+
+  private static Long expiresAtMillis(Map<String, String> props) {
+    Long expiresInMillis = null;
+    if (props.containsKey(OAuth2Properties.TOKEN)) {
+      expiresInMillis = OAuth2Util.expiresAtMillis(props.get(OAuth2Properties.TOKEN));
+    }
+    if (expiresInMillis == null) {
+      if (props.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
+        long millis =
+            PropertyUtil.propertyAsLong(
+                props,
+                OAuth2Properties.TOKEN_EXPIRES_IN_MS,
+                OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT);
+        expiresInMillis = System.currentTimeMillis() + millis;
+      }
+    }
+    return expiresInMillis;
   }
 }
