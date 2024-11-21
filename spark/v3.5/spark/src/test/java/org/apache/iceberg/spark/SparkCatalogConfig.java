@@ -34,6 +34,10 @@ public enum SparkCatalogConfig {
       "testhadoop",
       SparkCatalog.class.getName(),
       ImmutableMap.of("type", "hadoop", "cache-enabled", "false")),
+  REST(
+      "testrest",
+      SparkCatalog.class.getName(),
+      ImmutableMap.of("type", "rest", "cache-enabled", "false")),
   SPARK(
       "spark_catalog",
       SparkSessionCatalog.class.getName(),

@@ -110,6 +110,7 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
             new SimpleRecord(4, "d"));
     spark.createDataset(records, Encoders.bean(SimpleRecord.class)).writeTo(tableName).append();
     SparkActions actions = SparkActions.get();
+    table.refresh();
     ComputeTableStats.Result results =
         actions.computeTableStats(table).columns("id", "data").execute();
     assertThat(results).isNotNull();
