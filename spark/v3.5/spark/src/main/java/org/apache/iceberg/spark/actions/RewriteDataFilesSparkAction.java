@@ -30,18 +30,17 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.FileRewriter;
+import org.apache.iceberg.actions.FileRewriteExecutor;
+import org.apache.iceberg.actions.FileRewritePlan;
 import org.apache.iceberg.actions.ImmutableRewriteDataFiles;
 import org.apache.iceberg.actions.ImmutableRewriteDataFiles.Result.Builder;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.actions.RewriteFileGroupPlanner;
-import org.apache.iceberg.actions.RewriteFileGroupPlanner.RewritePlan;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -93,9 +92,10 @@ public class RewriteDataFilesSparkAction
   private boolean partialProgressEnabled;
   private boolean removeDanglingDeletes;
   private boolean useStartingSequenceNumber;
-  private RewriteJobOrder rewriteJobOrder;
-  private FileRewriter<FileScanTask, DataFile> rewriter = null;
   private boolean caseSensitive;
+  private RewriteFileGroupPlanner planner = null;
+  private FileRewriteExecutor<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> rewriter =
+      null;
 
   RewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark.cloneSession());
@@ -114,7 +114,7 @@ public class RewriteDataFilesSparkAction
   public RewriteDataFilesSparkAction binPack() {
     Preconditions.checkArgument(
         rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
-    this.rewriter = new SparkBinPackDataRewriter(spark(), table);
+    this.rewriter = new SparkBinPackDataRewriteExecutor(spark(), table);
     return this;
   }
 
@@ -122,7 +122,7 @@ public class RewriteDataFilesSparkAction
   public RewriteDataFilesSparkAction sort(SortOrder sortOrder) {
     Preconditions.checkArgument(
         rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
-    this.rewriter = new SparkSortDataRewriter(spark(), table, sortOrder);
+    this.rewriter = new SparkSortDataRewriteExecutor(spark(), table, sortOrder);
     return this;
   }
 
@@ -130,7 +130,7 @@ public class RewriteDataFilesSparkAction
   public RewriteDataFilesSparkAction sort() {
     Preconditions.checkArgument(
         rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
-    this.rewriter = new SparkSortDataRewriter(spark(), table);
+    this.rewriter = new SparkSortDataRewriteExecutor(spark(), table);
     return this;
   }
 
@@ -138,7 +138,7 @@ public class RewriteDataFilesSparkAction
   public RewriteDataFilesSparkAction zOrder(String... columnNames) {
     Preconditions.checkArgument(
         rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
-    this.rewriter = new SparkZOrderDataRewriter(spark(), table, Arrays.asList(columnNames));
+    this.rewriter = new SparkZOrderDataRewriteExecutor(spark(), table, Arrays.asList(columnNames));
     return this;
   }
 
@@ -156,14 +156,10 @@ public class RewriteDataFilesSparkAction
 
     long startingSnapshotId = table.currentSnapshot().snapshotId();
 
-    // Default to BinPack if no strategy selected
-    if (this.rewriter == null) {
-      this.rewriter = new SparkBinPackDataRewriter(spark(), table);
-    }
+    init(startingSnapshotId);
 
-    validateAndInitOptions();
-
-    RewritePlan plan = plan(startingSnapshotId);
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = plan();
+    rewriter.initPlan(plan);
 
     if (plan.totalGroupCount() == 0) {
       LOG.info("Nothing found to rewrite in {}", table.name());
@@ -185,18 +181,32 @@ public class RewriteDataFilesSparkAction
     return resultBuilder.build();
   }
 
-  RewritePlan plan(long startingSnapshotId) {
-    return new RewriteFileGroupPlanner(rewriter, rewriteJobOrder)
-        .plan(table, filter, startingSnapshotId, caseSensitive);
+  @VisibleForTesting
+  FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan() {
+    return planner.plan();
   }
 
   @VisibleForTesting
-  RewriteFileGroup rewriteFiles(RewritePlan plan, RewriteFileGroup fileGroup) {
+  void init(long startingSnapshotId) {
+
+    this.planner = new RewriteFileGroupPlanner(table, filter, startingSnapshotId, caseSensitive);
+
+    // Default to BinPack if no strategy selected
+    if (this.rewriter == null) {
+      this.rewriter = new SparkBinPackDataRewriteExecutor(spark(), table);
+    }
+
+    validateAndInitOptions();
+  }
+
+  @VisibleForTesting
+  RewriteFileGroup rewriteFiles(
+      FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan,
+      RewriteFileGroup fileGroup) {
     String desc = jobDesc(fileGroup, plan);
     Set<DataFile> addedFiles =
         withJobGroupInfo(
-            newJobGroupInfo("REWRITE-DATA-FILES", desc),
-            () -> rewriter.rewrite(fileGroup.fileScans()));
+            newJobGroupInfo("REWRITE-DATA-FILES", desc), () -> rewriter.rewrite(fileGroup));
 
     fileGroup.setOutputFiles(addedFiles);
     LOG.info("Rewrite Files Ready to be Committed - {}", desc);
@@ -217,7 +227,9 @@ public class RewriteDataFilesSparkAction
         table, startingSnapshotId, useStartingSequenceNumber, commitSummary());
   }
 
-  private Builder doExecute(RewritePlan plan, RewriteDataFilesCommitManager commitManager) {
+  private Builder doExecute(
+      FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan,
+      RewriteDataFilesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
     ConcurrentLinkedQueue<RewriteFileGroup> rewrittenGroups = Queues.newConcurrentLinkedQueue();
@@ -277,7 +289,8 @@ public class RewriteDataFilesSparkAction
   }
 
   private Builder doExecuteWithPartialProgress(
-      RewritePlan plan, RewriteDataFilesCommitManager commitManager) {
+      FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan,
+      RewriteDataFilesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
     // start commit service
@@ -298,7 +311,7 @@ public class RewriteDataFilesSparkAction
               rewriteFailures.add(
                   ImmutableRewriteDataFiles.FileGroupFailureResult.builder()
                       .info(fileGroup.info())
-                      .dataFilesCount(fileGroup.numFiles())
+                      .dataFilesCount(fileGroup.numInputFiles())
                       .build());
             })
         .run(fileGroup -> commitService.offer(rewriteFiles(plan, fileGroup)));
@@ -341,6 +354,7 @@ public class RewriteDataFilesSparkAction
   void validateAndInitOptions() {
     Set<String> validOptions = Sets.newHashSet(rewriter.validOptions());
     validOptions.addAll(VALID_OPTIONS);
+    validOptions.addAll(planner.validOptions());
 
     Set<String> invalidKeys = Sets.newHashSet(options().keySet());
     invalidKeys.removeAll(validOptions);
@@ -351,6 +365,7 @@ public class RewriteDataFilesSparkAction
         invalidKeys,
         rewriter.description());
 
+    planner.init(options());
     rewriter.init(options());
 
     maxConcurrentFileGroupRewrites =
@@ -378,10 +393,6 @@ public class RewriteDataFilesSparkAction
         PropertyUtil.propertyAsBoolean(
             options(), REMOVE_DANGLING_DELETES, REMOVE_DANGLING_DELETES_DEFAULT);
 
-    rewriteJobOrder =
-        RewriteJobOrder.fromName(
-            PropertyUtil.propertyAsString(options(), REWRITE_JOB_ORDER, REWRITE_JOB_ORDER_DEFAULT));
-
     Preconditions.checkArgument(
         maxConcurrentFileGroupRewrites >= 1,
         "Cannot set %s to %s, the value must be positive.",
@@ -396,7 +407,9 @@ public class RewriteDataFilesSparkAction
         PARTIAL_PROGRESS_ENABLED);
   }
 
-  private String jobDesc(RewriteFileGroup group, RewritePlan plan) {
+  private String jobDesc(
+      RewriteFileGroup group,
+      FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan) {
     StructLike partition = group.info().partition();
     if (partition.size() > 0) {
       return String.format(

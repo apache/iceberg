@@ -21,6 +21,7 @@ package org.apache.iceberg.actions;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
@@ -28,13 +29,20 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.StructLikeMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,30 +51,86 @@ import org.slf4j.LoggerFactory;
  * Groups specified files in the {@link Table} by {@link RewriteFileGroup}s. These will be grouped
  * by partitions.
  */
-public class RewriteFileGroupPlanner {
+public class RewriteFileGroupPlanner
+    extends SizeBasedFileRewritePlanner<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> {
+  /**
+   * The minimum number of deletes that needs to be associated with a data file for it to be
+   * considered for rewriting. If a data file has this number of deletes or more, it will be
+   * rewritten regardless of its file size determined by {@link #MIN_FILE_SIZE_BYTES} and {@link
+   * #MAX_FILE_SIZE_BYTES}. If a file group contains a file that satisfies this condition, the file
+   * group will be rewritten regardless of the number of files in the file group determined by
+   * {@link #MIN_INPUT_FILES}.
+   *
+   * <p>Defaults to Integer.MAX_VALUE, which means this feature is not enabled by default.
+   */
+  public static final String DELETE_FILE_THRESHOLD = "delete-file-threshold";
+
+  public static final int DELETE_FILE_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
+
   private static final Logger LOG = LoggerFactory.getLogger(RewriteFileGroupPlanner.class);
 
-  private final FileRewriter<FileScanTask, DataFile> rewriter;
-  private final RewriteJobOrder rewriteJobOrder;
+  private final Expression filter;
+  private final long snapshotId;
+  private final boolean caseSensitive;
+
+  private int deleteFileThreshold;
+  private RewriteJobOrder rewriteJobOrder;
 
   public RewriteFileGroupPlanner(
-      FileRewriter<FileScanTask, DataFile> rewriter, RewriteJobOrder rewriteJobOrder) {
-    this.rewriter = rewriter;
-    this.rewriteJobOrder = rewriteJobOrder;
+      Table table, Expression filter, long snapshotId, boolean caseSensitive) {
+    super(table);
+    this.filter = filter;
+    this.snapshotId = snapshotId;
+    this.caseSensitive = caseSensitive;
+  }
+
+  @Override
+  public Set<String> validOptions() {
+    return ImmutableSet.<String>builder()
+        .addAll(super.validOptions())
+        .add(DELETE_FILE_THRESHOLD)
+        .add(RewriteDataFiles.REWRITE_JOB_ORDER)
+        .build();
+  }
+
+  @Override
+  public void init(Map<String, String> options) {
+    super.init(options);
+    this.deleteFileThreshold = deleteFileThreshold(options);
+    this.rewriteJobOrder =
+        RewriteJobOrder.fromName(
+            PropertyUtil.propertyAsString(
+                options,
+                RewriteDataFiles.REWRITE_JOB_ORDER,
+                RewriteDataFiles.REWRITE_JOB_ORDER_DEFAULT));
+  }
+
+  @Override
+  protected Iterable<FileScanTask> filterFiles(Iterable<FileScanTask> tasks) {
+    return Iterables.filter(tasks, task -> wronglySized(task) || tooManyDeletes(task));
+  }
+
+  @Override
+  protected Iterable<List<FileScanTask>> filterFileGroups(List<List<FileScanTask>> groups) {
+    return Iterables.filter(groups, this::shouldRewrite);
+  }
+
+  @Override
+  protected long defaultTargetFileSize() {
+    return PropertyUtil.propertyAsLong(
+        table().properties(),
+        TableProperties.WRITE_TARGET_FILE_SIZE_BYTES,
+        TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
   }
 
   /**
    * Generates the plan for the current table.
    *
-   * @param table to plan for
-   * @param filter to exclude files from planning
-   * @param snapshotId of the last snapshot included in the plan
-   * @param caseSensitive setting for filtering
    * @return the generated plan which could be executed during the compaction
    */
-  public RewritePlan plan(Table table, Expression filter, long snapshotId, boolean caseSensitive) {
-    StructLikeMap<List<List<FileScanTask>>> plan =
-        planFileGroups(table, filter, snapshotId, caseSensitive);
+  @Override
+  public FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan() {
+    StructLikeMap<List<List<FileScanTask>>> plan = planFileGroups();
     RewriteExecutionContext ctx = new RewriteExecutionContext();
     Stream<RewriteFileGroup> groups =
         plan.entrySet().stream()
@@ -75,31 +139,67 @@ public class RewriteFileGroupPlanner {
                 e -> {
                   StructLike partition = e.getKey();
                   List<List<FileScanTask>> scanGroups = e.getValue();
-                  return scanGroups.stream().map(tasks -> newRewriteGroup(ctx, partition, tasks));
+                  return scanGroups.stream()
+                      .map(
+                          tasks -> {
+                            long inputSize = inputSize(tasks);
+                            return newRewriteGroup(
+                                ctx,
+                                partition,
+                                tasks,
+                                splitSize(inputSize),
+                                numOutputFiles(inputSize));
+                          });
                 })
             .sorted(RewriteFileGroup.comparator(rewriteJobOrder));
     Map<StructLike, Integer> groupsInPartition = plan.transformValues(List::size);
     int totalGroupCount = groupsInPartition.values().stream().reduce(Integer::sum).orElse(0);
-    return new RewritePlan(groups, totalGroupCount, groupsInPartition);
+    return new FileRewritePlan<>(
+        groups, totalGroupCount, groupsInPartition, writeMaxFileSize(), outputSpecId());
   }
 
-  private StructLikeMap<List<List<FileScanTask>>> planFileGroups(
-      Table table, Expression filter, long snapshotId, boolean caseSensitive) {
-    CloseableIterable<FileScanTask> fileScanTasks =
-        table
-            .newScan()
-            .useSnapshot(snapshotId)
-            .caseSensitive(caseSensitive)
-            .filter(filter)
-            .ignoreResiduals()
-            .planFiles();
+  @VisibleForTesting
+  CloseableIterable<FileScanTask> tasks() {
+    return table()
+        .newScan()
+        .useSnapshot(snapshotId)
+        .caseSensitive(caseSensitive)
+        .filter(filter)
+        .ignoreResiduals()
+        .planFiles();
+  }
+
+  private int deleteFileThreshold(Map<String, String> options) {
+    int value =
+        PropertyUtil.propertyAsInt(options, DELETE_FILE_THRESHOLD, DELETE_FILE_THRESHOLD_DEFAULT);
+    Preconditions.checkArgument(
+        value >= 0, "'%s' is set to %s but must be >= 0", DELETE_FILE_THRESHOLD, value);
+    return value;
+  }
+
+  private boolean tooManyDeletes(FileScanTask task) {
+    return task.deletes() != null && task.deletes().size() >= deleteFileThreshold;
+  }
+
+  private boolean shouldRewrite(List<FileScanTask> group) {
+    return enoughInputFiles(group)
+        || enoughContent(group)
+        || tooMuchContent(group)
+        || anyTaskHasTooManyDeletes(group);
+  }
+
+  private boolean anyTaskHasTooManyDeletes(List<FileScanTask> group) {
+    return group.stream().anyMatch(this::tooManyDeletes);
+  }
+
+  private StructLikeMap<List<List<FileScanTask>>> planFileGroups() {
+    CloseableIterable<FileScanTask> fileScanTasks = tasks();
 
     try {
-      Types.StructType partitionType = table.spec().partitionType();
+      Types.StructType partitionType = table().spec().partitionType();
       StructLikeMap<List<FileScanTask>> filesByPartition =
-          groupByPartition(table, partitionType, fileScanTasks);
-      return filesByPartition.transformValues(
-          tasks -> ImmutableList.copyOf(rewriter.planFileGroups(tasks)));
+          groupByPartition(table(), partitionType, fileScanTasks);
+      return filesByPartition.transformValues(tasks -> ImmutableList.copyOf(planFileGroups(tasks)));
     } finally {
       try {
         fileScanTasks.close();
@@ -128,45 +228,18 @@ public class RewriteFileGroupPlanner {
   }
 
   private RewriteFileGroup newRewriteGroup(
-      RewriteExecutionContext ctx, StructLike partition, List<FileScanTask> tasks) {
-    RewriteDataFiles.FileGroupInfo info =
+      RewriteExecutionContext ctx,
+      StructLike partition,
+      List<FileScanTask> tasks,
+      long splitSize,
+      int numOutputSize) {
+    FileGroupInfo info =
         ImmutableRewriteDataFiles.FileGroupInfo.builder()
             .globalIndex(ctx.currentGlobalIndex())
             .partitionIndex(ctx.currentPartitionIndex(partition))
             .partition(partition)
             .build();
-    return new RewriteFileGroup(info, Lists.newArrayList(tasks));
-  }
-
-  /** Result of the data file rewrite planning. */
-  public static class RewritePlan {
-    private final Stream<RewriteFileGroup> groups;
-    private final int totalGroupCount;
-    private final Map<StructLike, Integer> groupsInPartition;
-
-    private RewritePlan(
-        Stream<RewriteFileGroup> groups,
-        int totalGroupCount,
-        Map<StructLike, Integer> groupsInPartition) {
-      this.groups = groups;
-      this.totalGroupCount = totalGroupCount;
-      this.groupsInPartition = groupsInPartition;
-    }
-
-    /** The stream of the generated {@link RewriteFileGroup}s. */
-    public Stream<RewriteFileGroup> groups() {
-      return groups;
-    }
-
-    /** The number of the generated groups in the given partition. */
-    public int groupsInPartition(StructLike partition) {
-      return groupsInPartition.get(partition);
-    }
-
-    /** The total number of the groups generated by this plan. */
-    public int totalGroupCount() {
-      return totalGroupCount;
-    }
+    return new RewriteFileGroup(info, Lists.newArrayList(tasks), splitSize, numOutputSize);
   }
 
   private static class RewriteExecutionContext {

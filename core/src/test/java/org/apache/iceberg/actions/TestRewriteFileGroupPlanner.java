@@ -18,12 +18,12 @@
  */
 package org.apache.iceberg.actions;
 
+import static org.apache.iceberg.actions.RewriteDataFiles.REWRITE_JOB_ORDER;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
@@ -33,10 +33,10 @@ import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestBase;
 import org.apache.iceberg.TestTables;
+import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -90,9 +90,14 @@ class TestRewriteFileGroupPlanner {
         .appendFile(FILE_5)
         .appendFile(FILE_6)
         .commit();
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(new DummyRewriter(false), order);
-    RewriteFileGroupPlanner.RewritePlan result =
-        planner.plan(table, Expressions.alwaysTrue(), table.currentSnapshot().snapshotId(), false);
+    RewriteFileGroupPlanner planner =
+        new RewriteFileGroupPlanner(
+            table, Expressions.alwaysTrue(), table.currentSnapshot().snapshotId(), false);
+    planner.init(
+        ImmutableMap.of(
+            RewriteFileGroupPlanner.REWRITE_ALL, "true", REWRITE_JOB_ORDER, order.name()));
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> result =
+        planner.plan();
     List<RewriteFileGroup> groups = result.groups().collect(Collectors.toList());
     assertThat(groups.stream().map(group -> group.info().partition()).collect(Collectors.toList()))
         .isEqualTo(EXPECTED.get(order));
@@ -112,42 +117,20 @@ class TestRewriteFileGroupPlanner {
         .appendFile(FILE_6)
         .commit();
     RewriteFileGroupPlanner planner =
-        new RewriteFileGroupPlanner(new DummyRewriter(true), RewriteJobOrder.FILES_DESC);
-    RewriteFileGroupPlanner.RewritePlan result =
-        planner.plan(table, Expressions.alwaysTrue(), table.currentSnapshot().snapshotId(), false);
+        new RewriteFileGroupPlanner(
+            table, Expressions.alwaysTrue(), table.currentSnapshot().snapshotId(), false);
+    planner.init(
+        ImmutableMap.of(
+            RewriteFileGroupPlanner.REWRITE_ALL,
+            "true",
+            RewriteFileGroupPlanner.MAX_FILE_GROUP_SIZE_BYTES,
+            "10"));
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> result =
+        planner.plan();
     assertThat(result.totalGroupCount()).isEqualTo(6);
     assertThat(result.groupsInPartition(FILE_1.partition())).isEqualTo(3);
     assertThat(result.groupsInPartition(FILE_4.partition())).isEqualTo(2);
     assertThat(result.groupsInPartition(FILE_6.partition())).isEqualTo(1);
-  }
-
-  private static class DummyRewriter implements FileRewriter<FileScanTask, DataFile> {
-    private final boolean split;
-
-    private DummyRewriter(boolean split) {
-      this.split = split;
-    }
-
-    @Override
-    public Set<String> validOptions() {
-      return Set.of();
-    }
-
-    @Override
-    public void init(Map<String, String> options) {}
-
-    @Override
-    public Iterable<List<FileScanTask>> planFileGroups(Iterable<FileScanTask> tasks) {
-      List<FileScanTask> taskList = Lists.newArrayList(tasks);
-      return split
-          ? taskList.stream().map(ImmutableList::of).collect(Collectors.toList())
-          : ImmutableList.of(taskList);
-    }
-
-    @Override
-    public Set<DataFile> rewrite(List<FileScanTask> group) {
-      return Set.of();
-    }
   }
 
   private static DataFile newDataFile(String partitionPath, long fileSize) {

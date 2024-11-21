@@ -24,38 +24,41 @@ import java.util.UUID;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.SizeBasedDataRewriter;
+import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
+import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkTableCache;
 import org.apache.spark.sql.SparkSession;
 
-abstract class SparkSizeBasedDataRewriter extends SizeBasedDataRewriter {
+abstract class SparkSizeBasedDataRewriteExecutor
+    extends SparkRewriteExecutor<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> {
 
   private final SparkSession spark;
   private final SparkTableCache tableCache = SparkTableCache.get();
   private final ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
   private final FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
 
-  SparkSizeBasedDataRewriter(SparkSession spark, Table table) {
+  SparkSizeBasedDataRewriteExecutor(SparkSession spark, Table table) {
     super(table);
     this.spark = spark;
   }
 
-  protected abstract void doRewrite(String groupId, List<FileScanTask> group);
+  protected abstract void doRewrite(
+      String groupId, List<FileScanTask> group, long splitSize, int expectedOutputFiles);
 
   protected SparkSession spark() {
     return spark;
   }
 
   @Override
-  public Set<DataFile> rewrite(List<FileScanTask> group) {
+  public Set<DataFile> rewrite(RewriteFileGroup group) {
     String groupId = UUID.randomUUID().toString();
     try {
       tableCache.add(groupId, table());
-      taskSetManager.stageTasks(table(), groupId, group);
+      taskSetManager.stageTasks(table(), groupId, group.fileScans());
 
-      doRewrite(groupId, group);
+      doRewrite(groupId, group.fileScans(), group.splitSize(), group.expectedOutputFiles());
 
       return coordinator.fetchNewFiles(table(), groupId);
     } finally {

@@ -28,9 +28,9 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 
-class SparkBinPackDataRewriter extends SparkSizeBasedDataRewriter {
+class SparkBinPackDataRewriteExecutor extends SparkSizeBasedDataRewriteExecutor {
 
-  SparkBinPackDataRewriter(SparkSession spark, Table table) {
+  SparkBinPackDataRewriteExecutor(SparkSession spark, Table table) {
     super(spark, table);
   }
 
@@ -40,14 +40,15 @@ class SparkBinPackDataRewriter extends SparkSizeBasedDataRewriter {
   }
 
   @Override
-  protected void doRewrite(String groupId, List<FileScanTask> group) {
+  protected void doRewrite(
+      String groupId, List<FileScanTask> group, long splitSize, int expectedOutputFiles) {
     // read the files packing them into splits of the required size
     Dataset<Row> scanDF =
         spark()
             .read()
             .format("iceberg")
             .option(SparkReadOptions.SCAN_TASK_SET_ID, groupId)
-            .option(SparkReadOptions.SPLIT_SIZE, splitSize(inputSize(group)))
+            .option(SparkReadOptions.SPLIT_SIZE, splitSize)
             .option(SparkReadOptions.FILE_OPEN_COST, "0")
             .load(groupId);
 

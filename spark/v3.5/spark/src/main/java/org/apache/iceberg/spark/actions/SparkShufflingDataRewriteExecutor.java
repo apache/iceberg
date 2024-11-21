@@ -48,7 +48,7 @@ import org.apache.spark.sql.connector.write.RequiresDistributionAndOrdering;
 import org.apache.spark.sql.execution.datasources.v2.DistributionAndOrderingUtils$;
 import scala.Option;
 
-abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
+abstract class SparkShufflingDataRewriteExecutor extends SparkSizeBasedDataRewriteExecutor {
 
   /**
    * The number of shuffle partitions and consequently the number of output files created by the
@@ -82,7 +82,7 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
   private double compressionFactor;
   private int numShufflePartitionsPerFile;
 
-  protected SparkShufflingDataRewriter(SparkSession spark, Table table) {
+  protected SparkShufflingDataRewriteExecutor(SparkSession spark, Table table) {
     super(spark, table);
   }
 
@@ -118,7 +118,8 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
   }
 
   @Override
-  public void doRewrite(String groupId, List<FileScanTask> group) {
+  public void doRewrite(
+      String groupId, List<FileScanTask> group, long splitSize, int expectedOutputFiles) {
     Dataset<Row> scanDF =
         spark()
             .read()
@@ -126,7 +127,7 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
             .option(SparkReadOptions.SCAN_TASK_SET_ID, groupId)
             .load(groupId);
 
-    Dataset<Row> sortedDF = sortedDF(scanDF, sortFunction(group));
+    Dataset<Row> sortedDF = sortedDF(scanDF, sortFunction(group, expectedOutputFiles));
 
     sortedDF
         .write()
@@ -139,9 +140,10 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
         .save(groupId);
   }
 
-  private Function<Dataset<Row>, Dataset<Row>> sortFunction(List<FileScanTask> group) {
+  private Function<Dataset<Row>, Dataset<Row>> sortFunction(
+      List<FileScanTask> group, int expectedOutputFiles) {
     SortOrder[] ordering = Spark3Util.toOrdering(outputSortOrder(group));
-    int numShufflePartitions = numShufflePartitions(group);
+    int numShufflePartitions = Math.max(1, expectedOutputFiles * numShufflePartitionsPerFile);
     return (df) -> transformPlan(df, plan -> sortPlan(plan, ordering, numShufflePartitions));
   }
 
@@ -174,11 +176,6 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
     } else {
       return sortOrder();
     }
-  }
-
-  private int numShufflePartitions(List<FileScanTask> group) {
-    int numOutputFiles = (int) numOutputFiles((long) (inputSize(group) * compressionFactor));
-    return Math.max(1, numOutputFiles * numShufflePartitionsPerFile);
   }
 
   private double compressionFactor(Map<String, String> options) {

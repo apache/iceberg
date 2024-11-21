@@ -19,25 +19,30 @@
 package org.apache.iceberg.actions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MockFileScanTask;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestBase;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 @ExtendWith(ParameterizedTestExtension.class)
-public class TestSizeBasedRewriter extends TestBase {
+class TestSizeBasedRewriter extends TestBase {
 
   @Parameters(name = "formatVersion = {0}")
   protected static List<Object> parameters() {
@@ -45,14 +50,14 @@ public class TestSizeBasedRewriter extends TestBase {
   }
 
   @TestTemplate
-  public void testSplitSizeLowerBound() {
-    SizeBasedDataFileRewriterImpl rewriter = new SizeBasedDataFileRewriterImpl(table);
-
-    FileScanTask task1 = new MockFileScanTask(145L * 1024 * 1024);
-    FileScanTask task2 = new MockFileScanTask(145L * 1024 * 1024);
-    FileScanTask task3 = new MockFileScanTask(145L * 1024 * 1024);
-    FileScanTask task4 = new MockFileScanTask(145L * 1024 * 1024);
+  void testSplitSizeLowerBound() {
+    FileScanTask task1 = new MockFileScanTask(mockDataFile());
+    FileScanTask task2 = new MockFileScanTask(mockDataFile());
+    FileScanTask task3 = new MockFileScanTask(mockDataFile());
+    FileScanTask task4 = new MockFileScanTask(mockDataFile());
     List<FileScanTask> tasks = ImmutableList.of(task1, task2, task3, task4);
+
+    RewriteFileGroupPlanner planner = new TestingPlanner(table, Expressions.alwaysTrue(), 1, tasks);
 
     long minFileSize = 256L * 1024 * 1024;
     long targetFileSize = 512L * 1024 * 1024;
@@ -60,39 +65,42 @@ public class TestSizeBasedRewriter extends TestBase {
 
     Map<String, String> options =
         ImmutableMap.of(
-            SizeBasedDataRewriter.MIN_FILE_SIZE_BYTES, String.valueOf(minFileSize),
-            SizeBasedDataRewriter.TARGET_FILE_SIZE_BYTES, String.valueOf(targetFileSize),
-            SizeBasedDataRewriter.MAX_FILE_SIZE_BYTES, String.valueOf(maxFileSize));
-    rewriter.init(options);
+            RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, String.valueOf(minFileSize),
+            RewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES, String.valueOf(targetFileSize),
+            RewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES, String.valueOf(maxFileSize));
+    planner.init(options);
 
     // the total task size is 580 MB and the target file size is 512 MB
     // the remainder must be written into a separate file as it exceeds 10%
-    long numOutputFiles = rewriter.computeNumOutputFiles(tasks);
-    assertThat(numOutputFiles).isEqualTo(2);
+
+    RewriteFileGroup group = planner.plan().groups().iterator().next();
+
+    assertThat(group.expectedOutputFiles()).isEqualTo(2);
 
     // the split size must be >= targetFileSize and < maxFileSize
-    long splitSize = rewriter.computeSplitSize(tasks);
-    assertThat(splitSize).isGreaterThanOrEqualTo(targetFileSize);
-    assertThat(splitSize).isLessThan(maxFileSize);
+    long splitSize = group.sizeInBytes();
+    assertThat(splitSize).isGreaterThanOrEqualTo(targetFileSize).isLessThan(maxFileSize);
   }
 
-  private static class SizeBasedDataFileRewriterImpl extends SizeBasedDataRewriter {
+  private static class TestingPlanner extends RewriteFileGroupPlanner {
+    private final List<FileScanTask> tasks;
 
-    SizeBasedDataFileRewriterImpl(Table table) {
-      super(table);
+    private TestingPlanner(
+        Table table, Expression filter, long snapshotId, List<FileScanTask> tasks) {
+      super(table, filter, snapshotId, false);
+      this.tasks = tasks;
     }
 
     @Override
-    public Set<DataFile> rewrite(List<FileScanTask> group) {
-      throw new UnsupportedOperationException("Not implemented");
+    CloseableIterable<FileScanTask> tasks() {
+      return CloseableIterable.withNoopClose(tasks);
     }
+  }
 
-    public long computeSplitSize(List<FileScanTask> group) {
-      return splitSize(inputSize(group));
-    }
-
-    public long computeNumOutputFiles(List<FileScanTask> group) {
-      return numOutputFiles(inputSize(group));
-    }
+  private DataFile mockDataFile() {
+    DataFile file = Mockito.mock(DataFile.class);
+    when(file.partition()).thenReturn(Mockito.mock(StructLike.class));
+    when(file.fileSizeInBytes()).thenReturn(145L * 1024 * 1024);
+    return file;
   }
 }
