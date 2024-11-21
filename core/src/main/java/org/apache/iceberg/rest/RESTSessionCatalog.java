@@ -340,7 +340,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     checkIdentifierIsValid(identifier);
 
     try {
-      client.head(paths.table(identifier), headers(context), ErrorHandlers.tableErrorHandler());
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+      client
+          .withAuthSession(contextualSession)
+          .head(paths.table(identifier), Map.of(), ErrorHandlers.tableErrorHandler());
       return true;
     } catch (NoSuchTableException e) {
       return false;

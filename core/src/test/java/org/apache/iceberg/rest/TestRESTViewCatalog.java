@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.apache.iceberg.rest.TestRESTCatalog.reqMatcher;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -38,7 +39,7 @@ import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.rest.RESTCatalogAdapter.HTTPMethod;
+import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
@@ -77,17 +78,13 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
         new RESTCatalogAdapter(backendCatalog) {
           @Override
           public <T extends RESTResponse> T execute(
-              HTTPMethod method,
-              String path,
-              Map<String, String> queryParams,
-              Object body,
+              HTTPRequest request,
               Class<T> responseType,
-              Map<String, String> headers,
-              Consumer<ErrorResponse> errorHandler) {
-            Object request = roundTripSerialize(body, "request");
-            T response =
-                super.execute(
-                    method, path, queryParams, request, responseType, headers, errorHandler);
+              Consumer<ErrorResponse> errorHandler,
+              Consumer<Map<String, String>> responseHeaders) {
+            Object body = roundTripSerialize(request.body(), "request");
+            HTTPRequest req = HTTPRequest.builder().from(request).body(body);
+            T response = super.execute(req, responseType, errorHandler, responseHeaders);
             T responseAfterSerialization = roundTripSerialize(response, "response");
             return responseAfterSerialization;
           }
@@ -182,21 +179,11 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     assertThat(views).hasSize(numberOfItems);
 
     Mockito.verify(adapter)
-        .execute(
-            eq(HTTPMethod.GET),
-            eq("v1/config"),
-            any(),
-            any(),
-            eq(ConfigResponse.class),
-            any(),
-            any());
+        .execute(reqMatcher(HTTPMethod.GET, "v1/config"), eq(ConfigResponse.class), any(), any());
 
     Mockito.verify(adapter, times(numberOfItems))
         .execute(
-            eq(HTTPMethod.POST),
-            eq(String.format("v1/namespaces/%s/views", namespaceName)),
-            any(),
-            any(),
+            reqMatcher(HTTPMethod.POST, String.format("v1/namespaces/%s/views", namespaceName)),
             eq(LoadViewResponse.class),
             any(),
             any());
