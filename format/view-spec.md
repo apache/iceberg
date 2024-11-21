@@ -44,13 +44,15 @@ Writers create view metadata files optimistically, assuming that the current met
 
 ### Materialized Views
 
-Views have the option to be turned into materialized views by precomputing the data from the view query.
+Materialized views are a type of view that precompute the data from the view query.
 When queried, materialized views return the precomputed data, shifting the cost of query execution to the precomputation step.
 
 Iceberg materialized views are implemented as a combination of an Iceberg view and an underlying Iceberg table, known as the storage table, which stores the precomputed data.
-The metadata for a materialized view extends the common view metadata, adding a pointer to the precomputed data and freshness information to determine if the data is still fresh. 
-The storage table can be in the states of "fresh", "stale" or "invalid".
-The freshness information is composed of data about the so-called "source tables", which are the tables referenced in the query definition of the materialized view. 
+The metadata for a materialized view extends the common view metadata, adding a pointer to the precomputed data and information about the refresh state to determine if the data is still fresh. 
+The refresh state is composed of data about the so-called "source tables", which are the tables referenced in the query definition of the materialized view. 
+The storage table can be in the states of "fresh", "stale" or "invalid". It is "fresh" when the snapshot_id's of the last refresh operation match the current snapshot_id's of the source tables.
+It is "stale" if they don't match, indicating that a refresh operation needs to be performed to capture the latest source table changes.
+The storage table is considered "invalid" if it's current version_id doesn't match the `refresh-version-id` of the refresh state. 
 
 ## Specification
 
@@ -95,7 +97,7 @@ Each version in `versions` is a struct with the following fields:
 | _required_  | `representations`   | A list of [representations](#representations) for the view definition         |
 | _optional_  | `default-catalog`   | Catalog name to use when a reference in the SELECT does not contain a catalog |
 | _required_  | `default-namespace` | Namespace to use when a reference in the SELECT is a single identifier        |
-| _optional_  | `storage-table`   | A [partial identifier](#partial-identifier) of the storage table |
+| _optional_  | `storage-table`     | A [partial identifier](#partial-identifier) of the storage table |
 
 When `default-catalog` is `null` or not set, the catalog in which the view is stored must be used as the default catalog.
 
@@ -183,28 +185,26 @@ The partial identifier holds a reference, containing a namespace and a name, of 
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
-| _required_  | `namespace`   | A list of namespace levels |
-| _required_  | `name`   | A string specifying the name of the table/view |
+| _required_  | `namespace`    | A list of namespace levels |
+| _required_  | `name`         | A string specifying the name of the table/view |
 
 ### Materialized View Metadata stored as part of the Table Metadata
 
-To be able to determine the freshness of the precomputed data, additional metadata is stored as part of the storage table.
+A property "refresh-state" is set on the table [snapshot summary](https://iceberg.apache.org/spec/#snapshots) to determine the freshness of the precomputed data of the storage table.
 
-For that the additional field "refresh-state" is introduced as an opaque record in the table snapshot summary.
-
-| Requirement | Field name     | Description |
-|-------------|----------------|-------------|
+| Requirement | Field name      | Description |
+|-------------|-----------------|-------------|
 | _required_  | `refresh-state` | A [refresh state](#refresh-state) record stored as a JSON-encoded string | 
 
 #### Refresh state
 
-The refresh state record captures the state of all source tables and source views in the fully expanded query tree of the materialized view, including indirect references. It has the following fields:
+The refresh state record captures the state of all source tables and source views in the fully expanded query tree of the materialized view, including indirect references. Indirect references are the tables/views that are not directly referenced in the query but are nested within other views. The refresh state has the following fields:
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
-| _required_  | `refresh-version-id` | The `version-id` of the materialized view when the refresh operation was performed  | 
-| _required_  | `source-table-states`   | A list of [source table](#source-table) records for all tables that are directly or indirectly referenced in the materialized view query |
-| _required_  | `source-view-states`   | A list of [source view](#source-view) records for all views that are directly or indirectly referenced in the materialized view query |
+| _required_  | `refresh-version-id`         | The `version-id` of the materialized view when the refresh operation was performed  | 
+| _required_  | `source-table-states`        | A list of [source table](#source-table) records for all tables that are directly or indirectly referenced in the materialized view query |
+| _required_  | `source-view-states`         | A list of [source view](#source-view) records for all views that are directly or indirectly referenced in the materialized view query |
 | _required_  | `refresh-start-timestamp-ms` | A timestamp of when the refresh operation was started |
 
 #### Source table
@@ -213,9 +213,9 @@ A source table record captures the state of a source table at the time of the la
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
-| _required_  | `uuid` | The uuid of the source table | 
-| _required_  | `snapshot-id`   | Snapshot-id of when the last refresh operation was performed |
-| _optional_  | `ref` | Branch name of the source table being referenced in the view query |
+| _required_  | `uuid`         | The uuid of the source table | 
+| _required_  | `snapshot-id`  | Snapshot-id of when the last refresh operation was performed |
+| _optional_  | `ref`          | Branch name of the source table being referenced in the view query |
 
 When `ref` is `null` or not set, it defaults to "main".
 
@@ -225,7 +225,7 @@ A source view record captures the state of a source view at the time of the last
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
-| _required_  | `uuid` | The uuid of the source view | 
+| _required_  | `uuid`         | The uuid of the source view | 
 | _required_  | `version-id`   | Version-id of when the last refresh operation was performed |
 
 ## Appendix A: An Example
