@@ -453,7 +453,6 @@ public class TestChangelogTable extends ExtensionsTestBase {
     // Verify no changes are returned since our window is after the inserts
     assertThat(results).as("Num records must be zero").isEmpty();
 
-
     // Clean up the changelog view
     sql("DROP VIEW IF EXISTS test_changelog_view");
   }
