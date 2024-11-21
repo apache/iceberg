@@ -30,6 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.PropertyUtil;
@@ -208,12 +209,12 @@ public class OAuth2Manager extends RefreshingAuthManager {
       boolean hasInitToken = initToken != null;
       if (hasInitToken || hasCredential) {
         LOG.warn(
-            "Iceberg REST client is missing the OAuth2 server URI configuration and defaults to {}{}. "
+            "Iceberg REST client is missing the OAuth2 server URI configuration and defaults to {}/{}. "
                 + "This automatic fallback will be removed in a future Iceberg release."
                 + "It is recommended to configure the OAuth2 endpoint using the '{}' property to be prepared. "
                 + "This warning will disappear if the OAuth2 endpoint is explicitly configured. "
                 + "See https://github.com/apache/iceberg/issues/10537",
-            properties.get(CatalogProperties.URI),
+            RESTUtil.stripTrailingSlash(properties.get(CatalogProperties.URI)),
             ResourcePaths.tokens(),
             OAuth2Properties.OAUTH2_SERVER_URI);
       }
