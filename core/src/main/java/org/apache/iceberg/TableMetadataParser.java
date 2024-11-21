@@ -122,9 +122,9 @@ public class TableMetadataParser {
   public static void internalWrite(
       TableMetadata metadata, OutputFile outputFile, boolean overwrite) {
     boolean isGzip = Codec.fromFileName(outputFile.location()) == Codec.GZIP;
-    try (OutputStream os = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
-        OutputStream gos = isGzip ? new GZIPOutputStream(os) : os;
-        OutputStreamWriter writer = new OutputStreamWriter(gos, StandardCharsets.UTF_8)) {
+    OutputStream stream = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
+    try (OutputStream ou = isGzip ? new GZIPOutputStream(stream) : stream;
+        OutputStreamWriter writer = new OutputStreamWriter(ou, StandardCharsets.UTF_8)) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
       generator.useDefaultPrettyPrinter();
       toJson(metadata, generator);
@@ -277,9 +277,9 @@ public class TableMetadataParser {
 
   public static TableMetadata read(FileIO io, InputFile file) {
     Codec codec = Codec.fromFileName(file.location());
-    try (InputStream is = file.newStream();
-        InputStream gis = codec == Codec.GZIP ? new GZIPInputStream(is) : is) {
-      return fromJson(file, JsonUtil.mapper().readValue(gis, JsonNode.class));
+    try (InputStream is =
+        codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
+      return fromJson(file, JsonUtil.mapper().readValue(is, JsonNode.class));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read file: %s", file);
     }
