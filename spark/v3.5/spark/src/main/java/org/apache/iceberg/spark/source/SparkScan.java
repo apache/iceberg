@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BlobMetadata;
@@ -220,23 +221,34 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
           Map<String, Map<Integer, ByteBuffer>> distinctDataFilesMax = Maps.newHashMap();
 
           // extract the distinct files which are part of the task planning
-          for (ScanTaskGroup<?> taskGrp : taskGroups()) {
-            for (ScanTask task : taskGrp.tasks()) {
-              if (task.isFileScanTask()) {
-                FileScanTask fileScanTask = task.asFileScanTask();
-                String filePath = fileScanTask.file().location();
+          Set<FileScanTask> fileScanTasks =
+              taskGroups().stream()
+                  .flatMap(taskGroup -> taskGroup.tasks().stream())
+                  .filter(ScanTask::isFileScanTask)
+                  .map(ScanTask::asFileScanTask)
+                  .collect(Collectors.toSet()); // Collect into a Set
 
-                // Add to the map only if it doesn't already exist
-                distinctDataFilesNullCount.putIfAbsent(
-                    filePath, fileScanTask.file().nullValueCounts());
-                distinctDataFilesMin.putIfAbsent(filePath, fileScanTask.file().lowerBounds());
-                distinctDataFilesMax.putIfAbsent(filePath, fileScanTask.file().upperBounds());
-              }
-            }
+          // check for row level deletes
+          boolean existsWithDeletes =
+              fileScanTasks.stream().anyMatch(task -> !task.deletes().isEmpty());
+          if (!existsWithDeletes) {
+            fileScanTasks.forEach(
+                task -> {
+                  FileScanTask fileScanTask = task.asFileScanTask();
+                  String filePath = fileScanTask.file().location();
+
+                  // Add to the map only if it doesn't already exist
+                  distinctDataFilesNullCount.putIfAbsent(
+                      filePath, fileScanTask.file().nullValueCounts());
+                  distinctDataFilesMin.putIfAbsent(filePath, fileScanTask.file().lowerBounds());
+                  distinctDataFilesMax.putIfAbsent(filePath, fileScanTask.file().upperBounds());
+                });
+            nullCounts = calculateNullCount(distinctDataFilesNullCount);
+            minValues = calculateMinMax(true, distinctDataFilesMin);
+            maxValues = calculateMinMax(false, distinctDataFilesMax);
+          } else {
+            LOG.info("Skip deriving stats from manifest : detected row level deletes");
           }
-          nullCounts = calculateNullCount(distinctDataFilesNullCount);
-          minValues = calculateMinMax(true, distinctDataFilesMin);
-          maxValues = calculateMinMax(false, distinctDataFilesMax);
         }
 
         Map<Integer, List<BlobMetadata>> groupedByField =
