@@ -113,6 +113,9 @@ public class ParquetValueReaders {
 
     @Override
     public void setPageSource(PageReadStore pageStore, long rowPosition) {}
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {}
   }
 
   static class ConstantReader<C> implements ParquetValueReader<C> {
@@ -176,6 +179,9 @@ public class ParquetValueReaders {
 
     @Override
     public void setPageSource(PageReadStore pageStore, long rowPosition) {}
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {}
   }
 
   static class PositionReader implements ParquetValueReader<Long> {
@@ -200,7 +206,18 @@ public class ParquetValueReaders {
 
     @Override
     public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      this.rowGroupStart = rowPosition;
+      setPageSource(pageStore);
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+      this.rowGroupStart =
+          pageStore
+              .getRowIndexOffset()
+              .orElseThrow(
+                  () ->
+                      new IllegalArgumentException(
+                          "PageReadStore does not contain row index offset"));
       this.rowOffset = -1;
     }
   }
@@ -221,6 +238,11 @@ public class ParquetValueReaders {
 
     @Override
     public void setPageSource(PageReadStore pageStore, long rowPosition) {
+      setPageSource(pageStore);
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
       column.setPageSource(pageStore.getPageReader(desc));
     }
 
@@ -405,7 +427,12 @@ public class ParquetValueReaders {
 
     @Override
     public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      reader.setPageSource(pageStore, rowPosition);
+      setPageSource(pageStore);
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+      reader.setPageSource(pageStore);
     }
 
     @Override
@@ -450,7 +477,12 @@ public class ParquetValueReaders {
 
     @Override
     public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      reader.setPageSource(pageStore, rowPosition);
+      setPageSource(pageStore);
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+      reader.setPageSource(pageStore);
     }
 
     @Override
@@ -569,8 +601,13 @@ public class ParquetValueReaders {
 
     @Override
     public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      keyReader.setPageSource(pageStore, rowPosition);
-      valueReader.setPageSource(pageStore, rowPosition);
+      setPageSource(pageStore);
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+      keyReader.setPageSource(pageStore);
+      valueReader.setPageSource(pageStore);
     }
 
     @Override
@@ -720,8 +757,13 @@ public class ParquetValueReaders {
 
     @Override
     public final void setPageSource(PageReadStore pageStore, long rowPosition) {
+      setPageSource(pageStore);
+    }
+
+    @Override
+    public final void setPageSource(PageReadStore pageStore) {
       for (ParquetValueReader<?> reader : readers) {
-        reader.setPageSource(pageStore, rowPosition);
+        reader.setPageSource(pageStore);
       }
     }
 
