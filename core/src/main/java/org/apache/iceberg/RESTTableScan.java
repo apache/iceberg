@@ -191,20 +191,6 @@ public class RESTTableScan extends DataTableScan {
     return null;
   }
 
-  public List<FileScanTask> bindFileScanTasksWithSpec(List<FileScanTask> unboundFileScanTasks) {
-    // TODO call this function
-    if (unboundFileScanTasks == null) {
-      return null;
-    }
-    List<FileScanTask> boundFileScanTasks = Lists.newArrayList();
-    for (FileScanTask task : unboundFileScanTasks) {
-      UnboundBaseFileScanTask unboundBaseFileScanTask = (UnboundBaseFileScanTask) task;
-      FileScanTask boundTask = unboundBaseFileScanTask.bind(table.spec(), isCaseSensitive());
-      boundFileScanTasks.add(boundTask);
-    }
-    return boundFileScanTasks;
-  }
-
   public CloseableIterable<FileScanTask> getScanTasksIterable(
       List<String> planTasks, List<FileScanTask> fileScanTasks) {
     List<ScanTasksIterable> iterableOfScanTaskIterables = Lists.newArrayList();
