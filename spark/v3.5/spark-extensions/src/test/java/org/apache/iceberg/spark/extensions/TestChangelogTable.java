@@ -451,13 +451,6 @@ public class TestChangelogTable extends ExtensionsTestBase {
             "SELECT * FROM test_changelog_view WHERE _change_type IN ('INSERT', 'DELETE') ORDER BY _change_ordinal");
 
     // Verify no changes are returned since our window is after the inserts
-    // TODO: this currently fails here and returns all 4 records but should be 0 records
-    // TODO: becasue the records are not in the time range but prior to range
-    //    java.lang.AssertionError: [Num records must be zero]
-    //    Expecting empty but was: [[1, "a", "INSERT", 0, 1369318112747935444L],
-    //        [2, "b", "INSERT", 1, 8560714774500713640L],
-    //        [3, "c", "INSERT", 2, 7302500464847668500L],
-    //        [4, "d", "INSERT", 3, 7807948732874377651L]]
     assertThat(results).as("Num records must be zero").isEmpty();
 
 

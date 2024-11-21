@@ -560,11 +560,13 @@ public class SparkScanBuilder
     }
 
     boolean emptyScan = false;
+
     if (startTimestamp != null) {
+      boolean isBeforeCurrentSnapshot = table.currentSnapshot().timestampMillis() < startTimestamp;
       startSnapshotId = getStartSnapshotId(startTimestamp);
-      if (startSnapshotId == null && endTimestamp == null) {
-        emptyScan = true;
-      }
+      boolean hasNoValidStartSnapshot = startSnapshotId == null && endTimestamp == null;
+
+      emptyScan = isBeforeCurrentSnapshot || hasNoValidStartSnapshot;
     }
 
     if (endTimestamp != null) {
