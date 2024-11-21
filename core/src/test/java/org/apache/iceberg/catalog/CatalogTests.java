@@ -49,6 +49,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
@@ -1282,9 +1283,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
             .withPartitionSpec(SPEC)
             .withProperty("format-version", "2")
             .create();
-    assertThat(((BaseTable) table).operations().current().formatVersion())
-        .as("Should be a v2 table")
-        .isEqualTo(2);
+    assertThat(TableUtil.formatVersion(table)).as("Should be a v2 table").isEqualTo(2);
 
     table.updateSpec().addField("id").commit();
 
@@ -2519,7 +2518,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {1, 2})
+  @ValueSource(ints = {1, 2, 3})
   public void createTableTransaction(int formatVersion) {
     if (requiresNamespaceCreate()) {
       catalog().createNamespace(NS);
@@ -2533,8 +2532,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
             ImmutableMap.of("format-version", String.valueOf(formatVersion)))
         .commitTransaction();
 
-    BaseTable table = (BaseTable) catalog().loadTable(TABLE);
-    assertThat(table.operations().current().formatVersion()).isEqualTo(formatVersion);
+    assertThat(TableUtil.formatVersion(catalog().loadTable(TABLE))).isEqualTo(formatVersion);
   }
 
   @ParameterizedTest
