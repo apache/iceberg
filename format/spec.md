@@ -605,8 +605,8 @@ Notes:
 4. Position delete metadata can use `referenced_data_file` when all deletes tracked by the entry are in a single data file. Setting the referenced file is required for deletion vectors.
 5. The `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. For deletion vectors, these values are required and must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
 6. The following field ids are reserved on `data_file`: 141.
-7. `geometry`, this is a point. X, Y, Z, and M take the min value of all component points of all geometries in file. See Appendix D for encoding.
-8. `geometry`, this is a point. X, Y, Z, and M take the max value of all component points of all geometries in file. See Appendix D for encoding.
+7. `geometry`, this is a point: X = westernmost bound of all geometries in file, Y = northernmost bound of all geometries in file, Z is min value for all component points of all geometries in the file, M is min value of all component points of all geometries in the file. See Appendix D for encoding.
+8. `geometry`, this is a point: X = easternmost bound of all geometries in file, Y = southernmost bound of all geometries in file, Z is max value for all component points of all geometries in the file, M is max value of all component points of all geometries in the file. See Appendix D for encoding.
 
 The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
 
