@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.actions;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.spark.SparkCatalog;
@@ -42,7 +41,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     SparkCatalog cat = (SparkCatalog) spark.sessionState().catalogManager().catalog("mycat");
 
     String[] database = {"default"};
-    Identifier id = Identifier.of(database, "table" + ThreadLocalRandom.current().nextInt(1000));
+    Identifier id = Identifier.of(database, randomName("table"));
     Transform[] transforms = {};
     cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
     SparkTable table = (SparkTable) cat.loadTable(id);
@@ -50,7 +49,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     sql("INSERT INTO mycat.default.%s VALUES (1,1,1)", id.name());
 
     String location = table.table().location().replaceFirst("file:", "");
-    String trashFile = "/data/trashfile" + ThreadLocalRandom.current().nextInt(1000);
+    String trashFile = randomName("/data/trashfile");
     new File(location + trashFile).createNewFile();
 
     DeleteOrphanFiles.Result results =
@@ -71,7 +70,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     SparkCatalog cat = (SparkCatalog) spark.sessionState().catalogManager().catalog("hadoop");
 
     String[] database = {"default"};
-    Identifier id = Identifier.of(database, "table" + ThreadLocalRandom.current().nextInt(1000));
+    Identifier id = Identifier.of(database, randomName("table"));
     Transform[] transforms = {};
     cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
     SparkTable table = (SparkTable) cat.loadTable(id);
@@ -79,7 +78,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     sql("INSERT INTO hadoop.default.%s VALUES (1,1,1)", id.name());
 
     String location = table.table().location().replaceFirst("file:", "");
-    String trashFile = "/data/trashfile" + ThreadLocalRandom.current().nextInt(1000);
+    String trashFile = randomName("/data/trashfile");
     new File(location + trashFile).createNewFile();
 
     DeleteOrphanFiles.Result results =
@@ -100,7 +99,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     SparkCatalog cat = (SparkCatalog) spark.sessionState().catalogManager().catalog("hive");
 
     String[] database = {"default"};
-    Identifier id = Identifier.of(database, "table" + ThreadLocalRandom.current().nextInt(1000));
+    Identifier id = Identifier.of(database, randomName("table"));
     Transform[] transforms = {};
     cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
     SparkTable table = (SparkTable) cat.loadTable(id);
@@ -108,7 +107,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     sql("INSERT INTO hive.default.%s VALUES (1,1,1)", id.name());
 
     String location = table.table().location().replaceFirst("file:", "");
-    String trashFile = "/data/trashfile" + ThreadLocalRandom.current().nextInt(1000);
+    String trashFile = randomName("/data/trashfile");
     new File(location + trashFile).createNewFile();
 
     DeleteOrphanFiles.Result results =
@@ -133,7 +132,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
         (SparkSessionCatalog) spark.sessionState().catalogManager().v2SessionCatalog();
 
     String[] database = {"default"};
-    Identifier id = Identifier.of(database, "table" + ThreadLocalRandom.current().nextInt(1000));
+    Identifier id = Identifier.of(database, randomName("table"));
     Transform[] transforms = {};
     cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
     SparkTable table = (SparkTable) cat.loadTable(id);
@@ -141,7 +140,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     sql("INSERT INTO default.%s VALUES (1,1,1)", id.name());
 
     String location = table.table().location().replaceFirst("file:", "");
-    String trashFile = "/data/trashfile" + ThreadLocalRandom.current().nextInt(1000);
+    String trashFile = randomName("/data/trashfile");
     new File(location + trashFile).createNewFile();
 
     DeleteOrphanFiles.Result results =
@@ -173,7 +172,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     spark.sql("INSERT INTO default.sessioncattest VALUES (1,1,1)");
 
     String location = table.table().location().replaceFirst("file:", "");
-    String trashFile = "/data/trashfile" + ThreadLocalRandom.current().nextInt(1000);
+    String trashFile = randomName("/data/trashfile");
     new File(location + trashFile).createNewFile();
 
     DeleteOrphanFiles.Result results =
