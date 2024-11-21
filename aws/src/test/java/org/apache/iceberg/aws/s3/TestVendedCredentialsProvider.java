@@ -26,7 +26,6 @@ import static org.mockserver.model.HttpResponse.response;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.HttpMethod;
 import org.apache.iceberg.rest.credentials.Credential;
@@ -79,8 +78,8 @@ public class TestVendedCredentialsProvider {
         VendedCredentialsProvider.create(
             ImmutableMap.of(VendedCredentialsProvider.URI, "invalid uri"))) {
       assertThatThrownBy(provider::resolveCredentials)
-          .isInstanceOf(RESTException.class)
-          .hasMessageStartingWith("Failed to create request URI from base invalid uri");
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageStartingWith("Illegal character in path at index 7: invalid uri");
     }
   }
 

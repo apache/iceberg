@@ -18,22 +18,15 @@
  */
 package org.apache.iceberg.aws;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.Arrays;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import org.apache.hc.core5.http.EntityDetails;
-import org.apache.hc.core5.http.Header;
+import org.apache.commons.io.IOUtils;
 import org.apache.hc.core5.http.HttpHeaders;
-import org.apache.hc.core5.http.HttpRequest;
-import org.apache.hc.core5.http.HttpRequestInterceptor;
-import org.apache.hc.core5.http.io.entity.StringEntity;
-import org.apache.hc.core5.http.protocol.HttpContext;
-import org.apache.iceberg.exceptions.RESTException;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.HTTPRequest;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.signer.Aws4Signer;
 import software.amazon.awssdk.auth.signer.internal.SignerConstant;
@@ -45,25 +38,24 @@ import software.amazon.awssdk.http.SdkHttpMethod;
 import software.amazon.awssdk.regions.Region;
 
 /**
- * Provides a request interceptor for use with the HTTPClient that calculates the required signature
- * for the SigV4 protocol and adds the necessary headers for all requests created by the client.
+ * A SigV4 signer that calculates the required signature for the SigV4 protocol and adds the
+ * necessary headers for all requests created by the client.
  *
- * <p>See <a
- * href="https://docs.aws.amazon.com/general/latest/gr/signing-aws-api-requests.html">Signing AWS
+ * <p>See <a href="https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv.html">Signing AWS
  * API requests</a> for details about the protocol.
  */
-public class RESTSigV4Signer implements HttpRequestInterceptor {
+public class RESTSigV4Signer {
   static final String EMPTY_BODY_SHA256 =
       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
   static final String RELOCATED_HEADER_PREFIX = "Original-";
 
   private final Aws4Signer signer = Aws4Signer.create();
-  private AwsCredentialsProvider credentialsProvider;
+  private final AwsCredentialsProvider credentialsProvider;
 
-  private String signingName;
-  private Region signingRegion;
+  private final String signingName;
+  private final Region signingRegion;
 
-  public void initialize(Map<String, String> properties) {
+  public RESTSigV4Signer(Map<String, String> properties) {
     AwsProperties awsProperties = new AwsProperties(properties);
 
     this.signingRegion = awsProperties.restSigningRegion();
@@ -71,16 +63,7 @@ public class RESTSigV4Signer implements HttpRequestInterceptor {
     this.credentialsProvider = awsProperties.restCredentialsProvider();
   }
 
-  @Override
-  public void process(HttpRequest request, EntityDetails entity, HttpContext context) {
-    URI requestUri;
-
-    try {
-      requestUri = request.getUri();
-    } catch (URISyntaxException e) {
-      throw new RESTException(e, "Invalid uri for request: %s", request);
-    }
-
+  public void sign(HTTPRequest.Builder request) {
     Aws4SignerParams params =
         Aws4SignerParams.builder()
             .signingName(signingName)
@@ -96,59 +79,63 @@ public class RESTSigV4Signer implements HttpRequestInterceptor {
 
     SdkHttpFullRequest.Builder sdkRequestBuilder = SdkHttpFullRequest.builder();
 
+    URI uri = request.requestUri();
     sdkRequestBuilder
-        .method(SdkHttpMethod.fromValue(request.getMethod()))
-        .protocol(request.getScheme())
-        .uri(requestUri)
-        .headers(convertHeaders(request.getHeaders()));
+        .method(SdkHttpMethod.fromValue(request.method().name()))
+        .protocol(uri.getScheme())
+        .uri(uri)
+        .headers(convertHeaders(request.headers()));
 
-    if (entity == null) {
+    String body = request.encodedBody();
+    if (body == null) {
       // This is a workaround for the signer implementation incorrectly producing
       // an invalid content checksum for empty body requests.
       sdkRequestBuilder.putHeader(SignerConstant.X_AMZ_CONTENT_SHA256, EMPTY_BODY_SHA256);
-    } else if (entity instanceof StringEntity) {
-      sdkRequestBuilder.contentStreamProvider(
-          () -> {
-            try {
-              return ((StringEntity) entity).getContent();
-            } catch (IOException e) {
-              throw new UncheckedIOException(e);
-            }
-          });
     } else {
-      throw new UnsupportedOperationException("Unsupported entity type: " + entity.getClass());
+      // freeze the encoded request body since we are signing it
+      request.encodedBody(body);
+      sdkRequestBuilder.contentStreamProvider(
+          () -> IOUtils.toInputStream(body, StandardCharsets.UTF_8));
     }
 
     SdkHttpFullRequest signedSdkRequest = signer.sign(sdkRequestBuilder.build(), params);
     updateRequestHeaders(request, signedSdkRequest.headers());
   }
 
-  private Map<String, List<String>> convertHeaders(Header[] headers) {
-    return Arrays.stream(headers)
-        .collect(
-            Collectors.groupingBy(
-                // Relocate Authorization header as SigV4 takes precedence
-                header ->
-                    HttpHeaders.AUTHORIZATION.equals(header.getName())
-                        ? RELOCATED_HEADER_PREFIX + header.getName()
-                        : header.getName(),
-                Collectors.mapping(Header::getValue, Collectors.toList())));
+  private Map<String, List<String>> convertHeaders(Map<String, List<String>> headers) {
+    Map<String, List<String>> converted = Maps.newHashMap();
+    headers.forEach(
+        (name, values) -> {
+          if (name.equals(HttpHeaders.AUTHORIZATION)) {
+            converted.merge(
+                RELOCATED_HEADER_PREFIX + name,
+                values,
+                (v1, v2) -> {
+                  List<String> merged = Lists.newArrayList(v1);
+                  merged.addAll(v2);
+                  return List.copyOf(merged);
+                });
+          } else {
+            converted.put(name, values);
+          }
+        });
+    return converted;
   }
 
-  private void updateRequestHeaders(HttpRequest request, Map<String, List<String>> headers) {
+  private void updateRequestHeaders(
+      HTTPRequest.Builder request, Map<String, List<String>> headers) {
     headers.forEach(
         (name, values) -> {
           if (request.containsHeader(name)) {
-            Header[] original = request.getHeaders(name);
+            List<String> original = request.headers(name);
             request.removeHeaders(name);
-            Arrays.asList(original)
-                .forEach(
-                    header -> {
-                      // Relocate headers if there is a conflict with signed headers
-                      if (!values.contains(header.getValue())) {
-                        request.addHeader(RELOCATED_HEADER_PREFIX + name, header.getValue());
-                      }
-                    });
+            original.forEach(
+                header -> {
+                  // Relocate headers if there is a conflict with signed headers
+                  if (!values.contains(header)) {
+                    request.addHeader(RELOCATED_HEADER_PREFIX + name, header);
+                  }
+                });
           }
 
           values.forEach(value -> request.setHeader(name, value));
