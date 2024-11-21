@@ -122,8 +122,10 @@ public class TableMetadataParser {
   public static void internalWrite(
       TableMetadata metadata, OutputFile outputFile, boolean overwrite) {
     boolean isGzip = Codec.fromFileName(outputFile.location()) == Codec.GZIP;
-    try (OutputStream os = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
-        OutputStream gos = isGzip ? new GZIPOutputStream(os) : os;
+    OutputStream os = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
+    // if isGzip is true, os will be closed by GZIPOutputStream,
+    // otherwise, os will be closed by try-with-resources
+    try (OutputStream gos = isGzip ? new GZIPOutputStream(os) : os;
         OutputStreamWriter writer = new OutputStreamWriter(gos, StandardCharsets.UTF_8)) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
       generator.useDefaultPrettyPrinter();
@@ -131,6 +133,14 @@ public class TableMetadataParser {
       generator.flush();
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write json to file: %s", outputFile);
+    } finally {
+      try {
+        // in case of an exception in GZIPOutputStream constructor,
+        // the stream is not closed and needs to be closed here
+        os.close();
+      } catch (IOException ignored) {
+        // ignore
+      }
     }
   }
 
@@ -277,11 +287,21 @@ public class TableMetadataParser {
 
   public static TableMetadata read(FileIO io, InputFile file) {
     Codec codec = Codec.fromFileName(file.location());
-    try (InputStream is = file.newStream();
-        InputStream gis = codec == Codec.GZIP ? new GZIPInputStream(is) : is) {
+    InputStream is = file.newStream();
+    // if codec is GZIP, is will be closed by GZIPInputStream
+    // otherwise, os will be closed by try-with-resources
+    try (InputStream gis = codec == Codec.GZIP ? new GZIPInputStream(is) : is) {
       return fromJson(file, JsonUtil.mapper().readValue(gis, JsonNode.class));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read file: %s", file);
+    } finally {
+      try {
+        // in case of an exception in GZIPInputStream constructor,
+        // the stream is not closed and needs to be closed here
+        is.close();
+      } catch (IOException ignored) {
+        // ignore
+      }
     }
   }
 
