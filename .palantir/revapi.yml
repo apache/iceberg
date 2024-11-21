@@ -1145,6 +1145,148 @@ acceptedBreaks:
       new: "method org.apache.iceberg.BaseMetastoreOperations.CommitStatus org.apache.iceberg.BaseMetastoreTableOperations::checkCommitStatus(java.lang.String,\
         \ org.apache.iceberg.TableMetadata)"
       justification: "Removing deprecated code"
+  "1.7.0":
+    org.apache.iceberg:iceberg-core:
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.actions.SizeBasedDataRewriter"
+      justification: "We will decide what to do with the API changes after the new\
+        \ API has been finalized"
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.actions.SizeBasedFileRewriter<T extends org.apache.iceberg.ContentScanTask<F\
+        \ extends org.apache.iceberg.ContentFile<F>>, F>"
+      justification: "We will decide what to do with the API changes after the new\
+        \ API has been finalized"
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.actions.SizeBasedPositionDeletesRewriter"
+      justification: "We will decide what to do with the API changes after the new\
+        \ API has been finalized"
+    - code: "java.class.removed"
+      old: "interface org.apache.iceberg.actions.FileRewriter<T extends org.apache.iceberg.ContentScanTask<F\
+        \ extends org.apache.iceberg.ContentFile<F>>, F>"
+      justification: "We will decide what to do with the API changes after the new\
+        \ API has been finalized"
+    - code: "java.generics.elementNowParameterized"
+      old: "method java.util.Comparator<org.apache.iceberg.actions.RewriteFileGroup>\
+        \ org.apache.iceberg.actions.RewriteFileGroup::comparator(org.apache.iceberg.RewriteJobOrder)"
+      new: "method <I, T extends org.apache.iceberg.ContentScanTask<F extends org.apache.iceberg.ContentFile<F>>,\
+        \ F extends org.apache.iceberg.ContentFile<F extends org.apache.iceberg.ContentFile<F>>>\
+        \ java.util.Comparator<org.apache.iceberg.actions.FileRewriteGroup<I, T, F>>\
+        \ org.apache.iceberg.actions.FileRewriteGroup<I, T extends org.apache.iceberg.ContentScanTask<F\
+        \ extends org.apache.iceberg.ContentFile<F>>, F extends org.apache.iceberg.ContentFile<F\
+        \ extends org.apache.iceberg.ContentFile<F>>>::comparator(org.apache.iceberg.RewriteJobOrder)\
+        \ @ org.apache.iceberg.actions.RewriteFileGroup"
+      justification: "We will decide what to do with the API changes after the new\
+        \ API has been finalized"
+    - code: "java.generics.elementNowParameterized"
+      old: "method java.util.Comparator<org.apache.iceberg.actions.RewritePositionDeletesGroup>\
+        \ org.apache.iceberg.actions.RewritePositionDeletesGroup::comparator(org.apache.iceberg.RewriteJobOrder)"
+      new: "method <I, T extends org.apache.iceberg.ContentScanTask<F extends org.apache.iceberg.ContentFile<F>>,\
+        \ F extends org.apache.iceberg.ContentFile<F extends org.apache.iceberg.ContentFile<F>>>\
+        \ java.util.Comparator<org.apache.iceberg.actions.FileRewriteGroup<I, T, F>>\
+        \ org.apache.iceberg.actions.FileRewriteGroup<I, T extends org.apache.iceberg.ContentScanTask<F\
+        \ extends org.apache.iceberg.ContentFile<F>>, F extends org.apache.iceberg.ContentFile<F\
+        \ extends org.apache.iceberg.ContentFile<F>>>::comparator(org.apache.iceberg.RewriteJobOrder)\
+        \ @ org.apache.iceberg.actions.RewritePositionDeletesGroup"
+      justification: "We will decide what to do with the API changes after the new\
+        \ API has been finalized"
+    - code: "java.generics.formalTypeParameterAdded"
+      old: "method java.util.Comparator<org.apache.iceberg.actions.RewriteFileGroup>\
+        \ org.apache.iceberg.actions.RewriteFileGroup::comparator(org.apache.iceberg.RewriteJobOrder)"
+      new: "method <I, T extends org.apache.iceberg.ContentScanTask<F extends org.apache.iceberg.ContentFile<F>>,\
+        \ F extends org.apache.iceberg.ContentFile<F extends org.apache.iceberg.ContentFile<F>>>\
+        \ java.util.Comparator<org.apache.iceberg.actions.FileRewriteGroup<I, T, F>>\
+        \ org.apache.iceberg.actions.FileRewriteGroup<I, T extends org.apache.iceberg.ContentScanTask<F\
+        \ extends org.apache.iceberg.ContentFile<F>>, F extends org.apache.iceberg.ContentFile<F\
+        \ extends org.apache.iceberg.ContentFile<F>>>::comparator(org.apache.iceberg.RewriteJobOrder)\
+        \ @ org.apache.iceberg.actions.RewriteFileGroup"
+      justification: "We will decide what to do with the API changes after the new\
+        \ API has been finalized"
+    - code: "java.generics.formalTypeParameterAdded"
+      old: "method java.util.Comparator<org.apache.iceberg.actions.RewritePositionDeletesGroup>\
+        \ org.apache.iceberg.actions.RewritePositionDeletesGroup::comparator(org.apache.iceberg.RewriteJobOrder)"
+      new: "method <I, T extends org.apache.iceberg.ContentScanTask<F extends org.apache.iceberg.ContentFile<F>>,\
+        \ F extends org.apache.iceberg.ContentFile<F extends org.apache.iceberg.ContentFile<F>>>\
+        \ java.util.Comparator<org.apache.iceberg.actions.FileRewriteGroup<I, T, F>>\
+        \ org.apache.iceberg.actions.FileRewriteGroup<I, T extends org.apache.iceberg.ContentScanTask<F\
+        \ extends org.apache.iceberg.ContentFile<F>>, F extends org.apache.iceberg.ContentFile<F\
+        \ extends org.apache.iceberg.ContentFile<F>>>::comparator(org.apache.iceberg.RewriteJobOrder)\
+        \ @ org.apache.iceberg.actions.RewritePositionDeletesGroup"
+      justification: "We will decide what to do with the API changes after the new\
+        \ API has been finalized"
+    - code: "java.method.movedToSuperClass"
+      old: "method java.util.Comparator<org.apache.iceberg.actions.RewriteFileGroup>\
+        \ org.apache.iceberg.actions.RewriteFileGroup::comparator(org.apache.iceberg.RewriteJobOrder)"
+      new: "method <I, T extends org.apache.iceberg.ContentScanTask<F extends org.apache.iceberg.ContentFile<F>>,\
+        \ F extends org.apache.iceberg.ContentFile<F extends org.apache.iceberg.ContentFile<F>>>\
+        \ java.util.Comparator<org.apache.iceberg.actions.FileRewriteGroup<I, T, F>>\
+        \ org.apache.iceberg.actions.FileRewriteGroup<I, T extends org.apache.iceberg.ContentScanTask<F\
+        \ extends org.apache.iceberg.ContentFile<F>>, F extends org.apache.iceberg.ContentFile<F\
+        \ extends org.apache.iceberg.ContentFile<F>>>::comparator(org.apache.iceberg.RewriteJobOrder)\
+        \ @ org.apache.iceberg.actions.RewriteFileGroup"
+      justification: "We will decide what to do with the API changes after the new\
+        \ API has been finalized"
+    - code: "java.method.movedToSuperClass"
+      old: "method java.util.Comparator<org.apache.iceberg.actions.RewritePositionDeletesGroup>\
+        \ org.apache.iceberg.actions.RewritePositionDeletesGroup::comparator(org.apache.iceberg.RewriteJobOrder)"
+      new: "method <I, T extends org.apache.iceberg.ContentScanTask<F extends org.apache.iceberg.ContentFile<F>>,\
+        \ F extends org.apache.iceberg.ContentFile<F extends org.apache.iceberg.ContentFile<F>>>\
+        \ java.util.Comparator<org.apache.iceberg.actions.FileRewriteGroup<I, T, F>>\
+        \ org.apache.iceberg.actions.FileRewriteGroup<I, T extends org.apache.iceberg.ContentScanTask<F\
+        \ extends org.apache.iceberg.ContentFile<F>>, F extends org.apache.iceberg.ContentFile<F\
+        \ extends org.apache.iceberg.ContentFile<F>>>::comparator(org.apache.iceberg.RewriteJobOrder)\
+        \ @ org.apache.iceberg.actions.RewritePositionDeletesGroup"
+      justification: "We will decide what to do with the API changes after the new\
+        \ API has been finalized"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method void org.apache.iceberg.actions.RewriteFileGroup::<init>(org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo,\
+        \ java.util.List<org.apache.iceberg.FileScanTask>)"
+      new: "method void org.apache.iceberg.actions.RewriteFileGroup::<init>(org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo,\
+        \ java.util.List<org.apache.iceberg.FileScanTask>, long, int)"
+      justification: "We will decide what to do with the API changes after the new\
+        \ API has been finalized"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method void org.apache.iceberg.actions.RewritePositionDeletesGroup::<init>(org.apache.iceberg.actions.RewritePositionDeleteFiles.FileGroupInfo,\
+        \ java.util.List<org.apache.iceberg.PositionDeletesScanTask>)"
+      new: "method void org.apache.iceberg.actions.RewritePositionDeletesGroup::<init>(org.apache.iceberg.actions.RewritePositionDeleteFiles.FileGroupInfo,\
+        \ java.util.List<org.apache.iceberg.PositionDeletesScanTask>, long, int)"
+      justification: "We will decide what to do with the API changes after the new\
+        \ API has been finalized"
+    - code: "java.method.removed"
+      old: "method int org.apache.iceberg.actions.RewriteFileGroup::numFiles()"
+      justification: "We will decide what to do with the API changes after the new\
+        \ API has been finalized"
+    - code: "java.method.removed"
+      old: "method int org.apache.iceberg.actions.RewritePositionDeletesGroup::numRewrittenDeleteFiles()"
+      justification: "We will decide what to do with the API changes after the new\
+        \ API has been finalized"
+    - code: "java.method.removed"
+      old: "method java.util.List<org.apache.iceberg.PositionDeletesScanTask> org.apache.iceberg.actions.RewritePositionDeletesGroup::tasks()"
+      justification: "We will decide what to do with the API changes after the new\
+        \ API has been finalized"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method java.util.Comparator<org.apache.iceberg.actions.RewriteFileGroup>\
+        \ org.apache.iceberg.actions.RewriteFileGroup::comparator(org.apache.iceberg.RewriteJobOrder)"
+      new: "method <I, T extends org.apache.iceberg.ContentScanTask<F extends org.apache.iceberg.ContentFile<F>>,\
+        \ F extends org.apache.iceberg.ContentFile<F extends org.apache.iceberg.ContentFile<F>>>\
+        \ java.util.Comparator<org.apache.iceberg.actions.FileRewriteGroup<I, T, F>>\
+        \ org.apache.iceberg.actions.FileRewriteGroup<I, T extends org.apache.iceberg.ContentScanTask<F\
+        \ extends org.apache.iceberg.ContentFile<F>>, F extends org.apache.iceberg.ContentFile<F\
+        \ extends org.apache.iceberg.ContentFile<F>>>::comparator(org.apache.iceberg.RewriteJobOrder)\
+        \ @ org.apache.iceberg.actions.RewriteFileGroup"
+      justification: "We will decide what to do with the API changes after the new\
+        \ API has been finalized"
+    - code: "java.method.returnTypeTypeParametersChanged"
+      old: "method java.util.Comparator<org.apache.iceberg.actions.RewritePositionDeletesGroup>\
+        \ org.apache.iceberg.actions.RewritePositionDeletesGroup::comparator(org.apache.iceberg.RewriteJobOrder)"
+      new: "method <I, T extends org.apache.iceberg.ContentScanTask<F extends org.apache.iceberg.ContentFile<F>>,\
+        \ F extends org.apache.iceberg.ContentFile<F extends org.apache.iceberg.ContentFile<F>>>\
+        \ java.util.Comparator<org.apache.iceberg.actions.FileRewriteGroup<I, T, F>>\
+        \ org.apache.iceberg.actions.FileRewriteGroup<I, T extends org.apache.iceberg.ContentScanTask<F\
+        \ extends org.apache.iceberg.ContentFile<F>>, F extends org.apache.iceberg.ContentFile<F\
+        \ extends org.apache.iceberg.ContentFile<F>>>::comparator(org.apache.iceberg.RewriteJobOrder)\
+        \ @ org.apache.iceberg.actions.RewritePositionDeletesGroup"
+      justification: "We will decide what to do with the API changes after the new\
+        \ API has been finalized"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"
