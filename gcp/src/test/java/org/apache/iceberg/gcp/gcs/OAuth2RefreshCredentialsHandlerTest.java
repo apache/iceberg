@@ -26,7 +26,6 @@ import com.google.auth.oauth2.AccessToken;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.exceptions.BadRequestException;
-import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.HttpMethod;
@@ -75,8 +74,8 @@ public class OAuth2RefreshCredentialsHandlerTest {
                         ImmutableMap.of(
                             GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT, "invalid uri"))
                     .refreshAccessToken())
-        .isInstanceOf(RESTException.class)
-        .hasMessageStartingWith("Failed to create request URI from base invalid uri");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Illegal character in path at index 7: invalid uri");
   }
 
   @Test

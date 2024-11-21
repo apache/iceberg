@@ -38,7 +38,6 @@ import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.io.CharStreams;
-import org.apache.iceberg.rest.RESTCatalogAdapter.HTTPMethod;
 import org.apache.iceberg.rest.RESTCatalogAdapter.Route;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.util.Pair;
@@ -96,15 +95,17 @@ public class RESTCatalogServlet extends HttpServlet {
     }
 
     try {
-      Object responseBody =
-          restCatalogAdapter.execute(
+
+      HTTPRequest request =
+          restCatalogAdapter.buildRequest(
               context.method(),
               context.path(),
               context.queryParams(),
-              context.body(),
-              context.route().responseClass(),
               context.headers(),
-              handle(response));
+              context.body());
+      Object responseBody =
+          restCatalogAdapter.execute(
+              request, context.route().responseClass(), handle(response), h -> {});
 
       if (responseBody != null) {
         RESTObjectMapper.mapper().writeValue(response.getWriter(), responseBody);
@@ -130,7 +131,7 @@ public class RESTCatalogServlet extends HttpServlet {
   }
 
   public static class ServletRequestContext {
-    private HTTPMethod method;
+    private HTTPRequest.HTTPMethod method;
     private Route route;
     private String path;
     private Map<String, String> headers;
@@ -144,7 +145,7 @@ public class RESTCatalogServlet extends HttpServlet {
     }
 
     private ServletRequestContext(
-        HTTPMethod method,
+        HTTPRequest.HTTPMethod method,
         Route route,
         String path,
         Map<String, String> headers,
@@ -159,7 +160,7 @@ public class RESTCatalogServlet extends HttpServlet {
     }
 
     static ServletRequestContext from(HttpServletRequest request) throws IOException {
-      HTTPMethod method = HTTPMethod.valueOf(request.getMethod());
+      HTTPRequest.HTTPMethod method = HTTPRequest.HTTPMethod.valueOf(request.getMethod());
       String path = request.getRequestURI().substring(1);
       Pair<Route, Map<String, String>> routeContext = Route.from(method, path);
 
@@ -193,7 +194,7 @@ public class RESTCatalogServlet extends HttpServlet {
       return new ServletRequestContext(method, route, path, headers, queryParams, requestBody);
     }
 
-    public HTTPMethod method() {
+    public HTTPRequest.HTTPMethod method() {
       return method;
     }
 
