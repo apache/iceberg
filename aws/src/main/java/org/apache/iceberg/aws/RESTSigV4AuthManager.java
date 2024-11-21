@@ -43,10 +43,9 @@ public class RESTSigV4AuthManager extends OAuth2Manager {
   }
 
   @Override
-  public RESTSigv4AuthSession preConfigSession(
-      RESTClient initClient, Map<String, String> properties) {
+  public RESTSigv4AuthSession initSession(RESTClient initClient, Map<String, String> properties) {
     RESTSigV4Signer initSigner = new RESTSigV4Signer(properties);
-    return new RESTSigv4AuthSession(super.preConfigSession(initClient, properties), initSigner);
+    return new RESTSigv4AuthSession(super.initSession(initClient, properties), initSigner);
   }
 
   @Override

@@ -188,7 +188,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     ConfigResponse config;
     try (RESTClient initClient = clientBuilder.apply(props);
-        AuthSession initSession = authManager.preConfigSession(initClient, props)) {
+        AuthSession initSession = authManager.initSession(initClient, props)) {
       config = fetchConfig(initClient, initSession, props);
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close HTTP client", e);

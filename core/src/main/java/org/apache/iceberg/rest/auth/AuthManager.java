@@ -42,7 +42,7 @@ public interface AuthManager extends AutoCloseable {
    *
    * <p>This method cannot return null. By default, it returns the catalog session.
    */
-  default AuthSession preConfigSession(RESTClient initClient, Map<String, String> properties) {
+  default AuthSession initSession(RESTClient initClient, Map<String, String> properties) {
     return catalogSession(initClient, properties);
   }
 

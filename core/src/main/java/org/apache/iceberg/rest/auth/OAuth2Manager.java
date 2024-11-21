@@ -67,8 +67,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
   }
 
   @Override
-  public OAuth2Util.AuthSession preConfigSession(
-      RESTClient initClient, Map<String, String> properties) {
+  public OAuth2Util.AuthSession initSession(RESTClient initClient, Map<String, String> properties) {
     warnIfDeprecatedTokenEndpointUsed(properties);
     AuthConfig config = AuthConfig.fromProperties(properties);
     Map<String, String> headers = OAuth2Util.authHeaders(config.token());
