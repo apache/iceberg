@@ -951,13 +951,13 @@ The procedure can be optionally configured to compute statistics for a specific 
 | `snapshot_id` |           | string        | id of the snapshot to collect stats |
 | `columns`     |           | array<string> | columns to collect stats            |
 
-### Output
+#### Output
 
 | Output Name       | Type   | Description                                     |
 |-------------------|--------|-------------------------------------------------|
 | `statistics_file` | string | path to stats file created from by this command |
 
-### Examples
+#### Examples
 
 Collect stats of the latest snapshot of table `my_table`
 ```sql
