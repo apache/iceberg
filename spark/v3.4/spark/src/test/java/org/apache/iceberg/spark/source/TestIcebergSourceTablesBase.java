@@ -2216,7 +2216,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         });
 
     table.refresh();
-    Assert.assertEquals("bar", table.currentSnapshot().summary().get("foo"));
+    assertThat(table.currentSnapshot().summary().get("foo")).isEqualTo("bar");
 
     withSQLConf(
         // set read option through session configuration
@@ -2224,8 +2224,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         () -> {
           Dataset<Row> result = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
           List<SimpleRecord> actual = result.as(Encoders.bean(SimpleRecord.class)).collectAsList();
-          Assert.assertEquals("Number of rows should match", initialRecords.size(), actual.size());
-          Assert.assertEquals("Result rows should match", initialRecords, actual);
+          assertThat(actual)
+              .as("Rows must match")
+              .containsExactlyInAnyOrderElementsOf(initialRecords);
         });
   }
 
