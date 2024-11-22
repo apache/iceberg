@@ -169,6 +169,7 @@ than options explicitly passed to DataFrameReader.
 | batch-size  | As per table property | Overrides this table's read.parquet.vectorization.batch-size                                          |
 | stream-from-timestamp | (none) | A timestamp in milliseconds to stream from; if before the oldest known ancestor snapshot, the oldest will be used |
 
+
 ### Write options
 
 Spark write options are passed when configuring the DataFrameWriterV2, like this:
