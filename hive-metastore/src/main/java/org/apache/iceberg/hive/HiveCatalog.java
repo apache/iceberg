@@ -428,7 +428,9 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     } catch (TException e) {
       throw new RuntimeException("Failed to check table existence of " + identifier, e);
     } catch (InterruptedException e) {
-      throw new RuntimeException("Interrupted in call to check table existence", e);
+      Thread.currentThread().interrupt();
+      throw new RuntimeException(
+          "Interrupted in call to check table existence of " + identifier, e);
     }
   }
 
