@@ -1095,7 +1095,7 @@ public class TableMetadata implements Serializable {
     }
 
     public Builder addSchema(Schema schema) {
-      addSchemaInternal(schema, schema.highestFieldId());
+      addSchemaInternal(schema, Math.max(lastColumnId, schema.highestFieldId()));
       return this;
     }
 

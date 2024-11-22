@@ -2700,8 +2700,6 @@ components:
             The highest assigned column ID for the table. This is used to ensure columns are always
             assigned an unused ID when evolving schemas. When omitted, it will be computed on the server side.
 
-            Deprecated since Iceberg (Java) 1.8.0. The field will be removed from this spec in Iceberg (Java) 2.0.
-
     SetCurrentSchemaUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
