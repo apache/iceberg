@@ -27,11 +27,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+    - uses: actions/setup-java@v4
+      with:
+        distribution: zulu
+        java-version: 21
+    - name: Build Iceberg Open API project
+      run: ./gradlew :iceberg-open-api:shadowJar
     - name: Login to Docker Hub
       run: |
         docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-    - name: Build Iceberg Open API project
-      run: ./gradlew :iceberg-open-api:shadowJar
     - name: Build Docker Image
       run: docker build -t apache/iceberg-rest-adapter -f docker/iceberg-rest-adapter-image/Dockerfile .
     - name: Push Docker Image 
