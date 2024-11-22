@@ -238,19 +238,23 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
     parser.removeErrorListeners()
     parser.addErrorListener(IcebergParseErrorListener)
 
+    // https://github.com/antlr/antlr4/issues/192#issuecomment-15238595
+    // Save a great deal of time on correct inputs by using a two-stage parsing strategy.
     try {
       try {
-        // first, try parsing with potentially faster SLL mode
+        // first, try parsing with potentially faster SLL mode and BailErrorStrategy
+        parser.setErrorHandler(new BailErrorStrategy)
         parser.getInterpreter.setPredictionMode(PredictionMode.SLL)
         toResult(parser)
       }
       catch {
         case _: ParseCancellationException =>
-          // if we fail, parse with LL mode
+          // if we fail, parse with LL mode with DefaultErrorStrategy
           tokenStream.seek(0) // rewind input stream
           parser.reset()
 
           // Try Again.
+          parser.setErrorHandler(new DefaultErrorStrategy)
           parser.getInterpreter.setPredictionMode(PredictionMode.LL)
           toResult(parser)
       }
