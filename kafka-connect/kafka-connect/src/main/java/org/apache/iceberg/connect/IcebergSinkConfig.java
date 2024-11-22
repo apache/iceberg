@@ -80,7 +80,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String TABLES_SCHEMA_CASE_INSENSITIVE_PROP =
       "iceberg.tables.schema-case-insensitive";
   private static final String CONTROL_TOPIC_PROP = "iceberg.control.topic";
-  private static final String CONTROL_GROUP_ID_PREFIX_PROP = "iceberg.control.consumer-group-id-prefix";
+  private static final String CONTROL_GROUP_ID_PREFIX_PROP = "iceberg.control.group-id-prefix";
   private static final String COMMIT_INTERVAL_MS_PROP = "iceberg.control.commit.interval-ms";
   private static final int COMMIT_INTERVAL_MS_DEFAULT = 300_000;
   private static final String COMMIT_TIMEOUT_MS_PROP = "iceberg.control.commit.timeout-ms";
@@ -186,7 +186,7 @@ public class IcebergSinkConfig extends AbstractConfig {
             ConfigDef.Type.STRING,
             DEFAULT_CONTROL_GROUP_PREFIX,
             Importance.LOW,
-            "Prefix of the control consumer group, should not be set under normal conditions");
+            "Prefix of the control consumer group");
     configDef.define(
         CONNECT_GROUP_ID_PROP,
         ConfigDef.Type.STRING,
@@ -366,7 +366,7 @@ public class IcebergSinkConfig extends AbstractConfig {
     return getString(CONTROL_TOPIC_PROP);
   }
 
-  public String prefixControlConsumerGroup() {
+  public String controlGroupIdPrefix() {
     return getString(CONTROL_GROUP_ID_PREFIX_PROP); }
 
   public String connectGroupId() {
