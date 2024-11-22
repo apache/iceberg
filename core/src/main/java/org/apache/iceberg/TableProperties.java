@@ -389,7 +389,7 @@ public class TableProperties {
 
   public static final int ENCRYPTION_AAD_LENGTH_DEFAULT = 16;
 
-  public static final String DERIVE_STATS_FROM_MANIFEST_ENABLED =
-      "derive-stats-from-manifest-enabled";
-  public static final boolean DERIVE_STATS_FROM_MANIFEST_ENABLED_DEFAULT = false;
+  public static final String SPARK_DERIVE_STATS_FROM_MANIFEST_ENABLED =
+      "spark.derive-stats-from-manifest-enabled";
+  public static final boolean SPARK_DERIVE_STATS_FROM_MANIFEST_ENABLED_DEFAULT = false;
 }

@@ -356,20 +356,13 @@ public class SparkReadConf {
         .parse();
   }
 
-  public boolean deriveStatsFromManifestSessionConf() {
+  public boolean deriveStatsFromManifestOnFly() {
     return confParser
         .booleanConf()
         .sessionConf(SparkSQLProperties.DERIVE_STATS_FROM_MANIFEST_ENABLED)
-        .defaultValue(SparkSQLProperties.DERIVE_STATS_FROM_MANIFEST_ENABLED_DEFAULT)
-        .parse();
-  }
-
-  public boolean deriveStatsFromManifestTableProperty() {
-    return confParser
-        .booleanConf()
         .option(SparkReadOptions.DERIVE_STATS_FROM_MANIFEST_ENABLED)
-        .tableProperty(TableProperties.DERIVE_STATS_FROM_MANIFEST_ENABLED)
-        .defaultValue(TableProperties.DERIVE_STATS_FROM_MANIFEST_ENABLED_DEFAULT)
+        .tableProperty(TableProperties.SPARK_DERIVE_STATS_FROM_MANIFEST_ENABLED)
+        .defaultValue(TableProperties.SPARK_DERIVE_STATS_FROM_MANIFEST_ENABLED_DEFAULT)
         .parse();
   }
 }
