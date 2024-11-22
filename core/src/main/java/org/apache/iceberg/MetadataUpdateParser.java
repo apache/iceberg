@@ -30,11 +30,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.view.ViewVersionParser;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class MetadataUpdateParser {
-  private static final Logger LOG = LoggerFactory.getLogger(MetadataUpdateParser.class);
 
   private MetadataUpdateParser() {}
 
