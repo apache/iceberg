@@ -23,6 +23,12 @@ title: "Blogs"
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
 <!-- markdown-link-check-disable-next-line -->
+### [Building a Data Lake with Debezium and Apache Iceberg](https://medium.com/@ismail-simsek/building-a-data-lake-with-debezium-and-apache-iceberg-part-1-25124daf2a95)
+**Date**: November 15th, 2024, **Company**: Memiiso Community
+
+**Author**: [Ismail Simsek](https://www.linkedin.com/in/ismailsimsek/)
+
+<!-- markdown-link-check-disable-next-line -->
 ### [Hands-on with Apache Iceberg Tables using PyIceberg using Nessie and Minio](https://www.dremio.com/blog/intro-to-pyiceberg/)
 **Date**: October 22nd, 2024, **Company**: Dremio
 
