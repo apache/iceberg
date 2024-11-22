@@ -941,21 +941,21 @@ as an `UPDATE_AFTER` image, resulting in the following pre/post update images:
 
 ### `compute_table_stats`
 
-This procedure calculates the Number of Distinct Values (NDV) statistics for a specified table.
+This procedure calculates the [Number of Distinct Values (NDV) statistics](https://iceberg.apache.org/puffin-spec/#apache-datasketches-theta-v1-blob-type) for a specific table.
 By default, statistics are computed for all columns using the table's current snapshot.
 The procedure can be optionally configured to compute statistics for a specific snapshot and/or a subset of columns.
 
 | Argument Name | Required? | Type          | Description                         |
 |---------------|-----------|---------------|-------------------------------------|
 | `table`       | ✔️        | string        | Name of the table                   |
-| `snapshot_id` |           | string        | id of the snapshot to collect stats |
-| `columns`     |           | array<string> | columns to collect stats            |
+| `snapshot_id` |           | string        | Id of the snapshot to collect stats |
+| `columns`     |           | array<string> | Columns to collect stats            |
 
 #### Output
 
 | Output Name       | Type   | Description                                     |
 |-------------------|--------|-------------------------------------------------|
-| `statistics_file` | string | path to stats file created from by this command |
+| `statistics_file` | string | Path to stats file created from by this command |
 
 #### Examples
 
