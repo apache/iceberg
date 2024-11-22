@@ -1,7 +1,6 @@
 ---
 title: "Kafka Connect"
 ---
-
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
  - contributor license agreements.  See the NOTICE file distributed with
@@ -45,19 +44,16 @@ The Apache Iceberg Sink Connector for Kafka Connect is a sink connector for writ
 ## Installation
 
 The connector zip archive is created as part of the Iceberg build. You can run the build via:
-
 ```bash
 ./gradlew -x test -x integrationTest clean build
 ```
-
 The zip archive will be found under `./kafka-connect/kafka-connect-runtime/build/distributions`. There is
 one distribution that bundles the Hive Metastore client and related dependencies, and one that does not.
 Copy the distribution archive into the Kafka Connect plugins directory on all nodes.
 
 ## Requirements
 
-The sink relies
-on [KIP-447](https://cwiki.apache.org/confluence/display/KAFKA/KIP-447%3A+Producer+scalability+for+exactly+once+semantics)
+The sink relies on [KIP-447](https://cwiki.apache.org/confluence/display/KAFKA/KIP-447%3A+Producer+scalability+for+exactly+once+semantics)
 for exactly-once semantics. This requires Kafka 2.5 or later.
 
 ## Configuration
@@ -200,26 +196,21 @@ full details on configuring catalogs.
 
 ### Azure ADLS configuration example
 
-When using ADLS, Azure requires the passing of AZURE_CLIENT_ID, AZURE_TENANT_ID, and AZURE_CLIENT_SECRET for its Java
-SDK.
+When using ADLS, Azure requires the passing of AZURE_CLIENT_ID, AZURE_TENANT_ID, and AZURE_CLIENT_SECRET for its Java SDK.
 If you're running Kafka Connect in a container, be sure to inject those values as environment variables. See the
-[Azure Identity Client library for Java](https://learn.microsoft.com/en-us/java/api/overview/azure/identity-readme?view=azure-java-stable)
-for more information.
+[Azure Identity Client library for Java](https://learn.microsoft.com/en-us/java/api/overview/azure/identity-readme?view=azure-java-stable) for more information.
 
 An example of these would be:
-
 ```
 AZURE_CLIENT_ID=e564f687-7b89-4b48-80b8-111111111111
 AZURE_TENANT_ID=95f2f365-f5b7-44b1-88a1-111111111111
 AZURE_CLIENT_SECRET="XXX"
 ```
-
 Where the CLIENT_ID is the Application ID of a registered application under
 [App Registrations](https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade), the TENANT_ID is
 from your [Azure Tenant Properties](https://portal.azure.com/#view/Microsoft_AAD_IAM/TenantProperties.ReactView), and
 the CLIENT_SECRET is created within the "Certificates & Secrets" section, under "Manage" after choosing your specific
-App Registration. You might have to choose "Client secrets" in the middle panel and the "+" in front of "New client
-secret"
+App Registration. You might have to choose "Client secrets" in the middle panel and the "+" in front of "New client secret"
 to generate one. Be sure to set this variable to the Value and not the Id.
 
 It's also important that the App Registration is granted the Role Assignment "Storage Blob Data Contributor" in your
@@ -236,8 +227,7 @@ Then, within the Connector's configuration, you'll want to include the following
 ```
 
 Where `storage-container-name` is the container name within your Azure Storage Account, `/warehouse` is the location
-within that container where your Apache Iceberg files will be written by default (or if
-iceberg.tables.auto-create-enabled=true),
+within that container where your Apache Iceberg files will be written by default (or if iceberg.tables.auto-create-enabled=true),
 and the `include-credentials` parameter passes along the Azure Java client credentials along. This will configure the
 Iceberg Sink connector to connect to the REST catalog implementation at `iceberg.catalog.uri` to obtain the required
 Connection String for the ADLSv2 client
@@ -245,8 +235,7 @@ Connection String for the ADLSv2 client
 ### Google GCS configuration example
 
 By default, Application Default Credentials (ADC) will be used to connect to GCS. Details on how ADC works can
-be found in
-the [Google Cloud documentation](https://cloud.google.com/docs/authentication/application-default-credentials).
+be found in the [Google Cloud documentation](https://cloud.google.com/docs/authentication/application-default-credentials).
 
 ```
 "iceberg.catalog.type": "rest",
@@ -273,9 +262,7 @@ This assumes the source topic already exists and is named `events`.
 #### Control topic
 
 If your Kafka cluster has `auto.create.topics.enable` set to `true` (the default), then the control topic will be
-automatically created. If not, then you will need to create the topic first. The default topic name is
-`control-iceberg`:
-
+automatically created. If not, then you will need to create the topic first. The default topic name is `control-iceberg`:
 ```bash
 bin/kafka-topics.sh  \
   --command-config command-config.props \
@@ -284,7 +271,6 @@ bin/kafka-topics.sh  \
   --topic control-iceberg \
   --partitions 1
 ```
-
 *NOTE: Clusters running on Confluent Cloud have `auto.create.topics.enable` set to `false` by default.*
 
 #### Iceberg catalog configuration
@@ -300,23 +286,21 @@ This example writes all incoming records to a single table.
 #### Create the destination table
 
 ```sql
-CREATE TABLE default.events
-(
-    id      STRING,
-    type    STRING,
-    ts      TIMESTAMP,
-    payload STRING
-) PARTITIONED BY (hours(ts))
+CREATE TABLE default.events (
+    id STRING,
+    type STRING,
+    ts TIMESTAMP,
+    payload STRING)
+PARTITIONED BY (hours(ts))
 ```
 
 #### Connector config
 
 This example config connects to a Iceberg REST catalog.
-
 ```json
 {
-  "name": "events-sink",
-  "config": {
+"name": "events-sink",
+"config": {
     "connector.class": "org.apache.iceberg.connect.IcebergSinkConnector",
     "tasks.max": "2",
     "topics": "events",
@@ -325,7 +309,7 @@ This example config connects to a Iceberg REST catalog.
     "iceberg.catalog.uri": "https://localhost",
     "iceberg.catalog.credential": "<credential>",
     "iceberg.catalog.warehouse": "<warehouse name>"
-  }
+    }
 }
 ```
 
@@ -338,29 +322,27 @@ will be skipped.
 #### Create two destination tables
 
 ```sql
-CREATE TABLE default.events_list
-(
-    id      STRING,
-    type    STRING,
-    ts      TIMESTAMP,
-    payload STRING
-) PARTITIONED BY (hours(ts));
+CREATE TABLE default.events_list (
+    id STRING,
+    type STRING,
+    ts TIMESTAMP,
+    payload STRING)
+PARTITIONED BY (hours(ts));
 
-CREATE TABLE default.events_create
-(
-    id      STRING,
-    type    STRING,
-    ts      TIMESTAMP,
-    payload STRING
-) PARTITIONED BY (hours(ts));
+CREATE TABLE default.events_create (
+    id STRING,
+    type STRING,
+    ts TIMESTAMP,
+    payload STRING)
+PARTITIONED BY (hours(ts));
 ```
 
 #### Connector config
 
 ```json
 {
-  "name": "events-sink",
-  "config": {
+"name": "events-sink",
+"config": {
     "connector.class": "org.apache.iceberg.connect.IcebergSinkConnector",
     "tasks.max": "2",
     "topics": "events",
@@ -372,7 +354,7 @@ CREATE TABLE default.events_create
     "iceberg.catalog.uri": "https://localhost",
     "iceberg.catalog.credential": "<credential>",
     "iceberg.catalog.warehouse": "<warehouse name>"
-  }
+    }
 }
 ```
 
@@ -390,8 +372,8 @@ See above for creating two tables.
 
 ```json
 {
-  "name": "events-sink",
-  "config": {
+"name": "events-sink",
+"config": {
     "connector.class": "org.apache.iceberg.connect.IcebergSinkConnector",
     "tasks.max": "2",
     "topics": "events",
@@ -401,7 +383,7 @@ See above for creating two tables.
     "iceberg.catalog.uri": "https://localhost",
     "iceberg.catalog.credential": "<credential>",
     "iceberg.catalog.warehouse": "<warehouse name>"
-  }
+    }
 }
 ```
 
