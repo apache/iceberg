@@ -282,9 +282,9 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       Map<Integer, Object> minValues,
       Map<Integer, Object> maxValues,
       Map<Integer, Long> nullCounts) {
-    Map<String, Map<Integer, Long>> distinctDataFilesNullCount = Maps.newHashMap();
-    Map<String, Map<Integer, ByteBuffer>> distinctDataFilesMin = Maps.newHashMap();
-    Map<String, Map<Integer, ByteBuffer>> distinctDataFilesMax = Maps.newHashMap();
+    Map<String, Map<Integer, Long>> nullCountDataFiles = Maps.newHashMap();
+    Map<String, Map<Integer, ByteBuffer>> minDataFiles = Maps.newHashMap();
+    Map<String, Map<Integer, ByteBuffer>> maxDataFiles = Maps.newHashMap();
     // extract the distinct files which are part of the task planning
     Set<FileScanTask> fileScanTasks =
         taskGroups().stream()
@@ -302,24 +302,24 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
             String filePath = fileScanTask.file().location();
 
             // Add to the map only if it doesn't already exist
-            distinctDataFilesNullCount.putIfAbsent(filePath, fileScanTask.file().nullValueCounts());
-            distinctDataFilesMin.putIfAbsent(filePath, fileScanTask.file().lowerBounds());
-            distinctDataFilesMax.putIfAbsent(filePath, fileScanTask.file().upperBounds());
+            nullCountDataFiles.putIfAbsent(filePath, fileScanTask.file().nullValueCounts());
+            minDataFiles.putIfAbsent(filePath, fileScanTask.file().lowerBounds());
+            maxDataFiles.putIfAbsent(filePath, fileScanTask.file().upperBounds());
           });
-      nullCounts.putAll(calculateNullCount(distinctDataFilesNullCount));
-      minValues.putAll(calculateMin(distinctDataFilesMin));
-      maxValues.putAll(calculateMax(distinctDataFilesMax));
+      nullCounts.putAll(calculateNullCount(nullCountDataFiles));
+      minValues.putAll(calculateMin(minDataFiles));
+      maxValues.putAll(calculateMax(maxDataFiles));
     } else {
       LOG.info("Skip deriving stats from manifest : detected row level deletes");
     }
   }
 
   private Map<Integer, Long> calculateNullCount(
-      Map<String, Map<Integer, Long>> distinctDataFilesNullCount) {
+      Map<String, Map<Integer, Long>> nullCountDataFiles) {
     Map<Integer, Long> nullCount;
     // get the null counts from the manifest file
     nullCount =
-        distinctDataFilesNullCount.values().stream() // Stream<Map<Integer, Long>>
+        nullCountDataFiles.values().stream() // Stream<Map<Integer, Long>>
             .flatMap(
                 innerMap ->
                     innerMap.entrySet().stream()) // Flatten to Stream<Map.Entry<Integer, Long>>
@@ -359,11 +359,10 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   }
 
   // extract min/max values from the manifests
-  private Map<Integer, Object> calculateMin(
-      Map<String, Map<Integer, ByteBuffer>> distinctDataFilesBounds) {
+  private Map<Integer, Object> calculateMin(Map<String, Map<Integer, ByteBuffer>> minDataFiles) {
     Map<Integer, Object> minValues = Maps.newHashMap();
     // aggregate
-    for (Map<Integer, ByteBuffer> values : distinctDataFilesBounds.values()) {
+    for (Map<Integer, ByteBuffer> values : minDataFiles.values()) {
       for (Map.Entry<Integer, ByteBuffer> entry : values.entrySet()) {
         Type.PrimitiveType fieldType = table.schema().findType(entry.getKey()).asPrimitiveType();
         if (isValidMinMaxType(fieldType)) {
@@ -389,11 +388,10 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   }
 
   // extract min/max values from the manifests
-  private Map<Integer, Object> calculateMax(
-      Map<String, Map<Integer, ByteBuffer>> distinctDataFilesBounds) {
+  private Map<Integer, Object> calculateMax(Map<String, Map<Integer, ByteBuffer>> maxDataFiles) {
     Map<Integer, Object> maxValues = Maps.newHashMap();
     // aggregate
-    for (Map<Integer, ByteBuffer> values : distinctDataFilesBounds.values()) {
+    for (Map<Integer, ByteBuffer> values : maxDataFiles.values()) {
       for (Map.Entry<Integer, ByteBuffer> entry : values.entrySet()) {
         Type.PrimitiveType fieldType = table.schema().findType(entry.getKey()).asPrimitiveType();
         if (isValidMinMaxType(fieldType)) {
