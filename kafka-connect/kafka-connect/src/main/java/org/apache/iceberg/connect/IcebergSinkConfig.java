@@ -182,11 +182,11 @@ public class IcebergSinkConfig extends AbstractConfig {
         Importance.MEDIUM,
         "Name of the control topic");
     configDef.define(
-            CONTROL_GROUP_ID_PREFIX_PROP,
-            ConfigDef.Type.STRING,
-            DEFAULT_CONTROL_GROUP_PREFIX,
-            Importance.LOW,
-            "Prefix of the control consumer group");
+        CONTROL_GROUP_ID_PREFIX_PROP,
+        ConfigDef.Type.STRING,
+        DEFAULT_CONTROL_GROUP_PREFIX,
+        Importance.LOW,
+        "Prefix of the control consumer group");
     configDef.define(
         CONNECT_GROUP_ID_PROP,
         ConfigDef.Type.STRING,
@@ -367,7 +367,8 @@ public class IcebergSinkConfig extends AbstractConfig {
   }
 
   public String controlGroupIdPrefix() {
-    return getString(CONTROL_GROUP_ID_PREFIX_PROP); }
+    return getString(CONTROL_GROUP_ID_PREFIX_PROP);
+  }
 
   public String connectGroupId() {
     String result = getString(CONNECT_GROUP_ID_PROP);
