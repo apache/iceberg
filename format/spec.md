@@ -696,48 +696,51 @@ The snapshot summary's `operation` field is used by some operations, like snapsh
 *   `overwrite` -- Data and delete files were added and removed in a logical overwrite operation.
 *   `delete` -- Data files were removed and their contents logically deleted and/or delete files were added to delete rows.
 
-Other optional fields are
+##### Optional Metrics
+Some of the following metrics fields are also used to represent partition-level metrics, in [partition summary](#optional-partition-level-summary)
 
-| v1       | v2       | v3       | Field                               | Example         | Description                                                                                                                                               |
-|----------|----------|----------|-------------------------------------|-----------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| required | required | required | **`operation`**                     | `append`        | See above                                                                                                                                                 |
-| optional | optional | optional | **`added-data-files`**              | `0`             | Number of data files added in the current snapshot                                                                                                        |
-| optional | optional | optional | **`deleted-data-files`**            | `0`             | Number of data files deleted in the current snapshot                                                                                                      |
-| optional | optional | optional | **`total-data-files`**              | `0`             | Total number of data files in the current snapshot                                                                                                        |
-| optional | optional | optional | **`added-delete-files`**            | `0`             | Number of delete files added in the current snapshot                                                                                                      |
-| optional | optional | optional | **`added-equality-delete-files`**   | `0`             | Number of equality delete files added in the current snapshot                                                                                             |
-| optional | optional | optional | **`removed-equality-delete-files`** | `0`             | Number of equality delete files removed in the current snapshot                                                                                           |
-| optional | optional | optional | **`added-position-delete-files`**   | `0`             | Number of position delete files added in the current snapshot                                                                                             |
-| optional | optional | optional | **`removed-position-delete-files`** | `0`             | Number of position delete files removed in the current snapshot                                                                                           |
-| optional | optional | optional | **`added-dvs`**                     | `0`             | Number of deletion vectors added in the current snapshot                                                                                                  |
-| optional | optional | optional | **`removed-dvs`**                   | `0`             | Number of deletion vectors removed in the current snapshot                                                                                                |
-| optional | optional | optional | **`removed-delete-files`**          | `0`             | Number of delete files removed in the current snapshot                                                                                                    |
-| optional | optional | optional | **`total-delete-files`**            | `0`             | Total number of delete files in the current snapshot                                                                                                      |
-| optional | optional | optional | **`added-records`**                 | `0`             | Number of records added in the current snapshot                                                                                                           |
-| optional | optional | optional | **`deleted-records`**               | `0`             | Number of records deleted in the current snapshot                                                                                                         |
-| optional | optional | optional | **`total-records`**                 | `0`             | Total number of records in the current snapshot                                                                                                           |
-| optional | optional | optional | **`added-files-size`**              | `0`             | The size of files added in the current snapshot                                                                                                           |
-| optional | optional | optional | **`removed-files-size`**            | `0`             | The size of files removed in the current snapshot                                                                                                         |
-| optional | optional | optional | **`total-files-size`**              | `0`             | The size of all files in the current snapshot                                                                                                             |
-| optional | optional | optional | **`added-position-deletes`**        | `0`             | Number of position delete records added in the current snapshot                                                                                           |
-| optional | optional | optional | **`removed-position-deletes`**      | `0`             | Number of position delete records removed in the current snapshot                                                                                         |
-| optional | optional | optional | **`total-position-deletes`**        | `0`             | Total number of position delete records in the current snapshot                                                                                           |
-| optional | optional | optional | **`added-equality-deletes`**        | `0`             | Number of equality delete records added in the current snapshot                                                                                           |
-| optional | optional | optional | **`removed-equality-deletes`**      | `0`             | Number of equality delete records removed in the current snapshot                                                                                         |
-| optional | optional | optional | **`total-equality-deletes`**        | `0`             | Total number of equality delete records in the current snapshot                                                                                           |
-| optional | optional | optional | **`deleted-duplicate-files`**       | `0`             | Number of duplicate files deleted in the current snapshot                                                                                                 |
-| optional | optional | optional | **`changed-partition-count`**       | `0`             | Number of partitions changed in the current snapshot                                                                                                      |
-| optional | optional | optional | **`partitions.`**                   |                 |                                                                                                                                                           |
-| optional | optional | optional | **`partition-summaries-included`**  | `true`, `false` | Includes partition-level summary stats if the changed partition count is less than the limit configured by table property `write.summary.partition-limit` |
-| optional | optional | optional | **`wap.id`**                        |                 |                                                                                                                                                           |
-| optional | optional | optional | **`published-wap-id`**              |                 |                                                                                                                                                           |
-| optional | optional | optional | **`source-snapshot-id`**            |                 |                                                                                                                                                           |
-| optional | optional | optional | **`replace-partitions`**            | `0`             |                                                                                                                                                           |
-| optional | optional | optional | **`snapshot-property.`**            |                 |                                                                                                                                                           |
+| Field                               | Example | Description                                                       | Used in Partition-Level Summary |
+|-------------------------------------|---------|-------------------------------------------------------------------|---------------------------------|
+| **`added-data-files`**              | `0`     | Number of data files added in the current snapshot                | Yes                             |
+| **`deleted-data-files`**            | `0`     | Number of data files deleted in the current snapshot              | Yes                             |
+| **`total-data-files`**              | `0`     | Total number of data files in the current snapshot                | No                              |
+| **`added-delete-files`**            | `0`     | Number of delete files added in the current snapshot              | Yes                             |
+| **`added-equality-delete-files`**   | `0`     | Number of equality delete files added in the current snapshot     | Yes                             |
+| **`removed-equality-delete-files`** | `0`     | Number of equality delete files removed in the current snapshot   | Yes                             |
+| **`added-position-delete-files`**   | `0`     | Number of position delete files added in the current snapshot     | Yes                             |
+| **`removed-position-delete-files`** | `0`     | Number of position delete files removed in the current snapshot   | Yes                             |
+| **`added-dvs`**                     | `0`     | Number of deletion vectors added in the current snapshot          | Yes                             |
+| **`removed-dvs`**                   | `0`     | Number of deletion vectors removed in the current snapshot        | Yes                             |
+| **`removed-delete-files`**          | `0`     | Number of delete files removed in the current snapshot            | Yes                             |
+| **`total-delete-files`**            | `0`     | Total number of delete files in the current snapshot              | No                              |
+| **`added-records`**                 | `0`     | Number of records added in the current snapshot                   | Yes                             |
+| **`deleted-records`**               | `0`     | Number of records deleted in the current snapshot                 | Yes                             |
+| **`total-records`**                 | `0`     | Total number of records in the current snapshot                   | No                              |
+| **`added-files-size`**              | `0`     | The size of files added in the current snapshot                   | Yes                             |
+| **`removed-files-size`**            | `0`     | The size of files removed in the current snapshot                 | Yes                             |
+| **`total-files-size`**              | `0`     | The size of all files in the current snapshot                     | No                              |
+| **`added-position-deletes`**        | `0`     | Number of position delete records added in the current snapshot   | Yes                             |
+| **`removed-position-deletes`**      | `0`     | Number of position delete records removed in the current snapshot | Yes                             |
+| **`total-position-deletes`**        | `0`     | Total number of position delete records in the current snapshot   | No                              |
+| **`added-equality-deletes`**        | `0`     | Number of equality delete records added in the current snapshot   | Yes                             |
+| **`removed-equality-deletes`**      | `0`     | Number of equality delete records removed in the current snapshot | Yes                             |
+| **`total-equality-deletes`**        | `0`     | Total number of equality delete records in the current snapshot   | No                              |
+| **`deleted-duplicate-files`**       | `0`     | Number of duplicate files deleted in the current snapshot         | No                              |
+| **`changed-partition-count`**       | `0`     | Number of partitions changed in the current snapshot              | No                              |
 
-##### Partition-level Summary
-The snapshot summary can include partition-level summary stats if the changed partition count is less than a limit configured by table property `write.summary.partition-limit`. 
+##### Optional Partition-Level Summary
+Partition-level summary statistics in the snapshot summary are optional. If included and the number of changed partitions is below the limit configured by tabe property `write.summary.partition-limit`, 
+the field `partition-summaries-included` should be set to `"true"`, and fields named in the format `partitions.<partition path>` will be written for each partition. 
+These fields contain string maps of partition metrics, which include some fields from [Optional Metrics](#optional-metrics), but representing metrics at the partition level.
 
+##### Other Optional Fields
+
+| Field                    | Example    | Description                                                     |
+|--------------------------|------------|-----------------------------------------------------------------|
+| **`wap.id`**             | "12345678" | The Write-Audit-Publish id of a staged snapshot                 |
+| **`published-wap-id`**   | "12345678" | The Write-Audit-Publish id of a snapshot already been published |
+| **`source-snapshot-id`** | "12345678" | The id of the snapshot picked to be cherry-picked               |
+| **`replace-partitions`** | `true`     | Whether the operation is `ReplacePartitions`                    |
 
 ### Manifest Lists
 
