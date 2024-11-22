@@ -2250,8 +2250,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
         () -> {
           Dataset<Row> result = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
           List<SimpleRecord> actual = result.as(Encoders.bean(SimpleRecord.class)).collectAsList();
-          assertThat(actual.size()).isEqualTo(initialRecords.size());
-          assertThat(actual).isEqualTo(initialRecords);
+          assertThat(actual)
+              .as("Rows must match")
+              .containsExactlyInAnyOrderElementsOf(initialRecords);
         });
   }
 
