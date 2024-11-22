@@ -85,7 +85,7 @@ public class SnapshotParser {
       generator.writeStringField(MANIFEST_LIST, manifestList);
     } else {
       LOG.warn(
-          "Support for embedded manifests are deprecated since Iceberg 1.8.0, will be removed in either 1.9.0 or 2.0.0");
+          "Support for embedded manifests are deprecated since Iceberg 1.8.0, will be removed in 2.0.0");
 
       // embed the manifest list in the JSON, v1 only
       JsonUtil.writeStringArray(
@@ -165,7 +165,7 @@ public class SnapshotParser {
 
     } else {
       LOG.warn(
-          "Support for embedded manifests are deprecated since Iceberg 1.8.0, will be removed in either 1.9.0 or 2.0.0");
+          "Support for embedded manifests are deprecated since Iceberg 1.8.0, will be removed in 2.0.0");
 
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be
       // loaded lazily, if it is needed
