@@ -2216,7 +2216,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         });
 
     table.refresh();
-    assertThat(table.currentSnapshot().summary().get("foo")).isEqualTo("bar");
+    assertThat(table.currentSnapshot().summary()).containsEntry("foo", "bar");
 
     withSQLConf(
         // set read option through session configuration
