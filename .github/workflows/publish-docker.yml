@@ -12,10 +12,10 @@
         - uses: actions/checkout@v3
         - name: Login to Docker Hub
           run: |
-            docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+            docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
         - name: Build Iceberg Open API project
           run: ./gradlew :iceberg-open-api:shadowJar
         - name: Build Docker Image
-          run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}iceberg-rest-adapter -f docker/iceberg-rest-adapter-image/Dockerfile .
+          run: docker build -t apache/iceberg-rest-adapter -f docker/iceberg-rest-adapter-image/Dockerfile .
         - name: Push Docker Image 
-          run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/iceberg-rest-adapter:latest
+          run: docker push apache/iceberg-rest-adapter:latest
