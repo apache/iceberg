@@ -186,7 +186,7 @@ A **`map`** is a collection of key-value pairs with a key type and a value type.
 
 A **`variant`** is a value that stores semi-structured data. The structure and data types in a variant are not necessarily consistent across rows in a table or data file. The variant type and binary encoding are defined in the [Parquet project](https://github.com/apache/parquet-format/blob/4f208158dba80ff4bff4afaa4441d7270103dff6/VariantEncoding.md). Support for Variant is added in Iceberg v3.
 
-Variants are similar to JSON with a wider set of primitive values including date, timestamp, timestamptz, binary and floating points.
+Variants are similar to JSON with a wider set of primitive values including date, timestamp, timestamptz, binary, and decimals.
 
 Variant values may contain nested types:
 1. An array is an ordered collection of variant values.
@@ -195,7 +195,7 @@ Variant values may contain nested types:
 As a semi-structured type, there are important differences between variant and Iceberg's other types:
 1. Variant arrays are similar to lists, but may contain any variant value rather than a fixed element type.
 2. Variant objects are similar to structs, but may contain variable fields identified by name and field values may be any variant value rather than a fixed field type.
-3. Variant primitives are narrower than Iceberg's primitive types: time, timestamp_ns, timestamptz_ns, uuid and fixed(L) are not supported.
+3. Variant primitives are narrower than Iceberg's primitive types: time, timestamp_ns, timestamptz_ns, uuid, and fixed(L) are not supported.
 
 #### Primitive Types
 
@@ -464,7 +464,7 @@ Partition field IDs must be reused if an existing partition spec contains an equ
 
 | Transform name    | Description                                                  | Source types                                                                                              | Result type |
 |-------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|-------------|
-| **`identity`**    | Source value, unmodified                                     | Any other than `variant`                                                                                  | Source type |
+| **`identity`**    | Source value, unmodified                                     | Any except for `variant`                                                                                  | Source type |
 | **`bucket[N]`**   | Hash of value, mod `N` (see below)                           | `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `uuid`, `fixed`, `binary` | `int`       |
 | **`truncate[W]`** | Value truncated to width `W` (see below)                     | `int`, `long`, `decimal`, `string`, `binary`                                                              | Source type |
 | **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
@@ -1169,7 +1169,7 @@ Maps with non-string keys must use an array representation with the `map` logica
 |**`struct`**|`record`||
 |**`list`**|`array`||
 |**`map`**|`array` of key-value records, or `map` when keys are strings (optional).|Array storage must use logical type name `map` and must store elements that are 2-field records. The first field is a non-null key and the second field is the value.|
-|**`variant`**|`record with `metadata` and `value` fields`|Shredding is not supported in Avro.|
+|**`variant`**|`record` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs and the fields are accessed through names. |Shredding is not supported in Avro.|
 
 Notes:
 
@@ -1224,7 +1224,7 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`struct`**       | `group`                                                            |                                             |                                                                |
 | **`list`**         | `3-level list`                                                     | `LIST`                                      | See Parquet docs for 3-level representation.                   |
 | **`map`**          | `3-level map`                                                      | `MAP`                                       | See Parquet docs for 3-level representation.                   |
-| **`variant`**      | `group` with `metadata` and `value` fields                         | `VARIANT`                                   | See Parquet docs for Variant encoding and Variant shredding encoding. |
+| **`variant`**      | `group` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs and the fields are accessed through names.| `VARIANT`                                   | See Parquet docs for [Variant encoding](https://github.com/apache/parquet-format/blob/4f208158dba80ff4bff4afaa4441d7270103dff6/VariantEncoding.md) and [Variant shredding encoding](https://github.com/apache/parquet-format/blob/4f208158dba80ff4bff4afaa4441d7270103dff6/VariantShreddingEncoding.md). |
 
 
 When reading an `unknown` column, any corresponding column must be ignored and replaced with `null` values.
@@ -1256,7 +1256,7 @@ When reading an `unknown` column, any corresponding column must be ignored and r
 | **`struct`**       | `struct`            |                                                      |                                                                                         |
 | **`list`**         | `array`             |                                                      |                                                                                         |
 | **`map`**          | `map`               |                                                      |                                                                                         |
-| **`variant`**      | `struct` with `metadata` and `value` fields |  `iceberg.struct-type`=`VARIANT`   | Shredding is not supported in ORC.                                                 |
+| **`variant`**      | `struct` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs. |  `iceberg.struct-type`=`VARIANT`   | Shredding is not supported in ORC.                                                 |
 
 Notes:
 
@@ -1528,7 +1528,6 @@ This serialization scheme is for storing single values as individual binary valu
 | **`struct`**       | **`JSON object by field ID`**             | `{"1": 1, "2": "bar"}`                     | Stores struct fields using the field ID as the JSON field name; field values are stored using this JSON single-value format |
 | **`list`**         | **`JSON array of values`**                | `[1, 2, 3]`                                | Stores a JSON array of values that are serialized using this JSON single-value format |
 | **`map`**          | **`JSON object of key and value arrays`** | `{ "keys": ["a", "b"], "values": [1, 2] }` | Stores arrays of keys and values; individual keys and values are serialized using this JSON single-value format |
-| **`variant`**      | **`JSON string`** | `"rO0ABXVyAANbW0JL/RkVZ2fbNwIAAHhwAAAAAnVyAAJbQqzzF/gGCFTgAgAAeHAAAAAMAQIABAdu"` | A Variant is encoded with 2 binary values - metadata and value. Stores base64-encoded string of the pair of metadata and value.|
 
 
 
