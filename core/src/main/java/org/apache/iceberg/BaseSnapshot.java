@@ -138,7 +138,11 @@ class BaseSnapshot implements Snapshot {
       allManifests =
           Lists.transform(
               Arrays.asList(v1ManifestLocations),
-              location -> new GenericManifestFile(fileIO.newInputFile(location), 0));
+              location ->
+                  GenericManifestFile.copyOf(
+                          new GenericManifestFile(fileIO.newInputFile(location), 0))
+                      .withSnapshotId(this.snapshotId)
+                      .build());
     }
 
     if (allManifests == null) {

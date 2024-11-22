@@ -167,7 +167,13 @@ public class GenericManifestFile extends SupportsIndexProjection
     super(toCopy);
     this.avroSchema = toCopy.avroSchema;
     this.manifestPath = toCopy.manifestPath;
-    this.length = toCopy.length;
+    try {
+      this.length = toCopy.length();
+    } catch (UnsupportedOperationException e) {
+      // Can be removed when embedded manifests are dropped
+      // DummyFileIO does not support .length()
+      this.length = null;
+    }
     this.specId = toCopy.specId;
     this.content = toCopy.content;
     this.sequenceNumber = toCopy.sequenceNumber;
