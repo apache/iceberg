@@ -2184,6 +2184,52 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     assertThat(actual).as("Rows must match").containsExactlyInAnyOrderElementsOf(expected);
   }
 
+  @Test
+  public void testSessionConfigSupport() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "session_config_table");
+    Table table = createTable(tableIdentifier, SCHEMA, spec);
+
+    List<SimpleRecord> initialRecords =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
+
+    Dataset<Row> df = spark.createDataFrame(initialRecords, SimpleRecord.class);
+
+    df.select("id", "data")
+        .write()
+        .format("iceberg")
+        .mode(SaveMode.Append)
+        .save(loadLocation(tableIdentifier));
+
+    long s1 = table.currentSnapshot().snapshotId();
+
+    withSQLConf(
+        // set write option through session configuration
+        ImmutableMap.of("spark.datasource.iceberg.snapshot-property.foo", "bar"),
+        () -> {
+          df.select("id", "data")
+              .write()
+              .format("iceberg")
+              .mode(SaveMode.Append)
+              .save(loadLocation(tableIdentifier));
+        });
+
+    table.refresh();
+    assertThat(table.currentSnapshot().summary()).containsEntry("foo", "bar");
+
+    withSQLConf(
+        // set read option through session configuration
+        ImmutableMap.of("spark.datasource.iceberg.snapshot-id", String.valueOf(s1)),
+        () -> {
+          Dataset<Row> result = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
+          List<SimpleRecord> actual = result.as(Encoders.bean(SimpleRecord.class)).collectAsList();
+          assertThat(actual)
+              .as("Rows must match")
+              .containsExactlyInAnyOrderElementsOf(initialRecords);
+        });
+  }
+
   private GenericData.Record manifestRecord(
       Table manifestTable, Long referenceSnapshotId, ManifestFile manifest) {
     GenericRecordBuilder builder =
