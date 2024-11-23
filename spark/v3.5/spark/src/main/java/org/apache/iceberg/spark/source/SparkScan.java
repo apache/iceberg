@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BlobMetadata;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
@@ -286,25 +287,25 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     Map<String, Map<Integer, ByteBuffer>> minDataFiles = Maps.newHashMap();
     Map<String, Map<Integer, ByteBuffer>> maxDataFiles = Maps.newHashMap();
     // extract the distinct files which are part of the task planning
-    Set<FileScanTask> fileScanTasks =
+    List<FileScanTask> fileScanTasks =
         taskGroups().stream()
             .flatMap(taskGroup -> taskGroup.tasks().stream())
             .filter(ScanTask::isFileScanTask)
             .map(ScanTask::asFileScanTask)
-            .collect(Collectors.toSet()); // Collect into a Set
+            .collect(Collectors.toList());
 
     // check for row level deletes
     boolean existsWithDeletes = fileScanTasks.stream().anyMatch(task -> !task.deletes().isEmpty());
     if (!existsWithDeletes) {
-      fileScanTasks.forEach(
-          task -> {
-            FileScanTask fileScanTask = task.asFileScanTask();
-            String filePath = fileScanTask.file().location();
-
-            // Add to the map only if it doesn't already exist
-            nullCountDataFiles.putIfAbsent(filePath, fileScanTask.file().nullValueCounts());
-            minDataFiles.putIfAbsent(filePath, fileScanTask.file().lowerBounds());
-            maxDataFiles.putIfAbsent(filePath, fileScanTask.file().upperBounds());
+      // extract the unique data files
+      Set<DataFile> dataFiles =
+          fileScanTasks.stream().map(FileScanTask::file).collect(Collectors.toSet());
+      dataFiles.forEach(
+          file -> {
+            String filePath = file.location();
+            nullCountDataFiles.put(filePath, file.nullValueCounts());
+            minDataFiles.put(filePath, file.lowerBounds());
+            maxDataFiles.put(filePath, file.upperBounds());
           });
       nullCounts.putAll(calculateNullCount(nullCountDataFiles));
       minValues.putAll(calculateMin(minDataFiles));
