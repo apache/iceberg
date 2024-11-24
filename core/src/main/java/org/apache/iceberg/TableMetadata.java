@@ -1108,7 +1108,7 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    Builder removeUnusedSpecs(Iterable<Integer> specIds) {
+    Builder removeSpecIds(Iterable<Integer> specIds) {
       Set<Integer> specIdsToRemove = Sets.newHashSet();
       for (Integer specId : specIds) {
         Preconditions.checkArgument(
@@ -1118,6 +1118,7 @@ public class TableMetadata implements Serializable {
           specIdsToRemove.add(specId);
         }
       }
+
       this.specs =
           specs.stream()
               .filter(s -> !specIdsToRemove.contains(s.specId()))

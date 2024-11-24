@@ -120,13 +120,13 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
   ExpireSnapshots cleanExpiredFiles(boolean clean);
 
   /**
-   * Allows expiration of unreachable metadata, such as partition specs as part of the operation.
+   * Allows expiration of unreachable metadata, such as partition spec as part of the operation.
    *
-   * @param clean setting this to true will remove metadata(such as partition spec) that are no
+   * @param clean setting this to true will remove metadata(such as partition spec) that is no
    *     longer reachable by any snapshot
    * @return this for method chaining
    */
-  default ExpireSnapshots cleanExpiredMeta(boolean clean) {
+  default ExpireSnapshots cleanExpiredMetadata(boolean clean) {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " doesn't implement cleanExpiredMeta");
   }

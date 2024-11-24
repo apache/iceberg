@@ -183,7 +183,8 @@ public class UpdateRequirements {
         }
         this.setSpecId = true;
       }
-      // require that all the branch has not changed, so that old specs won't be written.
+
+      // require that no branches have changed, so that old specs won't be written.
       if (base != null && !isReplace) {
         base.refs()
             .forEach(

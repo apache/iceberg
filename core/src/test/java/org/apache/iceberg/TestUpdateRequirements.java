@@ -425,16 +425,15 @@ public class TestUpdateRequirements {
   }
 
   @Test
-  public void testRemovePartitionSpec() {
+  public void removePartitionSpec() {
     int defaultSpecId = 3;
     when(metadata.defaultSpecId()).thenReturn(defaultSpecId);
-    // empty refs
-    when(metadata.refs()).thenReturn(ImmutableMap.of());
 
     List<UpdateRequirement> requirements =
         UpdateRequirements.forUpdateTable(
             metadata,
             ImmutableList.of(new MetadataUpdate.RemovePartitionSpecs(Sets.newHashSet(1, 2))));
+    requirements.forEach(req -> req.validate(metadata));
 
     assertThat(requirements)
         .hasSize(2)
@@ -461,11 +460,13 @@ public class TestUpdateRequirements {
     when(snapshotRef.snapshotId()).thenReturn(snapshotId);
     when(snapshotRef.isBranch()).thenReturn(true);
     when(metadata.refs()).thenReturn(ImmutableMap.of(branch, snapshotRef));
+    when(metadata.ref(branch)).thenReturn(snapshotRef);
 
     List<UpdateRequirement> requirements =
         UpdateRequirements.forUpdateTable(
             metadata,
             ImmutableList.of(new MetadataUpdate.RemovePartitionSpecs(Sets.newHashSet(1, 2))));
+    requirements.forEach(req -> req.validate(metadata));
 
     assertThat(requirements)
         .hasSize(3)
