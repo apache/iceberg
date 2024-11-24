@@ -124,7 +124,11 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
             CatalogProperties.URI,
             uri,
             CatalogProperties.WAREHOUSE_LOCATION,
-            temp.toUri().toString());
+            temp.toUri().toString(),
+            CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key1",
+            "catalog-default-key1",
+            CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key2",
+            "catalog-default-key2");
 
     return (NessieCatalog)
         CatalogUtil.buildIcebergCatalog(

@@ -783,6 +783,21 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       this.ident = ident;
       this.schema = schema;
       this.context = context;
+      propertiesBuilder.putAll(tableDefaultProperties());
+    }
+
+    /**
+     * Get default table properties set at Catalog level through catalog properties.
+     *
+     * @return default table properties specified in catalog properties
+     */
+    private Map<String, String> tableDefaultProperties() {
+      Map<String, String> tableDefaultProperties =
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_DEFAULT_PREFIX);
+      LOG.info(
+          "Table properties set at catalog level through catalog properties: {}",
+          tableDefaultProperties);
+      return tableDefaultProperties;
     }
 
     @Override
@@ -827,7 +842,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               .withPartitionSpec(spec)
               .withWriteOrder(writeOrder)
               .withLocation(location)
-              .setProperties(propertiesBuilder.build())
+              .setProperties(propertiesBuilder.buildKeepingLast())
               .build();
 
       LoadTableResponse response =

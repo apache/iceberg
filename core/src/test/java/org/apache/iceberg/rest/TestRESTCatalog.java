@@ -182,6 +182,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             httpServer.getURI().toString(),
             CatalogProperties.FILE_IO_IMPL,
             "org.apache.iceberg.inmemory.InMemoryFileIO",
+            CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key1",
+            "catalog-default-key1",
+            CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key2",
+            "catalog-default-key2",
             "credential",
             "catalog:12345");
     catalog.initialize(
