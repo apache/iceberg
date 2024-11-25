@@ -954,7 +954,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     changes.add(new MetadataUpdate.UpgradeFormatVersion(meta.formatVersion()));
 
     Schema schema = meta.schema();
-    changes.add(new MetadataUpdate.AddSchema(schema, schema.highestFieldId()));
+    changes.add(new MetadataUpdate.AddSchema(schema));
     changes.add(new MetadataUpdate.SetCurrentSchema(-1));
 
     PartitionSpec spec = meta.spec();
