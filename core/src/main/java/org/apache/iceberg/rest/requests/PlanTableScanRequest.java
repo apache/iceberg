@@ -83,6 +83,7 @@ public class PlanTableScanRequest implements RESTRequest {
     this.startSnapshotId = startSnapshotId;
     this.endSnapshotId = endSnapshotId;
     this.statsFields = statsFields;
+    validate();
   }
 
   @Override

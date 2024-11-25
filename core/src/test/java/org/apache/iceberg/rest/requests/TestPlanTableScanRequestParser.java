@@ -26,17 +26,16 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.Test;
 
-public class TestPlanTableScanRequest {
-
+public class TestPlanTableScanRequestParser {
   @Test
-  public void nullAndEmptyCheck() {
+  public void nullCheck() {
     assertThatThrownBy(() -> PlanTableScanRequestParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid request: planTableScanRequest null");
+        .hasMessage("Invalid plan table scan request: null");
 
     assertThatThrownBy(() -> PlanTableScanRequestParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid request: planTableScanRequest null");
+        .hasMessage("Invalid plan table scan request: null");
   }
 
   @Test
@@ -102,7 +101,7 @@ public class TestPlanTableScanRequest {
 
   @Test
   public void roundTripSerdeWithAllFieldsInvalidRequest() {
-    PlanTableScanRequest request =
+    PlanTableScanRequest.Builder request =
         new PlanTableScanRequest.Builder()
             .withSnapshotId(1L)
             .withSelect(Lists.newArrayList("col1", "col2"))
@@ -111,10 +110,9 @@ public class TestPlanTableScanRequest {
             .withEndSnapshotId(2L)
             .withCaseSensitive(false)
             .withUseSnapshotSchema(true)
-            .withStatsFields(Lists.newArrayList("col1", "col2"))
-            .build();
+            .withStatsFields(Lists.newArrayList("col1", "col2"));
 
-    assertThatThrownBy(() -> PlanTableScanRequestParser.toJson(request))
+    assertThatThrownBy(request::build)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Either snapshotId must be provided or both startSnapshotId and endSnapshotId must be provided");

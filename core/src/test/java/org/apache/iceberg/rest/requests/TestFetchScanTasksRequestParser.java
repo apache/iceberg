@@ -24,22 +24,35 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 
-public class TestFetchScanTasksRequest {
+public class TestFetchScanTasksRequestParser {
 
   @Test
   public void nullAndEmptyCheck() {
     assertThatThrownBy(() -> FetchScanTasksRequestParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid request: fetchScanTasks request null");
+        .hasMessage("Invalid fetch scan tasks request: null");
 
     assertThatThrownBy(() -> FetchScanTasksRequestParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid request: fetchScanTasks null");
+        .hasMessage("Invalid fetch scan tasks request: null");
+
+    assertThatThrownBy(() -> FetchScanTasksRequestParser.fromJson("{}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing string: plan-task");
+  }
+
+  @Test
+  public void missingRequiredField() {
+    String missingRequiredFieldJson = "{\"x\": \"val\"}";
+    assertThatThrownBy(() -> FetchScanTasksRequestParser.fromJson(missingRequiredFieldJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing string: plan-task");
   }
 
   @Test
   public void roundTripSerdeWithPlanTask() {
-    FetchScanTasksRequest request = new FetchScanTasksRequest("somePlanTask");
+    FetchScanTasksRequest request =
+        FetchScanTasksRequest.builder().withPlanTask("somePlanTask").build();
     String expectedJson = "{\"plan-task\":\"somePlanTask\"}";
     String json = FetchScanTasksRequestParser.toJson(request, false);
     assertThat(json).isEqualTo(expectedJson);

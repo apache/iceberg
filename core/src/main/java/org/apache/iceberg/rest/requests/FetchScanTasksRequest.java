@@ -22,11 +22,12 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTRequest;
 
+@SuppressWarnings("checkstyle:VisibilityModifier")
 public class FetchScanTasksRequest implements RESTRequest {
 
   private final String planTask;
 
-  public FetchScanTasksRequest(String planTask) {
+  private FetchScanTasksRequest(String planTask) {
     this.planTask = planTask;
     validate();
   }
@@ -37,11 +38,30 @@ public class FetchScanTasksRequest implements RESTRequest {
 
   @Override
   public void validate() {
-    Preconditions.checkArgument(planTask != null, "Invalid planTask: null");
+    Preconditions.checkArgument(planTask != null, "Invalid plan task: null");
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this).add("planTask", planTask).toString();
+  }
+
+  public static Builder builder() {
+    return new Builder();
+  }
+
+  public static class Builder {
+    private Builder() {}
+
+    String planTask;
+
+    public Builder withPlanTask(String task) {
+      this.planTask = task;
+      return this;
+    }
+
+    public FetchScanTasksRequest build() {
+      return new FetchScanTasksRequest(planTask);
+    }
   }
 }

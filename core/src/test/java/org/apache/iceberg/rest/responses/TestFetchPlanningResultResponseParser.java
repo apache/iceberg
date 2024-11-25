@@ -44,11 +44,11 @@ public class TestFetchPlanningResultResponseParser {
   public void nullAndEmptyCheck() {
     assertThatThrownBy(() -> FetchPlanningResultResponseParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: fetchPanningResultResponse null");
+        .hasMessage("Invalid fetch scan planning response: null");
 
     assertThatThrownBy(() -> FetchPlanningResultResponseParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: fetchPanningResultResponse null or empty");
+        .hasMessage("Invalid fetch scan planning response: null or empty");
   }
 
   @Test
@@ -63,7 +63,15 @@ public class TestFetchPlanningResultResponseParser {
     String emptyJson = "{ }";
     assertThatThrownBy(() -> FetchPlanningResultResponseParser.fromJson(emptyJson))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: fetchPanningResultResponse null or empty");
+        .hasMessage("Invalid fetch scan planning response: null or empty");
+  }
+
+  @Test
+  public void missingRequiredField() {
+    String missingRequiredFieldJson = "{\"x\": \"val\"}";
+    assertThatThrownBy(() -> FetchPlanningResultResponseParser.fromJson(missingRequiredFieldJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing string: plan-status");
   }
 
   @Test

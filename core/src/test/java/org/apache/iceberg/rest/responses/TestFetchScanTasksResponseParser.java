@@ -43,11 +43,11 @@ public class TestFetchScanTasksResponseParser {
   public void nullAndEmptyCheck() {
     assertThatThrownBy(() -> FetchScanTasksResponseParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: fetchScanTasksResponse null");
+        .hasMessage("Invalid fetch scan tasks response: null");
 
     assertThatThrownBy(() -> FetchScanTasksResponseParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: fetchScanTasksResponse null");
+        .hasMessage("Invalid fetch scan tasks response: null or empty");
   }
 
   @Test
@@ -60,7 +60,15 @@ public class TestFetchScanTasksResponseParser {
     String emptyJson = "{ }";
     assertThatThrownBy(() -> FetchScanTasksResponseParser.fromJson(emptyJson))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: fetchScanTasksResponse null");
+        .hasMessage("Invalid fetch scan tasks response: null or empty");
+  }
+
+  @Test
+  public void missingRequiredField() {
+    String missingRequiredFieldJson = "{\"x\": \"val\"}";
+    assertThatThrownBy(() -> FetchScanTasksResponseParser.fromJson(missingRequiredFieldJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid response: planTasks and fileScanTask cannot both be null");
   }
 
   @Test

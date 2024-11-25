@@ -38,7 +38,7 @@ public class FetchScanTasksRequestParser {
   }
 
   public static void toJson(FetchScanTasksRequest request, JsonGenerator gen) throws IOException {
-    Preconditions.checkArgument(null != request, "Invalid request: fetchScanTasks request null");
+    Preconditions.checkArgument(null != request, "Invalid fetch scan tasks request: null");
     gen.writeStartObject();
     gen.writeStringField(PLAN_TASK, request.planTask());
     gen.writeEndObject();
@@ -49,9 +49,9 @@ public class FetchScanTasksRequestParser {
   }
 
   public static FetchScanTasksRequest fromJson(JsonNode json) {
-    Preconditions.checkArgument(null != json, "Invalid request: fetchScanTasks null");
+    Preconditions.checkArgument(null != json, "Invalid fetch scan tasks request: null");
 
     String planTask = JsonUtil.getString(PLAN_TASK, json);
-    return new FetchScanTasksRequest(planTask);
+    return FetchScanTasksRequest.builder().withPlanTask(planTask).build();
   }
 }

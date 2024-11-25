@@ -49,16 +49,7 @@ public class PlanTableScanRequestParser {
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static void toJson(PlanTableScanRequest request, JsonGenerator gen) throws IOException {
-    Preconditions.checkArgument(null != request, "Invalid request: planTableScanRequest null");
-
-    if (request.snapshotId() != null
-        || request.startSnapshotId() != null
-        || request.endSnapshotId() != null) {
-      Preconditions.checkArgument(
-          request.snapshotId() != null
-              ^ (request.startSnapshotId() != null && request.endSnapshotId() != null),
-          "Either snapshotId must be provided or both startSnapshotId and endSnapshotId must be provided");
-    }
+    Preconditions.checkArgument(null != request, "Invalid plan table scan request: null");
 
     gen.writeStartObject();
     if (request.snapshotId() != null) {
@@ -96,7 +87,7 @@ public class PlanTableScanRequestParser {
   }
 
   public static PlanTableScanRequest fromJson(JsonNode json) {
-    Preconditions.checkArgument(null != json, "Invalid request: planTableScanRequest null");
+    Preconditions.checkArgument(null != json, "Invalid plan table scan request: null");
 
     Long snapshotId = JsonUtil.getLongOrNull(SNAPSHOT_ID, json);
     Long startSnapshotId = JsonUtil.getLongOrNull(START_SNAPSHOT_ID, json);
@@ -106,7 +97,7 @@ public class PlanTableScanRequestParser {
 
     Expression filter = null;
     if (json.has(FILTER)) {
-      filter = ExpressionParser.fromJson(json.get(FILTER).textValue());
+      filter = ExpressionParser.fromJson(JsonUtil.getString(FILTER, json));
     }
 
     boolean caseSensitive = true;

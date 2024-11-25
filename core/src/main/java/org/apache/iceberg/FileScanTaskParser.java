@@ -86,7 +86,7 @@ public class FileScanTaskParser {
 
     DataFile dataFile = null;
     if (jsonNode.has(DATA_FILE)) {
-      dataFile = (DataFile) ContentFileParser.fromJson(jsonNode.get(DATA_FILE), spec);
+      dataFile = (DataFile) ContentFileParser.fromJson(JsonUtil.get(DATA_FILE, jsonNode), spec);
     }
 
     long start = JsonUtil.getLong(START, jsonNode);

@@ -41,7 +41,7 @@ public class FetchScanTasksResponseParser {
   }
 
   public static void toJson(FetchScanTasksResponse response, JsonGenerator gen) throws IOException {
-    Preconditions.checkArgument(response != null, "Invalid response: fetchScanTasksResponse null");
+    Preconditions.checkArgument(response != null, "Invalid fetch scan tasks response: null");
     Preconditions.checkArgument(
         response.specsById() != null
             || (response.fileScanTasks() == null || response.fileScanTasks().isEmpty()),
@@ -57,13 +57,13 @@ public class FetchScanTasksResponseParser {
   }
 
   public static FetchScanTasksResponse fromJson(String json) {
-    Preconditions.checkArgument(json != null, "Cannot parse fetchScanTasks response from null");
+    Preconditions.checkArgument(json != null, "Invalid fetch scan tasks response: null");
     return JsonUtil.parse(json, FetchScanTasksResponseParser::fromJson);
   }
 
   public static FetchScanTasksResponse fromJson(JsonNode json) {
     Preconditions.checkArgument(
-        json != null && !json.isEmpty(), "Invalid response: fetchScanTasksResponse null");
+        json != null && !json.isEmpty(), "Invalid fetch scan tasks response: null or empty");
     List<String> planTasks = JsonUtil.getStringListOrNull(PLAN_TASKS, json);
     List<DeleteFile> deleteFiles = TableScanResponseParser.parseDeleteFiles(json);
     List<FileScanTask> fileScanTasks =

@@ -44,8 +44,7 @@ public class FetchPlanningResultResponseParser {
 
   public static void toJson(FetchPlanningResultResponse response, JsonGenerator gen)
       throws IOException {
-    Preconditions.checkArgument(
-        null != response, "Invalid response: fetchPanningResultResponse null");
+    Preconditions.checkArgument(null != response, "Invalid fetch scan planning response: null");
     Preconditions.checkArgument(
         response.specsById() != null
             || (response.fileScanTasks() == null || response.fileScanTasks().isEmpty()),
@@ -62,14 +61,13 @@ public class FetchPlanningResultResponseParser {
   }
 
   public static FetchPlanningResultResponse fromJson(String json) {
-    Preconditions.checkArgument(json != null, "Invalid response: fetchPanningResultResponse null");
+    Preconditions.checkArgument(json != null, "Invalid fetch scan planning response: null");
     return JsonUtil.parse(json, FetchPlanningResultResponseParser::fromJson);
   }
 
   public static FetchPlanningResultResponse fromJson(JsonNode json) {
     Preconditions.checkArgument(
-        json != null && !json.isEmpty(),
-        "Invalid response: fetchPanningResultResponse null or empty");
+        json != null && !json.isEmpty(), "Invalid fetch scan planning response: null or empty");
 
     PlanStatus planStatus = PlanStatus.fromName(JsonUtil.getString(PLAN_STATUS, json));
     List<String> planTasks = JsonUtil.getStringListOrNull(PLAN_TASKS, json);

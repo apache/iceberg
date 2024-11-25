@@ -64,6 +64,14 @@ public class TestPlanTableScanResponseParser {
   }
 
   @Test
+  public void missingRequiredField() {
+    String missingRequiredFieldJson = "{\"x\": \"val\"}";
+    assertThatThrownBy(() -> PlanTableScanResponseParser.fromJson(missingRequiredFieldJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing string: plan-status");
+  }
+
+  @Test
   public void roundTripSerdeWithInvalidPlanStatus() {
     String invalidStatusJson = "{\"plan-status\": \"someStatus\"}";
     assertThatThrownBy(() -> PlanTableScanResponseParser.fromJson(invalidStatusJson))
