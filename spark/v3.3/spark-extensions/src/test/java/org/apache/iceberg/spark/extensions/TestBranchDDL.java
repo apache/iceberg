@@ -220,14 +220,14 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE BRANCH %s RETAIN", tableName, branchName))
         .as("Illegal statement")
         .isInstanceOf(IcebergParseException.class)
-        .hasMessageContaining("mismatched input");
+        .hasMessageContaining("no viable alternative at input");
 
     assertThatThrownBy(
             () ->
                 sql("ALTER TABLE %s CREATE BRANCH %s RETAIN %s DAYS", tableName, branchName, "abc"))
         .as("Illegal statement")
         .isInstanceOf(IcebergParseException.class)
-        .hasMessageContaining("mismatched input");
+        .hasMessageContaining("no viable alternative at input");
 
     assertThatThrownBy(
             () ->
@@ -281,7 +281,7 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "123"))
         .as("Non-conforming branch name")
         .isInstanceOf(IcebergParseException.class)
-        .hasMessageContaining("mismatched input '123'");
+        .hasMessageContaining("no viable alternative at input '123'");
   }
 
   @Test
