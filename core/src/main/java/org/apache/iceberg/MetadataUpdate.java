@@ -86,6 +86,16 @@ public interface MetadataUpdate extends Serializable {
     private final Schema schema;
     private final int lastColumnId;
 
+    public AddSchema(Schema schema) {
+      this(schema, schema.highestFieldId());
+    }
+
+    /**
+     * Set the schema
+     *
+     * @deprecated since 1.8.0, will be removed 1.9.0 or 2.0.0, use AddSchema(schema).
+     */
+    @Deprecated
     public AddSchema(Schema schema, int lastColumnId) {
       this.schema = schema;
       this.lastColumnId = lastColumnId;
