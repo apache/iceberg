@@ -95,7 +95,7 @@ WHEN NOT MATCHED AND s.event_time > still_valid_threshold THEN INSERT (id, count
 
 Only one record in the source data can update any given row of the target table, or else an error will be thrown.
 
-Starting from Spark 3.5, you can use `WHEN NOT MATCHED BY SOURCE ... THEN ...` to update or delete rows that are not present in the source data:
+Spark 3.5 added support for `WHEN NOT MATCHED BY SOURCE ... THEN ...` to update or delete rows that are not present in the source data:
 
 ```sql
 WHEN NOT MATCHED BY SOURCE THEN UPDATE SET status = 'invalid'
