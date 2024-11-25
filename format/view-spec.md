@@ -48,11 +48,12 @@ Materialized views are a type of view that precompute the data from the view que
 When queried, materialized views return the precomputed data, shifting the cost of query execution to the precomputation step.
 
 Iceberg materialized views are implemented as a combination of an Iceberg view and an underlying Iceberg table, known as the storage table, which stores the precomputed data.
-The metadata for a materialized view extends the common view metadata, adding a pointer to the precomputed data and information about the refresh state to determine if the data is still fresh. 
-The refresh state is composed of data about the so-called "source tables", which are the tables referenced in the query definition of the materialized view. 
-The storage table can be in the states of "fresh", "stale" or "invalid". It is "fresh" when the snapshot_id's of the last refresh operation match the current snapshot_id's of the source tables.
-It is "stale" if they don't match, indicating that a refresh operation needs to be performed to capture the latest source table changes.
-The storage table is considered "invalid" if it's current version_id doesn't match the `refresh-version-id` of the refresh state. 
+The metadata for a materialized view extends the common view metadata, adding a pointer to the precomputed data and refresh information to determine if the data is still fresh. 
+The refresh information is composed of data about the so-called "source tables", which are the tables referenced in the query definition of the materialized view. 
+The storage table can be in the states of "fresh", "stale" or "invalid", which are determined from the following situations:
+* **fresh** -- The `snapshot_id`'s of the last refresh operation match the current `snapshot_id`'s of the source tables.
+* **stale** -- The `snapshot_id`'s don't match, indicating that a refresh operation needs to be performed to capture the latest source table changes.
+* **invalid** -- The current `version_id` of the materialized view doesn't match the `refresh-version-id` of the refresh state. 
 
 ## Specification
 
