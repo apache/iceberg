@@ -103,13 +103,13 @@ public class TestTagDDL extends SparkExtensionsTestBase {
                     tableName, tagName, firstSnapshotId, maxRefAge))
         .as("Illegal statement")
         .isInstanceOf(IcebergParseException.class)
-        .hasMessageContaining("mismatched input");
+        .hasMessageContaining("no viable alternative at input '<EOF>'");
 
     assertThatThrownBy(
             () -> sql("ALTER TABLE %s CREATE TAG %s RETAIN %s DAYS", tableName, tagName, "abc"))
         .as("Illegal statement")
         .isInstanceOf(IcebergParseException.class)
-        .hasMessageContaining("mismatched input");
+        .hasMessageContaining("no viable alternative at input 'abc'");
 
     assertThatThrownBy(
             () ->
@@ -158,7 +158,7 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE TAG %s", tableName, "123"))
         .as("Non-conforming tag name")
         .isInstanceOf(IcebergParseException.class)
-        .hasMessageContaining("mismatched input '123'");
+        .hasMessageContaining("no viable alternative at input '123'");
 
     table.manageSnapshots().removeTag(tagName).commit();
     List<SimpleRecord> records =
@@ -315,7 +315,7 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     assertThatThrownBy(() -> sql("ALTER TABLE %s DROP TAG %s", tableName, "123"))
         .as("Non-conforming tag name")
         .isInstanceOf(IcebergParseException.class)
-        .hasMessageContaining("mismatched input '123'");
+        .hasMessageContaining("no viable alternative at input '123'");
   }
 
   @Test
