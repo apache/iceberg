@@ -48,7 +48,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.jupiter.api.Test;
 
-public class TestFlinkAvroReaderWriter extends DataTest {
+public abstract class AbstractTestFlinkAvroReaderWriter extends DataTest {
 
   private static final int NUM_RECORDS = 100;
 
@@ -70,6 +70,8 @@ public class TestFlinkAvroReaderWriter extends DataTest {
     writeAndValidate(schema, expectedRecords, NUM_RECORDS);
   }
 
+  protected abstract Avro.ReadBuilder createAvroReadBuilder(File recordsFile, Schema schema);
+
   private void writeAndValidate(Schema schema, List<Record> expectedRecords, int numRecord)
       throws IOException {
     RowType flinkSchema = FlinkSchemaUtil.convert(schema);
@@ -88,11 +90,7 @@ public class TestFlinkAvroReaderWriter extends DataTest {
       writer.addAll(expectedRecords);
     }
 
-    try (CloseableIterable<RowData> reader =
-        Avro.read(Files.localInput(recordsFile))
-            .project(schema)
-            .createResolvingReader(FlinkPlannedAvroReader::create)
-            .build()) {
+    try (CloseableIterable<RowData> reader = createAvroReadBuilder(recordsFile, schema).build()) {
       Iterator<Record> expected = expectedRecords.iterator();
       Iterator<RowData> rows = reader.iterator();
       for (int i = 0; i < numRecord; i++) {
@@ -156,7 +154,6 @@ public class TestFlinkAvroReaderWriter extends DataTest {
 
   @Test
   public void testNumericTypes() throws IOException {
-
     List<Record> expected =
         ImmutableList.of(
             recordNumType(
