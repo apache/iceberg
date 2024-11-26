@@ -190,15 +190,23 @@ public class TypeWithSchemaVisitor<T> {
       Types.StructType struct, GroupType group, TypeWithSchemaVisitor<T> visitor) {
     List<T> results = Lists.newArrayListWithExpectedSize(group.getFieldCount());
     for (Type field : group.getFields()) {
-      int id = -1;
-      if (field.getId() != null) {
-        id = field.getId().intValue();
-      }
-      Types.NestedField iField = (struct != null && id >= 0) ? struct.field(id) : null;
+      Types.NestedField iField = findField(struct, field);
       results.add(visitField(iField, field, visitor));
     }
 
     return results;
+  }
+
+  private static Types.NestedField findField(Types.StructType struct, Type field) {
+    if (struct == null) {
+      return null;
+    }
+
+    if (field.getId() != null) {
+      return struct.field(field.getId().intValue());
+    }
+
+    return struct.field(field.getName());
   }
 
   public T message(Types.StructType iStruct, MessageType message, List<T> fields) {
