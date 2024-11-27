@@ -70,7 +70,7 @@ public abstract class FileRewriteGroup<I, T extends ContentScanTask<F>, F extend
   }
 
   public static <I, T extends ContentScanTask<F>, F extends ContentFile<F>>
-      Comparator<FileRewriteGroup<I, T, F>> comparator(RewriteJobOrder rewriteJobOrder) {
+      Comparator<FileRewriteGroup<I, T, F>> taskComparator(RewriteJobOrder rewriteJobOrder) {
     switch (rewriteJobOrder) {
       case BYTES_ASC:
         return Comparator.comparing(FileRewriteGroup::sizeInBytes);

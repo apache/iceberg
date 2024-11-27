@@ -118,7 +118,7 @@ public class RewritePositionDeletesGroupPlanner
                                 numOutputFiles(inputSize));
                           });
                 })
-            .sorted(RewritePositionDeletesGroup.comparator(rewriteJobOrder));
+            .sorted(FileRewriteGroup.taskComparator(rewriteJobOrder));
     Map<StructLike, Integer> groupsInPartition = plan.transformValues(List::size);
     int totalGroupCount = groupsInPartition.values().stream().reduce(Integer::sum).orElse(0);
     return new FileRewritePlan<>(

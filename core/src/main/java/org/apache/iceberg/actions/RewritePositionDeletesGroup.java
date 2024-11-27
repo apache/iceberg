@@ -18,11 +18,13 @@
  */
 package org.apache.iceberg.actions;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.PositionDeletesScanTask;
+import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.FileGroupInfo;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.FileGroupRewriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -39,6 +41,14 @@ public class RewritePositionDeletesGroup
 
   private DeleteFileSet addedDeleteFiles = DeleteFileSet.create();
 
+  /**
+   * @deprecated since 1.8.0, will be removed in 1.9.0.
+   */
+  @Deprecated
+  public RewritePositionDeletesGroup(FileGroupInfo info, List<PositionDeletesScanTask> tasks) {
+    this(info, tasks, 0L, 0);
+  }
+
   public RewritePositionDeletesGroup(
       FileGroupInfo info,
       List<PositionDeletesScanTask> tasks,
@@ -48,6 +58,14 @@ public class RewritePositionDeletesGroup
     Preconditions.checkArgument(!tasks.isEmpty(), "Tasks must not be empty");
     this.maxRewrittenDataSequenceNumber =
         tasks.stream().mapToLong(t -> t.file().dataSequenceNumber()).max().getAsLong();
+  }
+
+  /**
+   * @deprecated since 1.8.0, will be removed in 1.9.0. Use {@link #fileScans()} instead.
+   */
+  @Deprecated
+  public List<PositionDeletesScanTask> tasks() {
+    return fileScans();
   }
 
   public void setOutputFiles(Set<DeleteFile> files) {
@@ -102,5 +120,35 @@ public class RewritePositionDeletesGroup
 
   public long addedBytes() {
     return addedDeleteFiles.stream().mapToLong(DeleteFile::fileSizeInBytes).sum();
+  }
+
+  /**
+   * @deprecated since 1.8.0, will be removed in 1.9.0. Use {@link #numInputFiles()} instead.
+   */
+  @Deprecated
+  public int numRewrittenDeleteFiles() {
+    return fileScans().size();
+  }
+
+  /**
+   * @deprecated since 1.8.0, will be removed in 1.9.0. Use {@link
+   *     FileRewriteGroup#taskComparator(RewriteJobOrder)} instead.
+   */
+  @Deprecated
+  public static Comparator<RewritePositionDeletesGroup> comparator(RewriteJobOrder order) {
+    switch (order) {
+      case BYTES_ASC:
+        return Comparator.comparing(RewritePositionDeletesGroup::rewrittenBytes);
+      case BYTES_DESC:
+        return Comparator.comparing(
+            RewritePositionDeletesGroup::rewrittenBytes, Comparator.reverseOrder());
+      case FILES_ASC:
+        return Comparator.comparing(RewritePositionDeletesGroup::numRewrittenDeleteFiles);
+      case FILES_DESC:
+        return Comparator.comparing(
+            RewritePositionDeletesGroup::numRewrittenDeleteFiles, Comparator.reverseOrder());
+      default:
+        return (unused, unused2) -> 0;
+    }
   }
 }

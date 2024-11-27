@@ -18,11 +18,13 @@
  */
 package org.apache.iceberg.actions;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -34,6 +36,14 @@ import org.apache.iceberg.util.DataFileSet;
  */
 public class RewriteFileGroup extends FileRewriteGroup<FileGroupInfo, FileScanTask, DataFile> {
   private DataFileSet addedFiles = DataFileSet.create();
+
+  /**
+   * @deprecated since 1.8.0, will be removed in 1.9.0.
+   */
+  @Deprecated
+  public RewriteFileGroup(FileGroupInfo info, List<FileScanTask> fileScanTasks) {
+    this(info, fileScanTasks, 0L, 0);
+  }
 
   public RewriteFileGroup(
       FileGroupInfo info,
@@ -77,5 +87,33 @@ public class RewriteFileGroup extends FileRewriteGroup<FileGroupInfo, FileScanTa
             addedFiles == null ? "Rewrite Incomplete" : Integer.toString(addedFiles.size()))
         .add("numRewrittenBytes", sizeInBytes())
         .toString();
+  }
+
+  /**
+   * @deprecated since 1.8.0, will be removed in 1.9.0. Use {@link #numInputFiles()} instead.
+   */
+  @Deprecated
+  public int numFiles() {
+    return fileScans().size();
+  }
+
+  /**
+   * @deprecated since 1.8.0, will be removed in 1.9.0. Use {@link
+   *     FileRewriteGroup#taskComparator(RewriteJobOrder)} instead.
+   */
+  @Deprecated
+  public static Comparator<RewriteFileGroup> comparator(RewriteJobOrder rewriteJobOrder) {
+    switch (rewriteJobOrder) {
+      case BYTES_ASC:
+        return Comparator.comparing(RewriteFileGroup::sizeInBytes);
+      case BYTES_DESC:
+        return Comparator.comparing(RewriteFileGroup::sizeInBytes, Comparator.reverseOrder());
+      case FILES_ASC:
+        return Comparator.comparing(RewriteFileGroup::numFiles);
+      case FILES_DESC:
+        return Comparator.comparing(RewriteFileGroup::numFiles, Comparator.reverseOrder());
+      default:
+        return (unused, unused2) -> 0;
+    }
   }
 }
