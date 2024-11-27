@@ -73,12 +73,17 @@ class StatisticsUtil {
   }
 
   static CompletedStatistics deserializeCompletedStatistics(
-      byte[] bytes, TypeSerializer<CompletedStatistics> statisticsSerializer) {
+      byte[] bytes, CompletedStatisticsSerializer statisticsSerializer) {
     try {
       DataInputDeserializer input = new DataInputDeserializer(bytes);
       return statisticsSerializer.deserialize(input);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Fail to deserialize aggregated statistics", e);
+    } catch (Exception e) {
+      try {
+        DataInputDeserializer input = new DataInputDeserializer(bytes);
+        return statisticsSerializer.deserializeV1(input);
+      } catch (IOException ioException) {
+        throw new UncheckedIOException("Fail to deserialize aggregated statistics", ioException);
+      }
     }
   }
 
