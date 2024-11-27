@@ -181,7 +181,16 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
     RowData record = streamRecord.getValue();
     StructLike struct = rowDataWrapper.wrap(record);
     sortKey.wrap(struct);
-    localStatistics.add(sortKey);
+    boolean containNull = false;
+    for (int i = 0; i < sortKey.size(); ++i) {
+      if (null == sortKey.get(i, Object.class)) {
+        containNull = true;
+        break;
+      }
+    }
+    if (!containNull) {
+      localStatistics.add(sortKey);
+    }
 
     checkStatisticsTypeMigration();
     output.collect(new StreamRecord<>(StatisticsOrRecord.fromRecord(record)));
