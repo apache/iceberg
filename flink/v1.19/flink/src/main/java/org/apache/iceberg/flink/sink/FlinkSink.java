@@ -41,7 +41,7 @@ import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
-import org.apache.flink.streaming.api.functions.sink.DiscardingSink;
+import org.apache.flink.streaming.api.functions.sink.v2.DiscardingSink;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
@@ -381,7 +381,7 @@ public class FlinkSink {
       return this;
     }
 
-    private <T> DataStreamSink<T> chainIcebergOperators() {
+    private DataStreamSink<Void> chainIcebergOperators() {
       Preconditions.checkArgument(
           inputCreator != null,
           "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
@@ -472,12 +472,10 @@ public class FlinkSink {
       return equalityFieldIds;
     }
 
-    @SuppressWarnings("unchecked")
-    private <T> DataStreamSink<T> appendDummySink(
-        SingleOutputStreamOperator<Void> committerStream) {
-      DataStreamSink<T> resultStream =
+    private DataStreamSink<Void> appendDummySink(SingleOutputStreamOperator<Void> committerStream) {
+      DataStreamSink<Void> resultStream =
           committerStream
-              .addSink(new DiscardingSink())
+              .sinkTo(new DiscardingSink<>())
               .name(operatorName(String.format("IcebergSink %s", this.table.name())))
               .setParallelism(1);
       if (uidPrefix != null) {
