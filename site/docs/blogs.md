@@ -59,6 +59,12 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 **Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
 
 <!-- markdown-link-check-disable-next-line -->
+### [Using Nussknacker with Apache Iceberg: Periodical report example](https://nussknacker.io/blog/nussknacker-iceberg-example)
+**Date**: September 27th, 2024, **Company**: Nussknacker
+
+**Author**: [Arkadiusz Burdach](https://www.linkedin.com/in/arekburdach/)
+
+<!-- markdown-link-check-disable-next-line -->
 ### [Hands-on with Apache Iceberg on Your Laptop: Deep Dive with Apache Spark, Nessie, Minio, Dremio, Polars and Seaborn](https://medium.com/data-engineering-with-dremio/hands-on-with-apache-iceberg-on-your-laptop-deep-dive-with-apache-spark-nessie-minio-dremio-c5d689b01730)
 **Date**: September 20th, 2024, **Company**: Dremio
 
