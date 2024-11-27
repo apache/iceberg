@@ -51,7 +51,7 @@ public class TestFetchScanTasksResponseParser {
   }
 
   @Test
-  public void roundTripSerdeWithEmptyObject() {
+  public void serdeWithEmptyObject() {
     assertThatThrownBy(
             () -> FetchScanTasksResponseParser.toJson(FetchScanTasksResponse.builder().build()))
         .isInstanceOf(IllegalArgumentException.class)
@@ -72,22 +72,22 @@ public class TestFetchScanTasksResponseParser {
   }
 
   @Test
-  public void roundTripSerdeWithPlanTasks() {
+  public void serdeWithPlanTasks() {
     String expectedJson = "{\"plan-tasks\":[\"task1\",\"task2\"]}";
     String json =
         FetchScanTasksResponseParser.toJson(
             FetchScanTasksResponse.builder().withPlanTasks(List.of("task1", "task2")).build());
     assertThat(json).isEqualTo(expectedJson);
 
-    FetchScanTasksResponse fromResponse = FetchScanTasksResponseParser.fromJson(json);
+    FetchScanTasksResponse response = FetchScanTasksResponseParser.fromJson(json);
 
     // can't do an equality comparison on PlanTableScanRequest because we don't implement
     // equals/hashcode
-    assertThat(FetchScanTasksResponseParser.toJson(fromResponse, false)).isEqualTo(expectedJson);
+    assertThat(FetchScanTasksResponseParser.toJson(response, false)).isEqualTo(expectedJson);
   }
 
   @Test
-  public void roundTripSerdeWithDeleteFilesNoFileScanTasksPresent() {
+  public void serdeWithDeleteFilesNoFileScanTasksPresent() {
     assertThatThrownBy(
             () ->
                 FetchScanTasksResponse.builder()
@@ -112,7 +112,7 @@ public class TestFetchScanTasksResponseParser {
   }
 
   @Test
-  public void roundTripSerdeWithFileScanTasks() {
+  public void serdeWithFileScanTasks() {
     ResidualEvaluator residualEvaluator =
         ResidualEvaluator.of(SPEC, Expressions.equal("id", 1), true);
     FileScanTask fileScanTask =
@@ -127,7 +127,6 @@ public class TestFetchScanTasksResponseParser {
         FetchScanTasksResponse.builder()
             .withFileScanTasks(List.of(fileScanTask))
             .withDeleteFiles(List.of(FILE_A_DELETES))
-            // assume you have set this already
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
 
@@ -147,8 +146,7 @@ public class TestFetchScanTasksResponseParser {
     String json = FetchScanTasksResponseParser.toJson(response, false);
     assertThat(json).isEqualTo(expectedToJson);
 
-    // make an unbound json where you expect to not have partitions for the data file,
-    // delete files as service does not send parition spec
+    // create a response where the file scan tasks are unbound
     String expectedFromJson =
         "{"
             + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
@@ -162,19 +160,16 @@ public class TestFetchScanTasksResponseParser {
             + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}]"
             + "}";
 
-    FetchScanTasksResponse fromResponse = FetchScanTasksResponseParser.fromJson(json);
-    // Need to make a new response with partitionSpec set
-    FetchScanTasksResponse copyResponse =
+    FetchScanTasksResponse deserializedResponse = FetchScanTasksResponseParser.fromJson(json);
+    FetchScanTasksResponse responseWithSpecs =
         FetchScanTasksResponse.builder()
-            .withPlanTasks(fromResponse.planTasks())
-            .withDeleteFiles(fromResponse.deleteFiles())
-            .withFileScanTasks(fromResponse.fileScanTasks())
+            .withPlanTasks(deserializedResponse.planTasks())
+            .withDeleteFiles(deserializedResponse.deleteFiles())
+            .withFileScanTasks(deserializedResponse.fileScanTasks())
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
 
-    // can't do an equality comparison on PlanTableScanRequest because we don't implement
-    // equals/hashcode
-    assertThat(FetchScanTasksResponseParser.toJson(copyResponse, false))
+    assertThat(FetchScanTasksResponseParser.toJson(responseWithSpecs, false))
         .isEqualTo(expectedFromJson);
   }
 }

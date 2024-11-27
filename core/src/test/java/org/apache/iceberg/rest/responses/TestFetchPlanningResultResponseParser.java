@@ -52,7 +52,7 @@ public class TestFetchPlanningResultResponseParser {
   }
 
   @Test
-  public void roundTripSerdeWithEmptyObject() {
+  public void serdeWithEmptyObject() {
     assertThatThrownBy(
             () ->
                 FetchPlanningResultResponseParser.toJson(
@@ -75,7 +75,7 @@ public class TestFetchPlanningResultResponseParser {
   }
 
   @Test
-  public void roundTripSerdeWithInvalidPlanStatus() {
+  public void serdeWithInvalidPlanStatus() {
     String invalidStatusJson = "{\"plan-status\": \"someStatus\"}";
     assertThatThrownBy(() -> FetchPlanningResultResponseParser.fromJson(invalidStatusJson))
         .isInstanceOf(IllegalArgumentException.class)
@@ -83,7 +83,7 @@ public class TestFetchPlanningResultResponseParser {
   }
 
   @Test
-  public void roundTripSerdeWithValidSubmittedStatus() {
+  public void serdeWithValidSubmittedStatus() {
     PlanStatus planStatus = PlanStatus.fromName("submitted");
     FetchPlanningResultResponse response =
         FetchPlanningResultResponse.builder().withPlanStatus(planStatus).build();
@@ -97,7 +97,7 @@ public class TestFetchPlanningResultResponseParser {
   }
 
   @Test
-  public void roundTripSerdeWithInvalidPlanStatusSubmittedWithTasksPresent() {
+  public void serdeWithInvalidPlanStatusSubmittedWithTasksPresent() {
     PlanStatus planStatus = PlanStatus.fromName("submitted");
     assertThatThrownBy(
             () ->
@@ -117,7 +117,7 @@ public class TestFetchPlanningResultResponseParser {
   }
 
   @Test
-  public void roundTripSerdeWithInvalidPlanStatusSubmittedWithDeleteFilesNoFileScanTasksPresent() {
+  public void serdeWithInvalidPlanStatusSubmittedWithDeleteFilesNoFileScanTasksPresent() {
     PlanStatus planStatus = PlanStatus.fromName("submitted");
     assertThatThrownBy(
             () ->
@@ -143,7 +143,7 @@ public class TestFetchPlanningResultResponseParser {
   }
 
   @Test
-  public void roundTripSerdeWithValidStatusAndFileScanTasks() {
+  public void serdeWithValidStatusAndFileScanTasks() {
     ResidualEvaluator residualEvaluator =
         ResidualEvaluator.of(SPEC, Expressions.equal("id", 1), true);
     FileScanTask fileScanTask =
@@ -196,7 +196,6 @@ public class TestFetchPlanningResultResponseParser {
             + "}";
 
     FetchPlanningResultResponse fromResponse = FetchPlanningResultResponseParser.fromJson(json);
-    // Need to make a new response with partitionSpec set
     FetchPlanningResultResponse copyResponse =
         FetchPlanningResultResponse.builder()
             .withPlanStatus(fromResponse.planStatus())

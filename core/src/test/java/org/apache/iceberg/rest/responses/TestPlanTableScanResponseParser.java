@@ -51,7 +51,7 @@ public class TestPlanTableScanResponseParser {
   }
 
   @Test
-  public void roundTripSerdeWithEmptyObject() {
+  public void serdeWithEmptyObject() {
 
     assertThatThrownBy(() -> PlanTableScanResponse.builder().build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -72,7 +72,7 @@ public class TestPlanTableScanResponseParser {
   }
 
   @Test
-  public void roundTripSerdeWithInvalidPlanStatus() {
+  public void serdeWithInvalidPlanStatus() {
     String invalidStatusJson = "{\"plan-status\": \"someStatus\"}";
     assertThatThrownBy(() -> PlanTableScanResponseParser.fromJson(invalidStatusJson))
         .isInstanceOf(IllegalArgumentException.class)
@@ -80,7 +80,7 @@ public class TestPlanTableScanResponseParser {
   }
 
   @Test
-  public void roundTripSerdeWithInvalidPlanStatusSubmittedWithoutPlanId() {
+  public void serdeWithInvalidPlanStatusSubmittedWithoutPlanId() {
     PlanStatus planStatus = PlanStatus.fromName("submitted");
 
     assertThatThrownBy(() -> PlanTableScanResponse.builder().withPlanStatus(planStatus).build())
@@ -94,7 +94,7 @@ public class TestPlanTableScanResponseParser {
   }
 
   @Test
-  public void roundTripSerdeWithInvalidPlanStatusCancelled() {
+  public void serdeWithInvalidPlanStatusCancelled() {
     PlanStatus planStatus = PlanStatus.fromName("cancelled");
     assertThatThrownBy(() -> PlanTableScanResponse.builder().withPlanStatus(planStatus).build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -107,7 +107,7 @@ public class TestPlanTableScanResponseParser {
   }
 
   @Test
-  public void roundTripSerdeWithInvalidPlanStatusSubmittedWithTasksPresent() {
+  public void serdeWithInvalidPlanStatusSubmittedWithTasksPresent() {
     PlanStatus planStatus = PlanStatus.fromName("submitted");
     assertThatThrownBy(
             () ->
@@ -130,7 +130,7 @@ public class TestPlanTableScanResponseParser {
   }
 
   @Test
-  public void roundTripSerdeWithInvalidPlanIdWithIncorrectStatus() {
+  public void serdeWithInvalidPlanIdWithIncorrectStatus() {
     PlanStatus planStatus = PlanStatus.fromName("failed");
     assertThatThrownBy(
             () ->
@@ -149,7 +149,7 @@ public class TestPlanTableScanResponseParser {
   }
 
   @Test
-  public void roundTripSerdeWithInvalidPlanStatusSubmittedWithDeleteFilesNoFileScanTasksPresent() {
+  public void serdeWithInvalidPlanStatusSubmittedWithDeleteFilesNoFileScanTasksPresent() {
     PlanStatus planStatus = PlanStatus.fromName("submitted");
     assertThatThrownBy(
             () ->
@@ -177,7 +177,7 @@ public class TestPlanTableScanResponseParser {
   }
 
   @Test
-  public void roundTripSerdeWithValidStatusAndFileScanTasks() {
+  public void serdeWithValidStatusAndFileScanTasks() {
     ResidualEvaluator residualEvaluator =
         ResidualEvaluator.of(SPEC, Expressions.equal("id", 1), true);
     FileScanTask fileScanTask =

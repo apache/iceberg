@@ -52,17 +52,7 @@ public class PlanTableScanRequestParser {
     Preconditions.checkArgument(null != request, "Invalid plan table scan request: null");
 
     gen.writeStartObject();
-    if (request.snapshotId() != null) {
-      gen.writeNumberField(SNAPSHOT_ID, request.snapshotId());
-    }
-
-    if (request.startSnapshotId() != null) {
-      gen.writeNumberField(START_SNAPSHOT_ID, request.startSnapshotId());
-    }
-
-    if (request.endSnapshotId() != null) {
-      gen.writeNumberField(END_SNAPSHOT_ID, request.endSnapshotId());
-    }
+    serializeSnapshotIdForScan(gen, request);
 
     if (request.select() != null && !request.select().isEmpty()) {
       JsonUtil.writeStringArray(SELECT, request.select(), gen);
@@ -80,6 +70,16 @@ public class PlanTableScanRequestParser {
     }
 
     gen.writeEndObject();
+  }
+
+  private static void serializeSnapshotIdForScan(JsonGenerator gen, PlanTableScanRequest request)
+      throws IOException {
+    if (request.snapshotId() != null) {
+      gen.writeNumberField(SNAPSHOT_ID, request.snapshotId());
+    } else if (request.startSnapshotId() != null) {
+      gen.writeNumberField(START_SNAPSHOT_ID, request.startSnapshotId());
+      gen.writeNumberField(END_SNAPSHOT_ID, request.endSnapshotId());
+    }
   }
 
   public static PlanTableScanRequest fromJson(String json) {

@@ -511,6 +511,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             endpoints);
 
     trackFileIO(ops);
+
     BaseTable table =
         new BaseTable(
             ops,
