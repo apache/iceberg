@@ -67,6 +67,7 @@ import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.Timer.Timed;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -91,6 +92,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotProducer.class);
   static final int MIN_FILE_GROUP_SIZE = 10_000;
   static final Set<ManifestFile> EMPTY_SET = Sets.newHashSet();
+
+  private static final Splitter.MapSplitter PARTITION_SUMMARY_PROP_SPLITTER =
+      Splitter.on(",").withKeyValueSeparator("=");
 
   /** Default callback used to delete files. */
   private final Consumer<String> defaultDelete =
@@ -301,6 +305,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     Map<String, String> previousSummary;
     SnapshotRef previousBranchHead = previous.ref(targetBranch);
+
     if (previousBranchHead != null) {
       if (previous.snapshot(previousBranchHead.snapshotId()).summary() != null) {
         previousSummary = previous.snapshot(previousBranchHead.snapshotId()).summary();
@@ -325,7 +330,32 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     // copy all summary properties from the implementation
     builder.putAll(summary);
+    aggregatedSummary(builder, previousSummary, summary);
 
+    if (Boolean.parseBoolean(summary.get(SnapshotSummary.PARTITION_SUMMARY_PROP))) {
+      summary.keySet().stream()
+          .filter(key -> key.startsWith(SnapshotSummary.CHANGED_PARTITION_PREFIX))
+          .forEach(
+              key -> {
+                Map<String, String> map = PARTITION_SUMMARY_PROP_SPLITTER.split(summary.get(key));
+                builder.put(
+                    key,
+                    SnapshotSummary.MAP_JOINER.join(
+                        aggregatedSummary(
+                                ImmutableMap.<String, String>builder().putAll(map),
+                                previousSummary,
+                                map)
+                            .build()));
+              });
+    }
+    builder.putAll(EnvironmentContext.get());
+    return builder.buildKeepingLast();
+  }
+
+  private static ImmutableMap.Builder<String, String> aggregatedSummary(
+      ImmutableMap.Builder<String, String> builder,
+      Map<String, String> previousSummary,
+      Map<String, String> summary) {
     updateTotal(
         builder,
         previousSummary,
@@ -368,9 +398,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         summary,
         SnapshotSummary.ADDED_EQ_DELETES_PROP,
         SnapshotSummary.REMOVED_EQ_DELETES_PROP);
-
-    builder.putAll(EnvironmentContext.get());
-    return builder.build();
+    return builder;
   }
 
   protected TableMetadata current() {
