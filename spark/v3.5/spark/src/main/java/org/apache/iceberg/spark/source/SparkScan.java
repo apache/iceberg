@@ -18,17 +18,13 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.math.BigDecimal;
-import java.nio.ByteBuffer;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.iceberg.BlobMetadata;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
@@ -38,8 +34,11 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.StatisticsFile;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.AggregateEvaluator;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -81,8 +80,6 @@ import org.apache.iceberg.spark.source.metrics.TotalDataManifests;
 import org.apache.iceberg.spark.source.metrics.TotalDeleteFileSize;
 import org.apache.iceberg.spark.source.metrics.TotalDeleteManifests;
 import org.apache.iceberg.spark.source.metrics.TotalPlanningDuration;
-import org.apache.iceberg.types.Comparators;
-import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
@@ -101,7 +98,6 @@ import org.apache.spark.sql.connector.read.SupportsReportStatistics;
 import org.apache.spark.sql.connector.read.colstats.ColumnStatistics;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.internal.SQLConf;
-import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -283,63 +279,70 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       Map<Integer, Object> minValues,
       Map<Integer, Object> maxValues,
       Map<Integer, Long> nullCounts) {
-    Map<String, Map<Integer, Long>> nullCountDataFiles = Maps.newHashMap();
-    Map<String, Map<Integer, ByteBuffer>> minDataFiles = Maps.newHashMap();
-    Map<String, Map<Integer, ByteBuffer>> maxDataFiles = Maps.newHashMap();
-    // extract the distinct files which are part of the task planning
     List<FileScanTask> fileScanTasks =
         taskGroups().stream()
             .flatMap(taskGroup -> taskGroup.tasks().stream())
             .filter(ScanTask::isFileScanTask)
             .map(ScanTask::asFileScanTask)
             .collect(Collectors.toList());
+    // extract the distinct files which are part of the task planning
+    Set<DataFile> dataFiles =
+        fileScanTasks.stream().map(FileScanTask::file).collect(Collectors.toSet());
 
     // check for row level deletes
     boolean existsWithDeletes = fileScanTasks.stream().anyMatch(task -> !task.deletes().isEmpty());
     if (!existsWithDeletes) {
-      // extract the unique data files
-      Set<DataFile> dataFiles =
-          fileScanTasks.stream().map(FileScanTask::file).collect(Collectors.toSet());
-      dataFiles.forEach(
-          file -> {
-            String filePath = file.location();
-            nullCountDataFiles.put(filePath, file.nullValueCounts());
-            minDataFiles.put(filePath, file.lowerBounds());
-            maxDataFiles.put(filePath, file.upperBounds());
-          });
-      nullCounts.putAll(calculateNullCount(nullCountDataFiles));
-      minValues.putAll(calculateMin(minDataFiles));
-      maxValues.putAll(calculateMax(maxDataFiles));
+      // For each column we collect min/max and non-null count
+      List<Expression> expressions =
+          table.schema().columns().stream()
+              .map(
+                  field -> {
+                    String colName = field.name(); // Extract the column name
+                    // Create expressions for max and min non-null count
+                    return List.of(
+                        Expressions.min(colName),
+                        Expressions.max(colName),
+                        Expressions.count(colName));
+                  })
+              .flatMap(List::stream) // Flatten the lists into a single stream
+              .collect(Collectors.toList());
+
+      AggregateEvaluator aggregateEvaluator =
+          AggregateEvaluator.create(table.schema(), expressions);
+
+      for (DataFile dataFile : dataFiles) {
+        aggregateEvaluator.update(dataFile);
+      }
+
+      if (!aggregateEvaluator.allAggregatorsValid()) {
+        return;
+      }
+      // get the total row count to compute the number of null rows
+      long rowsCount = totalRecords(table().currentSnapshot());
+      // populate the map with the results
+      StructLike res = aggregateEvaluator.result();
+
+      IntStream.range(0, table.schema().columns().size())
+          .forEach(
+              index -> {
+                int columnIndex = index * 3;
+                Type.PrimitiveType fieldType =
+                    table.schema().columns().get(index).type().asPrimitiveType();
+                if (isValidMinMaxType(fieldType)) {
+                  minValues.put(
+                      table.schema().columns().get(index).fieldId(),
+                      res.get(columnIndex, Object.class));
+                  maxValues.put(
+                      table.schema().columns().get(index).fieldId(),
+                      res.get(columnIndex + 1, Object.class));
+                }
+                nullCounts.put(
+                    table.schema().columns().get(index).fieldId(),
+                    rowsCount - res.get(columnIndex + 2, Long.class));
+              });
     } else {
-      LOG.info("Skip deriving stats from manifest : detected row level deletes");
+      LOG.info("Skip deriving stats on the fly : detected row level deletes");
     }
-  }
-
-  private Map<Integer, Long> calculateNullCount(
-      Map<String, Map<Integer, Long>> nullCountDataFiles) {
-    Map<Integer, Long> nullCount;
-    // get the null counts from the manifest file
-    nullCount =
-        nullCountDataFiles.values().stream() // Stream<Map<Integer, Long>>
-            .flatMap(
-                innerMap ->
-                    innerMap.entrySet().stream()) // Flatten to Stream<Map.Entry<Integer, Long>>
-            .collect(
-                Collectors.toMap(
-                    Map.Entry::getKey, // Key is the column id
-                    Map.Entry::getValue,
-                    Long::sum,
-                    HashMap::new));
-    return nullCount;
-  }
-
-  private Object toSparkType(Type type, Object value) {
-    switch (type.typeId()) {
-      case DECIMAL:
-        return Decimal.apply((BigDecimal) value);
-      default:
-    }
-    return value;
   }
 
   // min/max are calculated for numeric, Date, and Timestamp only
@@ -357,64 +360,6 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       default:
         return false;
     }
-  }
-
-  // extract min/max values from the manifests
-  private Map<Integer, Object> calculateMin(Map<String, Map<Integer, ByteBuffer>> minDataFiles) {
-    Map<Integer, Object> minValues = Maps.newHashMap();
-    // aggregate
-    for (Map<Integer, ByteBuffer> values : minDataFiles.values()) {
-      for (Map.Entry<Integer, ByteBuffer> entry : values.entrySet()) {
-        Type.PrimitiveType fieldType = table.schema().findType(entry.getKey()).asPrimitiveType();
-        if (isValidMinMaxType(fieldType)) {
-          Comparator<Object> fieldComparator = Comparators.forType(fieldType);
-          Object existingDecoded = minValues.getOrDefault(entry.getKey(), null);
-          Object newValueDecoded = Conversions.fromByteBuffer(fieldType, entry.getValue());
-
-          Object combinedValue =
-              Optional.ofNullable(existingDecoded)
-                  .map(
-                      existing ->
-                          Optional.ofNullable(newValueDecoded)
-                              .filter(newValue -> fieldComparator.compare(existing, newValue) > 0)
-                              .orElse(existing)) // If newValueDecoded is null, keep existing
-                  .orElse(newValueDecoded);
-          minValues.put(entry.getKey(), combinedValue);
-        }
-      }
-    }
-    // map to spark type
-    minValues.replaceAll((id, value) -> toSparkType(table.schema().findType(id), value));
-    return minValues;
-  }
-
-  // extract min/max values from the manifests
-  private Map<Integer, Object> calculateMax(Map<String, Map<Integer, ByteBuffer>> maxDataFiles) {
-    Map<Integer, Object> maxValues = Maps.newHashMap();
-    // aggregate
-    for (Map<Integer, ByteBuffer> values : maxDataFiles.values()) {
-      for (Map.Entry<Integer, ByteBuffer> entry : values.entrySet()) {
-        Type.PrimitiveType fieldType = table.schema().findType(entry.getKey()).asPrimitiveType();
-        if (isValidMinMaxType(fieldType)) {
-          Comparator<Object> fieldComparator = Comparators.forType(fieldType);
-          Object existingDecoded = maxValues.getOrDefault(entry.getKey(), null);
-          Object newValueDecoded = Conversions.fromByteBuffer(fieldType, entry.getValue());
-
-          Object combinedValue =
-              Optional.ofNullable(existingDecoded)
-                  .map(
-                      existing ->
-                          Optional.ofNullable(newValueDecoded)
-                              .filter(newValue -> fieldComparator.compare(existing, newValue) < 0)
-                              .orElse(existing)) // If newValueDecoded is null, keep existing
-                  .orElse(newValueDecoded);
-          maxValues.put(entry.getKey(), combinedValue);
-        }
-      }
-    }
-    // map to spark type
-    maxValues.replaceAll((id, value) -> toSparkType(table.schema().findType(id), value));
-    return maxValues;
   }
 
   private long totalRecords(Snapshot snapshot) {
