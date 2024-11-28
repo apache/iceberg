@@ -43,7 +43,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
       return (CloseableIterable<E>) iterable;
     } else if (iterable instanceof Closeable) {
       Closeable asCloseable = (Closeable) iterable;
-      return combine(iterable, asCloseable::close);
+      return combine(iterable, asCloseable);
     } else {
       return withNoopClose(iterable);
     }
