@@ -1,30 +1,27 @@
 /*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *  * Licensed to the Apache Software Foundation (ASF) under one
- *  * or more contributor license agreements.  See the NOTICE file
- *  * distributed with this work for additional information
- *  * regarding copyright ownership.  The ASF licenses this file
- *  * to you under the Apache License, Version 2.0 (the
- *  * "License"); you may not use this file except in compliance
- *  * with the License.  You may obtain a copy of the License at
- *  *
- *  *   http://www.apache.org/licenses/LICENSE-2.0
- *  *
- *  * Unless required by applicable law or agreed to in writing,
- *  * software distributed under the License is distributed on an
- *  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- *  * KIND, either express or implied.  See the License for the
- *  * specific language governing permissions and limitations
- *  * under the License.
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-
 package org.apache.iceberg.variants;
 
 import java.nio.ByteBuffer;
 import java.util.Random;
-import org.apache.iceberg.variants.Variants.PhysicalType;
 import org.apache.iceberg.util.RandomUtil;
+import org.apache.iceberg.variants.Variants.PhysicalType;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -36,11 +33,16 @@ public class TestSerializedArray {
   private static final SerializedPrimitive vFalse = SerializedPrimitive.from(new byte[] {0b1000});
   private static final SerializedShortString str =
       SerializedShortString.from(new byte[] {0b11101, 'i', 'c', 'e', 'b', 'e', 'r', 'g'});
-  private static final SerializedShortString a = SerializedShortString.from(new byte[] {0b101, 'a'});
-  private static final SerializedShortString b = SerializedShortString.from(new byte[] {0b101, 'b'});
-  private static final SerializedShortString c = SerializedShortString.from(new byte[] {0b101, 'c'});
-  private static final SerializedShortString d = SerializedShortString.from(new byte[] {0b101, 'd'});
-  private static final SerializedShortString e = SerializedShortString.from(new byte[] {0b101, 'e'});
+  private static final SerializedShortString a =
+      SerializedShortString.from(new byte[] {0b101, 'a'});
+  private static final SerializedShortString b =
+      SerializedShortString.from(new byte[] {0b101, 'b'});
+  private static final SerializedShortString c =
+      SerializedShortString.from(new byte[] {0b101, 'c'});
+  private static final SerializedShortString d =
+      SerializedShortString.from(new byte[] {0b101, 'd'});
+  private static final SerializedShortString e =
+      SerializedShortString.from(new byte[] {0b101, 'e'});
   private static final SerializedPrimitive i34 = SerializedPrimitive.from(new byte[] {0b1100, 34});
   private static final SerializedPrimitive i1234 =
       SerializedPrimitive.from(new byte[] {0b10000, (byte) 0xD2, 0x04});
@@ -117,8 +119,10 @@ public class TestSerializedArray {
   @Test
   public void testArrayOfMixedTypes() {
     ByteBuffer nestedBuffer = VariantTestUtil.createArray(a, c, d);
-    SerializedArray nested = SerializedArray.from(EMPTY_METADATA, nestedBuffer, nestedBuffer.get(0));
-    ByteBuffer buffer = VariantTestUtil.createArray(date, i34, str, vNull, e, b, vFalse, nested, vTrue, i1234);
+    SerializedArray nested =
+        SerializedArray.from(EMPTY_METADATA, nestedBuffer, nestedBuffer.get(0));
+    ByteBuffer buffer =
+        VariantTestUtil.createArray(date, i34, str, vNull, e, b, vFalse, nested, vTrue, i1234);
     SerializedArray array = SerializedArray.from(EMPTY_METADATA, buffer, buffer.get(0));
 
     Assertions.assertThat(array.type()).isEqualTo(PhysicalType.ARRAY);

@@ -1,34 +1,31 @@
 /*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *  * Licensed to the Apache Software Foundation (ASF) under one
- *  * or more contributor license agreements.  See the NOTICE file
- *  * distributed with this work for additional information
- *  * regarding copyright ownership.  The ASF licenses this file
- *  * to you under the Apache License, Version 2.0 (the
- *  * "License"); you may not use this file except in compliance
- *  * with the License.  You may obtain a copy of the License at
- *  *
- *  *   http://www.apache.org/licenses/LICENSE-2.0
- *  *
- *  * Unless required by applicable law or agreed to in writing,
- *  * software distributed under the License is distributed on an
- *  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- *  * KIND, either express or implied.  See the License for the
- *  * specific language governing permissions and limitations
- *  * under the License.
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-
 package org.apache.iceberg.variants;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import org.apache.iceberg.variants.Variants.PhysicalType;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.RandomUtil;
+import org.apache.iceberg.variants.Variants.PhysicalType;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.util.Sets;
 import org.junit.jupiter.api.Test;
@@ -153,8 +150,7 @@ public class TestSerializedObject {
     SerializedPrimitive bigString = VariantTestUtil.createString(randomString);
 
     // note that order doesn't matter. fields are sorted by name
-    Map<String, VariantValue> data =
-        ImmutableMap.of("big", bigString, "a", i1, "b", i2, "c", i3);
+    Map<String, VariantValue> data = ImmutableMap.of("big", bigString, "a", i1, "b", i2, "c", i3);
     ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), true /* sort names */);
     ByteBuffer value = VariantTestUtil.createObject(meta, data);
 
@@ -199,8 +195,7 @@ public class TestSerializedObject {
     Assertions.assertThat(object.get("c").type()).isEqualTo(PhysicalType.INT8);
     Assertions.assertThat(object.get("c").asPrimitive().get()).isEqualTo((byte) 3);
     Assertions.assertThat(object.get("really-big").type()).isEqualTo(PhysicalType.STRING);
-    Assertions.assertThat(object.get("really-big").asPrimitive().get())
-        .isEqualTo(randomString);
+    Assertions.assertThat(object.get("really-big").asPrimitive().get()).isEqualTo(randomString);
   }
 
   @ParameterizedTest
