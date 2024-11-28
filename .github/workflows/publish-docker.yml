@@ -49,6 +49,6 @@ jobs:
       run: docker push ${{ secrets.DOCKERHUB_USER }}/$DOCKER_IMAGE_TAG:latest
     - name: Push Docker Image with version tag
       if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+      # for tag 'apache-iceberg-1.7.0', publish image 'apache/iceberg-rest-fixture:1.7.1'
       run: |
-        echo "TAG=`echo ${{ github.ref }} | tr -d -c 0-9.`" >>${GITHUB_ENV}
-        docker push ${{ secrets.DOCKERHUB_USER }}/$DOCKER_IMAGE_TAG:$TAG
+        docker push ${{ secrets.DOCKERHUB_USER }}/$DOCKER_IMAGE_TAG:`echo refs/tags/apache-iceberg-1.7.1 | tr -d -c 0-9.`
