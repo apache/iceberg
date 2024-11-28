@@ -223,9 +223,9 @@ public class TestUpdateRequirements {
         UpdateRequirements.forUpdateTable(
             metadata,
             ImmutableList.of(
-                new MetadataUpdate.AddSchema(new Schema(), lastColumnId),
-                new MetadataUpdate.AddSchema(new Schema(), lastColumnId + 1),
-                new MetadataUpdate.AddSchema(new Schema(), lastColumnId + 2)));
+                new MetadataUpdate.AddSchema(new Schema()),
+                new MetadataUpdate.AddSchema(new Schema()),
+                new MetadataUpdate.AddSchema(new Schema())));
     requirements.forEach(req -> req.validate(metadata));
 
     assertThat(requirements)
@@ -253,9 +253,9 @@ public class TestUpdateRequirements {
         UpdateRequirements.forUpdateTable(
             metadata,
             ImmutableList.of(
-                new MetadataUpdate.AddSchema(new Schema(), 1),
-                new MetadataUpdate.AddSchema(new Schema(), 2),
-                new MetadataUpdate.AddSchema(new Schema(), 3)));
+                new MetadataUpdate.AddSchema(new Schema()),
+                new MetadataUpdate.AddSchema(new Schema()),
+                new MetadataUpdate.AddSchema(new Schema())));
 
     assertThatThrownBy(() -> requirements.forEach(req -> req.validate(updated)))
         .isInstanceOf(CommitFailedException.class)
@@ -269,9 +269,9 @@ public class TestUpdateRequirements {
         UpdateRequirements.forReplaceView(
             viewMetadata,
             ImmutableList.of(
-                new MetadataUpdate.AddSchema(new Schema(), lastColumnId),
-                new MetadataUpdate.AddSchema(new Schema(), lastColumnId + 1),
-                new MetadataUpdate.AddSchema(new Schema(), lastColumnId + 2)));
+                new MetadataUpdate.AddSchema(new Schema()),
+                new MetadataUpdate.AddSchema(new Schema()),
+                new MetadataUpdate.AddSchema(new Schema())));
     requirements.forEach(req -> req.validate(viewMetadata));
 
     assertThat(requirements)

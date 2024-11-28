@@ -20,6 +20,7 @@ package org.apache.iceberg.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Map;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.util.PropertyUtil;
 import org.junit.jupiter.api.AfterAll;
@@ -61,6 +62,11 @@ public class RESTCompatibilityKitCatalogTests extends CatalogTests<RESTCatalog> 
   @Override
   protected RESTCatalog catalog() {
     return restCatalog;
+  }
+
+  @Override
+  protected RESTCatalog initCatalog(String catalogName, Map<String, String> additionalProperties) {
+    return RCKUtils.initCatalogClient(additionalProperties);
   }
 
   @Override

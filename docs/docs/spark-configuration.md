@@ -167,14 +167,14 @@ spark.read
 
 ### Write options
 
-Spark write options are passed when configuring the DataFrameWriter, like this:
+Spark write options are passed when configuring the DataFrameWriterV2, like this:
 
 ```scala
 // write with Avro instead of Parquet
-df.write
+df.writeTo("catalog.db.table")
     .option("write-format", "avro")
     .option("snapshot-property.key", "value")
-    .insertInto("catalog.db.table")
+    .append()
 ```
 
 | Spark option           | Default                    | Description                                                  |

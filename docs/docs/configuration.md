@@ -186,6 +186,8 @@ This should only be set to `false` if all following conditions are met:
 
  - [HIVE-26882](https://issues.apache.org/jira/browse/HIVE-26882)
 is available on the Hive Metastore server
+ - [HIVE-28121](https://issues.apache.org/jira/browse/HIVE-28121)
+is available on the Hive Metastore server, if it is backed by MySQL or MariaDB
  - All other HiveCatalogs committing to tables that this HiveCatalog commits to are also on Iceberg 1.3 or later
  - All other HiveCatalogs committing to tables that this HiveCatalog commits to have also disabled Hive locks on commit.
 

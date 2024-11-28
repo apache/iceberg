@@ -30,11 +30,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.FilesTable;
 import org.apache.iceberg.HasTableOperations;
@@ -56,6 +59,10 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.metrics.CommitReport;
+import org.apache.iceberg.metrics.MetricsReport;
+import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -143,6 +150,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
           .build();
 
   protected abstract C catalog();
+
+  protected abstract C initCatalog(String catalogName, Map<String, String> additionalProperties);
 
   protected boolean supportsNamespaceProperties() {
     return true;
@@ -2693,6 +2702,87 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageStartingWith("Table already exists: a.t1");
     assertThat(catalog.dropTable(identifier)).isTrue();
+  }
+
+  @Test
+  public void testCatalogWithCustomMetricsReporter() throws IOException {
+    C catalogWithCustomReporter =
+        initCatalog(
+            "catalog_with_custom_reporter",
+            ImmutableMap.of(
+                CatalogProperties.METRICS_REPORTER_IMPL, CustomMetricsReporter.class.getName()));
+
+    if (requiresNamespaceCreate()) {
+      catalogWithCustomReporter.createNamespace(TABLE.namespace());
+    }
+
+    catalogWithCustomReporter.buildTable(TABLE, SCHEMA).create();
+
+    Table table = catalogWithCustomReporter.loadTable(TABLE);
+    DataFile dataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(FileFormat.PARQUET.addExtension(UUID.randomUUID().toString()))
+            .withFileSizeInBytes(10)
+            .withRecordCount(2)
+            .build();
+
+    // append file through FastAppend and check and reset counter
+    table.newFastAppend().appendFile(dataFile).commit();
+    assertThat(CustomMetricsReporter.COMMIT_COUNTER.get()).isEqualTo(1);
+    CustomMetricsReporter.COMMIT_COUNTER.set(0);
+
+    TableIdentifier identifier = TableIdentifier.of(NS, "custom_metrics_reporter_table");
+    // append file through createTransaction() and check and reset counter
+    catalogWithCustomReporter
+        .buildTable(identifier, SCHEMA)
+        .createTransaction()
+        .newFastAppend()
+        .appendFile(dataFile)
+        .commit();
+    assertThat(CustomMetricsReporter.COMMIT_COUNTER.get()).isEqualTo(1);
+    CustomMetricsReporter.COMMIT_COUNTER.set(0);
+
+    // append file through createOrReplaceTransaction() and check and reset counter
+    catalogWithCustomReporter
+        .buildTable(identifier, SCHEMA)
+        .createOrReplaceTransaction()
+        .newFastAppend()
+        .appendFile(dataFile)
+        .commit();
+    assertThat(CustomMetricsReporter.COMMIT_COUNTER.get()).isEqualTo(1);
+    CustomMetricsReporter.COMMIT_COUNTER.set(0);
+
+    // append file through replaceTransaction() and check and reset counter
+    catalogWithCustomReporter
+        .buildTable(TABLE, SCHEMA)
+        .replaceTransaction()
+        .newFastAppend()
+        .appendFile(dataFile)
+        .commit();
+    assertThat(CustomMetricsReporter.COMMIT_COUNTER.get()).isEqualTo(1);
+    CustomMetricsReporter.COMMIT_COUNTER.set(0);
+
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      assertThat(tasks.iterator()).hasNext();
+    }
+
+    assertThat(CustomMetricsReporter.SCAN_COUNTER.get()).isEqualTo(1);
+    // reset counter in case subclasses run this test multiple times
+    CustomMetricsReporter.SCAN_COUNTER.set(0);
+  }
+
+  public static class CustomMetricsReporter implements MetricsReporter {
+    static final AtomicInteger SCAN_COUNTER = new AtomicInteger(0);
+    static final AtomicInteger COMMIT_COUNTER = new AtomicInteger(0);
+
+    @Override
+    public void report(MetricsReport report) {
+      if (report instanceof ScanReport) {
+        SCAN_COUNTER.incrementAndGet();
+      } else if (report instanceof CommitReport) {
+        COMMIT_COUNTER.incrementAndGet();
+      }
+    }
   }
 
   private static void assertEmpty(String context, Catalog catalog, Namespace ns) {

@@ -1152,7 +1152,7 @@ class AddSchemaUpdate(BaseUpdate):
     last_column_id: Optional[int] = Field(
         None,
         alias='last-column-id',
-        description='The highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. When omitted, it will be computed on the server side.',
+        description="This optional field is **DEPRECATED for REMOVAL** since it more safe to handle this internally, and shouldn't be exposed to the clients.\nThe highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. When omitted, it will be computed on the server side.",
     )
 
 
