@@ -27,7 +27,6 @@ import org.apache.commons.lang3.tuple.Pair;
 public class AzureSasCredentialRefresher {
   private final Supplier<Pair<String, Long>> sasTokenWithExpirationSupplier;
   private final ScheduledExecutorService refreshExecutor;
-
   private final AzureSasCredential azureSasCredential;
 
   private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes;
@@ -40,30 +39,33 @@ public class AzureSasCredentialRefresher {
     this.refreshExecutor = refreshExecutor;
     Pair<String, Long> sasTokenWithExpiration = sasTokenWithExpirationSupplier.get();
     this.azureSasCredential = new AzureSasCredential(sasTokenWithExpiration.getLeft());
-    scheduleRefresh(System.currentTimeMillis(), sasTokenWithExpiration.getRight());
+    scheduleRefresh(sasTokenWithExpiration.getRight());
   }
 
-  public AzureSasCredential get() {
+  public AzureSasCredential azureSasCredential() {
     return this.azureSasCredential;
   }
 
-  private void scheduleRefresh(long startTimeMillis, Long expireAtMillis) {
-
-    long expireInMillis = expireAtMillis - startTimeMillis;
-    long refreshWindowMillis = Math.min(expireInMillis / 10, MAX_REFRESH_WINDOW_MILLIS);
-    long waitIntervalMillis = expireInMillis - refreshWindowMillis;
-    long elapsedMillis = System.currentTimeMillis() - startTimeMillis;
-    long timeToWait = Math.max(waitIntervalMillis - elapsedMillis, MIN_REFRESH_WAIT_MILLIS);
+  private void scheduleRefresh(Long expireAtMillis) {
     this.refreshExecutor.schedule(
         () -> {
-          long refreshStartTime = System.currentTimeMillis();
           Pair<String, Long> sasTokenWithExpiration = sasTokenWithExpirationSupplier.get();
           azureSasCredential.update(sasTokenWithExpiration.getLeft());
           if (sasTokenWithExpiration.getRight() != null) {
-            this.scheduleRefresh(refreshStartTime, sasTokenWithExpiration.getRight());
+            this.scheduleRefresh(sasTokenWithExpiration.getRight());
           }
         },
-        timeToWait,
+        refreshDelay(expireAtMillis),
         TimeUnit.MILLISECONDS);
+  }
+
+  private long refreshDelay(Long expireAtMillis) {
+    long expireInMillis = expireAtMillis - System.currentTimeMillis();
+    // how much ahead of time to start the request to allow it to complete
+    long refreshWindowMillis = Math.min(expireInMillis / 10, MAX_REFRESH_WINDOW_MILLIS);
+    // how much time to wait before expiration
+    long waitIntervalMillis = expireInMillis - refreshWindowMillis;
+    // how much time to actually wait
+    return Math.max(waitIntervalMillis, MIN_REFRESH_WAIT_MILLIS);
   }
 }

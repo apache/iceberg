@@ -47,14 +47,14 @@ import org.slf4j.LoggerFactory;
 public class VendedAzureSasCredentialProvider implements Serializable, AutoCloseable {
   private static final Logger LOG = LoggerFactory.getLogger(VendedAzureSasCredentialProvider.class);
 
+  private static final String THREAD_PREFIX = "adls-fileio-credential-refresh";
+  public static final String URI = "credentials.uri";
+
   private final SerializableMap<String, String> properties;
   private transient volatile Map<String, AzureSasCredentialRefresher>
       azureSasCredentialRefresherMap;
   private transient volatile RESTClient client;
   private transient volatile ScheduledExecutorService refreshExecutor;
-
-  public static final String URI = "credentials.uri";
-  private static final String THREAD_PREFIX = "adls-fileio-credential-refresh";
 
   public VendedAzureSasCredentialProvider(Map<String, String> properties) {
     Preconditions.checkArgument(null != properties, "Invalid properties: null");
@@ -63,20 +63,21 @@ public class VendedAzureSasCredentialProvider implements Serializable, AutoClose
     azureSasCredentialRefresherMap = Maps.newHashMap();
   }
 
-  public AzureSasCredential getCredential(String storageAccount) {
-    Map<String, AzureSasCredentialRefresher> refresherMap = azureSasCredentialRefresherMap();
-    if (refresherMap.containsKey(storageAccount)) {
-      return refresherMap.get(storageAccount).get();
+  public AzureSasCredential credentialForAccount(String storageAccount) {
+    Map<String, AzureSasCredentialRefresher> refresherForAccountMap =
+        azureSasCredentialRefresherMap();
+    if (refresherForAccountMap.containsKey(storageAccount)) {
+      return refresherForAccountMap.get(storageAccount).azureSasCredential();
     } else {
       AzureSasCredentialRefresher azureSasCredentialRefresher =
           new AzureSasCredentialRefresher(
-              () -> this.getSasTokenWithExpiration(storageAccount), credentialRefreshExecutor());
-      refresherMap.put(storageAccount, azureSasCredentialRefresher);
-      return azureSasCredentialRefresher.get();
+              () -> this.sasTokenWithExpiration(storageAccount), credentialRefreshExecutor());
+      refresherForAccountMap.put(storageAccount, azureSasCredentialRefresher);
+      return azureSasCredentialRefresher.azureSasCredential();
     }
   }
 
-  private Pair<String, Long> getSasTokenWithExpiration(String storageAccount) {
+  private Pair<String, Long> sasTokenWithExpiration(String storageAccount) {
     LoadCredentialsResponse response = fetchCredentials();
     List<Credential> adlsCredentials =
         response.credentials().stream()
@@ -96,14 +97,13 @@ public class VendedAzureSasCredentialProvider implements Serializable, AutoClose
 
     String updatedSasToken =
         adlsCredential.config().get(AzureProperties.ADLS_SAS_TOKEN_PREFIX + storageAccount);
-    String tokenExpiresAtMillis =
-        adlsCredential
-            .config()
-            .get(AzureProperties.ADLS_SAS_TOKEN_EXPIRE_AT_MS_PREFIX + storageAccount);
+    Long tokenExpiresAtMillis =
+        Long.parseLong(
+            adlsCredential
+                .config()
+                .get(AzureProperties.ADLS_SAS_TOKEN_EXPIRE_AT_MS_PREFIX + storageAccount));
 
-    Long expiresAtMs = Long.parseLong(tokenExpiresAtMillis);
-
-    return Pair.of(updatedSasToken, expiresAtMs);
+    return Pair.of(updatedSasToken, tokenExpiresAtMillis);
   }
 
   private Map<String, AzureSasCredentialRefresher> azureSasCredentialRefresherMap() {

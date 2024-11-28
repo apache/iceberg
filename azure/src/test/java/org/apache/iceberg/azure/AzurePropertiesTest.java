@@ -86,7 +86,7 @@ public class AzurePropertiesTest {
       assertThat(providerMockedConstruction.constructed()).hasSize(1);
       var providerMock = providerMockedConstruction.constructed().get(0);
       AzureSasCredential azureSasCredential = mock(AzureSasCredential.class);
-      when(providerMock.getCredential("account1")).thenReturn(azureSasCredential);
+      when(providerMock.credentialForAccount("account1")).thenReturn(azureSasCredential);
       DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
       props.applyClientConfiguration("account1", clientBuilder);
 

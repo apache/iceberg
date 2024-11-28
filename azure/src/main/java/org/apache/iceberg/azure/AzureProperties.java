@@ -117,7 +117,7 @@ public class AzureProperties implements Serializable {
   public void applyClientConfiguration(String account, DataLakeFileSystemClientBuilder builder) {
     String sasToken = adlsSasTokens.get(account);
     if (refreshCredentialsEnabled && !Strings.isNullOrEmpty(refreshCredentialsEndpoint)) {
-      builder.credential(vendedAzureSasCredentialProvider.getCredential(account));
+      builder.credential(vendedAzureSasCredentialProvider.credentialForAccount(account));
     } else if (sasToken != null && !sasToken.isEmpty()) {
       builder.sasToken(sasToken);
     } else if (namedKeyCreds != null) {
