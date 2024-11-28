@@ -19,40 +19,43 @@
  *
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.variants;
+
+import static org.apache.iceberg.variants.VariantUtil.basicType;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-class VariantArray implements Variants.Array, Variants.Serialized {
+class SerializedArray extends Variants.SerializedValue implements VariantArray {
   private static final int OFFSET_SIZE_MASK = 0b1100;
   private static final int OFFSET_SIZE_SHIFT = 2;
   private static final int IS_LARGE = 0b10000;
 
   @VisibleForTesting
-  static VariantArray from(VariantMetadata metadata, byte[] bytes) {
+  static SerializedArray from(SerializedMetadata metadata, byte[] bytes) {
     return from(metadata, ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN), bytes[0]);
   }
 
-  static VariantArray from(VariantMetadata metadata, ByteBuffer value, int header) {
+  static SerializedArray from(SerializedMetadata metadata, ByteBuffer value, int header) {
     Preconditions.checkArgument(
         value.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
-    int basicType = header & Variants.BASIC_TYPE_MASK;
+    Variants.BasicType basicType = basicType(header);
     Preconditions.checkArgument(
-        basicType == Variants.BASIC_TYPE_ARRAY, "Invalid array, basic type != 3: " + basicType);
-    return new VariantArray(metadata, value, header);
+        basicType == Variants.BasicType.ARRAY,
+        "Invalid array, basic type: " + basicType);
+    return new SerializedArray(metadata, value, header);
   }
 
-  private final VariantMetadata metadata;
+  private final SerializedMetadata metadata;
   private final ByteBuffer value;
   private final int offsetSize;
   private final int offsetListOffset;
   private final int dataOffset;
-  private final Variants.Value[] array;
+  private final VariantValue[] array;
 
-  private VariantArray(VariantMetadata metadata, ByteBuffer value, int header) {
+  private SerializedArray(SerializedMetadata metadata, ByteBuffer value, int header) {
     this.metadata = metadata;
     this.value = value;
     this.offsetSize = 1 + ((header & OFFSET_SIZE_MASK) >> OFFSET_SIZE_SHIFT);
@@ -61,7 +64,7 @@ class VariantArray implements Variants.Array, Variants.Serialized {
         VariantUtil.readLittleEndianUnsigned(value, Variants.HEADER_SIZE, numElementsSize);
     this.offsetListOffset = Variants.HEADER_SIZE + numElementsSize;
     this.dataOffset = offsetListOffset + ((1 + numElements) * offsetSize);
-    this.array = new Variants.Value[numElements];
+    this.array = new VariantValue[numElements];
   }
 
   @VisibleForTesting
@@ -70,7 +73,7 @@ class VariantArray implements Variants.Array, Variants.Serialized {
   }
 
   @Override
-  public Variants.Value get(int index) {
+  public VariantValue get(int index) {
     if (null == array[index]) {
       int offset =
           VariantUtil.readLittleEndianUnsigned(

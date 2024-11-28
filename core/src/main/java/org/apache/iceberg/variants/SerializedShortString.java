@@ -19,35 +19,37 @@
  *
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.variants;
+
+import static org.apache.iceberg.variants.VariantUtil.basicType;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-class VariantShortString implements Variants.Primitive<String>, Variants.Serialized {
+class SerializedShortString extends Variants.SerializedValue implements VariantPrimitive<String> {
   private static final int LENGTH_MASK = 0b11111100;
   private static final int LENGTH_SHIFT = 2;
 
-  static VariantShortString from(byte[] bytes) {
+  static SerializedShortString from(byte[] bytes) {
     return from(ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN), bytes[0]);
   }
 
-  static VariantShortString from(ByteBuffer value, int header) {
+  static SerializedShortString from(ByteBuffer value, int header) {
     Preconditions.checkArgument(
         value.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
-    int basicType = header & Variants.BASIC_TYPE_MASK;
+    Variants.BasicType basicType = basicType(header);
     Preconditions.checkArgument(
-        basicType == Variants.BASIC_TYPE_SHORT_STRING,
-        "Invalid short string, basic type != 1: " + basicType);
-    return new VariantShortString(value, header);
+        basicType == Variants.BasicType.SHORT_STRING,
+        "Invalid short string, basic type: " + basicType);
+    return new SerializedShortString(value, header);
   }
 
   private final ByteBuffer value;
   private final int length;
   private String string = null;
 
-  private VariantShortString(ByteBuffer value, int header) {
+  private SerializedShortString(ByteBuffer value, int header) {
     this.value = value;
     this.length = ((header & LENGTH_MASK) >> LENGTH_SHIFT);
   }
