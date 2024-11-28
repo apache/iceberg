@@ -87,6 +87,26 @@ public class GenericManifestFile extends SupportsIndexProjection
     this.keyMetadata = null;
   }
 
+  GenericManifestFile(InputFile file, int specId, long snapshotId) {
+    super(ManifestFile.schema().columns().size());
+    this.avroSchema = AVRO_SCHEMA;
+    this.file = file;
+    this.manifestPath = file.location();
+    this.length = null; // lazily loaded from file
+    this.specId = specId;
+    this.sequenceNumber = 0;
+    this.minSequenceNumber = 0;
+    this.snapshotId = snapshotId;
+    this.addedFilesCount = null;
+    this.addedRowsCount = null;
+    this.existingFilesCount = null;
+    this.existingRowsCount = null;
+    this.deletedFilesCount = null;
+    this.deletedRowsCount = null;
+    this.partitions = null;
+    this.keyMetadata = null;
+  }
+
   /** Adjust the arg order to avoid conflict with the public constructor below */
   GenericManifestFile(
       String path,
