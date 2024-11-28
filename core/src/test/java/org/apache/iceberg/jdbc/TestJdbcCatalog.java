@@ -133,7 +133,8 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     catalog = initCatalog("test_jdbc_catalog", Maps.newHashMap());
   }
 
-  private JdbcCatalog initCatalog(String catalogName, Map<String, String> props) {
+  @Override
+  protected JdbcCatalog initCatalog(String catalogName, Map<String, String> additionalProperties) {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(
         CatalogProperties.URI,
@@ -144,7 +145,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     warehouseLocation = this.tableDir.toAbsolutePath().toString();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
     properties.put("type", "jdbc");
-    properties.putAll(props);
+    properties.putAll(additionalProperties);
 
     return (JdbcCatalog) CatalogUtil.buildIcebergCatalog(catalogName, properties, conf);
   }
@@ -1051,15 +1052,6 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Namespace ns = Namespace.of("db", "db2", "ns2");
     String nsString = JdbcUtil.namespaceToString(ns);
     assertThat(JdbcUtil.stringToNamespace(nsString)).isEqualTo(ns);
-  }
-
-  @Test
-  public void testCatalogWithCustomMetricsReporter() throws IOException {
-    verifyCatalogWithCustomMetricsReporter(
-        initCatalog(
-            "catalog_with_custom_reporter",
-            ImmutableMap.of(
-                CatalogProperties.METRICS_REPORTER_IMPL, CustomMetricsReporter.class.getName())));
   }
 
   @Test

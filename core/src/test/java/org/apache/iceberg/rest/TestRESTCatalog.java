@@ -109,7 +109,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @BeforeEach
   public void createCatalog() throws Exception {
     File warehouse = temp.toFile();
-    Configuration conf = new Configuration();
 
     this.backendCatalog = new InMemoryCatalog();
     this.backendCatalog.initialize(
@@ -159,6 +158,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     httpServer.setHandler(servletContext);
     httpServer.start();
 
+    this.restCatalog = initCatalog("prod", ImmutableMap.of());
+  }
+
+  @Override
+  protected RESTCatalog initCatalog(String catalogName, Map<String, String> additionalProperties) {
+    Configuration conf = new Configuration();
     SessionCatalog.SessionContext context =
         new SessionCatalog.SessionContext(
             UUID.randomUUID().toString(),
@@ -166,20 +171,26 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             ImmutableMap.of("credential", "user:12345"),
             ImmutableMap.of());
 
-    this.restCatalog =
+    RESTCatalog catalog =
         new RESTCatalog(
             context,
             (config) -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build());
-    restCatalog.setConf(conf);
-    restCatalog.initialize(
-        "prod",
+    catalog.setConf(conf);
+    Map<String, String> properties =
         ImmutableMap.of(
             CatalogProperties.URI,
             httpServer.getURI().toString(),
             CatalogProperties.FILE_IO_IMPL,
             "org.apache.iceberg.inmemory.InMemoryFileIO",
             "credential",
-            "catalog:12345"));
+            "catalog:12345");
+    catalog.initialize(
+        catalogName,
+        ImmutableMap.<String, String>builder()
+            .putAll(properties)
+            .putAll(additionalProperties)
+            .build());
+    return catalog;
   }
 
   @SuppressWarnings("unchecked")
@@ -1616,30 +1627,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                       eq(refreshedCatalogHeader),
                       any());
             });
-  }
-
-  @Test
-  public void testCatalogWithCustomMetricsReporter() throws IOException {
-    this.restCatalog =
-        new RESTCatalog(
-            new SessionCatalog.SessionContext(
-                UUID.randomUUID().toString(),
-                "user",
-                ImmutableMap.of("credential", "user:12345"),
-                ImmutableMap.of()),
-            (config) -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build());
-    restCatalog.setConf(new Configuration());
-    restCatalog.initialize(
-        "prod",
-        ImmutableMap.of(
-            CatalogProperties.URI,
-            httpServer.getURI().toString(),
-            "credential",
-            "catalog:12345",
-            CatalogProperties.METRICS_REPORTER_IMPL,
-            CustomMetricsReporter.class.getName()));
-
-    verifyCatalogWithCustomMetricsReporter(restCatalog);
   }
 
   @Test

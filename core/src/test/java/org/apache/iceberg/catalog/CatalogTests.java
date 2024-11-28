@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -149,6 +150,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
           .build();
 
   protected abstract C catalog();
+
+  protected abstract C initCatalog(String catalogName, Map<String, String> additionalProperties);
 
   protected boolean supportsNamespaceProperties() {
     return true;
@@ -2701,8 +2704,14 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThat(catalog.dropTable(identifier)).isTrue();
   }
 
-  protected void verifyCatalogWithCustomMetricsReporter(C catalogWithCustomReporter)
-      throws IOException {
+  @Test
+  public void testCatalogWithCustomMetricsReporter() throws IOException {
+    C catalogWithCustomReporter =
+        initCatalog(
+            "catalog_with_custom_reporter",
+            ImmutableMap.of(
+                CatalogProperties.METRICS_REPORTER_IMPL, CustomMetricsReporter.class.getName()));
+
     if (requiresNamespaceCreate()) {
       catalogWithCustomReporter.createNamespace(TABLE.namespace());
     }

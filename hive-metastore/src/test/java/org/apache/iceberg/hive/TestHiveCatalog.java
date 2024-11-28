@@ -110,14 +110,15 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
   @BeforeEach
   public void before() throws TException {
-    catalog = initCatalog(ImmutableMap.of());
+    catalog = initCatalog("hive", ImmutableMap.of());
     String dbPath = HIVE_METASTORE_EXTENSION.metastore().getDatabasePath(DB_NAME);
     Database db = new Database(DB_NAME, "description", dbPath, Maps.newHashMap());
     HIVE_METASTORE_EXTENSION.metastoreClient().createDatabase(db);
   }
 
-  private HiveCatalog initCatalog(Map<String, String> additionalProperties) {
-    ImmutableMap<String, String> properties =
+  @Override
+  protected HiveCatalog initCatalog(String catalogName, Map<String, String> additionalProperties) {
+    Map<String, String> properties =
         ImmutableMap.of(
             CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
             String.valueOf(TimeUnit.SECONDS.toMillis(10)));
@@ -125,7 +126,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     return (HiveCatalog)
         CatalogUtil.loadCatalog(
             HiveCatalog.class.getName(),
-            CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
+            catalogName,
             ImmutableMap.<String, String>builder()
                 .putAll(properties)
                 .putAll(additionalProperties)
@@ -1202,13 +1203,5 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     Database database = hiveCatalog.convertToDatabase(Namespace.of("database"), ImmutableMap.of());
 
     assertThat(database.getLocationUri()).isEqualTo("s3://bucket/database.db");
-  }
-
-  @Test
-  public void testCatalogWithCustomMetricsReporter() throws IOException {
-    verifyCatalogWithCustomMetricsReporter(
-        initCatalog(
-            ImmutableMap.of(
-                CatalogProperties.METRICS_REPORTER_IMPL, CustomMetricsReporter.class.getName())));
   }
 }
