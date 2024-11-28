@@ -126,6 +126,28 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
     return (NessieCatalog) CatalogUtil.buildIcebergCatalog("nessie", options, hadoopConfig);
   }
 
+  private NessieCatalog initNessieCatalog(String ref, Map<String, String> additionalProperties) {
+    Map<String, String> options =
+        ImmutableMap.of(
+            "type",
+            "nessie",
+            "ref",
+            ref,
+            CatalogProperties.URI,
+            uri,
+            CatalogProperties.WAREHOUSE_LOCATION,
+            temp.toUri().toString());
+
+    return (NessieCatalog)
+        CatalogUtil.buildIcebergCatalog(
+            "nessie",
+            ImmutableMap.<String, String>builder()
+                .putAll(options)
+                .putAll(additionalProperties)
+                .build(),
+            hadoopConfig);
+  }
+
   @Override
   protected NessieCatalog catalog() {
     return catalog;
@@ -169,5 +191,14 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
                 + TABLE.namespace()
                 + "/"
                 + TABLE.name());
+  }
+
+  @Test
+  public void testCatalogWithCustomMetricsReporter() throws IOException {
+    verifyCatalogWithCustomMetricsReporter(
+        initNessieCatalog(
+            "main",
+            ImmutableMap.of(
+                CatalogProperties.METRICS_REPORTER_IMPL, CustomMetricsReporter.class.getName())));
   }
 }

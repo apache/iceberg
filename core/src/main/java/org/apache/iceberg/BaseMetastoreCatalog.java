@@ -217,7 +217,8 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
       tableProperties.putAll(tableOverrideProperties());
       TableMetadata metadata =
           TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
-      return Transactions.createTableTransaction(identifier.toString(), ops, metadata);
+      return Transactions.createTableTransaction(
+          identifier.toString(), ops, metadata, metricsReporter());
     }
 
     @Override
@@ -249,9 +250,11 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
       }
 
       if (orCreate) {
-        return Transactions.createOrReplaceTableTransaction(identifier.toString(), ops, metadata);
+        return Transactions.createOrReplaceTableTransaction(
+            identifier.toString(), ops, metadata, metricsReporter());
       } else {
-        return Transactions.replaceTableTransaction(identifier.toString(), ops, metadata);
+        return Transactions.replaceTableTransaction(
+            identifier.toString(), ops, metadata, metricsReporter());
       }
     }
 

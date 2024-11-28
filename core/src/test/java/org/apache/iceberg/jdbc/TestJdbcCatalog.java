@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
@@ -50,8 +49,6 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -68,9 +65,6 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Util;
-import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.metrics.MetricsReport;
-import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -1061,32 +1055,11 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
   @Test
   public void testCatalogWithCustomMetricsReporter() throws IOException {
-    JdbcCatalog catalogWithCustomReporter =
+    verifyCatalogWithCustomMetricsReporter(
         initCatalog(
-            "test_jdbc_catalog_with_custom_reporter",
+            "catalog_with_custom_reporter",
             ImmutableMap.of(
-                CatalogProperties.METRICS_REPORTER_IMPL, CustomMetricsReporter.class.getName()));
-    try {
-      catalogWithCustomReporter.buildTable(TABLE, SCHEMA).create();
-      Table table = catalogWithCustomReporter.loadTable(TABLE);
-      table
-          .newFastAppend()
-          .appendFile(
-              DataFiles.builder(PartitionSpec.unpartitioned())
-                  .withPath(FileFormat.PARQUET.addExtension(UUID.randomUUID().toString()))
-                  .withFileSizeInBytes(10)
-                  .withRecordCount(2)
-                  .build())
-          .commit();
-      try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-        assertThat(tasks.iterator()).hasNext();
-      }
-    } finally {
-      catalogWithCustomReporter.dropTable(TABLE);
-    }
-    // counter of custom metrics reporter should have been increased
-    // 1x for commit metrics / 1x for scan metrics
-    assertThat(CustomMetricsReporter.COUNTER.get()).isEqualTo(2);
+                CatalogProperties.METRICS_REPORTER_IMPL, CustomMetricsReporter.class.getName())));
   }
 
   @Test
@@ -1126,15 +1099,6 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
       assertThatThrownBy(() -> ops.commit(ops.current(), metadataV1))
           .isInstanceOf(AlreadyExistsException.class)
           .hasMessageStartingWith("Table already exists: " + tableIdent);
-    }
-  }
-
-  public static class CustomMetricsReporter implements MetricsReporter {
-    static final AtomicInteger COUNTER = new AtomicInteger(0);
-
-    @Override
-    public void report(MetricsReport report) {
-      COUNTER.incrementAndGet();
     }
   }
 

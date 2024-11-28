@@ -18,9 +18,12 @@
  */
 package org.apache.iceberg.inmemory;
 
+import java.io.IOException;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
   private InMemoryCatalog catalog;
@@ -39,5 +42,15 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
   @Override
   protected boolean requiresNamespaceCreate() {
     return true;
+  }
+
+  @Test
+  public void testCatalogWithCustomMetricsReporter() throws IOException {
+    this.catalog = new InMemoryCatalog();
+    this.catalog.initialize(
+        "catalog_with_custom_reporter",
+        ImmutableMap.of(
+            CatalogProperties.METRICS_REPORTER_IMPL, CustomMetricsReporter.class.getName()));
+    verifyCatalogWithCustomMetricsReporter(catalog);
   }
 }
