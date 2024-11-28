@@ -19,15 +19,37 @@
  *
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.variants;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Function;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class VariantUtil {
+  private static final int BASIC_TYPE_MASK = 0b11;
+  private static final int BASIC_TYPE_PRIMITIVE = 0;
+  private static final int BASIC_TYPE_SHORT_STRING = 1;
+  private static final int BASIC_TYPE_OBJECT = 2;
+  private static final int BASIC_TYPE_ARRAY = 3;
+
   private VariantUtil() {}
+
+  /** A hacky absolute put for ByteBuffer */
+  static int writeBufferAbsolute(ByteBuffer buffer, int offset, ByteBuffer toCopy) {
+    int originalPosition = buffer.position();
+    buffer.position(offset);
+    ByteBuffer copy = toCopy.duplicate();
+    buffer.put(copy); // duplicate so toCopy is not modified
+    buffer.position(originalPosition);
+    Preconditions.checkArgument(copy.remaining() <= 0, "Not fully written");
+    return toCopy.remaining();
+  }
+
+  static void writeByte(ByteBuffer buffer, int value, int offset) {
+    buffer.put(buffer.position() + offset, (byte) (value & 0xFF));
+  }
 
   static void writeLittleEndianUnsigned(ByteBuffer buffer, int value, int offset, int size) {
     int base = buffer.position() + offset;
@@ -50,11 +72,11 @@ class VariantUtil {
     throw new IllegalArgumentException("Invalid size: " + size);
   }
 
-  static int readLittleEndianInt8(ByteBuffer buffer, int offset) {
+  static byte readLittleEndianInt8(ByteBuffer buffer, int offset) {
     return buffer.get(buffer.position() + offset);
   }
 
-  static int readLittleEndianInt16(ByteBuffer buffer, int offset) {
+  static short readLittleEndianInt16(ByteBuffer buffer, int offset) {
     return buffer.getShort(buffer.position() + offset);
   }
 
@@ -143,5 +165,34 @@ class VariantUtil {
     } else {
       return 4;
     }
+  }
+
+  static byte primitiveHeader(int primitiveType) {
+    return (byte) (primitiveType << Variants.Primitives.PRIMITIVE_TYPE_SHIFT);
+  }
+
+  static byte objectHeader(boolean isLarge, int fieldIdSize, int offsetSize) {
+    return (byte)
+        ((isLarge ? 0x1000000 : 0) | ((fieldIdSize - 1) << 4) | ((offsetSize - 1) << 2) | 0b10);
+  }
+
+  static byte arrayHeader(boolean isLarge, int offsetSize) {
+    return (byte) ((isLarge ? 0b10000 : 0) | (offsetSize - 1) << 2 | 0b11);
+  }
+
+  static Variants.BasicType basicType(int header) {
+    int basicType = header & BASIC_TYPE_MASK;
+    switch (basicType) {
+      case BASIC_TYPE_PRIMITIVE:
+        return Variants.BasicType.PRIMITIVE;
+      case BASIC_TYPE_SHORT_STRING:
+        return Variants.BasicType.SHORT_STRING;
+      case BASIC_TYPE_OBJECT:
+        return Variants.BasicType.OBJECT;
+      case BASIC_TYPE_ARRAY:
+        return Variants.BasicType.ARRAY;
+    }
+
+    throw new UnsupportedOperationException("Unsupported basic type: " + basicType);
   }
 }

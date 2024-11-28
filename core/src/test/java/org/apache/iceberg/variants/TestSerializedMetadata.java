@@ -19,7 +19,7 @@
  *
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.variants;
 
 import java.nio.ByteBuffer;
 import java.util.Random;
@@ -31,12 +31,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class TestVariantMetadata {
+public class TestSerializedMetadata {
   private final Random random = new Random(872591);
 
   @Test
   public void testEmptyVariantMetadata() {
-    VariantMetadata metadata = VariantMetadata.from(VariantMetadata.EMPTY_V1_BUFFER);
+    SerializedMetadata metadata = SerializedMetadata.from(SerializedMetadata.EMPTY_V1_BUFFER);
 
     Assertions.assertThat(metadata.isSorted()).isFalse();
     Assertions.assertThat(metadata.dictionarySize()).isEqualTo(0);
@@ -46,7 +46,7 @@ public class TestVariantMetadata {
 
   @Test
   public void testHeaderSorted() {
-    VariantMetadata metadata = VariantMetadata.from(new byte[] {0b10001, 0x00});
+    SerializedMetadata metadata = SerializedMetadata.from(new byte[] {0b10001, 0x00});
 
     Assertions.assertThat(metadata.isSorted()).isTrue();
     Assertions.assertThat(metadata.dictionarySize()).isEqualTo(0);
@@ -56,30 +56,30 @@ public class TestVariantMetadata {
   public void testHeaderOffsetSize() {
     // offset size is 4-byte LE = 1
     Assertions.assertThat(
-            VariantMetadata.from(new byte[] {(byte) 0b11010001, 0x01, 0x00, 0x00, 0x00})
+            SerializedMetadata.from(new byte[] {(byte) 0b11010001, 0x01, 0x00, 0x00, 0x00})
                 .dictionarySize())
         .isEqualTo(1);
 
     // offset size is 3-byte LE = 1
     Assertions.assertThat(
-            VariantMetadata.from(new byte[] {(byte) 0b10010001, 0x01, 0x00, 0x00}).dictionarySize())
+            SerializedMetadata.from(new byte[] {(byte) 0b10010001, 0x01, 0x00, 0x00}).dictionarySize())
         .isEqualTo(1);
 
     // offset size is 2-byte LE = 1
     Assertions.assertThat(
-            VariantMetadata.from(new byte[] {(byte) 0b01010001, 0x01, 0x00}).dictionarySize())
+            SerializedMetadata.from(new byte[] {(byte) 0b01010001, 0x01, 0x00}).dictionarySize())
         .isEqualTo(1);
 
     // offset size is 1-byte LE = 1
     Assertions.assertThat(
-            VariantMetadata.from(new byte[] {(byte) 0b00010001, 0x01}).dictionarySize())
+            SerializedMetadata.from(new byte[] {(byte) 0b00010001, 0x01}).dictionarySize())
         .isEqualTo(1);
   }
 
   @Test
   public void testReadString() {
-    VariantMetadata metadata =
-        VariantMetadata.from(
+    SerializedMetadata metadata =
+        SerializedMetadata.from(
             new byte[] {
               0b10001, 0x05, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 'a', 'b', 'c', 'd', 'e'
             });
@@ -95,8 +95,8 @@ public class TestVariantMetadata {
 
   @Test
   public void testMultibyteString() {
-    VariantMetadata metadata =
-        VariantMetadata.from(
+    SerializedMetadata metadata =
+        SerializedMetadata.from(
             new byte[] {
               0b10001, 0x05, 0x00, 0x01, 0x02, 0x05, 0x06, 0x07, 'a', 'b', 'x', 'y', 'z', 'd', 'e'
             });
@@ -112,8 +112,8 @@ public class TestVariantMetadata {
 
   @Test
   public void testTwoByteOffsets() {
-    VariantMetadata metadata =
-        VariantMetadata.from(
+    SerializedMetadata metadata =
+        SerializedMetadata.from(
             new byte[] {
               0b1010001, 0x05, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x05, 0x00, 0x06, 0x00,
               0x07, 0x00, 'a', 'b', 'x', 'y', 'z', 'd', 'e'
@@ -130,8 +130,8 @@ public class TestVariantMetadata {
 
   @Test
   public void testFindStringSorted() {
-    VariantMetadata metadata =
-        VariantMetadata.from(
+    SerializedMetadata metadata =
+        SerializedMetadata.from(
             new byte[] {
               0b10001, 0x05, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 'a', 'b', 'c', 'd', 'e'
             });
@@ -150,8 +150,8 @@ public class TestVariantMetadata {
 
   @Test
   public void testFindStringUnsorted() {
-    VariantMetadata metadata =
-        VariantMetadata.from(
+    SerializedMetadata metadata =
+        SerializedMetadata.from(
             new byte[] {
               0b00001, 0x05, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 'e', 'd', 'c', 'b', 'a'
             });
@@ -179,7 +179,7 @@ public class TestVariantMetadata {
     }
 
     ByteBuffer buffer = VariantTestUtil.createMetadata(keySet, sortFieldNames);
-    VariantMetadata metadata = VariantMetadata.from(buffer);
+    SerializedMetadata metadata = SerializedMetadata.from(buffer);
 
     Assertions.assertThat(metadata.dictionarySize()).isEqualTo(10_000);
     Assertions.assertThat(metadata.id(lastKey)).isGreaterThan(0);
@@ -196,7 +196,7 @@ public class TestVariantMetadata {
     }
 
     ByteBuffer buffer = VariantTestUtil.createMetadata(keySet, sortFieldNames);
-    VariantMetadata metadata = VariantMetadata.from(buffer);
+    SerializedMetadata metadata = SerializedMetadata.from(buffer);
 
     Assertions.assertThat(metadata.dictionarySize()).isEqualTo(100_000);
     Assertions.assertThat(metadata.id(lastKey)).isGreaterThan(0);
@@ -204,14 +204,14 @@ public class TestVariantMetadata {
 
   @Test
   public void testInvalidMetadataVersion() {
-    Assertions.assertThatThrownBy(() -> VariantMetadata.from(new byte[] {0x02, 0x00}))
+    Assertions.assertThatThrownBy(() -> SerializedMetadata.from(new byte[] {0x02, 0x00}))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Unsupported version: 2");
   }
 
   @Test
   public void testMissingLength() {
-    Assertions.assertThatThrownBy(() -> VariantMetadata.from(new byte[] {0x01}))
+    Assertions.assertThatThrownBy(() -> SerializedMetadata.from(new byte[] {0x01}))
         .isInstanceOf(IndexOutOfBoundsException.class);
   }
 
@@ -219,7 +219,7 @@ public class TestVariantMetadata {
   public void testLengthTooShort() {
     // missing the 4th length byte
     Assertions.assertThatThrownBy(
-            () -> VariantMetadata.from(new byte[] {(byte) 0b11010001, 0x00, 0x00, 0x00}))
+            () -> SerializedMetadata.from(new byte[] {(byte) 0b11010001, 0x00, 0x00, 0x00}))
         .isInstanceOf(IndexOutOfBoundsException.class);
   }
 }

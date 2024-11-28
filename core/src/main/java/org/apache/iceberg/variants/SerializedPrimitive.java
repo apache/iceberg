@@ -19,7 +19,9 @@
  *
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.variants;
+
+import static org.apache.iceberg.variants.VariantUtil.basicType;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -27,29 +29,29 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-class VariantPrimitive implements Variants.Primitive<Object>, Variants.Serialized {
+class SerializedPrimitive extends Variants.SerializedValue implements VariantPrimitive<Object> {
   private static final int PRIMITIVE_TYPE_SHIFT = 2;
   private static final int PRIMITIVE_OFFSET = Variants.HEADER_SIZE;
 
-  static VariantPrimitive from(byte[] bytes) {
+  static SerializedPrimitive from(byte[] bytes) {
     return from(ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN), bytes[0]);
   }
 
-  static VariantPrimitive from(ByteBuffer value, int header) {
+  static SerializedPrimitive from(ByteBuffer value, int header) {
     Preconditions.checkArgument(
         value.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
-    int basicType = header & Variants.BASIC_TYPE_MASK;
+    Variants.BasicType basicType = basicType(header);
     Preconditions.checkArgument(
-        basicType == Variants.BASIC_TYPE_PRIMITIVE,
-        "Invalid primitive, basic type != 0: " + basicType);
-    return new VariantPrimitive(value, header);
+        basicType == Variants.BasicType.PRIMITIVE,
+        "Invalid primitive, basic type != PRIMITIVE: " + basicType);
+    return new SerializedPrimitive(value, header);
   }
 
   private final ByteBuffer value;
   private final Variants.PhysicalType type;
   private Object primitive = null;
 
-  private VariantPrimitive(ByteBuffer value, int header) {
+  private SerializedPrimitive(ByteBuffer value, int header) {
     this.value = value;
     this.type = Variants.PhysicalType.from(header >> PRIMITIVE_TYPE_SHIFT);
   }
@@ -90,7 +92,14 @@ class VariantPrimitive implements Variants.Primitive<Object>, Variants.Serialize
           return new BigDecimal(BigInteger.valueOf(unscaled), scale);
         }
       case DECIMAL16:
-        throw new UnsupportedOperationException("unsupported");
+        {
+          int scale = VariantUtil.readByte(value, PRIMITIVE_OFFSET);
+          byte[] unscaled = new byte[16];
+          for (int i = 0; i < 16; i += 1) {
+            unscaled[i] = (byte) VariantUtil.readByte(value, PRIMITIVE_OFFSET + 16 - i);
+          }
+          return new BigDecimal(new BigInteger(unscaled), scale);
+        }
       case BINARY:
         {
           int size = VariantUtil.readLittleEndianInt32(value, PRIMITIVE_OFFSET);

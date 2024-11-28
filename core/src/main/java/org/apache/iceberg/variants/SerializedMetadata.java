@@ -19,14 +19,14 @@
  *
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.variants;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-class VariantMetadata implements Variants.Metadata, Variants.Serialized {
+class SerializedMetadata implements VariantMetadata, Variants.Serialized {
   private static final int SUPPORTED_VERSION = 1;
   private static final int VERSION_MASK = 0b1111;
   private static final int SORTED_STRINGS = 0b10000;
@@ -37,17 +37,17 @@ class VariantMetadata implements Variants.Metadata, Variants.Serialized {
   static final ByteBuffer EMPTY_V1_BUFFER =
       ByteBuffer.wrap(new byte[] {0x01, 0x00}).order(ByteOrder.LITTLE_ENDIAN);
 
-  static VariantMetadata from(byte[] bytes) {
+  static SerializedMetadata from(byte[] bytes) {
     return from(ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN));
   }
 
-  static VariantMetadata from(ByteBuffer metadata) {
+  static SerializedMetadata from(ByteBuffer metadata) {
     Preconditions.checkArgument(
         metadata.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
     int header = VariantUtil.readByte(metadata, 0);
     int version = header & VERSION_MASK;
     Preconditions.checkArgument(SUPPORTED_VERSION == version, "Unsupported version: %s", version);
-    return new VariantMetadata(metadata, header);
+    return new SerializedMetadata(metadata, header);
   }
 
   private final ByteBuffer metadata;
@@ -57,7 +57,7 @@ class VariantMetadata implements Variants.Metadata, Variants.Serialized {
   private final int dataOffset;
   private final String[] dict;
 
-  private VariantMetadata(ByteBuffer metadata, int header) {
+  private SerializedMetadata(ByteBuffer metadata, int header) {
     this.metadata = metadata;
     this.isSorted = (header & SORTED_STRINGS) == SORTED_STRINGS;
     this.offsetSize = 1 + ((header & OFFSET_SIZE_MASK) >> OFFSET_SIZE_SHIFT);
