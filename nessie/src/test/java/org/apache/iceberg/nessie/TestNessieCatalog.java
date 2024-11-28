@@ -78,7 +78,7 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
     initialHashOfDefaultBranch = api.getDefaultBranch().getHash();
     uri = nessieUri.toASCIIString();
     hadoopConfig = new Configuration();
-    catalog = initNessieCatalog("main");
+    catalog = initCatalog("nessie", ImmutableMap.of());
   }
 
   @AfterEach
@@ -112,18 +112,28 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
         .assign();
   }
 
-  private NessieCatalog initNessieCatalog(String ref) {
+  @Override
+  protected NessieCatalog initCatalog(
+      String catalogName, Map<String, String> additionalProperties) {
     Map<String, String> options =
         ImmutableMap.of(
             "type",
             "nessie",
             "ref",
-            ref,
+            "main",
             CatalogProperties.URI,
             uri,
             CatalogProperties.WAREHOUSE_LOCATION,
             temp.toUri().toString());
-    return (NessieCatalog) CatalogUtil.buildIcebergCatalog("nessie", options, hadoopConfig);
+
+    return (NessieCatalog)
+        CatalogUtil.buildIcebergCatalog(
+            catalogName,
+            ImmutableMap.<String, String>builder()
+                .putAll(options)
+                .putAll(additionalProperties)
+                .build(),
+            hadoopConfig);
   }
 
   @Override
