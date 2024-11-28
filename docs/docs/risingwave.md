@@ -35,7 +35,7 @@ Currently, RisingWave only supports the Iceberg V2 table format and S3-compatibl
 RisingWave supports the following catalogs:
 
 - `rest`
-- `jdbc`
+- `jdbc` / `sql`
 - `glue`
 - `storage`
 - `hive`
