@@ -26,7 +26,7 @@ on:
   workflow_dispatch:
 
 env:
-  DOCKER_IMAGE_TAG: apache/iceberg-rest-fixture
+  DOCKER_IMAGE_TAG: iceberg-rest-fixture
 
 jobs:
   build:
@@ -43,12 +43,12 @@ jobs:
       run: |
         docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
     - name: Build Docker Image
-      run: docker build -t $DOCKER_IMAGE_TAG -f docker/iceberg-rest-adapter-image/Dockerfile .
+      run: docker build -t ${{ secrets.DOCKERHUB_USER }}/$DOCKER_IMAGE_TAG -f docker/iceberg-rest-adapter-image/Dockerfile .
     - name: Push Docker Image with latest tag
       if: github.event_name == 'workflow_dispatch'
-      run: docker push $DOCKER_IMAGE_TAG:latest
+      run: docker push ${{ secrets.DOCKERHUB_USER }}/$DOCKER_IMAGE_TAG:latest
     - name: Push Docker Image with version tag
       if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
       run: |
         echo "TAG=`echo ${{ github.ref }} | tr -d -c 0-9.`" >>${GITHUB_ENV}
-        docker push $DOCKER_IMAGE_TAG:$TAG
+        docker push ${{ secrets.DOCKERHUB_USER }}/$DOCKER_IMAGE_TAG:$TAG
