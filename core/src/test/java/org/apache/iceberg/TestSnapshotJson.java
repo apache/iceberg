@@ -176,4 +176,77 @@ public class TestSnapshotJson {
 
     return localInput(manifestList).location();
   }
+
+  @Test
+  public void testJsonConversionSummaryWithoutOperation() {
+    // This behavior is out of spec, but we don't want to fail on it.
+    // Instead, the operation will be set to overwrite, to ensure that it will produce
+    // correct metadata when it is written
+
+    long currentMs = System.currentTimeMillis();
+    String json =
+        String.format(
+            "{\n"
+                + "  \"snapshot-id\" : 2,\n"
+                + "  \"parent-snapshot-id\" : 1,\n"
+                + "  \"timestamp-ms\" : %s,\n"
+                + "  \"summary\" : {\n"
+                + "    \"files-added\" : \"4\",\n"
+                + "    \"files-deleted\" : \"100\"\n"
+                + "  },\n"
+                + "  \"manifests\" : [ \"/tmp/manifest1.avro\", \"/tmp/manifest2.avro\" ],\n"
+                + "  \"schema-id\" : 3\n"
+                + "}",
+            currentMs);
+
+    Snapshot snap = SnapshotParser.fromJson(json);
+    String expected =
+        String.format(
+            "{\n"
+                + "  \"snapshot-id\" : 2,\n"
+                + "  \"parent-snapshot-id\" : 1,\n"
+                + "  \"timestamp-ms\" : %s,\n"
+                + "  \"summary\" : {\n"
+                + "    \"operation\" : \"overwrite\",\n"
+                + "    \"files-added\" : \"4\",\n"
+                + "    \"files-deleted\" : \"100\"\n"
+                + "  },\n"
+                + "  \"manifests\" : [ \"/tmp/manifest1.avro\", \"/tmp/manifest2.avro\" ],\n"
+                + "  \"schema-id\" : 3\n"
+                + "}",
+            currentMs);
+    assertThat(SnapshotParser.toJson(snap)).isEqualTo(expected);
+  }
+
+  @Test
+  public void testJsonConversionEmptySummary() {
+    // This behavior is out of spec, but we don't want to fail on it.
+    // Instead, when we find an empty summary, we'll just set it to null
+
+    long currentMs = System.currentTimeMillis();
+    String json =
+        String.format(
+            "{\n"
+                + "  \"snapshot-id\" : 2,\n"
+                + "  \"parent-snapshot-id\" : 1,\n"
+                + "  \"timestamp-ms\" : %s,\n"
+                + "  \"summary\" : { },\n"
+                + "  \"manifests\" : [ \"/tmp/manifest1.avro\", \"/tmp/manifest2.avro\" ],\n"
+                + "  \"schema-id\" : 3\n"
+                + "}",
+            currentMs);
+
+    Snapshot snap = SnapshotParser.fromJson(json);
+    String expected =
+        String.format(
+            "{\n"
+                + "  \"snapshot-id\" : 2,\n"
+                + "  \"parent-snapshot-id\" : 1,\n"
+                + "  \"timestamp-ms\" : %s,\n"
+                + "  \"manifests\" : [ \"/tmp/manifest1.avro\", \"/tmp/manifest2.avro\" ],\n"
+                + "  \"schema-id\" : 3\n"
+                + "}",
+            currentMs);
+    assertThat(SnapshotParser.toJson(snap)).isEqualTo(expected);
+  }
 }
