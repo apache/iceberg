@@ -41,12 +41,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
  * @param <T> the type of objects produced by this Iterable
  */
 public class SortedMerge<T> extends CloseableGroup implements CloseableIterable<T> {
-  public static <C extends Comparable<C>> CloseableIterable<C> of(Iterable<C> left, Iterable<C> right) {
+  public static <C extends Comparable<C>> CloseableIterable<C> of(
+      Iterable<C> left, Iterable<C> right) {
     return of(Arrays.asList(left, right));
   }
 
   public static <C extends Comparable<C>> CloseableIterable<C> of(List<Iterable<C>> iterables) {
-    List<CloseableIterable<C>> closeableIterables = Lists.transform(iterables, CloseableIterable::of);
+    List<CloseableIterable<C>> closeableIterables =
+        Lists.transform(iterables, CloseableIterable::of);
     return new SortedMerge<>(Comparator.naturalOrder(), closeableIterables);
   }
 
