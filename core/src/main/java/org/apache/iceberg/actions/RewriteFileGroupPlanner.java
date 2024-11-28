@@ -30,9 +30,11 @@ import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -70,14 +72,26 @@ public class RewriteFileGroupPlanner
   private static final Logger LOG = LoggerFactory.getLogger(RewriteFileGroupPlanner.class);
 
   private final Expression filter;
-  private final long snapshotId;
+  private final Long snapshotId;
   private final boolean caseSensitive;
 
   private int deleteFileThreshold;
   private RewriteJobOrder rewriteJobOrder;
 
+  public RewriteFileGroupPlanner(Table table) {
+    this(table, Expressions.alwaysTrue());
+  }
+
+  public RewriteFileGroupPlanner(Table table, Expression filter) {
+    this(
+        table,
+        filter,
+        table.currentSnapshot() != null ? table.currentSnapshot().snapshotId() : null,
+        false);
+  }
+
   public RewriteFileGroupPlanner(
-      Table table, Expression filter, long snapshotId, boolean caseSensitive) {
+      Table table, Expression filter, Long snapshotId, boolean caseSensitive) {
     super(table);
     this.filter = filter;
     this.snapshotId = snapshotId;
@@ -160,13 +174,14 @@ public class RewriteFileGroupPlanner
 
   @VisibleForTesting
   CloseableIterable<FileScanTask> tasks() {
-    return table()
-        .newScan()
-        .useSnapshot(snapshotId)
-        .caseSensitive(caseSensitive)
-        .filter(filter)
-        .ignoreResiduals()
-        .planFiles();
+    TableScan scan =
+        table().newScan().filter(filter).caseSensitive(caseSensitive).ignoreResiduals();
+
+    if (snapshotId != null) {
+      scan = scan.useSnapshot(snapshotId);
+    }
+
+    return scan.planFiles();
   }
 
   private int deleteFileThreshold(Map<String, String> options) {

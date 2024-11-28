@@ -33,7 +33,6 @@ import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteFileGroupPlanner;
 import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -64,8 +63,7 @@ public class TestSparkFileRewriteExecutor extends TestBase {
   @Test
   public void testBinPackDataSelectFiles() {
     Table table = catalog.createTable(TABLE_IDENT, SCHEMA);
-    RewriteFileGroupPlanner rewriter =
-        new RewriteFileGroupPlanner(table, Expressions.alwaysTrue(), 1, false);
+    RewriteFileGroupPlanner rewriter = new RewriteFileGroupPlanner(table);
 
     checkDataFileSizeFiltering(rewriter);
     checkDataFilesDeleteThreshold(rewriter);
@@ -216,8 +214,7 @@ public class TestSparkFileRewriteExecutor extends TestBase {
   public void testBinPackDataValidOptions() {
     Table table = catalog.createTable(TABLE_IDENT, SCHEMA);
     SparkBinPackDataRewriteExecutor rewriter = new SparkBinPackDataRewriteExecutor(spark, table);
-    RewriteFileGroupPlanner planner =
-        new RewriteFileGroupPlanner(table, Expressions.alwaysTrue(), 1, false);
+    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
 
     assertThat(rewriter.validOptions())
         .as("Rewriter must report all supported options")
@@ -242,8 +239,7 @@ public class TestSparkFileRewriteExecutor extends TestBase {
     Table table = catalog.createTable(TABLE_IDENT, SCHEMA);
     SparkSortDataRewriteExecutor rewriter =
         new SparkSortDataRewriteExecutor(spark, table, SORT_ORDER);
-    RewriteFileGroupPlanner planner =
-        new RewriteFileGroupPlanner(table, Expressions.alwaysTrue(), 1, false);
+    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
 
     assertThat(rewriter.validOptions())
         .as("Rewriter must report all supported options")
@@ -272,8 +268,7 @@ public class TestSparkFileRewriteExecutor extends TestBase {
     ImmutableList<String> zOrderCols = ImmutableList.of("id");
     SparkZOrderDataRewriteExecutor rewriter =
         new SparkZOrderDataRewriteExecutor(spark, table, zOrderCols);
-    RewriteFileGroupPlanner planner =
-        new RewriteFileGroupPlanner(table, Expressions.alwaysTrue(), 1, false);
+    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
 
     assertThat(rewriter.validOptions())
         .as("Rewriter must report all supported options")
@@ -300,8 +295,7 @@ public class TestSparkFileRewriteExecutor extends TestBase {
   @Test
   public void testInvalidValuesForBinPackDataOptions() {
     Table table = catalog.createTable(TABLE_IDENT, SCHEMA);
-    RewriteFileGroupPlanner planner =
-        new RewriteFileGroupPlanner(table, Expressions.alwaysTrue(), 1, false);
+    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
 
     validateSizeBasedRewriterOptions(planner);
 
@@ -316,8 +310,7 @@ public class TestSparkFileRewriteExecutor extends TestBase {
     Table table = catalog.createTable(TABLE_IDENT, SCHEMA);
     SparkSortDataRewriteExecutor rewriter =
         new SparkSortDataRewriteExecutor(spark, table, SORT_ORDER);
-    RewriteFileGroupPlanner planner =
-        new RewriteFileGroupPlanner(table, Expressions.alwaysTrue(), 1, false);
+    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
 
     validateSizeBasedRewriterOptions(planner);
 
@@ -338,8 +331,7 @@ public class TestSparkFileRewriteExecutor extends TestBase {
     ImmutableList<String> zOrderCols = ImmutableList.of("id");
     SparkZOrderDataRewriteExecutor rewriter =
         new SparkZOrderDataRewriteExecutor(spark, table, zOrderCols);
-    RewriteFileGroupPlanner planner =
-        new RewriteFileGroupPlanner(table, Expressions.alwaysTrue(), 1, false);
+    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
 
     validateSizeBasedRewriterOptions(planner);
 
