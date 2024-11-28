@@ -24,7 +24,7 @@ title: "RisingWave"
 
 ## Supported Features
 
-RisingWave supports batch reads and streaming writes of Iceberg tables via its built-in source and sink connectors. For more information, see the [Iceberg source connector documentation](https://docs.risingwave.com/integrations/sources/apache-iceberg) and [Iceberg sink connector documentation](https://docs.risingwave.com/integrations/destinations/apache-iceberg).
+RisingWave supports batch reads and streaming writes of Apache Iceberg™ tables via its built-in source and sink connectors. For more information, see the [Iceberg source connector documentation](https://docs.risingwave.com/integrations/sources/apache-iceberg) and [Iceberg sink connector documentation](https://docs.risingwave.com/integrations/destinations/apache-iceberg).
 
 ## Table Formats and Warehouse Locations
 
