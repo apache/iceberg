@@ -1244,8 +1244,8 @@ public class TestMetadataUpdateParser {
 
     List<ManifestFile> manifests =
         ImmutableList.of(
-            new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0),
-            new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0));
+            new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0, snapshotId),
+            new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0, snapshotId));
 
     try (ManifestListWriter writer =
         ManifestLists.write(1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0)) {
