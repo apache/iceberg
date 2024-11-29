@@ -346,11 +346,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
     Mockito.verify(adapter)
         .execute(
-            eq(HTTPMethod.GET),
+            eq(HTTPMethod.HEAD),
             eq("v1/namespaces/ns/tables/table"),
             any(),
             any(),
-            eq(LoadTableResponse.class),
+            eq(null),
             eq(catalogHeaders),
             any());
   }
@@ -393,11 +393,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // use the catalog token for all interactions
     Mockito.verify(adapter)
         .execute(
-            eq(HTTPMethod.GET),
+            eq(HTTPMethod.HEAD),
             eq("v1/namespaces/ns/tables/table"),
             any(),
             any(),
-            eq(LoadTableResponse.class),
+            eq(null),
             eq(catalogHeaders),
             any());
   }
@@ -448,11 +448,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // use the catalog token for all interactions
     Mockito.verify(adapter)
         .execute(
-            eq(HTTPMethod.GET),
+            eq(HTTPMethod.HEAD),
             eq("v1/namespaces/ns/tables/table"),
             any(),
             any(),
-            eq(LoadTableResponse.class),
+            eq(null),
             eq(catalogHeaders),
             any());
   }
@@ -509,11 +509,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // use the context token for table load
     Mockito.verify(adapter)
         .execute(
-            eq(HTTPMethod.GET),
+            eq(HTTPMethod.HEAD),
             eq("v1/namespaces/ns/tables/table"),
             any(),
             any(),
-            eq(LoadTableResponse.class),
+            eq(null),
             eq(contextHeaders),
             any());
   }
@@ -582,11 +582,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // use the context token for table load
     Mockito.verify(adapter)
         .execute(
-            eq(HTTPMethod.GET),
+            eq(HTTPMethod.HEAD),
             eq("v1/namespaces/ns/tables/table"),
             any(),
             any(),
-            eq(LoadTableResponse.class),
+            eq(null),
             eq(contextHeaders),
             any());
   }
@@ -657,11 +657,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // use the context token for table load
     Mockito.verify(adapter)
         .execute(
-            eq(HTTPMethod.GET),
+            eq(HTTPMethod.HEAD),
             eq("v1/namespaces/ns/tables/table"),
             any(),
             any(),
-            eq(LoadTableResponse.class),
+            eq(null),
             eq(contextHeaders),
             any());
   }
@@ -845,11 +845,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     }
     Mockito.verify(adapter)
         .execute(
-            eq(HTTPMethod.GET),
+            eq(HTTPMethod.HEAD),
             eq("v1/namespaces/ns/tables/table"),
             any(),
             any(),
-            eq(LoadTableResponse.class),
+            eq(null),
             eq(expectedHeaders),
             any());
     if (!optionalOAuthParams.isEmpty()) {
@@ -1619,11 +1619,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                       "Bearer token-exchange-token:sub=client-credentials-token:sub=catalog");
               Mockito.verify(adapter)
                   .execute(
-                      eq(HTTPMethod.GET),
+                      eq(HTTPMethod.HEAD),
                       eq("v1/namespaces/ns/tables/table"),
                       any(),
                       any(),
-                      eq(LoadTableResponse.class),
+                      eq(null),
                       eq(refreshedCatalogHeader),
                       any());
             });
@@ -1735,11 +1735,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     Mockito.verify(adapter)
         .execute(
-            eq(HTTPMethod.GET),
+            eq(HTTPMethod.HEAD),
             eq("v1/namespaces/ns/tables/table"),
             any(),
             any(),
-            eq(LoadTableResponse.class),
+            eq(null),
             eq(ImmutableMap.of("Authorization", "Bearer token-exchange-token:sub=" + token)),
             any());
   }
@@ -1777,11 +1777,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     Mockito.verify(adapter)
         .execute(
-            eq(HTTPMethod.GET),
+            eq(HTTPMethod.HEAD),
             eq("v1/namespaces/ns/tables/table"),
             any(),
             any(),
-            eq(LoadTableResponse.class),
+            eq(null),
             eq(OAuth2Util.authHeaders(token)),
             any());
   }
@@ -1919,11 +1919,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                       "Bearer token-exchange-token:sub=client-credentials-token:sub=catalog");
               Mockito.verify(adapter)
                   .execute(
-                      eq(HTTPMethod.GET),
+                      eq(HTTPMethod.HEAD),
                       eq("v1/namespaces/ns/tables/table"),
                       any(),
                       any(),
-                      eq(LoadTableResponse.class),
+                      eq(null),
                       eq(refreshedCatalogHeader),
                       any());
             });

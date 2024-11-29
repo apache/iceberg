@@ -52,6 +52,7 @@ public class Endpoint {
   // table endpoints
   public static final Endpoint V1_LIST_TABLES = Endpoint.create("GET", ResourcePaths.V1_TABLES);
   public static final Endpoint V1_LOAD_TABLE = Endpoint.create("GET", ResourcePaths.V1_TABLE);
+  public static final Endpoint V1_TABLE_EXISTS = Endpoint.create("HEAD", ResourcePaths.V1_TABLE);
   public static final Endpoint V1_CREATE_TABLE = Endpoint.create("POST", ResourcePaths.V1_TABLES);
   public static final Endpoint V1_UPDATE_TABLE = Endpoint.create("POST", ResourcePaths.V1_TABLE);
   public static final Endpoint V1_DELETE_TABLE = Endpoint.create("DELETE", ResourcePaths.V1_TABLE);
