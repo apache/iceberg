@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionUtil;
+import org.apache.iceberg.util.ScanTaskUtil;
 import org.apache.iceberg.util.StructLikeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
@@ -121,11 +122,6 @@ class DVIterable extends CloseableGroup implements CloseableIterable<InternalRow
           deletedPositionIndex = rowValues.size() - 1;
         }
 
-        if (null != projection.findField(MetadataColumns.DELETE_FILE_ROW_FIELD_ID)) {
-          // there's no info about deleted rows with DVs, so always return null
-          rowValues.add(null);
-        }
-
         Types.NestedField partition = projection.findField(MetadataColumns.PARTITION_COLUMN_ID);
         if (null != partition) {
           Types.StructType type = partition.type().asStructType();
@@ -141,6 +137,14 @@ class DVIterable extends CloseableGroup implements CloseableIterable<InternalRow
 
         if (null != projection.findField(MetadataColumns.FILE_PATH_COLUMN_ID)) {
           rowValues.add(UTF8String.fromString(deleteFile.location()));
+        }
+
+        if (null != projection.findField(MetadataColumns.CONTENT_OFFSET.fieldId())) {
+          rowValues.add(deleteFile.contentOffset());
+        }
+
+        if (null != projection.findField(MetadataColumns.CONTENT_SIZE_IN_BYTES.fieldId())) {
+          rowValues.add(ScanTaskUtil.contentSizeInBytes(deleteFile));
         }
 
         this.row = new GenericInternalRow(rowValues.toArray());
