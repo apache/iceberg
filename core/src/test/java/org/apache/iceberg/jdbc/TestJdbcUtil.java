@@ -49,7 +49,7 @@ public class TestJdbcUtil {
 
     Properties actual = JdbcUtil.filterAndRemovePrefix(input, "jdbc.");
 
-    assertThat(expected).isEqualTo(actual);
+    assertThat(actual).isEqualTo(expected);
   }
 
   @Test
