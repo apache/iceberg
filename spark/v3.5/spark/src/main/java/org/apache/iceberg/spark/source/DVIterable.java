@@ -28,6 +28,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
@@ -39,7 +40,10 @@ import org.apache.iceberg.puffin.PuffinReader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.PartitionUtil;
+import org.apache.iceberg.util.StructLikeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.unsafe.types.UTF8String;
@@ -67,8 +71,8 @@ class DVIterable extends CloseableGroup implements CloseableIterable<InternalRow
   private class DVIterator implements CloseableIterator<InternalRow> {
     private final PuffinReader reader;
     private Iterator<Long> positions = Collections.emptyIterator();
-    private List<Object> rowValues;
     private Integer deletedPositionIndex;
+    private GenericInternalRow row;
 
     DVIterator(PuffinReader reader) {
       this.reader = reader;
@@ -105,8 +109,8 @@ class DVIterable extends CloseableGroup implements CloseableIterable<InternalRow
     public InternalRow next() {
       long position = positions.next();
 
-      if (null == rowValues) {
-        this.rowValues = Lists.newArrayList();
+      if (null == row) {
+        List<Object> rowValues = Lists.newArrayList();
         if (null != projection.findField(MetadataColumns.DELETE_FILE_PATH.fieldId())) {
           rowValues.add(UTF8String.fromString(deleteFile.referencedDataFile()));
         }
@@ -122,10 +126,13 @@ class DVIterable extends CloseableGroup implements CloseableIterable<InternalRow
           rowValues.add(null);
         }
 
-        if (null != projection.findField(MetadataColumns.PARTITION_COLUMN_ID)) {
-          StructInternalRow partition = new StructInternalRow(spec.partitionType());
-          partition.setStruct(deleteFile.partition());
-          rowValues.add(partition);
+        Types.NestedField partition = projection.findField(MetadataColumns.PARTITION_COLUMN_ID);
+        if (null != partition) {
+          Types.StructType type = partition.type().asStructType();
+          StructInternalRow partitionRow = new StructInternalRow(type);
+          StructLike copiedPartition = StructLikeUtil.copy(deleteFile.partition());
+          partitionRow.setStruct(PartitionUtil.coercePartition(type, spec, copiedPartition));
+          rowValues.add(partitionRow);
         }
 
         if (null != projection.findField(MetadataColumns.SPEC_ID_COLUMN_ID)) {
@@ -135,12 +142,14 @@ class DVIterable extends CloseableGroup implements CloseableIterable<InternalRow
         if (null != projection.findField(MetadataColumns.FILE_PATH_COLUMN_ID)) {
           rowValues.add(UTF8String.fromString(deleteFile.location()));
         }
+
+        this.row = new GenericInternalRow(rowValues.toArray());
       } else if (null != deletedPositionIndex) {
         // only update the deleted position if necessary, everything else stays the same
-        rowValues.set(deletedPositionIndex, position);
+        row.update(deletedPositionIndex, position);
       }
 
-      return new GenericInternalRow(rowValues.toArray());
+      return row;
     }
 
     @Override
