@@ -228,6 +228,10 @@ public class SparkPositionDeletesRewrite implements Write {
               .suffix("deletes")
               .build();
 
+      if (TableUtil.formatVersion(underlyingTable(table)) >= 3) {
+        return new DVWriter(table, deleteFileFactory, dsSchema, specId, partition);
+      }
+
       Schema positionDeleteRowSchema = positionDeleteRowSchema();
       StructType deleteSparkType = deleteSparkType();
       StructType deleteSparkTypeWithoutRow = deleteSparkTypeWithoutRow();
@@ -245,10 +249,6 @@ public class SparkPositionDeletesRewrite implements Write {
               .positionDeleteSparkType(deleteSparkTypeWithoutRow)
               .writeProperties(writeProperties)
               .build();
-
-      if (TableUtil.formatVersion(underlyingTable(table)) >= 3) {
-        return new DVWriter(table, deleteFileFactory, dsSchema, specId, partition);
-      }
 
       return new DeleteWriter(
           table,

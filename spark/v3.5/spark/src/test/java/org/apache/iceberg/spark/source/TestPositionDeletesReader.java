@@ -215,10 +215,10 @@ public class TestPositionDeletesReader extends TestBase {
       String dataFileLocation =
           formatVersion >= 3 ? deleteFile2.referencedDataFile() : dataFile2.location();
       Object[] first = {
-        UTF8String.fromString(dataFileLocation), 0L, UTF8String.fromString(deleteFile2.location())
+        UTF8String.fromString(dataFileLocation), 2L, UTF8String.fromString(deleteFile2.location())
       };
       Object[] second = {
-        UTF8String.fromString(dataFileLocation), 1L, UTF8String.fromString(deleteFile2.location())
+        UTF8String.fromString(dataFileLocation), 3L, UTF8String.fromString(deleteFile2.location())
       };
       assertThat(internalRowsToJava(actualRows, projectedSchema))
           .hasSize(2)
