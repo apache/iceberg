@@ -2054,9 +2054,9 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .map(r -> (Integer) r.getAs(DataFile.SPEC_ID.name()))
             .collect(Collectors.toList());
 
-    assertThat(ImmutableList.of(spec0, spec1))
+    assertThat(actual)
         .as("Should have two partition specs")
-        .isEqualTo(actual);
+        .isEqualTo(ImmutableList.of(spec0, spec1));
   }
 
   @Test
