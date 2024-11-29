@@ -145,6 +145,10 @@ public class PositionDeletesTable extends BaseMetadataTable {
                 Types.StringType.get(),
                 MetadataColumns.FILE_PATH_COLUMN_DOC));
 
+    if (formatVersion >= 3) {
+      builder.add(MetadataColumns.CONTENT_OFFSET, MetadataColumns.CONTENT_SIZE_IN_BYTES);
+    }
+
     List<Types.NestedField> columns = builder.build();
 
     // Calculate used ids (for de-conflict)

@@ -1706,7 +1706,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
     int expectedIds =
         formatVersion >= 3
-            ? 6 // partition col + 5 columns
+            ? 8 // partition col + 7 columns
             : 2010; // partition col + 6 columns + 2003 ids inside the deleted row column
     assertThat(TypeUtil.indexById(positionDeletesTable.schema().asStruct()).size())
         .isEqualTo(expectedIds);

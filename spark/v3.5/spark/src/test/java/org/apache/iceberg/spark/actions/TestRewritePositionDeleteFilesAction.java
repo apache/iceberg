@@ -23,6 +23,7 @@ import static org.apache.spark.sql.functions.expr;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -30,6 +31,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -71,6 +73,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
@@ -230,6 +233,89 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     List<Object[]> actualDeletes = deleteRecords(table);
     assertEquals("Rows must match", expectedRecords, actualRecords);
     assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
+  }
+
+  @TestTemplate
+  public void testDVsAreRewritten() throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    Table table = createTableUnpartitioned(2, SCALE);
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    writePosDeletesForFiles(table, 2, DELETES_SCALE, dataFiles);
+    assertThat(dataFiles).hasSize(2);
+
+    List<DeleteFile> deleteFiles = deleteFiles(table);
+    assertThat(deleteFiles).hasSize(2);
+
+    List<Object[]> expectedRecords = records(table);
+    List<Object[]> expectedDeletes = deleteRecords(table);
+    assertThat(expectedRecords).hasSize(2000);
+    assertThat(expectedDeletes).hasSize(2000);
+    List<Row> dvsBeforeRewrite = dvRecords(table);
+
+    Result result =
+        SparkActions.get(spark)
+            .rewritePositionDeletes(table)
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .execute();
+    List<DeleteFile> newDeleteFiles = deleteFiles(table);
+    assertThat(newDeleteFiles).as("Expected 1 delete file per data file").hasSameSizeAs(dataFiles);
+    assertLocallySorted(newDeleteFiles);
+    assertNotContains(deleteFiles, newDeleteFiles);
+    checkResult(result, deleteFiles, newDeleteFiles, 1);
+    checkSequenceNumbers(table, deleteFiles, newDeleteFiles);
+
+    List<Object[]> actualRecords = records(table);
+    List<Object[]> actualDeletes = deleteRecords(table);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
+
+    Set<String> pathsBeforeRewrite =
+        deleteFiles.stream().map(ContentFile::location).collect(Collectors.toSet());
+    // both delete files point to a separate DV file
+    assertThat(pathsBeforeRewrite).hasSameSizeAs(dataFiles);
+
+    Set<String> pathsAfterRewrite =
+        newDeleteFiles.stream().map(ContentFile::location).collect(Collectors.toSet());
+    // both delete files point to the same DV file
+    assertThat(pathsAfterRewrite).hasSize(1);
+    // all new deletes point to the same DV file
+    assertThat(newDeleteFiles)
+        .allMatch(file -> file.location().equals(Iterables.getOnlyElement(pathsAfterRewrite)));
+
+    List<Row> dvsAfterRewrite = dvRecords(table);
+    assertThat(dvsAfterRewrite).hasSameSizeAs(dvsBeforeRewrite);
+
+    for (Row beforeRewrite : dvsBeforeRewrite) {
+      Optional<Row> rewritten =
+          dvsAfterRewrite.stream()
+              // filter by data file path
+              .filter(row -> row.getString(0).equals(beforeRewrite.getString(0)))
+              .findFirst();
+      assertThat(rewritten).isPresent();
+      Row rewrittenRow = rewritten.get();
+
+      Optional<DeleteFile> delete =
+          newDeleteFiles.stream()
+              // filter by data file path
+              .filter(f -> f.referencedDataFile().equals(rewrittenRow.getString(0)))
+              .findFirst();
+      assertThat(delete).isPresent();
+      DeleteFile rewrittenDelete = delete.get();
+
+      // delete_file_path has been rewritten and is different from beforeRewrite's path
+      assertThat(rewrittenRow.get(1))
+          .isNotEqualTo(beforeRewrite.get(1))
+          .isEqualTo(rewrittenDelete.location());
+
+      // only compare content_offset after the rewrite with the rewritten delete file as
+      // it can be different from beforeRewrite's content offset
+      assertThat(rewrittenRow.get(2)).isEqualTo(rewrittenDelete.contentOffset());
+
+      // content_size_in_bytes must be the same before and after rewriting
+      assertThat(rewrittenRow.get(3))
+          .isEqualTo(beforeRewrite.get(3))
+          .isEqualTo(ScanTaskUtil.contentSizeInBytes(rewrittenDelete));
+    }
   }
 
   @TestTemplate
@@ -949,6 +1035,16 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
             .select("file_path", additionalFields)
             .sort("file_path", "pos")
             .collectAsList());
+  }
+
+  private List<Row> dvRecords(Table table) {
+    return spark
+        .read()
+        .format("iceberg")
+        .load(name(table) + ".position_deletes")
+        .select("file_path", "delete_file_path", "content_offset", "content_size_in_bytes")
+        .distinct()
+        .collectAsList();
   }
 
   private void writePosDeletesForFiles(
