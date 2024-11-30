@@ -32,7 +32,7 @@ When making changes to the local files and test them out, you can build the imag
 ./gradlew :iceberg-open-api:shadowJar
 
 # Rebuild the docker image
-docker image rm -f apache/iceberg-rest-adapter && docker build -t apache/iceberg-rest-adapter -f docker/iceberg-rest-fixture/Dockerfile .
+docker image rm -f apache/iceberg-rest-fixture && docker build -t apache/iceberg-rest-fixture -f docker/iceberg-rest-fixture/Dockerfile .
 ```
 
 ## Browse
