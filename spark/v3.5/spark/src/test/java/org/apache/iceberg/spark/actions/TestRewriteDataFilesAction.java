@@ -113,9 +113,11 @@ import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeMap;
+import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.execution.datasources.SparkExpressionConverter;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -161,6 +163,16 @@ public class TestRewriteDataFilesAction extends TestBase {
     return actions().rewriteDataFiles(table).option(SizeBasedFileRewriter.MIN_INPUT_FILES, "1");
   }
 
+  private Expression filterExpression(String name, String where) {
+    try {
+      org.apache.spark.sql.catalyst.expressions.Expression expression =
+          SparkExpressionConverter.collectResolvedSparkExpression(spark, name, where);
+      return SparkExpressionConverter.convertToIcebergExpression(expression);
+    } catch (AnalysisException e) {
+      throw new IllegalArgumentException("Cannot parse predicates in where option: " + where, e);
+    }
+  }
+
   @Test
   public void testEmptyTable() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -172,6 +184,28 @@ public class TestRewriteDataFilesAction extends TestBase {
     basicRewrite(table).execute();
 
     assertThat(table.currentSnapshot()).as("Table must stay empty").isNull();
+  }
+
+  @Test
+  public void testFilterCaseSensitivityBeforeChange() {
+    Table table = createTable(4);
+    RewriteDataFilesSparkAction4Test actionBeforeChange =
+        new RewriteDataFilesSparkAction4Test(spark, table);
+    Expression filter = filterExpression(tableLocation, "C1 > 90000000");
+    actionBeforeChange = actionBeforeChange.filter(filter);
+    assertThatThrownBy(actionBeforeChange::execute)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse predicates in where option: C1 > 10");
+  }
+
+  @Test
+  public void testFilterCaseSensitivityAfterChange() {
+    Table table = createTable(4);
+    RewriteDataFilesSparkAction action = new RewriteDataFilesSparkAction(spark, table);
+    Expression filter = filterExpression(tableLocation, "C1 > 90000000");
+    action = action.casSensitive(false).filter(filter);
+    Result result = action.execute();
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(0);
   }
 
   @Test

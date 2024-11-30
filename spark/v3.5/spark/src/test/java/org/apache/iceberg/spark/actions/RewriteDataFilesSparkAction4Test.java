@@ -62,7 +62,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
-import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.StructLikeMap;
@@ -72,10 +71,11 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class RewriteDataFilesSparkAction
-    extends BaseSnapshotUpdateSparkAction<RewriteDataFilesSparkAction> implements RewriteDataFiles {
+public class RewriteDataFilesSparkAction4Test
+    extends BaseSnapshotUpdateSparkAction<RewriteDataFilesSparkAction4Test>
+    implements RewriteDataFiles {
 
-  private static final Logger LOG = LoggerFactory.getLogger(RewriteDataFilesSparkAction.class);
+  private static final Logger LOG = LoggerFactory.getLogger(RewriteDataFilesSparkAction4Test.class);
   private static final Set<String> VALID_OPTIONS =
       ImmutableSet.of(
           MAX_CONCURRENT_FILE_GROUP_REWRITES,
@@ -89,7 +89,7 @@ public class RewriteDataFilesSparkAction
           OUTPUT_SPEC_ID,
           REMOVE_DANGLING_DELETES);
 
-  private static final RewriteDataFilesSparkAction.Result EMPTY_RESULT =
+  private static final RewriteDataFilesSparkAction4Test.Result EMPTY_RESULT =
       ImmutableRewriteDataFiles.Result.builder().rewriteResults(ImmutableList.of()).build();
 
   private final Table table;
@@ -103,23 +103,21 @@ public class RewriteDataFilesSparkAction
   private boolean useStartingSequenceNumber;
   private RewriteJobOrder rewriteJobOrder;
   private FileRewriter<FileScanTask, DataFile> rewriter = null;
-  private boolean caseSensitive;
 
-  RewriteDataFilesSparkAction(SparkSession spark, Table table) {
+  RewriteDataFilesSparkAction4Test(SparkSession spark, Table table) {
     super(spark.cloneSession());
     // Disable Adaptive Query Execution as this may change the output partitioning of our write
     spark().conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
-    this.caseSensitive = SparkUtil.caseSensitive(spark);
     this.table = table;
   }
 
   @Override
-  protected RewriteDataFilesSparkAction self() {
+  protected RewriteDataFilesSparkAction4Test self() {
     return this;
   }
 
   @Override
-  public RewriteDataFilesSparkAction binPack() {
+  public RewriteDataFilesSparkAction4Test binPack() {
     Preconditions.checkArgument(
         rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
     this.rewriter = new SparkBinPackDataRewriter(spark(), table);
@@ -127,7 +125,7 @@ public class RewriteDataFilesSparkAction
   }
 
   @Override
-  public RewriteDataFilesSparkAction sort(SortOrder sortOrder) {
+  public RewriteDataFilesSparkAction4Test sort(SortOrder sortOrder) {
     Preconditions.checkArgument(
         rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
     this.rewriter = new SparkSortDataRewriter(spark(), table, sortOrder);
@@ -135,7 +133,7 @@ public class RewriteDataFilesSparkAction
   }
 
   @Override
-  public RewriteDataFilesSparkAction sort() {
+  public RewriteDataFilesSparkAction4Test sort() {
     Preconditions.checkArgument(
         rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
     this.rewriter = new SparkSortDataRewriter(spark(), table);
@@ -143,7 +141,7 @@ public class RewriteDataFilesSparkAction
   }
 
   @Override
-  public RewriteDataFilesSparkAction zOrder(String... columnNames) {
+  public RewriteDataFilesSparkAction4Test zOrder(String... columnNames) {
     Preconditions.checkArgument(
         rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
     this.rewriter = new SparkZOrderDataRewriter(spark(), table, Arrays.asList(columnNames));
@@ -151,13 +149,8 @@ public class RewriteDataFilesSparkAction
   }
 
   @Override
-  public RewriteDataFilesSparkAction filter(Expression expression) {
+  public RewriteDataFilesSparkAction4Test filter(Expression expression) {
     filter = Expressions.and(filter, expression);
-    return this;
-  }
-
-  public RewriteDataFilesSparkAction casSensitive(boolean caseSensitive) {
-    this.caseSensitive = caseSensitive;
     return this;
   }
 
@@ -206,7 +199,6 @@ public class RewriteDataFilesSparkAction
         table
             .newScan()
             .useSnapshot(startingSnapshotId)
-            .caseSensitive(caseSensitive)
             .filter(filter)
             .ignoreResiduals()
             .planFiles();
