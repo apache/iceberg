@@ -216,7 +216,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     Table table = createTable(4);
     RewriteDataFilesSparkAction action = new RewriteDataFilesSparkAction(spark, table);
     Expression filter = filterExpression(tableLocation, "C1 > 90000000");
-    action = action.casSensitive(false).filter(filter);
+    action = action.setCasSensitive(false).filter(filter);
     Result result = action.execute();
     assertThat(result.rewrittenDataFilesCount()).isEqualTo(0);
   }

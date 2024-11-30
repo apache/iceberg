@@ -156,7 +156,7 @@ public class RewriteDataFilesSparkAction
     return this;
   }
 
-  public RewriteDataFilesSparkAction casSensitive(boolean caseSensitive) {
+  public RewriteDataFilesSparkAction setCasSensitive(boolean caseSensitive) {
     this.caseSensitive = caseSensitive;
     return this;
   }
