@@ -104,7 +104,7 @@ public class RewriteDataFilesSparkAction4Test
   private RewriteJobOrder rewriteJobOrder;
   private FileRewriter<FileScanTask, DataFile> rewriter = null;
 
-  RewriteDataFilesSparkAction4Test(SparkSession spark, Table table) {
+  public RewriteDataFilesSparkAction4Test(SparkSession spark, Table table) {
     super(spark.cloneSession());
     // Disable Adaptive Query Execution as this may change the output partitioning of our write
     spark().conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);

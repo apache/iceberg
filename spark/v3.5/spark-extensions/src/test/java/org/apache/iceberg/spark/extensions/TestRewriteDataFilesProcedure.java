@@ -30,22 +30,28 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.ExtendedParser;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkTableCache;
 import org.apache.iceberg.spark.SystemFunctionPushDownHelper;
+import org.apache.iceberg.spark.actions.RewriteDataFilesSparkAction4Test;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
+import org.apache.spark.sql.execution.datasources.SparkExpressionConverter;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -67,6 +73,42 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   public void removeTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS %s", tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
+  }
+
+  private Expression filterExpression(String name, String where) {
+    try {
+      org.apache.spark.sql.catalyst.expressions.Expression expression =
+          SparkExpressionConverter.collectResolvedSparkExpression(spark, name, where);
+      return SparkExpressionConverter.convertToIcebergExpression(expression);
+    } catch (AnalysisException e) {
+      throw new IllegalArgumentException("Cannot parse predicates in where option: " + where, e);
+    }
+  }
+
+  @TestTemplate
+  public void testFilterCaseSensitivityBeforeChange() throws NoSuchTableException, ParseException {
+    createTable();
+    insertData(10);
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    RewriteDataFilesSparkAction4Test actionBeforeChange =
+        new RewriteDataFilesSparkAction4Test(spark, table);
+    Expression filter = filterExpression(tableName, "C1 > 90000000");
+    actionBeforeChange = actionBeforeChange.filter(filter);
+    assertThatThrownBy(actionBeforeChange::execute)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse predicates in where option: C1 > 90000000");
+  }
+
+  @TestTemplate
+  public void testFilterCaseSensitivityAfterChange() {
+    createTable();
+    insertData(10);
+    assertEquals(
+        "Should have done nothing but passed the schema validation, since no files are present",
+        ImmutableList.of(row(0, 0, 0L, 0)),
+        sql(
+            "CALL %s.system.rewrite_data_files(table=>'%s', where=>'C1 > 90000000')",
+            catalogName, tableIdent));
   }
 
   @TestTemplate
