@@ -90,19 +90,23 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     createTable();
     insertData(10);
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    // RewriteDataFilesSparkAction4Test is the code before adding the case-sensitive alterable
+    // behavior.
     RewriteDataFilesSparkAction4Test actionBeforeChange =
         new RewriteDataFilesSparkAction4Test(spark, table);
     Expression filter = filterExpression(tableName, "C1 > 90000000");
     actionBeforeChange = actionBeforeChange.filter(filter);
     assertThatThrownBy(actionBeforeChange::execute)
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse predicates in where option: C1 > 90000000");
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Cannot find field 'C1' in struct: struct<1: c1: optional int, 2: c2: optional string, 3: c3: optional string>");
   }
 
   @TestTemplate
   public void testFilterCaseSensitivityAfterChange() {
     createTable();
     insertData(10);
+    sql("set spark.sql.caseSensitive=false");
     assertEquals(
         "Should have done nothing but passed the schema validation, since no files are present",
         ImmutableList.of(row(0, 0, 0L, 0)),
