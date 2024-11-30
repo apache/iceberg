@@ -23,16 +23,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -52,13 +48,7 @@ public class TestPartitioning {
   private static final PartitionSpec BY_DATA_CATEGORY_BUCKET_SPEC =
       PartitionSpec.builderFor(SCHEMA).identity("data").bucket("category", 8).build();
 
-  @TempDir private Path temp;
-  private File tableDir = null;
-
-  @BeforeEach
-  public void setupTableDir() throws IOException {
-    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
-  }
+  @TempDir private File tableDir;
 
   @AfterEach
   public void cleanupTables() {

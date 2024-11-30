@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.FileFormat;
@@ -74,9 +73,6 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
   @Override
   @BeforeEach
   public void setupTable() throws Exception {
-    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue(); // created during table creation
-
     this.metadataDir = new File(tableDir, "metadata");
 
     if (partitioned) {

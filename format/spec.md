@@ -262,6 +262,7 @@ Iceberg's Avro manifest format does not store the type of lower and upper bounds
 | `decimal(P, S)`  | _any_            | `decimal(P', S)`; `P' <= P` |
 
 Type promotion is not allowed for a field that is referenced by `source-id` or `source-ids` of a partition field if the partition transform would produce a different value after promoting the type. For example, `bucket[N]` produces different hash values for `34` and `"34"` (2017239379 != -427558391) but the same value for `34` and `34L`; when an `int` field is the source for a bucket partition field, it may be promoted to `long` but not to `string`. This may happen for the following type promotion cases:
+
 * `date` to `timestamp` or `timestamp_ns`
 
 Any struct, including a top-level schema, can evolve through deleting fields, adding new fields, renaming existing fields, reordering existing fields, or promoting a primitive using the valid type promotions. Adding a new field assigns a new ID for that field and for any nested fields. Renaming an existing field must change the name, but not the field ID. Deleting a field removes it from the current schema. Field deletion cannot be rolled back unless the field was nullable or if the current snapshot has not changed.
@@ -661,7 +662,7 @@ A snapshot consists of the following fields:
 | _required_ | _required_ | _required_ | **`timestamp-ms`**           | A timestamp when the snapshot was created, used for garbage collection and table inspection                                        |
 | _optional_ | _required_ | _required_ | **`manifest-list`**          | The location of a manifest list for this snapshot that tracks manifest files with additional metadata                              |
 | _optional_ |            |            | **`manifests`**              | A list of manifest file locations. Must be omitted if `manifest-list` is present                                                   |
-| _optional_ | _required_ | _required_ | **`summary`**                | A string map that summarizes the snapshot changes, including `operation` (see below)                                               |
+| _optional_ | _required_ | _required_ | **`summary`**                | A string map that summarizes the snapshot changes, including `operation` as a _required_ field (see below)                         |
 | _optional_ | _optional_ | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created                                                                     |
 |            |            | _optional_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage) |
 
@@ -977,7 +978,7 @@ Each version of table metadata is stored in a metadata folder under the table’
 
 Notes:
 
-1. The file system table scheme is implemented in [HadoopTableOperations](../javadoc/{{ icebergVersion }}/index.html?org/apache/iceberg/hadoop/HadoopTableOperations.html).
+1. The file system table scheme is implemented in [HadoopTableOperations](../javadoc/{{ icebergVersion }}/org/apache/iceberg/hadoop/HadoopTableOperations.html).
 
 #### Metastore Tables
 
@@ -993,7 +994,7 @@ Each version of table metadata is stored in a metadata folder under the table’
 
 Notes:
 
-1. The metastore table scheme is partly implemented in [BaseMetastoreTableOperations](../javadoc/{{ icebergVersion }}/index.html?org/apache/iceberg/BaseMetastoreTableOperations.html).
+1. The metastore table scheme is partly implemented in [BaseMetastoreTableOperations](../javadoc/{{ icebergVersion }}/org/apache/iceberg/BaseMetastoreTableOperations.html).
 
 
 ### Delete Formats
@@ -1001,6 +1002,7 @@ Notes:
 This section details how to encode row-level deletes in Iceberg delete files. Row-level deletes are added by v2 and are not supported in v1. Deletion vectors are added in v3 and are not supported in v2 or earlier. Position delete files must not be added to v3 tables, but existing position delete files are valid.
 
 There are three types of row-level deletes:
+
 * Deletion vectors (DVs) identify deleted rows within a single referenced data file by position in a bitmap
 * Position delete files identify deleted rows by file location and row position (**deprecated**)
 * Equality delete files identify deleted rows by the value of one or more columns
@@ -1014,7 +1016,7 @@ Row-level delete files and deletion vectors are tracked by manifests. A separate
 Both position and equality delete files allow encoding deleted row values with a delete. This can be used to reconstruct a stream of changes to a table.
 
 
-### Deletion Vectors
+#### Deletion Vectors
 
 Deletion vectors identify deleted rows of a file by encoding deleted positions in a bitmap. A set bit at position P indicates that the row at position P is deleted.
 

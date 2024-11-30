@@ -186,7 +186,7 @@ public class DataFiles {
             specId == toCopy.specId(), "Cannot copy a DataFile with a different spec");
         this.partitionData = copyPartitionData(spec, toCopy.partition(), partitionData);
       }
-      this.filePath = toCopy.path().toString();
+      this.filePath = toCopy.location();
       this.format = toCopy.format();
       this.recordCount = toCopy.recordCount();
       this.fileSizeInBytes = toCopy.fileSizeInBytes();

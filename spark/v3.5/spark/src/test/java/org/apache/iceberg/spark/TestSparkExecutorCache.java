@@ -350,7 +350,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
   }
 
   private int streamCount(DeleteFile deleteFile) {
-    CustomInputFile inputFile = INPUT_FILES.get(deleteFile.path().toString());
+    CustomInputFile inputFile = INPUT_FILES.get(deleteFile.location());
     return inputFile.streamCount();
   }
 

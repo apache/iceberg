@@ -615,7 +615,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     Map<String, String> queryParams = Maps.newHashMap();
     if (!namespace.isEmpty()) {
-      queryParams.put("parent", RESTUtil.encodeNamespace(namespace));
+      queryParams.put("parent", RESTUtil.NAMESPACE_JOINER.join(namespace.levels()));
     }
 
     ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
@@ -954,7 +954,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     changes.add(new MetadataUpdate.UpgradeFormatVersion(meta.formatVersion()));
 
     Schema schema = meta.schema();
-    changes.add(new MetadataUpdate.AddSchema(schema, schema.highestFieldId()));
+    changes.add(new MetadataUpdate.AddSchema(schema));
     changes.add(new MetadataUpdate.SetCurrentSchema(-1));
 
     PartitionSpec spec = meta.spec();

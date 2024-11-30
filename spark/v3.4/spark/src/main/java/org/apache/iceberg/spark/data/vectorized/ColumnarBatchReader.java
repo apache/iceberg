@@ -55,8 +55,20 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
   @Override
   public void setRowGroupInfo(
       PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData, long rowPosition) {
-    super.setRowGroupInfo(pageStore, metaData, rowPosition);
-    this.rowStartPosInBatch = rowPosition;
+    setRowGroupInfo(pageStore, metaData);
+  }
+
+  @Override
+  public void setRowGroupInfo(
+      PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData) {
+    super.setRowGroupInfo(pageStore, metaData);
+    this.rowStartPosInBatch =
+        pageStore
+            .getRowIndexOffset()
+            .orElseThrow(
+                () ->
+                    new IllegalArgumentException(
+                        "PageReadStore does not contain row index offset"));
   }
 
   public void setDeleteFilter(DeleteFilter<InternalRow> deleteFilter) {

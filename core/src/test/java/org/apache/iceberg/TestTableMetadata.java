@@ -885,7 +885,8 @@ public class TestTableMetadata {
 
   @Test
   public void testVersionValidation() {
-    int unsupportedVersion = TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1;
+    int supportedVersion = TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION;
+    int unsupportedVersion = supportedVersion + 1;
     assertThatThrownBy(
             () ->
                 new TableMetadata(
@@ -914,7 +915,62 @@ public class TestTableMetadata {
                     ImmutableList.of(),
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Unsupported format version: v" + unsupportedVersion);
+        .hasMessage(
+            "Unsupported format version: v%s (supported: v%s)",
+            unsupportedVersion, supportedVersion);
+
+    assertThatThrownBy(
+            () ->
+                TableMetadata.newTableMetadata(
+                    TEST_SCHEMA,
+                    PartitionSpec.unpartitioned(),
+                    SortOrder.unsorted(),
+                    TEST_LOCATION,
+                    ImmutableMap.of(),
+                    unsupportedVersion))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Unsupported format version: v%s (supported: v%s)",
+            unsupportedVersion, supportedVersion);
+
+    // should be allowed in the supported version
+    assertThat(
+            new TableMetadata(
+                null,
+                supportedVersion,
+                UUID.randomUUID().toString(),
+                TEST_LOCATION,
+                SEQ_NO,
+                System.currentTimeMillis(),
+                LAST_ASSIGNED_COLUMN_ID,
+                7,
+                ImmutableList.of(TEST_SCHEMA),
+                SPEC_5.specId(),
+                ImmutableList.of(SPEC_5),
+                SPEC_5.lastAssignedFieldId(),
+                3,
+                ImmutableList.of(SORT_ORDER_3),
+                ImmutableMap.of(),
+                -1L,
+                ImmutableList.of(),
+                null,
+                ImmutableList.of(),
+                ImmutableList.of(),
+                ImmutableMap.of(),
+                ImmutableList.of(),
+                ImmutableList.of(),
+                ImmutableList.of()))
+        .isNotNull();
+
+    assertThat(
+            TableMetadata.newTableMetadata(
+                TEST_SCHEMA,
+                PartitionSpec.unpartitioned(),
+                SortOrder.unsorted(),
+                TEST_LOCATION,
+                ImmutableMap.of(),
+                supportedVersion))
+        .isNotNull();
   }
 
   @Test
@@ -1369,7 +1425,7 @@ public class TestTableMetadata {
         new Schema(
             Lists.newArrayList(Types.NestedField.required(1, "x", Types.StringType.get())),
             Sets.newHashSet(1));
-    TableMetadata newMeta = meta.updateSchema(newSchema, 1);
+    TableMetadata newMeta = meta.updateSchema(newSchema);
     assertThat(newMeta.schemas()).hasSize(2);
     assertThat(newMeta.schema().identifierFieldIds()).containsExactly(1);
   }
@@ -1391,7 +1447,7 @@ public class TestTableMetadata {
         new Schema(
             Types.NestedField.required(1, "y", Types.LongType.get(), "comment"),
             Types.NestedField.required(2, "x", Types.StringType.get()));
-    TableMetadata twoSchemasTable = freshTable.updateSchema(schema2, 2);
+    TableMetadata twoSchemasTable = freshTable.updateSchema(schema2);
     assertThat(twoSchemasTable.currentSchemaId()).isEqualTo(1);
     assertSameSchemaList(
         ImmutableList.of(schema, new Schema(1, schema2.columns())), twoSchemasTable.schemas());
@@ -1403,26 +1459,26 @@ public class TestTableMetadata {
         new Schema(
             Types.NestedField.required(1, "y", Types.LongType.get(), "comment"),
             Types.NestedField.required(2, "x", Types.StringType.get()));
-    TableMetadata sameSchemaTable = twoSchemasTable.updateSchema(sameSchema2, 2);
+    TableMetadata sameSchemaTable = twoSchemasTable.updateSchema(sameSchema2);
     assertThat(sameSchemaTable).isSameAs(twoSchemasTable);
 
     // update schema with the same schema and different last column ID as current should create
     // a new table
-    TableMetadata differentColumnIdTable = sameSchemaTable.updateSchema(sameSchema2, 3);
+    TableMetadata differentColumnIdTable = sameSchemaTable.updateSchema(sameSchema2);
     assertThat(differentColumnIdTable.currentSchemaId()).isEqualTo(1);
     assertSameSchemaList(
         ImmutableList.of(schema, new Schema(1, schema2.columns())),
         differentColumnIdTable.schemas());
     assertThat(differentColumnIdTable.schema().asStruct()).isEqualTo(schema2.asStruct());
-    assertThat(differentColumnIdTable.lastColumnId()).isEqualTo(3);
+    assertThat(differentColumnIdTable.lastColumnId()).isEqualTo(2);
 
     // update schema with old schema does not change schemas
-    TableMetadata revertSchemaTable = differentColumnIdTable.updateSchema(schema, 3);
+    TableMetadata revertSchemaTable = differentColumnIdTable.updateSchema(schema);
     assertThat(revertSchemaTable.currentSchemaId()).isEqualTo(0);
     assertSameSchemaList(
         ImmutableList.of(schema, new Schema(1, schema2.columns())), revertSchemaTable.schemas());
     assertThat(revertSchemaTable.schema().asStruct()).isEqualTo(schema.asStruct());
-    assertThat(revertSchemaTable.lastColumnId()).isEqualTo(3);
+    assertThat(revertSchemaTable.lastColumnId()).isEqualTo(2);
 
     // create new schema will use the largest schema id + 1
     Schema schema3 =
@@ -1430,7 +1486,7 @@ public class TestTableMetadata {
             Types.NestedField.required(2, "y", Types.LongType.get(), "comment"),
             Types.NestedField.required(4, "x", Types.StringType.get()),
             Types.NestedField.required(6, "z", Types.IntegerType.get()));
-    TableMetadata threeSchemaTable = revertSchemaTable.updateSchema(schema3, 6);
+    TableMetadata threeSchemaTable = revertSchemaTable.updateSchema(schema3);
     assertThat(threeSchemaTable.currentSchemaId()).isEqualTo(2);
     assertSameSchemaList(
         ImmutableList.of(
@@ -1607,7 +1663,8 @@ public class TestTableMetadata {
     try (ManifestListWriter writer =
         ManifestLists.write(1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0)) {
       writer.addAll(
-          ImmutableList.of(new GenericManifestFile(localInput(manifestFile), SPEC_5.specId())));
+          ImmutableList.of(
+              new GenericManifestFile(localInput(manifestFile), SPEC_5.specId(), snapshotId)));
     }
 
     return localInput(manifestList).location();
@@ -1640,46 +1697,6 @@ public class TestTableMetadata {
   public void testConstructV3Metadata() {
     TableMetadata.newTableMetadata(
         TEST_SCHEMA,
-        PartitionSpec.unpartitioned(),
-        SortOrder.unsorted(),
-        TEST_LOCATION,
-        ImmutableMap.of(),
-        3);
-  }
-
-  @Test
-  public void testV3TimestampNanoTypeSupport() {
-    Schema v3Schema =
-        new Schema(
-            Types.NestedField.required(3, "id", Types.LongType.get()),
-            Types.NestedField.required(4, "data", Types.StringType.get()),
-            Types.NestedField.required(
-                5,
-                "struct",
-                Types.StructType.of(
-                    Types.NestedField.optional(
-                        6, "ts_nanos", Types.TimestampNanoType.withZone()))));
-
-    for (int unsupportedFormatVersion : ImmutableList.of(1, 2)) {
-      assertThatThrownBy(
-              () ->
-                  TableMetadata.newTableMetadata(
-                      v3Schema,
-                      PartitionSpec.unpartitioned(),
-                      SortOrder.unsorted(),
-                      TEST_LOCATION,
-                      ImmutableMap.of(),
-                      unsupportedFormatVersion))
-          .isInstanceOf(IllegalStateException.class)
-          .hasMessage(
-              "Invalid schema for v%s:\n"
-                  + "- Invalid type for struct.ts_nanos: timestamptz_ns is not supported until v3",
-              unsupportedFormatVersion);
-    }
-
-    // should be allowed in v3
-    TableMetadata.newTableMetadata(
-        v3Schema,
         PartitionSpec.unpartitioned(),
         SortOrder.unsorted(),
         TEST_LOCATION,

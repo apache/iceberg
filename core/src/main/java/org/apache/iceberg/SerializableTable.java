@@ -422,6 +422,12 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
       return MetadataTableUtils.createMetadataTableInstance(ops, baseTableName, tableName, type);
     }
 
+    @Override
+    public StaticTableOperations operations() {
+      throw new UnsupportedOperationException(
+          this.getClass().getName() + " does not support operations()");
+    }
+
     public MetadataTableType type() {
       return type;
     }

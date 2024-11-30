@@ -30,6 +30,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.GenericBlobMetadata;
@@ -220,7 +221,7 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
   private static Set<String> dataLocations(Set<Snapshot> snapshotSet, FileIO io) {
     return snapshotSet.stream()
         .flatMap(snapshot -> StreamSupport.stream(snapshot.addedDataFiles(io).spliterator(), false))
-        .map(dataFile -> dataFile.path().toString())
+        .map(ContentFile::location)
         .collect(Collectors.toSet());
   }
 

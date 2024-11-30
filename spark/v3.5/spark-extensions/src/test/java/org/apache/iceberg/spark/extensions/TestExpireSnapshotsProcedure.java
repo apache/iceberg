@@ -33,6 +33,7 @@ import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.PartitionStatisticsFile;
@@ -51,7 +52,7 @@ import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Encoders;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -168,8 +169,13 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
         .hasMessage("Named and positional arguments cannot be mixed");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.expire_snapshots('n', 't')", catalogName))
-        .isInstanceOf(NoSuchProcedureException.class)
-        .hasMessage("Procedure custom.expire_snapshots not found");
+        .isInstanceOf(ParseException.class)
+        .satisfies(
+            exception -> {
+              ParseException parseException = (ParseException) exception;
+              assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
+              assertThat(parseException.getMessageParameters().get("error")).isEqualTo("'CALL'");
+            });
 
     assertThatThrownBy(() -> sql("CALL %s.system.expire_snapshots()", catalogName))
         .isInstanceOf(AnalysisException.class)
@@ -277,8 +283,8 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
     assertThat(TestHelpers.deleteManifests(table)).as("Should have 1 delete manifest").hasSize(1);
     assertThat(TestHelpers.deleteFiles(table)).as("Should have 1 delete file").hasSize(1);
     Path deleteManifestPath = new Path(TestHelpers.deleteManifests(table).iterator().next().path());
-    Path deleteFilePath =
-        new Path(String.valueOf(TestHelpers.deleteFiles(table).iterator().next().path()));
+    DeleteFile deleteFile = TestHelpers.deleteFiles(table).iterator().next();
+    Path deleteFilePath = new Path(String.valueOf(deleteFile.location()));
 
     sql(
         "CALL %s.system.rewrite_data_files("
@@ -289,9 +295,10 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
         catalogName, tableIdent);
     table.refresh();
 
-    sql(
-        "INSERT INTO TABLE %s VALUES (5, 'e')",
-        tableName); // this txn moves the file to the DELETED state
+    table
+        .newRowDelta()
+        .removeDeletes(deleteFile)
+        .commit(); // this txn moves the file to the DELETED state
     sql("INSERT INTO TABLE %s VALUES (6, 'f')", tableName); // this txn removes the file reference
     table.refresh();
 

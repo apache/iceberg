@@ -41,7 +41,7 @@ import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.After;
 import org.junit.Assert;
@@ -697,8 +697,13 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         .hasMessage("Named and positional arguments cannot be mixed");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.rewrite_data_files('n', 't')", catalogName))
-        .isInstanceOf(NoSuchProcedureException.class)
-        .hasMessage("Procedure custom.rewrite_data_files not found");
+        .isInstanceOf(ParseException.class)
+        .satisfies(
+            exception -> {
+              ParseException parseException = (ParseException) exception;
+              Assert.assertEquals("PARSE_SYNTAX_ERROR", parseException.getErrorClass());
+              Assert.assertEquals("'CALL'", parseException.getMessageParameters().get("error"));
+            });
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files()", catalogName))
         .isInstanceOf(AnalysisException.class)

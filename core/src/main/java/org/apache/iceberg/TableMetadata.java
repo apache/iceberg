@@ -295,8 +295,9 @@ public class TableMetadata implements Serializable {
         sortOrders != null && !sortOrders.isEmpty(), "Sort orders cannot be null or empty");
     Preconditions.checkArgument(
         formatVersion <= SUPPORTED_TABLE_FORMAT_VERSION,
-        "Unsupported format version: v%s",
-        formatVersion);
+        "Unsupported format version: v%s (supported: v%s)",
+        formatVersion,
+        SUPPORTED_TABLE_FORMAT_VERSION);
     Preconditions.checkArgument(
         formatVersion == 1 || uuid != null, "UUID is required in format v%s", formatVersion);
     Preconditions.checkArgument(
@@ -562,8 +563,21 @@ public class TableMetadata implements Serializable {
     return new Builder(this).assignUUID().build();
   }
 
+  /**
+   * Updates the schema
+   *
+   * @deprecated since 1.8.0, will be removed in 1.9.0 or 2.0.0, use updateSchema(schema).
+   */
+  @Deprecated
   public TableMetadata updateSchema(Schema newSchema, int newLastColumnId) {
     return new Builder(this).setCurrentSchema(newSchema, newLastColumnId).build();
+  }
+
+  /** Updates the schema */
+  public TableMetadata updateSchema(Schema newSchema) {
+    return new Builder(this)
+        .setCurrentSchema(newSchema, Math.max(this.lastColumnId, newSchema.highestFieldId()))
+        .build();
   }
 
   // The caller is responsible to pass a newPartitionSpec with correct partition field IDs
@@ -1081,8 +1095,18 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    public Builder addSchema(Schema schema) {
+      addSchemaInternal(schema, Math.max(lastColumnId, schema.highestFieldId()));
+      return this;
+    }
+
+    /**
+     * Add a new schema.
+     *
+     * @deprecated since 1.8.0, will be removed in 1.9.0 or 2.0.0, use AddSchema(schema).
+     */
+    @Deprecated
     public Builder addSchema(Schema schema, int newLastColumnId) {
-      // TODO: remove requirement for newLastColumnId
       addSchemaInternal(schema, newLastColumnId);
       return this;
     }

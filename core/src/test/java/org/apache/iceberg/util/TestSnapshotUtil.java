@@ -80,8 +80,6 @@ public class TestSnapshotUtil {
 
   @BeforeEach
   public void before() throws Exception {
-    tableDir.delete(); // created by table create
-
     this.metadataDir = new File(tableDir, "metadata");
 
     this.table = TestTables.create(tableDir, "test", SCHEMA, SPEC, 2);

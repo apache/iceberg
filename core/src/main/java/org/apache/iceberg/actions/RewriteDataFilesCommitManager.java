@@ -105,8 +105,8 @@ public class RewriteDataFilesCommitManager {
     Tasks.foreach(fileGroup.addedFiles())
         .noRetry()
         .suppressFailureWhenFinished()
-        .onFailure((dataFile, exc) -> LOG.warn("Failed to delete: {}", dataFile.path(), exc))
-        .run(dataFile -> table.io().deleteFile(dataFile.path().toString()));
+        .onFailure((dataFile, exc) -> LOG.warn("Failed to delete: {}", dataFile.location(), exc))
+        .run(dataFile -> table.io().deleteFile(dataFile.location()));
   }
 
   public void commitOrClean(Set<RewriteFileGroup> rewriteGroups) {

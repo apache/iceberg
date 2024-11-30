@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -84,9 +83,6 @@ public abstract class TestAppenderFactory<T> extends TestBase {
   @Override
   @BeforeEach
   public void setupTable() throws Exception {
-    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue(); // created by table create
-
     this.metadataDir = new File(tableDir, "metadata");
 
     if (partitioned) {
@@ -223,9 +219,9 @@ public abstract class TestAppenderFactory<T> extends TestBase {
 
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
-            Pair.of(dataFile.path(), 0L),
-            Pair.of(dataFile.path(), 2L),
-            Pair.of(dataFile.path(), 4L));
+            Pair.of(dataFile.location(), 0L),
+            Pair.of(dataFile.location(), 2L),
+            Pair.of(dataFile.location(), 4L));
 
     EncryptedOutputFile out = createEncryptedOutputFile();
     PositionDeleteWriter<T> eqDeleteWriter =
@@ -242,9 +238,9 @@ public abstract class TestAppenderFactory<T> extends TestBase {
     GenericRecord gRecord = GenericRecord.create(pathPosSchema);
     Set<Record> expectedDeletes =
         Sets.newHashSet(
-            gRecord.copy("file_path", dataFile.path(), "pos", 0L),
-            gRecord.copy("file_path", dataFile.path(), "pos", 2L),
-            gRecord.copy("file_path", dataFile.path(), "pos", 4L));
+            gRecord.copy("file_path", dataFile.location(), "pos", 0L),
+            gRecord.copy("file_path", dataFile.location(), "pos", 2L),
+            gRecord.copy("file_path", dataFile.location(), "pos", 4L));
     assertThat(
             Sets.newHashSet(createReader(pathPosSchema, out.encryptingOutputFile().toInputFile())))
         .isEqualTo(expectedDeletes);
@@ -272,9 +268,9 @@ public abstract class TestAppenderFactory<T> extends TestBase {
 
     List<PositionDelete<T>> deletes =
         Lists.newArrayList(
-            positionDelete(dataFile.path(), 0, rowSet.get(0)),
-            positionDelete(dataFile.path(), 2, rowSet.get(2)),
-            positionDelete(dataFile.path(), 4, rowSet.get(4)));
+            positionDelete(dataFile.location(), 0, rowSet.get(0)),
+            positionDelete(dataFile.location(), 2, rowSet.get(2)),
+            positionDelete(dataFile.location(), 4, rowSet.get(4)));
 
     EncryptedOutputFile out = createEncryptedOutputFile();
     PositionDeleteWriter<T> eqDeleteWriter =
@@ -294,21 +290,21 @@ public abstract class TestAppenderFactory<T> extends TestBase {
         Sets.newHashSet(
             gRecord.copy(
                 "file_path",
-                dataFile.path(),
+                dataFile.location(),
                 "pos",
                 0L,
                 "row",
                 rowRecord.copy("id", 1, "data", "aaa")),
             gRecord.copy(
                 "file_path",
-                dataFile.path(),
+                dataFile.location(),
                 "pos",
                 2L,
                 "row",
                 rowRecord.copy("id", 3, "data", "ccc")),
             gRecord.copy(
                 "file_path",
-                dataFile.path(),
+                dataFile.location(),
                 "pos",
                 4L,
                 "row",

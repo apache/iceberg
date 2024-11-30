@@ -104,12 +104,21 @@ public interface DataFile extends ContentFile<DataFile> {
           "referenced_data_file",
           StringType.get(),
           "Fully qualified location (URI with FS scheme) of a data file that all deletes reference");
+  Types.NestedField CONTENT_OFFSET =
+      optional(
+          144, "content_offset", LongType.get(), "The offset in the file where the content starts");
+  Types.NestedField CONTENT_SIZE =
+      optional(
+          145,
+          "content_size_in_bytes",
+          LongType.get(),
+          "The length of referenced content stored in the file");
 
   int PARTITION_ID = 102;
   String PARTITION_NAME = "partition";
   String PARTITION_DOC = "Partition data tuple, schema based on the partition spec";
 
-  // NEXT ID TO ASSIGN: 144
+  // NEXT ID TO ASSIGN: 146
 
   static StructType getType(StructType partitionType) {
     // IDs start at 100 to leave room for changes to ManifestEntry
@@ -131,7 +140,9 @@ public interface DataFile extends ContentFile<DataFile> {
         SPLIT_OFFSETS,
         EQUALITY_IDS,
         SORT_ORDER_ID,
-        REFERENCED_DATA_FILE);
+        REFERENCED_DATA_FILE,
+        CONTENT_OFFSET,
+        CONTENT_SIZE);
   }
 
   /**

@@ -432,7 +432,7 @@ abstract class BaseSparkAction<ThisT> {
     }
 
     static FileInfo toFileInfo(ContentFile<?> file) {
-      return new FileInfo(file.path().toString(), file.content().toString());
+      return new FileInfo(file.location(), file.content().toString());
     }
   }
 }

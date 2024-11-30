@@ -69,7 +69,8 @@ public abstract class DeleteFilter<T> {
       List<DeleteFile> deletes,
       Schema tableSchema,
       Schema requestedSchema,
-      DeleteCounter counter) {
+      DeleteCounter counter,
+      boolean needRowPosCol) {
     this.filePath = filePath;
     this.counter = counter;
 
@@ -78,11 +79,11 @@ public abstract class DeleteFilter<T> {
     for (DeleteFile delete : deletes) {
       switch (delete.content()) {
         case POSITION_DELETES:
-          LOG.debug("Adding position delete file {} to filter", delete.path());
+          LOG.debug("Adding position delete file {} to filter", delete.location());
           posDeleteBuilder.add(delete);
           break;
         case EQUALITY_DELETES:
-          LOG.debug("Adding equality delete file {} to filter", delete.path());
+          LOG.debug("Adding equality delete file {} to filter", delete.location());
           eqDeleteBuilder.add(delete);
           break;
         default:
@@ -93,11 +94,21 @@ public abstract class DeleteFilter<T> {
 
     this.posDeletes = posDeleteBuilder.build();
     this.eqDeletes = eqDeleteBuilder.build();
-    this.requiredSchema = fileProjection(tableSchema, requestedSchema, posDeletes, eqDeletes);
+    this.requiredSchema =
+        fileProjection(tableSchema, requestedSchema, posDeletes, eqDeletes, needRowPosCol);
     this.posAccessor = requiredSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
     this.hasIsDeletedColumn =
         requiredSchema.findField(MetadataColumns.IS_DELETED.fieldId()) != null;
     this.isDeletedColumnPosition = requiredSchema.columns().indexOf(MetadataColumns.IS_DELETED);
+  }
+
+  protected DeleteFilter(
+      String filePath,
+      List<DeleteFile> deletes,
+      Schema tableSchema,
+      Schema requestedSchema,
+      DeleteCounter counter) {
+    this(filePath, deletes, tableSchema, requestedSchema, counter, true);
   }
 
   protected DeleteFilter(
@@ -134,7 +145,7 @@ public abstract class DeleteFilter<T> {
   protected abstract InputFile getInputFile(String location);
 
   protected InputFile loadInputFile(DeleteFile deleteFile) {
-    return getInputFile(deleteFile.path().toString());
+    return getInputFile(deleteFile.location());
   }
 
   protected long pos(T record) {
@@ -251,13 +262,14 @@ public abstract class DeleteFilter<T> {
       Schema tableSchema,
       Schema requestedSchema,
       List<DeleteFile> posDeletes,
-      List<DeleteFile> eqDeletes) {
+      List<DeleteFile> eqDeletes,
+      boolean needRowPosCol) {
     if (posDeletes.isEmpty() && eqDeletes.isEmpty()) {
       return requestedSchema;
     }
 
     Set<Integer> requiredIds = Sets.newLinkedHashSet();
-    if (!posDeletes.isEmpty()) {
+    if (needRowPosCol && !posDeletes.isEmpty()) {
       requiredIds.add(MetadataColumns.ROW_POSITION.fieldId());
     }
 

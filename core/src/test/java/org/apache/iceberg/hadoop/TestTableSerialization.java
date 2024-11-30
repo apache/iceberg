@@ -19,6 +19,7 @@
 package org.apache.iceberg.hadoop;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -102,6 +103,9 @@ public class TestTableSerialization extends HadoopTableTestBase {
       Table serializableTable = SerializableTable.copyOf(metadataTable);
       TestHelpers.assertSerializedAndLoadedMetadata(
           serializableTable, TestHelpers.KryoHelpers.roundTripSerialize(serializableTable));
+      assertThatThrownBy(() -> ((HasTableOperations) serializableTable).operations())
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessageEndingWith("does not support operations()");
     }
   }
 
@@ -194,13 +198,13 @@ public class TestTableSerialization extends HadoopTableTestBase {
                 .equals(MetadataTableType.POSITION_DELETES))) {
       try (CloseableIterable<ScanTask> tasks = table.newBatchScan().planFiles()) {
         for (ScanTask task : tasks) {
-          files.add(((PositionDeletesScanTask) task).file().path());
+          files.add(((PositionDeletesScanTask) task).file().location());
         }
       }
     } else {
       try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
         for (FileScanTask task : tasks) {
-          files.add(task.file().path());
+          files.add(task.file().location());
         }
       }
     }

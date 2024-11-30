@@ -85,9 +85,6 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
   @Override
   @BeforeEach
   public void setupTable() throws IOException {
-    this.tableDir = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue(); // created by table create
-
     this.metadataDir = new File(tableDir, "metadata");
 
     this.table = create(SCHEMA, PartitionSpec.unpartitioned());

@@ -25,7 +25,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -45,9 +44,6 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
   @BeforeEach
   public void createTable() throws IOException {
     TestTables.clearTables();
-    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    tableDir.delete();
-
     Schema schema =
         new Schema(
             required(1, "id", Types.IntegerType.get()),
@@ -163,7 +159,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
 
   @TestTemplate
   public void testPositionDeletesPartitionSpecRemoval() {
-    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
+    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isEqualTo(2);
     table.updateSpec().removeField("id").commit();
 
     DeleteFile deleteFile = newDeleteFile(table.ops().current().spec().specId(), "nested.id=1");
@@ -207,12 +203,12 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     assertThat((Map<Integer, Integer>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct partition spec id on constant column")
         .containsEntry(MetadataColumns.SPEC_ID.fieldId(), table.ops().current().spec().specId());
-    assertThat(posDeleteTask.file().path())
+    assertThat(posDeleteTask.file().location())
         .as("Expected correct delete file on task")
-        .isEqualTo(deleteFile.path());
+        .isEqualTo(deleteFile.location());
     assertThat((Map<Integer, String>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct delete file on constant column")
-        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), deleteFile.path().toString());
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), deleteFile.location());
   }
 
   @TestTemplate

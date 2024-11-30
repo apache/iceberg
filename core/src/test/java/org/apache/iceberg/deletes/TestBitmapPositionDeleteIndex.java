@@ -20,11 +20,20 @@ package org.apache.iceberg.deletes;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
+import java.net.URL;
+import java.nio.ByteBuffer;
 import java.util.List;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.io.Resources;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 public class TestBitmapPositionDeleteIndex {
+
+  private static final long BITMAP_OFFSET = 0xFFFFFFFFL + 1L;
+  private static final long CONTAINER_OFFSET = Character.MAX_VALUE + 1L;
 
   @Test
   public void testForEach() {
@@ -103,6 +112,102 @@ public class TestBitmapPositionDeleteIndex {
     // output must be sorted in ascending order across containers
     List<Long> positions = collect(index);
     assertThat(positions).containsExactly(pos1, pos2, pos3, pos4);
+  }
+
+  @Test
+  public void testEmptyIndexSerialization() throws Exception {
+    PositionDeleteIndex index = new BitmapPositionDeleteIndex();
+    validate(index, "empty-position-index.bin");
+  }
+
+  @Test
+  public void testSmallAlternatingValuesIndexSerialization() throws Exception {
+    PositionDeleteIndex index = new BitmapPositionDeleteIndex();
+    index.delete(1L);
+    index.delete(3L);
+    index.delete(5L);
+    index.delete(7L);
+    index.delete(9L);
+    validate(index, "small-alternating-values-position-index.bin");
+  }
+
+  @Test
+  public void testSmallAndLargeValuesIndexSerialization() throws Exception {
+    PositionDeleteIndex index = new BitmapPositionDeleteIndex();
+    index.delete(100L);
+    index.delete(101L);
+    index.delete(Integer.MAX_VALUE + 100L);
+    index.delete(Integer.MAX_VALUE + 101L);
+    validate(index, "small-and-large-values-position-index.bin");
+  }
+
+  @Test
+  public void testAllContainerTypesIndexSerialization() throws Exception {
+    PositionDeleteIndex index = new BitmapPositionDeleteIndex();
+
+    // bitmap 0, container 0 (array)
+    index.delete(position(0 /* bitmap */, 0 /* container */, 5L));
+    index.delete(position(0 /* bitmap */, 0 /* container */, 7L));
+
+    // bitmap 0, container 1 (array that can be compressed)
+    index.delete(
+        position(0 /* bitmap */, 1 /* container */, 1L),
+        position(0 /* bitmap */, 1 /* container */, 1000L));
+
+    // bitmap 1, container 2 (bitset)
+    index.delete(
+        position(0 /* bitmap */, 2 /* container */, 1L),
+        position(0 /* bitmap */, 2 /* container */, CONTAINER_OFFSET - 1L));
+
+    // bitmap 1, container 0 (array)
+    index.delete(position(1 /* bitmap */, 0 /* container */, 10L));
+    index.delete(position(1 /* bitmap */, 0 /* container */, 20L));
+
+    // bitmap 1, container 1 (array that can be compressed)
+    index.delete(
+        position(1 /* bitmap */, 1 /* container */, 10L),
+        position(1 /* bitmap */, 1 /* container */, 500L));
+
+    // bitmap 1, container 2 (bitset)
+    index.delete(
+        position(1 /* bitmap */, 2 /* container */, 1L),
+        position(1 /* bitmap */, 2 /* container */, CONTAINER_OFFSET - 1));
+
+    validate(index, "all-container-types-position-index.bin");
+  }
+
+  private static void validate(PositionDeleteIndex index, String goldenFile) throws Exception {
+    ByteBuffer buffer = index.serialize();
+    byte[] bytes = buffer.array();
+    DeleteFile dv = mockDV(bytes.length, index.cardinality());
+    PositionDeleteIndex indexCopy = PositionDeleteIndex.deserialize(bytes, dv);
+    assertEqual(index, indexCopy);
+    byte[] goldenBytes = readTestResource(goldenFile);
+    assertThat(bytes).isEqualTo(goldenBytes);
+    PositionDeleteIndex goldenIndex = PositionDeleteIndex.deserialize(goldenBytes, dv);
+    assertEqual(index, goldenIndex);
+  }
+
+  private static DeleteFile mockDV(long contentSize, long cardinality) {
+    DeleteFile mock = Mockito.mock(DeleteFile.class);
+    Mockito.when(mock.contentSizeInBytes()).thenReturn(contentSize);
+    Mockito.when(mock.recordCount()).thenReturn(cardinality);
+    return mock;
+  }
+
+  private static void assertEqual(PositionDeleteIndex index, PositionDeleteIndex thatIndex) {
+    assertThat(index.cardinality()).isEqualTo(thatIndex.cardinality());
+    index.forEach(position -> assertThat(thatIndex.isDeleted(position)).isTrue());
+    thatIndex.forEach(position -> assertThat(index.isDeleted(position)).isTrue());
+  }
+
+  private static long position(int bitmapIndex, int containerIndex, long value) {
+    return bitmapIndex * BITMAP_OFFSET + containerIndex * CONTAINER_OFFSET + value;
+  }
+
+  private static byte[] readTestResource(String resourceName) throws IOException {
+    URL resource = Resources.getResource(TestRoaringPositionBitmap.class, resourceName);
+    return Resources.toByteArray(resource);
   }
 
   private List<Long> collect(PositionDeleteIndex index) {

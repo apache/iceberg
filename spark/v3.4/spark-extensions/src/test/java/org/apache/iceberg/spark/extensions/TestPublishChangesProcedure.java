@@ -31,8 +31,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Test;
 
 public class TestPublishChangesProcedure extends SparkExtensionsTestBase {
@@ -173,8 +174,13 @@ public class TestPublishChangesProcedure extends SparkExtensionsTestBase {
 
     assertThatThrownBy(
             () -> sql("CALL %s.custom.publish_changes('n', 't', 'not_valid')", catalogName))
-        .isInstanceOf(NoSuchProcedureException.class)
-        .hasMessage("Procedure custom.publish_changes not found");
+        .isInstanceOf(ParseException.class)
+        .satisfies(
+            exception -> {
+              ParseException parseException = (ParseException) exception;
+              Assert.assertEquals("PARSE_SYNTAX_ERROR", parseException.getErrorClass());
+              Assert.assertEquals("'CALL'", parseException.getMessageParameters().get("error"));
+            });
 
     assertThatThrownBy(() -> sql("CALL %s.system.publish_changes('t')", catalogName))
         .isInstanceOf(AnalysisException.class)

@@ -135,7 +135,7 @@ subprojects {
     revapi {
       oldGroup = project.group
       oldName = project.name
-      oldVersion = "1.6.0"
+      oldVersion = "1.7.0"
     }
 
     tasks.register('showDeprecationRulesOnRevApiFailure') {
@@ -838,39 +838,6 @@ project(':iceberg-arrow') {
   }
 }
 
-project(':iceberg-pig') {
-  test {
-    useJUnitPlatform()
-  }
-
-  dependencies {
-    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    api project(':iceberg-api')
-    implementation project(':iceberg-common')
-    implementation project(':iceberg-core')
-    implementation project(':iceberg-parquet')
-
-    implementation(libs.parquet.avro) {
-      exclude group: 'org.apache.avro', module: 'avro'
-      // already shaded by Parquet
-      exclude group: 'it.unimi.dsi'
-      exclude group: 'org.codehaus.jackson'
-    }
-
-    compileOnly(libs.pig) {
-      exclude group: "junit", module: "junit"
-    }
-    compileOnly(libs.hadoop2.mapreduce.client.core)
-    compileOnly(libs.hadoop2.client) {
-      exclude group: 'org.apache.avro', module: 'avro'
-    }
-
-    testImplementation(libs.hadoop2.minicluster) {
-      exclude group: 'org.apache.avro', module: 'avro'
-    }
-  }
-}
-
 project(':iceberg-nessie') {
   test {
     useJUnitPlatform()
@@ -947,6 +914,9 @@ project(':iceberg-snowflake') {
 
 project(':iceberg-open-api') {
   apply plugin: 'java-test-fixtures'
+  apply plugin: 'com.gradleup.shadow'
+
+  build.dependsOn shadowJar
 
   dependencies {
     testImplementation project(':iceberg-api')
@@ -970,30 +940,41 @@ project(':iceberg-open-api') {
     testFixturesImplementation project(':iceberg-gcp')
     testFixturesImplementation project(':iceberg-azure')
     testFixturesImplementation(libs.hadoop3.common) {
-      exclude group: 'log4j'
       exclude group: 'org.slf4j'
       exclude group: 'ch.qos.reload4j'
       exclude group: 'org.apache.avro', module: 'avro'
-      exclude group: 'com.fasterxml.woodstox'
       exclude group: 'com.google.guava'
       exclude group: 'com.google.protobuf'
       exclude group: 'org.apache.curator'
       exclude group: 'org.apache.zookeeper'
       exclude group: 'org.apache.kerby'
-      exclude group: 'org.apache.hadoop', module: 'hadoop-auth'
-      exclude group: 'org.apache.commons', module: 'commons-configuration2'
       exclude group: 'org.apache.hadoop.thirdparty', module: 'hadoop-shaded-protobuf_3_7'
-      exclude group: 'org.codehaus.woodstox'
       exclude group: 'org.eclipse.jetty'
+      exclude group: 'com.google.re2j', module: 're2j'
+      exclude group: 'com.google.code.gson', module: 'gson'
+      exclude group: 'com.jcraft', module: 'jsch'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'io.dropwizard.metrics', module: 'metrics-core'
+      exclude group: 'dnsjava', module: 'dnsjava'
+      exclude group: 'org.xerial.snappy', module: 'snappy-java'
+      exclude group: 'commons-cli', module: 'commons-cli'
+      exclude group: 'com.github.pjfanning', module: 'jersey-json'
     }
     testFixturesImplementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     testFixturesImplementation libs.junit.jupiter
+
+    testFixturesImplementation libs.slf4j.api
+    testFixturesImplementation libs.slf4j.simple
 
     testFixturesImplementation libs.jetty.servlet
     testFixturesImplementation libs.jetty.server
     testFixturesImplementation libs.sqlite.jdbc
 
     testFixturesCompileOnly libs.apiguardian
+
+    testFixturesRuntimeOnly project(':iceberg-aws-bundle')
+    testFixturesRuntimeOnly project(':iceberg-azure-bundle')
+    testFixturesRuntimeOnly project(':iceberg-gcp-bundle')
   }
 
   test {
@@ -1017,6 +998,28 @@ project(':iceberg-open-api') {
     recommend.set(true)
   }
   check.dependsOn('validateRESTCatalogSpec')
+
+  shadowJar {
+    archiveBaseName.set("iceberg-open-api-test-fixtures-runtime")
+    archiveClassifier.set(null)
+    configurations = [project.configurations.testFixturesRuntimeClasspath]
+    from sourceSets.testFixtures.output
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the runtime Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    manifest {
+      attributes 'Main-Class': 'org.apache.iceberg.rest.RESTCatalogServer'
+    }
+  }
+
+  jar {
+    enabled = false
+  }
 }
 
 @Memoized

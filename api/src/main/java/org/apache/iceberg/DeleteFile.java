@@ -42,4 +42,26 @@ public interface DeleteFile extends ContentFile<DeleteFile> {
   default String referencedDataFile() {
     return null;
   }
+
+  /**
+   * Returns the offset in the file where the content starts.
+   *
+   * <p>The content offset is required for deletion vectors and points to the start of the deletion
+   * vector blob in the Puffin file, enabling direct access. This method always returns null for
+   * equality and position delete files.
+   */
+  default Long contentOffset() {
+    return null;
+  }
+
+  /**
+   * Returns the length of referenced content stored in the file.
+   *
+   * <p>The content size is required for deletion vectors and indicates the size of the deletion
+   * vector blob in the Puffin file, enabling direct access. This method always returns null for
+   * equality and position delete files.
+   */
+  default Long contentSizeInBytes() {
+    return null;
+  }
 }

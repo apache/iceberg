@@ -141,7 +141,7 @@ public class TestRemoveSnapshots extends TestBase {
                     .allManifests(table.io())
                     .get(0)
                     .path(), // manifest contained only deletes, was dropped
-                FILE_A.path() // deleted
+                FILE_A.location() // deleted
                 ));
   }
 
@@ -196,7 +196,7 @@ public class TestRemoveSnapshots extends TestBase {
                     .get(0)
                     .path(), // manifest was rewritten for delete
                 secondSnapshot.manifestListLocation(), // snapshot expired
-                FILE_A.path() // deleted
+                FILE_A.location() // deleted
                 ));
   }
 
@@ -292,7 +292,7 @@ public class TestRemoveSnapshots extends TestBase {
                     .findFirst()
                     .get()
                     .path(), // manifest is no longer referenced
-                FILE_B.path()) // added, but rolled back
+                FILE_B.location()) // added, but rolled back
             );
   }
 
@@ -652,7 +652,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     removeSnapshots(table).expireOlderThan(t3).deleteWith(deletedFiles::add).commit();
 
-    assertThat(deletedFiles).contains(FILE_A.path().toString());
+    assertThat(deletedFiles).contains(FILE_A.location().toString());
   }
 
   @TestTemplate
@@ -678,7 +678,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     removeSnapshots(table).expireOlderThan(t3).deleteWith(deletedFiles::add).commit();
 
-    assertThat(deletedFiles).contains(FILE_A.path().toString());
+    assertThat(deletedFiles).contains(FILE_A.location().toString());
   }
 
   @TestTemplate
@@ -715,8 +715,8 @@ public class TestRemoveSnapshots extends TestBase {
 
     removeSnapshots(table).expireOlderThan(t4).deleteWith(deletedFiles::add).commit();
 
-    assertThat(deletedFiles).contains(FILE_A.path().toString());
-    assertThat(deletedFiles).contains(FILE_B.path().toString());
+    assertThat(deletedFiles).contains(FILE_A.location().toString());
+    assertThat(deletedFiles).contains(FILE_B.location().toString());
   }
 
   @TestTemplate
@@ -789,8 +789,8 @@ public class TestRemoveSnapshots extends TestBase {
         .containsExactly(
             "remove-snapshot-3", "remove-snapshot-2", "remove-snapshot-1", "remove-snapshot-0");
 
-    assertThat(deletedFiles).contains(FILE_A.path().toString());
-    assertThat(deletedFiles).contains(FILE_B.path().toString());
+    assertThat(deletedFiles).contains(FILE_A.location().toString());
+    assertThat(deletedFiles).contains(FILE_B.location().toString());
     assertThat(planThreadsIndex.get())
         .as("Thread should be created in provided pool")
         .isGreaterThan(0);
@@ -857,7 +857,7 @@ public class TestRemoveSnapshots extends TestBase {
         .addedDataFiles(table.io())
         .forEach(
             i -> {
-              expectedDeletes.add(i.path().toString());
+              expectedDeletes.add(i.location().toString());
             });
 
     // ManifestList should be deleted too
@@ -923,7 +923,7 @@ public class TestRemoveSnapshots extends TestBase {
               i.addedDataFiles(table.io())
                   .forEach(
                       item -> {
-                        assertThat(deletedFiles).doesNotContain(item.path().toString());
+                        assertThat(deletedFiles).doesNotContain(item.location().toString());
                       });
             });
   }
@@ -969,7 +969,7 @@ public class TestRemoveSnapshots extends TestBase {
               i.addedDataFiles(table.io())
                   .forEach(
                       item -> {
-                        assertThat(deletedFiles).doesNotContain(item.path().toString());
+                        assertThat(deletedFiles).doesNotContain(item.location().toString());
                       });
             });
 
@@ -986,7 +986,7 @@ public class TestRemoveSnapshots extends TestBase {
               i.addedDataFiles(table.io())
                   .forEach(
                       item -> {
-                        assertThat(deletedFiles).doesNotContain(item.path().toString());
+                        assertThat(deletedFiles).doesNotContain(item.location().toString());
                       });
             });
   }
@@ -1105,8 +1105,8 @@ public class TestRemoveSnapshots extends TestBase {
         .as("Should remove old delete files and delete file manifests")
         .isEqualTo(
             ImmutableSet.builder()
-                .add(FILE_A.path())
-                .add(FILE_A_DELETES.path())
+                .add(FILE_A.location())
+                .add(FILE_A_DELETES.location())
                 .add(firstSnapshot.manifestListLocation())
                 .add(secondSnapshot.manifestListLocation())
                 .add(thirdSnapshot.manifestListLocation())
@@ -1614,7 +1614,7 @@ public class TestRemoveSnapshots extends TestBase {
     expectedDeletes.addAll(manifestPaths(appendA, table.io()));
     expectedDeletes.add(branchDelete.manifestListLocation());
     expectedDeletes.addAll(manifestPaths(branchDelete, table.io()));
-    expectedDeletes.add(FILE_A.path().toString());
+    expectedDeletes.add(FILE_A.location().toString());
 
     assertThat(table.snapshots()).hasSize(2);
     assertThat(deletedFiles).isEqualTo(expectedDeletes);

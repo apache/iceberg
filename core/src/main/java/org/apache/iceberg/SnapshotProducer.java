@@ -159,6 +159,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return self();
   }
 
+  protected TableOperations ops() {
+    return ops;
+  }
+
   protected CommitMetrics commitMetrics() {
     if (commitMetrics == null) {
       this.commitMetrics = CommitMetrics.of(new DefaultMetricsContext());
@@ -927,6 +931,16 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     @Override
     public String referencedDataFile() {
       return deleteFile.referencedDataFile();
+    }
+
+    @Override
+    public Long contentOffset() {
+      return deleteFile.contentOffset();
+    }
+
+    @Override
+    public Long contentSizeInBytes() {
+      return deleteFile.contentSizeInBytes();
     }
   }
 }

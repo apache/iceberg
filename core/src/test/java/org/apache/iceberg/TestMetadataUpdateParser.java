@@ -112,23 +112,9 @@ public class TestMetadataUpdateParser {
   public void testAddSchemaFromJson() {
     String action = MetadataUpdateParser.ADD_SCHEMA;
     Schema schema = ID_DATA_SCHEMA;
-    int lastColumnId = schema.highestFieldId();
-    String json =
-        String.format(
-            "{\"action\":\"add-schema\",\"schema\":%s,\"last-column-id\":%d}",
-            SchemaParser.toJson(schema), lastColumnId);
-    MetadataUpdate actualUpdate = new MetadataUpdate.AddSchema(schema, lastColumnId);
-    assertEquals(action, actualUpdate, MetadataUpdateParser.fromJson(json));
-  }
-
-  @Test
-  public void testAddSchemaFromJsonWithoutLastColumnId() {
-    String action = MetadataUpdateParser.ADD_SCHEMA;
-    Schema schema = ID_DATA_SCHEMA;
-    int lastColumnId = schema.highestFieldId();
     String json =
         String.format("{\"action\":\"add-schema\",\"schema\":%s}", SchemaParser.toJson(schema));
-    MetadataUpdate actualUpdate = new MetadataUpdate.AddSchema(schema, lastColumnId);
+    MetadataUpdate actualUpdate = new MetadataUpdate.AddSchema(schema);
     assertEquals(action, actualUpdate, MetadataUpdateParser.fromJson(json));
   }
 
@@ -140,7 +126,7 @@ public class TestMetadataUpdateParser {
         String.format(
             "{\"action\":\"add-schema\",\"schema\":%s,\"last-column-id\":%d}",
             SchemaParser.toJson(schema), lastColumnId);
-    MetadataUpdate update = new MetadataUpdate.AddSchema(schema, lastColumnId);
+    MetadataUpdate update = new MetadataUpdate.AddSchema(schema);
     String actual = MetadataUpdateParser.toJson(update);
     assertThat(actual)
         .as("Add schema should convert to the correct JSON value")
@@ -1258,8 +1244,8 @@ public class TestMetadataUpdateParser {
 
     List<ManifestFile> manifests =
         ImmutableList.of(
-            new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0),
-            new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0));
+            new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0, snapshotId),
+            new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0, snapshotId));
 
     try (ManifestListWriter writer =
         ManifestLists.write(1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0)) {
