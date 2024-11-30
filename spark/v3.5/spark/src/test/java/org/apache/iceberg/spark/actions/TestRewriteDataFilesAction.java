@@ -175,7 +175,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     return actions().rewriteDataFiles(table).option(SizeBasedFileRewriter.MIN_INPUT_FILES, "1");
   }
 
-
   private Expression filterExpression(String name, String where) {
     try {
       org.apache.spark.sql.catalyst.expressions.Expression expression =
@@ -185,7 +184,6 @@ public class TestRewriteDataFilesAction extends TestBase {
       throw new IllegalArgumentException("Cannot parse predicates in where option: " + where, e);
     }
   }
-
 
   @TestTemplate
   public void testEmptyTable() {
@@ -201,7 +199,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(table.currentSnapshot()).as("Table must stay empty").isNull();
   }
 
-  
   @TestTemplate
   public void testFilterCaseSensitivityBeforeChange() {
     Table table = createTable(4);
@@ -223,7 +220,6 @@ public class TestRewriteDataFilesAction extends TestBase {
     Result result = action.execute();
     assertThat(result.rewrittenDataFilesCount()).isEqualTo(0);
   }
-
 
   @TestTemplate
   public void testBinPackUnpartitionedTable() {
