@@ -206,11 +206,20 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
           .as("Should have expected added_data_files_count")
           .isEqualTo(manifestFile.addedFilesCount());
       assertThat(row.getField(6))
+          .as("Should have expected added_rows_count")
+          .isEqualTo(manifestFile.addedRowsCount());
+      assertThat(row.getField(7))
           .as("Should have expected existing_data_files_count")
           .isEqualTo(manifestFile.existingFilesCount());
-      assertThat(row.getField(7))
+      assertThat(row.getField(8))
+          .as("Should have expected existing_rows_count")
+          .isEqualTo(manifestFile.existingRowsCount());
+      assertThat(row.getField(9))
           .as("Should have expected deleted_data_files_count")
           .isEqualTo(manifestFile.deletedFilesCount());
+      assertThat(row.getField(13))
+          .as("Should have expected deleted_rows_count")
+          .isEqualTo(manifestFile.deletedRowsCount());
     }
   }
 
@@ -244,11 +253,20 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
           .as("Should have expected added_data_files_count")
           .isEqualTo(manifestFile.addedFilesCount());
       assertThat(row.getField(6))
+          .as("Should have expected added_rows_count")
+          .isEqualTo(manifestFile.addedRowsCount());
+      assertThat(row.getField(7))
           .as("Should have expected existing_data_files_count")
           .isEqualTo(manifestFile.existingFilesCount());
-      assertThat(row.getField(7))
+      assertThat(row.getField(8))
+          .as("Should have expected existing_rows_count")
+          .isEqualTo(manifestFile.existingRowsCount());
+      assertThat(row.getField(9))
           .as("Should have expected deleted_data_files_count")
           .isEqualTo(manifestFile.deletedFilesCount());
+      assertThat(row.getField(13))
+          .as("Should have expected deleted_rows_count")
+          .isEqualTo(manifestFile.deletedRowsCount());
     }
   }
 

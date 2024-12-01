@@ -36,11 +36,14 @@ public class ManifestsTable extends BaseMetadataTable {
           Types.NestedField.required(3, "partition_spec_id", Types.IntegerType.get()),
           Types.NestedField.required(4, "added_snapshot_id", Types.LongType.get()),
           Types.NestedField.required(5, "added_data_files_count", Types.IntegerType.get()),
+          Types.NestedField.required(18, "added_rows_count", Types.LongType.get()),
           Types.NestedField.required(6, "existing_data_files_count", Types.IntegerType.get()),
+          Types.NestedField.required(19, "existing_rows_count", Types.LongType.get()),
           Types.NestedField.required(7, "deleted_data_files_count", Types.IntegerType.get()),
           Types.NestedField.required(15, "added_delete_files_count", Types.IntegerType.get()),
           Types.NestedField.required(16, "existing_delete_files_count", Types.IntegerType.get()),
           Types.NestedField.required(17, "deleted_delete_files_count", Types.IntegerType.get()),
+          Types.NestedField.required(20, "deleted_rows_count", Types.LongType.get()),
           Types.NestedField.required(
               8,
               "partition_summaries",
@@ -106,11 +109,14 @@ public class ManifestsTable extends BaseMetadataTable {
         manifest.partitionSpecId(),
         manifest.snapshotId(),
         manifest.content() == ManifestContent.DATA ? manifest.addedFilesCount() : 0,
+        manifest.content() == ManifestContent.DATA ? manifest.addedRowsCount() : 0L,
         manifest.content() == ManifestContent.DATA ? manifest.existingFilesCount() : 0,
+        manifest.content() == ManifestContent.DATA ? manifest.existingRowsCount() : 0L,
         manifest.content() == ManifestContent.DATA ? manifest.deletedFilesCount() : 0,
         manifest.content() == ManifestContent.DELETES ? manifest.addedFilesCount() : 0,
         manifest.content() == ManifestContent.DELETES ? manifest.existingFilesCount() : 0,
         manifest.content() == ManifestContent.DELETES ? manifest.deletedFilesCount() : 0,
+        manifest.content() == ManifestContent.DELETES ? manifest.deletedRowsCount() : 0L,
         partitionSummariesToRows(spec, manifest.partitions()));
   }
 

@@ -334,9 +334,9 @@ To show a table's current file manifests:
 SELECT * FROM prod.db.table.manifests;
 ```
 
-| content |  path | length | partition_spec_id | added_snapshot_id | added_data_files_count | existing_data_files_count | deleted_data_files_count | added_delete_files_count | existing_delete_files_count | deleted_delete_files_count | partition_summaries |
-| -- |  -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
-| 0 | s3://.../table/metadata/45b5290b-ee61-4788-b324-b1e2735c0e10-m0.avro | 4479   | 0                 | 6668963634911763636 | 8                      | 0                         | 0                        | 0 | 0 | 0 | [[false,null,2019-05-13,2019-05-15]] |
+| content |  path | length | partition_spec_id | added_snapshot_id | added_data_files_count | added_rows_count | existing_data_files_count | existing_rows_count | deleted_data_files_count | added_delete_files_count | existing_delete_files_count | deleted_delete_files_count | deleted_rows_count | partition_summaries |
+| -- |  -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
+| 0 | s3://.../table/metadata/45b5290b-ee61-4788-b324-b1e2735c0e10-m0.avro | 4479   | 0                 | 6668963634911763636 | 8                       | 100 | 0                         | 0                        | 0 | 0 | 0 | 0 | 0 | [[false,null,2019-05-13,2019-05-15]] |
 
 Note:
 
@@ -435,9 +435,9 @@ To show all of the table's manifest files:
 SELECT * FROM prod.db.table.all_manifests;
 ```
 
-| content |  path | length | partition_spec_id | added_snapshot_id | added_data_files_count | existing_data_files_count | deleted_data_files_count | added_delete_files_count | existing_delete_files_count | deleted_delete_files_count | partition_summaries| reference_snapshot_id |
-| -- |  -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
-|0| s3://.../metadata/a85f78c5-3222-4b37-b7e4-faf944425d48-m0.avro | 6376 | 0 | 6272782676904868561 | 2 | 0 | 0  | 0  | 0  | 0 |[{false, false, 20210101, 20210101}]| 57897183625154 |
+| content |  path | length | partition_spec_id | added_snapshot_id | added_data_files_count | added_rows_count | existing_data_files_count | existing_rows_count | deleted_data_files_count | added_delete_files_count | existing_delete_files_count | deleted_delete_files_count | deleted_rows_count | partition_summaries| reference_snapshot_id |
+| -- |  -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
+|0| s3://.../metadata/a85f78c5-3222-4b37-b7e4-faf944425d48-m0.avro | 6376 | 0 | 6272782676904868561 | 2 | 100 | 0 | 0  | 0  | 0  | 0 | 0 | 0 |[{false, false, 20210101, 20210101}]| 57897183625154 |
 
 Note:
 
