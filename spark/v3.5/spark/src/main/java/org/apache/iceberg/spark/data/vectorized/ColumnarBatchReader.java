@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.data.vectorized;
 
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -87,12 +88,10 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
    * @return the number of extra columns that are read but not included in the final query result.
    */
   private int numOfExtraColumns(DeleteFilter<InternalRow> deleteFilter) {
-    if (deleteFilter != null) {
-      if (deleteFilter.hasEqDeletes()) {
-        List<Types.NestedField> requiredColumns = deleteFilter.requiredSchema().columns();
-        List<Types.NestedField> expectedColumns = deleteFilter.expectedSchema().columns();
-        return requiredColumns.size() - expectedColumns.size();
-      }
+    if (deleteFilter != null && deleteFilter.hasEqDeletes()) {
+      List<Types.NestedField> requiredColumns = deleteFilter.requiredSchema().columns();
+      List<Types.NestedField> expectedColumns = deleteFilter.expectedSchema().columns();
+      return requiredColumns.size() - expectedColumns.size();
     }
 
     return 0;
@@ -279,7 +278,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
         // In DeleteFilter.fileProjection, the columns for missingIds (the columns required
         // for equality delete or ROW_POSITION) are appended to the end of the expectedSchema.
         // Therefore, these extra columns can be removed from the end of arrowColumnVectors.
-        ColumnVector[] newColumns = java.util.Arrays.copyOf(arrowColumnVectors, newLength);
+        ColumnVector[] newColumns = Arrays.copyOf(arrowColumnVectors, newLength);
         return new ColumnarBatch(newColumns, columnarBatch.numRows());
       } else {
         return columnarBatch;

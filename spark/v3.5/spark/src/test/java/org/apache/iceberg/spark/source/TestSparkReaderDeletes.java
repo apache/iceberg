@@ -87,6 +87,7 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -658,7 +659,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
               // expected column is id, while the equality filter column is dt
               dateTable, task, dateTable.schema(), dateTable.schema().select("id"), false, 7)) {
         while (reader.next()) {
-          org.apache.spark.sql.vectorized.ColumnarBatch columnarBatch = reader.get();
+          ColumnarBatch columnarBatch = reader.get();
           int numOfCols = columnarBatch.numCols();
           assertThat(numOfCols).as("Number of columns").isEqualTo(1);
         }

@@ -65,7 +65,7 @@ public class VectorizedSparkParquetReaders {
                 fileSchema,
                 NullCheckingForGet.NULL_CHECKING_ENABLED,
                 idToConstant,
-                readers -> new ColumnarBatchReader(readers),
+                ColumnarBatchReader::new,
                 deleteFilter));
   }
 
