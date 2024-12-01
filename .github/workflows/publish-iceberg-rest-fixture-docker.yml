@@ -17,7 +17,7 @@
 # under the License.
 #
 
-name: Build and Push Docker Image
+name: Build and Push 'iceberg-rest-fixture' Docker Image
 
 on:
   push:
@@ -28,6 +28,7 @@ on:
 env:
   DOCKER_IMAGE_TAG: iceberg-rest-fixture
   DOCKER_IMAGE_VERSION: latest
+  DOCKER_REPOSITORY: apache
 
 jobs:
   build:
@@ -44,12 +45,12 @@ jobs:
       run: |
         docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
     - name: Set the tagged version
-      # for tag 'apache-iceberg-1.7.0', publish image 'apache/iceberg-rest-fixture:1.7.1'
+      # for tag 'apache-iceberg-1.7.1', publish image 'apache/iceberg-rest-fixture:1.7.1'
       if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
       run: |
         echo "DOCKER_IMAGE_VERSION=`echo ${{ github.ref }} | tr -d -c 0-9.`" >> "$GITHUB_ENV"
     - name: Build Docker Image
-      run: docker build -t ${{ secrets.DOCKERHUB_USER }}/$DOCKER_IMAGE_TAG:$DOCKER_IMAGE_VERSION -f docker/iceberg-rest-adapter-image/Dockerfile .
+      run: docker build -t $DOCKER_REPOSITORY/$DOCKER_IMAGE_TAG:$DOCKER_IMAGE_VERSION -f docker/iceberg-rest-fixture/Dockerfile .
     - name: Push Docker Image
       run: |
-        docker push ${{ secrets.DOCKERHUB_USER }}/$DOCKER_IMAGE_TAG:$DOCKER_IMAGE_VERSION
+        docker push $DOCKER_REPOSITORY/$DOCKER_IMAGE_TAG:$DOCKER_IMAGE_VERSION
