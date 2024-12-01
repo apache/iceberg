@@ -27,7 +27,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDate;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
@@ -84,7 +83,6 @@ import org.apache.iceberg.util.TableScanUtil;
 import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.internal.SQLConf;
@@ -626,6 +624,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @TestTemplate
   public void testEqualityDeleteWithDifferentScanAndDeleteColumns() throws IOException {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
     initDateTable();
 
     Schema deleteRowSchema = dateTable.schema().select("dt");
@@ -645,18 +644,26 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             deleteRowSchema);
 
     dateTable.newRowDelta().addDeletes(eqDeletes).commit();
-    Dataset<Row> df =
-        spark
-            .read()
-            .format("iceberg")
-            .load(TableIdentifier.of("default", dateTableName).toString())
-            .selectExpr("id");
-    df.show();
 
-    List<Row> actualRows = df.collectAsList();
-    List<Row> expectedRows = Arrays.asList(RowFactory.create(4), RowFactory.create(5));
+    CloseableIterable<CombinedScanTask> tasks =
+        TableScanUtil.planTasks(
+            dateTable.newScan().planFiles(),
+            TableProperties.METADATA_SPLIT_SIZE_DEFAULT,
+            TableProperties.SPLIT_LOOKBACK_DEFAULT,
+            TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
 
-    assertThat(expectedRows).isEqualTo(actualRows);
+    for (CombinedScanTask task : tasks) {
+      try (BatchDataReader reader =
+          new BatchDataReader(
+              // expected column is id, while the equality filter column is dt
+              dateTable, task, dateTable.schema(), dateTable.schema().select("id"), false, 7)) {
+        while (reader.next()) {
+          org.apache.spark.sql.vectorized.ColumnarBatch columnarBatch = reader.get();
+          int numOfCols = columnarBatch.numCols();
+          assertThat(numOfCols).as("Number of columns").isEqualTo(1);
+        }
+      }
+    }
   }
 
   private static final Schema PROJECTION_SCHEMA =

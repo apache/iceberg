@@ -28,6 +28,7 @@ import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
@@ -45,23 +46,11 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
   private final boolean hasIsDeletedColumn;
   private DeleteFilter<InternalRow> deletes = null;
   private long rowStartPosInBatch = 0;
-  // In the case of Equality Delete, we have also built ColumnarBatchReader for the equality delete
-  // filter columns to read the value to find out which rows are deleted. If these deleted filter
-  // columns are not in the requested schema, then these are the extra columns that we want to
-  // remove before return the ColumnBatch to Spark.
-  // Supposed table schema is C1, C2, C3, C4, C5, The query is:
-  // SELECT C5 FROM table, and the equality delete Filter is on C3, C4,
-  // We read the values of C3, C4 to figure out which rows are deleted, but we don't want to include
-  // these values in the ColumnBatch that we return to Spark. In this example, the numOfExtraColumns
-  // is 2. Since when creating the DeleteFilter, we append these extra columns in the end of the
-  // requested schema, we can just remove them from the end of the ColumnVector.
-  private int numOfExtraColumns = 0;
 
-  public ColumnarBatchReader(List<VectorizedReader<?>> readers, int numExtraCol) {
+  public ColumnarBatchReader(List<VectorizedReader<?>> readers) {
     super(readers);
     this.hasIsDeletedColumn =
         readers.stream().anyMatch(reader -> reader instanceof DeletedVectorReader);
-    this.numOfExtraColumns = numExtraCol;
   }
 
   @Override
@@ -84,6 +73,29 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
     ColumnarBatch columnarBatch = new ColumnBatchLoader(numRowsToRead).loadDataToColumnBatch();
     rowStartPosInBatch += numRowsToRead;
     return columnarBatch;
+  }
+
+  /**
+   * Calculates the number of extra columns that are necessary for processing equality delete
+   * filters but are not part of the final output. For instance, if the table schema includes C1,
+   * C2, C3, C4, C5 and the query is 'SELECT C5 FROM table', and there are equality delete filters
+   * on C3 and C4, the required schema for processing would be C5, C3, C4. These extra columns (C3,
+   * C4) are needed to determine the rows to delete based on the filter criteria. After identifying
+   * the deletable rows, these extra column values are no longer needed to be returned to Spark.
+   *
+   * @param deleteFilter The delete filter applied for equality delete.
+   * @return the number of extra columns that are read but not included in the final query result.
+   */
+  private int numOfExtraColumns(DeleteFilter<InternalRow> deleteFilter) {
+    if (deleteFilter != null) {
+      if (deleteFilter.hasEqDeletes()) {
+        List<Types.NestedField> requiredColumns = deleteFilter.requiredSchema().columns();
+        List<Types.NestedField> expectedColumns = deleteFilter.expectedSchema().columns();
+        return requiredColumns.size() - expectedColumns.size();
+      }
+    }
+
+    return 0;
   }
 
   private class ColumnBatchLoader {
@@ -114,8 +126,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
 
       if (hasEqDeletes()) {
         applyEqDelete(newColumnarBatch);
-        newColumnarBatch =
-            removeExtraColumnsFromColumnarBatch(arrowColumnVectors, newColumnarBatch);
+        newColumnarBatch = removeExtraColumns(arrowColumnVectors, newColumnarBatch);
       }
 
       if (hasIsDeletedColumn && rowIdMapping != null) {
@@ -260,10 +271,14 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
       columnarBatch.setNumRows(currentRowId);
     }
 
-    ColumnarBatch removeExtraColumnsFromColumnarBatch(
+    ColumnarBatch removeExtraColumns(
         ColumnVector[] arrowColumnVectors, ColumnarBatch columnarBatch) {
+      int numOfExtraColumns = numOfExtraColumns(deletes);
       if (numOfExtraColumns > 0) {
         int newLength = arrowColumnVectors.length - numOfExtraColumns;
+        // In DeleteFilter.fileProjection, the columns for missingIds (the columns required
+        // for equality delete or ROW_POSITION) are appended to the end of the expectedSchema.
+        // Therefore, these extra columns can be removed from the end of arrowColumnVectors.
         ColumnVector[] newColumns = java.util.Arrays.copyOf(arrowColumnVectors, newLength);
         return new ColumnarBatch(newColumns, columnarBatch.numRows());
       } else {
