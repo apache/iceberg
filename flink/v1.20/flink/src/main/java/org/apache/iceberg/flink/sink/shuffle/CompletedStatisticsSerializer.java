@@ -105,17 +105,6 @@ class CompletedStatisticsSerializer extends TypeSerializer<CompletedStatistics> 
   @Override
   public void serialize(CompletedStatistics record, DataOutputView target) throws IOException {
     target.writeLong(record.checkpointId());
-    target.writeInt(getSortKeySerializerVersionLatest());
-    statisticsTypeSerializer.serialize(record.type(), target);
-    if (record.type() == StatisticsType.Map) {
-      keyFrequencySerializer.serialize(record.keyFrequency(), target);
-    } else {
-      keySamplesSerializer.serialize(Arrays.asList(record.keySamples()), target);
-    }
-  }
-
-  public void serializeV1(CompletedStatistics record, DataOutputView target) throws IOException {
-    target.writeLong(record.checkpointId());
     statisticsTypeSerializer.serialize(record.type(), target);
     if (record.type() == StatisticsType.Map) {
       keyFrequencySerializer.serialize(record.keyFrequency(), target);
@@ -127,34 +116,14 @@ class CompletedStatisticsSerializer extends TypeSerializer<CompletedStatistics> 
   @Override
   public CompletedStatistics deserialize(DataInputView source) throws IOException {
     long checkpointId = source.readLong();
-    changeSortKeySerializerVersion(source.readInt());
     StatisticsType type = statisticsTypeSerializer.deserialize(source);
     if (type == StatisticsType.Map) {
       Map<SortKey, Long> keyFrequency = keyFrequencySerializer.deserialize(source);
-      changeSortKeySerializerVersionLatest();
       return CompletedStatistics.fromKeyFrequency(checkpointId, keyFrequency);
     } else {
       List<SortKey> sortKeys = keySamplesSerializer.deserialize(source);
       SortKey[] keySamples = new SortKey[sortKeys.size()];
       keySamples = sortKeys.toArray(keySamples);
-      changeSortKeySerializerVersionLatest();
-      return CompletedStatistics.fromKeySamples(checkpointId, keySamples);
-    }
-  }
-
-  public CompletedStatistics deserializeV1(DataInputView source) throws IOException {
-    long checkpointId = source.readLong();
-    StatisticsType type = statisticsTypeSerializer.deserialize(source);
-    changeSortKeySerializerVersion(1);
-    if (type == StatisticsType.Map) {
-      Map<SortKey, Long> keyFrequency = keyFrequencySerializer.deserialize(source);
-      changeSortKeySerializerVersionLatest();
-      return CompletedStatistics.fromKeyFrequency(checkpointId, keyFrequency);
-    } else {
-      List<SortKey> sortKeys = keySamplesSerializer.deserialize(source);
-      SortKey[] keySamples = new SortKey[sortKeys.size()];
-      keySamples = sortKeys.toArray(keySamples);
-      changeSortKeySerializerVersionLatest();
       return CompletedStatistics.fromKeySamples(checkpointId, keySamples);
     }
   }

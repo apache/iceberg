@@ -79,8 +79,11 @@ class StatisticsUtil {
       return statisticsSerializer.deserialize(input);
     } catch (Exception e) {
       try {
+        statisticsSerializer.changeSortKeySerializerVersion(1);
         DataInputDeserializer input = new DataInputDeserializer(bytes);
-        return statisticsSerializer.deserializeV1(input);
+        CompletedStatistics deserialize = statisticsSerializer.deserialize(input);
+        statisticsSerializer.changeSortKeySerializerVersionLatest();
+        return deserialize;
       } catch (IOException ioException) {
         throw new UncheckedIOException("Fail to deserialize aggregated statistics", ioException);
       }

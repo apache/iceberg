@@ -76,7 +76,7 @@ public class TestCompletedStatisticsSerializer extends SerializerTestBase<Comple
     completedStatisticsTypeSerializer.changeSortKeySerializerVersion(1);
     CompletedStatistics[] data = getTestData();
     DataOutputSerializer output = new DataOutputSerializer(1024);
-    completedStatisticsTypeSerializer.serializeV1(data[0], output);
+    completedStatisticsTypeSerializer.serialize(data[0], output);
     byte[] serializedBytes = output.getCopyOfBuffer();
 
     completedStatisticsTypeSerializer.changeSortKeySerializerVersionLatest();

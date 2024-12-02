@@ -368,11 +368,11 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
         throws IOException {
       switch (readVersion) {
         case 1:
-          readV1(in);
+          read(in);
           this.version = 1;
           break;
         case 2:
-          readV1(in);
+          read(in);
           break;
         default:
           throw new IllegalArgumentException("Unknown read version: " + readVersion);
@@ -418,7 +418,7 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
       return new SortKeySerializer(schema, sortOrder, version);
     }
 
-    private void readV1(DataInputView in) throws IOException {
+    private void read(DataInputView in) throws IOException {
       String schemaJson = StringUtils.readString(in);
       String sortOrderJson = StringUtils.readString(in);
       this.schema = SchemaParser.fromJson(schemaJson);
