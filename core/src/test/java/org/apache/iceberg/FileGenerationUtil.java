@@ -102,6 +102,10 @@ public class FileGenerationUtil {
   }
 
   public static DeleteFile generateDV(Table table, DataFile dataFile) {
+    return generateDV(table, dataFile, "/path/to/delete-" + UUID.randomUUID() + ".puffin");
+  }
+
+  public static DeleteFile generateDV(Table table, DataFile dataFile, String dvPath) {
     PartitionSpec spec = table.specs().get(dataFile.specId());
     long fileSize = generateFileSize();
     long cardinality = generateRowCount();
@@ -109,7 +113,7 @@ public class FileGenerationUtil {
     long length = generateContentLength();
     return FileMetadata.deleteFileBuilder(spec)
         .ofPositionDeletes()
-        .withPath("/path/to/delete-" + UUID.randomUUID() + ".puffin")
+        .withPath(dvPath)
         .withFileSizeInBytes(fileSize)
         .withPartition(dataFile.partition())
         .withRecordCount(cardinality)
