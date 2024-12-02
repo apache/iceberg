@@ -377,6 +377,7 @@ public class HiveTableTest extends HiveTableBaseTest {
         .containsExactly(TABLE_IDENTIFIER, identifier);
     catalog.setListAllTables(false); // reset to default.
 
+    // create an iceberg table with the same name
     assertThatThrownBy(() -> catalog.createTable(identifier, SCHEMA, PartitionSpec.unpartitioned()))
         .isInstanceOf(NoSuchIcebergTableException.class)
         .hasMessageStartingWith(String.format("Not an iceberg table: hive.%s", identifier));
