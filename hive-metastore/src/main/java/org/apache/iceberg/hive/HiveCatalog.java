@@ -414,13 +414,19 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public boolean tableExists(TableIdentifier identifier) {
+    TableIdentifier baseTableIdentifier = identifier;
     if (!isValidIdentifier(identifier)) {
-      return false;
+      if (isValidMetadataIdentifier(identifier)) {
+        baseTableIdentifier = TableIdentifier.of(identifier.namespace().levels());
+      } else {
+        return false;
+      }
     }
 
-    String database = identifier.namespace().level(0);
+    String database = baseTableIdentifier.namespace().level(0);
+    String tableName = baseTableIdentifier.name();
     try {
-      Table table = clients.run(client -> client.getTable(database, identifier.name()));
+      Table table = clients.run(client -> client.getTable(database, tableName));
       HiveOperationsBase.validateTableIsIceberg(table, fullTableName(name, identifier));
       return true;
     } catch (NoSuchTableException | NoSuchObjectException e) {

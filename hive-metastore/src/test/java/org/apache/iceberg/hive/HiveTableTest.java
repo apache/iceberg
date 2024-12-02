@@ -377,7 +377,6 @@ public class HiveTableTest extends HiveTableBaseTest {
         .containsExactly(TABLE_IDENTIFIER, identifier);
     catalog.setListAllTables(false); // reset to default.
 
-    // create an iceberg table with name collision with hive table
     assertThatThrownBy(() -> catalog.createTable(identifier, SCHEMA, PartitionSpec.unpartitioned()))
         .isInstanceOf(NoSuchIcebergTableException.class)
         .hasMessageStartingWith(String.format("Not an iceberg table: hive.%s", identifier));
@@ -386,12 +385,41 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     assertThat(catalog.tableExists(TABLE_IDENTIFIER)).isTrue();
     HIVE_METASTORE_EXTENSION.metastoreClient().dropTable(DB_NAME, hiveTableName);
+  }
 
-    // create an iceberg table after hive table dropped
-    catalog.createTable(identifier, SCHEMA, PartitionSpec.unpartitioned());
-    assertThat(catalog.tableExists(identifier)).isTrue();
-    catalog.dropTable(identifier, true);
-    assertThat(catalog.tableExists(identifier)).isFalse();
+  @Test
+  public void testTableExists() throws TException, IOException {
+    String testTableName = "test_table_exists";
+    TableIdentifier identifier = TableIdentifier.of(DB_NAME, testTableName);
+    TableIdentifier metadataIdentifier = TableIdentifier.of(DB_NAME, testTableName, "partitions");
+
+    assertThat(catalog.tableExists(identifier))
+        .as("Table should not exist before create")
+        .isFalse();
+    catalog.buildTable(identifier, SCHEMA).create();
+    assertThat(catalog.tableExists(identifier)).as("Table should exist after create").isTrue();
+    assertThat(catalog.tableExists(metadataIdentifier))
+        .as("Metadata table should also exist")
+        .isTrue();
+
+    boolean dropped = catalog.dropTable(identifier);
+    assertThat(dropped).as("Should drop a table that does exist").isTrue();
+    assertThat(catalog.tableExists(identifier)).as("Table should not exist after drop").isFalse();
+    assertThat(catalog.tableExists(metadataIdentifier))
+        .as("Metadata table should not exist after drop")
+        .isFalse();
+
+    // recreate a hive table with the same name shall return false instead of throw exception
+    HIVE_METASTORE_EXTENSION
+        .metastoreClient()
+        .createTable(createHiveTable(testTableName, TableType.EXTERNAL_TABLE));
+    assertThat(catalog.tableExists(identifier))
+        .as("Catalog shall return false even if hive table with the same name exists")
+        .isFalse();
+    assertThat(catalog.tableExists(metadataIdentifier))
+        .as("Metadata table should not exist")
+        .isFalse();
+    HIVE_METASTORE_EXTENSION.metastoreClient().dropTable(DB_NAME, testTableName);
   }
 
   private org.apache.hadoop.hive.metastore.api.Table createHiveTable(

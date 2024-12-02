@@ -271,7 +271,7 @@ public interface Catalog {
   }
 
   /**
-   * Check whether table exists.
+   * Check whether table exists, including metadata table.
    *
    * @param identifier a table identifier
    * @return true if the table exists, false otherwise
