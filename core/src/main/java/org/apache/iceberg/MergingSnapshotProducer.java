@@ -26,10 +26,15 @@ import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFA
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.apache.iceberg.deletes.BaseDVFileWriter;
+import org.apache.iceberg.deletes.DVFileWriter;
+import org.apache.iceberg.deletes.Deletes;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -37,7 +42,9 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.DeleteWriteResult;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Predicate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -55,6 +62,7 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -804,7 +812,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   // validates there are no concurrently added DVs for referenced data files
-  protected void validateAddedDVs(
+  protected void mergeConflictingDVs(
       TableMetadata base,
       Long startingSnapshotId,
       Expression conflictDetectionFilter,
@@ -823,35 +831,131 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             parent);
     List<ManifestFile> newDeleteManifests = history.first();
     Set<Long> newSnapshotIds = history.second();
-
+    Map<String, DeleteFileSet> committedDVsForDataFile = Maps.newConcurrentMap();
     Tasks.foreach(newDeleteManifests)
         .stopOnFailure()
         .throwFailureWhenFinished()
         .executeWith(workerPool())
-        .run(manifest -> validateAddedDVs(manifest, conflictDetectionFilter, newSnapshotIds));
+        .run(
+            manifest -> {
+              try (CloseableIterable<ManifestEntry<DeleteFile>> entries =
+                  ManifestFiles.readDeleteManifest(
+                          manifest, ops().io(), ops().current().specsById())
+                      .filterRows(conflictDetectionFilter)
+                      .caseSensitive(caseSensitive)
+                      .liveEntries()) {
+                for (ManifestEntry<DeleteFile> entry : entries) {
+                  DeleteFile file = entry.file().copyWithoutStats();
+                  if (newSnapshotIds.contains(entry.snapshotId()) && ContentFileUtil.isDV(file)) {
+                    if (newDVRefs.contains(file.referencedDataFile())) {
+                      committedDVsForDataFile
+                          .computeIfAbsent(
+                              file.referencedDataFile(), ignored -> DeleteFileSet.create())
+                          .add(file);
+                    }
+                  }
+                }
+              } catch (IOException e) {
+                throw new UncheckedIOException(e);
+              }
+            });
+
+    if (!committedDVsForDataFile.isEmpty()) {
+      mergeConflictingDVs(committedDVsForDataFile);
+    }
   }
 
-  private void validateAddedDVs(
-      ManifestFile manifest, Expression conflictDetectionFilter, Set<Long> newSnapshotIds) {
-    try (CloseableIterable<ManifestEntry<DeleteFile>> entries =
-        ManifestFiles.readDeleteManifest(manifest, ops().io(), ops().current().specsById())
-            .filterRows(conflictDetectionFilter)
-            .caseSensitive(caseSensitive)
-            .liveEntries()) {
+  private void mergeConflictingDVs(Map<String, DeleteFileSet> committedDVsForDataFile) {
+    Set<MergedDVResult> mergedDVResults = Sets.newConcurrentHashSet();
+    Tasks.foreach(committedDVsForDataFile.entrySet())
+        .executeWith(ThreadPools.getDeleteWorkerPool())
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .run(committedDVs -> mergedDVResults.add(mergeAndWriteDV(committedDVs)));
+    // replace the currently conflicting DVs with the merged DV
+    mergedDVResults.forEach(this::replaceConflictingWithMergedDV);
+  }
 
-      for (ManifestEntry<DeleteFile> entry : entries) {
-        DeleteFile file = entry.file();
-        if (newSnapshotIds.contains(entry.snapshotId()) && ContentFileUtil.isDV(file)) {
-          ValidationException.check(
-              !newDVRefs.contains(file.referencedDataFile()),
-              "Found concurrently added DV for %s: %s",
-              file.referencedDataFile(),
-              ContentFileUtil.dvDesc(file));
-        }
-      }
+  private MergedDVResult mergeAndWriteDV(Map.Entry<String, DeleteFileSet> committedDVsForDataFile) {
+    String dataFile = committedDVsForDataFile.getKey();
+    DeleteFile committedDV = committedDVsForDataFile.getValue().iterator().next();
+    int specId = committedDV.specId();
+    PartitionSpec spec = spec(specId);
+    DeleteFileSet conflictingDVs = dvsWithReferencedDataFile(spec, dataFile);
+    PositionDeleteIndex mergedPositions =
+        mergeConflictingDVs(Iterables.concat(conflictingDVs, committedDVsForDataFile.getValue()));
+    try {
+      DVFileWriter dvFileWriter =
+          new BaseDVFileWriter(
+              OutputFileFactory.builderFor(ops(), spec(specId), FileFormat.PUFFIN, 1, 1).build(),
+              path -> null);
+      dvFileWriter.delete(dataFile, mergedPositions, spec, committedDV.partition());
+      dvFileWriter.close();
+      DeleteWriteResult result = dvFileWriter.result();
+      DeleteFile mergedDV = Iterables.getOnlyElement(result.deleteFiles());
+      return new MergedDVResult(
+          new PendingDeleteFile(mergedDV), committedDVsForDataFile.getValue(), conflictingDVs);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
+  }
+
+  private static class MergedDVResult {
+    private final DeleteFile mergedDV;
+    private final Set<DeleteFile> committedDVs;
+    private final Set<DeleteFile> conflictingDVs;
+
+    MergedDVResult(
+        DeleteFile mergedDV, Set<DeleteFile> committedDVs, Set<DeleteFile> conflictingDVs) {
+      this.mergedDV = mergedDV;
+      this.committedDVs = committedDVs;
+      this.conflictingDVs = conflictingDVs;
+    }
+
+    public DeleteFile mergedDV() {
+      return mergedDV;
+    }
+
+    public Set<DeleteFile> committedDVs() {
+      return committedDVs;
+    }
+
+    public Set<DeleteFile> conflictingDVs() {
+      return conflictingDVs;
+    }
+  }
+
+  private PositionDeleteIndex mergeConflictingDVs(Iterable<DeleteFile> conflictingDVs) {
+    Iterator<DeleteFile> confictingDVIterator = conflictingDVs.iterator();
+    PositionDeleteIndex mergedPositions =
+        Deletes.readDV(confictingDVIterator.next(), ops().io(), ops().encryption());
+    confictingDVIterator.forEachRemaining(
+        dv -> mergedPositions.merge(Deletes.readDV(dv, ops().io(), ops().encryption())));
+    return mergedPositions;
+  }
+
+  private void replaceConflictingWithMergedDV(MergedDVResult mergedDVResult) {
+    DeleteFile mergedDV = mergedDVResult.mergedDV();
+    Set<DeleteFile> conflictingDVs = mergedDVResult.conflictingDVs();
+    // Remove the committed DVs from metadata
+    mergedDVResult.committedDVs().forEach(this::delete);
+    DeleteFileSet deleteFilesForSpec = newDeleteFilesBySpec.get(mergedDV.specId());
+    // Remove the pending conflicting DVs
+    deleteFilesForSpec.removeAll(conflictingDVs);
+    // Add the merged DV
+    deleteFilesForSpec.add(mergedDV);
+  }
+
+  private DeleteFileSet dvsWithReferencedDataFile(PartitionSpec spec, String referencedDataFile) {
+    DeleteFileSet dvs = DeleteFileSet.create();
+    for (DeleteFile addedDeleteFile : newDeleteFilesBySpec.get(spec.specId())) {
+      if (ContentFileUtil.isDV(addedDeleteFile)
+          && addedDeleteFile.referencedDataFile().equals(referencedDataFile)) {
+        dvs.add(addedDeleteFile);
+      }
+    }
+
+    return dvs;
   }
 
   // returns newly added manifests and snapshot IDs between the starting and parent snapshots

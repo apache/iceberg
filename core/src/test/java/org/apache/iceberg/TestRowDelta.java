@@ -36,16 +36,25 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.deletes.BaseDVFileWriter;
+import org.apache.iceberg.deletes.DVFileWriter;
+import org.apache.iceberg.deletes.Deletes;
+import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.ContentFileUtil;
+import org.apache.iceberg.util.DeleteFileSet;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -1668,23 +1677,130 @@ public class TestRowDelta extends V2TableTestBase {
   }
 
   @TestTemplate
-  public void testConcurrentDVsForSameDataFile() {
+  public void testConcurrentDVsForSameDataFile() throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
 
     DataFile dataFile = newDataFile("data_bucket=0");
     commit(table, table.newRowDelta().addRows(dataFile), branch);
+    List<PositionDelete<?>> deletes = Lists.newArrayList();
+    // Delete the first 4 positions in dataFile
+    for (int i = 0; i < 4; i++) {
+      deletes.add(PositionDelete.create().set(dataFile.location(), i));
+    }
 
-    DeleteFile deleteFile1 = newDeletes(dataFile);
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PUFFIN).build();
+    DeleteFile deleteFile1 = writeDV(deletes, dataFile.partition(), fileFactory);
     RowDelta rowDelta1 = table.newRowDelta().addDeletes(deleteFile1);
 
-    DeleteFile deleteFile2 = newDeletes(dataFile);
+    List<PositionDelete<?>> conflictingDeletes = Lists.newArrayList();
+
+    // Delete positions 4 through 7
+    for (int i = 4; i < 8; i++) {
+      conflictingDeletes.add(PositionDelete.create().set(dataFile.location(), i));
+    }
+
+    DeleteFile deleteFile2 = writeDV(conflictingDeletes, dataFile.partition(), fileFactory);
     RowDelta rowDelta2 = table.newRowDelta().addDeletes(deleteFile2);
 
     commit(table, rowDelta1, branch);
+    commit(table, rowDelta2, branch);
 
-    assertThatThrownBy(() -> commit(table, rowDelta2, branch))
-        .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("Found concurrently added DV for %s", dataFile.location());
+    Set<DeleteFile> dvs =
+        deleteFiles(table, branch).stream()
+            .filter(ContentFileUtil::isDV)
+            .collect(Collectors.toSet());
+    assertThat(dvs).as("There should be exactly 1 DV").hasSize(1);
+    DeleteFile dv = dvs.iterator().next();
+    assertThat(dv.recordCount()).as("The cardinality of the DV should be 8").isEqualTo(8);
+    PositionDeleteIndex positionDeleteIndex = Deletes.readDV(dv, table.io(), table.encryption());
+    for (int i = 0; i < 8; i++) {
+      assertThat(positionDeleteIndex.isDeleted(i))
+          .as("Expected position " + i + " to be deleted")
+          .isTrue();
+    }
+  }
+
+  @TestTemplate
+  public void testConcurrentDVsForMultipleDataFiles() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    DataFile dataFile = newDataFile("data_bucket=0");
+    DataFile dataFile2 = newDataFile("data_bucket=1");
+    commit(table, table.newRowDelta().addRows(dataFile).addRows(dataFile2), branch);
+    List<PositionDelete<?>> deletes = Lists.newArrayList();
+    List<PositionDelete<?>> deletesForDataFile2 = Lists.newArrayList();
+
+    // Delete the first 4 positions in dataFile and dataFile2
+    for (int i = 0; i < 4; i++) {
+      deletes.add(PositionDelete.create().set(dataFile.location(), i));
+      deletesForDataFile2.add(PositionDelete.create().set(dataFile2.location(), i));
+    }
+
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PUFFIN).build();
+    DeleteFile deleteFile1 = writeDV(deletes, dataFile.partition(), fileFactory);
+    DeleteFile deleteFile2 = writeDV(deletesForDataFile2, dataFile2.partition(), fileFactory);
+    RowDelta rowDelta1 = table.newRowDelta().addDeletes(deleteFile1).addDeletes(deleteFile2);
+
+    List<PositionDelete<?>> conflictingDeletesForDataFile = Lists.newArrayList();
+    List<PositionDelete<?>> conflictingDeletesForDataFile2 = Lists.newArrayList();
+
+    // Delete positions 4 through 7 in dataFile
+    for (int i = 4; i < 8; i++) {
+      conflictingDeletesForDataFile.add(PositionDelete.create().set(dataFile.location(), i));
+      conflictingDeletesForDataFile2.add(PositionDelete.create().set(dataFile2.location(), i));
+    }
+
+    DeleteFile conflictingDeletes =
+        writeDV(conflictingDeletesForDataFile, dataFile.partition(), fileFactory);
+    DeleteFile conflictingDeletes2 =
+        writeDV(conflictingDeletesForDataFile2, dataFile2.partition(), fileFactory);
+
+    RowDelta rowDelta2 =
+        table.newRowDelta().addDeletes(conflictingDeletes).addDeletes(conflictingDeletes2);
+
+    commit(table, rowDelta1, branch);
+    commit(table, rowDelta2, branch);
+
+    Set<DeleteFile> dvs =
+        deleteFiles(table, branch).stream()
+            .filter(ContentFileUtil::isDV)
+            .collect(Collectors.toSet());
+    assertThat(dvs).as("There should be exactly 2 DVs").hasSize(2);
+    for (DeleteFile dv : dvs) {
+      PositionDeleteIndex positionDeleteIndex = Deletes.readDV(dv, table.io(), table.encryption());
+      assertThat(dv.recordCount()).as("The cardinality of the DV should be 8").isEqualTo(8);
+      for (int i = 0; i < 8; i++) {
+        assertThat(positionDeleteIndex.isDeleted(i))
+            .as("Expected position " + i + " to be deleted")
+            .isTrue();
+      }
+    }
+  }
+
+  private static Set<DeleteFile> deleteFiles(Table table, String ref) {
+    DeleteFileSet deleteFiles = DeleteFileSet.create();
+
+    for (FileScanTask task : table.newScan().useRef(ref).planFiles()) {
+      deleteFiles.addAll(task.deletes());
+    }
+
+    return deleteFiles;
+  }
+
+  private DeleteFile writeDV(
+      List<PositionDelete<?>> deletes, StructLike partition, OutputFileFactory fileFactory)
+      throws IOException {
+
+    DVFileWriter writer = new BaseDVFileWriter(fileFactory, p -> null);
+    try (DVFileWriter closeableWriter = writer) {
+      for (PositionDelete<?> delete : deletes) {
+        closeableWriter.delete(delete.path().toString(), delete.pos(), table.spec(), partition);
+      }
+    }
+
+    return Iterables.getOnlyElement(writer.result().deleteFiles());
   }
 
   @TestTemplate
