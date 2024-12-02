@@ -289,12 +289,6 @@ public class GCSFileIO implements DelegateFileIO, SupportsRecoveryOperations {
    */
   protected boolean recoverSoftDeletedObject(BlobId blobId) {
     try {
-      BucketInfo.SoftDeletePolicy policy = client().get(blobId.getBucket()).getSoftDeletePolicy();
-      if (Duration.ofSeconds(0).equals(policy.getRetentionDuration())) {
-        LOG.warn("Soft delete is disabled for {}", blobId.getBucket());
-        return false;
-      }
-
       Optional<Blob> latestSoftDeletedBlob =
           client()
               .list(
