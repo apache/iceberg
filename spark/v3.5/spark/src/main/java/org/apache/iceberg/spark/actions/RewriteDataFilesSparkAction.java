@@ -156,11 +156,6 @@ public class RewriteDataFilesSparkAction
     return this;
   }
 
-  public RewriteDataFilesSparkAction setCaseSensitive(boolean caseSensitiveReset) {
-    this.caseSensitive = caseSensitiveReset;
-    return this;
-  }
-
   @Override
   public RewriteDataFiles.Result execute() {
     if (table.currentSnapshot() == null) {
