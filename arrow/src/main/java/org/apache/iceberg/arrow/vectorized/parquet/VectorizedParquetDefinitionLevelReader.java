@@ -47,8 +47,8 @@ public final class VectorizedParquetDefinitionLevelReader
     super(bitWidth, maxDefLevel, readLength, setArrowValidityVector);
   }
 
-  abstract class CommonBaseReader {
-    protected void nextCommonBatch(
+  abstract class CommonReader {
+    private void nextBatch(
         final FieldVector vector,
         final int startOffset,
         final int typeWidth,
@@ -130,7 +130,7 @@ public final class VectorizedParquetDefinitionLevelReader
         final int numValsToRead,
         NullabilityHolder nullabilityHolder,
         ValuesAsBytesReader valuesReader) {
-      nextCommonBatch(
+      nextBatch(
           vector, startOffset, typeWidth, numValsToRead, nullabilityHolder, valuesReader, null);
     }
 
@@ -142,7 +142,7 @@ public final class VectorizedParquetDefinitionLevelReader
         NullabilityHolder nullabilityHolder,
         VectorizedDictionaryEncodedParquetValuesReader valuesReader,
         Dictionary dict) {
-      nextCommonBatch(
+      nextBatch(
           vector, startOffset, typeWidth, numValsToRead, nullabilityHolder, valuesReader, dict);
     }
 
@@ -217,7 +217,7 @@ public final class VectorizedParquetDefinitionLevelReader
         int typeWidth);
   }
 
-  abstract class NumericBaseReader extends CommonBaseReader {
+  abstract class NumericBaseReader extends CommonReader {
     @Override
     protected void nextRleBatch(
         final FieldVector vector,
@@ -368,7 +368,7 @@ public final class VectorizedParquetDefinitionLevelReader
     }
   }
 
-  abstract class BaseReader extends CommonBaseReader {
+  abstract class BaseReader extends CommonReader {
     @Override
     protected void nextRleBatch(
         FieldVector vector,
