@@ -951,7 +951,6 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         TableProperties.WRITE_DISTRIBUTION_MODE_NONE);
   }
 
-
   private void insertData(int filesCount) {
     insertData(tableName, filesCount);
   }
