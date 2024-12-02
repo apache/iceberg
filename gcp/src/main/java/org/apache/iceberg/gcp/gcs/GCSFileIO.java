@@ -334,7 +334,7 @@ public class GCSFileIO implements DelegateFileIO, SupportsRecoveryOperations {
         return false;
       }
 
-      Optional<Blob> latestVersion =
+      Optional<Blob> latestDeletedVersion =
           client()
               .list(
                   blobId.getBucket(),
@@ -342,12 +342,13 @@ public class GCSFileIO implements DelegateFileIO, SupportsRecoveryOperations {
                   Storage.BlobListOption.versions(true))
               .streamAll()
               .filter(blob -> blob.getName().equals(blobId.getName()))
-              .max(Comparator.comparing(Blob::getUpdateTimeOffsetDateTime));
+              .max(Comparator.comparing(Blob::getUpdateTimeOffsetDateTime))
+              .filter(blob -> blob.getDeleteTimeOffsetDateTime() != null);
 
-      if (latestVersion.isPresent() && latestVersion.get().getDeleteTimeOffsetDateTime() != null) {
+      if (latestDeletedVersion.isPresent()) {
         Storage.CopyRequest copyRequest =
             Storage.CopyRequest.newBuilder()
-                .setSource(latestVersion.get().getBlobId())
+                .setSource(latestDeletedVersion.get().getBlobId())
                 .setTarget(blobId)
                 .build();
         Blob blob = client().copy(copyRequest).getResult();
