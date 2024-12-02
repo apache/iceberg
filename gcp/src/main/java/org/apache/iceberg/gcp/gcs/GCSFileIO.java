@@ -321,11 +321,6 @@ public class GCSFileIO implements DelegateFileIO, SupportsRecoveryOperations {
    */
   protected boolean recoverLatestVersion(BlobId blobId) {
     try {
-      if (!client().get(blobId.getBucket()).versioningEnabled()) {
-        LOG.warn("Object versioning is disabled for {}", blobId.getBucket());
-        return false;
-      }
-
       Optional<Blob> latestDeletedVersion =
           client()
               .list(
