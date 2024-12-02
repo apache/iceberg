@@ -41,8 +41,6 @@ class CompletedStatisticsSerializer extends TypeSerializer<CompletedStatistics> 
   private final MapSerializer<SortKey, Long> keyFrequencySerializer;
   private final ListSerializer<SortKey> keySamplesSerializer;
 
-  private int sortKeySerializerVersion = -1;
-
   CompletedStatisticsSerializer(TypeSerializer<SortKey> sortKeySerializer) {
     this.sortKeySerializer = sortKeySerializer;
     this.statisticsTypeSerializer = new EnumSerializer<>(StatisticsType.class);
@@ -53,7 +51,6 @@ class CompletedStatisticsSerializer extends TypeSerializer<CompletedStatistics> 
   public void changeSortKeySerializerVersion(int version) {
     if (sortKeySerializer instanceof SortKeySerializer) {
       ((SortKeySerializer) sortKeySerializer).setVersion(version);
-      this.sortKeySerializerVersion = version;
     }
   }
 
@@ -61,13 +58,6 @@ class CompletedStatisticsSerializer extends TypeSerializer<CompletedStatistics> 
     if (sortKeySerializer instanceof SortKeySerializer) {
       ((SortKeySerializer) sortKeySerializer).restoreToLatestVersion();
     }
-  }
-
-  public int getSortKeySerializerVersionLatest() {
-    if (sortKeySerializer instanceof SortKeySerializer) {
-      return ((SortKeySerializer) sortKeySerializer).getLatestVersion();
-    }
-    return sortKeySerializerVersion;
   }
 
   @Override
