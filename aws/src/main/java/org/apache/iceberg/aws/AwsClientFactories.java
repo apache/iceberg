@@ -20,7 +20,6 @@ package org.apache.iceberg.aws;
 
 import java.net.URI;
 import java.util.Map;
-import org.apache.iceberg.aws.kms.KmsClientProperties;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -95,14 +94,12 @@ public class AwsClientFactories {
     private AwsClientProperties awsClientProperties;
     private S3FileIOProperties s3FileIOProperties;
     private HttpClientProperties httpClientProperties;
-    private KmsClientProperties kmsClientProperties;
 
     DefaultAwsClientFactory() {
       awsProperties = new AwsProperties();
       awsClientProperties = new AwsClientProperties();
       s3FileIOProperties = new S3FileIOProperties();
       httpClientProperties = new HttpClientProperties();
-      kmsClientProperties = new KmsClientProperties();
     }
 
     @Override
@@ -137,7 +134,7 @@ public class AwsClientFactories {
           .applyMutation(awsClientProperties::applyClientRegionConfiguration)
           .applyMutation(httpClientProperties::applyHttpClientConfigurations)
           .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
-          .applyMutation(kmsClientProperties::applyRetryConfigurations)
+          .applyMutation(awsClientProperties::applyRetryConfigurations)
           .build();
     }
 
@@ -157,7 +154,6 @@ public class AwsClientFactories {
       this.awsClientProperties = new AwsClientProperties(properties);
       this.s3FileIOProperties = new S3FileIOProperties(properties);
       this.httpClientProperties = new HttpClientProperties(properties);
-      this.kmsClientProperties = new KmsClientProperties();
     }
   }
 

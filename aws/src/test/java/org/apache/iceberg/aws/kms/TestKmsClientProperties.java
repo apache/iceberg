@@ -20,6 +20,7 @@ package org.apache.iceberg.aws.kms;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.apache.iceberg.aws.AwsClientProperties;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.services.kms.KmsClient;
@@ -28,12 +29,12 @@ import software.amazon.awssdk.services.kms.KmsClientBuilder;
 public class TestKmsClientProperties {
   @Test
   public void testApplyRetryConfiguration() {
-    KmsClientProperties kmsClientProperties = new KmsClientProperties();
+    AwsClientProperties awsClientProperties = new AwsClientProperties();
 
     KmsClientBuilder builder = KmsClient.builder();
-    kmsClientProperties.applyRetryConfigurations(builder);
-
+    awsClientProperties.applyRetryConfigurations(builder);
     RetryMode retryPolicy = builder.overrideConfiguration().retryMode().get();
+
     assertThat(retryPolicy).as("retry mode was not set").isEqualTo(RetryMode.ADAPTIVE_V2);
   }
 }
