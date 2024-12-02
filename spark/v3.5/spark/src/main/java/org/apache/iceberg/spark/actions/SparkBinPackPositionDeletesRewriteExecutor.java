@@ -35,6 +35,7 @@ import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.FileGroupInfo;
+import org.apache.iceberg.actions.RewritePositionDeletePlan;
 import org.apache.iceberg.actions.RewritePositionDeletesGroup;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.PositionDeletesRewriteCoordinator;
@@ -54,7 +55,11 @@ import org.apache.spark.sql.internal.SQLConf;
 
 class SparkBinPackPositionDeletesRewriteExecutor
     extends SparkRewriteExecutor<
-        FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup> {
+        FileGroupInfo,
+        PositionDeletesScanTask,
+        DeleteFile,
+        RewritePositionDeletesGroup,
+        RewritePositionDeletePlan> {
 
   private final SparkSession spark;
   private final SparkTableCache tableCache = SparkTableCache.get();

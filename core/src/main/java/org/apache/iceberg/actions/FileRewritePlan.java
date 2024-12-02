@@ -35,7 +35,7 @@ import org.apache.iceberg.StructLike;
  * @param <F> the Java type of the content files
  * @param <G> the Java type of the planned groups
  */
-public class FileRewritePlan<
+public abstract class FileRewritePlan<
     I,
     T extends ContentScanTask<F>,
     F extends ContentFile<F>,
@@ -44,19 +44,16 @@ public class FileRewritePlan<
   private final int totalGroupCount;
   private final Map<StructLike, Integer> groupsInPartition;
   private final long writeMaxFileSize;
-  private final int outputSpecId;
 
   protected FileRewritePlan(
       Stream<G> groups,
       int totalGroupCount,
       Map<StructLike, Integer> groupsInPartition,
-      long writeMaxFileSize,
-      int outputSpecId) {
+      long writeMaxFileSize) {
     this.groups = groups;
     this.totalGroupCount = totalGroupCount;
     this.groupsInPartition = groupsInPartition;
     this.writeMaxFileSize = writeMaxFileSize;
-    this.outputSpecId = outputSpecId;
   }
 
   /** The stream of the generated {@link RewriteFileGroup}s. */
@@ -77,10 +74,5 @@ public class FileRewritePlan<
   /** Calculated maximum file size for the target files */
   public long writeMaxFileSize() {
     return writeMaxFileSize;
-  }
-
-  /** Partition specification id for the target files */
-  public int outputSpecId() {
-    return outputSpecId;
   }
 }

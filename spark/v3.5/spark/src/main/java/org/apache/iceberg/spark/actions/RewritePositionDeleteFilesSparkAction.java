@@ -27,12 +27,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.FileRewritePlan;
 import org.apache.iceberg.actions.ImmutableRewritePositionDeleteFiles;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles;
+import org.apache.iceberg.actions.RewritePositionDeletePlan;
 import org.apache.iceberg.actions.RewritePositionDeletesCommitManager;
 import org.apache.iceberg.actions.RewritePositionDeletesCommitManager.CommitService;
 import org.apache.iceberg.actions.RewritePositionDeletesGroup;
@@ -41,7 +40,6 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
@@ -111,8 +109,7 @@ public class RewritePositionDeleteFilesSparkAction
 
     validateAndInitOptions();
 
-    FileRewritePlan<FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
-        plan = plan();
+    RewritePositionDeletePlan plan = planner.plan();
     rewriter.initPlan(plan);
 
     if (plan.totalGroupCount() == 0) {
@@ -127,17 +124,8 @@ public class RewritePositionDeleteFilesSparkAction
     }
   }
 
-  @VisibleForTesting
-  FileRewritePlan<FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
-      plan() {
-    return planner.plan();
-  }
-
   private RewritePositionDeletesGroup rewriteDeleteFiles(
-      FileRewritePlan<
-              FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
-          plan,
-      RewritePositionDeletesGroup fileGroup) {
+      RewritePositionDeletePlan plan, RewritePositionDeletesGroup fileGroup) {
     String desc = jobDesc(fileGroup, plan);
     Set<DeleteFile> addedFiles =
         withJobGroupInfo(
@@ -163,10 +151,7 @@ public class RewritePositionDeleteFilesSparkAction
   }
 
   private Result doExecute(
-      FileRewritePlan<
-              FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
-          plan,
-      RewritePositionDeletesCommitManager commitManager) {
+      RewritePositionDeletePlan plan, RewritePositionDeletesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
     ConcurrentLinkedQueue<RewritePositionDeletesGroup> rewrittenGroups =
@@ -231,10 +216,7 @@ public class RewritePositionDeleteFilesSparkAction
   }
 
   private Result doExecuteWithPartialProgress(
-      FileRewritePlan<
-              FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
-          plan,
-      RewritePositionDeletesCommitManager commitManager) {
+      RewritePositionDeletePlan plan, RewritePositionDeletesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
     // start commit service
@@ -319,11 +301,7 @@ public class RewritePositionDeleteFilesSparkAction
         PARTIAL_PROGRESS_ENABLED);
   }
 
-  private String jobDesc(
-      RewritePositionDeletesGroup group,
-      FileRewritePlan<
-              FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
-          plan) {
+  private String jobDesc(RewritePositionDeletesGroup group, RewritePositionDeletePlan plan) {
     StructLike partition = group.info().partition();
     if (partition.size() > 0) {
       return String.format(

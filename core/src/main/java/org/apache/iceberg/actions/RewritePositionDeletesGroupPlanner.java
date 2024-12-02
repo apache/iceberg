@@ -36,6 +36,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.FileGroupInfo;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -62,6 +63,10 @@ public class RewritePositionDeletesGroupPlanner
   private final Expression filter;
   private final boolean caseSensitive;
   private RewriteJobOrder rewriteJobOrder;
+
+  public RewritePositionDeletesGroupPlanner(Table table) {
+    this(table, Expressions.alwaysTrue(), false);
+  }
 
   public RewritePositionDeletesGroupPlanner(Table table, Expression filter, boolean caseSensitive) {
     super(table);
@@ -94,9 +99,7 @@ public class RewritePositionDeletesGroupPlanner
    * @return the generated plan which could be executed during the compaction
    */
   @Override
-  public FileRewritePlan<
-          FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
-      plan() {
+  public RewritePositionDeletePlan plan() {
     StructLikeMap<List<List<PositionDeletesScanTask>>> plan = planFileGroups();
     RewriteExecutionContext ctx = new RewriteExecutionContext();
     Stream<RewritePositionDeletesGroup> groups =
@@ -121,8 +124,8 @@ public class RewritePositionDeletesGroupPlanner
             .sorted(FileRewriteGroup.taskComparator(rewriteJobOrder));
     Map<StructLike, Integer> groupsInPartition = plan.transformValues(List::size);
     int totalGroupCount = groupsInPartition.values().stream().reduce(Integer::sum).orElse(0);
-    return new FileRewritePlan<>(
-        groups, totalGroupCount, groupsInPartition, writeMaxFileSize(), outputSpecId());
+    return new RewritePositionDeletePlan(
+        groups, totalGroupCount, groupsInPartition, writeMaxFileSize());
   }
 
   private StructLikeMap<List<List<PositionDeletesScanTask>>> planFileGroups() {

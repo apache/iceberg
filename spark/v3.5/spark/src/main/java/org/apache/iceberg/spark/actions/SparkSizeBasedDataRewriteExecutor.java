@@ -23,21 +23,25 @@ import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
 import org.apache.iceberg.actions.RewriteFileGroup;
+import org.apache.iceberg.actions.RewriteFilePlan;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkTableCache;
 import org.apache.spark.sql.SparkSession;
 
 abstract class SparkSizeBasedDataRewriteExecutor
-    extends SparkRewriteExecutor<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> {
+    extends SparkRewriteExecutor<
+        FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup, RewriteFilePlan> {
 
   private final SparkSession spark;
   private final SparkTableCache tableCache = SparkTableCache.get();
   private final ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
   private final FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
+  private int outputSpecId;
 
   SparkSizeBasedDataRewriteExecutor(SparkSession spark, Table table) {
     super(table);
@@ -66,5 +70,19 @@ abstract class SparkSizeBasedDataRewriteExecutor
       taskSetManager.removeTasks(table(), groupId);
       coordinator.clearRewrite(table(), groupId);
     }
+  }
+
+  @Override
+  public void initPlan(RewriteFilePlan plan) {
+    super.initPlan(plan);
+    this.outputSpecId = plan.outputSpecId();
+  }
+
+  int outputSpecId() {
+    return outputSpecId;
+  }
+
+  PartitionSpec outputSpec() {
+    return table().specs().get(outputSpecId);
   }
 }

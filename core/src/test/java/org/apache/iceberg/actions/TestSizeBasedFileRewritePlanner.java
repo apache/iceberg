@@ -21,35 +21,40 @@ package org.apache.iceberg.actions;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import java.util.Arrays;
+import java.io.File;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MockFileScanTask;
-import org.apache.iceberg.ParameterizedTestExtension;
-import org.apache.iceberg.Parameters;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestBase;
-import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.TestTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.api.extension.ExtendWith;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 
-@ExtendWith(ParameterizedTestExtension.class)
-class TestSizeBasedRewriter extends TestBase {
+class TestSizeBasedFileRewritePlanner {
+  @TempDir private File tableDir = null;
+  private TestTables.TestTable table = null;
 
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
+  @BeforeEach
+  public void setupTable() throws Exception {
+    this.table = TestTables.create(tableDir, "test", TestBase.SCHEMA, TestBase.SPEC, 3);
   }
 
-  @TestTemplate
+  @AfterEach
+  public void cleanupTables() {
+    TestTables.clearTables();
+  }
+
+  @Test
   void testSplitSizeLowerBound() {
     FileScanTask task1 = new MockFileScanTask(mockDataFile());
     FileScanTask task2 = new MockFileScanTask(mockDataFile());
@@ -57,7 +62,7 @@ class TestSizeBasedRewriter extends TestBase {
     FileScanTask task4 = new MockFileScanTask(mockDataFile());
     List<FileScanTask> tasks = ImmutableList.of(task1, task2, task3, task4);
 
-    RewriteFileGroupPlanner planner = new TestingPlanner(table, Expressions.alwaysTrue(), 1, tasks);
+    TestingPlanner planner = new TestingPlanner(table);
 
     long minFileSize = 256L * 1024 * 1024;
     long targetFileSize = 512L * 1024 * 1024;
@@ -72,28 +77,42 @@ class TestSizeBasedRewriter extends TestBase {
 
     // the total task size is 580 MB and the target file size is 512 MB
     // the remainder must be written into a separate file as it exceeds 10%
+    List<List<FileScanTask>> groups = Lists.newArrayList(planner.planFileGroups(tasks).iterator());
 
-    RewriteFileGroup group = planner.plan().groups().iterator().next();
+    assertThat(groups).hasSize(1);
 
-    assertThat(group.expectedOutputFiles()).isEqualTo(2);
-
+    List<FileScanTask> group = groups.get(0);
     // the split size must be >= targetFileSize and < maxFileSize
-    long splitSize = group.sizeInBytes();
+    long splitSize = group.stream().mapToLong(FileScanTask::sizeBytes).sum();
     assertThat(splitSize).isGreaterThanOrEqualTo(targetFileSize).isLessThan(maxFileSize);
   }
 
-  private static class TestingPlanner extends RewriteFileGroupPlanner {
-    private final List<FileScanTask> tasks;
-
-    private TestingPlanner(
-        Table table, Expression filter, long snapshotId, List<FileScanTask> tasks) {
-      super(table, filter, snapshotId, false);
-      this.tasks = tasks;
+  private static class TestingPlanner
+      extends SizeBasedFileRewritePlanner<
+          RewriteDataFiles.FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> {
+    protected TestingPlanner(Table table) {
+      super(table);
     }
 
     @Override
-    CloseableIterable<FileScanTask> tasks() {
-      return CloseableIterable.withNoopClose(tasks);
+    protected long defaultTargetFileSize() {
+      return 0;
+    }
+
+    @Override
+    protected Iterable<FileScanTask> filterFiles(Iterable<FileScanTask> tasks) {
+      return tasks;
+    }
+
+    @Override
+    protected Iterable<List<FileScanTask>> filterFileGroups(List<List<FileScanTask>> groups) {
+      return groups;
+    }
+
+    @Override
+    public FileRewritePlan<RewriteDataFiles.FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup>
+        plan() {
+      throw new UnsupportedOperationException("Not supported");
     }
   }
 

@@ -34,13 +34,13 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.FileRewriteExecutor;
-import org.apache.iceberg.actions.FileRewritePlan;
 import org.apache.iceberg.actions.ImmutableRewriteDataFiles;
 import org.apache.iceberg.actions.ImmutableRewriteDataFiles.Result.Builder;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.actions.RewriteFileGroupPlanner;
+import org.apache.iceberg.actions.RewriteFilePlan;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -94,8 +94,9 @@ public class RewriteDataFilesSparkAction
   private boolean useStartingSequenceNumber;
   private boolean caseSensitive;
   private RewriteFileGroupPlanner planner = null;
-  private FileRewriteExecutor<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> rewriter =
-      null;
+  private FileRewriteExecutor<
+          FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup, RewriteFilePlan>
+      rewriter = null;
 
   RewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark.cloneSession());
@@ -158,7 +159,7 @@ public class RewriteDataFilesSparkAction
 
     init(startingSnapshotId);
 
-    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = plan();
+    RewriteFilePlan plan = plan();
     rewriter.initPlan(plan);
 
     if (plan.totalGroupCount() == 0) {
@@ -182,7 +183,7 @@ public class RewriteDataFilesSparkAction
   }
 
   @VisibleForTesting
-  FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan() {
+  RewriteFilePlan plan() {
     return planner.plan();
   }
 
@@ -200,9 +201,7 @@ public class RewriteDataFilesSparkAction
   }
 
   @VisibleForTesting
-  RewriteFileGroup rewriteFiles(
-      FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan,
-      RewriteFileGroup fileGroup) {
+  RewriteFileGroup rewriteFiles(RewriteFilePlan plan, RewriteFileGroup fileGroup) {
     String desc = jobDesc(fileGroup, plan);
     Set<DataFile> addedFiles =
         withJobGroupInfo(
@@ -227,9 +226,7 @@ public class RewriteDataFilesSparkAction
         table, startingSnapshotId, useStartingSequenceNumber, commitSummary());
   }
 
-  private Builder doExecute(
-      FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan,
-      RewriteDataFilesCommitManager commitManager) {
+  private Builder doExecute(RewriteFilePlan plan, RewriteDataFilesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
     ConcurrentLinkedQueue<RewriteFileGroup> rewrittenGroups = Queues.newConcurrentLinkedQueue();
@@ -289,8 +286,7 @@ public class RewriteDataFilesSparkAction
   }
 
   private Builder doExecuteWithPartialProgress(
-      FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan,
-      RewriteDataFilesCommitManager commitManager) {
+      RewriteFilePlan plan, RewriteDataFilesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
     // start commit service
@@ -407,9 +403,7 @@ public class RewriteDataFilesSparkAction
         PARTIAL_PROGRESS_ENABLED);
   }
 
-  private String jobDesc(
-      RewriteFileGroup group,
-      FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan) {
+  private String jobDesc(RewriteFileGroup group, RewriteFilePlan plan) {
     StructLike partition = group.info().partition();
     if (partition.size() > 0) {
       return String.format(

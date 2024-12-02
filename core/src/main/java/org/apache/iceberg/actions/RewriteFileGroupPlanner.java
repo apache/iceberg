@@ -36,7 +36,6 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -143,7 +142,7 @@ public class RewriteFileGroupPlanner
    * @return the generated plan which could be executed during the compaction
    */
   @Override
-  public FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan() {
+  public RewriteFilePlan plan() {
     StructLikeMap<List<List<FileScanTask>>> plan = planFileGroups();
     RewriteExecutionContext ctx = new RewriteExecutionContext();
     Stream<RewriteFileGroup> groups =
@@ -168,12 +167,11 @@ public class RewriteFileGroupPlanner
             .sorted(FileRewriteGroup.taskComparator(rewriteJobOrder));
     Map<StructLike, Integer> groupsInPartition = plan.transformValues(List::size);
     int totalGroupCount = groupsInPartition.values().stream().reduce(Integer::sum).orElse(0);
-    return new FileRewritePlan<>(
+    return new RewriteFilePlan(
         groups, totalGroupCount, groupsInPartition, writeMaxFileSize(), outputSpecId());
   }
 
-  @VisibleForTesting
-  CloseableIterable<FileScanTask> tasks() {
+  private CloseableIterable<FileScanTask> tasks() {
     TableScan scan =
         table().newScan().filter(filter).caseSensitive(caseSensitive).ignoreResiduals();
 

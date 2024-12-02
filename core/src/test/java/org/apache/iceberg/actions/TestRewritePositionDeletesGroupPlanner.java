@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.actions;
 
-import static org.apache.iceberg.actions.RewriteDataFiles.REWRITE_JOB_ORDER;
-import static org.apache.iceberg.actions.RewriteFileGroupPlanner.MAX_FILE_SIZE_DEFAULT_RATIO;
+import static org.apache.iceberg.actions.RewritePositionDeleteFiles.REWRITE_JOB_ORDER;
+import static org.apache.iceberg.actions.RewritePositionDeletesGroupPlanner.MAX_FILE_SIZE_DEFAULT_RATIO;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -30,6 +30,10 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileMetadata;
+import org.apache.iceberg.PartitionData;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestBase;
@@ -37,43 +41,37 @@ import org.apache.iceberg.TestTables;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
-class TestRewriteFileGroupPlanner {
+class TestRewritePositionDeletesGroupPlanner {
   private static final Map<String, String> REWRITE_ALL =
-      ImmutableMap.of(RewriteFileGroupPlanner.REWRITE_ALL, "true");
+      ImmutableMap.of(RewritePositionDeletesGroupPlanner.REWRITE_ALL, "true");
 
-  private static final DataFile FILE_1 = newDataFile("data_bucket=0", 10);
-  private static final DataFile FILE_2 = newDataFile("data_bucket=0", 10);
-  private static final DataFile FILE_3 = newDataFile("data_bucket=0", 10);
-  private static final DataFile FILE_4 = newDataFile("data_bucket=1", 11);
-  private static final DataFile FILE_5 = newDataFile("data_bucket=1", 11);
-  private static final DataFile FILE_6 = newDataFile("data_bucket=2", 50);
-
+  private static final DataFile FILE_1 = newDataFile("data_bucket=0");
+  private static final DataFile FILE_2 = newDataFile("data_bucket=1");
+  private static final DataFile FILE_3 = newDataFile("data_bucket=2");
   private static final Map<RewriteJobOrder, List<StructLike>> EXPECTED =
       ImmutableMap.of(
           RewriteJobOrder.FILES_DESC,
-              ImmutableList.of(FILE_1.partition(), FILE_4.partition(), FILE_6.partition()),
+              ImmutableList.of(FILE_1.partition(), FILE_2.partition(), FILE_3.partition()),
           RewriteJobOrder.FILES_ASC,
-              ImmutableList.of(FILE_6.partition(), FILE_4.partition(), FILE_1.partition()),
+              ImmutableList.of(FILE_3.partition(), FILE_2.partition(), FILE_1.partition()),
           RewriteJobOrder.BYTES_DESC,
-              ImmutableList.of(FILE_6.partition(), FILE_1.partition(), FILE_4.partition()),
+              ImmutableList.of(FILE_3.partition(), FILE_1.partition(), FILE_2.partition()),
           RewriteJobOrder.BYTES_ASC,
-              ImmutableList.of(FILE_4.partition(), FILE_1.partition(), FILE_6.partition()));
+              ImmutableList.of(FILE_2.partition(), FILE_1.partition(), FILE_3.partition()));
 
   @TempDir private File tableDir = null;
   private TestTables.TestTable table = null;
 
   @BeforeEach
   public void setupTable() throws Exception {
-    this.table = TestTables.create(tableDir, "test", TestBase.SCHEMA, TestBase.SPEC, 3);
+    this.table = TestTables.create(tableDir, "test", TestBase.SCHEMA, TestBase.SPEC, 2);
   }
 
   @AfterEach
@@ -87,13 +85,19 @@ class TestRewriteFileGroupPlanner {
       names = {"FILES_DESC", "FILES_ASC", "BYTES_DESC", "BYTES_ASC"})
   void testJobOrder(RewriteJobOrder order) {
     addFiles();
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
     planner.init(
         ImmutableMap.of(
             RewriteFileGroupPlanner.REWRITE_ALL, "true", REWRITE_JOB_ORDER, order.name()));
-    RewriteFilePlan result = planner.plan();
-    List<RewriteFileGroup> groups = result.groups().collect(Collectors.toList());
-    assertThat(groups.stream().map(group -> group.info().partition()).collect(Collectors.toList()))
+    RewritePositionDeletePlan result = planner.plan();
+    List<RewritePositionDeletesGroup> groups = result.groups().collect(Collectors.toList());
+    assertThat(
+            groups.stream()
+                .map(
+                    group ->
+                        new PartitionData(TestBase.SPEC.partitionType())
+                            .copyFor(group.info().partition()))
+                .collect(Collectors.toList()))
         .isEqualTo(EXPECTED.get(order));
     assertThat(result.totalGroupCount()).isEqualTo(3);
     EXPECTED.get(order).forEach(s -> assertThat(result.groupsInPartition(s)).isEqualTo(1));
@@ -105,19 +109,21 @@ class TestRewriteFileGroupPlanner {
     table.refresh();
 
     table
-        .newAppend()
-        .appendFile(newDataFile("", 10))
-        .appendFile(newDataFile("", 20))
-        .appendFile(newDataFile("", 30))
+        .newRowDelta()
+        .addRows(newDataFile(""))
+        .addDeletes(newDeleteFile(10))
+        .addDeletes(newDeleteFile(20))
+        .addDeletes(newDeleteFile(30))
         .commit();
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+
+    RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
     planner.init(
         ImmutableMap.of(
             RewriteFileGroupPlanner.MIN_INPUT_FILES,
             "1",
             RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES,
             "30"));
-    RewriteFilePlan result = planner.plan();
+    RewritePositionDeletePlan result = planner.plan();
     assertThat(result.totalGroupCount()).isEqualTo(1);
     assertThat(result.groups().iterator().next().numInputFiles()).isEqualTo(2);
   }
@@ -125,27 +131,27 @@ class TestRewriteFileGroupPlanner {
   @Test
   void testMaxGroupSize() {
     addFiles();
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
     planner.init(
         ImmutableMap.of(
-            RewriteFileGroupPlanner.REWRITE_ALL,
+            RewritePositionDeletesGroupPlanner.REWRITE_ALL,
             "true",
-            RewriteFileGroupPlanner.MAX_FILE_GROUP_SIZE_BYTES,
+            RewritePositionDeletesGroupPlanner.MAX_FILE_GROUP_SIZE_BYTES,
             "10"));
-    RewriteFilePlan result = planner.plan();
+    RewritePositionDeletePlan result = planner.plan();
     assertThat(result.totalGroupCount()).isEqualTo(6);
     assertThat(result.groupsInPartition(FILE_1.partition())).isEqualTo(3);
-    assertThat(result.groupsInPartition(FILE_4.partition())).isEqualTo(2);
-    assertThat(result.groupsInPartition(FILE_6.partition())).isEqualTo(1);
+    assertThat(result.groupsInPartition(FILE_2.partition())).isEqualTo(2);
+    assertThat(result.groupsInPartition(FILE_3.partition())).isEqualTo(1);
   }
 
   @Test
   void testEmptyTable() {
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
 
     planner.init(REWRITE_ALL);
 
-    RewriteFilePlan result = planner.plan();
+    RewritePositionDeletePlan result = planner.plan();
 
     assertThat(table.currentSnapshot()).as("Table must be empty").isNull();
     assertThat(result.totalGroupCount()).isZero();
@@ -154,15 +160,16 @@ class TestRewriteFileGroupPlanner {
   @Test
   void testFilter() {
     addFiles();
-    RewriteFileGroupPlanner planner =
-        new RewriteFileGroupPlanner(
+    RewritePositionDeletesGroupPlanner planner =
+        new RewritePositionDeletesGroupPlanner(
             table,
             Expressions.or(
                 Expressions.equal(Expressions.bucket("data", 16), 0),
-                Expressions.equal(Expressions.bucket("data", 16), 2)));
+                Expressions.equal(Expressions.bucket("data", 16), 2)),
+            false);
     planner.init(REWRITE_ALL);
-    RewriteFilePlan plan = planner.plan();
-    List<RewriteFileGroup> groups = plan.groups().collect(Collectors.toList());
+    RewritePositionDeletePlan plan = planner.plan();
+    List<RewritePositionDeletesGroup> groups = plan.groups().collect(Collectors.toList());
 
     assertThat(plan.totalGroupCount()).isEqualTo(2);
     assertThat(groups).hasSize(2);
@@ -174,41 +181,17 @@ class TestRewriteFileGroupPlanner {
     int targetFileSize = 10;
     addFiles();
 
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
     planner.init(
         ImmutableMap.of(
-            RewriteFileGroupPlanner.REWRITE_ALL,
+            RewritePositionDeletesGroupPlanner.REWRITE_ALL,
             "true",
-            RewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES,
+            RewritePositionDeletesGroupPlanner.TARGET_FILE_SIZE_BYTES,
             String.valueOf(targetFileSize)));
-    RewriteFilePlan plan = planner.plan();
+    RewritePositionDeletePlan plan = planner.plan();
     assertThat(plan.writeMaxFileSize())
         .isGreaterThan(targetFileSize)
         .isLessThan((long) (targetFileSize * MAX_FILE_SIZE_DEFAULT_RATIO));
-  }
-
-  @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  void testOutputSpec(boolean specific) {
-    addFiles();
-
-    int oldSpecId = table.spec().specId();
-    table.updateSpec().removeField("data_bucket").commit();
-    table.newAppend().appendFile(newDataFile("", 10)).commit();
-    table.refresh();
-    int newSpecId = table.spec().specId();
-
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
-
-    Map<String, String> options = Maps.newHashMap(REWRITE_ALL);
-    if (specific) {
-      options.put(RewriteDataFiles.OUTPUT_SPEC_ID, String.valueOf(oldSpecId));
-    }
-
-    planner.init(options);
-
-    RewriteFilePlan plan = planner.plan();
-    assertThat(plan.outputSpecId()).isEqualTo(specific ? oldSpecId : newSpecId);
   }
 
   @Test
@@ -217,46 +200,50 @@ class TestRewriteFileGroupPlanner {
 
     assertThatThrownBy(
             () -> {
-              RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+              RewritePositionDeletesGroupPlanner planner =
+                  new RewritePositionDeletesGroupPlanner(table);
 
-              planner.init(ImmutableMap.of(RewriteDataFiles.REWRITE_JOB_ORDER, "foo"));
+              planner.init(ImmutableMap.of(RewritePositionDeleteFiles.REWRITE_JOB_ORDER, "foo"));
             })
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid rewrite job order name: foo");
-
-    assertThatThrownBy(
-            () -> {
-              RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
-
-              planner.init(
-                  ImmutableMap.of(
-                      RewriteFileGroupPlanner.REWRITE_ALL,
-                      "true",
-                      RewriteDataFiles.OUTPUT_SPEC_ID,
-                      String.valueOf(1234)));
-            })
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Cannot use output spec id 1234 because the table does not contain a reference to this spec-id.");
   }
 
   private void addFiles() {
     table
-        .newAppend()
-        .appendFile(FILE_1)
-        .appendFile(FILE_2)
-        .appendFile(FILE_3)
-        .appendFile(FILE_4)
-        .appendFile(FILE_5)
-        .appendFile(FILE_6)
+        .newRowDelta()
+        .addRows(FILE_1)
+        .addDeletes(newDeleteFile(FILE_1.partition(), 10))
+        .addDeletes(newDeleteFile(FILE_1.partition(), 10))
+        .addDeletes(newDeleteFile(FILE_1.partition(), 10))
+        .addRows(FILE_2)
+        .addDeletes(newDeleteFile(FILE_2.partition(), 11))
+        .addDeletes(newDeleteFile(FILE_2.partition(), 11))
+        .addRows(FILE_3)
+        .addDeletes(newDeleteFile(FILE_3.partition(), 50))
         .commit();
   }
 
-  private static DataFile newDataFile(String partitionPath, long fileSize) {
+  private static DataFile newDataFile(String partitionPath) {
     return DataFiles.builder(TestBase.SPEC)
         .withPath("/path/to/data-" + UUID.randomUUID() + ".parquet")
-        .withFileSizeInBytes(fileSize)
+        .withFileSizeInBytes(10)
         .withPartitionPath(partitionPath)
+        .withRecordCount(1)
+        .build();
+  }
+
+  private static DeleteFile newDeleteFile(long fileSize) {
+    return newDeleteFile(
+        new PartitionData(PartitionSpec.unpartitioned().partitionType()), fileSize);
+  }
+
+  private static DeleteFile newDeleteFile(StructLike partition, long fileSize) {
+    return FileMetadata.deleteFileBuilder(TestBase.SPEC)
+        .ofPositionDeletes()
+        .withPath("/path/to/delete-" + UUID.randomUUID() + ".parquet")
+        .withFileSizeInBytes(fileSize)
+        .withPartition(partition)
         .withRecordCount(1)
         .build();
   }
