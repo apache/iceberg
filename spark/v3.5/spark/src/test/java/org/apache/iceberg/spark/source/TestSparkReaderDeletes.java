@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 import static org.apache.iceberg.spark.source.SparkSQLExecutionHelper.lastExecutedMetricValue;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.apache.spark.sql.types.DataTypes.IntegerType;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
@@ -662,6 +663,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
           ColumnarBatch columnarBatch = reader.get();
           int numOfCols = columnarBatch.numCols();
           assertThat(numOfCols).as("Number of columns").isEqualTo(1);
+          assertThat(columnarBatch.column(0).dataType()).as("Column type").isEqualTo(IntegerType);
         }
       }
     }
