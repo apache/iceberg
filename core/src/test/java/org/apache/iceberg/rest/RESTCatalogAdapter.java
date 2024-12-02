@@ -137,6 +137,7 @@ public class RESTCatalogAdapter implements RESTClient {
         ResourcePaths.V1_TABLES,
         CreateTableRequest.class,
         LoadTableResponse.class),
+    TABLE_EXISTS(HTTPMethod.HEAD, ResourcePaths.V1_TABLE),
     LOAD_TABLE(HTTPMethod.GET, ResourcePaths.V1_TABLE, null, LoadTableResponse.class),
     REGISTER_TABLE(
         HTTPMethod.POST,
@@ -389,6 +390,13 @@ public class RESTCatalogAdapter implements RESTClient {
           } else {
             CatalogHandlers.dropTable(catalog, tableIdentFromPathVars(vars));
           }
+          return null;
+        }
+
+      case TABLE_EXISTS:
+        {
+          TableIdentifier ident = tableIdentFromPathVars(vars);
+          CatalogHandlers.tableExists(catalog, ident);
           return null;
         }
 
