@@ -285,7 +285,7 @@ public class GCSFileIOTest {
   }
 
   @Test
-  void recoverSoftDeletedObject_WhenSoftDeleteDisabled_ReturnsFalse() {
+  void recoverSoftDeletedObjectWhenSoftDeleteDisabled() {
     BlobId blobId = BlobId.of(TEST_BUCKET, "object");
     Bucket bucket = mock(Bucket.class);
     BucketInfo.SoftDeletePolicy policy = mock(BucketInfo.SoftDeletePolicy.class);
@@ -298,7 +298,7 @@ public class GCSFileIOTest {
   }
 
   @Test
-  void recoverSoftDeletedObject_WhenSoftDeletedBlobExists_ReturnsTrue() {
+  void recoverSoftDeletedObject() {
     BlobId blobId = BlobId.of(TEST_BUCKET, "object");
     Bucket bucket = mock(Bucket.class);
     BucketInfo.SoftDeletePolicy policy = mock(BucketInfo.SoftDeletePolicy.class);
@@ -319,7 +319,7 @@ public class GCSFileIOTest {
   }
 
   @Test
-  void recoverSoftDeletedObject_WhenNoSoftDeletedBlobExists_ReturnsFalse() {
+  void recoverSoftDeletedObjectWhenNoSoftDeletedBlobExistsx() {
     BlobId blobId = BlobId.of(TEST_BUCKET, "object");
     Bucket bucket = mock(Bucket.class);
     BucketInfo.SoftDeletePolicy policy = mock(BucketInfo.SoftDeletePolicy.class);
@@ -334,7 +334,7 @@ public class GCSFileIOTest {
   }
 
   @Test
-  void recoverSoftDelete_WhenStorageException_ReturnsFalse() {
+  void recoverSoftDeleteWhenStorageExceptionThrown() {
     BlobId blobId = BlobId.of(TEST_BUCKET, "object");
     Bucket bucket = mock(Bucket.class);
     BucketInfo.SoftDeletePolicy policy = mock(BucketInfo.SoftDeletePolicy.class);
@@ -348,7 +348,7 @@ public class GCSFileIOTest {
   }
 
   @Test
-  void recoverLatestVersion_WhenVersioningDisabled_ReturnsFalse() {
+  void recoverLatestVersionWhenVersioningDisabled() {
     BlobId blobId = BlobId.of(TEST_BUCKET, "object");
     Bucket bucket = mock(Bucket.class);
 
@@ -359,7 +359,7 @@ public class GCSFileIOTest {
   }
 
   @Test
-  void recoverLatestVersion_WhenVersionExists_ReturnsTrue() {
+  void recoverLatestVersion() {
     BlobId blobId = BlobId.of(TEST_BUCKET, "object");
     Bucket bucket = mock(Bucket.class);
     Blob versionedBlob = mock(Blob.class);
@@ -383,7 +383,7 @@ public class GCSFileIOTest {
   }
 
   @Test
-  void recoverLatestVersion_WhenNoVersionExists_ReturnsFalse() {
+  void recoverLatestVersionWhenNoVersionExists() {
     BlobId blobId = BlobId.of(TEST_BUCKET, "object");
     Bucket bucket = mock(Bucket.class);
     Page<Blob> page = mock(Page.class);
@@ -397,7 +397,7 @@ public class GCSFileIOTest {
   }
 
   @Test
-  void recoverLatestVersion_WhenCopyFails_ReturnsFalse() {
+  void recoverLatestVersionWhenCopyFails() {
     BlobId blobId = BlobId.of(TEST_BUCKET, "object");
     Bucket bucket = mock(Bucket.class);
     Blob versionedBlob = mock(Blob.class);
