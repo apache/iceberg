@@ -57,7 +57,11 @@ public enum SparkCatalogConfig {
           "default-namespace",
           "default",
           "cache-enabled",
-          "false"));
+          "false")),
+  SPARK_SESSION_WITH_VIEWS(
+      "spark_catalog",
+      SparkSessionCatalog.class.getName(),
+      ImmutableMap.of("type", "rest", "default-namespace", "default", "cache-enabled", "false"));
 
   private final String catalogName;
   private final String implementation;
