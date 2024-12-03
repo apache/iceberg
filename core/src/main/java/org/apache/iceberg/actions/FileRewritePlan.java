@@ -56,7 +56,7 @@ public abstract class FileRewritePlan<
     this.writeMaxFileSize = writeMaxFileSize;
   }
 
-  /** The stream of the generated {@link RewriteFileGroup}s. */
+  /** The stream of the generated {@link FileRewriteGroup}s. */
   public Stream<G> groups() {
     return groups;
   }

@@ -41,6 +41,7 @@ import org.apache.iceberg.TestTables;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -195,16 +196,29 @@ class TestRewritePositionDeletesGroupPlanner {
   }
 
   @Test
+  void testValidOptions() {
+    RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
+
+    assertThat(planner.validOptions())
+        .as("Planner must report all supported options")
+        .isEqualTo(
+            ImmutableSet.of(
+                RewritePositionDeletesGroupPlanner.TARGET_FILE_SIZE_BYTES,
+                RewritePositionDeletesGroupPlanner.MIN_FILE_SIZE_BYTES,
+                RewritePositionDeletesGroupPlanner.MAX_FILE_SIZE_BYTES,
+                RewritePositionDeletesGroupPlanner.MIN_INPUT_FILES,
+                RewritePositionDeletesGroupPlanner.REWRITE_ALL,
+                RewritePositionDeletesGroupPlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                RewriteDataFiles.REWRITE_JOB_ORDER));
+  }
+
+  @Test
   void testInvalidOption() {
-    addFiles();
+    RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
 
-    assertThatThrownBy(
-            () -> {
-              RewritePositionDeletesGroupPlanner planner =
-                  new RewritePositionDeletesGroupPlanner(table);
-
-              planner.init(ImmutableMap.of(RewritePositionDeleteFiles.REWRITE_JOB_ORDER, "foo"));
-            })
+    Map<String, String> invalidRewriteJobOrderOptions =
+        ImmutableMap.of(RewritePositionDeleteFiles.REWRITE_JOB_ORDER, "foo");
+    assertThatThrownBy(() -> planner.init(invalidRewriteJobOrderOptions))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid rewrite job order name: foo");
   }

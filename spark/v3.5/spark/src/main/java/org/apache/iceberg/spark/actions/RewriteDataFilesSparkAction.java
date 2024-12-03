@@ -97,6 +97,7 @@ public class RewriteDataFilesSparkAction
   private FileRewriteExecutor<
           FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup, RewriteFilePlan>
       rewriter = null;
+  private boolean shufflingPlanner = false;
 
   RewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark.cloneSession());
@@ -116,6 +117,7 @@ public class RewriteDataFilesSparkAction
     Preconditions.checkArgument(
         rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
     this.rewriter = new SparkBinPackDataRewriteExecutor(spark(), table);
+    this.shufflingPlanner = false;
     return this;
   }
 
@@ -124,6 +126,7 @@ public class RewriteDataFilesSparkAction
     Preconditions.checkArgument(
         rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
     this.rewriter = new SparkSortDataRewriteExecutor(spark(), table, sortOrder);
+    this.shufflingPlanner = true;
     return this;
   }
 
@@ -132,6 +135,7 @@ public class RewriteDataFilesSparkAction
     Preconditions.checkArgument(
         rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
     this.rewriter = new SparkSortDataRewriteExecutor(spark(), table);
+    this.shufflingPlanner = true;
     return this;
   }
 
@@ -140,6 +144,7 @@ public class RewriteDataFilesSparkAction
     Preconditions.checkArgument(
         rewriter == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
     this.rewriter = new SparkZOrderDataRewriteExecutor(spark(), table, Arrays.asList(columnNames));
+    this.shufflingPlanner = true;
     return this;
   }
 
@@ -190,7 +195,10 @@ public class RewriteDataFilesSparkAction
   @VisibleForTesting
   void init(long startingSnapshotId) {
 
-    this.planner = new RewriteFileGroupPlanner(table, filter, startingSnapshotId, caseSensitive);
+    this.planner =
+        shufflingPlanner
+            ? new SparkShufflingDataRewritePlanner(table, filter, startingSnapshotId, caseSensitive)
+            : new RewriteFileGroupPlanner(table, filter, startingSnapshotId, caseSensitive);
 
     // Default to BinPack if no strategy selected
     if (this.rewriter == null) {

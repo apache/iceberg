@@ -69,7 +69,7 @@ public interface FileRewriteExecutor<
    *
    * <p>The implementation is supposed to be engine-specific (e.g. Spark, Flink, Trino).
    *
-   * @param group a group of scan tasks for files to be rewritten together
+   * @param group of scan tasks for files to be rewritten together
    * @return a set of newly written files
    */
   Set<F> rewrite(G group);

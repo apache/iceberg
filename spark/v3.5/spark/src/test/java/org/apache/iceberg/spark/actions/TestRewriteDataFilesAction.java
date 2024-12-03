@@ -77,6 +77,7 @@ import org.apache.iceberg.actions.RewriteDataFiles.Result;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.actions.RewriteFileGroupPlanner;
+import org.apache.iceberg.actions.RewriteFilePlan;
 import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
@@ -887,7 +888,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
     doThrow(new RuntimeException("Rewrite Failed"))
         .when(spyRewrite)
-        .rewriteFiles(any(), argThat(failGroup));
+        .rewriteFiles(any(RewriteFilePlan.class), argThat(failGroup));
 
     assertThatThrownBy(spyRewrite::execute)
         .isInstanceOf(RuntimeException.class)
@@ -990,7 +991,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
     doThrow(new CommitFailedException("Rewrite Failed"))
         .when(spyRewrite)
-        .rewriteFiles(any(), argThat(failGroup));
+        .rewriteFiles(any(RewriteFilePlan.class), argThat(failGroup));
 
     assertThatThrownBy(spyRewrite::execute)
         .isInstanceOf(CommitFailedException.class)
@@ -1027,7 +1028,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
     doThrow(new RuntimeException("Rewrite Failed"))
         .when(spyRewrite)
-        .rewriteFiles(any(), argThat(failGroup));
+        .rewriteFiles(any(RewriteFilePlan.class), argThat(failGroup));
 
     RewriteDataFiles.Result result = spyRewrite.execute();
 
@@ -1070,7 +1071,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
     doThrow(new RuntimeException("Rewrite Failed"))
         .when(spyRewrite)
-        .rewriteFiles(any(), argThat(failGroup));
+        .rewriteFiles(any(RewriteFilePlan.class), argThat(failGroup));
 
     RewriteDataFiles.Result result = spyRewrite.execute();
 
@@ -1158,7 +1159,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
     doThrow(new RuntimeException("Rewrite Failed"))
         .when(spyRewrite)
-        .rewriteFiles(any(), argThat(failGroup));
+        .rewriteFiles(any(RewriteFilePlan.class), argThat(failGroup));
 
     assertThatThrownBy(() -> spyRewrite.execute())
         .isInstanceOf(RuntimeException.class)

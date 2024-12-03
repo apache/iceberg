@@ -52,7 +52,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Groups specified files in the {@link Table} by {@link RewriteFileGroup}s. These will be grouped
- * by partitions.
+ * by partitions. Extends the {@link SizeBasedFileRewritePlanner} with {@link
+ * RewritePositionDeleteFiles#REWRITE_JOB_ORDER} handling.
  */
 public class RewritePositionDeletesGroupPlanner
     extends SizeBasedFileRewritePlanner<
@@ -68,6 +69,13 @@ public class RewritePositionDeletesGroupPlanner
     this(table, Expressions.alwaysTrue(), false);
   }
 
+  /**
+   * Creates the planner for the given table.
+   *
+   * @param table to plan for
+   * @param filter used to remove files from the plan
+   * @param caseSensitive property used for scanning
+   */
   public RewritePositionDeletesGroupPlanner(Table table, Expression filter, boolean caseSensitive) {
     super(table);
     this.caseSensitive = caseSensitive;
@@ -78,7 +86,7 @@ public class RewritePositionDeletesGroupPlanner
   public Set<String> validOptions() {
     return ImmutableSet.<String>builder()
         .addAll(super.validOptions())
-        .add(RewriteDataFiles.REWRITE_JOB_ORDER)
+        .add(RewritePositionDeleteFiles.REWRITE_JOB_ORDER)
         .build();
   }
 
@@ -93,11 +101,6 @@ public class RewritePositionDeletesGroupPlanner
                 RewritePositionDeleteFiles.REWRITE_JOB_ORDER_DEFAULT));
   }
 
-  /**
-   * Generates the plan for the current table.
-   *
-   * @return the generated plan which could be executed during the compaction
-   */
   @Override
   public RewritePositionDeletePlan plan() {
     StructLikeMap<List<List<PositionDeletesScanTask>>> plan = planFileGroups();
@@ -128,6 +131,25 @@ public class RewritePositionDeletesGroupPlanner
         groups, totalGroupCount, groupsInPartition, writeMaxFileSize());
   }
 
+  @Override
+  protected Iterable<PositionDeletesScanTask> filterFiles(Iterable<PositionDeletesScanTask> tasks) {
+    return Iterables.filter(tasks, this::wronglySized);
+  }
+
+  @Override
+  protected Iterable<List<PositionDeletesScanTask>> filterFileGroups(
+      List<List<PositionDeletesScanTask>> groups) {
+    return Iterables.filter(groups, this::shouldRewrite);
+  }
+
+  @Override
+  protected long defaultTargetFileSize() {
+    return PropertyUtil.propertyAsLong(
+        table().properties(),
+        TableProperties.DELETE_TARGET_FILE_SIZE_BYTES,
+        TableProperties.DELETE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+  }
+
   private StructLikeMap<List<List<PositionDeletesScanTask>>> planFileGroups() {
     Table deletesTable =
         MetadataTableUtils.createMetadataTableInstance(table(), MetadataTableType.POSITION_DELETES);
@@ -146,29 +168,6 @@ public class RewritePositionDeletesGroupPlanner
         LOG.error("Cannot properly close file iterable while planning for rewrite", io);
       }
     }
-  }
-
-  @Override
-  protected Iterable<PositionDeletesScanTask> filterFiles(Iterable<PositionDeletesScanTask> tasks) {
-    return Iterables.filter(tasks, this::wronglySized);
-  }
-
-  @Override
-  protected Iterable<List<PositionDeletesScanTask>> filterFileGroups(
-      List<List<PositionDeletesScanTask>> groups) {
-    return Iterables.filter(groups, this::shouldRewrite);
-  }
-
-  private boolean shouldRewrite(List<PositionDeletesScanTask> group) {
-    return enoughInputFiles(group) || enoughContent(group) || tooMuchContent(group);
-  }
-
-  @Override
-  protected long defaultTargetFileSize() {
-    return PropertyUtil.propertyAsLong(
-        table().properties(),
-        TableProperties.DELETE_TARGET_FILE_SIZE_BYTES,
-        TableProperties.DELETE_TARGET_FILE_SIZE_BYTES_DEFAULT);
   }
 
   private CloseableIterable<PositionDeletesScanTask> planFiles(Table deletesTable) {
@@ -212,6 +211,10 @@ public class RewritePositionDeletesGroupPlanner
             .build();
     return new RewritePositionDeletesGroup(
         info, Lists.newArrayList(tasks), splitSize, numOutputSize);
+  }
+
+  private boolean shouldRewrite(List<PositionDeletesScanTask> group) {
+    return enoughInputFiles(group) || enoughContent(group) || tooMuchContent(group);
   }
 
   private static class RewriteExecutionContext {

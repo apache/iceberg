@@ -50,7 +50,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Groups specified files in the {@link Table} by {@link RewriteFileGroup}s. These will be grouped
- * by partitions.
+ * by partitions. Extends {@link SizeBasedFileRewritePlanner} with delete file threshold and job
+ * {@link RewriteDataFiles#REWRITE_JOB_ORDER} handling.
  */
 public class RewriteFileGroupPlanner
     extends SizeBasedFileRewritePlanner<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> {
@@ -89,6 +90,15 @@ public class RewriteFileGroupPlanner
         false);
   }
 
+  /**
+   * Creates the planner for the given table.
+   *
+   * @param table to plan for
+   * @param filter used to remove files from the plan
+   * @param snapshotId used as a basis for planning - should be used as starting snapshot id at
+   *     commit time when replacing the files
+   * @param caseSensitive property used for scanning
+   */
   public RewriteFileGroupPlanner(
       Table table, Expression filter, Long snapshotId, boolean caseSensitive) {
     super(table);
@@ -136,11 +146,6 @@ public class RewriteFileGroupPlanner
         TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
   }
 
-  /**
-   * Generates the plan for the current table.
-   *
-   * @return the generated plan which could be executed during the compaction
-   */
   @Override
   public RewriteFilePlan plan() {
     StructLikeMap<List<List<FileScanTask>>> plan = planFileGroups();

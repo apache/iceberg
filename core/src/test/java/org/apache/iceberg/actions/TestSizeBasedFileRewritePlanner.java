@@ -19,6 +19,7 @@
 package org.apache.iceberg.actions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
@@ -29,10 +30,12 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MockFileScanTask;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestBase;
 import org.apache.iceberg.TestTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -87,6 +90,63 @@ class TestSizeBasedFileRewritePlanner {
     assertThat(splitSize).isGreaterThanOrEqualTo(targetFileSize).isLessThan(maxFileSize);
   }
 
+  @Test
+  void testValidOptions() {
+    TestingPlanner planner = new TestingPlanner(table);
+
+    assertThat(planner.validOptions())
+        .as("Planner must report all supported options")
+        .isEqualTo(
+            ImmutableSet.of(
+                RewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES,
+                RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES,
+                RewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES,
+                RewriteFileGroupPlanner.MIN_INPUT_FILES,
+                RewriteFileGroupPlanner.REWRITE_ALL,
+                RewriteFileGroupPlanner.MAX_FILE_GROUP_SIZE_BYTES));
+  }
+
+  @Test
+  void testInvalidOption() {
+    TestingPlanner planner = new TestingPlanner(table);
+
+    Map<String, String> invalidTargetSizeOptions =
+        ImmutableMap.of(SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES, "0");
+    assertThatThrownBy(() -> planner.init(invalidTargetSizeOptions))
+        .hasMessageContaining("'target-file-size-bytes' is set to 0 but must be > 0");
+
+    Map<String, String> invalidMinSizeOptions =
+        ImmutableMap.of(SizeBasedFileRewritePlanner.MIN_FILE_SIZE_BYTES, "-1");
+    assertThatThrownBy(() -> planner.init(invalidMinSizeOptions))
+        .hasMessageContaining("'min-file-size-bytes' is set to -1 but must be >= 0");
+
+    Map<String, String> invalidTargetMinSizeOptions =
+        ImmutableMap.of(
+            SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES, "3",
+            SizeBasedFileRewritePlanner.MIN_FILE_SIZE_BYTES, "5");
+    assertThatThrownBy(() -> planner.init(invalidTargetMinSizeOptions))
+        .hasMessageContaining("'target-file-size-bytes' (3) must be > 'min-file-size-bytes' (5)")
+        .hasMessageContaining("all new files will be smaller than the min threshold");
+
+    Map<String, String> invalidTargetMaxSizeOptions =
+        ImmutableMap.of(
+            SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES, "5",
+            SizeBasedFileRewritePlanner.MAX_FILE_SIZE_BYTES, "3");
+    assertThatThrownBy(() -> planner.init(invalidTargetMaxSizeOptions))
+        .hasMessageContaining("'target-file-size-bytes' (5) must be < 'max-file-size-bytes' (3)")
+        .hasMessageContaining("all new files will be larger than the max threshold");
+
+    Map<String, String> invalidMinInputFilesOptions =
+        ImmutableMap.of(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "0");
+    assertThatThrownBy(() -> planner.init(invalidMinInputFilesOptions))
+        .hasMessageContaining("'min-input-files' is set to 0 but must be > 0");
+
+    Map<String, String> invalidMaxFileGroupSizeOptions =
+        ImmutableMap.of(SizeBasedFileRewritePlanner.MAX_FILE_GROUP_SIZE_BYTES, "0");
+    assertThatThrownBy(() -> planner.init(invalidMaxFileGroupSizeOptions))
+        .hasMessageContaining("'max-file-group-size-bytes' is set to 0 but must be > 0");
+  }
+
   private static class TestingPlanner
       extends SizeBasedFileRewritePlanner<
           RewriteDataFiles.FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> {
@@ -96,7 +156,7 @@ class TestSizeBasedFileRewritePlanner {
 
     @Override
     protected long defaultTargetFileSize() {
-      return 0;
+      return TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
     }
 
     @Override

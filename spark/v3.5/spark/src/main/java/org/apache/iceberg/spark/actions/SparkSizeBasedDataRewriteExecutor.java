@@ -55,6 +55,14 @@ abstract class SparkSizeBasedDataRewriteExecutor
     return spark;
   }
 
+  protected int outputSpecId() {
+    return outputSpecId;
+  }
+
+  protected PartitionSpec outputSpec() {
+    return table().specs().get(outputSpecId);
+  }
+
   @Override
   public Set<DataFile> rewrite(RewriteFileGroup group) {
     String groupId = UUID.randomUUID().toString();
@@ -76,13 +84,5 @@ abstract class SparkSizeBasedDataRewriteExecutor
   public void initPlan(RewriteFilePlan plan) {
     super.initPlan(plan);
     this.outputSpecId = plan.outputSpecId();
-  }
-
-  int outputSpecId() {
-    return outputSpecId;
-  }
-
-  PartitionSpec outputSpec() {
-    return table().specs().get(outputSpecId);
   }
 }

@@ -114,22 +114,20 @@ public abstract class SizeBasedFileRewritePlanner<
   private int minInputFiles;
   private boolean rewriteAll;
   private long maxGroupSize;
-
   private int outputSpecId;
 
   protected SizeBasedFileRewritePlanner(Table table) {
     this.table = table;
   }
 
+  /** Expected target file size before configuration. */
   protected abstract long defaultTargetFileSize();
 
+  /** Additional filter for tasks before grouping. */
   protected abstract Iterable<T> filterFiles(Iterable<T> tasks);
 
+  /** Additional filter for groups. */
   protected abstract Iterable<List<T>> filterFileGroups(List<List<T>> groups);
-
-  protected Table table() {
-    return table;
-  }
 
   @Override
   public Set<String> validOptions() {
@@ -158,11 +156,15 @@ public abstract class SizeBasedFileRewritePlanner<
     }
   }
 
+  protected Table table() {
+    return table;
+  }
+
   protected boolean wronglySized(T task) {
     return task.length() < minFileSize || task.length() > maxFileSize;
   }
 
-  public Iterable<List<T>> planFileGroups(Iterable<T> tasks) {
+  protected Iterable<List<T>> planFileGroups(Iterable<T> tasks) {
     Iterable<T> filteredTasks = rewriteAll ? tasks : filterFiles(tasks);
     BinPacking.ListPacker<T> packer = new BinPacking.ListPacker<>(maxGroupSize, 1, false);
     List<List<T>> groups = packer.pack(filteredTasks, ContentScanTask::length);
@@ -257,11 +259,11 @@ public abstract class SizeBasedFileRewritePlanner<
    *
    * @return the target size plus one half of the distance between max and target
    */
-  public long writeMaxFileSize() {
+  protected long writeMaxFileSize() {
     return (long) (targetFileSize + ((maxFileSize - targetFileSize) * 0.5));
   }
 
-  public int outputSpecId() {
+  protected int outputSpecId() {
     return outputSpecId;
   }
 

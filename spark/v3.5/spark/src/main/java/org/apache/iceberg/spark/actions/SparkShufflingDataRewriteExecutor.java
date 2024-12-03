@@ -51,19 +51,6 @@ import scala.Option;
 abstract class SparkShufflingDataRewriteExecutor extends SparkSizeBasedDataRewriteExecutor {
 
   /**
-   * The number of shuffle partitions and consequently the number of output files created by the
-   * Spark sort is based on the size of the input data files used in this file rewriter. Due to
-   * compression, the disk file sizes may not accurately represent the size of files in the output.
-   * This parameter lets the user adjust the file size used for estimating actual output data size.
-   * A factor greater than 1.0 would generate more files than we would expect based on the on-disk
-   * file size. A value less than 1.0 would create fewer files than we would expect based on the
-   * on-disk size.
-   */
-  public static final String COMPRESSION_FACTOR = "compression-factor";
-
-  public static final double COMPRESSION_FACTOR_DEFAULT = 1.0;
-
-  /**
    * The number of shuffle partitions to use for each output file. By default, this file rewriter
    * assumes each shuffle partition would become a separate output file. Attempting to generate
    * large output files of 512 MB or higher may strain the memory resources of the cluster as such
@@ -79,7 +66,6 @@ abstract class SparkShufflingDataRewriteExecutor extends SparkSizeBasedDataRewri
 
   public static final int SHUFFLE_PARTITIONS_PER_FILE_DEFAULT = 1;
 
-  private double compressionFactor;
   private int numShufflePartitionsPerFile;
 
   protected SparkShufflingDataRewriteExecutor(SparkSession spark, Table table) {
@@ -105,7 +91,6 @@ abstract class SparkShufflingDataRewriteExecutor extends SparkSizeBasedDataRewri
   public Set<String> validOptions() {
     return ImmutableSet.<String>builder()
         .addAll(super.validOptions())
-        .add(COMPRESSION_FACTOR)
         .add(SHUFFLE_PARTITIONS_PER_FILE)
         .build();
   }
@@ -113,7 +98,6 @@ abstract class SparkShufflingDataRewriteExecutor extends SparkSizeBasedDataRewri
   @Override
   public void init(Map<String, String> options) {
     super.init(options);
-    this.compressionFactor = compressionFactor(options);
     this.numShufflePartitionsPerFile = numShufflePartitionsPerFile(options);
   }
 
@@ -176,14 +160,6 @@ abstract class SparkShufflingDataRewriteExecutor extends SparkSizeBasedDataRewri
     } else {
       return sortOrder();
     }
-  }
-
-  private double compressionFactor(Map<String, String> options) {
-    double value =
-        PropertyUtil.propertyAsDouble(options, COMPRESSION_FACTOR, COMPRESSION_FACTOR_DEFAULT);
-    Preconditions.checkArgument(
-        value > 0, "'%s' is set to %s but must be > 0", COMPRESSION_FACTOR, value);
-    return value;
   }
 
   private int numShufflePartitionsPerFile(Map<String, String> options) {

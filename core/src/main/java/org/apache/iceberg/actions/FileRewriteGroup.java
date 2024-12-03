@@ -37,38 +37,44 @@ public abstract class FileRewriteGroup<I, T extends ContentScanTask<F>, F extend
   private final long splitSize;
   private final int expectedOutputFiles;
 
-  protected FileRewriteGroup(
-      I info, List<T> fileScanTasks, long splitSize, int expectedOutputFiles) {
+  FileRewriteGroup(I info, List<T> fileScanTasks, long splitSize, int expectedOutputFiles) {
     this.info = info;
     this.fileScanTasks = fileScanTasks;
     this.splitSize = splitSize;
     this.expectedOutputFiles = expectedOutputFiles;
   }
 
+  /** Identifiers and partition information about the group. */
   public I info() {
     return info;
   }
 
+  /** Input of the group. {@link ContentScanTask}s to read. */
   public List<T> fileScans() {
     return fileScanTasks;
   }
 
+  /** Expected split size for the output files. */
   public long splitSize() {
     return splitSize;
   }
 
+  /** Expected number of the output files. */
   public int expectedOutputFiles() {
     return expectedOutputFiles;
   }
 
+  /** Accumulated size for the input files. */
   public long sizeInBytes() {
     return fileScanTasks.stream().mapToLong(T::length).sum();
   }
 
+  /** Number of the input files. */
   public int numInputFiles() {
     return fileScanTasks.size();
   }
 
+  /** Comparator to order the FileRewriteGroups based on a provided {@link RewriteJobOrder}. */
   public static <I, T extends ContentScanTask<F>, F extends ContentFile<F>>
       Comparator<FileRewriteGroup<I, T, F>> taskComparator(RewriteJobOrder rewriteJobOrder) {
     switch (rewriteJobOrder) {
