@@ -76,7 +76,11 @@ class StatisticsUtil {
       byte[] bytes, CompletedStatisticsSerializer statisticsSerializer) {
     try {
       DataInputDeserializer input = new DataInputDeserializer(bytes);
-      return statisticsSerializer.deserialize(input);
+      CompletedStatistics completedStatistics = statisticsSerializer.deserialize(input);
+      if (!completedStatistics.isValid()) {
+        throw new RuntimeException("Fail to deserialize aggregated statistics,change to v1");
+      }
+      return completedStatistics;
     } catch (Exception e) {
       try {
         statisticsSerializer.changeSortKeySerializerVersion(1);
