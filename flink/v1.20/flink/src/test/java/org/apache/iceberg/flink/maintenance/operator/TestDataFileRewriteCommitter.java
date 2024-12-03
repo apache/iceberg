@@ -220,25 +220,45 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
 
   @Test
   void testError() throws Exception {
-    Table table = createTable();
-    insert(table, 1, "a");
-    insert(table, 2, "b");
-    insert(table, 3, "c");
+    Table table = createPartitionedTable();
+    insertPartitioned(table, 1, "p1");
+    insertPartitioned(table, 2, "p1");
+    insertPartitioned(table, 3, "p2");
+    insertPartitioned(table, 4, "p2");
+    insertPartitioned(table, 5, "p3");
+    insertPartitioned(table, 6, "p3");
+    insertPartitioned(table, 7, "p4");
+    insertPartitioned(table, 8, "p4");
 
     List<DataFileRewritePlanner.PlannedGroup> planned = planDataFileRewrite(tableLoader());
-    assertThat(planned).hasSize(1);
+    assertThat(planned).hasSize(4);
     List<DataFileRewriteExecutor.ExecutedGroup> rewritten = executeRewrite(planned);
-    assertThat(rewritten).hasSize(1);
+    assertThat(rewritten).hasSize(4);
+
+    OperatorSubtaskState state = null;
+    try (OneInputStreamOperatorTestHarness<DataFileRewriteExecutor.ExecutedGroup, Trigger>
+        testHarness = harness()) {
+      testHarness.open();
+
+      testHarness.processElement(updateBatchSize(rewritten.get(0)), EVENT_TIME);
+      assertNoChange(table);
+
+      state = testHarness.snapshot(1, System.currentTimeMillis());
+    } catch (Exception e) {
+      // do nothing
+    }
 
     try (OneInputStreamOperatorTestHarness<DataFileRewriteExecutor.ExecutedGroup, Trigger>
         testHarness = harness()) {
+      testHarness.initializeState(state);
       testHarness.open();
 
       // Cause an exception
       dropTable();
 
       assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
-      testHarness.processElement(rewritten.get(0), EVENT_TIME);
+      testHarness.processElement(rewritten.get(1), EVENT_TIME);
+      testHarness.processWatermark(EVENT_TIME);
       assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).hasSize(1);
       assertThat(
               testHarness
@@ -246,7 +266,7 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
                   .poll()
                   .getValue()
                   .getMessage())
-          .contains("Metadata file for version");
+          .contains("From 1 commits only 0 were unsuccessful for table");
     }
   }
 

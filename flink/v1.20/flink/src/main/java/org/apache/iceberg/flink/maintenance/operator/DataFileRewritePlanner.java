@@ -134,6 +134,7 @@ public class DataFileRewritePlanner
               table, Expressions.alwaysTrue(), table.currentSnapshot().snapshotId(), false);
 
       long rewriteBytes = 0;
+      int totalGroupCount = 0;
       List<RewriteFileGroup> groups = plan.fileGroups().collect(Collectors.toList());
       ListIterator<RewriteFileGroup> iter = groups.listIterator();
       while (iter.hasNext()) {
@@ -150,12 +151,12 @@ public class DataFileRewritePlanner
           iter.remove();
         } else {
           rewriteBytes += group.sizeInBytes();
+          ++totalGroupCount;
         }
       }
 
       int groupsPerCommit =
-          IntMath.divide(
-              plan.context().totalGroupCount(), partialProgressMaxCommits, RoundingMode.CEILING);
+          IntMath.divide(totalGroupCount, partialProgressMaxCommits, RoundingMode.CEILING);
 
       LOG.info(
           "Rewrite plan created {} for table {} with {}[{}] at {}",
