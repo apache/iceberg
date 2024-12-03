@@ -24,22 +24,16 @@ import java.util.regex.Pattern;
 public class TableSinkConfig {
 
   private final Pattern routeRegex;
-  private final String topics;
-  private final Pattern topicRegex;
   private final List<String> idColumns;
   private final List<String> partitionBy;
   private final String commitBranch;
 
   public TableSinkConfig(
       Pattern routeRegex,
-      String topics,
-      Pattern topicRegex,
       List<String> idColumns,
       List<String> partitionBy,
       String commitBranch) {
     this.routeRegex = routeRegex;
-    this.topics = topics;
-    this.topicRegex = topicRegex;
     this.idColumns = idColumns;
     this.partitionBy = partitionBy;
     this.commitBranch = commitBranch;
@@ -47,14 +41,6 @@ public class TableSinkConfig {
 
   public Pattern routeRegex() {
     return routeRegex;
-  }
-
-  public String topics() {
-    return topics;
-  }
-
-  public Pattern topicRegex() {
-    return topicRegex;
   }
 
   public List<String> idColumns() {

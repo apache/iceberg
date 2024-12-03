@@ -68,7 +68,8 @@ public class IntegrationMultiTableTest extends IntegrationTestBase {
     catalog().createTable(TABLE_IDENTIFIER2, TestEvent.TEST_SCHEMA);
 
     boolean useSchema = branch == null; // use a schema for one of the tests
-    runTest(branch, useSchema);
+    boolean useNewConfiguration = branch == null; // use new configuration for one of the tests
+    runTest(branch, useSchema, useNewConfiguration);
 
     List<DataFile> files = dataFiles(TABLE_IDENTIFIER1, branch);
     assertThat(files).hasSize(1);
@@ -81,7 +82,7 @@ public class IntegrationMultiTableTest extends IntegrationTestBase {
     assertSnapshotProps(TABLE_IDENTIFIER2, branch);
   }
 
-  private void runTest(String branch, boolean useSchema) {
+  private void runTest(String branch, boolean useSchema, boolean useNewConfiguration) {
     // set offset reset to earliest so we don't miss any test messages
     KafkaConnectUtils.Config connectorConfig =
         new KafkaConnectUtils.Config(connectorName())
@@ -104,6 +105,12 @@ public class IntegrationMultiTableTest extends IntegrationTestBase {
             .config("iceberg.kafka.auto.offset.reset", "earliest");
 
     context().connectorCatalogProperties().forEach(connectorConfig::config);
+
+    if (useNewConfiguration) {
+      connectorConfig.config(
+              "iceberg.tables.route-with",
+              "org.apache.iceberg.connect.data.RecordRouter$StaticRecordRouter");
+    }
 
     if (branch != null) {
       connectorConfig.config("iceberg.tables.default-commit-branch", branch);
