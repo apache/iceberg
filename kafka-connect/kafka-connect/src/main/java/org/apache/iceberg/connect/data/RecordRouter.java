@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.connect.data;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -27,7 +26,6 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -48,6 +46,14 @@ public abstract class RecordRouter {
     this.writerFactory = new IcebergWriterFactory(catalog, config);
   }
 
+  /**
+   * Method to route a record to one or more tables.
+   *
+   * <p>Implementations must call {@link #writeToTable(String, SinkRecord, boolean)} from this
+   * method to write the record to a table.
+   *
+   * @param record The Kafka record to route.
+   */
   public abstract void routeRecord(SinkRecord record);
 
   /** Get the configuration passed to the Kafka connect plugin. */
@@ -160,54 +166,33 @@ public abstract class RecordRouter {
     }
   }
 
-  /** Route records to tables with the same name as the record's topic. */
-  public static class TopicNameRecordRouter extends RecordRouter {
-    private final Map<String, List<String>> topicTablesMap = Maps.newHashMap();
+  /** Route records to tables using a regex match the topic of the record. */
+  public static class TopicRecordRouter extends RecordRouter {
+    private final Map<String, List<String>> topicTables = Maps.newHashMap();
 
-    public TopicNameRecordRouter(Catalog catalog, IcebergSinkConfig config) {
+    public TopicRecordRouter(Catalog catalog, IcebergSinkConfig config) {
       super(catalog, config);
-      config
+    }
+
+    private List<String> tablesForTopic(String topic) {
+      List<String> tables = Lists.newArrayList();
+      config()
           .tables()
           .forEach(
               tableName -> {
-                Iterable<String> topics =
-                    Splitter.on(',').split(config.tableConfig(tableName).topics());
-                for (String topic : topics) {
-                  topicTablesMap.computeIfAbsent(topic, k -> Lists.newArrayList()).add(tableName);
+                Pattern tableRegex = config().tableConfig(tableName).routeRegex();
+                if (tableRegex != null && tableRegex.matcher(topic).matches()) {
+                  tables.add(tableName);
                 }
               });
+      return tables;
     }
 
     @Override
     public void routeRecord(SinkRecord record) {
-      topicTablesMap
-          .getOrDefault(record.topic(), Collections.emptyList())
-          .forEach(tableName -> writeToTable(tableName, record, true));
-    }
-  }
-
-  /** Route records to tables using a regex match the topic of the record. */
-  public static class TopicRegexRecordRouter extends RecordRouter {
-    private final Map<String, Pattern> tablePatterns = Maps.newHashMap();
-
-    public TopicRegexRecordRouter(Catalog catalog, IcebergSinkConfig config) {
-      super(catalog, config);
-      config
-          .tables()
-          .forEach(
-              tableName ->
-                  tablePatterns.putIfAbsent(tableName, config.tableConfig(tableName).topicRegex()));
-    }
-
-    @Override
-    public void routeRecord(SinkRecord record) {
-      // If the mapping isn't pre-computed, check against each table's pattern
-      tablePatterns.forEach(
-          (tableName, tablePattern) -> {
-            if (tablePattern != null && tablePattern.matcher(record.topic()).matches()) {
-              writeToTable(tableName, record, false);
-            }
-          });
+      topicTables
+          .computeIfAbsent(record.topic(), this::tablesForTopic)
+          .forEach(tableName -> writeToTable(tableName, record, false));
     }
   }
 }

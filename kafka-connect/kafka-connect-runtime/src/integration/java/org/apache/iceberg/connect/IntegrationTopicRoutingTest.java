@@ -65,7 +65,7 @@ public class IntegrationTopicRoutingTest extends IntegrationTestBase {
   @ParameterizedTest
   @NullSource
   @ValueSource(strings = "test_branch")
-  public void testTopicNameRouter(String branch) {
+  public void testTopicRouter(String branch) {
     // partitioned table
     catalog().createTable(TABLE_IDENTIFIER1, TestEvent.TEST_SCHEMA, TestEvent.TEST_SPEC);
     // unpartitioned table
@@ -85,48 +85,12 @@ public class IntegrationTopicRoutingTest extends IntegrationTestBase {
             .config("value.converter.schemas.enable", useSchema)
             .config(
                 "iceberg.tables.route-with",
-                "org.apache.iceberg.connect.data.RecordRouter$TopicNameRecordRouter")
+                "org.apache.iceberg.connect.data.RecordRouter$TopicRecordRouter")
             .config(
                 "iceberg.tables",
                 String.format("%s.%s,%s.%s", TEST_DB, TEST_TABLE1, TEST_DB, TEST_TABLE2))
-            .config(String.format("iceberg.table.%s.%s.topics", TEST_DB, TEST_TABLE1), TEST_TOPIC1)
-            .config(String.format("iceberg.table.%s.%s.topics", TEST_DB, TEST_TABLE2), TEST_TOPIC2)
-            .config("iceberg.control.commit.interval-ms", 1000)
-            .config("iceberg.control.commit.timeout-ms", Integer.MAX_VALUE)
-            .config("iceberg.kafka.auto.offset.reset", "earliest");
-
-    runTest(connectorConfig, branch, useSchema);
-  }
-
-  @ParameterizedTest
-  @NullSource
-  @ValueSource(strings = "test_branch")
-  public void testTopicRegexRouter(String branch) {
-    // partitioned table
-    catalog().createTable(TABLE_IDENTIFIER1, TestEvent.TEST_SCHEMA, TestEvent.TEST_SPEC);
-    // unpartitioned table
-    catalog().createTable(TABLE_IDENTIFIER2, TestEvent.TEST_SCHEMA);
-
-    boolean useSchema = branch == null; // use a schema for one of the tests
-    // set offset reset to earliest so we don't miss any test messages
-    KafkaConnectUtils.Config connectorConfig =
-        new KafkaConnectUtils.Config(connectorName())
-            .config("topics", String.format("%s,%s", TEST_TOPIC1, TEST_TOPIC2))
-            .config("connector.class", IcebergSinkConnector.class.getName())
-            .config("tasks.max", 2)
-            .config("consumer.override.auto.offset.reset", "earliest")
-            .config("key.converter", "org.apache.kafka.connect.json.JsonConverter")
-            .config("key.converter.schemas.enable", false)
-            .config("value.converter", "org.apache.kafka.connect.json.JsonConverter")
-            .config("value.converter.schemas.enable", useSchema)
-            .config(
-                "iceberg.tables.route-with",
-                "org.apache.iceberg.connect.data.RecordRouter$TopicRegexRecordRouter")
-            .config(
-                "iceberg.tables",
-                String.format("%s.%s,%s.%s", TEST_DB, TEST_TABLE1, TEST_DB, TEST_TABLE2))
-            .config(String.format("iceberg.table.%s.%s.topic-regex", TEST_DB, TEST_TABLE1), ".*1")
-            .config(String.format("iceberg.table.%s.%s.topic-regex", TEST_DB, TEST_TABLE2), ".*2")
+            .config(String.format("iceberg.table.%s.%s.route-regex", TEST_DB, TEST_TABLE1), ".*1")
+            .config(String.format("iceberg.table.%s.%s.route-regex", TEST_DB, TEST_TABLE2), ".*2")
             .config("iceberg.control.commit.interval-ms", 1000)
             .config("iceberg.control.commit.timeout-ms", Integer.MAX_VALUE)
             .config("iceberg.kafka.auto.offset.reset", "earliest");
