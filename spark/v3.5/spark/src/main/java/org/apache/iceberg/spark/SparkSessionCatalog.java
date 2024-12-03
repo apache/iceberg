@@ -504,23 +504,6 @@ public class SparkSessionCatalog<
               columnAliases,
               columnComments,
               properties);
-    } else if (isViewCatalog()) {
-      try {
-        getSessionCatalog().dropView(ident);
-        return getSessionCatalog()
-            .createView(
-                ident,
-                sql,
-                currentCatalog,
-                currentNamespace,
-                schema,
-                queryColumnNames,
-                columnAliases,
-                columnComments,
-                properties);
-      } catch (ViewAlreadyExistsException e) {
-        throw new RuntimeException(e);
-      }
     }
 
     throw new UnsupportedOperationException(
