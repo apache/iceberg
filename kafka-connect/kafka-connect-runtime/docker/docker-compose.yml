@@ -41,7 +41,7 @@ services:
     entrypoint: mc mb /data/bucket
 
   iceberg:
-    image: tabulario/iceberg-rest
+    image: apache/iceberg-rest-fixture
     depends_on:
       - create-bucket
     hostname: iceberg
