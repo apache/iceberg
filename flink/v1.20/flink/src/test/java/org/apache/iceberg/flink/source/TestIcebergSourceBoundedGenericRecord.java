@@ -57,10 +57,10 @@ public class TestIcebergSourceBoundedGenericRecord extends TestIcebergSourceBoun
   @Parameters(name = "format={0}, parallelism = {1}, useConverter = {2}")
   public static Object[][] parameters() {
     return new Object[][]{
-        {FileFormat.AVRO, 2, true},
-        {FileFormat.PARQUET, 2, true},
-        {FileFormat.PARQUET, 2, false},
-        {FileFormat.ORC, 2, true}
+      {FileFormat.AVRO, 2, true},
+      {FileFormat.PARQUET, 2, true},
+      {FileFormat.PARQUET, 2, false},
+      {FileFormat.ORC, 2, true}
     };
   }
 
