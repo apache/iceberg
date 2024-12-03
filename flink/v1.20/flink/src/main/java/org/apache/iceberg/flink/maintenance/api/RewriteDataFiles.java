@@ -33,13 +33,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 /**
  * Creates the data file rewriter data stream. Which runs a single iteration of the task for every
  * {@link Trigger} event.
- *
- * <p>The input is a {@link DataStream} with {@link Trigger} events and every event should be
- * immediately followed by a {@link org.apache.flink.streaming.api.watermark.Watermark} with the
- * same timestamp as the event.
- *
- * <p>The output is a {@link DataStream} with the {@link TaskResult} of the run followed by the
- * {@link org.apache.flink.streaming.api.watermark.Watermark}.
  */
 public class RewriteDataFiles {
   static final String PLANNER_TASK_NAME = "RDF Planner";
@@ -175,6 +168,14 @@ public class RewriteDataFiles {
       return this;
     }
 
+    /**
+     * The input is a {@link DataStream} with {@link Trigger} events and every event should be
+     * immediately followed by a {@link org.apache.flink.streaming.api.watermark.Watermark} with the
+     * same timestamp as the event.
+     *
+     * <p>The output is a {@link DataStream} with the {@link TaskResult} of the run followed by the
+     * {@link org.apache.flink.streaming.api.watermark.Watermark}.
+     */
     @Override
     DataStream<TaskResult> append(DataStream<Trigger> trigger) {
       SingleOutputStreamOperator<DataFileRewritePlanner.PlannedGroup> planned =
