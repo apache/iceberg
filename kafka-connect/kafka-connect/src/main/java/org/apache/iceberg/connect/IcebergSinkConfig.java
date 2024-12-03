@@ -54,8 +54,6 @@ public class IcebergSinkConfig extends AbstractConfig {
   public static final String INTERNAL_TRANSACTIONAL_SUFFIX_PROP =
       "iceberg.coordinator.transactional.suffix";
   private static final String ROUTE_REGEX = "route-regex";
-  private static final String TOPICS = "topics";
-  private static final String TOPIC_REGEX = "topic-regex";
   private static final String ID_COLUMNS = "id-columns";
   private static final String PARTITION_BY = "partition-by";
   private static final String COMMIT_BRANCH = "commit-branch";
@@ -342,7 +340,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   }
 
   public boolean dynamicTablesEnabled() {
-    return getBoolean(TABLES_DYNAMIC_PROP);
+    return getBoolean(TABLES_DYNAMIC_PROP) || tablesRouteWith().equals(RecordRouter.DynamicRecordRouter.class);
   }
 
   public <T extends RecordRouter> Class<T> tablesRouteWith() {
@@ -379,11 +377,6 @@ public class IcebergSinkConfig extends AbstractConfig {
           String routeRegexStr = tableConfig.get(ROUTE_REGEX);
           Pattern routeRegex = routeRegexStr == null ? null : Pattern.compile(routeRegexStr);
 
-          String topics = tableConfig.get(TOPICS);
-
-          String topicRegexStr = tableConfig.get(TOPIC_REGEX);
-          Pattern topicRegex = topicRegexStr == null ? null : Pattern.compile(topicRegexStr);
-
           String idColumnsStr = tableConfig.getOrDefault(ID_COLUMNS, tablesDefaultIdColumns());
           List<String> idColumns = stringToList(idColumnsStr, ",");
 
@@ -394,8 +387,7 @@ public class IcebergSinkConfig extends AbstractConfig {
           String commitBranch =
               tableConfig.getOrDefault(COMMIT_BRANCH, tablesDefaultCommitBranch());
 
-          return new TableSinkConfig(
-              routeRegex, topics, topicRegex, idColumns, partitionBy, commitBranch);
+          return new TableSinkConfig(routeRegex, idColumns, partitionBy, commitBranch);
         });
   }
 
