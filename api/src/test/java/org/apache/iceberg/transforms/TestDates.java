@@ -96,32 +96,6 @@ public class TestDates {
   }
 
   @Test
-  @SuppressWarnings("deprecation")
-  public void testDeprecatedDateTransform() {
-    Types.DateType type = Types.DateType.get();
-    Literal<Integer> date = Literal.of("2017-12-01").to(type);
-    Literal<Integer> pd = Literal.of("1970-01-01").to(type);
-    Literal<Integer> nd = Literal.of("1969-12-31").to(type);
-
-    Transform<Integer, Integer> years = Transforms.year(type);
-    assertThat((int) years.apply(date.value())).as("Should produce 2017 - 1970 = 47").isEqualTo(47);
-    assertThat((int) years.apply(pd.value())).as("Should produce 1970 - 1970 = 0").isZero();
-    assertThat((int) years.apply(nd.value())).as("Should produce 1969 - 1970 = -1").isEqualTo(-1);
-
-    Transform<Integer, Integer> months = Transforms.month(type);
-    assertThat((int) months.apply(date.value()))
-        .as("Should produce 47 * 12 + 11 = 575")
-        .isEqualTo(575);
-    assertThat((int) months.apply(pd.value())).as("Should produce 0 * 12 + 0 = 0").isZero();
-    assertThat((int) months.apply(nd.value())).isEqualTo(-1);
-
-    Transform<Integer, Integer> days = Transforms.day(type);
-    assertThat((int) days.apply(date.value())).isEqualTo(17501);
-    assertThat((int) days.apply(pd.value())).as("Should produce 0 * 365 + 0 = 0").isZero();
-    assertThat((int) days.apply(nd.value())).isEqualTo(-1);
-  }
-
-  @Test
   public void testDateTransform() {
     Types.DateType type = Types.DateType.get();
     Literal<Integer> date = Literal.of("2017-12-01").to(type);

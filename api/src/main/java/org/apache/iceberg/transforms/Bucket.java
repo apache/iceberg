@@ -44,7 +44,7 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
   }
 
   @SuppressWarnings("unchecked")
-  static <T, B extends Bucket<T> & SerializableFunction<T, Integer>> B get(
+  private static <T, B extends Bucket<T> & SerializableFunction<T, Integer>> B get(
       Type type, int numBuckets) {
     Preconditions.checkArgument(
         numBuckets > 0, "Invalid number of buckets: %s (must be > 0)", numBuckets);
@@ -94,7 +94,6 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
         "hash(value) is not supported on the base Bucket class");
   }
 
-  @Override
   public Integer apply(T value) {
     if (value == null) {
       return null;

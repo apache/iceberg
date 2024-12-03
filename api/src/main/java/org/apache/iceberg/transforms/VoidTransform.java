@@ -50,11 +50,6 @@ class VoidTransform<S> implements Transform<S, Void> {
   private VoidTransform() {}
 
   @Override
-  public Void apply(Object value) {
-    return null;
-  }
-
-  @Override
   public SerializableFunction<S, Void> bind(Type type) {
     return Apply.get();
   }
@@ -82,11 +77,6 @@ class VoidTransform<S> implements Transform<S, Void> {
   @Override
   public boolean isVoid() {
     return true;
-  }
-
-  @Override
-  public String toHumanString(Void value) {
-    return "null";
   }
 
   @Override

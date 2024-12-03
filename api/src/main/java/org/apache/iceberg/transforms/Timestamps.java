@@ -53,11 +53,6 @@ enum Timestamps implements Transform<Long, Integer> {
   }
 
   @Override
-  public Integer apply(Long timestamp) {
-    return apply.apply(timestamp);
-  }
-
-  @Override
   public SerializableFunction<Long, Integer> bind(Type type) {
     Preconditions.checkArgument(canTransform(type), "Cannot bind to unsupported type: %s", type);
     return apply;

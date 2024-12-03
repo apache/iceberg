@@ -74,11 +74,6 @@ enum Dates implements Transform<Integer, Integer> {
   }
 
   @Override
-  public Integer apply(Integer days) {
-    return apply.apply(days);
-  }
-
-  @Override
   public SerializableFunction<Integer, Integer> bind(Type type) {
     Preconditions.checkArgument(canTransform(type), "Cannot bind to unsupported type: %s", type);
     return apply;

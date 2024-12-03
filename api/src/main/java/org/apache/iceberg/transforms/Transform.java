@@ -38,19 +38,6 @@ import org.apache.iceberg.util.SerializableFunction;
  */
 public interface Transform<S, T> extends Serializable {
   /**
-   * Transforms a value to its corresponding partition value.
-   *
-   * @param value a source value
-   * @return a transformed partition value
-   * @deprecated use {@link #bind(Type)} instead; will be removed in 2.0.0
-   */
-  @Deprecated
-  default T apply(S value) {
-    throw new UnsupportedOperationException(
-        "apply(value) is deprecated, use bind(Type).apply(value)");
-  }
-
-  /**
    * Returns a function that applies this transform to values of the given {@link Type type}.
    *
    * @param type an Iceberg {@link Type}
@@ -143,26 +130,6 @@ public interface Transform<S, T> extends Serializable {
    */
   default boolean isVoid() {
     return false;
-  }
-
-  /**
-   * Returns a human-readable String representation of a transformed value.
-   *
-   * <p>null values will return "null"
-   *
-   * @param value a transformed value
-   * @return a human-readable String representation of the value
-   * @deprecated use {@link #toHumanString(Type, Object)} instead; will be removed in 2.0.0
-   */
-  @Deprecated
-  default String toHumanString(T value) {
-    if (value instanceof ByteBuffer) {
-      return TransformUtil.base64encode(((ByteBuffer) value).duplicate());
-    } else if (value instanceof byte[]) {
-      return TransformUtil.base64encode(ByteBuffer.wrap((byte[]) value));
-    } else {
-      return String.valueOf(value);
-    }
   }
 
   default String toHumanString(Type type, T value) {
