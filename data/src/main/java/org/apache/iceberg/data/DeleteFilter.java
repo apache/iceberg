@@ -54,6 +54,7 @@ public abstract class DeleteFilter<T> {
   private final List<DeleteFile> posDeletes;
   private final List<DeleteFile> eqDeletes;
   private final Schema requiredSchema;
+  private final Schema expectedSchema;
   private final Accessor<StructLike> posAccessor;
   private final boolean hasIsDeletedColumn;
   private final int isDeletedColumnPosition;
@@ -68,11 +69,12 @@ public abstract class DeleteFilter<T> {
       String filePath,
       List<DeleteFile> deletes,
       Schema tableSchema,
-      Schema requestedSchema,
+      Schema expectedSchema,
       DeleteCounter counter,
       boolean needRowPosCol) {
     this.filePath = filePath;
     this.counter = counter;
+    this.expectedSchema = expectedSchema;
 
     ImmutableList.Builder<DeleteFile> posDeleteBuilder = ImmutableList.builder();
     ImmutableList.Builder<DeleteFile> eqDeleteBuilder = ImmutableList.builder();
@@ -95,7 +97,7 @@ public abstract class DeleteFilter<T> {
     this.posDeletes = posDeleteBuilder.build();
     this.eqDeletes = eqDeleteBuilder.build();
     this.requiredSchema =
-        fileProjection(tableSchema, requestedSchema, posDeletes, eqDeletes, needRowPosCol);
+        fileProjection(tableSchema, expectedSchema, posDeletes, eqDeletes, needRowPosCol);
     this.posAccessor = requiredSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
     this.hasIsDeletedColumn =
         requiredSchema.findField(MetadataColumns.IS_DELETED.fieldId()) != null;
@@ -122,6 +124,10 @@ public abstract class DeleteFilter<T> {
 
   public Schema requiredSchema() {
     return requiredSchema;
+  }
+
+  public Schema expectedSchema() {
+    return expectedSchema;
   }
 
   public boolean hasPosDeletes() {
