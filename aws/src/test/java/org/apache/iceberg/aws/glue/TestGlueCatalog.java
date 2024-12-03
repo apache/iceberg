@@ -66,6 +66,7 @@ import software.amazon.awssdk.services.glue.model.StorageDescriptor;
 import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.UpdateDatabaseRequest;
 import software.amazon.awssdk.services.glue.model.UpdateDatabaseResponse;
+import software.amazon.glue.GlueExtensionsProperties;
 
 public class TestGlueCatalog {
 
@@ -85,7 +86,7 @@ public class TestGlueCatalog {
         new S3FileIOProperties(),
         glue,
         LockManagers.defaultLockManager(),
-        ImmutableMap.of());
+        ImmutableMap.of(GlueExtensionsProperties.GLUE_EXTENSIONS_ENABLED, "false"));
   }
 
   @Test
@@ -98,7 +99,7 @@ public class TestGlueCatalog {
         new S3FileIOProperties(),
         glue,
         LockManagers.defaultLockManager(),
-        ImmutableMap.of());
+        ImmutableMap.of(GlueExtensionsProperties.GLUE_EXTENSIONS_ENABLED, "false"));
     Mockito.doReturn(
             GetDatabaseResponse.builder().database(Database.builder().name("db").build()).build())
         .when(glue)
@@ -122,7 +123,7 @@ public class TestGlueCatalog {
         new S3FileIOProperties(),
         glue,
         LockManagers.defaultLockManager(),
-        ImmutableMap.of());
+        ImmutableMap.of(GlueExtensionsProperties.GLUE_EXTENSIONS_ENABLED, "false"));
     Mockito.doReturn(
             GetDatabaseResponse.builder().database(Database.builder().name("db").build()).build())
         .when(glue)
@@ -180,7 +181,7 @@ public class TestGlueCatalog {
         s3FileIOProperties,
         glue,
         LockManagers.defaultLockManager(),
-        ImmutableMap.of());
+        ImmutableMap.of(GlueExtensionsProperties.GLUE_EXTENSIONS_ENABLED, "false"));
 
     Mockito.doReturn(
             GetDatabaseResponse.builder()
@@ -643,7 +644,7 @@ public class TestGlueCatalog {
         s3FileIOProperties,
         glue,
         LockManagers.defaultLockManager(),
-        ImmutableMap.of());
+        ImmutableMap.of(GlueExtensionsProperties.GLUE_EXTENSIONS_ENABLED, "false"));
     assertThat(glueCatalog.isValidIdentifier(TableIdentifier.parse("db-1.a-1"))).isEqualTo(true);
   }
 
@@ -654,7 +655,9 @@ public class TestGlueCatalog {
             S3FileIOProperties.WRITE_TABLE_TAG_ENABLED,
             "true",
             S3FileIOProperties.WRITE_NAMESPACE_TAG_ENABLED,
-            "true");
+            "true",
+            GlueExtensionsProperties.GLUE_EXTENSIONS_ENABLED,
+            "false");
     AwsProperties awsProperties = new AwsProperties(properties);
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
     glueCatalog.initialize(
