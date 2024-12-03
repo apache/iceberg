@@ -416,10 +416,10 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   public boolean tableExists(TableIdentifier identifier) {
     TableIdentifier baseTableIdentifier = identifier;
     if (!isValidIdentifier(identifier)) {
-      if (isValidMetadataIdentifier(identifier)) {
-        baseTableIdentifier = TableIdentifier.of(identifier.namespace().levels());
-      } else {
+      if (!isValidMetadataIdentifier(identifier)) {
         return false;
+      } else {
+        baseTableIdentifier = TableIdentifier.of(identifier.namespace().levels());
       }
     }
 
@@ -427,16 +427,16 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     String tableName = baseTableIdentifier.name();
     try {
       Table table = clients.run(client -> client.getTable(database, tableName));
-      HiveOperationsBase.validateTableIsIceberg(table, fullTableName(name, identifier));
+      HiveOperationsBase.validateTableIsIceberg(table, fullTableName(name, baseTableIdentifier));
       return true;
     } catch (NoSuchTableException | NoSuchObjectException e) {
       return false;
     } catch (TException e) {
-      throw new RuntimeException("Failed to check table existence of " + identifier, e);
+      throw new RuntimeException("Failed to check table existence of " + baseTableIdentifier, e);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new RuntimeException(
-          "Interrupted in call to check table existence of " + identifier, e);
+          "Interrupted in call to check table existence of " + baseTableIdentifier, e);
     }
   }
 

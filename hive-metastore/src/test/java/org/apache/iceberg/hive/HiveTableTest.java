@@ -398,13 +398,13 @@ public class HiveTableTest extends HiveTableBaseTest {
         .as("Table should not exist before create")
         .isFalse();
     catalog.buildTable(identifier, SCHEMA).create();
+
     assertThat(catalog.tableExists(identifier)).as("Table should exist after create").isTrue();
     assertThat(catalog.tableExists(metadataIdentifier))
         .as("Metadata table should also exist")
         .isTrue();
 
-    boolean dropped = catalog.dropTable(identifier);
-    assertThat(dropped).as("Should drop a table that does exist").isTrue();
+    assertThat(catalog.dropTable(identifier)).as("Should drop a table that does exist").isTrue();
     assertThat(catalog.tableExists(identifier)).as("Table should not exist after drop").isFalse();
     assertThat(catalog.tableExists(metadataIdentifier))
         .as("Metadata table should not exist after drop")
@@ -421,6 +421,17 @@ public class HiveTableTest extends HiveTableBaseTest {
         .as("Metadata table should not exist")
         .isFalse();
     HIVE_METASTORE_EXTENSION.metastoreClient().dropTable(DB_NAME, testTableName);
+    // tableExists shall return false for iceberg view
+    catalog
+        .buildView(identifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(identifier.namespace())
+        .withQuery("spark", "select * from ns.tbl")
+        .create();
+    assertThat(catalog.tableExists(identifier))
+        .as("Should return false if identifier refers to a view")
+        .isFalse();
+    catalog.dropView(identifier);
   }
 
   private org.apache.hadoop.hive.metastore.api.Table createHiveTable(
