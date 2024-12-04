@@ -89,21 +89,21 @@ public class DataFileRewriteExecutor
       throws Exception {
     if (LOG.isDebugEnabled()) {
       LOG.debug(
-          "Rewriting files {} from {} for table {} with {}[{}] at {}",
-          value.group().info(),
-          value.group().rewrittenFiles(),
+          LogUtil.MESSAGE_PREFIX + "Rewriting files {} from {}",
           tableName,
           taskName,
           taskIndex,
-          ctx.timestamp());
+          ctx.timestamp(),
+          value.group().info(),
+          value.group().rewrittenFiles());
     } else {
       LOG.info(
-          "Rewriting {} files for table {} with {}[{}] at {}",
-          value.group().rewrittenFiles().size(),
+          LogUtil.MESSAGE_PREFIX + "Rewriting {} files",
           tableName,
           taskName,
           taskIndex,
-          ctx.timestamp());
+          ctx.timestamp(),
+          value.group().rewrittenFiles().size());
     }
 
     try (TaskWriter<RowData> writer = writerFor(value)) {
@@ -121,32 +121,32 @@ public class DataFileRewriteExecutor
                 value.group()));
         if (LOG.isDebugEnabled()) {
           LOG.debug(
-              "Rewritten files {} from {} to {} for table {} with {}[{}] at {}",
+              LogUtil.MESSAGE_PREFIX + "Rewritten files {} from {} to {}",
+              tableName,
+              taskName,
+              taskIndex,
+              ctx.timestamp(),
               value.group().info(),
               value.group().rewrittenFiles(),
-              value.group().addedFiles(),
-              tableName,
-              taskName,
-              taskIndex,
-              ctx.timestamp());
+              value.group().addedFiles());
         } else {
           LOG.info(
-              "Rewritten {} files to {} files for table {} with {}[{}] at {}",
-              value.group().rewrittenFiles().size(),
-              value.group().addedFiles().size(),
+              LogUtil.MESSAGE_PREFIX + "Rewritten {} files to {} files",
               tableName,
               taskName,
               taskIndex,
-              ctx.timestamp());
+              ctx.timestamp(),
+              value.group().rewrittenFiles().size(),
+              value.group().addedFiles().size());
         }
       } catch (Exception ex) {
         LOG.info(
-            "Exception rewriting datafile group {} for table {} with {}[{}] at {}",
-            value.group(),
+            LogUtil.MESSAGE_PREFIX + "Exception rewriting datafile group {}",
             tableName,
             taskName,
             taskIndex,
             ctx.timestamp(),
+            value.group(),
             ex);
         ctx.output(TaskResultAggregator.ERROR_STREAM, ex);
         errorCounter.inc();
@@ -154,12 +154,12 @@ public class DataFileRewriteExecutor
       }
     } catch (Exception ex) {
       LOG.info(
-          "Exception creating compaction writer for group {} for table {} with {}[{}] at {}",
-          value.group(),
+          LogUtil.MESSAGE_PREFIX + "Exception creating compaction writer for group {}",
           tableName,
           taskName,
           taskIndex,
           ctx.timestamp(),
+          value.group(),
           ex);
       ctx.output(TaskResultAggregator.ERROR_STREAM, ex);
       errorCounter.inc();
@@ -203,25 +203,25 @@ public class DataFileRewriteExecutor
   private void abort(TaskWriter<RowData> writer, long timestamp) {
     try {
       LOG.info(
-          "Aborting rewrite for (subTaskId {}, attemptId {}) for table {} with {}[{}] at {}",
-          subTaskId,
-          attemptId,
+          LogUtil.MESSAGE_PREFIX + "Aborting rewrite for (subTaskId {}, attemptId {})",
           tableName,
           taskName,
           taskIndex,
-          timestamp);
+          timestamp,
+          subTaskId,
+          attemptId);
       writer.abort();
       LOG.info(
-          "Aborted rewrite for (subTaskId {}, attemptId {}) for table {} with {}[{}] at {}",
-          subTaskId,
-          attemptId,
+          LogUtil.MESSAGE_PREFIX + "Aborted rewrite for (subTaskId {}, attemptId {})",
           tableName,
           taskName,
           taskIndex,
-          timestamp);
+          timestamp,
+          subTaskId,
+          attemptId);
     } catch (Exception inner) {
       LOG.info(
-          "Exception in abort for table {} with {}[{}] at {}",
+          LogUtil.MESSAGE_PREFIX + "Exception in abort",
           tableName,
           taskName,
           taskIndex,

@@ -111,7 +111,7 @@ public class DataFileRewritePlanner
   public void processElement(Trigger value, Context ctx, Collector<PlannedGroup> out)
       throws Exception {
     LOG.debug(
-        "Creating rewrite plan for table {} with {}[{}] at {}",
+        LogUtil.MESSAGE_PREFIX + "Creating rewrite plan",
         tableName,
         taskName,
         taskIndex,
@@ -121,7 +121,7 @@ public class DataFileRewritePlanner
           (SerializableTable) SerializableTable.copyOf(tableLoader.loadTable());
       if (table.currentSnapshot() == null) {
         LOG.info(
-            "Nothing to plan for in an empty table {} with {}[{}] at {}",
+            LogUtil.MESSAGE_PREFIX + "Nothing to plan for in an empty table",
             tableName,
             taskName,
             taskIndex,
@@ -142,12 +142,12 @@ public class DataFileRewritePlanner
         if (rewriteBytes + group.sizeInBytes() > maxRewriteBytes) {
           // Keep going, maybe some other group might fit in
           LOG.info(
-              "Skipping group {} as max rewrite size reached for table {} with {}[{}] at {}",
-              group,
+              LogUtil.MESSAGE_PREFIX + "Skipping group {} as max rewrite size reached",
               tableName,
               taskName,
               taskIndex,
-              ctx.timestamp());
+              ctx.timestamp(),
+              group);
           iter.remove();
         } else {
           rewriteBytes += group.sizeInBytes();
@@ -159,28 +159,28 @@ public class DataFileRewritePlanner
           IntMath.divide(totalGroupCount, partialProgressMaxCommits, RoundingMode.CEILING);
 
       LOG.info(
-          "Rewrite plan created {} for table {} with {}[{}] at {}",
-          groups,
+          LogUtil.MESSAGE_PREFIX + "Rewrite plan created {}",
           tableName,
           taskName,
           taskIndex,
-          ctx.timestamp());
+          ctx.timestamp(),
+          groups);
 
       for (RewriteFileGroup group : groups) {
         LOG.debug(
-            "Emitting {} with for table {} with {}[{}] at {}",
-            group,
+            LogUtil.MESSAGE_PREFIX + "Emitting {}",
             tableName,
             taskName,
             taskIndex,
-            ctx.timestamp());
+            ctx.timestamp(),
+            group);
         out.collect(
             new PlannedGroup(
                 table, groupsPerCommit, rewriter.splitSize(group.sizeInBytes()), group));
       }
     } catch (Exception e) {
       LOG.info(
-          "Exception planning data file rewrite groups for table {} with {}[{}] at {}",
+          LogUtil.MESSAGE_PREFIX + "Exception planning data file rewrite groups",
           tableName,
           taskName,
           taskIndex,

@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.state.ListState;
@@ -35,7 +36,6 @@ import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.FileContent;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager.CommitService;
@@ -128,7 +128,8 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
       }
     }
 
-    this.inProgress = Sets.newHashSet();
+    // Has to be concurrent since it is accessed by the CommitService from another thread
+    this.inProgress = Sets.newConcurrentHashSet();
     Iterable<RewriteFileGroup> inProgressIterable = inProgressState.get();
     if (inProgressIterable != null) {
       for (RewriteFileGroup group : inProgressIterable) {
@@ -161,8 +162,9 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
     DataFileRewriteExecutor.ExecutedGroup executedGroup = streamRecord.getValue();
     try {
       if (commitService == null) {
-        this.commitService = createCommitService(executedGroup, streamRecord.getTimestamp());
         this.startingSnapshotId = executedGroup.snapshotId();
+        this.commitService =
+            createCommitService(streamRecord.getTimestamp(), executedGroup.groupsPerCommit());
       }
 
       commitService.offer(executedGroup.group());
@@ -170,12 +172,12 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
       ++processed;
     } catch (Exception e) {
       LOG.info(
-          "Exception processing {} for table {} with {}[{}] at {}",
-          executedGroup,
+          LogUtil.MESSAGE_PREFIX + "Exception processing {}",
           tableName,
           taskName,
           taskIndex,
           streamRecord.getTimestamp(),
+          executedGroup,
           e);
       output.collect(TaskResultAggregator.ERROR_STREAM, new StreamRecord<>(e));
       errorCounter.inc();
@@ -190,27 +192,28 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
         if (processed != commitService.results().size()) {
           throw new RuntimeException(
               String.format(
-                  "From %d commits only %d were unsuccessful for table %s with %s[%d] at %d",
-                  processed,
-                  commitService.results().size(),
+                  Locale.ROOT,
+                  LogUtil.MESSAGE_FORMAT_PREFIX + "From %d commits only %d were unsuccessful",
                   tableName,
                   taskName,
                   taskIndex,
-                  mark.getTimestamp()));
+                  mark.getTimestamp(),
+                  processed,
+                  commitService.results().size()));
         }
       }
 
       table.refresh();
       LOG.info(
-          "Successfully completed data file compaction to {} for table {} with {}[{}] at {}",
-          table.currentSnapshot().snapshotId(),
+          LogUtil.MESSAGE_PREFIX + "Successfully completed data file compaction to {}",
           tableName,
           taskName,
           taskIndex,
-          mark.getTimestamp());
+          mark.getTimestamp(),
+          table.currentSnapshot().snapshotId());
     } catch (Exception e) {
       LOG.info(
-          "Exception closing commit service for table {} with {}[{}] at {}",
+          LogUtil.MESSAGE_PREFIX + "Exception closing commit service",
           tableName,
           taskName,
           taskIndex,
@@ -236,34 +239,44 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
     }
   }
 
-  private CommitService createCommitService(
-      DataFileRewriteExecutor.ExecutedGroup element, long timestamp) {
+  private CommitService createCommitService(long timestamp, int groupsPerCommit) {
     FlinkRewriteDataFilesCommitManager commitManager =
-        new FlinkRewriteDataFilesCommitManager(table, element.snapshotId(), timestamp);
-    CommitService service = commitManager.service(element.groupsPerCommit());
+        new FlinkRewriteDataFilesCommitManager(table, startingSnapshotId, timestamp);
+    CommitService service = commitManager.service(groupsPerCommit);
     service.start();
-
     return service;
   }
 
   private void commitInProgress(long timestamp) {
     if (!inProgress.isEmpty()) {
+      CommitService service = null;
       try {
-        FlinkRewriteDataFilesCommitManager manager =
-            new FlinkRewriteDataFilesCommitManager(table, startingSnapshotId, timestamp);
-        CommitService service = manager.service(Integer.MAX_VALUE);
-        service.start();
-        manager.commitOrClean(inProgress);
-        service.close();
-        inProgress.clear();
+        service = createCommitService(timestamp, inProgress.size());
+        inProgress.forEach(service::offer);
       } catch (Exception e) {
         LOG.info(
-            "Failed committing pending groups {} for table {} with {}[{}], so skipping.",
-            inProgress,
+            LogUtil.MESSAGE_PREFIX + "Failed committing pending groups {}",
             tableName,
             taskName,
             taskIndex,
+            timestamp,
+            inProgress,
             e);
+      } finally {
+        inProgress.clear();
+        if (service != null) {
+          try {
+            service.close();
+          } catch (Exception e) {
+            LOG.warn(
+                LogUtil.MESSAGE_PREFIX + "Failed close pending groups committer",
+                tableName,
+                taskName,
+                taskIndex,
+                timestamp,
+                e);
+          }
+        }
       }
     }
   }
@@ -280,21 +293,14 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
     public void commitFileGroups(Set<RewriteFileGroup> fileGroups) {
       super.commitFileGroups(fileGroups);
       LOG.debug(
-          "Committed {} for table {} with {}[{}] at {}",
-          fileGroups,
+          LogUtil.MESSAGE_PREFIX + "Committed {}",
           tableName,
           taskName,
           taskIndex,
-          timestamp);
+          timestamp,
+          fileGroups);
       updateMetrics(fileGroups);
       inProgress.removeAll(fileGroups);
-      LOG.debug(
-          "Remaining {} for table {} with {}[{}] at {}",
-          inProgress,
-          tableName,
-          taskName,
-          taskIndex,
-          timestamp);
     }
 
     private void updateMetrics(Set<RewriteFileGroup> fileGroups) {
@@ -305,10 +311,6 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
         }
 
         for (DataFile rewritten : fileGroup.rewrittenFiles()) {
-          Preconditions.checkArgument(
-              FileContent.DATA.equals(rewritten.content()),
-              "%s is not supported for metrics collection",
-              rewritten);
           removedDataFileNumCounter.inc();
           removedDataFileSizeCounter.inc(rewritten.fileSizeInBytes());
         }
