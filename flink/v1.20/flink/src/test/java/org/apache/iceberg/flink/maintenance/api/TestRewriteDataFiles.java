@@ -337,8 +337,8 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
 
     runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
 
-    // One equality delete remains which could be relevant if there are other files in the table
-    assertFileNum(table, 1, 1);
+    // After #11131 we don't remove the delete files
+    assertFileNum(table, 1, 3);
 
     SimpleDataUtil.assertTableRecords(table, ImmutableList.of(createRecord(1, "c")));
 
