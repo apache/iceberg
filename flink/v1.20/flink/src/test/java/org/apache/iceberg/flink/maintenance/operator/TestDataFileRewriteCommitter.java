@@ -266,7 +266,7 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
                   .poll()
                   .getValue()
                   .getMessage())
-          .contains("From 1 commits only 0 were unsuccessful for table");
+          .contains("From 1 commits only 0 were unsuccessful");
     }
   }
 
