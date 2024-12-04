@@ -113,9 +113,6 @@ class CometColumnReader implements VectorizedReader<CometVector> {
   public CometVector read(CometVector reuse, int numRows) {
     delegate.readBatch(numRows);
     org.apache.comet.vector.CometVector bv = delegate.currentBatch();
-    if (reuse == null) {
-      reuse = vector;
-    }
     reuse.setDelegate(bv);
     return reuse;
   }

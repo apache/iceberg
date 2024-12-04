@@ -69,8 +69,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
             && !(readers[i] instanceof CometPositionColumnReader)
             && !(readers[i] instanceof CometDeleteColumnReader)) {
           readers[i].reset();
-          readers[i].setPageReader(
-              pageStore.getPageReader(((CometColumnReader) readers[i]).getDescriptor()));
+          readers[i].setPageReader(pageStore.getPageReader(readers[i].getDescriptor()));
         }
       } catch (IOException e) {
         throw new UncheckedIOException("Failed to setRowGroupInfo for Comet vectorization", e);
@@ -78,7 +77,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
     }
 
     for (int i = 0; i < readers.length; i++) {
-      delegate.getColumnReaders()[i] = ((CometColumnReader) this.readers[i]).getDelegate();
+      delegate.getColumnReaders()[i] = this.readers[i].getDelegate();
     }
 
     this.rowStartPosInBatch = rowPosition;
@@ -154,7 +153,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
         if (readers[i] instanceof CometDeleteColumnReader) {
           CometDeleteColumnReader deleteColumnReader = new CometDeleteColumnReader<>(isDeleted);
           deleteColumnReader.setBatchSize(numRowsToRead);
-          deleteColumnReader.read(null, numRowsToRead);
+          deleteColumnReader.read(deleteColumnReader.getVector(), numRowsToRead);
           columnVectors[i] = deleteColumnReader.getVector();
         }
       }
