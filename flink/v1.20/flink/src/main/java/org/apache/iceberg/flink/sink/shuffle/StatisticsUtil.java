@@ -80,6 +80,7 @@ class StatisticsUtil {
       if (!completedStatistics.isValid()) {
         throw new RuntimeException("Fail to deserialize aggregated statistics,change to v1");
       }
+
       return completedStatistics;
     } catch (Exception e) {
       try {

@@ -122,6 +122,7 @@ class CompletedStatistics {
         return false;
       }
     }
+
     return true;
   }
 }
