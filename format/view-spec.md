@@ -52,8 +52,8 @@ The metadata for a materialized view extends the common view metadata, adding a 
 The refresh information is composed of data about the so-called "source tables", which are the tables referenced in the query definition of the materialized view. 
 The storage table can be in the states of "fresh", "stale" or "invalid", which are determined from the following situations:
 * **fresh** -- The `snapshot_id`'s of the last refresh operation match the current `snapshot_id`'s of the source tables.
-* **stale** -- The `snapshot_id`'s don't match, indicating that a refresh operation needs to be performed to capture the latest source table changes.
-* **invalid** -- The current `version_id` of the materialized view doesn't match the `refresh-version-id` of the refresh state. 
+* **stale** -- The `snapshot_id`'s do not match, indicating that a refresh operation needs to be performed to capture the latest source table changes.
+* **invalid** -- The current `version_id` of the materialized view does not match the `refresh-version-id` of the refresh state. 
 
 ## Specification
 
@@ -98,12 +98,11 @@ Each version in `versions` is a struct with the following fields:
 | _required_  | `representations`   | A list of [representations](#representations) for the view definition         |
 | _optional_  | `default-catalog`   | Catalog name to use when a reference in the SELECT does not contain a catalog |
 | _required_  | `default-namespace` | Namespace to use when a reference in the SELECT is a single identifier        |
-| _optional_  | `storage-table`     | A [partial identifier](#partial-identifier) of the storage table |
+| _optional_  | `storage-table`     | A [full identifier](#full-identifier) of the storage table |
 
 When `default-catalog` is `null` or not set, the catalog in which the view is stored must be used as the default catalog.
 
 When 'storage-table' is `null` or not set, the entity is a common view, otherwise it is a materialized view. 
-The catalog of the storage table must be same as the one of the materialized view.
 
 #### Summary
 
@@ -180,12 +179,13 @@ Each entry in `version-log` is a struct with the following fields:
 | _required_  | `timestamp-ms` | Timestamp when the view's `current-version-id` was updated (ms from epoch) |
 | _required_  | `version-id`   | ID that `current-version-id` was set to |
 
-#### Partial identifier
+#### Full identifier
 
-The partial identifier holds a reference, containing a namespace and a name, of a table or view in the catalog.
+The full identifier holds a reference, containing a namespace and a name, of a table or view in the catalog.
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
+| _optional_  | `catalog`      | A string specifying the name of the catalog. If set to `null`, the catalog is the same as the views' catalog |
 | _required_  | `namespace`    | A list of namespace levels |
 | _required_  | `name`         | A string specifying the name of the table/view |
 
