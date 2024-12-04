@@ -178,7 +178,7 @@ public interface MetadataUpdate extends Serializable {
 
     @Override
     public void applyTo(TableMetadata.Builder metadataBuilder) {
-      metadataBuilder.removeSpecIds(specIds);
+      metadataBuilder.removeSpecs(specIds);
     }
   }
 

@@ -120,10 +120,11 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
   ExpireSnapshots cleanExpiredFiles(boolean clean);
 
   /**
-   * Allows expiration of unreachable metadata, such as partition spec as part of the operation.
+   * Allows expiration of unreachable table layout metadata, such as partition specs as part of the
+   * operation.
    *
-   * @param clean setting this to true will remove metadata(such as partition spec) that is no
-   *     longer reachable by any snapshot
+   * @param clean setting this to true will remove table layout metadata that is no longer reachable
+   *     by any snapshot
    * @return this for method chaining
    */
   default ExpireSnapshots cleanExpiredMetadata(boolean clean) {

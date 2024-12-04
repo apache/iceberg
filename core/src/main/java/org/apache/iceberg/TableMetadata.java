@@ -1108,7 +1108,7 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    Builder removeSpecIds(Iterable<Integer> specIds) {
+    Builder removeSpecs(Iterable<Integer> specIds) {
       Set<Integer> specIdsToRemove = Sets.newHashSet();
       for (Integer specId : specIds) {
         Preconditions.checkArgument(

@@ -233,7 +233,7 @@ class RemoveSnapshots implements ExpireSnapshots {
               .map(PartitionSpec::specId)
               .filter(specId -> !reachableSpecs.contains(specId))
               .collect(Collectors.toSet());
-      updatedMetaBuilder.removeSpecIds(specsToRemove);
+      updatedMetaBuilder.removeSpecs(specsToRemove);
     }
 
     return updatedMetaBuilder.build();
