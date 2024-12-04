@@ -412,6 +412,12 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     }
   }
 
+  /**
+   * Check whether table or metadata table exists.
+   *
+   * @param identifier a table identifier
+   * @return true if the table exists, false otherwise
+   */
   @Override
   public boolean tableExists(TableIdentifier identifier) {
     TableIdentifier baseTableIdentifier = identifier;
