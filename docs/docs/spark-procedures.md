@@ -937,7 +937,7 @@ as an `UPDATE_AFTER` image, resulting in the following pre/post update images:
 | 3   | Robert | UPDATE_BEFORE|
 | 3   | Dan    | UPDATE_AFTER |
 
-## Table stats
+## Table statistics
 
 ### `compute_table_stats`
 
@@ -959,17 +959,17 @@ The procedure can be optionally configured to compute statistics for a specific 
 
 #### Examples
 
-Collect stats of the latest snapshot of table `my_table`
+Collect statistics of the latest snapshot of table `my_table`
 ```sql
 CALL catalog_name.system.compute_table_stats('my_table');
 ```
 
-Collect stats of the snapshot with id `snap1` of table `my_table`
+Collect statistics of the snapshot with id `snap1` of table `my_table`
 ```sql
 CALL catalog_name.system.compute_table_stats(snapshot_id => 'snap1', table => 'my_table' );
 ```
 
-Collect stats of the snapshot with id `snap1` of table `my_table` for columns `col1` and `col2`
+Collect statistics of the snapshot with id `snap1` of table `my_table` for columns `col1` and `col2`
 ```sql
 CALL catalog_name.system.compute_table_stats(snapshot_id => 'snap1', table => 'my_table', columns => array('col1', 'col2') );
 ```
