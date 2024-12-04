@@ -937,7 +937,7 @@ as an `UPDATE_AFTER` image, resulting in the following pre/post update images:
 | 3   | Robert | UPDATE_BEFORE|
 | 3   | Dan    | UPDATE_AFTER |
 
-## Table statistics
+## Table Statistics
 
 ### `compute_table_stats`
 
