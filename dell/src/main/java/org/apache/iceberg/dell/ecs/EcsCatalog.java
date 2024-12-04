@@ -372,6 +372,7 @@ public class EcsCatalog extends BaseMetastoreCatalog
 
   @Override
   public boolean tableExists(TableIdentifier identifier) {
+    // Check whether table exists
     return objectMetadata(tableURI(identifier)).isPresent();
   }
 
