@@ -228,12 +228,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         && (hasInitToken || hasCredential)
         && !PropertyUtil.propertyAsBoolean(props, "rest.sigv4-enabled", false)) {
       LOG.warn(
-          "Iceberg REST client is missing the OAuth2 server URI configuration and defaults to {}{}. "
+          "Iceberg REST client is missing the OAuth2 server URI configuration and defaults to {}/{}. "
               + "This automatic fallback will be removed in a future Iceberg release."
               + "It is recommended to configure the OAuth2 endpoint using the '{}' property to be prepared. "
               + "This warning will disappear if the OAuth2 endpoint is explicitly configured. "
               + "See https://github.com/apache/iceberg/issues/10537",
-          props.get(CatalogProperties.URI),
+          RESTUtil.stripTrailingSlash(props.get(CatalogProperties.URI)),
           ResourcePaths.tokens(),
           OAuth2Properties.OAUTH2_SERVER_URI);
     }
