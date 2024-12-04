@@ -45,109 +45,76 @@ class CometVector extends CometDelegateVector {
 
   @Override
   public boolean isNullAt(int rowId) {
-    int newRowId = rowId;
-    if (rowIdMapping != null) {
-      newRowId = rowIdMapping[rowId];
-    }
-    return super.isNullAt(newRowId);
+    return super.isNullAt(mapRowId(rowId));
   }
 
   @Override
   public boolean getBoolean(int rowId) {
-    int newRowId = rowId;
-    if (rowIdMapping != null) {
-      newRowId = rowIdMapping[rowId];
-    }
-    return super.getBoolean(newRowId);
+    return super.getBoolean(mapRowId(rowId));
   }
 
   @Override
   public byte getByte(int rowId) {
-    int newRowId = rowId;
-    if (rowIdMapping != null) {
-      newRowId = rowIdMapping[rowId];
-    }
-    return super.getByte(newRowId);
+    return super.getByte(mapRowId(rowId));
   }
 
   @Override
   public short getShort(int rowId) {
-    int newRowId = rowId;
-    if (rowIdMapping != null) {
-      newRowId = rowIdMapping[rowId];
-    }
-    return super.getShort(newRowId);
+    return super.getShort(mapRowId(rowId));
   }
 
   @Override
   public int getInt(int rowId) {
-    int newRowId = rowId;
-    if (rowIdMapping != null) {
-      newRowId = rowIdMapping[rowId];
-    }
-    return super.getInt(newRowId);
+    return super.getInt(mapRowId(rowId));
   }
 
   @Override
   public long getLong(int rowId) {
-    int newRowId = rowId;
-    if (rowIdMapping != null) {
-      newRowId = rowIdMapping[rowId];
-    }
-    return super.getLong(newRowId);
+    return super.getLong(mapRowId(rowId));
   }
 
   @Override
   public float getFloat(int rowId) {
-    int newRowId = rowId;
-    if (rowIdMapping != null) {
-      newRowId = rowIdMapping[rowId];
-    }
-    return super.getFloat(newRowId);
+    return super.getFloat(mapRowId(rowId));
   }
 
   @Override
   public double getDouble(int rowId) {
-    int newRowId = rowId;
-    if (rowIdMapping != null) {
-      newRowId = rowIdMapping[rowId];
-    }
-    return super.getDouble(newRowId);
+    return super.getDouble(mapRowId(rowId));
   }
 
   @Override
   public Decimal getDecimal(int rowId, int precision, int scale) {
-    int newRowId = rowId;
-    if (isNullAt(newRowId)) {
+    if (isNullAt(rowId)) {
       return null;
     }
-    if (rowIdMapping != null) {
-      newRowId = rowIdMapping[rowId];
-    }
-    return super.getDecimal(newRowId, precision, scale);
+
+    return super.getDecimal(mapRowId(rowId), precision, scale);
   }
 
   @Override
   public UTF8String getUTF8String(int rowId) {
-    int newRowId = rowId;
-    if (isNullAt(newRowId)) {
+    if (isNullAt(rowId)) {
       return null;
     }
-    if (rowIdMapping != null) {
-      newRowId = rowIdMapping[rowId];
-    }
-    return super.getUTF8String(newRowId);
+
+    return super.getUTF8String(mapRowId(rowId));
   }
 
   @Override
   public byte[] getBinary(int rowId) {
-    int newRowId = rowId;
-    if (isNullAt(newRowId)) {
+    if (isNullAt(rowId)) {
       return null;
     }
+
+    return super.getBinary(mapRowId(rowId));
+  }
+
+  private int mapRowId(int rowId) {
     if (rowIdMapping != null) {
-      newRowId = rowIdMapping[rowId];
+      return rowIdMapping[rowId];
     }
-    return super.getBinary(newRowId);
+
+    return rowId;
   }
 }
