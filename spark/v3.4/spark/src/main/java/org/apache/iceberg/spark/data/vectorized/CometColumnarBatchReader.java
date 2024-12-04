@@ -63,11 +63,17 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
   @Override
   public void setRowGroupInfo(
       PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData, long rowPosition) {
+    setRowGroupInfo(pageStore, metaData);
+  }
+
+  @Override
+  public void setRowGroupInfo(
+          PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData) {
     for (int i = 0; i < readers.length; i++) {
       try {
         if (!(readers[i] instanceof CometConstantColumnReader)
-            && !(readers[i] instanceof CometPositionColumnReader)
-            && !(readers[i] instanceof CometDeleteColumnReader)) {
+                && !(readers[i] instanceof CometPositionColumnReader)
+                && !(readers[i] instanceof CometDeleteColumnReader)) {
           readers[i].reset();
           readers[i].setPageReader(pageStore.getPageReader(readers[i].getDescriptor()));
         }
@@ -80,7 +86,13 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
       delegate.getColumnReaders()[i] = this.readers[i].getDelegate();
     }
 
-    this.rowStartPosInBatch = rowPosition;
+    this.rowStartPosInBatch =
+            pageStore
+                    .getRowIndexOffset()
+                    .orElseThrow(
+                            () ->
+                                    new IllegalArgumentException(
+                                            "PageReadStore does not contain row index offset"));
   }
 
   public void setDeleteFilter(DeleteFilter<InternalRow> deleteFilter) {
