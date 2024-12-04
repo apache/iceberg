@@ -30,9 +30,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Comparators;
-import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.ContentFileUtil;
+import org.apache.iceberg.util.PathMap;
 
 /**
  * A position delete writer that is capable of handling unordered deletes without rows.
@@ -54,7 +54,7 @@ public class SortingPositionOnlyDeleteWriter<T>
 
   private final Supplier<FileWriter<PositionDelete<T>, DeleteWriteResult>> writers;
   private final DeleteGranularity granularity;
-  private final CharSequenceMap<PositionDeleteIndex> positionsByPath;
+  private final PathMap<PositionDeleteIndex> positionsByPath;
   private final Function<CharSequence, PositionDeleteIndex> loadPreviousDeletes;
   private DeleteWriteResult result = null;
 
@@ -74,7 +74,7 @@ public class SortingPositionOnlyDeleteWriter<T>
       Function<CharSequence, PositionDeleteIndex> loadPreviousDeletes) {
     this.writers = writers;
     this.granularity = granularity;
-    this.positionsByPath = CharSequenceMap.create();
+    this.positionsByPath = PathMap.create();
     this.loadPreviousDeletes = loadPreviousDeletes;
   }
 
@@ -83,7 +83,7 @@ public class SortingPositionOnlyDeleteWriter<T>
     CharSequence path = positionDelete.path();
     long position = positionDelete.pos();
     PositionDeleteIndex positions =
-        positionsByPath.computeIfAbsent(path, key -> new BitmapPositionDeleteIndex());
+        positionsByPath.computeIfAbsent(path, BitmapPositionDeleteIndex::new);
     positions.delete(position);
   }
 
@@ -115,7 +115,7 @@ public class SortingPositionOnlyDeleteWriter<T>
 
   // write deletes for all data files together
   private DeleteWriteResult writePartitionDeletes() throws IOException {
-    return writeDeletes(positionsByPath.keySet());
+    return writeDeletes(positionsByPath.keys());
   }
 
   // write deletes for different data files into distinct delete files
@@ -124,7 +124,7 @@ public class SortingPositionOnlyDeleteWriter<T>
     CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
     List<DeleteFile> rewrittenDeleteFiles = Lists.newArrayList();
 
-    for (CharSequence path : positionsByPath.keySet()) {
+    for (CharSequence path : positionsByPath.keys()) {
       DeleteWriteResult writeResult = writeDeletes(ImmutableList.of(path));
       deleteFiles.addAll(writeResult.deleteFiles());
       referencedDataFiles.addAll(writeResult.referencedDataFiles());
