@@ -60,7 +60,8 @@ public class Util {
   }
 
   /**
-   * @deprecated since 1.7.0, will be removed in 2.0.0.
+   * @deprecated since 1.8.0, will be removed in 1.9.0; use {@link
+   *     Util#blockLocations(ScanTaskGroup, Configuration)} instead.
    */
   @Deprecated
   public static String[] blockLocations(CombinedScanTask task, Configuration conf) {
