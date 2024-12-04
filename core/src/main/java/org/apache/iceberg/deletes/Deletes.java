@@ -149,7 +149,7 @@ public class Deletes {
         CharSequence filePath = (CharSequence) FILENAME_ACCESSOR.get(delete);
         long position = (long) POSITION_ACCESSOR.get(delete);
         PositionDeleteIndex index =
-            indexes.computeIfAbsent(filePath, key -> new BitmapPositionDeleteIndex(file));
+            indexes.computeIfAbsent(filePath, () -> new BitmapPositionDeleteIndex(file));
         index.delete(position);
       }
     } catch (IOException e) {

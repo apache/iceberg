@@ -24,27 +24,27 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.assertj.core.api.AbstractObjectAssert;
 import org.junit.jupiter.api.Test;
 
 public class TestCharSequenceMap {
 
   @Test
   public void nullString() {
-    assertThat(CharSequenceMap.create()).doesNotContainKey(null);
-    assertThat(CharSequenceMap.create()).doesNotContainValue(null);
+    assertMap(CharSequenceMap.create()).doesNotContainKey(null);
+    assertMap(CharSequenceMap.create()).doesNotContainValue(null);
   }
 
   @Test
   public void testEmptyMap() {
     CharSequenceMap<String> map = CharSequenceMap.create();
-    assertThat(map).isEmpty();
-    assertThat(map).hasSize(0);
-    assertThat(map).doesNotContainKey("key");
-    assertThat(map).doesNotContainValue("value");
+    assertMap(map).isEmpty();
+    assertMap(map).hasSize(0);
+    assertMap(map).doesNotContainKey("key");
+    assertMap(map).doesNotContainValue("value");
     assertThat(map.values()).isEmpty();
-    assertThat(map.keySet()).isEmpty();
-    assertThat(map.entrySet()).isEmpty();
+    assertThat(map.keys()).isEmpty();
+    assertThat(map.entries()).isEmpty();
   }
 
   @Test
@@ -52,15 +52,15 @@ public class TestCharSequenceMap {
     CharSequenceMap<String> map = CharSequenceMap.create();
     map.put("abc", "value1");
     map.put(new StringBuffer("def"), "value2");
-    assertThat(map).containsEntry(new StringBuilder("abc"), "value1");
-    assertThat(map).containsEntry("def", "value2");
+    assertMap(map).containsEntry(new StringBuilder("abc"), "value1");
+    assertMap(map).containsEntry("def", "value2");
   }
 
   @Test
   public void testPutAndGet() {
     CharSequenceMap<String> map = CharSequenceMap.create();
     map.put("key1", "value1");
-    assertThat(map).containsEntry("key1", "value1");
+    assertMap(map).containsEntry("key1", "value1");
   }
 
   @Test
@@ -68,16 +68,8 @@ public class TestCharSequenceMap {
     CharSequenceMap<String> map = CharSequenceMap.create();
     map.put("key1", "value1");
     map.remove(new StringBuilder("key1"));
-    assertThat(map).doesNotContainKey("key1");
-    assertThat(map).isEmpty();
-  }
-
-  @Test
-  public void testPutAll() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
-    map.putAll(ImmutableMap.of("key1", "value1", "key2", "value2"));
-    assertThat(map).containsEntry("key1", "value1");
-    assertThat(map).containsEntry("key2", "value2");
+    assertMap(map).doesNotContainKey("key1");
+    assertMap(map).isEmpty();
   }
 
   @Test
@@ -85,7 +77,7 @@ public class TestCharSequenceMap {
     CharSequenceMap<String> map = CharSequenceMap.create();
     map.put("key1", "value1");
     map.clear();
-    assertThat(map).isEmpty();
+    assertMap(map).isEmpty();
   }
 
   @Test
@@ -101,7 +93,7 @@ public class TestCharSequenceMap {
     CharSequenceMap<String> map = CharSequenceMap.create();
     map.put("key1", "value1");
     map.put(new StringBuilder("key2"), "value2");
-    assertThat(map.entrySet()).hasSize(2);
+    assertThat(map.entries()).hasSize(2);
   }
 
   @Test
@@ -148,38 +140,14 @@ public class TestCharSequenceMap {
   public void testComputeIfAbsent() {
     CharSequenceMap<String> map = CharSequenceMap.create();
 
-    String result1 = map.computeIfAbsent("key1", key -> "computedValue1");
+    String result1 = map.computeIfAbsent("key1", () -> "computedValue1");
     assertThat(result1).isEqualTo("computedValue1");
-    assertThat(map).containsEntry("key1", "computedValue1");
+    assertMap(map).containsEntry("key1", "computedValue1");
 
     // verify existing key is not affected
-    String result2 = map.computeIfAbsent("key1", key -> "newValue");
+    String result2 = map.computeIfAbsent("key1", () -> "newValue");
     assertThat(result2).isEqualTo("computedValue1");
-    assertThat(map).containsEntry("key1", "computedValue1");
-  }
-
-  @Test
-  public void testMerge() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
-    map.put("key1", "value1");
-    map.put("key2", "value2");
-
-    // merge with an existing key
-    map.merge(new StringBuilder("key1"), "newValue", (oldVal, newVal) -> oldVal + newVal);
-    assertThat(map).containsEntry("key1", "value1newValue");
-
-    // merge with a non-existing key
-    map.merge(new StringBuffer("key3"), "value3", (oldVal, newVal) -> oldVal + newVal);
-    assertThat(map).containsEntry("key3", "value3");
-
-    // merge with null BiFunction should replace the value
-    map.merge("key2", "replacedValue", (oldVal, newVal) -> null);
-    assertThat(map).doesNotContainKey("key2");
-
-    // merge when old value is null (should add new value)
-    map.remove("key1");
-    map.merge("key1", "reAddedValue", (oldVal, newVal) -> oldVal + newVal);
-    assertThat(map).containsEntry("key1", "reAddedValue");
+    assertMap(map).containsEntry("key1", "computedValue1");
   }
 
   @Test
@@ -204,5 +172,43 @@ public class TestCharSequenceMap {
 
     executorService.shutdown();
     assertThat(executorService.awaitTermination(1, TimeUnit.MINUTES)).isTrue();
+  }
+
+  private static <T> CharSequenceMapAssert<T> assertMap(CharSequenceMap<T> charSequenceMap) {
+    return new CharSequenceMapAssert<>(charSequenceMap);
+  }
+
+  private static class CharSequenceMapAssert<T>
+      extends AbstractObjectAssert<CharSequenceMapAssert<T>, CharSequenceMap<T>> {
+    CharSequenceMapAssert(CharSequenceMap<T> charSequenceMap) {
+      super(charSequenceMap, CharSequenceMapAssert.class);
+    }
+
+    void doesNotContainKey(CharSequence key) {
+      assertThat(actual.keys()).doesNotContain(key);
+    }
+
+    void doesNotContainValue(T value) {
+      assertThat(actual.values()).doesNotContain(value);
+    }
+
+    void isEmpty() {
+      assertThat(actual.isEmpty()).isTrue();
+    }
+
+    void hasSize(int size) {
+      assertThat(actual.size()).isEqualTo(size);
+    }
+
+    void containsEntry(CharSequence key, T value) {
+      assertThat(actual.get(key)).isEqualTo(value);
+      assertThat(actual.entries())
+          .satisfiesOnlyOnce(
+              entry -> {
+                assertThat(CharSequenceWrapper.wrap(entry.getKey()))
+                    .isEqualTo(CharSequenceWrapper.wrap(key));
+                assertThat(entry.getValue()).isEqualTo(value);
+              });
+    }
   }
 }

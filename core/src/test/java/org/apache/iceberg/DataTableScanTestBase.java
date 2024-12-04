@@ -279,7 +279,7 @@ public abstract class DataTableScanTestBase<
     fileToManifest.put(FILE_B.location(), secondDataManifest.path());
     fileToManifest.put(FILE_C.location(), secondDataManifest.path());
 
-    validateExpectedFileScanTasks(newScan(), fileToManifest.keySet(), fileToManifest);
+    validateExpectedFileScanTasks(newScan(), fileToManifest.keys(), fileToManifest);
   }
 
   @TestTemplate

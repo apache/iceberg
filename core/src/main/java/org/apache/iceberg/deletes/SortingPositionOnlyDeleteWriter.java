@@ -83,7 +83,7 @@ public class SortingPositionOnlyDeleteWriter<T>
     CharSequence path = positionDelete.path();
     long position = positionDelete.pos();
     PositionDeleteIndex positions =
-        positionsByPath.computeIfAbsent(path, key -> new BitmapPositionDeleteIndex());
+        positionsByPath.computeIfAbsent(path, BitmapPositionDeleteIndex::new);
     positions.delete(position);
   }
 
@@ -115,7 +115,7 @@ public class SortingPositionOnlyDeleteWriter<T>
 
   // write deletes for all data files together
   private DeleteWriteResult writePartitionDeletes() throws IOException {
-    return writeDeletes(positionsByPath.keySet());
+    return writeDeletes(positionsByPath.keys());
   }
 
   // write deletes for different data files into distinct delete files
@@ -124,7 +124,7 @@ public class SortingPositionOnlyDeleteWriter<T>
     CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
     List<DeleteFile> rewrittenDeleteFiles = Lists.newArrayList();
 
-    for (CharSequence path : positionsByPath.keySet()) {
+    for (CharSequence path : positionsByPath.keys()) {
       DeleteWriteResult writeResult = writeDeletes(ImmutableList.of(path));
       deleteFiles.addAll(writeResult.deleteFiles());
       referencedDataFiles.addAll(writeResult.referencedDataFiles());
