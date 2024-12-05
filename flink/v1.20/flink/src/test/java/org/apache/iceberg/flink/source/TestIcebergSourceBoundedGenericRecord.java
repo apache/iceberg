@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source;
 import java.util.List;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.formats.avro.typeutils.GenericRecordAvroTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.table.types.logical.RowType;
@@ -41,14 +42,14 @@ import org.apache.iceberg.flink.source.reader.AvroGenericRecordReaderFunction;
 import org.apache.iceberg.flink.source.reader.ReaderFunction;
 import org.apache.iceberg.flink.source.reader.RowDataConverter;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.apache.flink.configuration.Configuration;
 
 @ExtendWith(ParameterizedTestExtension.class)
-public class TestIcebergSourceBoundedGenericRecord extends TestIcebergSourceBoundedConverterBase<GenericRecord> {
+public class TestIcebergSourceBoundedGenericRecord
+    extends TestIcebergSourceBoundedConverterBase<GenericRecord> {
 
   @Parameters(name = "format={0}, parallelism = {1}, useConverter = {2}")
   public static Object[][] parameters() {
-    return new Object[][]{
+    return new Object[][] {
       {FileFormat.AVRO, 2, true},
       {FileFormat.PARQUET, 2, true},
       {FileFormat.PARQUET, 2, false},
@@ -62,7 +63,8 @@ public class TestIcebergSourceBoundedGenericRecord extends TestIcebergSourceBoun
   }
 
   @Override
-  protected ReaderFunction<GenericRecord> getReaderFunction(Schema icebergSchema, Table table, List<Expression> filters) throws Exception {
+  protected ReaderFunction<GenericRecord> getReaderFunction(
+      Schema icebergSchema, Table table, List<Expression> filters) throws Exception {
     return new AvroGenericRecordReaderFunction(
         TestFixtures.TABLE_IDENTIFIER.name(),
         new Configuration(),
@@ -91,5 +93,4 @@ public class TestIcebergSourceBoundedGenericRecord extends TestIcebergSourceBoun
         .map(AvroGenericRecordToRowDataMapper.forAvroSchema(avroSchema))
         .map(new RowDataToRowMapper(rowType));
   }
-
 }

@@ -34,15 +34,16 @@ public class RowConverter implements RowDataConverter<Row> {
   private final TypeInformation<Row> outputTypeInfo;
 
   private RowConverter(RowType rowType, TypeInformation<Row> rowTypeInfo) {
-    this.converter = DataStructureConverters.getConverter(TypeConversions.fromLogicalToDataType(rowType));
+    this.converter =
+        DataStructureConverters.getConverter(TypeConversions.fromLogicalToDataType(rowType));
     this.outputTypeInfo = rowTypeInfo;
   }
 
-  public static RowConverter fromIcebergSchema(
-      org.apache.iceberg.Schema icebergSchema) {
+  public static RowConverter fromIcebergSchema(org.apache.iceberg.Schema icebergSchema) {
     RowType rowType = FlinkSchemaUtil.convert(icebergSchema);
     TableSchema tableSchema = FlinkSchemaUtil.toSchema(icebergSchema);
-    RowTypeInfo rowTypeInfo = new RowTypeInfo(tableSchema.getFieldTypes(), tableSchema.getFieldNames());
+    RowTypeInfo rowTypeInfo =
+        new RowTypeInfo(tableSchema.getFieldTypes(), tableSchema.getFieldNames());
     return new RowConverter(rowType, rowTypeInfo);
   }
 

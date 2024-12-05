@@ -58,8 +58,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestIcebergSourceBoundedConverterBase<T> {
-  @TempDir
-  protected Path temporaryFolder;
+  @TempDir protected Path temporaryFolder;
 
   @RegisterExtension
   static final HadoopCatalogExtension CATALOG_EXTENSION =
@@ -67,7 +66,7 @@ public abstract class TestIcebergSourceBoundedConverterBase<T> {
 
   @Parameters(name = "format={0}, parallelism = {1}, useConverter = {2}")
   public static Object[][] parameters() {
-    return new Object[][]{
+    return new Object[][] {
       {FileFormat.AVRO, 2, true},
       {FileFormat.PARQUET, 2, true},
       {FileFormat.ORC, 2, true}
@@ -85,7 +84,8 @@ public abstract class TestIcebergSourceBoundedConverterBase<T> {
 
   @TestTemplate
   public void testUnpartitionedTable() throws Exception {
-    Table table = CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+    Table table =
+        CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
     List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
     new GenericAppenderHelper(table, fileFormat, temporaryFolder).appendToTable(expectedRecords);
     TestHelpers.assertRecords(run(), expectedRecords, TestFixtures.SCHEMA);
@@ -126,7 +126,8 @@ public abstract class TestIcebergSourceBoundedConverterBase<T> {
     return CATALOG_EXTENSION.tableLoader();
   }
 
-  private void addRecordsToPartitionedTable(Table table, String dateStr, List<Record> expectedRecords) throws IOException {
+  private void addRecordsToPartitionedTable(
+      Table table, String dateStr, List<Record> expectedRecords) throws IOException {
     new GenericAppenderHelper(table, fileFormat, temporaryFolder)
         .appendToTable(org.apache.iceberg.TestHelpers.Row.of(dateStr, 0), expectedRecords);
   }
@@ -152,7 +153,8 @@ public abstract class TestIcebergSourceBoundedConverterBase<T> {
     }
 
     Schema readSchema = projectedSchema != null ? projectedSchema : table.schema();
-    IcebergSource.Builder<T> sourceBuilder = getSourceBuilder(projectedSchema, filters, readSchema, config, table);
+    IcebergSource.Builder<T> sourceBuilder =
+        getSourceBuilder(projectedSchema, filters, readSchema, config, table);
 
     if (projectedSchema != null) {
       sourceBuilder.project(projectedSchema);
@@ -160,7 +162,6 @@ public abstract class TestIcebergSourceBoundedConverterBase<T> {
 
     sourceBuilder.filters(filters);
     sourceBuilder.setAll(options);
-
 
     DataStream<T> inputStream =
         env.fromSource(
@@ -176,7 +177,13 @@ public abstract class TestIcebergSourceBoundedConverterBase<T> {
     }
   }
 
-  private IcebergSource.Builder<T> getSourceBuilder(Schema projectedSchema, List<Expression> filters, Schema readSchema, Configuration config, Table table) throws Exception {
+  private IcebergSource.Builder<T> getSourceBuilder(
+      Schema projectedSchema,
+      List<Expression> filters,
+      Schema readSchema,
+      Configuration config,
+      Table table)
+      throws Exception {
     if (useConverter) {
       return createSourceBuilderWithConverter(readSchema, config, table);
     }
@@ -192,7 +199,8 @@ public abstract class TestIcebergSourceBoundedConverterBase<T> {
   }
 
   private IcebergSource.Builder<T> createSourceBuilderWithReaderFunction(
-      Table table, Schema projected, List<Expression> filters, Configuration config) throws Exception {
+      Table table, Schema projected, List<Expression> filters, Configuration config)
+      throws Exception {
     return IcebergSource.<T>builder()
         .tableLoader(tableLoader())
         .readerFunction(getReaderFunction(projected, table, filters))
@@ -200,9 +208,12 @@ public abstract class TestIcebergSourceBoundedConverterBase<T> {
         .flinkConfig(config);
   }
 
-  protected abstract org.apache.iceberg.flink.source.reader.RowDataConverter<T> getConverter(org.apache.iceberg.Schema icebergSchema, Table table) throws Exception;
+  protected abstract org.apache.iceberg.flink.source.reader.RowDataConverter<T> getConverter(
+      org.apache.iceberg.Schema icebergSchema, Table table) throws Exception;
 
-  protected ReaderFunction<T> getReaderFunction(org.apache.iceberg.Schema icebergSchema, Table table, List<Expression> filters) throws Exception {
+  protected ReaderFunction<T> getReaderFunction(
+      org.apache.iceberg.Schema icebergSchema, Table table, List<Expression> filters)
+      throws Exception {
     throw new UnsupportedOperationException("No default implementation for getReaderFunction");
   }
 
