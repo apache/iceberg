@@ -43,6 +43,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -105,6 +106,10 @@ class RemoveSnapshots implements ExpireSnapshots {
 
     this.defaultMaxRefAgeMs =
         PropertyUtil.propertyAsLong(base.properties(), MAX_REF_AGE_MS, MAX_REF_AGE_MS_DEFAULT);
+
+    if (ops.io() instanceof SupportsBulkOperations) {
+      this.deleteFunc = new BulkDeleteConsumer((SupportsBulkOperations) ops.io());
+    }
   }
 
   @Override
