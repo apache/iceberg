@@ -43,34 +43,31 @@ public abstract class RefreshingAuthManager implements AuthManager {
     this.executorNamePrefix = executorNamePrefix;
   }
 
-  public void setKeepRefreshed(boolean keepRefreshed) {
-    this.keepRefreshed = keepRefreshed;
+  public void keepRefreshed(boolean keep) {
+    this.keepRefreshed = keep;
   }
 
   @Override
   public void close() {
     ScheduledExecutorService service = refreshExecutor;
-    try {
-      if (service != null) {
-        List<Runnable> tasks = service.shutdownNow();
-        tasks.forEach(
-            task -> {
-              if (task instanceof Future) {
-                ((Future<?>) task).cancel(true);
-              }
-            });
+    this.refreshExecutor = null;
+    if (service != null) {
+      List<Runnable> tasks = service.shutdownNow();
+      tasks.forEach(
+          task -> {
+            if (task instanceof Future) {
+              ((Future<?>) task).cancel(true);
+            }
+          });
 
-        try {
-          if (!service.awaitTermination(1, TimeUnit.MINUTES)) {
-            LOG.warn("Timed out waiting for refresh executor to terminate");
-          }
-        } catch (InterruptedException e) {
-          LOG.warn("Interrupted while waiting for refresh executor to terminate", e);
-          Thread.currentThread().interrupt();
+      try {
+        if (!service.awaitTermination(1, TimeUnit.MINUTES)) {
+          LOG.warn("Timed out waiting for refresh executor to terminate");
         }
+      } catch (InterruptedException e) {
+        LOG.warn("Interrupted while waiting for refresh executor to terminate", e);
+        Thread.currentThread().interrupt();
       }
-    } finally {
-      this.refreshExecutor = null;
     }
   }
 

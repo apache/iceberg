@@ -275,7 +275,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                               CatalogProperties.CACHE_ENABLED,
                               "false",
                               CatalogProperties.WAREHOUSE_LOCATION,
-                              request.parameters().get(CatalogProperties.WAREHOUSE_LOCATION)
+                              request.queryParameters().get(CatalogProperties.WAREHOUSE_LOCATION)
                                   + "warehouse"))
                       .build());
             }
@@ -2507,7 +2507,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             req.method() == method
                 && req.path().equals(path)
                 && req.headers().equals(toMultiMap(headers))
-                && req.parameters().equals(parameters));
+                && req.queryParameters().equals(parameters));
   }
 
   static HTTPRequest reqMatcher(
@@ -2521,7 +2521,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             req.method() == method
                 && req.path().equals(path)
                 && req.headers().equals(toMultiMap(headers))
-                && req.parameters().equals(parameters)
+                && req.queryParameters().equals(parameters)
                 && Objects.equals(req.body(), body));
   }
 

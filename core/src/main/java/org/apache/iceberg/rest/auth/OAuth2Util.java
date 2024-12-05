@@ -656,14 +656,14 @@ public class OAuth2Util {
         String token,
         Long defaultExpiresAtMillis,
         AuthSession parent) {
-      Map<String, String> headers = RESTUtil.merge(parent.headers(), authHeaders(token));
-      AuthConfig config =
-          AuthConfig.builder()
-              .from(parent.config())
-              .token(token)
-              .tokenType(OAuth2Properties.ACCESS_TOKEN_TYPE)
-              .build();
-      AuthSession session = new AuthSession(headers, config);
+      AuthSession session =
+          new AuthSession(
+              RESTUtil.merge(parent.headers(), authHeaders(token)),
+              AuthConfig.builder()
+                  .from(parent.config())
+                  .token(token)
+                  .tokenType(OAuth2Properties.ACCESS_TOKEN_TYPE)
+                  .build());
 
       long startTimeMillis = System.currentTimeMillis();
       Long expiresAtMillis = session.expiresAtMillis();
@@ -736,15 +736,15 @@ public class OAuth2Util {
       if (issuedTokenType == null) {
         issuedTokenType = OAuth2Properties.ACCESS_TOKEN_TYPE;
       }
-      Map<String, String> headers = RESTUtil.merge(parent.headers(), authHeaders(response.token()));
-      AuthConfig config =
-          AuthConfig.builder()
-              .from(parent.config())
-              .token(response.token())
-              .tokenType(issuedTokenType)
-              .credential(credential)
-              .build();
-      AuthSession session = new AuthSession(headers, config);
+      AuthSession session =
+          new AuthSession(
+              RESTUtil.merge(parent.headers(), authHeaders(response.token())),
+              AuthConfig.builder()
+                  .from(parent.config())
+                  .token(response.token())
+                  .tokenType(issuedTokenType)
+                  .credential(credential)
+                  .build());
 
       Long expiresAtMillis = session.expiresAtMillis();
       if (null == expiresAtMillis && response.expiresInSeconds() != null) {

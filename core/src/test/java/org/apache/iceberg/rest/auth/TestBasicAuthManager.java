@@ -32,7 +32,8 @@ class TestBasicAuthManager {
     try (AuthManager authManager = new BasicAuthManager()) {
       assertThatThrownBy(() -> authManager.catalogSession(null, Map.of()))
           .isInstanceOf(IllegalArgumentException.class)
-          .hasMessage("Property %s is required", AuthProperties.BASIC_USERNAME);
+          .hasMessage(
+              "Invalid username: missing required property %s", AuthProperties.BASIC_USERNAME);
     }
   }
 
@@ -42,7 +43,8 @@ class TestBasicAuthManager {
       Map<String, String> properties = Map.of(AuthProperties.BASIC_USERNAME, "alice");
       assertThatThrownBy(() -> authManager.catalogSession(null, properties))
           .isInstanceOf(IllegalArgumentException.class)
-          .hasMessage("Property %s is required", AuthProperties.BASIC_PASSWORD);
+          .hasMessage(
+              "Invalid password: missing required property %s", AuthProperties.BASIC_PASSWORD);
     }
   }
 

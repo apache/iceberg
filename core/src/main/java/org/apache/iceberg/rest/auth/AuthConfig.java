@@ -72,41 +72,40 @@ public interface AuthConfig {
   }
 
   static AuthConfig fromProperties(Map<String, String> properties) {
-    String scope = properties.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE);
-    Map<String, String> optionalOAuthParams = OAuth2Util.buildOptionalParam(properties);
-    String oauth2ServerUri =
-        properties.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
-    boolean keepRefreshed =
-        PropertyUtil.propertyAsBoolean(
-            properties,
-            OAuth2Properties.TOKEN_REFRESH_ENABLED,
-            OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
     return builder()
         .credential(properties.get(OAuth2Properties.CREDENTIAL))
         .token(properties.get(OAuth2Properties.TOKEN))
-        .scope(scope)
-        .oauth2ServerUri(oauth2ServerUri)
-        .optionalOAuthParams(optionalOAuthParams)
-        .keepRefreshed(keepRefreshed)
+        .scope(properties.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE))
+        .oauth2ServerUri(
+            properties.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens()))
+        .optionalOAuthParams(OAuth2Util.buildOptionalParam(properties))
+        .keepRefreshed(
+            PropertyUtil.propertyAsBoolean(
+                properties,
+                OAuth2Properties.TOKEN_REFRESH_ENABLED,
+                OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT))
         .expiresAtMillis(expiresAtMillis(properties))
         .build();
   }
 
   private static Long expiresAtMillis(Map<String, String> props) {
-    Long expiresInMillis = null;
+    Long expiresAtMillis = null;
+
     if (props.containsKey(OAuth2Properties.TOKEN)) {
-      expiresInMillis = OAuth2Util.expiresAtMillis(props.get(OAuth2Properties.TOKEN));
+      expiresAtMillis = OAuth2Util.expiresAtMillis(props.get(OAuth2Properties.TOKEN));
     }
-    if (expiresInMillis == null) {
+
+    if (expiresAtMillis == null) {
       if (props.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
         long millis =
             PropertyUtil.propertyAsLong(
                 props,
                 OAuth2Properties.TOKEN_EXPIRES_IN_MS,
                 OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT);
-        expiresInMillis = System.currentTimeMillis() + millis;
+        expiresAtMillis = System.currentTimeMillis() + millis;
       }
     }
-    return expiresInMillis;
+
+    return expiresAtMillis;
   }
 }

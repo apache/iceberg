@@ -147,4 +147,13 @@ class TestAuthManagers {
         .contains(
             "Loading AuthManager implementation: org.apache.iceberg.rest.auth.BasicAuthManager");
   }
+
+  @Test
+  @SuppressWarnings("resource")
+  void nonExistentAuthManager() {
+    assertThatThrownBy(
+            () -> AuthManagers.loadAuthManager("test", Map.of(AuthProperties.AUTH_TYPE, "unknown")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot initialize AuthManager implementation unknown");
+  }
 }

@@ -224,7 +224,16 @@ public class HTTPClient extends BaseHTTPClient {
       Map<String, String> headers,
       Object body) {
     HTTPRequest.Builder builder =
-        HTTPRequest.builder(baseUri, method, path, queryParams, headers, body, mapper);
+        HTTPRequest.builder().baseUri(baseUri).method(method).path(path).body(body);
+    if (queryParams != null) {
+      queryParams.forEach(builder::setQueryParameter);
+    }
+    if (headers != null) {
+      headers.forEach(builder::setHeader);
+    }
+    if (mapper != null) {
+      builder.mapper(mapper);
+    }
     builder.setHeaderIfAbsent(HttpHeaders.ACCEPT, ContentType.APPLICATION_JSON.getMimeType());
     // Many systems require that content type is set regardless and will fail,
     // even on an empty bodied request.

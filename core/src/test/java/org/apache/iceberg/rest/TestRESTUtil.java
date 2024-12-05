@@ -150,20 +150,20 @@ public class TestRESTUtil {
   }
 
   @ParameterizedTest
-  @MethodSource
-  public void buildRequestUri(HTTPRequest request, URI expected) {
+  @MethodSource("validRequestUris")
+  public void validRequestUris(HTTPRequest request, URI expected) {
     assertThat(RESTUtil.buildRequestUri(request)).isEqualTo(expected);
   }
 
-  public static Stream<Arguments> buildRequestUri() {
+  public static Stream<Arguments> validRequestUris() {
     return Stream.of(
         Arguments.of(
             HTTPRequest.builder()
                 .baseUri(URI.create("http://localhost:8080/foo"))
                 .method(HTTPMethod.GET)
                 .path("v1/namespaces/ns/tables/") // trailing slash should be removed
-                .setParameter("pageToken", "1234")
-                .setParameter("pageSize", "10")
+                .setQueryParameter("pageToken", "1234")
+                .setQueryParameter("pageSize", "10")
                 .build(),
             URI.create(
                 "http://localhost:8080/foo/v1/namespaces/ns/tables?pageToken=1234&pageSize=10")),
@@ -193,7 +193,8 @@ public class TestRESTUtil {
             .build();
     assertThatThrownBy(() -> RESTUtil.buildRequestUri(request))
         .isInstanceOf(RESTException.class)
-        .hasMessageContaining("Paths should not start with /");
+        .hasMessage(
+            "Received a malformed path for a REST request: /v1/namespaces. Paths should not start with /");
     HTTPRequest request2 =
         HTTPRequest.builder()
             .baseUri(URI.create("http://localhost"))
@@ -202,7 +203,8 @@ public class TestRESTUtil {
             .build();
     assertThatThrownBy(() -> RESTUtil.buildRequestUri(request2))
         .isInstanceOf(RESTException.class)
-        .hasMessageContaining("Failed to create request URI");
+        .hasMessage(
+            "Failed to create request URI from base http://localhost/ not a valid path, params {}");
   }
 
   @ParameterizedTest

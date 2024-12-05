@@ -72,7 +72,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
     AuthConfig config = AuthConfig.fromProperties(properties);
     Map<String, String> headers = OAuth2Util.authHeaders(config.token());
     OAuth2Util.AuthSession session = new OAuth2Util.AuthSession(headers, config);
-    if (config.credential() != null) {
+    if (config.credential() != null && !config.credential().isEmpty()) {
       // keep track of the start time for token refresh
       this.startTimeMillis = System.currentTimeMillis();
       this.authResponse =
@@ -100,8 +100,9 @@ public class OAuth2Manager extends RefreshingAuthManager {
     AuthConfig config = AuthConfig.fromProperties(properties);
     Map<String, String> headers = OAuth2Util.authHeaders(config.token());
     OAuth2Util.AuthSession session = new OAuth2Util.AuthSession(headers, config);
-    setKeepRefreshed(config.keepRefreshed());
-    if (authResponse != null /* from the pre-config phase */) {
+    keepRefreshed(config.keepRefreshed());
+    // authResponse comes from the init phase
+    if (authResponse != null) {
       return OAuth2Util.AuthSession.fromTokenResponse(
           client, refreshExecutor(), authResponse, startTimeMillis, session);
     } else if (config.token() != null) {
@@ -136,13 +137,10 @@ public class OAuth2Manager extends RefreshingAuthManager {
     try {
       super.close();
     } finally {
-      try {
-        AuthSessionCache cache = sessionCache;
-        if (cache != null) {
-          cache.close();
-        }
-      } finally {
-        sessionCache = null;
+      AuthSessionCache cache = sessionCache;
+      sessionCache = null;
+      if (cache != null) {
+        cache.close();
       }
     }
   }
@@ -179,6 +177,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
         }
       }
     }
+
     return parent;
   }
 
@@ -231,11 +230,10 @@ public class OAuth2Manager extends RefreshingAuthManager {
   }
 
   private static Duration sessionTimeout(Map<String, String> props) {
-    long expirationIntervalMs =
+    return Duration.ofMillis(
         PropertyUtil.propertyAsLong(
             props,
             CatalogProperties.AUTH_SESSION_TIMEOUT_MS,
-            CatalogProperties.AUTH_SESSION_TIMEOUT_MS_DEFAULT);
-    return Duration.ofMillis(expirationIntervalMs);
+            CatalogProperties.AUTH_SESSION_TIMEOUT_MS_DEFAULT));
   }
 }

@@ -76,7 +76,7 @@ public abstract class HTTPRequest {
 
   /** Returns the query parameters of this request. */
   @Value.Parameter(order = 3)
-  public abstract Map<String, String> parameters();
+  public abstract Map<String, String> queryParameters();
 
   /** Returns all the headers of this request. The map is case-sensitive! */
   @Value.Parameter(order = 4)
@@ -118,27 +118,6 @@ public abstract class HTTPRequest {
 
   public static Builder builder() {
     return new Builder();
-  }
-
-  public static Builder builder(
-      URI baseUri,
-      HTTPMethod method,
-      String path,
-      @Nullable Map<String, String> queryParams,
-      @Nullable Map<String, String> headers,
-      @Nullable Object body,
-      @Nullable ObjectMapper mapper) {
-    Builder builder = builder().baseUri(baseUri).method(method).path(path).body(body);
-    if (queryParams != null) {
-      queryParams.forEach(builder::setParameter);
-    }
-    if (headers != null) {
-      headers.forEach(builder::setHeader);
-    }
-    if (mapper != null) {
-      builder.mapper(mapper);
-    }
-    return builder;
   }
 
   /** A modifiable builder for {@link HTTPRequest}. */
@@ -257,20 +236,20 @@ public abstract class HTTPRequest {
     }
 
     @Override
-    public Builder parameters(Map<String, ? extends String> entries) {
-      super.parameters(entries);
+    public Builder queryParameters(Map<String, ? extends String> entries) {
+      super.queryParameters(entries);
       return this;
     }
 
     @Override
-    public Builder addParameters(Map<String, ? extends String> entries) {
-      super.addParameters(entries);
+    public Builder addQueryParameters(Map<String, ? extends String> entries) {
+      super.addQueryParameters(entries);
       return this;
     }
 
     @Override
-    public Builder setParameter(String key, String value) {
-      super.setParameter(key, value);
+    public Builder setQueryParameter(String key, String value) {
+      super.setQueryParameter(key, value);
       return this;
     }
 

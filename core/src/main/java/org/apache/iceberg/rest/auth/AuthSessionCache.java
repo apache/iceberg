@@ -42,13 +42,10 @@ public class AuthSessionCache implements AutoCloseable {
   @Override
   public void close() {
     Cache<String, AuthSession> cache = sessionCache;
-    try {
-      if (cache != null) {
-        cache.invalidateAll();
-        cache.cleanUp();
-      }
-    } finally {
-      this.sessionCache = null;
+    this.sessionCache = null;
+    if (cache != null) {
+      cache.invalidateAll();
+      cache.cleanUp();
     }
   }
 

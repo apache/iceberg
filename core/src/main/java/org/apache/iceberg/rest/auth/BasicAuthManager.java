@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.rest.auth;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTClient;
@@ -31,17 +29,15 @@ public final class BasicAuthManager implements AuthManager {
   public AuthSession catalogSession(RESTClient sharedClient, Map<String, String> properties) {
     Preconditions.checkArgument(
         properties.containsKey(AuthProperties.BASIC_USERNAME),
-        "Property %s is required",
+        "Invalid username: missing required property %s",
         AuthProperties.BASIC_USERNAME);
     Preconditions.checkArgument(
         properties.containsKey(AuthProperties.BASIC_PASSWORD),
-        "Property %s is required",
+        "Invalid password: missing required property %s",
         AuthProperties.BASIC_PASSWORD);
     String username = properties.get(AuthProperties.BASIC_USERNAME);
     String password = properties.get(AuthProperties.BASIC_PASSWORD);
     String credentials = username + ":" + password;
-    String header =
-        "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
-    return DefaultAuthSession.of("Authorization", header);
+    return DefaultAuthSession.of(OAuth2Util.basicAuthHeaders(credentials));
   }
 }

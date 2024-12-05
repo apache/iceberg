@@ -235,11 +235,12 @@ public class RESTUtil {
             : String.format("%s/%s", request.baseUri(), path);
     try {
       URIBuilder builder = new URIBuilder(stripTrailingSlash(fullPath));
-      request.parameters().forEach(builder::addParameter);
+      request.queryParameters().forEach(builder::addParameter);
       return builder.build();
     } catch (URISyntaxException e) {
       throw new RESTException(
-          "Failed to create request URI from base %s, params %s", fullPath, request.parameters());
+          "Failed to create request URI from base %s, params %s",
+          fullPath, request.queryParameters());
     }
   }
 
