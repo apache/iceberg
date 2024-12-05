@@ -630,7 +630,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
         TestHelpers.newExpectedSpecBuilder()
             .withSchema(table.schema())
             .withSpecId(1)
-            .addField("zero", 1, "id_zero")
+            .addField("zero", 1, 1000, "id_zero")
             .build();
 
     // replace the table spec to include an unknown transform

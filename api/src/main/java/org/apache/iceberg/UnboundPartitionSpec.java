@@ -61,8 +61,8 @@ public class UnboundPartitionSpec {
       } else {
         transform = Transforms.fromString(field.transform.toString());
       }
-      if (field.partitionId != null) {
-        builder.add(field.sourceId, field.partitionId, field.name, transform);
+      if (field.fieldId != null) {
+        builder.add(field.sourceId, field.fieldId, field.name, transform);
       } else {
         builder.add(field.sourceId, field.name, transform);
       }
@@ -93,6 +93,12 @@ public class UnboundPartitionSpec {
       return this;
     }
 
+    /**
+     * Add a field without a field-id
+     *
+     * @deprecated use {@link #addField(String, int, int, String)} instead; will be removed in 2.0.0
+     */
+    @Deprecated
     Builder addField(String transformAsString, int sourceId, String name) {
       fields.add(new UnboundPartitionField(transformAsString, sourceId, null, name));
       return this;
@@ -106,7 +112,7 @@ public class UnboundPartitionSpec {
   static class UnboundPartitionField {
     private final Transform<?, ?> transform;
     private final int sourceId;
-    private final Integer partitionId;
+    private final Integer fieldId;
     private final String name;
 
     public Transform<?, ?> transform() {
@@ -121,8 +127,18 @@ public class UnboundPartitionSpec {
       return sourceId;
     }
 
+    /**
+     * The id of the partition field
+     *
+     * @deprecated use {@link #fieldId()} instead; will be removed in 2.0.0
+     */
+    @Deprecated
     public Integer partitionId() {
-      return partitionId;
+      return fieldId;
+    }
+
+    public Integer fieldId() {
+      return fieldId;
     }
 
     public String name() {
@@ -130,10 +146,10 @@ public class UnboundPartitionSpec {
     }
 
     private UnboundPartitionField(
-        String transformAsString, int sourceId, Integer partitionId, String name) {
+        String transformAsString, int sourceId, Integer fieldId, String name) {
       this.transform = Transforms.fromString(transformAsString);
       this.sourceId = sourceId;
-      this.partitionId = partitionId;
+      this.fieldId = fieldId;
       this.name = name;
     }
   }

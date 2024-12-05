@@ -51,7 +51,7 @@ import org.apache.iceberg.types.Types.StructType;
  */
 public class PartitionSpec implements Serializable {
   // IDs for partition fields start at 1000
-  private static final int PARTITION_DATA_ID_START = 1000;
+  static final int PARTITION_DATA_ID_START = 1000;
 
   private final Schema schema;
 

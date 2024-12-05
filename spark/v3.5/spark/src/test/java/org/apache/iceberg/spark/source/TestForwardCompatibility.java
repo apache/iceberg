@@ -77,14 +77,14 @@ public class TestForwardCompatibility {
       org.apache.iceberg.TestHelpers.newExpectedSpecBuilder()
           .withSchema(SCHEMA)
           .withSpecId(0)
-          .addField("zero", 1, "id_zero")
+          .addField("zero", 1, 1000, "id_zero")
           .build();
   // create a fake spec to use to write table metadata
   private static final PartitionSpec FAKE_SPEC =
       org.apache.iceberg.TestHelpers.newExpectedSpecBuilder()
           .withSchema(SCHEMA)
           .withSpecId(0)
-          .addField("identity", 1, "id_zero")
+          .addField("identity", 1, 1000, "id_zero")
           .build();
 
   @TempDir private Path temp;
