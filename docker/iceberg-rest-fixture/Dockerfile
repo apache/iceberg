@@ -24,7 +24,8 @@ RUN  set -xeu && \
      groupadd iceberg --gid 1000 && \
      useradd iceberg --uid 1000 --gid 1000 --create-home && \
      apt-get update && \
-     apt-get install -y curl 
+     apt-get install -y --no-install-recommends curl && \
+     rm -rf /var/lib/apt/lists/*
 
 # Working directory for the application
 WORKDIR /usr/lib/iceberg-rest
