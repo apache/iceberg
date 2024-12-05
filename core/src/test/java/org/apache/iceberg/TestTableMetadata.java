@@ -32,6 +32,7 @@ import static org.apache.iceberg.TestHelpers.assertSameSchemaList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.entry;
+import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -96,9 +97,18 @@ public class TestTableMetadata {
 
   public TableOperations ops = new LocalTableOperations(temp);
 
-  @Test
+
+  private static Stream<Integer> formatVersionsProvider() {
+    return Stream.of(1, 2, 3);
+  }
+
+
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
   @SuppressWarnings("MethodLength")
-  public void testJsonConversion() throws Exception {
+  public void testJsonConversion(int formatVersion) throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
     String manifestList =
@@ -162,7 +172,7 @@ public class TestTableMetadata {
     TableMetadata expected =
         new TableMetadata(
             null,
-            2,
+                formatVersion,
             UUID.randomUUID().toString(),
             TEST_LOCATION,
             SEQ_NO,
@@ -184,6 +194,8 @@ public class TestTableMetadata {
             refs,
             statisticsFiles,
             partitionStatisticsFiles,
+            false,
+            0L,
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
@@ -273,6 +285,8 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of(),
+            false,
+            -1L,
             ImmutableList.of());
 
     String asJson = toJsonWithoutSpecAndSchemaList(expected);
@@ -314,8 +328,11 @@ public class TestTableMetadata {
     assertThat(metadata.snapshot(previousSnapshotId).schemaId()).isNull();
   }
 
-  @Test
-  public void testInvalidMainBranch() throws IOException {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testInvalidMainBranch(int formatVersion) throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
     String manifestList =
@@ -359,7 +376,7 @@ public class TestTableMetadata {
             () ->
                 new TableMetadata(
                     null,
-                    2,
+                        formatVersion,
                     UUID.randomUUID().toString(),
                     TEST_LOCATION,
                     SEQ_NO,
@@ -381,13 +398,18 @@ public class TestTableMetadata {
                     refs,
                     ImmutableList.of(),
                     ImmutableList.of(),
+                    false,
+                    -1L,
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot ID does not match main branch");
   }
 
-  @Test
-  public void testMainWithoutCurrent() throws IOException {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testMainWithoutCurrent(int formatVersion) throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
     long snapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
     String manifestList =
@@ -404,7 +426,7 @@ public class TestTableMetadata {
             () ->
                 new TableMetadata(
                     null,
-                    2,
+                        formatVersion,
                     UUID.randomUUID().toString(),
                     TEST_LOCATION,
                     SEQ_NO,
@@ -426,13 +448,18 @@ public class TestTableMetadata {
                     refs,
                     ImmutableList.of(),
                     ImmutableList.of(),
+                    false,
+                    -1L,
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot is not set, but main branch exists");
   }
 
-  @Test
-  public void testBranchSnapshotMissing() {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testBranchSnapshotMissing(int formatVersion) {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
     long snapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
     Schema schema = new Schema(6, Types.NestedField.required(10, "x", Types.StringType.get()));
@@ -444,7 +471,7 @@ public class TestTableMetadata {
             () ->
                 new TableMetadata(
                     null,
-                    2,
+                        formatVersion,
                     UUID.randomUUID().toString(),
                     TEST_LOCATION,
                     SEQ_NO,
@@ -466,6 +493,8 @@ public class TestTableMetadata {
                     refs,
                     ImmutableList.of(),
                     ImmutableList.of(),
+                    false,
+                    -1L,
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageEndingWith("does not exist in the existing snapshots list");
@@ -513,8 +542,9 @@ public class TestTableMetadata {
     return writer.toString();
   }
 
-  @Test
-  public void testJsonWithPreviousMetadataLog() throws Exception {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testJsonWithPreviousMetadataLog(int formatVersion) throws Exception {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
     String manifestList =
@@ -548,7 +578,7 @@ public class TestTableMetadata {
     TableMetadata base =
         new TableMetadata(
             null,
-            1,
+                formatVersion,
             UUID.randomUUID().toString(),
             TEST_LOCATION,
             0,
@@ -570,6 +600,8 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of(),
+            false,
+            -1L,
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(base);
@@ -578,8 +610,9 @@ public class TestTableMetadata {
     assertThat(metadataFromJson.previousFiles()).isEqualTo(previousMetadataLog);
   }
 
-  @Test
-  public void testAddPreviousMetadataRemoveNone() throws IOException {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testAddPreviousMetadataRemoveNone(int formatVersion) throws IOException {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
     String manifestList =
@@ -624,7 +657,7 @@ public class TestTableMetadata {
     TableMetadata base =
         new TableMetadata(
             latestPreviousMetadata.file(),
-            1,
+            formatVersion,
             UUID.randomUUID().toString(),
             TEST_LOCATION,
             0,
@@ -646,6 +679,8 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of(),
+            false,
+            -1L,
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -660,8 +695,9 @@ public class TestTableMetadata {
     assertThat(removedPreviousMetadata).isEmpty();
   }
 
-  @Test
-  public void testAddPreviousMetadataRemoveOne() throws IOException {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testAddPreviousMetadataRemoveOne(int formatVersion) throws IOException {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
     String manifestList =
@@ -715,7 +751,7 @@ public class TestTableMetadata {
     TableMetadata base =
         new TableMetadata(
             latestPreviousMetadata.file(),
-            1,
+            formatVersion,
             UUID.randomUUID().toString(),
             TEST_LOCATION,
             0,
@@ -737,6 +773,8 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of(),
+            false,
+            -1L,
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -755,8 +793,9 @@ public class TestTableMetadata {
         .isEqualTo(previousMetadataLog.subList(0, 1));
   }
 
-  @Test
-  public void testAddPreviousMetadataRemoveMultiple() throws IOException {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testAddPreviousMetadataRemoveMultiple(int formatVersion) throws IOException {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
     String manifestList =
@@ -810,7 +849,7 @@ public class TestTableMetadata {
     TableMetadata base =
         new TableMetadata(
             latestPreviousMetadata.file(),
-            1,
+            formatVersion,
             UUID.randomUUID().toString(),
             TEST_LOCATION,
             0,
@@ -832,6 +871,8 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of(),
+            false,
+            -1L,
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -850,13 +891,16 @@ public class TestTableMetadata {
         .isEqualTo(previousMetadataLog.subList(0, 4));
   }
 
-  @Test
-  public void testV2UUIDValidation() {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testV2UUIDValidation(int formatVersion) {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
     assertThatThrownBy(
             () ->
                 new TableMetadata(
                     null,
-                    2,
+                    formatVersion,
                     null,
                     TEST_LOCATION,
                     SEQ_NO,
@@ -878,9 +922,11 @@ public class TestTableMetadata {
                     ImmutableMap.of(),
                     ImmutableList.of(),
                     ImmutableList.of(),
+                    false,
+                    -1L,
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("UUID is required in format v2");
+        .hasMessage(String.format("UUID is required in format v%s", formatVersion));
   }
 
   @Test
@@ -913,6 +959,8 @@ public class TestTableMetadata {
                     ImmutableMap.of(),
                     ImmutableList.of(),
                     ImmutableList.of(),
+                    false,
+                    -1L,
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
@@ -959,6 +1007,8 @@ public class TestTableMetadata {
                 ImmutableMap.of(),
                 ImmutableList.of(),
                 ImmutableList.of(),
+                false,
+                -1L,
                 ImmutableList.of()))
         .isNotNull();
 
@@ -973,6 +1023,7 @@ public class TestTableMetadata {
         .isNotNull();
   }
 
+  // TODO: add TableMetadataV3Valid.json
   @Test
   public void testParserVersionValidation() throws Exception {
     String supportedVersion1 = readTableMetadataInputFile("TableMetadataV1Valid.json");
@@ -989,6 +1040,7 @@ public class TestTableMetadata {
         .hasMessageStartingWith("Cannot read unsupported version");
   }
 
+  // TODO: add TableMetadataV3Valid.json
   @Test
   public void testParserV2PartitionSpecsValidation() throws Exception {
     String unsupportedVersion =
@@ -998,6 +1050,7 @@ public class TestTableMetadata {
         .hasMessage("partition-specs must exist in format v2");
   }
 
+  // TODO: add TableMetadataV3Valid.json
   @Test
   public void testParserV2LastAssignedFieldIdValidation() throws Exception {
     String unsupportedVersion =
@@ -1007,6 +1060,7 @@ public class TestTableMetadata {
         .hasMessage("last-partition-id must exist in format v2");
   }
 
+  // TODO: add TableMetadataV3MissingSortOrder.json
   @Test
   public void testParserV2SortOrderValidation() throws Exception {
     String unsupportedVersion = readTableMetadataInputFile("TableMetadataV2MissingSortOrder.json");
@@ -1015,6 +1069,7 @@ public class TestTableMetadata {
         .hasMessage("sort-orders must exist in format v2");
   }
 
+  // TODO: add TableMetadataV3CurrentSchemaNotFound.json
   @Test
   public void testParserV2CurrentSchemaIdValidation() throws Exception {
     String unsupported = readTableMetadataInputFile("TableMetadataV2CurrentSchemaNotFound.json");
@@ -1023,6 +1078,7 @@ public class TestTableMetadata {
         .hasMessage("Cannot find schema with current-schema-id=2 from schemas");
   }
 
+  // TODO: add TableMetadataV3Valid.json
   @Test
   public void testParserV2SchemasValidation() throws Exception {
     String unsupported = readTableMetadataInputFile("TableMetadataV2MissingSchemas.json");
@@ -1036,8 +1092,9 @@ public class TestTableMetadata {
     return String.join("", java.nio.file.Files.readAllLines(path));
   }
 
-  @Test
-  public void testNewTableMetadataReassignmentAllIds() throws Exception {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testNewTableMetadataReassignmentAllIds(int formatVersion) throws Exception {
     Schema schema =
         new Schema(
             Types.NestedField.required(3, "x", Types.LongType.get()),
@@ -1052,7 +1109,7 @@ public class TestTableMetadata {
             .build();
     String location = "file://tmp/db/table";
     TableMetadata metadata =
-        TableMetadata.newTableMetadata(schema, spec, location, ImmutableMap.of());
+        TableMetadata.newTableMetadata(schema, spec, SortOrder.unsorted(), location, ImmutableMap.of(), formatVersion);
 
     // newTableMetadata should reassign column ids and partition field ids.
     PartitionSpec expected =
@@ -1126,63 +1183,70 @@ public class TestTableMetadata {
         .isEqualTo(expected);
   }
 
-  @Test
-  public void testBuildReplacementForV2Table() {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testBuildReplacementForV2AndV3Table(int formatVersion) {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
     Schema schema =
-        new Schema(
-            Types.NestedField.required(1, "x", Types.LongType.get()),
-            Types.NestedField.required(2, "y", Types.LongType.get()));
+            new Schema(
+                    Types.NestedField.required(1, "x", Types.LongType.get()),
+                    Types.NestedField.required(2, "y", Types.LongType.get()));
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema).withSpecId(0).identity("x").identity("y").build();
+            PartitionSpec.builderFor(schema).withSpecId(0).identity("x").identity("y").build();
     String location = "file://tmp/db/table";
     TableMetadata metadata =
-        TableMetadata.newTableMetadata(
-            schema, spec, SortOrder.unsorted(), location, ImmutableMap.of(), 2);
+            TableMetadata.newTableMetadata(
+                    schema, spec, SortOrder.unsorted(), location, ImmutableMap.of(), formatVersion);
     assertThat(metadata.spec()).isEqualTo(spec);
 
     Schema updatedSchema =
-        new Schema(
-            Types.NestedField.required(1, "x", Types.LongType.get()),
-            Types.NestedField.required(2, "z", Types.StringType.get()));
+            new Schema(
+                    Types.NestedField.required(1, "x", Types.LongType.get()),
+                    Types.NestedField.required(2, "z", Types.StringType.get()));
     PartitionSpec updatedSpec =
-        PartitionSpec.builderFor(updatedSchema).withSpecId(0).bucket("z", 8).identity("x").build();
+            PartitionSpec.builderFor(updatedSchema).withSpecId(0).bucket("z", 8).identity("x").build();
     TableMetadata updated =
-        metadata.buildReplacement(
-            updatedSchema, updatedSpec, SortOrder.unsorted(), location, ImmutableMap.of());
+            metadata.buildReplacement(
+                    updatedSchema, updatedSpec, SortOrder.unsorted(), location, ImmutableMap.of());
     PartitionSpec expected =
-        PartitionSpec.builderFor(updated.schema())
-            .withSpecId(1)
-            .add(3, 1002, "z_bucket", Transforms.bucket(8))
-            .add(1, 1000, "x", Transforms.identity())
-            .build();
+            PartitionSpec.builderFor(updated.schema())
+                    .withSpecId(1)
+                    .add(3, 1002, "z_bucket", Transforms.bucket(8))
+                    .add(1, 1000, "x", Transforms.identity())
+                    .build();
     assertThat(updated.spec())
-        .as(
-            "Should reassign the partition field IDs and reuse any existing IDs for equivalent fields")
-        .isEqualTo(expected);
+            .as(
+                    "Should reassign the partition field IDs and reuse any existing IDs for equivalent fields")
+            .isEqualTo(expected);
   }
 
-  @Test
-  public void testSortOrder() {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testSortOrder(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of("format-version", String.valueOf(formatVersion)));
+    assertThat(meta.formatVersion()).isEqualTo(formatVersion);
     assertThat(meta.sortOrder().isUnsorted()).isTrue();
     assertThat(meta.replaceSortOrder(SortOrder.unsorted()))
         .as("Should detect identical unsorted order")
         .isSameAs(meta);
   }
 
-  @Test
-  public void testUpdateSortOrder() {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testUpdateSortOrder(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     SortOrder order = SortOrder.builderFor(schema).asc("x").build();
 
     TableMetadata sortedByX =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), order, null, ImmutableMap.of());
+            schema, PartitionSpec.unpartitioned(), order, null, ImmutableMap.of("format-version", String.valueOf(formatVersion)));
+    assertThat(sortedByX.formatVersion()).isEqualTo(formatVersion);
     assertThat(sortedByX.sortOrders()).hasSize(1);
     assertThat(sortedByX.sortOrder().orderId()).isEqualTo(1);
     assertThat(sortedByX.sortOrder().fields()).hasSize(1);
@@ -1213,23 +1277,25 @@ public class TestTableMetadata {
     assertThat(sortedByX.sortOrder().fields().get(0).nullOrder()).isEqualTo(NullOrder.NULLS_FIRST);
   }
 
-  @Test
-  public void testStatistics() {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testStatistics(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, ImmutableMap.of(), formatVersion);
     assertThat(meta.statisticsFiles()).as("Should default to no statistics files").isEmpty();
   }
 
-  @Test
-  public void testSetStatistics() {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testSetStatistics(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, ImmutableMap.of(), formatVersion);
 
     TableMetadata withStatistics =
         TableMetadata.buildFrom(meta)
@@ -1262,14 +1328,15 @@ public class TestTableMetadata {
     assertThat(statisticsFile.path()).isEqualTo("/some/path/to/stats/file2");
   }
 
-  @Test
-  public void testRemoveStatistics() {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testRemoveStatistics(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
         TableMetadata.buildFrom(
                 TableMetadata.newTableMetadata(
-                    schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
+                    schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, ImmutableMap.of(), formatVersion))
             .setStatistics(
                 43,
                 new GenericStatisticsFile(
@@ -1294,25 +1361,27 @@ public class TestTableMetadata {
     assertThat(statisticsFile.path()).isEqualTo("/some/path/to/stats/file2");
   }
 
-  @Test
-  public void testPartitionStatistics() {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testPartitionStatistics(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, ImmutableMap.of(), formatVersion);
     assertThat(meta.partitionStatisticsFiles())
         .as("Should default to no partition statistics files")
         .isEmpty();
   }
 
-  @Test
-  public void testSetPartitionStatistics() {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testSetPartitionStatistics(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, ImmutableMap.of(), formatVersion);
 
     TableMetadata withPartitionStatistics =
         TableMetadata.buildFrom(meta)
@@ -1355,14 +1424,15 @@ public class TestTableMetadata {
     assertThat(partitionStatisticsFile.fileSizeInBytes()).isEqualTo(48L);
   }
 
-  @Test
-  public void testRemovePartitionStatistics() {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testRemovePartitionStatistics(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
         TableMetadata.buildFrom(
                 TableMetadata.newTableMetadata(
-                    schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
+                    schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, ImmutableMap.of(), formatVersion))
             .setPartitionStatistics(
                 ImmutableGenericPartitionStatisticsFile.builder()
                     .snapshotId(43)
@@ -1395,6 +1465,7 @@ public class TestTableMetadata {
     assertThat(partitionStatisticsFile.fileSizeInBytes()).isEqualTo(49L);
   }
 
+  // TODO: add V3
   @Test
   public void testParseSchemaIdentifierFields() throws Exception {
     String data = readTableMetadataInputFile("TableMetadataV2Valid.json");
@@ -1403,6 +1474,7 @@ public class TestTableMetadata {
     assertThat(parsed.schemasById().get(1).identifierFieldIds()).containsExactly(1, 2);
   }
 
+  // TODO: add V3
   @Test
   public void testParseMinimal() throws Exception {
     String data = readTableMetadataInputFile("TableMetadataV2ValidMinimal.json");
@@ -1413,13 +1485,14 @@ public class TestTableMetadata {
     assertThat(parsed.previousFiles()).isEmpty();
   }
 
-  @Test
-  public void testUpdateSchemaIdentifierFields() {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testUpdateSchemaIdentifierFields(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, ImmutableMap.of(), formatVersion);
 
     Schema newSchema =
         new Schema(
@@ -1430,13 +1503,14 @@ public class TestTableMetadata {
     assertThat(newMeta.schema().identifierFieldIds()).containsExactly(1);
   }
 
-  @Test
-  public void testUpdateSchema() {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testUpdateSchema(int formatVersion) {
     Schema schema =
         new Schema(0, Types.NestedField.required(1, "y", Types.LongType.get(), "comment"));
     TableMetadata freshTable =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, ImmutableMap.of(), formatVersion);
     assertThat(freshTable.currentSchemaId()).isEqualTo(TableMetadata.INITIAL_SCHEMA_ID);
     assertSameSchemaList(ImmutableList.of(schema), freshTable.schemas());
     assertThat(freshTable.schema().asStruct()).isEqualTo(schema.asStruct());
@@ -1496,8 +1570,9 @@ public class TestTableMetadata {
     assertThat(threeSchemaTable.lastColumnId()).isEqualTo(6);
   }
 
-  @Test
-  public void testCreateV2MetadataThroughTableProperty() {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testCreateMetadataThroughTableProperty(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
@@ -1505,9 +1580,9 @@ public class TestTableMetadata {
             schema,
             PartitionSpec.unpartitioned(),
             null,
-            ImmutableMap.of(TableProperties.FORMAT_VERSION, "2", "key", "val"));
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion), "key", "val"));
 
-    assertThat(meta.formatVersion()).isEqualTo(2);
+    assertThat(meta.formatVersion()).isEqualTo(formatVersion);
     assertThat(meta.properties())
         .containsEntry("key", "val")
         .doesNotContainKey(TableProperties.FORMAT_VERSION);
@@ -1579,6 +1654,7 @@ public class TestTableMetadata {
         .containsExactly(entry("key2", "val2"));
   }
 
+  // TODO: need add v3
   @Test
   public void testParseStatisticsFiles() throws Exception {
     String data = readTableMetadataInputFile("TableMetadataStatisticsFiles.json");
@@ -1598,6 +1674,7 @@ public class TestTableMetadata {
                         "ndv", 3055729675574597004L, 1, ImmutableList.of(1), ImmutableMap.of()))));
   }
 
+  // TODO: need add v3
   @Test
   public void testParsePartitionStatisticsFiles() throws Exception {
     String data = readTableMetadataInputFile("TableMetadataPartitionStatisticsFiles.json");
@@ -1613,8 +1690,9 @@ public class TestTableMetadata {
                 .build());
   }
 
-  @Test
-  public void testNoReservedPropertyForTableMetadataCreation() {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testNoReservedPropertyForTableMetadataCreation(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     assertThatThrownBy(
@@ -1624,11 +1702,11 @@ public class TestTableMetadata {
                     PartitionSpec.unpartitioned(),
                     null,
                     "/tmp",
-                    ImmutableMap.of(TableProperties.FORMAT_VERSION, "1"),
-                    1))
+                    ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+                    formatVersion))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Table properties should not contain reserved properties, but got {format-version=1}");
+            String.format("Table properties should not contain reserved properties, but got {format-version=%s}", formatVersion));
 
     assertThatThrownBy(
             () ->
@@ -1638,18 +1716,19 @@ public class TestTableMetadata {
                     null,
                     "/tmp",
                     ImmutableMap.of(TableProperties.UUID, "uuid"),
-                    1))
+                    formatVersion))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Table properties should not contain reserved properties, but got {uuid=uuid}");
   }
 
-  @Test
-  public void testNoTrailingLocationSlash() {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testNoTrailingLocationSlash(int formatVersion) {
     String locationWithSlash = "/with_trailing_slash/";
     String locationWithoutSlash = "/with_trailing_slash";
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            TEST_SCHEMA, SPEC_5, SORT_ORDER_3, locationWithSlash, Collections.emptyMap());
+            TEST_SCHEMA, SPEC_5, SORT_ORDER_3, locationWithSlash, Collections.emptyMap(), formatVersion);
     assertThat(meta.location())
         .as("Metadata should never return a location ending in a slash")
         .isEqualTo(locationWithoutSlash);
@@ -1669,6 +1748,7 @@ public class TestTableMetadata {
     return localInput(manifestList).location();
   }
 
+  // TODO: need v3
   @Test
   public void buildReplacementKeepsSnapshotLog() throws Exception {
     TableMetadata metadata =
@@ -1703,11 +1783,12 @@ public class TestTableMetadata {
         3);
   }
 
-  @Test
-  public void onlyMetadataLocationIsUpdatedWithoutTimestampAndMetadataLogEntry() {
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void onlyMetadataLocationIsUpdatedWithoutTimestampAndMetadataLogEntry(int formatVersion) {
     String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
     TableMetadata metadata =
-        TableMetadata.buildFromEmpty()
+        TableMetadata.buildFromEmpty(formatVersion)
             .assignUUID(uuid)
             .setLocation("location")
             .setCurrentSchema(TEST_SCHEMA, 3)

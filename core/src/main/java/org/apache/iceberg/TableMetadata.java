@@ -262,6 +262,9 @@ public class TableMetadata implements Serializable {
   private volatile Map<Long, Snapshot> snapshotsById;
   private volatile Map<String, SnapshotRef> refs;
   private volatile boolean snapshotsLoaded;
+  private final boolean rowLineageEnabled;
+  // TODO: may need to use boxing to allow null value
+  private final long nextRowId;
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   TableMetadata(
@@ -288,6 +291,8 @@ public class TableMetadata implements Serializable {
       Map<String, SnapshotRef> refs,
       List<StatisticsFile> statisticsFiles,
       List<PartitionStatisticsFile> partitionStatisticsFiles,
+      boolean rowLineageEnabled,
+      long nextRowId,
       List<MetadataUpdate> changes) {
     Preconditions.checkArgument(
         specs != null && !specs.isEmpty(), "Partition specs cannot be null or empty");
@@ -307,6 +312,13 @@ public class TableMetadata implements Serializable {
     Preconditions.checkArgument(
         metadataFileLocation == null || changes.isEmpty(),
         "Cannot create TableMetadata with a metadata location and changes");
+    Preconditions.checkArgument(
+        !rowLineageEnabled || formatVersion == 3,
+        "Row lineage is only supported in v3 (current version v%s)",
+        formatVersion);
+    Preconditions.checkArgument(
+        !rowLineageEnabled || nextRowId >= 0,
+        "Next row id is required when row lineage is enabled");
 
     this.metadataFileLocation = metadataFileLocation;
     this.formatVersion = formatVersion;
@@ -340,6 +352,8 @@ public class TableMetadata implements Serializable {
     this.refs = validateRefs(currentSnapshotId, refs, snapshotsById);
     this.statisticsFiles = ImmutableList.copyOf(statisticsFiles);
     this.partitionStatisticsFiles = ImmutableList.copyOf(partitionStatisticsFiles);
+    this.rowLineageEnabled = rowLineageEnabled;
+    this.nextRowId = nextRowId;
 
     HistoryEntry last = null;
     for (HistoryEntry logEntry : snapshotLog) {
@@ -553,6 +567,14 @@ public class TableMetadata implements Serializable {
 
   public List<MetadataLogEntry> previousFiles() {
     return previousFiles;
+  }
+
+  public boolean rowLinageEnabled() {
+    return rowLineageEnabled;
+  }
+
+  public long nextRowId() {
+    return nextRowId;
   }
 
   public List<MetadataUpdate> changes() {
@@ -890,6 +912,8 @@ public class TableMetadata implements Serializable {
     private final Map<Long, List<StatisticsFile>> statisticsFiles;
     private final Map<Long, List<PartitionStatisticsFile>> partitionStatisticsFiles;
     private boolean suppressHistoricalSnapshots = false;
+    private boolean rowLinageEnabled;
+    private long nextRowId;
 
     // change tracking
     private final List<MetadataUpdate> changes;
@@ -936,6 +960,8 @@ public class TableMetadata implements Serializable {
       this.schemasById = Maps.newHashMap();
       this.specsById = Maps.newHashMap();
       this.sortOrdersById = Maps.newHashMap();
+      this.rowLinageEnabled = false;
+      this.nextRowId = -1L;
     }
 
     private Builder(TableMetadata base) {
@@ -958,6 +984,8 @@ public class TableMetadata implements Serializable {
       this.snapshots = Lists.newArrayList(base.snapshots());
       this.changes = Lists.newArrayList(base.changes);
       this.startingChangeCount = changes.size();
+      this.rowLinageEnabled = base.rowLineageEnabled;
+      this.nextRowId = base.nextRowId;
 
       this.snapshotLog = Lists.newArrayList(base.snapshotLog);
       this.previousFileLocation = base.metadataFileLocation;
@@ -1500,6 +1528,8 @@ public class TableMetadata implements Serializable {
           partitionStatisticsFiles.values().stream()
               .flatMap(List::stream)
               .collect(Collectors.toList()),
+          rowLinageEnabled,
+          nextRowId,
           discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes));
     }
 

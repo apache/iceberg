@@ -72,5 +72,7 @@ public class TestTableMetadataSerialization extends TestBase {
     assertThat(Lists.transform(result.snapshots(), Snapshot::snapshotId))
         .isEqualTo(Lists.transform(meta.snapshots(), Snapshot::snapshotId));
     assertThat(result.snapshotLog()).isEqualTo(meta.snapshotLog());
+    assertThat(result.rowLinageEnabled()).isEqualTo(meta.rowLinageEnabled());
+    assertThat(result.nextRowId()).isEqualTo(meta.nextRowId());
   }
 }
