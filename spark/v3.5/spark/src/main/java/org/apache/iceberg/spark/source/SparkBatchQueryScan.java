@@ -51,7 +51,6 @@ import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
 import org.apache.iceberg.util.ContentFileUtil;
-import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.NamedReference;
@@ -162,16 +161,15 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     }
   }
 
-  protected Map<String, DeleteFileSet> rewritableDeletes() {
-    Map<String, DeleteFileSet> rewritableDeletes = Maps.newHashMap();
+  protected RewritableDeletes rewritableDeletes() {
+    RewritableDeletes rewritableDeletes = new RewritableDeletes(table().location());
 
     for (ScanTask task : tasks()) {
       FileScanTask fileScanTask = task.asFileScanTask();
       for (DeleteFile deleteFile : fileScanTask.deletes()) {
         if (ContentFileUtil.isFileScoped(deleteFile)) {
-          rewritableDeletes
-              .computeIfAbsent(fileScanTask.file().location(), ignored -> DeleteFileSet.create())
-              .add(deleteFile);
+          rewritableDeletes.addRewritableDelete(
+              fileScanTask.file().location(), deleteFile, table().specs());
         }
       }
     }
