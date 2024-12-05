@@ -173,7 +173,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
                     DUMMY_TASK_NAME,
                     "0",
                     ERROR_COUNTER),
-                1L)
+                0L)
             .put(
                 ImmutableList.of(
                     COMMIT_TASK_NAME + "[0]",
