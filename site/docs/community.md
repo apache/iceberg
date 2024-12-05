@@ -78,7 +78,7 @@ The Apache Iceberg community is built on the principles described in the [Apache
 and all who engage with the community are expected to be respectful, open, come with the best interests of the community in mind, 
 and abide by the Apache Software Foundation [Code of Conduct](https://www.apache.org/foundation/policies/conduct.html).
 
-More information specific to the Apache Iceberg community is in the next section, [the Path from Contributor to Committer](#the-path-from-contributor-to-committer)
+More information specific to the Apache Iceberg community is in the next section, [the Path from Contributor to Committer](#the-path-from-contributor-to-committer).
 
 ### Participants with Corporate Interests
 
