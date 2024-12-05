@@ -60,6 +60,10 @@ public class CachingCatalog implements Catalog {
     return new CachingCatalog(catalog, caseSensitive, expirationIntervalMillis);
   }
 
+  public boolean wrapped_is_instance(Class<?> cls) {
+    return cls.isInstance(catalog);
+  }
+
   private final Catalog catalog;
   private final boolean caseSensitive;
 
