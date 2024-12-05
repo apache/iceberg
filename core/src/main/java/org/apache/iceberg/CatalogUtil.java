@@ -102,7 +102,7 @@ public class CatalogUtil {
         Iterables.addAll(manifestsToDelete, snapshot.allManifests(io));
       } catch (RuntimeException e) {
         // ignore the exception to finish deletion as much as possible.
-        LOG.warn("Failed to read all the manifests from snapshot {}", snapshot.snapshotId(), e);
+        LOG.warn("Failed to read all manifests for snapshot {}", snapshot.snapshotId(), e);
       }
       // add the manifest list to the delete set, if present
       if (snapshot.manifestListLocation() != null) {

@@ -19,7 +19,7 @@
 package org.apache.iceberg.hadoop;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -65,11 +65,7 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     TableMetadata tableMetadata = readMetadataVersion(3);
 
     FileIO fileIO = Mockito.mock(FileIO.class);
-    Mockito.doThrow(new RuntimeException()).when(fileIO).deleteFile(ArgumentMatchers.anyString());
     Mockito.doThrow(new RuntimeException()).when(fileIO).newInputFile(ArgumentMatchers.anyString());
-    Mockito.doThrow(new RuntimeException())
-        .when(fileIO)
-        .newInputFile(ArgumentMatchers.anyString(), ArgumentMatchers.anyLong());
     assertThatCode(() -> CatalogUtil.dropTableData(fileIO, tableMetadata))
         .doesNotThrowAnyException();
   }
