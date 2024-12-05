@@ -18,15 +18,9 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-import java.util.Iterator;
 import java.util.List;
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.api.common.state.ListState;
-import org.apache.flink.api.common.state.ListStateDescriptor;
-import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.runtime.state.StateInitializationContext;
-import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.TwoInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -66,10 +60,8 @@ public class TaskResultAggregator extends AbstractStreamOperator<TaskResult>
   private final String tableName;
   private final String taskName;
   private final int taskIndex;
+  private final List<Exception> exceptions;
   private transient Long startTime;
-  private transient List<Exception> exceptions;
-  private transient ListState<Long> startTimeState;
-  private transient ListState<Exception> exceptionsState;
 
   public TaskResultAggregator(String tableName, String taskName, int taskIndex) {
     org.apache.iceberg.relocated.com.google.common.base.Preconditions.checkNotNull(
@@ -80,51 +72,8 @@ public class TaskResultAggregator extends AbstractStreamOperator<TaskResult>
     this.tableName = tableName;
     this.taskName = taskName;
     this.taskIndex = taskIndex;
-  }
-
-  @Override
-  public void initializeState(StateInitializationContext context) throws Exception {
-    super.initializeState(context);
-    this.startTimeState =
-        context
-            .getOperatorStateStore()
-            .getListState(
-                new ListStateDescriptor<>(
-                    "result-aggregator-start-time", BasicTypeInfo.LONG_TYPE_INFO));
-    this.exceptionsState =
-        context
-            .getOperatorStateStore()
-            .getListState(
-                new ListStateDescriptor<>(
-                    "result-aggregator-exceptions", TypeInformation.of(Exception.class)));
-
-    this.startTime = 0L;
-    Iterable<Long> startTimeIterable = startTimeState.get();
-    if (startTimeIterable != null) {
-      Iterator<Long> startTimeIterator = startTimeIterable.iterator();
-      if (startTimeIterator.hasNext()) {
-        this.startTime = startTimeIterator.next();
-      }
-    }
-
     this.exceptions = Lists.newArrayList();
-    Iterable<Exception> exceptionsIterable = exceptionsState.get();
-    if (exceptionsIterable != null) {
-      for (Exception e : exceptionsIterable) {
-        exceptions.add(e);
-      }
-    }
-  }
-
-  @Override
-  public void snapshotState(StateSnapshotContext context) throws Exception {
-    super.snapshotState(context);
-
-    startTimeState.clear();
-    startTimeState.add(startTime);
-
-    exceptionsState.clear();
-    exceptionsState.addAll(exceptions);
+    this.startTime = 0L;
   }
 
   @Override

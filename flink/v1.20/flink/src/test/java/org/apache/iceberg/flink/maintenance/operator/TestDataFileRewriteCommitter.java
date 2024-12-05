@@ -21,19 +21,18 @@ package org.apache.iceberg.flink.maintenance.operator;
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.executeRewrite;
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.planDataFileRewrite;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 class TestDataFileRewriteCommitter extends OperatorTestBase {
   @Test
@@ -142,82 +141,6 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
         table, rewritten.get(2).group().addedFiles(), rewritten.get(2).group().rewrittenFiles());
   }
 
-  @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  void testStateRestore(boolean withException) throws Exception {
-    Table table = createPartitionedTable();
-    insertPartitioned(table, 1, "p1");
-    insertPartitioned(table, 2, "p1");
-    insertPartitioned(table, 3, "p2");
-    insertPartitioned(table, 4, "p2");
-    insertPartitioned(table, 5, "p3");
-    insertPartitioned(table, 6, "p3");
-    insertPartitioned(table, 7, "p4");
-    insertPartitioned(table, 8, "p4");
-
-    List<DataFileRewritePlanner.PlannedGroup> planned = planDataFileRewrite(tableLoader());
-    assertThat(planned).hasSize(4);
-    List<DataFileRewriteExecutor.ExecutedGroup> rewritten = executeRewrite(planned);
-    assertThat(rewritten).hasSize(4);
-
-    OperatorSubtaskState state = null;
-    try (OneInputStreamOperatorTestHarness<DataFileRewriteExecutor.ExecutedGroup, Trigger>
-        testHarness = harness()) {
-      testHarness.open();
-
-      testHarness.processElement(updateBatchSize(rewritten.get(0)), EVENT_TIME);
-      assertNoChange(table);
-
-      state = testHarness.snapshot(1, System.currentTimeMillis());
-      if (withException) {
-        throw new RuntimeException("Testing exception");
-      }
-    } catch (Exception e) {
-      // do nothing
-    }
-
-    if (withException) {
-      // Check that the previous commit was successful
-      assertDataFiles(
-          table, rewritten.get(0).group().addedFiles(), rewritten.get(0).group().rewrittenFiles());
-      // Revert the last commit to simulate that the commit at DataFileRewriteCommitter.close was
-      // not successful
-      table.manageSnapshots().rollbackTo(table.currentSnapshot().parentId()).commit();
-      table.refresh();
-      assertThat(table.currentSnapshot().removedDataFiles(table.io())).isEmpty();
-    }
-
-    try (OneInputStreamOperatorTestHarness<DataFileRewriteExecutor.ExecutedGroup, Trigger>
-        testHarness = harness()) {
-      testHarness.initializeState(state);
-      testHarness.open();
-
-      testHarness.processElement(updateBatchSize(rewritten.get(1)), EVENT_TIME);
-
-      assertDataFiles(
-          table, rewritten.get(0).group().addedFiles(), rewritten.get(0).group().rewrittenFiles());
-      assertThat(testHarness.extractOutputValues()).isEmpty();
-      assertNoChange(table);
-
-      testHarness.processElement(updateBatchSize(rewritten.get(2)), EVENT_TIME);
-
-      // This should be committed synchronously
-      Set<DataFile> added = Sets.newHashSet(rewritten.get(1).group().addedFiles());
-      added.addAll(rewritten.get(2).group().addedFiles());
-      Set<DataFile> removed = Sets.newHashSet(rewritten.get(1).group().rewrittenFiles());
-      removed.addAll(rewritten.get(2).group().rewrittenFiles());
-      assertDataFiles(table, added, removed);
-
-      testHarness.processElement(updateBatchSize(rewritten.get(3)), EVENT_TIME);
-      testHarness.processWatermark(EVENT_TIME);
-      assertThat(testHarness.extractOutputValues()).isEmpty();
-    }
-
-    // This should be committed on close
-    assertDataFiles(
-        table, rewritten.get(3).group().addedFiles(), rewritten.get(3).group().rewrittenFiles());
-  }
-
   @Test
   void testError() throws Exception {
     Table table = createPartitionedTable();
@@ -235,30 +158,18 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
     List<DataFileRewriteExecutor.ExecutedGroup> rewritten = executeRewrite(planned);
     assertThat(rewritten).hasSize(4);
 
-    OperatorSubtaskState state = null;
     try (OneInputStreamOperatorTestHarness<DataFileRewriteExecutor.ExecutedGroup, Trigger>
         testHarness = harness()) {
       testHarness.open();
 
       testHarness.processElement(updateBatchSize(rewritten.get(0)), EVENT_TIME);
       assertNoChange(table);
-
-      state = testHarness.snapshot(1, System.currentTimeMillis());
-    } catch (Exception e) {
-      // do nothing
-    }
-
-    try (OneInputStreamOperatorTestHarness<DataFileRewriteExecutor.ExecutedGroup, Trigger>
-        testHarness = harness()) {
-      testHarness.initializeState(state);
-      testHarness.open();
-
-      // Cause an exception
-      dropTable();
-
       assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
-      testHarness.processElement(rewritten.get(1), EVENT_TIME);
-      testHarness.processWatermark(EVENT_TIME);
+
+      DataFileRewriteExecutor.ExecutedGroup group = spy(updateBatchSize(rewritten.get(1)));
+      when(group.group()).thenThrow(new RuntimeException("Testing error"));
+      testHarness.processElement(group, EVENT_TIME);
+
       assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).hasSize(1);
       assertThat(
               testHarness
@@ -266,7 +177,9 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
                   .poll()
                   .getValue()
                   .getMessage())
-          .contains("From 1 commits only 0 were unsuccessful");
+          .contains("Testing error");
+    } catch (Exception e) {
+      // do nothing
     }
   }
 
