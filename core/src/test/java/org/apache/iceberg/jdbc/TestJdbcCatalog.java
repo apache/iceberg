@@ -103,12 +103,12 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   }
 
   @Override
-  protected boolean supportsNamespaceProperties() {
+  protected boolean supportsNestedNamespaces() {
     return true;
   }
 
   @Override
-  protected boolean supportsNestedNamespaces() {
+  protected boolean supportsEmptyNamespace() {
     return true;
   }
 
@@ -763,11 +763,11 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     List<Namespace> nsp3 = catalog.listNamespaces();
     Set<String> tblSet2 = Sets.newHashSet(nsp3.stream().map(Namespace::toString).iterator());
-    assertThat(tblSet2).hasSize(5).contains("db", "db2", "d_", "d%", "");
+    assertThat(tblSet2).hasSize(4).contains("db", "db2", "d_", "d%");
 
     List<Namespace> nsp4 = catalog.listNamespaces();
     Set<String> tblSet3 = Sets.newHashSet(nsp4.stream().map(Namespace::toString).iterator());
-    assertThat(tblSet3).hasSize(5).contains("db", "db2", "d_", "d%", "");
+    assertThat(tblSet3).hasSize(4).contains("db", "db2", "d_", "d%");
 
     List<Namespace> nsp5 = catalog.listNamespaces(Namespace.of("d_"));
     assertThat(nsp5).hasSize(1);
