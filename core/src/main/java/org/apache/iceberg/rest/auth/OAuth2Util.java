@@ -409,7 +409,12 @@ public class OAuth2Util {
             .withIssuedTokenType(JsonUtil.getStringOrNull(ISSUED_TOKEN_TYPE, json));
 
     if (json.has(EXPIRES_IN)) {
-      builder.setExpirationInSeconds(JsonUtil.getInt(EXPIRES_IN, json));
+      // Some IdPs like Entra ID return the expiration time as a string
+      try {
+        builder.setExpirationInSeconds(JsonUtil.getInt(EXPIRES_IN, json));
+      } catch (Exception e) {
+          builder.setExpirationInSeconds(Integer.parseInt(JsonUtil.getString(EXPIRES_IN, json)));
+      }
     }
 
     if (json.has(SCOPE)) {
