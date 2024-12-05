@@ -180,7 +180,7 @@ public class DataFileRewritePlanner
       }
     } catch (Exception e) {
       LOG.info(
-          LogUtil.MESSAGE_PREFIX + "Exception planning data file rewrite groups",
+          LogUtil.MESSAGE_PREFIX + "Failed to plan data file rewrite groups",
           tableName,
           taskName,
           taskIndex,

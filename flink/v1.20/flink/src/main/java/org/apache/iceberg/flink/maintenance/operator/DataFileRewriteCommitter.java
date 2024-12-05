@@ -171,7 +171,7 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
       inProgress.add(executedGroup.group());
       ++processed;
     } catch (Exception e) {
-      LOG.info(
+      LOG.warn(
           LogUtil.MESSAGE_PREFIX + "Exception processing {}",
           tableName,
           taskName,
@@ -203,16 +203,14 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
         }
       }
 
-      table.refresh();
       LOG.info(
-          LogUtil.MESSAGE_PREFIX + "Successfully completed data file compaction to {}",
+          LogUtil.MESSAGE_PREFIX + "Successfully completed data file compaction",
           tableName,
           taskName,
           taskIndex,
-          mark.getTimestamp(),
-          table.currentSnapshot().snapshotId());
+          mark.getTimestamp());
     } catch (Exception e) {
-      LOG.info(
+      LOG.warn(
           LogUtil.MESSAGE_PREFIX + "Exception closing commit service",
           tableName,
           taskName,

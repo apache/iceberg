@@ -98,11 +98,12 @@ public class DataFileRewriteExecutor
           value.group().rewrittenFiles());
     } else {
       LOG.info(
-          LogUtil.MESSAGE_PREFIX + "Rewriting {} files",
+          LogUtil.MESSAGE_PREFIX + "Rewriting {} files from {}",
           tableName,
           taskName,
           taskIndex,
           ctx.timestamp(),
+          value.group().info(),
           value.group().rewrittenFiles().size());
     }
 
@@ -211,14 +212,6 @@ public class DataFileRewriteExecutor
           subTaskId,
           attemptId);
       writer.abort();
-      LOG.info(
-          LogUtil.MESSAGE_PREFIX + "Aborted rewrite for (subTaskId {}, attemptId {})",
-          tableName,
-          taskName,
-          taskIndex,
-          timestamp,
-          subTaskId,
-          attemptId);
     } catch (Exception inner) {
       LOG.info(
           LogUtil.MESSAGE_PREFIX + "Exception in abort",
