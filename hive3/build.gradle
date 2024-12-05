@@ -27,8 +27,9 @@ project(':iceberg-hive3') {
     }
   }
 
-  // exclude these Hive2-specific tests from iceberg-mr
   test {
+    useJUnitPlatform()
+    // exclude these Hive2-specific tests from iceberg-mr
     exclude '**/TestIcebergDateObjectInspector.class'
     exclude '**/TestIcebergTimestampObjectInspector.class'
     exclude '**/TestIcebergTimestampWithZoneObjectInspector.class'
