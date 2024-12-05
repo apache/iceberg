@@ -287,11 +287,18 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     assertEquals("Rows must match", expectedRecords, actualRecords);
     assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
 
-    sql("set %s = true", SQLConf.CASE_SENSITIVE().key());
-    assertThatThrownBy(
-            () -> SparkActions.get(spark).rewritePositionDeletes(table).filter(filter).execute())
-        .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("Cannot find field 'C1' in struct");
+    withSQLConf(
+        ImmutableMap.of(SQLConf.CASE_SENSITIVE().key(), "true"),
+        () -> {
+          assertThatThrownBy(
+                  () ->
+                      SparkActions.get(spark)
+                          .rewritePositionDeletes(table)
+                          .filter(filter)
+                          .execute())
+              .isInstanceOf(ValidationException.class)
+              .hasMessageContaining("Cannot find field 'C1' in struct");
+        });
   }
 
   @TestTemplate
