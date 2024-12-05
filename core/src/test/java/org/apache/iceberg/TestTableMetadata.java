@@ -1772,17 +1772,6 @@ public class TestTableMetadata {
         .containsExactlyElementsOf(metadata.snapshotLog());
   }
 
-  @Test
-  public void testConstructV3Metadata() {
-    TableMetadata.newTableMetadata(
-        TEST_SCHEMA,
-        PartitionSpec.unpartitioned(),
-        SortOrder.unsorted(),
-        TEST_LOCATION,
-        ImmutableMap.of(),
-        3);
-  }
-
   @ParameterizedTest
   @MethodSource("formatVersionsProvider")
   public void onlyMetadataLocationIsUpdatedWithoutTimestampAndMetadataLogEntry(int formatVersion) {
