@@ -465,8 +465,8 @@ public class OAuth2Util {
     }
 
     @Override
-    public void authenticate(HTTPRequest.Builder request) {
-      this.headers.forEach(request::setHeaderIfAbsent);
+    public HTTPRequest authenticate(HTTPRequest request) {
+      return request.putHeadersIfAbsent(headers());
     }
 
     public Map<String, String> headers() {

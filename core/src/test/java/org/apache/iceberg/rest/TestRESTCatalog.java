@@ -143,7 +143,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               }
             }
             Object body = roundTripSerialize(request.body(), "request");
-            HTTPRequest req = HTTPRequest.builder().from(request).body(body);
+            HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
             T response = super.execute(req, responseType, errorHandler, responseHeaders);
             T responseAfterSerialization = roundTripSerialize(response, "response");
             return responseAfterSerialization;

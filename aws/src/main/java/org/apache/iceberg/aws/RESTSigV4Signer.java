@@ -27,6 +27,7 @@ import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPRequest;
+import org.apache.iceberg.rest.ImmutableHTTPRequest;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.signer.Aws4Signer;
 import software.amazon.awssdk.auth.signer.internal.SignerConstant;
@@ -63,7 +64,7 @@ public class RESTSigV4Signer {
     this.credentialsProvider = awsProperties.restCredentialsProvider();
   }
 
-  public void sign(HTTPRequest.Builder request) {
+  public HTTPRequest sign(HTTPRequest request) {
     Aws4SignerParams params =
         Aws4SignerParams.builder()
             .signingName(signingName)
@@ -92,14 +93,14 @@ public class RESTSigV4Signer {
       // an invalid content checksum for empty body requests.
       sdkRequestBuilder.putHeader(SignerConstant.X_AMZ_CONTENT_SHA256, EMPTY_BODY_SHA256);
     } else {
-      // freeze the encoded request body since we are signing it
-      request.encodedBody(body);
       sdkRequestBuilder.contentStreamProvider(
           () -> IOUtils.toInputStream(body, StandardCharsets.UTF_8));
     }
 
     SdkHttpFullRequest signedSdkRequest = signer.sign(sdkRequestBuilder.build(), params);
-    updateRequestHeaders(request, signedSdkRequest.headers());
+    Map<String, List<String>> newHeaders =
+        updateRequestHeaders(request, signedSdkRequest.headers());
+    return ImmutableHTTPRequest.builder().from(request).headers(newHeaders).build();
   }
 
   private Map<String, List<String>> convertHeaders(Map<String, List<String>> headers) {
@@ -122,23 +123,36 @@ public class RESTSigV4Signer {
     return converted;
   }
 
-  private void updateRequestHeaders(
-      HTTPRequest.Builder request, Map<String, List<String>> headers) {
-    headers.forEach(
-        (name, values) -> {
+  private Map<String, List<String>> updateRequestHeaders(
+      HTTPRequest request, Map<String, List<String>> signedHeaders) {
+    Map<String, List<String>> newHeaders = Maps.newLinkedHashMap();
+    newHeaders.putAll(request.headers());
+    signedHeaders.forEach(
+        (name, signedValues) -> {
           if (request.containsHeader(name)) {
-            List<String> original = request.headers(name);
-            request.removeHeaders(name);
-            original.forEach(
-                header -> {
+            List<String> originalValues = request.headers(name);
+            newHeaders.remove(name);
+            originalValues.forEach(
+                originalValue -> {
                   // Relocate headers if there is a conflict with signed headers
-                  if (!values.contains(header)) {
-                    request.addHeader(RELOCATED_HEADER_PREFIX + name, header);
+                  if (!signedValues.contains(originalValue)) {
+                    newHeaders.compute(
+                        RELOCATED_HEADER_PREFIX + name,
+                        (k, v) -> {
+                          if (v == null) {
+                            return List.of(originalValue);
+                          } else {
+                            List<String> merged = Lists.newArrayList(v);
+                            merged.add(originalValue);
+                            return List.copyOf(merged);
+                          }
+                        });
                   }
                 });
           }
 
-          values.forEach(value -> request.setHeader(name, value));
+          newHeaders.put(name, signedValues);
         });
+    return newHeaders;
   }
 }

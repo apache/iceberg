@@ -36,8 +36,7 @@ public class RESTSigv4AuthSession extends OAuth2Util.AuthSession {
   }
 
   @Override
-  public void authenticate(HTTPRequest.Builder request) {
-    super.authenticate(request);
-    signer.sign(request);
+  public HTTPRequest authenticate(HTTPRequest request) {
+    return signer.sign(super.authenticate(request));
   }
 }

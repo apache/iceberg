@@ -30,11 +30,11 @@ class TestHTTPRequest {
   @Test
   void headers() {
     HTTPRequest request =
-        HTTPRequest.builder()
+        ImmutableHTTPRequest.builder()
             .baseUri(URI.create("http://localhost"))
             .method(HTTPRequest.HTTPMethod.GET)
             .path("path")
-            .setHeader("name", "value")
+            .putHeader("name", List.of("value"))
             .build();
     assertThat(request.headers("name")).containsExactly("value");
     assertThat(request.headers("nonexistent")).isEmpty();
@@ -43,7 +43,7 @@ class TestHTTPRequest {
   @Test
   void containsHeader() {
     HTTPRequest request =
-        HTTPRequest.builder()
+        ImmutableHTTPRequest.builder()
             .baseUri(URI.create("http://localhost"))
             .method(HTTPRequest.HTTPMethod.GET)
             .path("path")
@@ -55,68 +55,17 @@ class TestHTTPRequest {
   }
 
   @Test
-  void setHeaderIfAbsent() {
-    HTTPRequest.Builder request =
-        HTTPRequest.builder()
+  void putHeadersIfAbsent() {
+    HTTPRequest request =
+        ImmutableHTTPRequest.builder()
+            .baseUri(URI.create("http://localhost"))
             .method(HTTPRequest.HTTPMethod.GET)
             .path("path")
-            .headers(Map.of("k1", List.of("v1a"), "k2", List.of()));
-    request.setHeaderIfAbsent("k1", "v1b");
-    request.setHeaderIfAbsent("k2", "v2b");
-    request.setHeaderIfAbsent("k3", "v3b");
-    assertThat(request.headers("k1")).containsExactly("v1a");
-    assertThat(request.headers("k2")).containsExactly("v2b");
-    assertThat(request.headers("k3")).containsExactly("v3b");
-  }
-
-  @Test
-  void addHeader() {
-    HTTPRequest.Builder request =
-        HTTPRequest.builder()
-            .method(HTTPRequest.HTTPMethod.GET)
-            .path("path")
-            .headers(Map.of("k1", List.of("v1a"), "k2", List.of()));
-    request.addHeader("k1", "v1b");
-    request.addHeader("k2", "v2b");
-    request.addHeader("k3", "v3b");
-    assertThat(request.headers("k1")).containsExactly("v1a", "v1b");
-    assertThat(request.headers("k2")).containsExactly("v2b");
-    assertThat(request.headers("k3")).containsExactly("v3b");
-  }
-
-  @Test
-  void removeHeaders() {
-    HTTPRequest.Builder request =
-        HTTPRequest.builder()
-            .method(HTTPRequest.HTTPMethod.GET)
-            .path("path")
-            .headers(Map.of("k1", List.of("v1a"), "k2", List.of()));
-    request.removeHeaders("k1");
-    request.removeHeaders("k2");
-    request.removeHeaders("k3");
-    assertThat(request.headers("k1")).isEmpty();
-    assertThat(request.headers("k2")).isEmpty();
-    assertThat(request.headers("k3")).isEmpty();
-  }
-
-  @Test
-  void encodedBody() {
-    Map<String, String> body = Map.of("key", "value");
-    HTTPRequest.Builder builder =
-        HTTPRequest.builder()
-            .baseUri(URI.create("https://localhost"))
-            .path("path")
-            .method(HTTPRequest.HTTPMethod.GET)
-            .body(body);
-    String encodedBody = builder.encodedBody();
-    assertThat(encodedBody).isEqualTo("key=value");
-    assertThat(builder.build())
-        .extracting("body", "encodedBody")
-        .containsExactly(body, encodedBody);
-    // override the encoded body
-    builder.encodedBody("overridden");
-    assertThat(builder.build())
-        .extracting("body", "encodedBody")
-        .containsExactly(body, "overridden");
+            .headers(Map.of("k1", List.of("v1"), "k2", List.of("v2")))
+            .build();
+    request = request.putHeadersIfAbsent(Map.of("k1", "v1 update", "k3", "v3"));
+    assertThat(request.headers("k1")).containsExactly("v1");
+    assertThat(request.headers("k2")).containsExactly("v2");
+    assertThat(request.headers("k3")).containsExactly("v3");
   }
 }

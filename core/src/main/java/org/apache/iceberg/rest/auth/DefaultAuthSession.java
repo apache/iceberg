@@ -39,8 +39,8 @@ public interface DefaultAuthSession extends AuthSession {
   Map<String, String> headers();
 
   @Override
-  default void authenticate(HTTPRequest.Builder request) {
-    headers().forEach(request::setHeaderIfAbsent);
+  default HTTPRequest authenticate(HTTPRequest request) {
+    return request.putHeadersIfAbsent(headers());
   }
 
   static DefaultAuthSession of(String name, String value) {

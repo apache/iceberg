@@ -158,24 +158,24 @@ public class TestRESTUtil {
   public static Stream<Arguments> validRequestUris() {
     return Stream.of(
         Arguments.of(
-            HTTPRequest.builder()
+            ImmutableHTTPRequest.builder()
                 .baseUri(URI.create("http://localhost:8080/foo"))
                 .method(HTTPMethod.GET)
                 .path("v1/namespaces/ns/tables/") // trailing slash should be removed
-                .setQueryParameter("pageToken", "1234")
-                .setQueryParameter("pageSize", "10")
+                .putQueryParameter("pageToken", "1234")
+                .putQueryParameter("pageSize", "10")
                 .build(),
             URI.create(
                 "http://localhost:8080/foo/v1/namespaces/ns/tables?pageToken=1234&pageSize=10")),
         Arguments.of(
-            HTTPRequest.builder()
+            ImmutableHTTPRequest.builder()
                 .baseUri(URI.create("http://localhost:8080/foo"))
                 .method(HTTPMethod.GET)
                 .path("https://authserver.com/token") // absolute path HTTPS
                 .build(),
             URI.create("https://authserver.com/token")),
         Arguments.of(
-            HTTPRequest.builder()
+            ImmutableHTTPRequest.builder()
                 .baseUri(URI.create("http://localhost:8080/foo"))
                 .method(HTTPMethod.GET)
                 .path("http://authserver.com/token") // absolute path HTTP
@@ -186,7 +186,7 @@ public class TestRESTUtil {
   @Test
   public void buildRequestUriFailures() {
     HTTPRequest request =
-        HTTPRequest.builder()
+        ImmutableHTTPRequest.builder()
             .baseUri(URI.create("http://localhost"))
             .method(HTTPMethod.GET)
             .path("/v1/namespaces") // wrong leading slash
@@ -196,7 +196,7 @@ public class TestRESTUtil {
         .hasMessage(
             "Received a malformed path for a REST request: /v1/namespaces. Paths should not start with /");
     HTTPRequest request2 =
-        HTTPRequest.builder()
+        ImmutableHTTPRequest.builder()
             .baseUri(URI.create("http://localhost"))
             .method(HTTPMethod.GET)
             .path(" not a valid path") // wrong path
@@ -217,7 +217,7 @@ public class TestRESTUtil {
     return Stream.of(
         // form data
         Arguments.of(
-            HTTPRequest.builder()
+            ImmutableHTTPRequest.builder()
                 .baseUri(URI.create("http://localhost"))
                 .method(HTTPMethod.POST)
                 .path("token")
@@ -234,7 +234,7 @@ public class TestRESTUtil {
                 + "scope=catalog"),
         // JSON
         Arguments.of(
-            HTTPRequest.builder()
+            ImmutableHTTPRequest.builder()
                 .baseUri(URI.create("http://localhost"))
                 .method(HTTPMethod.POST)
                 .path("v1/namespaces/ns") // trailing slash should be removed

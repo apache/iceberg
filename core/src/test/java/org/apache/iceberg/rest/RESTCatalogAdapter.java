@@ -563,19 +563,23 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
       Object body) {
     URI baseUri = URI.create("https://localhost:8080");
     ObjectMapper mapper = RESTObjectMapper.mapper();
-    HTTPRequest.Builder builder =
-        HTTPRequest.builder().baseUri(baseUri).method(method).path(path).body(body);
+    ImmutableHTTPRequest.Builder builder =
+        ImmutableHTTPRequest.builder()
+            .baseUri(baseUri)
+            .mapper(mapper)
+            .method(method)
+            .path(path)
+            .body(body);
+
     if (queryParams != null) {
-      queryParams.forEach(builder::setQueryParameter);
+      builder.queryParameters(queryParams);
     }
+
     if (headers != null) {
-      headers.forEach(builder::setHeader);
+      headers.forEach((name, value) -> builder.putHeader(name, List.of(value)));
     }
-    if (mapper != null) {
-      builder.mapper(mapper);
-    }
-    authSession.authenticate(builder);
-    return builder.build();
+
+    return authSession.authenticate(builder.build());
   }
 
   @Override

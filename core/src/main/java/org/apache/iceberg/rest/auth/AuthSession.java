@@ -30,15 +30,12 @@ import org.apache.iceberg.rest.HTTPRequest;
 public interface AuthSession extends AutoCloseable {
 
   /** An empty session that does nothing. */
-  AuthSession EMPTY = request -> {};
+  AuthSession EMPTY = request -> request;
 
   /**
-   * Applies authentication data to an outgoing HTTP request.
-   *
-   * <p>The provided {@link HTTPRequest.Builder} can be modified to add authentication headers or
-   * any other data to the request.
+   * Authenticates the given request and returns a new request with the necessary authentication.
    */
-  void authenticate(HTTPRequest.Builder request);
+  HTTPRequest authenticate(HTTPRequest request);
 
   /**
    * Closes the session and releases any resources. This method is called when the session is no

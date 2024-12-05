@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -223,35 +224,41 @@ public class HTTPClient extends BaseHTTPClient {
       Map<String, String> queryParams,
       Map<String, String> headers,
       Object body) {
-    HTTPRequest.Builder builder =
-        HTTPRequest.builder().baseUri(baseUri).method(method).path(path).body(body);
-    if (queryParams != null) {
-      queryParams.forEach(builder::setQueryParameter);
-    }
+
+    ImmutableHTTPRequest.Builder builder =
+        ImmutableHTTPRequest.builder()
+            .baseUri(baseUri)
+            .mapper(mapper)
+            .method(method)
+            .path(path)
+            .body(body)
+            .queryParameters(queryParams == null ? Map.of() : queryParams);
+
+    Map<String, List<String>> allHeaders = Maps.newLinkedHashMap();
     if (headers != null) {
-      headers.forEach(builder::setHeader);
+      headers.forEach((name, value) -> allHeaders.put(name, List.of(value)));
     }
-    if (mapper != null) {
-      builder.mapper(mapper);
-    }
-    builder.setHeaderIfAbsent(HttpHeaders.ACCEPT, ContentType.APPLICATION_JSON.getMimeType());
+
+    allHeaders.putIfAbsent(HttpHeaders.ACCEPT, List.of(ContentType.APPLICATION_JSON.getMimeType()));
+
     // Many systems require that content type is set regardless and will fail,
     // even on an empty bodied request.
     // Encode maps as form data (application/x-www-form-urlencoded),
     // and other requests are assumed to contain JSON bodies (application/json).
     ContentType mimeType =
-        builder.body() instanceof Map
+        body instanceof Map
             ? ContentType.APPLICATION_FORM_URLENCODED
             : ContentType.APPLICATION_JSON;
-    builder.setHeaderIfAbsent(HttpHeaders.CONTENT_TYPE, mimeType.getMimeType());
+    allHeaders.putIfAbsent(HttpHeaders.CONTENT_TYPE, List.of(mimeType.getMimeType()));
+
     // Apply base headers now to mimic the behavior of
     // org.apache.hc.client5.http.protocol.RequestDefaultHeaders
     // We want these headers applied *before* the AuthSession authenticates the request.
     if (baseHeaders != null) {
-      baseHeaders.forEach(builder::setHeaderIfAbsent);
+      baseHeaders.forEach((name, value) -> allHeaders.putIfAbsent(name, List.of(value)));
     }
-    authSession.authenticate(builder);
-    return builder.build();
+
+    return authSession.authenticate(builder.headers(allHeaders).build());
   }
 
   @Override
