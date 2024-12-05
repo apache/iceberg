@@ -84,6 +84,10 @@ class StatisticsUtil {
       return completedStatistics;
     } catch (Exception e) {
       try {
+        // If we restore from a lower version, the new version of SortKeySerializer cannot correctly
+        // parse the checkpointData, so we need to first switch the version to v1. Once the state
+        // data is successfully parsed, we need to switch the serialization version to the latest
+        // version to parse the subsequent data passed from the TM.
         statisticsSerializer.changeSortKeySerializerVersion(1);
         DataInputDeserializer input = new DataInputDeserializer(bytes);
         CompletedStatistics deserialize = statisticsSerializer.deserialize(input);
