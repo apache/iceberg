@@ -76,7 +76,7 @@ Iceberg has four mailing lists:
 
 The Apache Iceberg community is built on the principles described in the [Apache Way](https://www.apache.org/theapacheway/index.html) 
 and all who engage with the community are expected to be respectful, open, come with the best interests of the community in mind, 
-and abide by the Apache Foundation [Code of Conduct](https://www.apache.org/foundation/policies/conduct.html).
+and abide by the Apache Software Foundation [Code of Conduct](https://www.apache.org/foundation/policies/conduct.html).
 
 More information specific to the Apache Iceberg community is in the next section, [the Path from Contributor to Committer](#the-path-from-contributor-to-committer)
 
