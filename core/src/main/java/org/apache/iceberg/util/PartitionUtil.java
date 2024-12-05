@@ -77,7 +77,7 @@ public class PartitionUtil {
     }
 
     List<Types.NestedField> partitionFields = spec.partitionType().fields();
-    List<PartitionField> fields = spec.fields();
+    List<PartitionField> fields = spec.activeFields();
     for (int pos = 0; pos < fields.size(); pos += 1) {
       PartitionField field = fields.get(pos);
       if (field.transform().isIdentity()) {
