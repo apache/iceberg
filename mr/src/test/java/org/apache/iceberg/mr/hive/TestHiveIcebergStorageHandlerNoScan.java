@@ -756,6 +756,8 @@ public class TestHiveIcebergStorageHandlerNoScan {
     expectedIcebergProperties.put(
         TableProperties.PARQUET_COMPRESSION,
         TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
+    expectedIcebergProperties.put(
+        TableProperties.DELETE_GRANULARITY, TableProperties.DELETE_GRANULARITY_DEFAULT_SINCE_1_8_0);
 
     // Check the HMS table parameters
     org.apache.hadoop.hive.metastore.api.Table hmsTable =
@@ -777,7 +779,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
     if (Catalogs.hiveCatalog(shell.getHiveConf(), tableProperties)) {
       assertThat(hmsParams)
-          .hasSize(15)
+          .hasSize(16)
           .containsEntry("custom_property", "initial_val")
           .containsEntry(InputFormatConfig.EXTERNAL_TABLE_PURGE, "TRUE")
           .containsEntry("EXTERNAL", "TRUE")
@@ -820,7 +822,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
     if (Catalogs.hiveCatalog(shell.getHiveConf(), tableProperties)) {
       assertThat(hmsParams)
-          .hasSize(18)
+          .hasSize(19)
           .containsEntry("new_prop_1", "true")
           .containsEntry("new_prop_2", "false")
           .containsEntry("custom_property", "new_val");
