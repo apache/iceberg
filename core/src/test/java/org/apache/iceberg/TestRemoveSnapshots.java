@@ -21,6 +21,8 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
 
 import java.io.File;
 import java.io.IOException;
@@ -38,18 +40,22 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.puffin.Blob;
 import org.apache.iceberg.puffin.Puffin;
 import org.apache.iceberg.puffin.PuffinWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestRemoveSnapshots extends TestBase {
@@ -1622,6 +1628,82 @@ public class TestRemoveSnapshots extends TestBase {
   }
 
   @TestTemplate
+  public void testRemoveFromTableWithBulkIO() {
+    TestBulkLocalFileIO spyFileIO = Mockito.spy(new TestBulkLocalFileIO());
+
+    Mockito.doNothing().when(spyFileIO).deleteFiles(any());
+
+    runBulkDeleteTest(spyFileIO);
+  }
+
+  @TestTemplate
+  public void testBulkDeletionWithBulkDeletionFailureException() {
+    TestBulkLocalFileIO spyFileIO = Mockito.spy(new TestBulkLocalFileIO());
+
+    Mockito.doThrow(new BulkDeletionFailureException(2))
+        .doNothing()
+        .when(spyFileIO)
+        .deleteFiles(any());
+
+    runBulkDeleteTest(spyFileIO);
+  }
+
+  @TestTemplate
+  public void testBulkDeletionWithRuntimeException() {
+    TestBulkLocalFileIO spyFileIO = Mockito.spy(new TestBulkLocalFileIO());
+
+    Mockito.doThrow(new RuntimeException("Exception when bulk deleting"))
+        .doNothing()
+        .when(spyFileIO)
+        .deleteFiles(any());
+
+    runBulkDeleteTest(spyFileIO);
+  }
+
+  private void runBulkDeleteTest(TestBulkLocalFileIO spyFileIO) {
+    Table tableWithBulkIO =
+        TestTables.create(
+            tableDir,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            ImmutableMap.of(),
+            formatVersion,
+            new TestTables.TestTableOperations("tableWithBulkIO", tableDir, spyFileIO));
+
+    tableWithBulkIO.newAppend().appendFile(FILE_A).commit();
+
+    Set<String> deletedManifestLists =
+        Sets.newHashSet(tableWithBulkIO.currentSnapshot().manifestListLocation());
+    Set<String> deletedManifests =
+        tableWithBulkIO.currentSnapshot().allManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+
+    tableWithBulkIO.newDelete().deleteFile(FILE_A).commit();
+
+    deletedManifestLists.add(tableWithBulkIO.currentSnapshot().manifestListLocation());
+    deletedManifests.addAll(
+        tableWithBulkIO.currentSnapshot().allManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet()));
+
+    tableWithBulkIO.newAppend().appendFile(FILE_B).commit();
+
+    long lastSnapshotId = tableWithBulkIO.currentSnapshot().snapshotId();
+
+    removeSnapshots(tableWithBulkIO).expireOlderThan(System.currentTimeMillis()).commit();
+
+    assertThat(tableWithBulkIO.currentSnapshot().snapshotId()).isEqualTo(lastSnapshotId);
+    assertThat(tableWithBulkIO.snapshots()).containsOnly(tableWithBulkIO.currentSnapshot());
+
+    Mockito.verify(spyFileIO, times(3)).deleteFiles(any());
+    Mockito.verify(spyFileIO).deleteFiles(Set.of(FILE_A.location()));
+    Mockito.verify(spyFileIO).deleteFiles(deletedManifestLists);
+    Mockito.verify(spyFileIO).deleteFiles(deletedManifests);
+  }
+
+  @TestTemplate
   public void testRemoveSpecDuringExpiration() {
     DataFile file =
         DataFiles.builder(table.spec())
@@ -1784,5 +1866,19 @@ public class TestRemoveSnapshots extends TestBase {
 
   private static void commitPartitionStats(Table table, PartitionStatisticsFile statisticsFile) {
     table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+  }
+
+  private static class TestBulkLocalFileIO extends TestTables.LocalFileIO
+      implements SupportsBulkOperations {
+
+    @Override
+    public void deleteFile(String path) {
+      throw new RuntimeException("Expected to call the bulk delete interface.");
+    }
+
+    @Override
+    public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
+      throw new RuntimeException("Expected to mock this function");
+    }
   }
 }
