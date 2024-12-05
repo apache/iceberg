@@ -413,7 +413,7 @@ public class OAuth2Util {
       try {
         builder.setExpirationInSeconds(JsonUtil.getInt(EXPIRES_IN, json));
       } catch (Exception e) {
-          builder.setExpirationInSeconds(Integer.parseInt(JsonUtil.getString(EXPIRES_IN, json)));
+        builder.setExpirationInSeconds(Integer.parseInt(JsonUtil.getString(EXPIRES_IN, json)));
       }
     }
 

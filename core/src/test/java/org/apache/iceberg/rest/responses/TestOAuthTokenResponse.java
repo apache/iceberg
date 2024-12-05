@@ -110,14 +110,16 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
             .addScope("a")
             .addScope("b")
             .build());
-    
-    // Some IdPs return the expires_in as a string. This would fail the roundtrip.   
-    assertEquals(deserialize("{\"access_token\":\"bearer-token\",\"token_type\":\"bearer\",\"expires_in\":\"600\"}"),
-                OAuthTokenResponse.builder()
-                  .withToken("bearer-token")
-                  .withTokenType("bearer")
-                  .setExpirationInSeconds(600)
-                  .build());
+
+    // Some IdPs return the expires_in as a string. This would fail the roundtrip.
+    assertEquals(
+        deserialize(
+            "{\"access_token\":\"bearer-token\",\"token_type\":\"bearer\",\"expires_in\":\"600\"}"),
+        OAuthTokenResponse.builder()
+            .withToken("bearer-token")
+            .withTokenType("bearer")
+            .setExpirationInSeconds(600)
+            .build());
   }
 
   @Test
