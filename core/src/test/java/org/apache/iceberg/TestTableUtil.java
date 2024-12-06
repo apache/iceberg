@@ -83,10 +83,10 @@ public class TestTableUtil {
               "%s does not have a format version", metadataTable.getClass().getSimpleName());
 
       assertThatThrownBy(() -> TableUtil.formatVersion(SerializableTable.copyOf(metadataTable)))
-          .isInstanceOf(IllegalArgumentException.class)
+          .isInstanceOf(UnsupportedOperationException.class)
           .hasMessage(
               "%s does not have a format version",
-              SerializableTable.SerializableMetadataTable.class.getSimpleName());
+              SerializableTable.SerializableMetadataTable.class.getName());
     }
   }
 }
