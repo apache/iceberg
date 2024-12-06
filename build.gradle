@@ -111,7 +111,7 @@ if (file("${rootDir}/iceberg-build.properties").exists()) {
 }
 
 def projectVersion = getProjectVersion()
-final REVAPI_PROJECTS = ["iceberg-api", "iceberg-core", "iceberg-parquet", "iceberg-orc", "iceberg-common", "iceberg-data"]
+final REVAPI_PROJECTS = ["iceberg-api", "iceberg-core", "iceberg-orc", "iceberg-common", "iceberg-data"]
 
 allprojects {
   group = "org.apache.iceberg"
@@ -339,6 +339,13 @@ project(':iceberg-core') {
 
     api(libs.avro.avro) {
       exclude group: 'org.tukaani' // xz compression is not supported
+    }
+
+    implementation(libs.parquet.avro) {
+      exclude group: 'org.apache.avro', module: 'avro'
+      // already shaded by Parquet
+      exclude group: 'it.unimi.dsi'
+      exclude group: 'org.codehaus.jackson'
     }
 
     implementation libs.aircompressor
@@ -781,13 +788,6 @@ project(':iceberg-parquet') {
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
 
-    implementation(libs.parquet.avro) {
-      exclude group: 'org.apache.avro', module: 'avro'
-      // already shaded by Parquet
-      exclude group: 'it.unimi.dsi'
-      exclude group: 'org.codehaus.jackson'
-    }
-
     compileOnly libs.avro.avro
     compileOnly(libs.hadoop2.client) {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -898,7 +898,9 @@ project(':iceberg-snowflake') {
   }
 
   dependencies {
-    implementation project(':iceberg-core')
+    implementation(project(':iceberg-core')) {
+      exclude group: 'com.github.luben', module: 'zstd-jni'
+    }
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     implementation platform(libs.jackson.bom)
