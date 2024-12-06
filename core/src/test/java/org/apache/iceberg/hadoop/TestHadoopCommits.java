@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.hadoop;
 
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -421,7 +422,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
         TABLES.create(
             SCHEMA,
             SPEC,
-            ImmutableMap.of(COMMIT_NUM_RETRIES, String.valueOf(threadsCount)),
+            ImmutableMap.of(COMMIT_NUM_RETRIES, "10", COMMIT_MIN_RETRY_WAIT_MS, "10"),
             dir.toURI().toString());
 
     String fileName = UUID.randomUUID().toString();
