@@ -563,6 +563,67 @@ public class TestViews extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void readFromViewWithGroupByOrdinal() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = viewName("viewWithGroupByOrdinal");
+    String sql = String.format("SELECT id FROM %s group by 1", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    List<Object[]> expected =
+        IntStream.rangeClosed(1, 10).mapToObj(this::row).collect(Collectors.toList());
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(10)
+        .containsExactlyInAnyOrderElementsOf(expected);
+  }
+
+  @TestTemplate
+  public void readFromViewWithOrderByOrdinal() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = viewName("viewWithOrderByOrdinal");
+    String sql = String.format("SELECT id FROM %s order by 1", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    List<Object[]> expected =
+        IntStream.rangeClosed(1, 10).mapToObj(this::row).collect(Collectors.toList());
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(10)
+        .containsExactlyInAnyOrderElementsOf(expected);
+  }
+
+  @TestTemplate
+  public void createViewWithGroupByOrdinal() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = viewName("createViewWithGroupByOrdinal");
+    sql("CREATE VIEW %s AS SELECT id FROM %s GROUP BY 1", viewName, tableName);
+    List<Object[]> expected =
+        IntStream.rangeClosed(1, 10).mapToObj(this::row).collect(Collectors.toList());
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(10)
+        .containsExactlyInAnyOrderElementsOf(expected);
+  }
+
+  @TestTemplate
   public void rewriteFunctionIdentifier() {
     assumeThat(catalogName)
         .as("system namespace doesn't exist in SparkSessionCatalog")
