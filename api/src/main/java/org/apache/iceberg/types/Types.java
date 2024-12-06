@@ -55,6 +55,7 @@ public class Types {
           .put(StringType.get().toString(), StringType.get())
           .put(UUIDType.get().toString(), UUIDType.get())
           .put(BinaryType.get().toString(), BinaryType.get())
+          .put(NullType.get().toString(), NullType.get())
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
@@ -409,6 +410,24 @@ public class Types {
     @Override
     public String toString() {
       return "binary";
+    }
+  }
+
+  public static class NullType extends PrimitiveType {
+    private static final NullType INSTANCE = new NullType();
+
+    public static NullType get() {
+      return INSTANCE;
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.NULL;
+    }
+
+    @Override
+    public String toString() {
+      return "null";
     }
   }
 
