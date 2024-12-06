@@ -109,7 +109,7 @@ public class TestTableSerialization extends HadoopTableTestBase {
           .isInstanceOf(UnsupportedOperationException.class)
           .hasMessageEndingWith("does not support operations()");
       assertThatThrownBy(() -> TableUtil.formatVersion(serializableTable))
-          .isInstanceOf(IllegalArgumentException.class)
+          .isInstanceOf(UnsupportedOperationException.class)
           .hasMessageEndingWith("does not have a format version");
     }
   }
