@@ -27,13 +27,12 @@ public class TableUtil {
   public static int formatVersion(Table table) {
     Preconditions.checkArgument(null != table, "Invalid table: null");
 
-    // SerializableMetadataTable is a subclass of SerializableTable but does not support
-    // operations()
     if (table instanceof SerializableTable) {
       SerializableTable serializableTable = (SerializableTable) table;
       return serializableTable.formatVersion();
     } else if (table instanceof HasTableOperations) {
-      return ((HasTableOperations) table).operations().current().formatVersion();
+      HasTableOperations ops = (HasTableOperations) table;
+      return ops.operations().current().formatVersion();
     } else {
       throw new IllegalArgumentException(
           String.format("%s does not have a format version", table.getClass().getSimpleName()));

@@ -50,6 +50,7 @@ import org.apache.iceberg.util.SerializableSupplier;
  * storage.
  */
 public class SerializableTable implements Table, HasTableOperations, Serializable {
+  private static final int UNKNOWN_FORMAT_VERSION = -1;
 
   private final String name;
   private final String location;
@@ -86,11 +87,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     this.encryption = table.encryption();
     this.refs = SerializableMap.copyOf(table.refs());
     this.uuid = table.uuid();
-
-    // formatVersion=-1 will never be used/returned, because
-    // SerializableMetadataTable#formatVersion() will throw an UOE when the format version is
-    // retrieved
-    this.formatVersion = table instanceof BaseMetadataTable ? -1 : TableUtil.formatVersion(table);
+    this.formatVersion = formatVersion(table);
   }
 
   /**
@@ -165,7 +162,20 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   }
 
   public int formatVersion() {
+    if (formatVersion == UNKNOWN_FORMAT_VERSION) {
+      throw new UnsupportedOperationException(
+          this.getClass().getName() + " does not have a format version");
+    }
     return formatVersion;
+  }
+
+  private int formatVersion(Table table) {
+    if (table instanceof HasTableOperations) {
+      HasTableOperations ops = (HasTableOperations) table;
+      return ops.operations().current().formatVersion();
+    } else {
+      return UNKNOWN_FORMAT_VERSION;
+    }
   }
 
   @Override
@@ -436,12 +446,6 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     public StaticTableOperations operations() {
       throw new UnsupportedOperationException(
           this.getClass().getName() + " does not support operations()");
-    }
-
-    @Override
-    public int formatVersion() {
-      throw new UnsupportedOperationException(
-          this.getClass().getName() + " does not have a format version");
     }
 
     public MetadataTableType type() {
