@@ -50,6 +50,7 @@ import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.io.CloseableIterable;
@@ -805,6 +806,16 @@ public class TestHelpers {
     DeleteFileSet deleteFiles = DeleteFileSet.create();
 
     for (FileScanTask task : table.newScan().planFiles()) {
+      deleteFiles.addAll(task.deletes());
+    }
+
+    return deleteFiles;
+  }
+
+  public static Set<DeleteFile> deleteFiles(Table table, Snapshot snapshot) {
+    DeleteFileSet deleteFiles = DeleteFileSet.create();
+
+    for (FileScanTask task : table.newScan().useSnapshot(snapshot.snapshotId()).planFiles()) {
       deleteFiles.addAll(task.deletes());
     }
 
