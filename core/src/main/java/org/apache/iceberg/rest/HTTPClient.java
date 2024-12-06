@@ -78,13 +78,10 @@ public class HTTPClient implements RESTClient {
   static final String CLIENT_GIT_COMMIT_SHORT_HEADER = "X-Client-Git-Commit-Short";
 
   private static final String REST_MAX_RETRIES = "rest.client.max-retries";
-  @VisibleForTesting static final String REST_MAX_CONNECTIONS = "rest.client.max-connections";
-  @VisibleForTesting static final int REST_MAX_CONNECTIONS_DEFAULT = 100;
-
-  @VisibleForTesting
+  static final String REST_MAX_CONNECTIONS = "rest.client.max-connections";
+  static final int REST_MAX_CONNECTIONS_DEFAULT = 100;
   static final String REST_MAX_CONNECTIONS_PER_ROUTE = "rest.client.connections-per-route";
-
-  @VisibleForTesting static final int REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT = 100;
+  static final int REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT = 100;
 
   @VisibleForTesting
   static final String REST_CONNECTION_TIMEOUT_MS = "rest.client.connection-timeout-ms";
