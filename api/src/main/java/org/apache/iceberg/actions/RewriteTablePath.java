@@ -40,8 +40,8 @@ package org.apache.iceberg.actions;
  *       copied, this will be the root of the copied table.
  *   <li>A 'copy-plan'. This is a list of all files added to the table between startVersion and
  *       endVersion, including their original and target paths under the target prefix. This list
- *       covers both original and rewritten files, allowing for copying to the target paths from the
- *       copied table.
+ *       covers both original and rewritten files, allowing for copying a functioning version of the
+ *       source table to the target prefix.
  * </ol>
  */
 public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTablePath.Result> {
@@ -92,10 +92,21 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
     String stagingLocation();
 
     /**
-     * Result file list location. This file contains a 'copy plan', a comma-separated list of all
-     * files added to the table between startVersion and endVersion, including their original and
-     * target paths under the target prefix. This list covers both original and rewritten files,
-     * allowing for copying to the target paths from the copied table.
+     * Result file list location. This file contains a listing of all files added to the table
+     * between startVersion and endVersion, comma-separated. <br>
+     * For each file, it will include the source path (either the original path in the table, or in
+     * the staging location if rewritten), and the target path (under the new prefix).
+     *
+     * <p>Example file content:
+     *
+     * <pre><code>
+     * sourcepath/datafile1.parquet,targetpath/datafile1.parquet
+     * sourcepath/datafile2.parquet,targetpath/datafile2.parquet
+     * stagingpath/manifest.avro,targetpath/manifest.avro
+     * </code></pre>
+     *
+     * <br>
+     * This allows for copying a functioning version of the table to the target prefix.
      */
     String fileListLocation();
 

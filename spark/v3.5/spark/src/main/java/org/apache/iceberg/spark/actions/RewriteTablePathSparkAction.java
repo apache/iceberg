@@ -20,18 +20,20 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.ManifestLists;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteTablePathUtil;
+import org.apache.iceberg.RewriteTablePathUtil.PositionDeleteReaderWriter;
+import org.apache.iceberg.RewriteTablePathUtil.RewriteResult;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Snapshot;
@@ -41,7 +43,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadataParser;
-import org.apache.iceberg.TableMetadataUtil;
 import org.apache.iceberg.actions.ImmutableRewriteTablePath;
 import org.apache.iceberg.actions.RewriteTablePath;
 import org.apache.iceberg.avro.Avro;
@@ -56,7 +57,6 @@ import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DeleteSchemaUtil;
-import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -67,7 +67,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.Pair;
-import org.apache.spark.api.java.function.MapPartitionsFunction;
+import org.apache.spark.api.java.function.ForeachFunction;
+import org.apache.spark.api.java.function.MapFunction;
+import org.apache.spark.api.java.function.ReduceFunction;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoder;
@@ -146,7 +148,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   @Override
   public Result execute() {
     validateInputs();
-    JobGroupInfo info = newJobGroupInfo("COPY-TABLE", jobDesc());
+    JobGroupInfo info = newJobGroupInfo("REWRITE-TABLE-PATH", jobDesc());
     return withJobGroupInfo(info, this::doExecute);
   }
 
@@ -246,7 +248,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   /**
-   *
+   * Rebuild metadata in a staging location, with paths rewritten.
    *
    * <ul>
    *   <li>Rebuild version files to staging
@@ -282,18 +284,21 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     RewriteResult<ManifestFile> rewriteManifestListResult =
         validSnapshots.stream()
             .map(snapshot -> rewriteManifestList(snapshot, endMetadata, manifestsToRewrite))
-            .reduce(new RewriteResult<>(), RewriteResult::new);
+            .reduce(new RewriteResult<>(), RewriteResult::append);
 
     // rebuild manifest files
-    Set<Pair<String, String>> contentFilesToMove =
+    RewriteResult<DeleteFile> rewriteManifestResult =
         rewriteManifests(endMetadata, rewriteManifestListResult.toRewrite());
 
-    Set<Pair<String, String>> movePlan = Sets.newHashSet();
-    movePlan.addAll(rewriteVersionResult.copyPlan());
-    movePlan.addAll(rewriteManifestListResult.copyPlan());
-    movePlan.addAll(contentFilesToMove);
+    // rebuild position delete files
+    rewritePositionDeletes(endMetadata, rewriteManifestResult.toRewrite());
 
-    return saveFileList(movePlan);
+    Set<Pair<String, String>> copyPlan = Sets.newHashSet();
+    copyPlan.addAll(rewriteVersionResult.copyPlan());
+    copyPlan.addAll(rewriteManifestListResult.copyPlan());
+    copyPlan.addAll(rewriteManifestResult.copyPlan());
+
+    return saveFileList(copyPlan);
   }
 
   private String saveFileList(Set<Pair<String, String>> filesToMove) {
@@ -354,7 +359,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   private Pair<String, String> rewriteVersionFile(TableMetadata metadata, String versionFilePath) {
     String stagingPath = stagingPath(versionFilePath, stagingDir);
     TableMetadata newTableMetadata =
-        TableMetadataUtil.replacePaths(metadata, sourcePrefix, targetPrefix);
+        RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix);
     TableMetadataParser.overwrite(newTableMetadata, table.io().newOutputFile(stagingPath));
     return Pair.of(stagingPath, newPath(versionFilePath, sourcePrefix, targetPrefix));
   }
@@ -364,56 +369,31 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
    *
    * @param snapshot snapshot represented by the manifest list
    * @param tableMetadata metadata of table
+   * @param manifestsToRewrite filter of manifests to rewrite.
+   * @return a result including a copy plan for the manifests contained in the manifest list, as
+   *     well as for the manifest list itself
    */
   private RewriteResult<ManifestFile> rewriteManifestList(
       Snapshot snapshot, TableMetadata tableMetadata, Set<String> manifestsToRewrite) {
     RewriteResult<ManifestFile> result = new RewriteResult<>();
-    List<ManifestFile> manifestFiles = manifestFilesInSnapshot(snapshot);
+
     String path = snapshot.manifestListLocation();
-    String stagingPath = stagingPath(path, stagingDir);
-    OutputFile outputFile = table.io().newOutputFile(stagingPath);
-    try (FileAppender<ManifestFile> writer =
-        ManifestLists.write(
-            tableMetadata.formatVersion(),
-            outputFile,
-            snapshot.snapshotId(),
-            snapshot.parentId(),
-            snapshot.sequenceNumber())) {
+    String outputPath = stagingPath(path, stagingDir);
+    RewriteResult<ManifestFile> rewriteResult =
+        RewriteTablePathUtil.rewriteManifestList(
+            snapshot,
+            table.io(),
+            tableMetadata,
+            manifestsToRewrite,
+            sourcePrefix,
+            targetPrefix,
+            stagingDir,
+            outputPath);
 
-      for (ManifestFile file : manifestFiles) {
-        Preconditions.checkArgument(
-            file.path().startsWith(sourcePrefix),
-            "Encountered manifest file %s not under the source prefix %s",
-            file.path(),
-            sourcePrefix);
-
-        ManifestFile newFile = file.copy();
-        ((StructLike) newFile).set(0, newPath(newFile.path(), sourcePrefix, targetPrefix));
-        writer.add(newFile);
-
-        // return the ManifestFile object for subsequent rewriting
-        if (manifestsToRewrite.contains(file.path())) {
-          result.toRewrite().add(file);
-          result.copyPlan().add(Pair.of(stagingPath(file.path(), stagingDir), newFile.path()));
-        }
-      }
-
-      result.copyPlan().add(Pair.of(stagingPath, newPath(path, sourcePrefix, targetPrefix)));
-      return result;
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to rewrite the manifest list file " + path, e);
-    }
-  }
-
-  private List<ManifestFile> manifestFilesInSnapshot(Snapshot snapshot) {
-    String path = snapshot.manifestListLocation();
-    List<ManifestFile> manifestFiles = Lists.newLinkedList();
-    try {
-      manifestFiles = ManifestLists.read(table.io().newInputFile(path));
-    } catch (RuntimeIOException e) {
-      LOG.warn("Failed to read manifest list {}", path, e);
-    }
-    return manifestFiles;
+    result.append(rewriteResult);
+    // add the manifest list copy plan itself to the result
+    result.copyPlan().add(Pair.of(outputPath, newPath(path, sourcePrefix, targetPrefix)));
+    return result;
   }
 
   private Set<String> manifestsToRewrite(Set<Snapshot> diffSnapshots, TableMetadata startMetadata) {
@@ -441,11 +421,19 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     }
   }
 
+  public static class RewriteDeleteFileResult extends RewriteResult<DeleteFile> {
+    public RewriteDeleteFileResult append(RewriteDeleteFileResult r1) {
+      this.copyPlan().addAll(r1.copyPlan());
+      this.toRewrite().addAll(r1.toRewrite());
+      return this;
+    }
+  }
+
   /** Rewrite manifest files in a distributed manner and return rewritten data files path pairs. */
-  private Set<Pair<String, String>> rewriteManifests(
+  private RewriteResult<DeleteFile> rewriteManifests(
       TableMetadata tableMetadata, Set<ManifestFile> toRewrite) {
     if (toRewrite.isEmpty()) {
-      return Sets.newHashSet();
+      return new RewriteResult<>();
     }
 
     Encoder<ManifestFile> manifestFileEncoder = Encoders.javaSerialization(ManifestFile.class);
@@ -456,26 +444,23 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     Broadcast<Map<Integer, PartitionSpec>> specsById =
         sparkContext().broadcast(tableMetadata.specsById());
 
-    List<Tuple2<String, String>> dataFiles =
-        manifestDS
-            .repartition(toRewrite.size())
-            .mapPartitions(
-                toManifests(
-                    serializableTable,
-                    stagingDir,
-                    tableMetadata.formatVersion(),
-                    specsById,
-                    sourcePrefix,
-                    targetPrefix),
-                Encoders.tuple(Encoders.STRING(), Encoders.STRING()))
-            .collectAsList();
-
-    // duplicates are expected here as the same data file can have different statuses
-    // (e.g. added and deleted)
-    return dataFiles.stream().map(t -> Pair.of(t._1(), t._2())).collect(Collectors.toSet());
+    return manifestDS
+        .repartition(toRewrite.size())
+        .map(
+            toManifests(
+                serializableTable,
+                stagingDir,
+                tableMetadata.formatVersion(),
+                specsById,
+                sourcePrefix,
+                targetPrefix),
+            Encoders.bean(RewriteDeleteFileResult.class))
+        // duplicates are expected here as the same data file can have different statuses
+        // (e.g. added and deleted)
+        .reduce((ReduceFunction<RewriteDeleteFileResult>) RewriteDeleteFileResult::append);
   }
 
-  private static MapPartitionsFunction<ManifestFile, Tuple2<String, String>> toManifests(
+  private static MapFunction<ManifestFile, RewriteDeleteFileResult> toManifests(
       Broadcast<Table> tableBroadcast,
       String stagingLocation,
       int format,
@@ -483,111 +468,150 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       String sourcePrefix,
       String targetPrefix) {
 
-    return rows -> {
-      List<Tuple2<String, String>> files = Lists.newArrayList();
-      while (rows.hasNext()) {
-        ManifestFile manifestFile = rows.next();
-        switch (manifestFile.content()) {
-          case DATA:
-            files.addAll(
-                writeDataManifest(
-                    manifestFile,
-                    tableBroadcast,
-                    stagingLocation,
-                    format,
-                    specsById,
-                    sourcePrefix,
-                    targetPrefix));
-            break;
-          case DELETES:
-            files.addAll(
-                writeDeleteManifest(
-                    manifestFile,
-                    tableBroadcast,
-                    stagingLocation,
-                    format,
-                    specsById,
-                    sourcePrefix,
-                    targetPrefix));
-            break;
-          default:
-            throw new UnsupportedOperationException(
-                "Unsupported manifest type: " + manifestFile.content());
-        }
+    return manifestFile -> {
+      RewriteDeleteFileResult result = new RewriteDeleteFileResult();
+      switch (manifestFile.content()) {
+        case DATA:
+          result
+              .copyPlan()
+              .addAll(
+                  writeDataManifest(
+                      manifestFile,
+                      tableBroadcast,
+                      stagingLocation,
+                      format,
+                      specsById,
+                      sourcePrefix,
+                      targetPrefix));
+          break;
+        case DELETES:
+          result.append(
+              writeDeleteManifest(
+                  manifestFile,
+                  tableBroadcast,
+                  stagingLocation,
+                  format,
+                  specsById,
+                  sourcePrefix,
+                  targetPrefix));
+          break;
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported manifest type: " + manifestFile.content());
       }
-      return files.iterator();
+      return result;
     };
   }
 
-  private static List<Tuple2<String, String>> writeDataManifest(
+  private static List<Pair<String, String>> writeDataManifest(
       ManifestFile manifestFile,
       Broadcast<Table> tableBroadcast,
       String stagingLocation,
       int format,
       Broadcast<Map<Integer, PartitionSpec>> specsByIdBroadcast,
       String sourcePrefix,
-      String targetPrefix)
-      throws IOException {
-    String stagingPath = stagingPath(manifestFile.path(), stagingLocation);
-    FileIO io = tableBroadcast.getValue().io();
-    OutputFile outputFile = io.newOutputFile(stagingPath);
-    Map<Integer, PartitionSpec> specsById = specsByIdBroadcast.getValue();
-    PartitionSpec spec = specsById.get(manifestFile.partitionSpecId());
+      String targetPrefix) {
+    try {
+      String stagingPath = stagingPath(manifestFile.path(), stagingLocation);
+      FileIO io = tableBroadcast.getValue().io();
+      OutputFile outputFile = io.newOutputFile(stagingPath);
+      Map<Integer, PartitionSpec> specsById = specsByIdBroadcast.getValue();
 
-    return RewriteTablePathUtil.rewriteManifest(
-            io, format, spec, outputFile, manifestFile, specsById, sourcePrefix, targetPrefix)
-        .stream()
-        .map(p -> Tuple2.apply(p.first(), p.second()))
-        .collect(Collectors.toList());
+      return new ArrayList<>(
+          RewriteTablePathUtil.rewriteManifest(
+              manifestFile, outputFile, io, format, specsById, sourcePrefix, targetPrefix));
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
+    }
   }
 
-  private static List<Tuple2<String, String>> writeDeleteManifest(
+  private static RewriteResult<DeleteFile> writeDeleteManifest(
       ManifestFile manifestFile,
       Broadcast<Table> tableBroadcast,
       String stagingLocation,
       int format,
       Broadcast<Map<Integer, PartitionSpec>> specsByIdBroadcast,
       String sourcePrefix,
-      String targetPrefix)
-      throws IOException {
-    String stagingPath = stagingPath(manifestFile.path(), stagingLocation);
-    FileIO io = tableBroadcast.getValue().io();
-    OutputFile outputFile = io.newOutputFile(stagingPath);
-    Map<Integer, PartitionSpec> specsById = specsByIdBroadcast.getValue();
-    PartitionSpec spec = specsById.get(manifestFile.partitionSpecId());
-    RewriteTablePathUtil.PositionDeleteReaderWriter posDeleteReaderWriter =
-        new RewriteTablePathUtil.PositionDeleteReaderWriter() {
-          @Override
-          public CloseableIterable<Record> reader(
-              InputFile inputFile, FileFormat format, PartitionSpec spec) {
-            return positionDeletesReader(inputFile, format, spec);
-          }
+      String targetPrefix) {
+    try {
+      String stagingPath = stagingPath(manifestFile.path(), stagingLocation);
+      FileIO io = tableBroadcast.getValue().io();
+      OutputFile outputFile = io.newOutputFile(stagingPath);
+      Map<Integer, PartitionSpec> specsById = specsByIdBroadcast.getValue();
+      return RewriteTablePathUtil.rewriteDeleteManifest(
+          manifestFile,
+          outputFile,
+          io,
+          format,
+          specsById,
+          sourcePrefix,
+          targetPrefix,
+          stagingLocation);
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
+    }
+  }
 
-          @Override
-          public PositionDeleteWriter<Record> writer(
-              OutputFile outputFile,
-              FileFormat format,
-              PartitionSpec spec,
-              StructLike partition,
-              Schema rowSchema)
-              throws IOException {
-            return positionDeletesWriter(outputFile, format, spec, partition, rowSchema);
-          }
-        };
-    return RewriteTablePathUtil.rewriteDeleteManifest(
-            io,
-            format,
-            spec,
-            outputFile,
-            manifestFile,
-            specsById,
-            sourcePrefix,
-            targetPrefix,
-            stagingLocation,
-            posDeleteReaderWriter)
-        .stream()
-        .map(p -> Tuple2.apply(p.first(), p.second()))
-        .collect(Collectors.toList());
+  private void rewritePositionDeletes(TableMetadata metadata, Set<DeleteFile> toRewrite) {
+    if (toRewrite.isEmpty()) {
+      return;
+    }
+
+    Encoder<DeleteFile> deleteFileEncoder = Encoders.javaSerialization(DeleteFile.class);
+    Dataset<DeleteFile> deleteFileDs =
+        spark().createDataset(Lists.newArrayList(toRewrite), deleteFileEncoder);
+
+    Broadcast<Table> serializableTable = sparkContext().broadcast(SerializableTable.copyOf(table));
+    Broadcast<Map<Integer, PartitionSpec>> specsById =
+        sparkContext().broadcast(metadata.specsById());
+
+    PositionDeleteReaderWriter posDeleteReaderWriter = new SparkPositionDeleteReaderWriter();
+    deleteFileDs
+        .repartition(toRewrite.size())
+        .foreach(
+            rewritePositionDelete(
+                serializableTable,
+                specsById,
+                sourcePrefix,
+                targetPrefix,
+                stagingDir,
+                posDeleteReaderWriter));
+  }
+
+  private static class SparkPositionDeleteReaderWriter implements PositionDeleteReaderWriter {
+    @Override
+    public CloseableIterable<Record> reader(
+        InputFile inputFile, FileFormat format, PartitionSpec spec) {
+      return positionDeletesReader(inputFile, format, spec);
+    }
+
+    @Override
+    public PositionDeleteWriter<Record> writer(
+        OutputFile outputFile,
+        FileFormat format,
+        PartitionSpec spec,
+        StructLike partition,
+        Schema rowSchema)
+        throws IOException {
+      return positionDeletesWriter(outputFile, format, spec, partition, rowSchema);
+    }
+  }
+
+  private ForeachFunction<DeleteFile> rewritePositionDelete(
+      Broadcast<Table> tableBroadcast,
+      Broadcast<Map<Integer, PartitionSpec>> specsById,
+      String sourcePrefixArg,
+      String targetPrefixArg,
+      String stagingLocationArg,
+      PositionDeleteReaderWriter posDeleteReaderWriter) {
+    return deleteFile -> {
+      FileIO io = tableBroadcast.getValue().io();
+      String newPath = stagingPath(deleteFile.location(), stagingLocationArg);
+      OutputFile outputFile = io.newOutputFile(newPath);
+      PartitionSpec spec = specsById.getValue().get(deleteFile.specId());
+      RewriteTablePathUtil.rewritePositionDeleteFile(
+          deleteFile, outputFile, io, spec, sourcePrefixArg, targetPrefixArg, posDeleteReaderWriter);
+    };
   }
 
   private static CloseableIterable<Record> positionDeletesReader(
@@ -719,27 +743,5 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     Preconditions.checkArgument(
         !metadataDir.isEmpty(), "Failed to get the metadata file root directory");
     return metadataDir;
-  }
-
-  static class RewriteResult<T> {
-    private final Set<T> toRewrite = Sets.newHashSet();
-    private final Set<Pair<String, String>> copyPlan = Sets.newHashSet();
-
-    RewriteResult() {}
-
-    RewriteResult(RewriteResult<T> r1, RewriteResult<T> r2) {
-      toRewrite.addAll(r1.toRewrite);
-      toRewrite.addAll(r2.toRewrite);
-      copyPlan.addAll(r1.copyPlan);
-      copyPlan.addAll(r2.copyPlan);
-    }
-
-    private Set<T> toRewrite() {
-      return toRewrite;
-    }
-
-    private Set<Pair<String, String>> copyPlan() {
-      return copyPlan;
-    }
   }
 }
