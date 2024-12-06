@@ -86,11 +86,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     this.encryption = table.encryption();
     this.refs = SerializableMap.copyOf(table.refs());
     this.uuid = table.uuid();
-
-    // formatVersion=-1 will never be used/returned, because
-    // SerializableMetadataTable#formatVersion() will throw an UOE when the format version is
-    // retrieved
-    this.formatVersion = table instanceof BaseMetadataTable ? -1 : TableUtil.formatVersion(table);
+    this.formatVersion = formatVersion(table);
   }
 
   /**
@@ -166,6 +162,17 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
 
   public int formatVersion() {
     return formatVersion;
+  }
+
+  private int formatVersion(Table table) {
+    if (table instanceof HasTableOperations) {
+      return ((HasTableOperations) table).operations().current().formatVersion();
+    } else {
+      // formatVersion=-1 will never be used/returned, because
+      // SerializableMetadataTable#formatVersion() will throw an UOE when the format version is
+      // retrieved
+      return -1;
+    }
   }
 
   @Override

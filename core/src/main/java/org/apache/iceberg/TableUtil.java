@@ -27,8 +27,6 @@ public class TableUtil {
   public static int formatVersion(Table table) {
     Preconditions.checkArgument(null != table, "Invalid table: null");
 
-    // SerializableMetadataTable is a subclass of SerializableTable but does not support
-    // operations()
     if (table instanceof SerializableTable) {
       SerializableTable serializableTable = (SerializableTable) table;
       return serializableTable.formatVersion();
