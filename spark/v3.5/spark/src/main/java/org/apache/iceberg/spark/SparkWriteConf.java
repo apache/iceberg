@@ -39,9 +39,11 @@ import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -720,5 +722,10 @@ public class SparkWriteConf {
             .defaultValue(TableProperties.DELETE_GRANULARITY_DEFAULT)
             .parse();
     return DeleteGranularity.fromString(valueAsString);
+  }
+
+  public boolean useDVs() {
+    TableOperations ops = ((HasTableOperations) table).operations();
+    return ops.current().formatVersion() >= 3;
   }
 }
