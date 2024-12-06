@@ -83,7 +83,7 @@ public class TableMaintenance {
 
   /**
    * Use this for standalone maintenance job. It creates a monitor source that detect table changes
-   * and build the maintenance pipelines afterward.
+   * and build the maintenance pipelines afterwards.
    *
    * @param env used to register the monitor source
    * @param tableLoader used for accessing the table

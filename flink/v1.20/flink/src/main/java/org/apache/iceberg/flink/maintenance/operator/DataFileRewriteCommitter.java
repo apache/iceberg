@@ -113,7 +113,7 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
       ++processed;
     } catch (Exception e) {
       LOG.warn(
-          LogUtil.MESSAGE_PREFIX + "Exception processing {}",
+          DataFileRewritePlanner.MESSAGE_PREFIX + "Exception processing {}",
           tableName,
           taskName,
           taskIndex,
@@ -134,7 +134,8 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
           throw new RuntimeException(
               String.format(
                   Locale.ROOT,
-                  LogUtil.MESSAGE_FORMAT_PREFIX + "From %d commits only %d were successful",
+                  DataFileRewritePlanner.MESSAGE_FORMAT_PREFIX
+                      + "From %d commits only %d were successful",
                   tableName,
                   taskName,
                   taskIndex,
@@ -145,14 +146,14 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
       }
 
       LOG.info(
-          LogUtil.MESSAGE_PREFIX + "Successfully completed data file compaction",
+          DataFileRewritePlanner.MESSAGE_PREFIX + "Successfully completed data file compaction",
           tableName,
           taskName,
           taskIndex,
           mark.getTimestamp());
     } catch (Exception e) {
       LOG.warn(
-          LogUtil.MESSAGE_PREFIX + "Exception closing commit service",
+          DataFileRewritePlanner.MESSAGE_PREFIX + "Exception closing commit service",
           tableName,
           taskName,
           taskIndex,
@@ -188,7 +189,7 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
     public void commitFileGroups(Set<RewriteFileGroup> fileGroups) {
       super.commitFileGroups(fileGroups);
       LOG.debug(
-          LogUtil.MESSAGE_PREFIX + "Committed {}",
+          DataFileRewritePlanner.MESSAGE_PREFIX + "Committed {}",
           tableName,
           taskName,
           taskIndex,
