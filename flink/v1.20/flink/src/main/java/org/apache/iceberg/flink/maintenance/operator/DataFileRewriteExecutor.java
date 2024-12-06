@@ -89,7 +89,7 @@ public class DataFileRewriteExecutor
       throws Exception {
     if (LOG.isDebugEnabled()) {
       LOG.debug(
-          LogUtil.MESSAGE_PREFIX + "Rewriting files {} from {}",
+          DataFileRewritePlanner.MESSAGE_PREFIX + "Rewriting files {} from {}",
           tableName,
           taskName,
           taskIndex,
@@ -98,7 +98,7 @@ public class DataFileRewriteExecutor
           value.group().rewrittenFiles());
     } else {
       LOG.info(
-          LogUtil.MESSAGE_PREFIX + "Rewriting {} files from {}",
+          DataFileRewritePlanner.MESSAGE_PREFIX + "Rewriting {} files from {}",
           tableName,
           taskName,
           taskIndex,
@@ -122,7 +122,7 @@ public class DataFileRewriteExecutor
                 value.group()));
         if (LOG.isDebugEnabled()) {
           LOG.debug(
-              LogUtil.MESSAGE_PREFIX + "Rewritten files {} from {} to {}",
+              DataFileRewritePlanner.MESSAGE_PREFIX + "Rewritten files {} from {} to {}",
               tableName,
               taskName,
               taskIndex,
@@ -132,7 +132,7 @@ public class DataFileRewriteExecutor
               value.group().addedFiles());
         } else {
           LOG.info(
-              LogUtil.MESSAGE_PREFIX + "Rewritten {} files to {} files",
+              DataFileRewritePlanner.MESSAGE_PREFIX + "Rewritten {} files to {} files",
               tableName,
               taskName,
               taskIndex,
@@ -142,7 +142,7 @@ public class DataFileRewriteExecutor
         }
       } catch (Exception ex) {
         LOG.info(
-            LogUtil.MESSAGE_PREFIX + "Exception rewriting datafile group {}",
+            DataFileRewritePlanner.MESSAGE_PREFIX + "Exception rewriting datafile group {}",
             tableName,
             taskName,
             taskIndex,
@@ -155,7 +155,8 @@ public class DataFileRewriteExecutor
       }
     } catch (Exception ex) {
       LOG.info(
-          LogUtil.MESSAGE_PREFIX + "Exception creating compaction writer for group {}",
+          DataFileRewritePlanner.MESSAGE_PREFIX
+              + "Exception creating compaction writer for group {}",
           tableName,
           taskName,
           taskIndex,
@@ -204,7 +205,8 @@ public class DataFileRewriteExecutor
   private void abort(TaskWriter<RowData> writer, long timestamp) {
     try {
       LOG.info(
-          LogUtil.MESSAGE_PREFIX + "Aborting rewrite for (subTaskId {}, attemptId {})",
+          DataFileRewritePlanner.MESSAGE_PREFIX
+              + "Aborting rewrite for (subTaskId {}, attemptId {})",
           tableName,
           taskName,
           taskIndex,
@@ -214,7 +216,7 @@ public class DataFileRewriteExecutor
       writer.abort();
     } catch (Exception inner) {
       LOG.info(
-          LogUtil.MESSAGE_PREFIX + "Exception in abort",
+          DataFileRewritePlanner.MESSAGE_PREFIX + "Exception in abort",
           tableName,
           taskName,
           taskIndex,

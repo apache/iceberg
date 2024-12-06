@@ -52,6 +52,8 @@ import org.slf4j.LoggerFactory;
 @Internal
 public class DataFileRewritePlanner
     extends ProcessFunction<Trigger, DataFileRewritePlanner.PlannedGroup> {
+  static final String MESSAGE_PREFIX = "[For table {} with {}[{}] at {}]: ";
+  static final String MESSAGE_FORMAT_PREFIX = "[For table %s with {%s}[{%d}] at {%d}]: ";
   private static final Logger LOG = LoggerFactory.getLogger(DataFileRewritePlanner.class);
 
   private final String tableName;
@@ -111,7 +113,7 @@ public class DataFileRewritePlanner
   public void processElement(Trigger value, Context ctx, Collector<PlannedGroup> out)
       throws Exception {
     LOG.debug(
-        LogUtil.MESSAGE_PREFIX + "Creating rewrite plan",
+        DataFileRewritePlanner.MESSAGE_PREFIX + "Creating rewrite plan",
         tableName,
         taskName,
         taskIndex,
@@ -121,7 +123,7 @@ public class DataFileRewritePlanner
           (SerializableTable) SerializableTable.copyOf(tableLoader.loadTable());
       if (table.currentSnapshot() == null) {
         LOG.info(
-            LogUtil.MESSAGE_PREFIX + "Nothing to plan for in an empty table",
+            DataFileRewritePlanner.MESSAGE_PREFIX + "Nothing to plan for in an empty table",
             tableName,
             taskName,
             taskIndex,
@@ -142,7 +144,8 @@ public class DataFileRewritePlanner
         if (rewriteBytes + group.sizeInBytes() > maxRewriteBytes) {
           // Keep going, maybe some other group might fit in
           LOG.info(
-              LogUtil.MESSAGE_PREFIX + "Skipping group {} as max rewrite size reached",
+              DataFileRewritePlanner.MESSAGE_PREFIX
+                  + "Skipping group {} as max rewrite size reached",
               tableName,
               taskName,
               taskIndex,
@@ -159,7 +162,7 @@ public class DataFileRewritePlanner
           IntMath.divide(totalGroupCount, partialProgressMaxCommits, RoundingMode.CEILING);
 
       LOG.info(
-          LogUtil.MESSAGE_PREFIX + "Rewrite plan created {}",
+          DataFileRewritePlanner.MESSAGE_PREFIX + "Rewrite plan created {}",
           tableName,
           taskName,
           taskIndex,
@@ -168,7 +171,7 @@ public class DataFileRewritePlanner
 
       for (RewriteFileGroup group : groups) {
         LOG.debug(
-            LogUtil.MESSAGE_PREFIX + "Emitting {}",
+            DataFileRewritePlanner.MESSAGE_PREFIX + "Emitting {}",
             tableName,
             taskName,
             taskIndex,
@@ -180,7 +183,7 @@ public class DataFileRewritePlanner
       }
     } catch (Exception e) {
       LOG.info(
-          LogUtil.MESSAGE_PREFIX + "Failed to plan data file rewrite groups",
+          DataFileRewritePlanner.MESSAGE_PREFIX + "Failed to plan data file rewrite groups",
           tableName,
           taskName,
           taskIndex,

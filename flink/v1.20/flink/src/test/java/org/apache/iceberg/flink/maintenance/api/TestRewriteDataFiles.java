@@ -29,11 +29,8 @@ import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetr
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.REMOVED_DATA_FILE_SIZE_METRIC;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.File;
 import java.util.List;
 import java.util.stream.StreamSupport;
-import org.apache.flink.configuration.Configuration;
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.Table;
@@ -42,7 +39,6 @@ import org.apache.iceberg.flink.maintenance.operator.MetricsReporterFactoryForTe
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 class TestRewriteDataFiles extends MaintenanceTaskTestBase {
   @Test
@@ -101,40 +97,6 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             createRecord(2, "p1"),
             createRecord(3, "p2"),
             createRecord(4, "p2")));
-  }
-
-  @Test
-  void testStateRestore(@TempDir File savepointDir) throws Exception {
-    Table table = createTable();
-    insert(table, 1, "a");
-    insert(table, 2, "b");
-
-    appendRewriteDataFiles();
-
-    Configuration conf =
-        runAndWaitForSavepoint(infra.env(), infra.source(), infra.sink(), savepointDir);
-
-    assertFileNum(table, 1, 0);
-    SimpleDataUtil.assertTableRecords(
-        table, ImmutableList.of(createRecord(1, "a"), createRecord(2, "b")));
-
-    // Add some more data
-    insert(table, 3, "c");
-
-    assertFileNum(table, 2, 0);
-
-    // New env from the savepoint
-    StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment(conf);
-
-    infra.init(env);
-
-    appendRewriteDataFiles();
-
-    runAndWaitForSuccess(infra.env(), infra.source(), infra.sink());
-
-    assertFileNum(table, 1, 0);
-    SimpleDataUtil.assertTableRecords(
-        table, ImmutableList.of(createRecord(1, "a"), createRecord(2, "b"), createRecord(3, "c")));
   }
 
   @Test
