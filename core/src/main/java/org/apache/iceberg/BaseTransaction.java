@@ -799,6 +799,11 @@ public class BaseTransaction implements Transaction {
     }
 
     @Override
+    public int formatVersion() {
+      return current.formatVersion();
+    }
+
+    @Override
     public String toString() {
       return name();
     }

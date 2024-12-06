@@ -269,6 +269,11 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   }
 
   @Override
+  public int formatVersion() {
+    return lazyTable().formatVersion();
+  }
+
+  @Override
   public void refresh() {
     throw new UnsupportedOperationException(errorMsg("refresh"));
   }
