@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
@@ -77,7 +78,7 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 
 /** Adaptor class to translate REST requests into {@link Catalog} API calls. */
-public class RESTCatalogAdapter extends BaseHTTPClient {
+public class RESTCatalogAdapter implements RESTClient {
   private static final Splitter SLASH = Splitter.on('/');
 
   private static final Map<Class<? extends Exception>, Integer> EXCEPTION_ERROR_CODES =
@@ -554,8 +555,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
     transactions.forEach(Transaction::commitTransaction);
   }
 
-  @Override
-  protected HTTPRequest buildRequest(
+  HTTPRequest buildRequest(
       HTTPMethod method,
       String path,
       Map<String, String> queryParams,
@@ -582,8 +582,7 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
     return authSession.authenticate(builder.build());
   }
 
-  @Override
-  protected <T extends RESTResponse> T execute(
+  <T extends RESTResponse> T execute(
       HTTPRequest request,
       Class<T> responseType,
       Consumer<ErrorResponse> errorHandler,
@@ -615,6 +614,171 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
     // if the error handler doesn't throw an exception, throw a generic one
     throw new RESTException("Unhandled error: %s", error);
+  }
+
+  @Override
+  public void head(
+      String path, Supplier<Map<String, String>> headers, Consumer<ErrorResponse> errorHandler) {
+    HTTPRequest request = buildRequest(HTTPMethod.HEAD, path, null, headers.get(), null);
+    execute(request, null, errorHandler, h -> {});
+  }
+
+  @Override
+  public void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
+    HTTPRequest request = buildRequest(HTTPMethod.HEAD, path, null, headers, null);
+    execute(request, null, errorHandler, h -> {});
+  }
+
+  @Override
+  public <T extends RESTResponse> T delete(
+      String path,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Supplier<Map<String, String>> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    HTTPRequest request = buildRequest(HTTPMethod.DELETE, path, queryParams, headers.get(), null);
+    return execute(request, responseType, errorHandler, h -> {});
+  }
+
+  @Override
+  public <T extends RESTResponse> T delete(
+      String path,
+      Class<T> responseType,
+      Supplier<Map<String, String>> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    HTTPRequest request = buildRequest(HTTPMethod.DELETE, path, null, headers.get(), null);
+    return execute(request, responseType, errorHandler, h -> {});
+  }
+
+  @Override
+  public <T extends RESTResponse> T delete(
+      String path,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    HTTPRequest request = buildRequest(HTTPMethod.DELETE, path, null, headers, null);
+    return execute(request, responseType, errorHandler, h -> {});
+  }
+
+  @Override
+  public <T extends RESTResponse> T delete(
+      String path,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    HTTPRequest request = buildRequest(HTTPMethod.DELETE, path, queryParams, headers, null);
+    return execute(request, responseType, errorHandler, h -> {});
+  }
+
+  @Override
+  public <T extends RESTResponse> T get(
+      String path,
+      Class<T> responseType,
+      Supplier<Map<String, String>> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    HTTPRequest request = buildRequest(HTTPMethod.GET, path, null, headers.get(), null);
+    return execute(request, responseType, errorHandler, h -> {});
+  }
+
+  @Override
+  public <T extends RESTResponse> T get(
+      String path,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    HTTPRequest request = buildRequest(HTTPMethod.GET, path, null, headers, null);
+    return execute(request, responseType, errorHandler, h -> {});
+  }
+
+  @Override
+  public <T extends RESTResponse> T get(
+      String path,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Supplier<Map<String, String>> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    HTTPRequest request = buildRequest(HTTPMethod.GET, path, queryParams, headers.get(), null);
+    return execute(request, responseType, errorHandler, h -> {});
+  }
+
+  @Override
+  public <T extends RESTResponse> T get(
+      String path,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    HTTPRequest request = buildRequest(HTTPMethod.GET, path, queryParams, headers, null);
+    return execute(request, responseType, errorHandler, h -> {});
+  }
+
+  @Override
+  public <T extends RESTResponse> T post(
+      String path,
+      RESTRequest body,
+      Class<T> responseType,
+      Supplier<Map<String, String>> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    HTTPRequest request = buildRequest(HTTPMethod.POST, path, null, headers.get(), body);
+    return execute(request, responseType, errorHandler, h -> {});
+  }
+
+  @Override
+  public <T extends RESTResponse> T post(
+      String path,
+      RESTRequest body,
+      Class<T> responseType,
+      Supplier<Map<String, String>> headers,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders) {
+    HTTPRequest request = buildRequest(HTTPMethod.POST, path, null, headers.get(), body);
+    return execute(request, responseType, errorHandler, responseHeaders);
+  }
+
+  @Override
+  public <T extends RESTResponse> T post(
+      String path,
+      RESTRequest body,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders) {
+    HTTPRequest request = buildRequest(HTTPMethod.POST, path, null, headers, body);
+    return execute(request, responseType, errorHandler, responseHeaders);
+  }
+
+  @Override
+  public <T extends RESTResponse> T post(
+      String path,
+      RESTRequest body,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    HTTPRequest request = buildRequest(HTTPMethod.POST, path, null, headers, body);
+    return execute(request, responseType, errorHandler, h -> {});
+  }
+
+  @Override
+  public <T extends RESTResponse> T postForm(
+      String path,
+      Map<String, String> formData,
+      Class<T> responseType,
+      Supplier<Map<String, String>> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    HTTPRequest request = buildRequest(HTTPMethod.POST, path, null, headers.get(), formData);
+    return execute(request, responseType, errorHandler, h -> {});
+  }
+
+  @Override
+  public <T extends RESTResponse> T postForm(
+      String path,
+      Map<String, String> formData,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    HTTPRequest request = buildRequest(HTTPMethod.POST, path, null, headers, formData);
+    return execute(request, responseType, errorHandler, h -> {});
   }
 
   @Override
