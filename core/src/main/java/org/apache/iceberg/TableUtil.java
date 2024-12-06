@@ -29,8 +29,10 @@ public class TableUtil {
 
     // SerializableMetadataTable is a subclass of SerializableTable but does not support
     // operations()
-    if (table instanceof HasTableOperations
-        && !(table instanceof SerializableTable.SerializableMetadataTable)) {
+    if (table instanceof SerializableTable) {
+      SerializableTable serializableTable = (SerializableTable) table;
+      return serializableTable.formatVersion();
+    } else if (table instanceof HasTableOperations) {
       return ((HasTableOperations) table).operations().current().formatVersion();
     } else {
       throw new IllegalArgumentException(
