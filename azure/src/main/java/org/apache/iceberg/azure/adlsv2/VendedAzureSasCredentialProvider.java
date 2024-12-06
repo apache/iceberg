@@ -44,10 +44,10 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class VendedAzureSasCredentialProvider implements Serializable, AutoCloseable {
+public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable {
   private static final Logger LOG = LoggerFactory.getLogger(VendedAzureSasCredentialProvider.class);
 
-  private static final String THREAD_PREFIX = "adls-fileio-credential-refresh";
+  private static final String THREAD_PREFIX = "adls-vended-credential-refresh";
   public static final String URI = "credentials.uri";
 
   private final SerializableMap<String, String> properties;

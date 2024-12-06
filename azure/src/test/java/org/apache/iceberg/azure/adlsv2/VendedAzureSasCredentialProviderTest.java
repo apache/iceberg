@@ -48,7 +48,7 @@ import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
 import org.mockserver.verify.VerificationTimes;
 
-public class VendedAzureSasCredentialProviderTest {
+public class VendedAdlsCredentialProviderTest {
   private static final int PORT = 3232;
   private static final String URI = String.format("http://127.0.0.1:%d/v1/credentials", PORT);
   private static ClientAndServer mockServer;

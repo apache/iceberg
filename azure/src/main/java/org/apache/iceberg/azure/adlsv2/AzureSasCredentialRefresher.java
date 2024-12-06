@@ -59,7 +59,7 @@ public class AzureSasCredentialRefresher {
         TimeUnit.MILLISECONDS);
   }
 
-  private long refreshDelay(Long expireAtMillis) {
+  private long refreshDelayMillis(Long expireAtMillis) {
     long expireInMillis = expireAtMillis - System.currentTimeMillis();
     // how much ahead of time to start the request to allow it to complete
     long refreshWindowMillis = Math.min(expireInMillis / 10, MAX_REFRESH_WINDOW_MILLIS);
