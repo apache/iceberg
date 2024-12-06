@@ -28,9 +28,13 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.HasTableOperations;
@@ -333,6 +337,44 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     // Positional delete affects a single row, so only one row must remain
     assertThat(spark.read().format("iceberg").load(targetTableLocation()).count()).isEqualTo(1);
+  }
+
+  @Test
+  public void testPositionDeletesAcrossFiles() throws Exception {
+    Stream<DataFile> allFiles =
+        StreamSupport.stream(table.snapshots().spliterator(), false)
+            .flatMap(s -> StreamSupport.stream(s.addedDataFiles(table.io()).spliterator(), false));
+    List<Pair<CharSequence, Long>> deletes =
+        allFiles.map(f -> Pair.of((CharSequence) f.location(), 0L)).collect(Collectors.toList());
+
+    // a single position delete with two entries
+    assertThat(deletes.size()).isEqualTo(2);
+
+    File file = new File(removePrefix(table.location() + "/data/deeply/nested/file.parquet"));
+    DeleteFile positionDeletes =
+        FileHelpers.writeDeleteFile(
+                table, table.io().newOutputFile(file.toURI().toString()), deletes)
+            .first();
+
+    table.newRowDelta().addDeletes(positionDeletes).commit();
+
+    assertThat(spark.read().format("iceberg").load(table.location()).count()).isEqualTo(0);
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(table)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(table.location(), targetTableLocation())
+            .execute();
+
+    // We have one more snapshot, an additional manifest list, and a new (delete) manifest,
+    // and an additional position delete
+    checkFileNum(4, 3, 3, 13, result);
+
+    // copy the metadata files and data files
+    copyTableFiles(result);
+
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).count()).isEqualTo(0);
   }
 
   @Test
@@ -766,7 +808,7 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @Test
-  public void testV2Table() throws Exception {
+  public void testDeleteFrom() throws Exception {
     Map<String, String> properties = Maps.newHashMap();
     properties.put("format-version", "2");
     properties.put("write.delete.mode", "merge-on-read");
@@ -847,7 +889,6 @@ public class TestRewriteTablePathsAction extends TestBase {
             .load(result.fileListLocation())
             .as(Encoders.STRING())
             .collectAsList();
-    assertThat(filesToMove.size()).withFailMessage("Wrong total file count").isEqualTo(totalCount);
     assertThat(filesToMove.stream().filter(f -> f.endsWith(".metadata.json")).count())
         .withFailMessage("Wrong rebuilt version file count")
         .isEqualTo(versionFileCount);
@@ -857,6 +898,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     assertThat(filesToMove.stream().filter(f -> f.endsWith("-m0.avro")).count())
         .withFailMessage("Wrong rebuilt Manifest file file count")
         .isEqualTo(manifestFileCount);
+    assertThat(filesToMove.size()).withFailMessage("Wrong total file count").isEqualTo(totalCount);
   }
 
   protected String newTableLocation() throws IOException {
