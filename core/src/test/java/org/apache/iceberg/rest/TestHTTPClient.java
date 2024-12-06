@@ -252,7 +252,7 @@ public class TestHTTPClient {
   }
 
   @Test
-  public void testMaxConnectionSet() {
+  public void testMaxConnectionSettingsFromProperties() {
     int maxConnections = 10;
     int maxConnectionPerRoute = 5;
     Map<String, String> properties =
@@ -271,7 +271,7 @@ public class TestHTTPClient {
   }
 
   @Test
-  public void testMaxConnectionUnSet() {
+  public void testMaxConnectionSettingsFromDefaults() {
     Map<String, String> properties = ImmutableMap.of();
     HttpClientConnectionManager connectionManager =
         HTTPClient.configureConnectionManager(properties);

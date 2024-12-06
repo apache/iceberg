@@ -474,7 +474,11 @@ public class HTTPClient implements RESTClient {
 
     return connectionManagerBuilder
         .useSystemProperties()
-        .setMaxConnTotal(maxConnections)
+        .setMaxConnTotal(
+            Integer.getInteger(
+                REST_MAX_CONNECTIONS,
+                PropertyUtil.propertyAsInt(
+                    properties, REST_MAX_CONNECTIONS, REST_MAX_CONNECTIONS_DEFAULT)))
         .setMaxConnPerRoute(
             PropertyUtil.propertyAsInt(
                 properties, REST_MAX_CONNECTIONS_PER_ROUTE, REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT))
