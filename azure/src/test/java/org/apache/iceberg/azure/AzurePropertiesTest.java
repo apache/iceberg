@@ -20,12 +20,12 @@ package org.apache.iceberg.azure;
 
 import static org.apache.iceberg.azure.AzureProperties.ADLS_CONNECTION_STRING_PREFIX;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_READ_BLOCK_SIZE;
+import static org.apache.iceberg.azure.AzureProperties.ADLS_REFRESH_CREDENTIALS_ENABLED;
+import static org.apache.iceberg.azure.AzureProperties.ADLS_REFRESH_CREDENTIALS_ENDPOINT;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_SAS_TOKEN_PREFIX;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_SHARED_KEY_ACCOUNT_KEY;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_SHARED_KEY_ACCOUNT_NAME;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_WRITE_BLOCK_SIZE;
-import static org.apache.iceberg.azure.AzureProperties.REFRESH_CREDENTIALS_ENABLED;
-import static org.apache.iceberg.azure.AzureProperties.REFRESH_CREDENTIALS_ENDPOINT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.mockito.ArgumentMatchers.any;
@@ -41,7 +41,7 @@ import com.azure.core.credential.TokenCredential;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import org.apache.iceberg.TestHelpers;
-import org.apache.iceberg.azure.adlsv2.VendedAzureSasCredentialProvider;
+import org.apache.iceberg.azure.adlsv2.VendedAdlsCredentialProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
@@ -79,10 +79,9 @@ public class AzurePropertiesTest {
 
   @Test
   public void testWithRefreshCredentialsEndpoint() {
-    try (var providerMockedConstruction =
-        mockConstruction(VendedAzureSasCredentialProvider.class)) {
+    try (var providerMockedConstruction = mockConstruction(VendedAdlsCredentialProvider.class)) {
       AzureProperties props =
-          new AzureProperties(ImmutableMap.of(REFRESH_CREDENTIALS_ENDPOINT, "endpoint"));
+          new AzureProperties(ImmutableMap.of(ADLS_REFRESH_CREDENTIALS_ENDPOINT, "endpoint"));
       assertThat(providerMockedConstruction.constructed()).hasSize(1);
       var providerMock = providerMockedConstruction.constructed().get(0);
       AzureSasCredential azureSasCredential = mock(AzureSasCredential.class);
@@ -98,12 +97,14 @@ public class AzurePropertiesTest {
 
   @Test
   public void testWithRefreshCredentialsEndpointDisabled() {
-    try (var providerMockedConstruction =
-        mockConstruction(VendedAzureSasCredentialProvider.class)) {
+    try (var providerMockedConstruction = mockConstruction(VendedAdlsCredentialProvider.class)) {
       AzureProperties props =
           new AzureProperties(
               ImmutableMap.of(
-                  REFRESH_CREDENTIALS_ENDPOINT, "endpoint", REFRESH_CREDENTIALS_ENABLED, "false"));
+                  ADLS_REFRESH_CREDENTIALS_ENDPOINT,
+                  "endpoint",
+                  ADLS_REFRESH_CREDENTIALS_ENABLED,
+                  "false"));
       assertThat(providerMockedConstruction.constructed()).hasSize(0);
 
       DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);

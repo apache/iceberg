@@ -45,7 +45,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable {
-  private static final Logger LOG = LoggerFactory.getLogger(VendedAzureSasCredentialProvider.class);
+  private static final Logger LOG = LoggerFactory.getLogger(VendedAdlsCredentialProvider.class);
 
   private static final String THREAD_PREFIX = "adls-vended-credential-refresh";
   public static final String URI = "credentials.uri";
@@ -56,7 +56,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
   private transient volatile RESTClient client;
   private transient volatile ScheduledExecutorService refreshExecutor;
 
-  public VendedAzureSasCredentialProvider(Map<String, String> properties) {
+  public VendedAdlsCredentialProvider(Map<String, String> properties) {
     Preconditions.checkArgument(null != properties, "Invalid properties: null");
     Preconditions.checkArgument(null != properties.get(URI), "Invalid URI: null");
     this.properties = SerializableMap.copyOf(properties);
@@ -93,7 +93,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
     Credential adlsCredential = adlsCredentials.get(0);
     checkCredential(adlsCredential, AzureProperties.ADLS_SAS_TOKEN_PREFIX + storageAccount);
     checkCredential(
-        adlsCredential, AzureProperties.ADLS_SAS_TOKEN_EXPIRE_AT_MS_PREFIX + storageAccount);
+        adlsCredential, AzureProperties.ADLS_SAS_TOKEN_EXPIRES_AT_MS_PREFIX + storageAccount);
 
     String updatedSasToken =
         adlsCredential.config().get(AzureProperties.ADLS_SAS_TOKEN_PREFIX + storageAccount);
@@ -101,7 +101,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
         Long.parseLong(
             adlsCredential
                 .config()
-                .get(AzureProperties.ADLS_SAS_TOKEN_EXPIRE_AT_MS_PREFIX + storageAccount));
+                .get(AzureProperties.ADLS_SAS_TOKEN_EXPIRES_AT_MS_PREFIX + storageAccount));
 
     return Pair.of(updatedSasToken, tokenExpiresAtMillis);
   }

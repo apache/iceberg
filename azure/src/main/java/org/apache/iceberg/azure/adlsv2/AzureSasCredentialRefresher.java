@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.apache.commons.lang3.tuple.Pair;
 
-public class AzureSasCredentialRefresher {
+class AzureSasCredentialRefresher {
   private final Supplier<Pair<String, Long>> sasTokenWithExpirationSupplier;
   private final ScheduledExecutorService refreshExecutor;
   private final AzureSasCredential azureSasCredential;
@@ -32,7 +32,7 @@ public class AzureSasCredentialRefresher {
   private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes;
   private static final long MIN_REFRESH_WAIT_MILLIS = 10;
 
-  public AzureSasCredentialRefresher(
+  AzureSasCredentialRefresher(
       Supplier<Pair<String, Long>> sasTokenWithExpirationSupplier,
       ScheduledExecutorService refreshExecutor) {
     this.sasTokenWithExpirationSupplier = sasTokenWithExpirationSupplier;
@@ -55,7 +55,7 @@ public class AzureSasCredentialRefresher {
             this.scheduleRefresh(sasTokenWithExpiration.getRight());
           }
         },
-        refreshDelay(expireAtMillis),
+        refreshDelayMillis(expireAtMillis),
         TimeUnit.MILLISECONDS);
   }
 
