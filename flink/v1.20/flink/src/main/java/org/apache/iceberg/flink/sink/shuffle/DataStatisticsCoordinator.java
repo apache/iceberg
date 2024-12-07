@@ -370,7 +370,8 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
         "Restoring data statistic coordinator {} from checkpoint {}", operatorName, checkpointId);
     this.completedStatistics =
         StatisticsUtil.deserializeCompletedStatistics(
-            checkpointData, completedStatisticsSerializer);
+            checkpointData, (CompletedStatisticsSerializer) completedStatisticsSerializer);
+
     // recompute global statistics in case downstream parallelism changed
     this.globalStatistics =
         globalStatistics(
