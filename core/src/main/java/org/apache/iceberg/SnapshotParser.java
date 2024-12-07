@@ -84,6 +84,9 @@ public class SnapshotParser {
       // write just the location. manifests should not be embedded in JSON along with a list
       generator.writeStringField(MANIFEST_LIST, manifestList);
     } else {
+      LOG.warn(
+          "Support for embedded manifests are deprecated since Iceberg 1.8.0, will be removed in 2.0.0");
+
       // embed the manifest list in the JSON, v1 only
       JsonUtil.writeStringArray(
           MANIFESTS,
@@ -172,6 +175,9 @@ public class SnapshotParser {
           manifestList);
 
     } else {
+      LOG.warn(
+          "Support for embedded manifests are deprecated since Iceberg 1.8.0, will be removed in 2.0.0");
+
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be
       // loaded lazily, if it is needed
       return new BaseSnapshot(
