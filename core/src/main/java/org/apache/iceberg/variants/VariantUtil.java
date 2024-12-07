@@ -164,8 +164,16 @@ class VariantUtil {
     }
   }
 
+  public static byte metadataHeader(int version, int offsetSize) {
+    return (byte) (version | ((offsetSize - 1) << 6));
+  }
+
   static byte primitiveHeader(int primitiveType) {
-    return (byte) (primitiveType << Variants.Primitives.PRIMITIVE_TYPE_SHIFT);
+    return (byte) (primitiveType << Variants.Primitives. PRIMITIVE_TYPE_SHIFT);
+  }
+
+  public static byte shortStrHeader(int size) {
+    return (byte) (size << 2 | 0b01);
   }
 
   static byte objectHeader(boolean isLarge, int fieldIdSize, int offsetSize) {
