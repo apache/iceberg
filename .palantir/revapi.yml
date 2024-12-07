@@ -1145,6 +1145,22 @@ acceptedBreaks:
       new: "method org.apache.iceberg.BaseMetastoreOperations.CommitStatus org.apache.iceberg.BaseMetastoreTableOperations::checkCommitStatus(java.lang.String,\
         \ org.apache.iceberg.TableMetadata)"
       justification: "Removing deprecated code"
+  "1.7.0":
+    org.apache.iceberg:iceberg-core:
+    - code: "java.method.returnTypeChanged"
+      old: "method <T extends org.apache.iceberg.StructLike> org.apache.iceberg.util.CharSequenceMap<org.apache.iceberg.deletes.PositionDeleteIndex>\
+        \ org.apache.iceberg.deletes.Deletes::toPositionIndexes(org.apache.iceberg.io.CloseableIterable<T>)"
+      new: "method <T extends org.apache.iceberg.StructLike> org.apache.iceberg.util.PathMap<org.apache.iceberg.deletes.PositionDeleteIndex>\
+        \ org.apache.iceberg.deletes.Deletes::toPositionIndexes(org.apache.iceberg.io.CloseableIterable<T>)"
+      justification: "the CharSequenceMap was replaced with the PathMap"
+    - code: "java.method.returnTypeChanged"
+      old: "method <T extends org.apache.iceberg.StructLike> org.apache.iceberg.util.CharSequenceMap<org.apache.iceberg.deletes.PositionDeleteIndex>\
+        \ org.apache.iceberg.deletes.Deletes::toPositionIndexes(org.apache.iceberg.io.CloseableIterable<T>,\
+        \ org.apache.iceberg.DeleteFile)"
+      new: "method <T extends org.apache.iceberg.StructLike> org.apache.iceberg.util.PathMap<org.apache.iceberg.deletes.PositionDeleteIndex>\
+        \ org.apache.iceberg.deletes.Deletes::toPositionIndexes(org.apache.iceberg.io.CloseableIterable<T>,\
+        \ org.apache.iceberg.DeleteFile)"
+      justification: "the CharSequenceMap was replaced with the PathMap"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"
