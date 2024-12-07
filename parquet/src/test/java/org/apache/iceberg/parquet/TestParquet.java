@@ -27,12 +27,16 @@ import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.write;
 import static org.apache.iceberg.relocated.com.google.common.collect.Iterables.getOnlyElement;
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.google.gson.JsonParser;
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
@@ -49,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.util.Pair;
@@ -217,6 +222,78 @@ public class TestParquet {
 
     assertThat(recordRead.get("arraybytes")).isEqualTo(expectedByteList);
     assertThat(recordRead.get("topbytes")).isEqualTo(expectedBinary);
+  }
+
+  @Test
+  public void testVariant() throws IOException {
+    Schema schema = new Schema(required(1, "variantCol", Types.VariantType.get()));
+
+    Object[][] testData = {
+      {null, "{\"name\":\"John\",\"age\":30}"},
+      {null, null},
+      {Types.BooleanType.get(), true},
+      {Types.BooleanType.get(), false},
+      {Types.IntegerType.get(), 10},
+      {Types.LongType.get(), 100L},
+      {Types.FloatType.get(), 200.12f},
+      {Types.DoubleType.get(), 300.34},
+      {Types.StringType.get(), "abc"},
+      {Types.BinaryType.get(), new byte[] {'a', 'b', 'c'}},
+      {Types.FixedType.ofLength(3), new byte[] {'a', 'b', 'c'}},
+      {Types.DecimalType.of(5, 2), BigDecimal.valueOf(123.56)},
+      {Types.TimestampType.withZone(), 6L},
+      {Types.TimestampType.withoutZone(), 6L},
+    };
+
+    File file = createTempFile(temp);
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(testData.length + 1);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+
+    // Add Json Variant
+    GenericData.Record record = new GenericData.Record(avroSchema);
+    record.put("variantCol", ParquetVariant.parseJson((String) testData[0][1]));
+    records.add(record);
+
+    // Add primitive Variant
+    for (int i = 1; i < testData.length; i++) {
+      Object[] pair = testData[i];
+      record = new GenericData.Record(avroSchema);
+      record.put("variantCol", ParquetVariant.toVariant((Type.PrimitiveType) pair[0], pair[1]));
+      records.add(record);
+    }
+
+    long actualSize =
+        write(
+            file,
+            schema,
+            Collections.emptyMap(),
+            ParquetAvroWriter::buildWriter,
+            records.toArray(new GenericData.Record[] {}));
+
+    long expectedSize = ParquetIO.file(localInput(file)).getLength();
+    assertThat(actualSize).isEqualTo(expectedSize);
+
+    // Test read the variant data
+    Iterable<GenericData.Record> readRecords =
+        Parquet.read(Files.localInput(file)).project(schema).callInit().build();
+    int count = 0;
+    for (GenericData.Record readRecord : readRecords) {
+      GenericData.Record variantRecord = (GenericData.Record) readRecord.get("variantCol");
+      ParquetVariant readVariant =
+          ParquetVariant.of(
+              (ByteBuffer) variantRecord.get("value"), (ByteBuffer) variantRecord.get("metadata"));
+      if (count == 0) {
+        assertThat(new JsonParser().parse(readVariant.toJson(ZoneId.of("UTC"))))
+            .isEqualTo((new JsonParser().parse((String) testData[0][1])));
+      } else {
+        assertThat(readVariant.toJson(ZoneId.of("UTC")))
+            .isEqualTo(
+                ParquetVariant.toVariant(
+                        (Type.PrimitiveType) testData[count][0], testData[count][1])
+                    .toJson(ZoneId.of("UTC")));
+      }
+      ++count;
+    }
   }
 
   private Pair<File, Long> generateFile(
