@@ -31,7 +31,6 @@ import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.iceberg.Files;
-import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -40,11 +39,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
-import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-@ExtendWith(ParameterizedTestExtension.class)
 public class TestRowProjection {
 
   @TempDir private Path temp;
@@ -72,7 +69,7 @@ public class TestRowProjection {
     return Iterables.getOnlyElement(records);
   }
 
-  @TestTemplate
+  @Test
   public void testFullProjection() throws Exception {
     Schema schema =
         new Schema(
@@ -87,7 +84,7 @@ public class TestRowProjection {
     assertThat(projected.getString(1)).asString().isEqualTo("test");
   }
 
-  @TestTemplate
+  @Test
   public void testSpecialCharacterProjection() throws Exception {
     Schema schema =
         new Schema(
@@ -107,7 +104,7 @@ public class TestRowProjection {
     assertThat(projected.getString(0)).asString().isEqualTo("test");
   }
 
-  @TestTemplate
+  @Test
   public void testReorderedFullProjection() throws Exception {
     Schema schema =
         new Schema(
@@ -127,7 +124,7 @@ public class TestRowProjection {
     assertThat(projected.getLong(1)).isEqualTo(34);
   }
 
-  @TestTemplate
+  @Test
   public void testReorderedProjection() throws Exception {
     Schema schema =
         new Schema(
@@ -149,7 +146,7 @@ public class TestRowProjection {
     assertThat(projected.isNullAt(2)).isTrue();
   }
 
-  @TestTemplate
+  @Test
   public void testRenamedAddedField() throws Exception {
     Schema schema =
         new Schema(
@@ -179,7 +176,7 @@ public class TestRowProjection {
     assertThat(projected.isNullAt(3)).as("Should contain empty value on new column 4").isTrue();
   }
 
-  @TestTemplate
+  @Test
   public void testEmptyProjection() throws Exception {
     Schema schema =
         new Schema(
@@ -194,7 +191,7 @@ public class TestRowProjection {
     assertThat(projected.getArity()).isEqualTo(0);
   }
 
-  @TestTemplate
+  @Test
   public void testBasicProjection() throws Exception {
     Schema writeSchema =
         new Schema(
@@ -218,7 +215,7 @@ public class TestRowProjection {
     assertThat(projected.getString(0)).asString().isEqualTo("test");
   }
 
-  @TestTemplate
+  @Test
   public void testRename() throws Exception {
     Schema writeSchema =
         new Schema(
@@ -241,7 +238,7 @@ public class TestRowProjection {
         .isEqualTo("test");
   }
 
-  @TestTemplate
+  @Test
   public void testNestedStructProjection() throws Exception {
     Schema writeSchema =
         new Schema(
@@ -307,7 +304,7 @@ public class TestRowProjection {
         .isEqualTo(-1.539054f, withPrecision(0.000001f));
   }
 
-  @TestTemplate
+  @Test
   public void testMapProjection() throws IOException {
     Schema writeSchema =
         new Schema(
@@ -349,7 +346,7 @@ public class TestRowProjection {
     assertThat(projected.getMap(0)).isEqualTo(properties);
   }
 
-  @TestTemplate
+  @Test
   public void testMapOfStructsProjection() throws IOException {
     Schema writeSchema =
         new Schema(
@@ -449,7 +446,7 @@ public class TestRowProjection {
         .isEqualTo(52.995143f, withPrecision(0.000001f));
   }
 
-  @TestTemplate
+  @Test
   public void testListProjection() throws IOException {
     Schema writeSchema =
         new Schema(
@@ -478,7 +475,7 @@ public class TestRowProjection {
     assertThat(projected.getArray(0)).isEqualTo(values);
   }
 
-  @TestTemplate
+  @Test
   public void testListOfStructsProjection() throws IOException {
     Schema writeSchema =
         new Schema(
@@ -554,7 +551,7 @@ public class TestRowProjection {
     assertThat(projectedP2.isNullAt(0)).as("Should project null z").isTrue();
   }
 
-  @TestTemplate
+  @Test
   public void testAddedFieldsWithRequiredChildren() throws Exception {
     Schema schema = new Schema(Types.NestedField.required(1, "a", Types.LongType.get()));
 
