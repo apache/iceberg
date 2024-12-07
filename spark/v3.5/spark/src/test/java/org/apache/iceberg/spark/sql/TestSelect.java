@@ -597,4 +597,82 @@ public class TestSelect extends CatalogTestBase {
     assertEquals("Should return all expected rows", ImmutableList.of(row(1)), result);
     sql("DROP TABLE IF EXISTS %s", complexTypeTableName);
   }
+
+  @TestTemplate
+  public void testTimestampAsOfWithAlterColumn() {
+    long snapshotTs = validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis();
+    long timestamp = waitUntilAfter(snapshotTs + 1000);
+    waitUntilAfter(timestamp + 1000);
+    long timestampInSeconds = TimeUnit.MILLISECONDS.toSeconds(timestamp);
+    List<Object[]> expected = sql("SELECT * FROM %s WHERE id = 1", tableName);
+
+    sql("ALTER TABLE %s RENAME COLUMN id TO re_id", tableName);
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    // query with timestamp will use snapshot schema
+    List<Object[]> actualWithLongFormat =
+        sql("SELECT * FROM %s TIMESTAMP AS OF %s WHERE id = 1", tableName, timestampInSeconds);
+    assertEquals("Snapshot at timestamp", expected, actualWithLongFormat);
+  }
+
+  @TestTemplate
+  public void testVersionAsOfWithAlterColumn() {
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    List<Object[]> expected = sql("SELECT * FROM %s WHERE id = 1", tableName);
+
+    sql("ALTER TABLE %s RENAME COLUMN id TO re_id", tableName);
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    // query with snapshotId will use snapshot schema
+    List<Object[]> actual1 =
+        sql("SELECT * FROM %s VERSION AS OF %s WHERE id = 1", tableName, snapshotId);
+    assertEquals("Snapshot at specific ID", expected, actual1);
+  }
+
+  @TestTemplate
+  public void testBranchReferenceWithAlterColumn() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    long snapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createBranch("test_branch", snapshotId).commit();
+    List<Object[]> expected = sql("SELECT * FROM %s WHERE id = 1", tableName);
+
+    sql("ALTER TABLE %s RENAME COLUMN id TO re_id", tableName);
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    // query with branch name will use table schema
+    List<Object[]> actual1 =
+        sql("SELECT * FROM %s VERSION AS OF 'test_branch' WHERE re_id = 1", tableName);
+    assertEquals("Snapshot at specific branch reference name", expected, actual1);
+
+    // Spark session catalog does not support extended table names
+    if (!"spark_catalog".equals(catalogName)) {
+      // query with branch name will use table schema
+      List<Object[]> actual2 =
+          sql("SELECT * FROM %s.branch_test_branch WHERE re_id = 1", tableName);
+      assertEquals("Snapshot at specific branch reference name, prefix", expected, actual2);
+    }
+  }
+
+  @TestTemplate
+  public void testTagReferenceWithAlterColumn() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    long snapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().createTag("test_tag", snapshotId).commit();
+    List<Object[]> expected = sql("SELECT * FROM %s WHERE id = 1", tableName);
+
+    sql("ALTER TABLE %s RENAME COLUMN id TO re_id", tableName);
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
+
+    // query with tag name will use snapshot schema
+    List<Object[]> actual1 =
+        sql("SELECT * FROM %s VERSION AS OF 'test_tag' WHERE id = 1", tableName);
+    assertEquals("Snapshot at specific tag reference name", expected, actual1);
+
+    // Spark session catalog does not support extended table names
+    if (!"spark_catalog".equals(catalogName)) {
+      // query with tag name will use snapshot schema
+      List<Object[]> actual2 = sql("SELECT * FROM %s.tag_test_tag WHERE id = 1", tableName);
+      assertEquals("Snapshot at specific tag reference name, prefix", expected, actual2);
+    }
+  }
 }
