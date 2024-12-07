@@ -18,8 +18,11 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_REST;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
@@ -32,7 +35,6 @@ import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
 import org.junit.After;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -293,8 +295,13 @@ public class TestAlterTable extends SparkCatalogTestBase {
 
   @Test
   public void testTableRename() {
-    Assume.assumeFalse(
-        "Hadoop catalog does not support rename", validationCatalog instanceof HadoopCatalog);
+    assumeThat(catalogConfig.get(ICEBERG_CATALOG_TYPE))
+        .as(
+            "need to fix https://github.com/apache/iceberg/issues/11154 before enabling this for the REST catalog")
+        .isNotEqualTo(ICEBERG_CATALOG_TYPE_REST);
+    assumeThat(validationCatalog)
+        .as("Hadoop catalog does not support rename")
+        .isNotInstanceOf(HadoopCatalog.class);
 
     Assert.assertTrue("Initial name should exist", validationCatalog.tableExists(tableIdent));
     Assert.assertFalse("New name should not exist", validationCatalog.tableExists(renamedIdent));

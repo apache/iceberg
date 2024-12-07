@@ -528,6 +528,8 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
 
     spark.createDataFrame(newRecords, newSparkSchema).coalesce(1).writeTo(tableName).append();
 
+    table.refresh();
+
     Long currentSnapshotId = table.currentSnapshot().snapshotId();
 
     Dataset<Row> actualFilesDs =

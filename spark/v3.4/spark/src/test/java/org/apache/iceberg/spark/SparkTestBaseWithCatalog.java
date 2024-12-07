@@ -18,6 +18,12 @@
  */
 package org.apache.iceberg.spark;
 
+import static org.apache.iceberg.CatalogProperties.CATALOG_IMPL;
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_HADOOP;
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE;
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_REST;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
@@ -31,20 +37,42 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.inmemory.InMemoryCatalog;
+import org.apache.iceberg.rest.RESTCatalog;
+import org.apache.iceberg.rest.RESTCatalogServer;
+import org.apache.iceberg.rest.RESTServerRule;
 import org.apache.iceberg.util.PropertyUtil;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
 public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
   protected static File warehouse = null;
 
+  @ClassRule
+  public static final RESTServerRule REST_SERVER_RULE =
+      new RESTServerRule(
+          Map.of(
+              RESTCatalogServer.REST_PORT,
+              RESTServerRule.FREE_PORT,
+              // In-memory sqlite database by default is private to the connection that created it.
+              // If more than 1 jdbc connection backed by in-memory sqlite is created behind one
+              // JdbcCatalog, then different jdbc connections could provide different views of table
+              // status even belonging to the same catalog. Reference:
+              // https://www.sqlite.org/inmemorydb.html
+              CatalogProperties.CLIENT_POOL_SIZE,
+              "1"));
+
+  protected static RESTCatalog restCatalog;
+
   @BeforeClass
   public static void createWarehouse() throws IOException {
     SparkTestBaseWithCatalog.warehouse = File.createTempFile("warehouse", null);
     Assert.assertTrue(warehouse.delete());
+    restCatalog = REST_SERVER_RULE.client();
   }
 
   @AfterClass
@@ -60,8 +88,8 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
 
   protected final String catalogName;
   protected final Map<String, String> catalogConfig;
-  protected final Catalog validationCatalog;
-  protected final SupportsNamespaces validationNamespaceCatalog;
+  protected Catalog validationCatalog;
+  protected SupportsNamespaces validationNamespaceCatalog;
   protected final TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("default"), "table");
   protected final String tableName;
 
@@ -77,11 +105,7 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
       String catalogName, String implementation, Map<String, String> config) {
     this.catalogName = catalogName;
     this.catalogConfig = config;
-    this.validationCatalog =
-        catalogName.equals("testhadoop")
-            ? new HadoopCatalog(spark.sessionState().newHadoopConf(), "file:" + warehouse)
-            : catalog;
-    this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
+    configureValidationCatalog();
 
     spark.conf().set("spark.sql.catalog." + catalogName, implementation);
     config.forEach(
@@ -126,5 +150,33 @@ public abstract class SparkTestBaseWithCatalog extends SparkTestBase {
         planningMode.modeName(),
         TableProperties.DELETE_PLANNING_MODE,
         planningMode.modeName());
+  }
+
+  private void configureValidationCatalog() {
+    if (catalogConfig.containsKey(ICEBERG_CATALOG_TYPE)) {
+      switch (catalogConfig.get(ICEBERG_CATALOG_TYPE)) {
+        case ICEBERG_CATALOG_TYPE_HADOOP:
+          this.validationCatalog =
+              new HadoopCatalog(spark.sessionState().newHadoopConf(), "file:" + warehouse);
+          break;
+        case ICEBERG_CATALOG_TYPE_REST:
+          this.validationCatalog = restCatalog;
+          break;
+        case ICEBERG_CATALOG_TYPE_HIVE:
+          this.validationCatalog = catalog;
+          break;
+        default:
+          throw new IllegalArgumentException("Unknown catalog type");
+      }
+    } else if (catalogConfig.containsKey(CATALOG_IMPL)) {
+      switch (catalogConfig.get(CATALOG_IMPL)) {
+        case "org.apache.iceberg.inmemory.InMemoryCatalog":
+          this.validationCatalog = new InMemoryCatalog();
+          break;
+        default:
+          throw new IllegalArgumentException("Unknown catalog impl");
+      }
+    }
+    this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
   }
 }
