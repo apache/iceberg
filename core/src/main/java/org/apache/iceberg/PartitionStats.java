@@ -18,12 +18,16 @@
  */
 package org.apache.iceberg;
 
+import java.util.Objects;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class PartitionStats implements StructLike {
 
   private static final int STATS_COUNT = 12;
 
+  // Storing as StructLike instead of Record as
+  // internal parquet writers can be used in future without modifying the members of this class.
   private StructLike partition;
   private int specId;
   private long dataRecordCount;
@@ -38,6 +42,8 @@ public class PartitionStats implements StructLike {
   private Long lastUpdatedSnapshotId; // null by default
 
   public PartitionStats(StructLike partition, int specId) {
+    Preconditions.checkArgument(
+        partition instanceof Record, "Partition must be an instance of Record");
     this.partition = partition;
     this.specId = specId;
   }
@@ -205,6 +211,8 @@ public class PartitionStats implements StructLike {
   public <T> void set(int pos, T value) {
     switch (pos) {
       case 0:
+        Preconditions.checkArgument(
+            partition instanceof Record, "Partition must be an instance of Record");
         this.partition = (StructLike) value;
         break;
       case 1:
@@ -248,5 +256,46 @@ public class PartitionStats implements StructLike {
       default:
         throw new UnsupportedOperationException("Unknown position: " + pos);
     }
+  }
+
+  @Override
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  public boolean equals(Object other) {
+    if (this == other) {
+      return true;
+    } else if (!(other instanceof PartitionStats)) {
+      return false;
+    }
+
+    PartitionStats that = (PartitionStats) other;
+    return Objects.equals(partition, that.partition)
+        && specId == that.specId
+        && dataRecordCount == that.dataRecordCount
+        && dataFileCount == that.dataFileCount
+        && totalDataFileSizeInBytes == that.totalDataFileSizeInBytes
+        && positionDeleteRecordCount == that.positionDeleteRecordCount
+        && positionDeleteFileCount == that.positionDeleteFileCount
+        && equalityDeleteRecordCount == that.equalityDeleteRecordCount
+        && equalityDeleteFileCount == that.equalityDeleteFileCount
+        && totalRecordCount == that.totalRecordCount
+        && Objects.equals(lastUpdatedAt, that.lastUpdatedAt)
+        && Objects.equals(lastUpdatedSnapshotId, that.lastUpdatedSnapshotId);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(
+        partition,
+        specId,
+        dataRecordCount,
+        dataFileCount,
+        totalDataFileSizeInBytes,
+        positionDeleteRecordCount,
+        positionDeleteFileCount,
+        equalityDeleteRecordCount,
+        equalityDeleteFileCount,
+        totalRecordCount,
+        lastUpdatedAt,
+        lastUpdatedSnapshotId);
   }
 }
