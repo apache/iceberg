@@ -29,6 +29,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 
@@ -90,6 +91,11 @@ public class OutputFileFactory {
     return new Builder(table, partitionId, taskId);
   }
 
+  public static Builder builderFor(
+      TableOperations ops, PartitionSpec spec, FileFormat format, int partitionId, long taskId) {
+    return new Builder(ops, spec, format, partitionId, taskId);
+  }
+
   private String generateFilename() {
     return format.addExtension(
         String.format(
@@ -121,9 +127,10 @@ public class OutputFileFactory {
   }
 
   public static class Builder {
-    private final Table table;
     private final int partitionId;
     private final long taskId;
+    private Table table;
+    private TableOperations ops;
     private PartitionSpec defaultSpec;
     private String operationId;
     private FileFormat format;
@@ -141,6 +148,17 @@ public class OutputFileFactory {
           table.properties().getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
       this.format = FileFormat.fromString(formatAsString);
       this.ioSupplier = table::io;
+    }
+
+    private Builder(
+        TableOperations ops, PartitionSpec spec, FileFormat format, int partitionId, long taskId) {
+      this.ops = ops;
+      this.ioSupplier = ops::io;
+      this.partitionId = partitionId;
+      this.taskId = taskId;
+      this.defaultSpec = spec;
+      this.operationId = UUID.randomUUID().toString();
+      this.format = format;
     }
 
     public Builder defaultSpec(PartitionSpec newDefaultSpec) {
@@ -176,8 +194,9 @@ public class OutputFileFactory {
     }
 
     public OutputFileFactory build() {
-      LocationProvider locations = table.locationProvider();
-      EncryptionManager encryption = table.encryption();
+      LocationProvider locations =
+          table != null ? table.locationProvider() : ops.locationProvider();
+      EncryptionManager encryption = table != null ? table.encryption() : ops.encryption();
       return new OutputFileFactory(
           defaultSpec,
           format,
