@@ -285,7 +285,7 @@ public class SortOrder implements Serializable {
 
     private Transform<?, ?> toTransform(BoundTerm<?> term) {
       if (term instanceof BoundReference) {
-        return Transforms.identity(term.type());
+        return Transforms.identity();
       } else if (term instanceof BoundTransform) {
         return ((BoundTransform<?, ?>) term).transform();
       } else {

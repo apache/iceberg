@@ -29,20 +29,6 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 public class TestTruncate {
-  @Test
-  public void testDeprecatedTruncateInteger() {
-    Truncate<Object> trunc = Truncate.get(Types.IntegerType.get(), 10);
-    assertThat((int) trunc.apply(0)).isZero();
-    assertThat((int) trunc.apply(1)).isZero();
-    assertThat((int) trunc.apply(5)).isZero();
-    assertThat((int) trunc.apply(9)).isZero();
-    assertThat((int) trunc.apply(10)).isEqualTo(10);
-    assertThat((int) trunc.apply(11)).isEqualTo(10);
-    assertThat((int) trunc.apply(-1)).isEqualTo(-10);
-    assertThat((int) trunc.apply(-5)).isEqualTo(-10);
-    assertThat((int) trunc.apply(-10)).isEqualTo(-10);
-    assertThat((int) trunc.apply(-11)).isEqualTo(-20);
-  }
 
   @Test
   public void testTruncateInteger() {

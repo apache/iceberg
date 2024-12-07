@@ -23,7 +23,6 @@ import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
-import org.apache.iceberg.types.Type;
 
 public class UnboundSortOrder {
   private static final UnboundSortOrder UNSORTED_ORDER =
@@ -41,14 +40,7 @@ public class UnboundSortOrder {
     SortOrder.Builder builder = SortOrder.builderFor(schema).withOrderId(orderId);
 
     for (UnboundSortField field : fields) {
-      Type sourceType = schema.findType(field.sourceId);
-      Transform<?, ?> transform;
-      if (sourceType != null) {
-        transform = Transforms.fromString(sourceType, field.transform.toString());
-      } else {
-        transform = field.transform;
-      }
-      builder.addSortField(transform, field.sourceId, field.direction, field.nullOrder);
+      builder.addSortField(field.transform, field.sourceId, field.direction, field.nullOrder);
     }
 
     return builder.build();
