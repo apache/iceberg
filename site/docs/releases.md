@@ -72,7 +72,27 @@ To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:
 </dependencies>
 ```
 
+### 1.7.1 release
+
+Apache Iceberg 1.7.1 was released on December 6, 2024.
+
+The 1.7.1 release contains bug fixes and new features. For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.7.1)
+
+* Core
+    - Revert "Use encoding/decoding methods for namespaces and deprecate Splitter/Joiner" ([\#11574](https://github.com/apache/iceberg/pull/11574))
+    - Revert "Update TableMetadataParser to ensure all streams closed" ([\#11621](https://github.com/apache/iceberg/pull/11621))
+* Azure
+    - Fix ADLSLocation file parsing ([\#11395](https://github.com/apache/iceberg/pull/11395))
+    - Support WASB scheme in ADLSFileIO ([\#11504](https://github.com/apache/iceberg/pull/11504))
+* Spark
+    - Fix NotSerializableException when migrating Spark tables ([\#11157](https://github.com/apache/iceberg/pull/11157))
+    - Fix changelog table bug for start time older than current snapshot ([\#11564](https://github.com/apache/iceberg/pull/11564))
+* Kafka Connect
+    - Fix Hadoop dependency exclusion ([\#11516](https://github.com/apache/iceberg/pull/11516))
+
 ### 1.7.0 release
+
+Apache Iceberg 1.7.0 was released on November 8, 2024.
 
 The 1.7.0 release contains fixes, dependency updates, and new features. For full release notes please visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.7.0). An abridged list follows
 
