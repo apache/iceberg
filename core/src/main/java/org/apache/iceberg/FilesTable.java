@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /** A {@link Table} implementation that exposes a table's files as rows. */
 public class FilesTable extends BaseFilesTable {
@@ -49,6 +50,20 @@ public class FilesTable extends BaseFilesTable {
 
     FilesTableScan(Table table, Schema schema, TableScanContext context) {
       super(table, schema, MetadataTableType.FILES, context);
+    }
+
+    @Override
+    public TableScan useRef(String name) {
+      if (SnapshotRef.MAIN_BRANCH.equals(name)) {
+        return newRefinedScan(table(), tableSchema(), context());
+      }
+
+      Preconditions.checkArgument(
+          snapshotId() == null, "Cannot override ref, already set snapshot id=%s", snapshotId());
+      Snapshot snapshot = table().snapshot(name);
+      Preconditions.checkArgument(snapshot != null, "Cannot find ref %s", name);
+      TableScanContext newContext = context().useSnapshotId(snapshot.snapshotId());
+      return newRefinedScan(table(), tableSchema(), newContext);
     }
 
     @Override
