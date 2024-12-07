@@ -384,7 +384,7 @@ public class RewriteTablePathUtil {
         result.toRewrite().add(file);
         return result;
       case EQUALITY_DELETES:
-        DeleteFile eqDeleteFile = newEqualityDeleteRecord(file, spec, sourcePrefix, targetPrefix);
+        DeleteFile eqDeleteFile = newEqualityDeleteEntry(file, spec, sourcePrefix, targetPrefix);
         appendEntryWithFile(entry, writer, eqDeleteFile);
         // we do not need to recursively rewrite the equality delete, just move it
         result.copyPlan().add(Pair.of(file.location(), eqDeleteFile.location()));
@@ -412,7 +412,7 @@ public class RewriteTablePathUtil {
     }
   }
 
-  private static DeleteFile newEqualityDeleteRecord(
+  private static DeleteFile newEqualityDeleteEntry(
       DeleteFile file, PartitionSpec spec, String sourcePrefix, String targetPrefix) {
     String path = file.location();
 
@@ -532,7 +532,8 @@ public class RewriteTablePathUtil {
     return combinePaths(targetPrefix, relativize(path, sourcePrefix));
   }
 
-  private static String combinePaths(String absolutePath, String relativePath) {
+  /** Combine a base and relative path. */
+  public static String combinePaths(String absolutePath, String relativePath) {
     String combined = absolutePath;
     if (!combined.endsWith("/")) {
       combined += "/";
@@ -541,7 +542,8 @@ public class RewriteTablePathUtil {
     return combined;
   }
 
-  private static String fileName(String path) {
+  /** Returns the file name of a path. */
+  public static String fileName(String path) {
     String filename = path;
     int lastIndex = path.lastIndexOf(File.separator);
     if (lastIndex != -1) {
@@ -550,7 +552,8 @@ public class RewriteTablePathUtil {
     return filename;
   }
 
-  private static String relativize(String path, String prefix) {
+  /** Relativize a path. */
+  public static String relativize(String path, String prefix) {
     String toRemove = prefix;
     if (!toRemove.endsWith("/")) {
       toRemove += "/";
@@ -562,7 +565,14 @@ public class RewriteTablePathUtil {
     return path.substring(toRemove.length());
   }
 
-  private static String stagingPath(String originalPath, String stagingLocation) {
-    return stagingLocation + fileName(originalPath);
+  /**
+   * Construct a staging path under a given staging directory
+   *
+   * @param originalPath source path
+   * @param stagingDir staging directory
+   * @return a staging path under the staging directory, based on the original path
+   */
+  public static String stagingPath(String originalPath, String stagingDir) {
+    return stagingDir + fileName(originalPath);
   }
 }

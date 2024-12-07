@@ -157,7 +157,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     return ImmutableRewriteTablePath.Result.builder()
         .stagingLocation(stagingDir)
         .fileListLocation(resultLocation)
-        .latestVersion(fileName(endVersionName))
+        .latestVersion(RewriteTablePathUtil.fileName(endVersionName))
         .build();
   }
 
@@ -230,7 +230,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   private boolean versionInFilePath(String path, String version) {
-    return fileName(path).equals(version);
+    return RewriteTablePathUtil.fileName(path).equals(version);
   }
 
   private String jobDesc() {
@@ -357,7 +357,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   private Pair<String, String> rewriteVersionFile(TableMetadata metadata, String versionFilePath) {
-    String stagingPath = stagingPath(versionFilePath, stagingDir);
+    String stagingPath = RewriteTablePathUtil.stagingPath(versionFilePath, stagingDir);
     TableMetadata newTableMetadata =
         RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix);
     TableMetadataParser.overwrite(newTableMetadata, table.io().newOutputFile(stagingPath));
@@ -378,7 +378,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     RewriteResult<ManifestFile> result = new RewriteResult<>();
 
     String path = snapshot.manifestListLocation();
-    String outputPath = stagingPath(path, stagingDir);
+    String outputPath = RewriteTablePathUtil.stagingPath(path, stagingDir);
     RewriteResult<ManifestFile> rewriteResult =
         RewriteTablePathUtil.rewriteManifestList(
             snapshot,
@@ -512,7 +512,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       String sourcePrefix,
       String targetPrefix) {
     try {
-      String stagingPath = stagingPath(manifestFile.path(), stagingLocation);
+      String stagingPath = RewriteTablePathUtil.stagingPath(manifestFile.path(), stagingLocation);
       FileIO io = tableBroadcast.getValue().io();
       OutputFile outputFile = io.newOutputFile(stagingPath);
       Map<Integer, PartitionSpec> specsById = specsByIdBroadcast.getValue();
@@ -534,7 +534,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       String sourcePrefix,
       String targetPrefix) {
     try {
-      String stagingPath = stagingPath(manifestFile.path(), stagingLocation);
+      String stagingPath = RewriteTablePathUtil.stagingPath(manifestFile.path(), stagingLocation);
       FileIO io = tableBroadcast.getValue().io();
       OutputFile outputFile = io.newOutputFile(stagingPath);
       Map<Integer, PartitionSpec> specsById = specsByIdBroadcast.getValue();
@@ -606,11 +606,17 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       PositionDeleteReaderWriter posDeleteReaderWriter) {
     return deleteFile -> {
       FileIO io = tableBroadcast.getValue().io();
-      String newPath = stagingPath(deleteFile.location(), stagingLocationArg);
+      String newPath = RewriteTablePathUtil.stagingPath(deleteFile.location(), stagingLocationArg);
       OutputFile outputFile = io.newOutputFile(newPath);
       PartitionSpec spec = specsById.getValue().get(deleteFile.specId());
       RewriteTablePathUtil.rewritePositionDeleteFile(
-          deleteFile, outputFile, io, spec, sourcePrefixArg, targetPrefixArg, posDeleteReaderWriter);
+          deleteFile,
+          outputFile,
+          io,
+          spec,
+          sourcePrefixArg,
+          targetPrefixArg,
+          posDeleteReaderWriter);
     };
   }
 
@@ -693,42 +699,9 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     return table.io().newInputFile(path).exists();
   }
 
-  private static String relativize(String path, String prefix) {
-    String toRemove = prefix;
-    if (!toRemove.endsWith("/")) {
-      toRemove += "/";
-    }
-    if (!path.startsWith(toRemove)) {
-      throw new IllegalArgumentException(
-          String.format("Path %s does not start with %s", path, toRemove));
-    }
-    return path.substring(toRemove.length());
-  }
-
   private static String newPath(String path, String sourcePrefix, String targetPrefix) {
-    return combinePaths(targetPrefix, relativize(path, sourcePrefix));
-  }
-
-  private static String stagingPath(String originalPath, String stagingLocation) {
-    return stagingLocation + fileName(originalPath);
-  }
-
-  private static String combinePaths(String absolutePath, String relativePath) {
-    String combined = absolutePath;
-    if (!combined.endsWith("/")) {
-      combined += "/";
-    }
-    combined += relativePath;
-    return combined;
-  }
-
-  private static String fileName(String path) {
-    String filename = path;
-    int lastIndex = path.lastIndexOf(File.separator);
-    if (lastIndex != -1) {
-      filename = path.substring(lastIndex + 1);
-    }
-    return filename;
+    return RewriteTablePathUtil.combinePaths(
+        targetPrefix, RewriteTablePathUtil.relativize(path, sourcePrefix));
   }
 
   private String getMetadataLocation(Table tbl) {
