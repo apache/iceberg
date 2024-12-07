@@ -143,6 +143,10 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     return new BaseTable(ops, tableName);
   }
 
+  public Table underlyingTable() {
+    return lazyTable();
+  }
+
   @Override
   public String name() {
     return name;
