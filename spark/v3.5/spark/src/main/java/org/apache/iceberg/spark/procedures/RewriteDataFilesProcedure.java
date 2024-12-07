@@ -18,8 +18,11 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import static org.apache.iceberg.actions.RewriteDataFiles.OUTPUT_SPEC_ID;
+
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
@@ -27,10 +30,12 @@ import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.ExtendedParser;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
+import org.apache.iceberg.util.PartitionSpecUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -57,10 +62,20 @@ class RewriteDataFilesProcedure extends BaseProcedure {
       ProcedureParameter.optional("options", STRING_MAP);
   private static final ProcedureParameter WHERE_PARAM =
       ProcedureParameter.optional("where", DataTypes.StringType);
+  private static final ProcedureParameter PARTITIONED_BY_PARAM =
+      ProcedureParameter.optional("partitioned_by", DataTypes.StringType);
+  private static final ProcedureParameter CREATE_PARTITION_IF_NOT_EXISTS_PARAM =
+      ProcedureParameter.optional("create_partition_if_not_exists", DataTypes.BooleanType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
-        TABLE_PARAM, STRATEGY_PARAM, SORT_ORDER_PARAM, OPTIONS_PARAM, WHERE_PARAM
+        TABLE_PARAM,
+        STRATEGY_PARAM,
+        SORT_ORDER_PARAM,
+        OPTIONS_PARAM,
+        WHERE_PARAM,
+        PARTITIONED_BY_PARAM,
+        CREATE_PARTITION_IF_NOT_EXISTS_PARAM
       };
 
   // counts are not nullable since the action result is never null
@@ -107,10 +122,22 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     String sortOrderString = input.asString(SORT_ORDER_PARAM, null);
     Map<String, String> options = input.asStringMap(OPTIONS_PARAM, ImmutableMap.of());
     String where = input.asString(WHERE_PARAM, null);
+    String partitionedByString = input.asString(PARTITIONED_BY_PARAM, null);
+    Boolean createPartitionIfNotExists =
+        input.asBoolean(CREATE_PARTITION_IF_NOT_EXISTS_PARAM, false);
 
     return modifyIcebergTable(
         tableIdent,
         table -> {
+          if (partitionedByString != null || createPartitionIfNotExists) {
+            Integer partitionSpecId =
+                checkAndPreparePartitionSpec(
+                    table, partitionedByString, createPartitionIfNotExists, options);
+            options.put(OUTPUT_SPEC_ID, partitionSpecId.toString());
+            // TODO - Check to see if 'refresh' needs to be called. Leaning towards no need to
+            // refresh
+          }
+
           RewriteDataFiles action = actions().rewriteDataFiles(table).options(options);
 
           if (strategy != null || sortOrderString != null) {
@@ -123,6 +150,46 @@ class RewriteDataFilesProcedure extends BaseProcedure {
 
           return toOutputRows(result);
         });
+  }
+
+  private Integer checkAndPreparePartitionSpec(
+      Table table, String partitionBy, Boolean createIfNotExists, Map<String, String> options) {
+
+    Preconditions.checkArgument(
+        partitionBy != null && options.containsKey(OUTPUT_SPEC_ID),
+        "Cannot specify a partitioning strategy and an output spec ID together. Only 1 can be used at a time");
+
+    Preconditions.checkArgument(
+        partitionBy == null && createIfNotExists,
+        "Cannot set %s to true if there is no partition spec provided to %s",
+        CREATE_PARTITION_IF_NOT_EXISTS_PARAM.name(),
+        PARTITIONED_BY_PARAM.name());
+
+    PartitionSpec specForRewrite =
+        PartitionSpecUtil.createPartitionSpec(table.schema(), partitionBy);
+
+    for (PartitionSpec spec : table.specs().values()) {
+      if (specForRewrite.compatibleWith(spec)) {
+        return spec.specId();
+      }
+    }
+
+    Preconditions.checkArgument(
+        !createIfNotExists,
+        "Partition spec %s did not match any existing spec and %s has not been enabled",
+        partitionBy,
+        CREATE_PARTITION_IF_NOT_EXISTS_PARAM.name());
+
+    table.updateSpec().addNonDefaultSpec().useSpec(specForRewrite).commit();
+
+    for (PartitionSpec spec : table.specs().values()) {
+      if (specForRewrite.compatibleWith(spec)) {
+        return spec.specId();
+      }
+    }
+
+    // Should never hit this, the commit to add the partition would have failed
+    throw new RuntimeException("Failed to retrieve partition spec after commit");
   }
 
   private RewriteDataFiles checkAndApplyFilter(
