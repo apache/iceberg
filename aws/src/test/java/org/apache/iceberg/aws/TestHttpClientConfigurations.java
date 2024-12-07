@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
+import software.amazon.awssdk.http.crt.AwsCrtHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 
 public class TestHttpClientConfigurations {
@@ -136,5 +137,37 @@ public class TestHttpClientConfigurations {
         .useIdleConnectionReaper(Mockito.anyBoolean());
     Mockito.verify(spyApacheHttpClientBuilder, Mockito.never())
         .proxyConfiguration(Mockito.any(ProxyConfiguration.class));
+  }
+
+  @Test
+  public void testAwsCrtOverrideConfigurations() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(HttpClientProperties.URLCONNECTION_SOCKET_TIMEOUT_MS, "90");
+    properties.put(HttpClientProperties.URLCONNECTION_CONNECTION_TIMEOUT_MS, "80");
+    properties.put(HttpClientProperties.AWS_CRT_CONNECTION_TIMEOUT_MS, "200");
+    properties.put(HttpClientProperties.AWS_CRT_CONNECTION_MAX_IDLE_TIME_MS, "102");
+    properties.put(HttpClientProperties.AWS_CRT_MAX_CONCURRENCY, "104");
+    AwsCrtHttpClientConfigurations awsCrtHttpClientConfigurations =
+        AwsCrtHttpClientConfigurations.create(properties);
+    AwsCrtHttpClient.Builder awsCrtHttpClientBuilder = AwsCrtHttpClient.builder();
+    AwsCrtHttpClient.Builder spyAwsCrtHttpClientBuilder = Mockito.spy(awsCrtHttpClientBuilder);
+
+    awsCrtHttpClientConfigurations.configureAwsCrtHttpClientBuilder(spyAwsCrtHttpClientBuilder);
+
+    Mockito.verify(spyAwsCrtHttpClientBuilder).connectionTimeout(Duration.ofMillis(200));
+    Mockito.verify(spyAwsCrtHttpClientBuilder).connectionMaxIdleTime(Duration.ofMillis(102));
+    Mockito.verify(spyAwsCrtHttpClientBuilder).maxConcurrency(104);
+  }
+
+  @Test
+  public void testAwsCrtDefaultConfigurations() {
+    AwsCrtHttpClientConfigurations awsCrtHttpClientConfigurations =
+        AwsCrtHttpClientConfigurations.create(Maps.newHashMap());
+    AwsCrtHttpClient.Builder awsCrtHttpClientBuilder = AwsCrtHttpClient.builder();
+    AwsCrtHttpClient.Builder spyAwsCrtHttpClientBuilder = Mockito.spy(awsCrtHttpClientBuilder);
+
+    awsCrtHttpClientConfigurations.configureAwsCrtHttpClientBuilder(spyAwsCrtHttpClientBuilder);
+
+    Mockito.verifyNoInteractions(spyAwsCrtHttpClientBuilder);
   }
 }

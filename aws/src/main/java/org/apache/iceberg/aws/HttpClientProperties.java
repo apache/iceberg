@@ -52,6 +52,8 @@ public class HttpClientProperties implements Serializable {
    */
   public static final String CLIENT_TYPE_URLCONNECTION = "urlconnection";
 
+  public static final String CLIENT_TYPE_AWS_CRT = "aws-crt";
+
   public static final String CLIENT_TYPE_DEFAULT = CLIENT_TYPE_APACHE;
 
   /**
@@ -186,6 +188,27 @@ public class HttpClientProperties implements Serializable {
   public static final String APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED =
       "http-client.apache.use-idle-connection-reaper-enabled";
 
+  /**
+   * Used to configure the connection timeout in milliseconds for {@link
+   * software.amazon.awssdk.http.crt.AwsCrtHttpClient.Builder}. This flag only works when {@link
+   * #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_AWS_CRT}
+   */
+  public static final String AWS_CRT_CONNECTION_TIMEOUT_MS =
+      "http-client.aws-crt.connection-timeout-ms";
+  /**
+   * Used to configure the connection max idle time in milliseconds for {@link
+   * software.amazon.awssdk.http.crt.AwsCrtHttpClient.Builder}. This flag only works when {@link
+   * #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_AWS_CRT}
+   */
+  public static final String AWS_CRT_CONNECTION_MAX_IDLE_TIME_MS =
+      "http-client.aws-crt.connection-max-idle-time-ms";
+  /**
+   * Used to configure the max concurrency number for {@link
+   * software.amazon.awssdk.http.crt.AwsCrtHttpClient.Builder}. This flag only works when {@link
+   * #CLIENT_TYPE} is set to {@link #CLIENT_TYPE_AWS_CRT}
+   */
+  public static final String AWS_CRT_MAX_CONCURRENCY = "http-client.aws-crt.max-concurrency";
+
   private String httpClientType;
   private final Map<String, String> httpClientProperties;
 
@@ -202,8 +225,8 @@ public class HttpClientProperties implements Serializable {
   }
 
   /**
-   * Configure the httpClient for a client according to the HttpClientType. The two supported
-   * HttpClientTypes are urlconnection and apache
+   * Configure the httpClient for a client according to the HttpClientType. The three supported
+   * HttpClientTypes are: urlconnection, apache, and aws-crt
    *
    * <p>Sample usage:
    *
@@ -226,6 +249,11 @@ public class HttpClientProperties implements Serializable {
         ApacheHttpClientConfigurations apacheHttpClientConfigurations =
             loadHttpClientConfigurations(ApacheHttpClientConfigurations.class.getName());
         apacheHttpClientConfigurations.configureHttpClientBuilder(builder);
+        break;
+      case CLIENT_TYPE_AWS_CRT:
+        AwsCrtHttpClientConfigurations awsCrtHttpClientConfigurations =
+            loadHttpClientConfigurations(AwsCrtHttpClientConfigurations.class.getName());
+        awsCrtHttpClientConfigurations.configureHttpClientBuilder(builder);
         break;
       default:
         throw new IllegalArgumentException("Unrecognized HTTP client type " + httpClientType);

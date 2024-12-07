@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import static org.apache.iceberg.aws.HttpClientProperties.CLIENT_TYPE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.ByteArrayInputStream;
@@ -162,6 +163,21 @@ public class TestS3FileIOIntegration {
     properties.put(
         S3FileIOProperties.CLIENT_FACTORY,
         "org.apache.iceberg.aws.s3.DefaultS3FileIOAwsClientFactory");
+    s3FileIO.initialize(properties);
+    validateRead(s3FileIO);
+  }
+
+  @Test
+  public void testS3FileIOWithS3FileIOAwsClientFactoryImpl_crtClient() throws Exception {
+    s3.putObject(
+            PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
+            RequestBody.fromBytes(contentBytes));
+    S3FileIO s3FileIO = new S3FileIO();
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CLIENT_TYPE, "aws-crt");
+    properties.put(
+            S3FileIOProperties.CLIENT_FACTORY,
+            "org.apache.iceberg.aws.s3.DefaultS3FileIOAwsClientFactory");
     s3FileIO.initialize(properties);
     validateRead(s3FileIO);
   }
