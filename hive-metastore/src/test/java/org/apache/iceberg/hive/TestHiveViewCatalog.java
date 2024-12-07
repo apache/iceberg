@@ -66,7 +66,11 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
                 CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
                 ImmutableMap.of(
                     CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
-                    String.valueOf(TimeUnit.SECONDS.toMillis(10))),
+                    String.valueOf(TimeUnit.SECONDS.toMillis(10)),
+                    CatalogProperties.VIEW_DEFAULT_PREFIX + "key1",
+                    "catalog-default-key1",
+                    CatalogProperties.VIEW_DEFAULT_PREFIX + "key2",
+                    "catalog-default-key2"),
                 HIVE_METASTORE_EXTENSION.hiveConf());
   }
 
