@@ -61,7 +61,7 @@ services:
       - 10000:10000
       - 10001:10001
   rest:
-    image: tabulario/iceberg-rest
+    image: apache/iceberg-rest-fixture
     container_name: iceberg-rest
     networks:
       iceberg_net:
