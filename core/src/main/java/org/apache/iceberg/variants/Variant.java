@@ -18,11 +18,44 @@
  */
 package org.apache.iceberg.variants;
 
-/** A variant metadata and value pair. */
-public interface Variant {
-  /** Returns the metadata for all values in the variant. */
-  VariantMetadata metadata();
+public final class Variant {
+  private final byte[] value;
+  private final byte[] metadata;
+  // The variant value doesn't use the whole `value` binary, but starts from its `pos` index and
+  // spans a size of `valueSize(value, pos)`. This design avoids frequent copies of the value binary
+  // when reading a sub-variant in the array/object element.
+  private final int pos;
 
-  /** Returns the variant value. */
-  VariantValue value();
+  public Variant(byte[] value, byte[] metadata) {
+    this(value, metadata, 0);
+  }
+
+  Variant(byte[] value, byte[] metadata, int pos) {
+    this.value = value;
+    this.metadata = metadata;
+    this.pos = pos;
+    // There is currently only one allowed version.
+    if (metadata.length < 1
+        || (metadata[0] & VariantConstants.VERSION_MASK) != VariantConstants.VERSION) {
+      throw new IllegalStateException();
+    }
+    // Don't attempt to use a Variant larger than 16 MiB. We'll never produce one, and it risks
+    // memory instability.
+    if (metadata.length > VariantConstants.SIZE_LIMIT
+        || value.length > VariantConstants.SIZE_LIMIT) {
+      throw new VariantSizeLimitException();
+    }
+  }
+
+  public byte[] getMetadata() {
+    return metadata;
+  }
+
+  public byte[] getValue() {
+    return value;
+  }
+
+  public int getPos() {
+    return pos;
+  }
 }
