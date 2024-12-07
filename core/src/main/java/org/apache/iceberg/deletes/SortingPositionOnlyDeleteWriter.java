@@ -30,9 +30,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Comparators;
-import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.ContentFileUtil;
+import org.apache.iceberg.util.PathMap;
 
 /**
  * A position delete writer that is capable of handling unordered deletes without rows.
@@ -54,7 +54,7 @@ public class SortingPositionOnlyDeleteWriter<T>
 
   private final Supplier<FileWriter<PositionDelete<T>, DeleteWriteResult>> writers;
   private final DeleteGranularity granularity;
-  private final CharSequenceMap<PositionDeleteIndex> positionsByPath;
+  private final PathMap<PositionDeleteIndex> positionsByPath;
   private final Function<CharSequence, PositionDeleteIndex> loadPreviousDeletes;
   private DeleteWriteResult result = null;
 
@@ -74,7 +74,7 @@ public class SortingPositionOnlyDeleteWriter<T>
       Function<CharSequence, PositionDeleteIndex> loadPreviousDeletes) {
     this.writers = writers;
     this.granularity = granularity;
-    this.positionsByPath = CharSequenceMap.create();
+    this.positionsByPath = PathMap.create();
     this.loadPreviousDeletes = loadPreviousDeletes;
   }
 

@@ -27,17 +27,17 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.assertj.core.api.AbstractObjectAssert;
 import org.junit.jupiter.api.Test;
 
-public class TestCharSequenceMap {
+public class TestPathMap {
 
   @Test
   public void nullString() {
-    assertMap(CharSequenceMap.create()).doesNotContainKey(null);
-    assertMap(CharSequenceMap.create()).doesNotContainValue(null);
+    assertMap(PathMap.create()).doesNotContainKey(null);
+    assertMap(PathMap.create()).doesNotContainValue(null);
   }
 
   @Test
   public void testEmptyMap() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    PathMap<String> map = PathMap.create();
     assertMap(map).isEmpty();
     assertMap(map).hasSize(0);
     assertMap(map).doesNotContainKey("key");
@@ -49,7 +49,7 @@ public class TestCharSequenceMap {
 
   @Test
   public void testDifferentCharSequenceImplementations() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    PathMap<String> map = PathMap.create();
     map.put("abc", "value1");
     map.put(new StringBuffer("def"), "value2");
     assertMap(map).containsEntry(new StringBuilder("abc"), "value1");
@@ -58,14 +58,14 @@ public class TestCharSequenceMap {
 
   @Test
   public void testPutAndGet() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    PathMap<String> map = PathMap.create();
     map.put("key1", "value1");
     assertMap(map).containsEntry("key1", "value1");
   }
 
   @Test
   public void testRemove() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    PathMap<String> map = PathMap.create();
     map.put("key1", "value1");
     map.remove(new StringBuilder("key1"));
     assertMap(map).doesNotContainKey("key1");
@@ -74,7 +74,7 @@ public class TestCharSequenceMap {
 
   @Test
   public void testClear() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    PathMap<String> map = PathMap.create();
     map.put("key1", "value1");
     map.clear();
     assertMap(map).isEmpty();
@@ -82,7 +82,7 @@ public class TestCharSequenceMap {
 
   @Test
   public void testValues() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    PathMap<String> map = PathMap.create();
     map.put("key1", "value1");
     map.put("key2", "value2");
     assertThat(map.values()).containsAll(ImmutableList.of("value1", "value2"));
@@ -90,7 +90,7 @@ public class TestCharSequenceMap {
 
   @Test
   public void testEntrySet() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    PathMap<String> map = PathMap.create();
     map.put("key1", "value1");
     map.put(new StringBuilder("key2"), "value2");
     assertThat(map.entries()).hasSize(2);
@@ -98,10 +98,10 @@ public class TestCharSequenceMap {
 
   @Test
   public void testEquals() {
-    CharSequenceMap<String> map1 = CharSequenceMap.create();
+    PathMap<String> map1 = PathMap.create();
     map1.put(new StringBuilder("key"), "value");
 
-    CharSequenceMap<String> map2 = CharSequenceMap.create();
+    PathMap<String> map2 = PathMap.create();
     map2.put("key", "value");
 
     assertThat(map1).isEqualTo(map2);
@@ -109,10 +109,10 @@ public class TestCharSequenceMap {
 
   @Test
   public void testHashCode() {
-    CharSequenceMap<String> map1 = CharSequenceMap.create();
+    PathMap<String> map1 = PathMap.create();
     map1.put(new StringBuilder("key"), "value");
 
-    CharSequenceMap<String> map2 = CharSequenceMap.create();
+    PathMap<String> map2 = PathMap.create();
     map2.put("key", "value");
 
     assertThat(map1.hashCode()).isEqualTo(map2.hashCode());
@@ -120,7 +120,7 @@ public class TestCharSequenceMap {
 
   @Test
   public void testToString() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    PathMap<String> map = PathMap.create();
 
     // empty map
     assertThat(map.toString()).isEqualTo("{}");
@@ -138,7 +138,7 @@ public class TestCharSequenceMap {
 
   @Test
   public void testComputeIfAbsent() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    PathMap<String> map = PathMap.create();
 
     String result1 = map.computeIfAbsent("key1", () -> "computedValue1");
     assertThat(result1).isEqualTo("computedValue1");
@@ -152,7 +152,7 @@ public class TestCharSequenceMap {
 
   @Test
   public void testConcurrentReadAccess() throws InterruptedException {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    PathMap<String> map = PathMap.create();
     map.put("key1", "value1");
     map.put("key2", "value2");
     map.put("key3", "value3");
@@ -174,14 +174,14 @@ public class TestCharSequenceMap {
     assertThat(executorService.awaitTermination(1, TimeUnit.MINUTES)).isTrue();
   }
 
-  private static <T> CharSequenceMapAssert<T> assertMap(CharSequenceMap<T> charSequenceMap) {
-    return new CharSequenceMapAssert<>(charSequenceMap);
+  private static <T> CharSequenceMapAssert<T> assertMap(PathMap<T> pathMap) {
+    return new CharSequenceMapAssert<>(pathMap);
   }
 
   private static class CharSequenceMapAssert<T>
-      extends AbstractObjectAssert<CharSequenceMapAssert<T>, CharSequenceMap<T>> {
-    CharSequenceMapAssert(CharSequenceMap<T> charSequenceMap) {
-      super(charSequenceMap, CharSequenceMapAssert.class);
+      extends AbstractObjectAssert<CharSequenceMapAssert<T>, PathMap<T>> {
+    CharSequenceMapAssert(PathMap<T> pathMap) {
+      super(pathMap, CharSequenceMapAssert.class);
     }
 
     void doesNotContainKey(CharSequence key) {

@@ -36,9 +36,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.Filter;
 import org.apache.iceberg.util.ParallelIterable;
+import org.apache.iceberg.util.PathMap;
 import org.apache.iceberg.util.SortedMerge;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.ThreadPools;
@@ -124,7 +124,7 @@ public class Deletes {
     }
   }
 
-  public static <T extends StructLike> CharSequenceMap<PositionDeleteIndex> toPositionIndexes(
+  public static <T extends StructLike> PathMap<PositionDeleteIndex> toPositionIndexes(
       CloseableIterable<T> posDeletes) {
     return toPositionIndexes(posDeletes, null /* unknown delete file */);
   }
@@ -140,9 +140,9 @@ public class Deletes {
    * @param file the source delete file for the deletes
    * @return the map of position delete indexes by path
    */
-  public static <T extends StructLike> CharSequenceMap<PositionDeleteIndex> toPositionIndexes(
+  public static <T extends StructLike> PathMap<PositionDeleteIndex> toPositionIndexes(
       CloseableIterable<T> posDeletes, DeleteFile file) {
-    CharSequenceMap<PositionDeleteIndex> indexes = CharSequenceMap.create();
+    PathMap<PositionDeleteIndex> indexes = PathMap.create();
 
     try (CloseableIterable<T> deletes = posDeletes) {
       for (T delete : deletes) {

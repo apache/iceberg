@@ -45,7 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
  *
  * @param <V> the type of values
  */
-public class CharSequenceMap<V> implements Serializable {
+public class PathMap<V> implements Serializable {
 
   private static final long serialVersionUID = 1L;
   private static final ThreadLocal<CharSequenceWrapper> WRAPPERS =
@@ -53,12 +53,12 @@ public class CharSequenceMap<V> implements Serializable {
 
   private final Map<CharSequenceWrapper, V> wrapperMap;
 
-  private CharSequenceMap() {
+  private PathMap() {
     this.wrapperMap = Maps.newHashMap();
   }
 
-  public static <T> CharSequenceMap<T> create() {
-    return new CharSequenceMap<>();
+  public static <T> PathMap<T> create() {
+    return new PathMap<>();
   }
 
   public int size() {
@@ -128,7 +128,7 @@ public class CharSequenceMap<V> implements Serializable {
       return false;
     }
 
-    CharSequenceMap<?> that = (CharSequenceMap<?>) other;
+    PathMap<?> that = (PathMap<?>) other;
     return Objects.equals(wrapperMap, that.wrapperMap);
   }
 
