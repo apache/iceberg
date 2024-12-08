@@ -169,7 +169,7 @@ class VariantUtil {
   }
 
   static byte primitiveHeader(int primitiveType) {
-    return (byte) (primitiveType << Variants.Primitives. PRIMITIVE_TYPE_SHIFT);
+    return (byte) (primitiveType << Variants.Primitives.PRIMITIVE_TYPE_SHIFT);
   }
 
   public static byte shortStrHeader(int size) {

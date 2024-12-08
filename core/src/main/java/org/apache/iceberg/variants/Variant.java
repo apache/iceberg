@@ -18,33 +18,27 @@
  */
 package org.apache.iceberg.variants;
 
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+
 public final class Variant {
   private final byte[] value;
   private final byte[] metadata;
-  // The variant value doesn't use the whole `value` binary, but starts from its `pos` index and
-  // spans a size of `valueSize(value, pos)`. This design avoids frequent copies of the value binary
-  // when reading a sub-variant in the array/object element.
-  private final int pos;
 
   public Variant(byte[] value, byte[] metadata) {
-    this(value, metadata, 0);
-  }
+    Preconditions.checkArgument(metadata != null && metadata.length >= 1,
+     "Metadata must not be null or empty.");
+    Preconditions.checkArgument(value != null && value.length >= 1,
+        "Value must not be null or empty.");
 
-  Variant(byte[] value, byte[] metadata, int pos) {
-    this.value = value;
-    this.metadata = metadata;
-    this.pos = pos;
-    // There is currently only one allowed version.
-    if (metadata.length < 1
-        || (metadata[0] & VariantConstants.VERSION_MASK) != VariantConstants.VERSION) {
-      throw new IllegalStateException();
-    }
-    // Don't attempt to use a Variant larger than 16 MiB. We'll never produce one, and it risks
-    // memory instability.
-    if (metadata.length > VariantConstants.SIZE_LIMIT
-        || value.length > VariantConstants.SIZE_LIMIT) {
+    Preconditions.checkArgument((metadata[0] & VariantConstants.VERSION_MASK) == VariantConstants.VERSION,
+      "Unsupported metadata version.");
+
+    if (value.length > VariantConstants.SIZE_LIMIT || metadata.length > VariantConstants.SIZE_LIMIT) {
       throw new VariantSizeLimitException();
     }
+
+    this.value = value;
+    this.metadata = metadata;
   }
 
   public byte[] getMetadata() {
@@ -53,9 +47,5 @@ public final class Variant {
 
   public byte[] getValue() {
     return value;
-  }
-
-  public int getPos() {
-    return pos;
   }
 }
