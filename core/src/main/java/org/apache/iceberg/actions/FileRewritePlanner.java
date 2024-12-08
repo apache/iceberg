@@ -18,27 +18,29 @@
  */
 package org.apache.iceberg.actions;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
 
 /**
- * A class for rewriting content files.
+ * A class for planning content file rewrites.
  *
  * <p>The entire rewrite operation is broken down into pieces based on partitioning, and size-based
  * groups within a partition. These subunits of the rewrite are referred to as file groups. A file
- * group will be processed by a single framework "action". For example, in Spark this means that
- * each group would be rewritten in its own Spark job.
+ * group will be processed by a {@link FileRewriteExecutor} in a single framework "action". For
+ * example, in Spark this means that each group would be rewritten in its own Spark job.
  *
- * @param <T> the Java type of tasks to read content files
- * @param <F> the Java type of content files
- * @deprecated since 1.8.0, will be removed in 1.9.0; use {@link FileRewritePlanner} and {@link
- *     FileRewriteExecutor}.
+ * @param <I> the Java type of the plan info
+ * @param <T> the Java type of the tasks to read content files
+ * @param <F> the Java type of the content files
+ * @param <G> the Java type of the planned groups
  */
-@Deprecated
-public interface FileRewriter<T extends ContentScanTask<F>, F extends ContentFile<F>> {
+public interface FileRewritePlanner<
+    I,
+    T extends ContentScanTask<F>,
+    F extends ContentFile<F>,
+    G extends FileRewriteGroup<I, T, F>> {
 
   /** Returns a description for this rewriter. */
   default String description() {
@@ -59,22 +61,9 @@ public interface FileRewriter<T extends ContentScanTask<F>, F extends ContentFil
   void init(Map<String, String> options);
 
   /**
-   * Selects files which this rewriter believes are valid targets to be rewritten based on their
-   * scan tasks and groups those scan tasks into file groups. The file groups are then rewritten in
-   * a single executable unit, such as a Spark job.
+   * Generates the plan for rewrite.
    *
-   * @param tasks an iterable of scan task for files in a partition
-   * @return groups of scan tasks for files to be rewritten in a single executable unit
+   * @return the generated plan which could be executed during the compaction
    */
-  Iterable<List<T>> planFileGroups(Iterable<T> tasks);
-
-  /**
-   * Rewrite a group of files represented by the given list of scan tasks.
-   *
-   * <p>The implementation is supposed to be engine-specific (e.g. Spark, Flink, Trino).
-   *
-   * @param group a group of scan tasks for files to be rewritten together
-   * @return a set of newly written files
-   */
-  Set<F> rewrite(List<T> group);
+  FileRewritePlan<I, T, F, G> plan();
 }

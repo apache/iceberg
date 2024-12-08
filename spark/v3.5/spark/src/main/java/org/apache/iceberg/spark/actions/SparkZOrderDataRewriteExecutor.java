@@ -44,9 +44,9 @@ import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class SparkZOrderDataRewriter extends SparkShufflingDataRewriter {
+class SparkZOrderDataRewriteExecutor extends SparkShufflingDataRewriteExecutor {
 
-  private static final Logger LOG = LoggerFactory.getLogger(SparkZOrderDataRewriter.class);
+  private static final Logger LOG = LoggerFactory.getLogger(SparkZOrderDataRewriteExecutor.class);
 
   private static final String Z_COLUMN = "ICEZVALUE";
   private static final Schema Z_SCHEMA =
@@ -78,7 +78,7 @@ class SparkZOrderDataRewriter extends SparkShufflingDataRewriter {
   private int maxOutputSize;
   private int varLengthContribution;
 
-  SparkZOrderDataRewriter(SparkSession spark, Table table, List<String> zOrderColNames) {
+  SparkZOrderDataRewriteExecutor(SparkSession spark, Table table, List<String> zOrderColNames) {
     super(spark, table);
     this.zOrderColNames = validZOrderColNames(spark, table, zOrderColNames);
   }
