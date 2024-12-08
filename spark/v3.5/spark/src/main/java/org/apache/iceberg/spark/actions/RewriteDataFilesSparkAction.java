@@ -18,20 +18,16 @@
  */
 package org.apache.iceberg.spark.actions;
 
-import java.io.IOException;
 import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.RewriteJobOrder;
@@ -44,28 +40,24 @@ import org.apache.iceberg.actions.ImmutableRewriteDataFiles.Result.Builder;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
-import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.actions.RewriteFileGroupPlanner;
+import org.apache.iceberg.actions.RewriteFileGroupPlanner.RewritePlanResult;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.spark.SparkUtil;
-import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
@@ -171,21 +163,17 @@ public class RewriteDataFilesSparkAction
 
     validateAndInitOptions();
 
-    StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition =
-        planFileGroups(startingSnapshotId);
-    RewriteExecutionContext ctx = new RewriteExecutionContext(fileGroupsByPartition);
+    RewritePlanResult result = plan(startingSnapshotId);
 
-    if (ctx.totalGroupCount() == 0) {
+    if (result.totalGroupCount() == 0) {
       LOG.info("Nothing found to rewrite in {}", table.name());
       return EMPTY_RESULT;
     }
 
-    Stream<RewriteFileGroup> groupStream = toGroupStream(ctx, fileGroupsByPartition);
-
     Builder resultBuilder =
         partialProgressEnabled
-            ? doExecuteWithPartialProgress(ctx, groupStream, commitManager(startingSnapshotId))
-            : doExecute(ctx, groupStream, commitManager(startingSnapshotId));
+            ? doExecuteWithPartialProgress(result, commitManager(startingSnapshotId))
+            : doExecute(result, commitManager(startingSnapshotId));
 
     if (removeDanglingDeletes) {
       RemoveDanglingDeletesSparkAction action =
@@ -193,68 +181,18 @@ public class RewriteDataFilesSparkAction
       int removedCount = Iterables.size(action.execute().removedDeleteFiles());
       resultBuilder.removedDeleteFilesCount(removedCount);
     }
+
     return resultBuilder.build();
   }
 
-  StructLikeMap<List<List<FileScanTask>>> planFileGroups(long startingSnapshotId) {
-    CloseableIterable<FileScanTask> fileScanTasks =
-        table
-            .newScan()
-            .useSnapshot(startingSnapshotId)
-            .caseSensitive(caseSensitive)
-            .filter(filter)
-            .ignoreResiduals()
-            .planFiles();
-
-    try {
-      StructType partitionType = table.spec().partitionType();
-      StructLikeMap<List<FileScanTask>> filesByPartition =
-          groupByPartition(partitionType, fileScanTasks);
-      return fileGroupsByPartition(filesByPartition);
-    } finally {
-      try {
-        fileScanTasks.close();
-      } catch (IOException io) {
-        LOG.error("Cannot properly close file iterable while planning for rewrite", io);
-      }
-    }
-  }
-
-  private StructLikeMap<List<FileScanTask>> groupByPartition(
-      StructType partitionType, Iterable<FileScanTask> tasks) {
-    StructLikeMap<List<FileScanTask>> filesByPartition = StructLikeMap.create(partitionType);
-    StructLike emptyStruct = GenericRecord.create(partitionType);
-
-    for (FileScanTask task : tasks) {
-      // If a task uses an incompatible partition spec the data inside could contain values
-      // which belong to multiple partitions in the current spec. Treating all such files as
-      // un-partitioned and grouping them together helps to minimize new files made.
-      StructLike taskPartition =
-          task.file().specId() == table.spec().specId() ? task.file().partition() : emptyStruct;
-
-      List<FileScanTask> files = filesByPartition.get(taskPartition);
-      if (files == null) {
-        files = Lists.newArrayList();
-      }
-
-      files.add(task);
-      filesByPartition.put(taskPartition, files);
-    }
-    return filesByPartition;
-  }
-
-  private StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition(
-      StructLikeMap<List<FileScanTask>> filesByPartition) {
-    return filesByPartition.transformValues(this::planFileGroups);
-  }
-
-  private List<List<FileScanTask>> planFileGroups(List<FileScanTask> tasks) {
-    return ImmutableList.copyOf(rewriter.planFileGroups(tasks));
+  RewritePlanResult plan(long startingSnapshotId) {
+    return new RewriteFileGroupPlanner(rewriter, rewriteJobOrder)
+        .plan(table, filter, startingSnapshotId, caseSensitive);
   }
 
   @VisibleForTesting
-  RewriteFileGroup rewriteFiles(RewriteExecutionContext ctx, RewriteFileGroup fileGroup) {
-    String desc = jobDesc(fileGroup, ctx);
+  RewriteFileGroup rewriteFiles(RewritePlanResult planResult, RewriteFileGroup fileGroup) {
+    String desc = jobDesc(fileGroup, planResult);
     Set<DataFile> addedFiles =
         withJobGroupInfo(
             newJobGroupInfo("REWRITE-DATA-FILES", desc),
@@ -280,29 +218,25 @@ public class RewriteDataFilesSparkAction
   }
 
   private Builder doExecute(
-      RewriteExecutionContext ctx,
-      Stream<RewriteFileGroup> groupStream,
-      RewriteDataFilesCommitManager commitManager) {
+      RewritePlanResult planResult, RewriteDataFilesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
     ConcurrentLinkedQueue<RewriteFileGroup> rewrittenGroups = Queues.newConcurrentLinkedQueue();
 
     Tasks.Builder<RewriteFileGroup> rewriteTaskBuilder =
-        Tasks.foreach(groupStream)
+        Tasks.foreach(planResult.groups())
             .executeWith(rewriteService)
             .stopOnFailure()
             .noRetry()
             .onFailure(
-                (fileGroup, exception) -> {
-                  LOG.warn(
-                      "Failure during rewrite process for group {}", fileGroup.info(), exception);
-                });
+                (fileGroup, exception) ->
+                    LOG.warn(
+                        "Failure during rewrite process for group {}",
+                        fileGroup.info(),
+                        exception));
 
     try {
-      rewriteTaskBuilder.run(
-          fileGroup -> {
-            rewrittenGroups.add(rewriteFiles(ctx, fileGroup));
-          });
+      rewriteTaskBuilder.run(fileGroup -> rewrittenGroups.add(rewriteFiles(planResult, fileGroup)));
     } catch (Exception e) {
       // At least one rewrite group failed, clean up all completed rewrites
       LOG.error(
@@ -345,20 +279,19 @@ public class RewriteDataFilesSparkAction
   }
 
   private Builder doExecuteWithPartialProgress(
-      RewriteExecutionContext ctx,
-      Stream<RewriteFileGroup> groupStream,
-      RewriteDataFilesCommitManager commitManager) {
+      RewritePlanResult planResult, RewriteDataFilesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
     // start commit service
-    int groupsPerCommit = IntMath.divide(ctx.totalGroupCount(), maxCommits, RoundingMode.CEILING);
+    int groupsPerCommit =
+        IntMath.divide(planResult.totalGroupCount(), maxCommits, RoundingMode.CEILING);
     RewriteDataFilesCommitManager.CommitService commitService =
         commitManager.service(groupsPerCommit);
     commitService.start();
 
     Collection<FileGroupFailureResult> rewriteFailures = new ConcurrentLinkedQueue<>();
     // start rewrite tasks
-    Tasks.foreach(groupStream)
+    Tasks.foreach(planResult.groups())
         .suppressFailureWhenFinished()
         .executeWith(rewriteService)
         .noRetry()
@@ -371,7 +304,7 @@ public class RewriteDataFilesSparkAction
                       .dataFilesCount(fileGroup.numFiles())
                       .build());
             })
-        .run(fileGroup -> commitService.offer(rewriteFiles(ctx, fileGroup)));
+        .run(fileGroup -> commitService.offer(rewriteFiles(planResult, fileGroup)));
     rewriteService.shutdown();
 
     // stop commit service
@@ -402,32 +335,6 @@ public class RewriteDataFilesSparkAction
     return ImmutableRewriteDataFiles.Result.builder()
         .rewriteResults(toRewriteResults(commitService.results()))
         .rewriteFailures(rewriteFailures);
-  }
-
-  Stream<RewriteFileGroup> toGroupStream(
-      RewriteExecutionContext ctx, Map<StructLike, List<List<FileScanTask>>> groupsByPartition) {
-    return groupsByPartition.entrySet().stream()
-        .filter(e -> !e.getValue().isEmpty())
-        .flatMap(
-            e -> {
-              StructLike partition = e.getKey();
-              List<List<FileScanTask>> scanGroups = e.getValue();
-              return scanGroups.stream().map(tasks -> newRewriteGroup(ctx, partition, tasks));
-            })
-        .sorted(RewriteFileGroup.comparator(rewriteJobOrder));
-  }
-
-  private RewriteFileGroup newRewriteGroup(
-      RewriteExecutionContext ctx, StructLike partition, List<FileScanTask> tasks) {
-    int globalIndex = ctx.currentGlobalIndex();
-    int partitionIndex = ctx.currentPartitionIndex(partition);
-    FileGroupInfo info =
-        ImmutableRewriteDataFiles.FileGroupInfo.builder()
-            .globalIndex(globalIndex)
-            .partitionIndex(partitionIndex)
-            .partition(partition)
-            .build();
-    return new RewriteFileGroup(info, tasks);
   }
 
   private Iterable<FileGroupRewriteResult> toRewriteResults(List<RewriteFileGroup> commitResults) {
@@ -492,7 +399,7 @@ public class RewriteDataFilesSparkAction
         PARTIAL_PROGRESS_ENABLED);
   }
 
-  private String jobDesc(RewriteFileGroup group, RewriteExecutionContext ctx) {
+  private String jobDesc(RewriteFileGroup group, RewritePlanResult planResult) {
     StructLike partition = group.info().partition();
     if (partition.size() > 0) {
       return String.format(
@@ -500,10 +407,10 @@ public class RewriteDataFilesSparkAction
           group.rewrittenFiles().size(),
           rewriter.description(),
           group.info().globalIndex(),
-          ctx.totalGroupCount(),
+          planResult.totalGroupCount(),
           partition,
           group.info().partitionIndex(),
-          ctx.groupsInPartition(partition),
+          planResult.groupsInPartition(partition),
           table.name());
     } else {
       return String.format(
@@ -511,39 +418,8 @@ public class RewriteDataFilesSparkAction
           group.rewrittenFiles().size(),
           rewriter.description(),
           group.info().globalIndex(),
-          ctx.totalGroupCount(),
+          planResult.totalGroupCount(),
           table.name());
-    }
-  }
-
-  @VisibleForTesting
-  static class RewriteExecutionContext {
-    private final StructLikeMap<Integer> numGroupsByPartition;
-    private final int totalGroupCount;
-    private final Map<StructLike, Integer> partitionIndexMap;
-    private final AtomicInteger groupIndex;
-
-    RewriteExecutionContext(StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition) {
-      this.numGroupsByPartition = fileGroupsByPartition.transformValues(List::size);
-      this.totalGroupCount = numGroupsByPartition.values().stream().reduce(Integer::sum).orElse(0);
-      this.partitionIndexMap = Maps.newConcurrentMap();
-      this.groupIndex = new AtomicInteger(1);
-    }
-
-    public int currentGlobalIndex() {
-      return groupIndex.getAndIncrement();
-    }
-
-    public int currentPartitionIndex(StructLike partition) {
-      return partitionIndexMap.merge(partition, 1, Integer::sum);
-    }
-
-    public int groupsInPartition(StructLike partition) {
-      return numGroupsByPartition.get(partition);
-    }
-
-    public int totalGroupCount() {
-      return totalGroupCount;
     }
   }
 }
