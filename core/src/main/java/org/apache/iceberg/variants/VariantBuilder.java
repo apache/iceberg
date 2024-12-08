@@ -29,7 +29,6 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -63,7 +62,7 @@ public class VariantBuilder {
       VariantBuilder builder = new VariantBuilder();
       builder.buildJson(parser);
 
-      return builder.result();
+      return builder.build();
     }
   }
 
@@ -72,7 +71,7 @@ public class VariantBuilder {
    *
    * @return The constructed Variant object.
    */
-  private Variant result() {
+  public Variant build() {
     int numKeys = dictionaryKeys.size();
 
     // Calculate total size of dictionary strings
@@ -110,7 +109,7 @@ public class VariantBuilder {
     metadataBuffer.writeLittleEndianUnsigned(numStringBytes, offsetSize);
 
     // Write dictionary strings
-    dictionaryKeys.stream().forEach(metadataBuffer::addBytes);
+    dictionaryKeys.forEach(metadataBuffer::addBytes);
 
     return new Variant(buffer.toByteArray(), metadataBuffer.toByteArray());
   }
@@ -174,20 +173,19 @@ public class VariantBuilder {
       buildJson(parser);
     }
 
-    finishWritingObject(startPos, fields);
+    endObject(startPos, fields);
   }
 
   private void appendArray(JsonParser parser) throws IOException {
     List<Integer> offsets = Lists.newArrayList();
     int start = buffer.pos;
 
-    parser.nextToken();
     while (parser.nextToken() != JsonToken.END_ARRAY) {
       offsets.add(buffer.pos - start);
       buildJson(parser);
     }
 
-    finishWritingArray(start, offsets);
+    endArray(start, offsets);
   }
 
   private void appendInteger(JsonParser parser) throws IOException {
@@ -232,19 +230,19 @@ public class VariantBuilder {
    */
   public void appendNumeric(long value) {
     if (value == (byte) value) {
-      // INT8: Requires 1 byte for value + 1 byte for header
+      // INT8: Requires 1 byte for header + 1 byte for value
       buffer.addByte(VariantUtil.primitiveHeader(Variants.Primitives.TYPE_INT8));
       buffer.writeLittleEndianUnsigned(value, 1);
     } else if (value == (short) value) {
-      // INT16: Requires 2 bytes for value + 1 byte for header
+      // INT16: Requires 1 byte for header + 2 bytes for value
       buffer.addByte(VariantUtil.primitiveHeader(Variants.Primitives.TYPE_INT16));
       buffer.writeLittleEndianUnsigned(value, 2);
     } else if (value == (int) value) {
-      // INT32: Requires 4 bytes for value + 1 byte for header
+      // INT32: Requires 1 byte for header + 4 bytes for value
       buffer.addByte(VariantUtil.primitiveHeader(Variants.Primitives.TYPE_INT32));
       buffer.writeLittleEndianUnsigned(value, 4);
     } else {
-      // INT64: Requires 8 bytes for value + 1 byte for header
+      // INT64: Requires 1 byte for header + 8 bytes for value
       buffer.addByte(VariantUtil.primitiveHeader(Variants.Primitives.TYPE_INT64));
       buffer.writeLittleEndianUnsigned(value, 8);
     }
@@ -324,7 +322,7 @@ public class VariantBuilder {
    * @param startPos The starting position of the object data in the buffer.
    * @param fields The list of field entries (key, ID, offset).
    */
-  private void finishWritingObject(int startPos, List<FieldEntry> fields) {
+  private void endObject(int startPos, List<FieldEntry> fields) {
     int numElements = fields.size();
 
     // Sort fields by key and ensure no duplicate keys
@@ -376,7 +374,7 @@ public class VariantBuilder {
    * @param startPos The starting position of the array values in the buffer.
    * @param offsets The offsets for each array value.
    */
-  private void finishWritingArray(int startPos, List<Integer> offsets) {
+  private void endArray(int startPos, List<Integer> offsets) {
     int dataSize = buffer.pos - startPos; // Total byte size of the array values
     int numElements = offsets.size();
 
