@@ -20,6 +20,7 @@ package org.apache.iceberg.util;
 
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -132,12 +133,12 @@ public class CharSequenceMap<V> implements Map<CharSequence, V>, Serializable {
       keySet.add(wrapper.get());
     }
 
-    return keySet;
+    return Collections.unmodifiableSet(keySet);
   }
 
   @Override
   public Collection<V> values() {
-    return wrapperMap.values();
+    return Collections.unmodifiableCollection(wrapperMap.values());
   }
 
   @Override
@@ -148,7 +149,7 @@ public class CharSequenceMap<V> implements Map<CharSequence, V>, Serializable {
       entrySet.add(new CharSequenceEntry<>(entry));
     }
 
-    return entrySet;
+    return Collections.unmodifiableSet(entrySet);
   }
 
   public V computeIfAbsent(CharSequence key, Supplier<V> valueSupplier) {
