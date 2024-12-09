@@ -72,6 +72,17 @@ public class BaseDVFileWriter implements DVFileWriter {
   }
 
   @Override
+  public void delete(
+      String path,
+      PositionDeleteIndex positionDeleteIndex,
+      PartitionSpec spec,
+      StructLike partition) {
+    Deletes deletes =
+        deletesByPath.computeIfAbsent(path, key -> new Deletes(path, spec, partition));
+    deletes.positions().merge(positionDeleteIndex);
+  }
+
+  @Override
   public DeleteWriteResult result() {
     Preconditions.checkState(result != null, "Cannot get result from unclosed writer");
     return result;

@@ -36,6 +36,14 @@ public interface DVFileWriter extends Closeable {
    */
   void delete(String path, long pos, PartitionSpec spec, StructLike partition);
 
+  default void delete(
+      String path,
+      PositionDeleteIndex positionDeleteIndex,
+      PartitionSpec spec,
+      StructLike partition) {
+    throw new UnsupportedOperationException("Delete with positionDeleteIndex is not supported");
+  }
+
   /**
    * Returns a result that contains information about written {@link DeleteFile}s. The result is
    * valid only after the writer is closed.
