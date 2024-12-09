@@ -23,23 +23,18 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.BaseDeleteLoader;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.PartitionUtil;
-import org.apache.iceberg.util.StructLikeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.unsafe.types.UTF8String;
 
 class DVIterator implements CloseableIterator<InternalRow> {
-  private final PartitionSpec spec;
   private final DeleteFile deleteFile;
   private final Schema projection;
   private final Map<Integer, ?> idToConstant;
@@ -48,13 +43,8 @@ class DVIterator implements CloseableIterator<InternalRow> {
   private GenericInternalRow row;
 
   DVIterator(
-      InputFile inputFile,
-      DeleteFile deleteFile,
-      PartitionSpec spec,
-      Schema projection,
-      Map<Integer, ?> idToConstant) {
+      InputFile inputFile, DeleteFile deleteFile, Schema projection, Map<Integer, ?> idToConstant) {
     this.deleteFile = deleteFile;
-    this.spec = spec;
     this.projection = projection;
     this.idToConstant = idToConstant;
     List<Long> pos = Lists.newArrayList();
@@ -75,38 +65,21 @@ class DVIterator implements CloseableIterator<InternalRow> {
 
     if (null == row) {
       List<Object> rowValues = Lists.newArrayList();
-      if (null != projection.findField(MetadataColumns.DELETE_FILE_PATH.fieldId())) {
-        rowValues.add(UTF8String.fromString(deleteFile.referencedDataFile()));
-      }
-
-      if (null != projection.findField(MetadataColumns.DELETE_FILE_POS.fieldId())) {
-        rowValues.add(position);
-        // remember the index where the deleted position needs to be set
-        deletedPositionIndex = rowValues.size() - 1;
-      }
-
-      Types.NestedField partition = projection.findField(MetadataColumns.PARTITION_COLUMN_ID);
-      if (null != partition) {
-        Object constant = idToConstant.get(MetadataColumns.PARTITION_COLUMN_ID);
-        if (null != constant) {
-          rowValues.add(constant);
-        } else {
-          Types.StructType type = partition.type().asStructType();
-          StructInternalRow partitionRow = new StructInternalRow(type);
-          StructLike copiedPartition = StructLikeUtil.copy(deleteFile.partition());
-          partitionRow.setStruct(PartitionUtil.coercePartition(type, spec, copiedPartition));
-          rowValues.add(partitionRow);
+      for (Types.NestedField column : projection.columns()) {
+        int fieldId = column.fieldId();
+        if (fieldId == MetadataColumns.DELETE_FILE_PATH.fieldId()) {
+          rowValues.add(UTF8String.fromString(deleteFile.referencedDataFile()));
+        } else if (fieldId == MetadataColumns.DELETE_FILE_POS.fieldId()) {
+          rowValues.add(position);
+          // remember the index where the deleted position needs to be set
+          deletedPositionIndex = rowValues.size() - 1;
+        } else if (fieldId == MetadataColumns.PARTITION_COLUMN_ID) {
+          rowValues.add(idToConstant.get(MetadataColumns.PARTITION_COLUMN_ID));
+        } else if (fieldId == MetadataColumns.SPEC_ID_COLUMN_ID) {
+          rowValues.add(idToConstant.get(MetadataColumns.SPEC_ID_COLUMN_ID));
+        } else if (fieldId == MetadataColumns.FILE_PATH_COLUMN_ID) {
+          rowValues.add(idToConstant.get(MetadataColumns.FILE_PATH_COLUMN_ID));
         }
-      }
-
-      if (null != projection.findField(MetadataColumns.SPEC_ID_COLUMN_ID)) {
-        Object constant = idToConstant.get(MetadataColumns.SPEC_ID_COLUMN_ID);
-        rowValues.add(null != constant ? constant : deleteFile.specId());
-      }
-
-      if (null != projection.findField(MetadataColumns.FILE_PATH_COLUMN_ID)) {
-        Object constant = idToConstant.get(MetadataColumns.FILE_PATH_COLUMN_ID);
-        rowValues.add(null != constant ? constant : UTF8String.fromString(deleteFile.location()));
       }
 
       this.row = new GenericInternalRow(rowValues.toArray());
