@@ -57,6 +57,8 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, tableDir.toAbsolutePath().toString());
     properties.put(JdbcUtil.SCHEMA_VERSION_PROPERTY, JdbcUtil.SchemaVersion.V1.name());
+    properties.put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key1", "catalog-default-key1");
+    properties.put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key2", "catalog-default-key2");
 
     catalog = new JdbcCatalog();
     catalog.setConf(new Configuration());
