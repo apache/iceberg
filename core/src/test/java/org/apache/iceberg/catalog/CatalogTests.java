@@ -1293,6 +1293,62 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThat(table.spec()).as("Loaded table should have expected spec").isEqualTo(TABLE_SPEC);
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testRemoveUnusedSpec(boolean withBranch) {
+    String branch = "test";
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table =
+        catalog
+            .buildTable(TABLE, SCHEMA)
+            .withPartitionSpec(SPEC)
+            .withProperty(TableProperties.GC_ENABLED, "true")
+            .create();
+    PartitionSpec spec = table.spec();
+    // added a file to trigger snapshot expiration
+    table.newFastAppend().appendFile(FILE_A).commit();
+    if (withBranch) {
+      table.manageSnapshots().createBranch(branch).commit();
+    }
+    table.updateSpec().addField(Expressions.bucket("data", 16)).commit();
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    table.updateSpec().addField("data").commit();
+    assertThat(table.specs()).as("Should have 3 total specs").hasSize(3);
+    PartitionSpec current = table.spec();
+    table.expireSnapshots().cleanExpiredMetadata(true).commit();
+
+    Table loaded = catalog.loadTable(TABLE);
+    assertThat(loaded.specs().values()).containsExactlyInAnyOrder(spec, current);
+
+    // add a data file with current spec and remove the old data file
+    table.newDelete().deleteFile(FILE_A).commit();
+    DataFile anotherFile =
+        DataFiles.builder(current)
+            .withPath("/path/to/data-b.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("id_bucket=0/data=123") // easy way to set partition data for now
+            .withRecordCount(2) // needs at least one record or else metrics will filter it out
+            .build();
+    table.newAppend().appendFile(anotherFile).commit();
+    table
+        .expireSnapshots()
+        .cleanExpiredFiles(false)
+        .expireOlderThan(table.currentSnapshot().timestampMillis())
+        .cleanExpiredMetadata(true)
+        .commit();
+    loaded = catalog.loadTable(TABLE);
+    if (withBranch) {
+      assertThat(loaded.specs().values()).containsExactlyInAnyOrder(spec, current);
+    } else {
+      assertThat(loaded.specs().values()).containsExactlyInAnyOrder(current);
+    }
+  }
+
   @Test
   public void testUpdateTableSortOrder() {
     C catalog = catalog();
