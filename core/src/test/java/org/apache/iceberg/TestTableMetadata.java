@@ -70,7 +70,6 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestTableMetadata {
   private static final String TEST_LOCATION = "s3://bucket/test/location";
@@ -1023,9 +1022,10 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"TableMetadataV1Valid.json", "TableMetadataV2Valid.json", "TableMetadataV3Valid.json"})
-  public void testParserVersionValidation(String fileName) throws Exception {
-    String supportedVersion = readTableMetadataInputFile(fileName);
+  @MethodSource("formatVersionsProvider")
+  public void testParserVersionValidation(int formatVersion) throws Exception {
+    String supportedVersion =
+        readTableMetadataInputFile(String.format("TableMetadataV%sValid.json", formatVersion));
     TableMetadata parsed = TableMetadataParser.fromJson(supportedVersion);
     assertThat(parsed).as("Should successfully read supported metadata version").isNotNull();
   }
@@ -1034,8 +1034,8 @@ public class TestTableMetadata {
   public void testParserUnsupportedVersion() throws Exception {
     String unsupportedVersion = readTableMetadataInputFile("TableMetadataUnsupportedVersion.json");
     assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageStartingWith("Cannot read unsupported version");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot read unsupported version");
   }
 
   @ParameterizedTest
@@ -1044,7 +1044,8 @@ public class TestTableMetadata {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
     String unsupportedVersion =
-        readTableMetadataInputFile(String.format("TableMetadataV%sMissingPartitionSpecs.json", formatVersion));
+        readTableMetadataInputFile(
+            String.format("TableMetadataV%sMissingPartitionSpecs.json", formatVersion));
     assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(String.format("partition-specs must exist in format v%s", formatVersion));
@@ -1056,7 +1057,8 @@ public class TestTableMetadata {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
     String unsupportedVersion =
-        readTableMetadataInputFile(String.format("TableMetadataV%sMissingLastPartitionId.json", formatVersion));
+        readTableMetadataInputFile(
+            String.format("TableMetadataV%sMissingLastPartitionId.json", formatVersion));
     assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(String.format("last-partition-id must exist in format v%s", formatVersion));
@@ -1067,16 +1069,22 @@ public class TestTableMetadata {
   public void testParserSortOrderValidation(int formatVersion) throws Exception {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
-    String unsupportedVersion = readTableMetadataInputFile(String.format("TableMetadataV%sMissingSortOrder.json", formatVersion));
+    String unsupportedVersion =
+        readTableMetadataInputFile(
+            String.format("TableMetadataV%sMissingSortOrder.json", formatVersion));
     assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(String.format("sort-orders must exist in format v%s", formatVersion));
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"TableMetadataV2CurrentSchemaNotFound.json", "TableMetadataV3CurrentSchemaNotFound.json"})
-  public void testParserCurrentSchemaIdValidation(String fileName) throws Exception {
-    String unsupported = readTableMetadataInputFile(fileName);
+  @MethodSource("formatVersionsProvider")
+  public void testParserCurrentSchemaIdValidation(int formatVersion) throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    String unsupported =
+        readTableMetadataInputFile(
+            String.format("TableMetadataV%sCurrentSchemaNotFound.json", formatVersion));
     assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupported))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find schema with current-schema-id=2 from schemas");
@@ -1087,7 +1095,9 @@ public class TestTableMetadata {
   public void testParserV2SchemasValidation(int formatVersion) throws Exception {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
-    String unsupported = readTableMetadataInputFile(String.format("TableMetadataV%sMissingSchemas.json", formatVersion));
+    String unsupported =
+        readTableMetadataInputFile(
+            String.format("TableMetadataV%sMissingSchemas.json", formatVersion));
     assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupported))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(String.format("schemas must exist in format v%s", formatVersion));
@@ -1514,7 +1524,8 @@ public class TestTableMetadata {
   public void testParseSchemaIdentifierFields(int formatVersion) throws Exception {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
-    String data = readTableMetadataInputFile(String.format("TableMetadataV%sValid.json", formatVersion));
+    String data =
+        readTableMetadataInputFile(String.format("TableMetadataV%sValid.json", formatVersion));
     TableMetadata parsed = TableMetadataParser.fromJson(data);
     assertThat(parsed.schemasById().get(0).identifierFieldIds()).isEmpty();
     assertThat(parsed.schemasById().get(1).identifierFieldIds()).containsExactly(1, 2);
@@ -1525,7 +1536,9 @@ public class TestTableMetadata {
   public void testParseMinimal(int formatVersion) throws Exception {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
-    String data = readTableMetadataInputFile(String.format("TableMetadataV%sValidMinimal.json", formatVersion));
+    String data =
+        readTableMetadataInputFile(
+            String.format("TableMetadataV%sValidMinimal.json", formatVersion));
     TableMetadata parsed = TableMetadataParser.fromJson(data);
     assertThat(parsed.snapshots()).isEmpty();
     assertThat(parsed.snapshotLog()).isEmpty();
@@ -1718,7 +1731,9 @@ public class TestTableMetadata {
   public void testParseStatisticsFiles(int formatVersion) throws Exception {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
-    String data = readTableMetadataInputFile(String.format("TableMetadataV%sStatisticsFiles.json", formatVersion));
+    String data =
+        readTableMetadataInputFile(
+            String.format("TableMetadataV%sStatisticsFiles.json", formatVersion));
     TableMetadata parsed = TableMetadataParser.fromJson(data);
     assertThat(parsed.statisticsFiles()).hasSize(1);
     assertThat(parsed.statisticsFiles())
@@ -1740,7 +1755,9 @@ public class TestTableMetadata {
   public void testParsePartitionStatisticsFiles(int formatVersion) throws Exception {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
-    String data = readTableMetadataInputFile(String.format("TableMetadataV%sPartitionStatisticsFiles.json", formatVersion));
+    String data =
+        readTableMetadataInputFile(
+            String.format("TableMetadataV%sPartitionStatisticsFiles.json", formatVersion));
     TableMetadata parsed = TableMetadataParser.fromJson(data);
     assertThat(parsed.partitionStatisticsFiles())
         .hasSize(1)
@@ -1824,7 +1841,8 @@ public class TestTableMetadata {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
     TableMetadata metadata =
-        TableMetadataParser.fromJson(readTableMetadataInputFile(String.format("TableMetadataV%sValid.json", formatVersion)));
+        TableMetadataParser.fromJson(
+            readTableMetadataInputFile(String.format("TableMetadataV%sValid.json", formatVersion)));
     assertThat(metadata.currentSnapshot()).isNotNull();
     assertThat(metadata.snapshots()).hasSize(2);
     assertThat(metadata.snapshotLog()).hasSize(2);
@@ -1988,5 +2006,32 @@ public class TestTableMetadata {
         .hasMessage(
             String.format(
                 "Row lineage is only supported in v3 (current version v%s)", formatVersion));
+  }
+
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testParseV3RowLineageEnabled(int formatVersion) throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    String data =
+        readTableMetadataInputFile(
+            String.format("TableMetadataV%sRowLineageEnabled.json", formatVersion));
+    TableMetadata parsed = TableMetadataParser.fromJson(data);
+
+    assertThat(parsed.rowLinageEnabled()).isTrue();
+    assertThat(parsed.nextRowId()).isEqualTo(0);
+  }
+
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testParseV3RowLineageEnabledAndMissingNextRowId(int formatVersion) throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    String data =
+        readTableMetadataInputFile(
+            String.format("TableMetadataV%sMissingNextRowId.json", formatVersion));
+    assertThatThrownBy(() -> TableMetadataParser.fromJson(data))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Next row must be set when row lineage is enabled");
   }
 }

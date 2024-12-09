@@ -533,7 +533,6 @@ public class TableMetadataParser {
     }
 
     boolean rowLineageEnabled = false;
-    // TODO: do we want to be more strict when parsing? e.g. raise if see row lineage in v2
     if (formatVersion == 3 && node.hasNonNull(ROW_LINEAGE)) {
       rowLineageEnabled = JsonUtil.getBool(ROW_LINEAGE, node);
     }

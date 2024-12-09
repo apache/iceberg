@@ -263,7 +263,6 @@ public class TableMetadata implements Serializable {
   private volatile Map<String, SnapshotRef> refs;
   private volatile boolean snapshotsLoaded;
   private final boolean rowLineageEnabled;
-  // TODO: may need to use boxing to allow null value
   private final long nextRowId;
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
