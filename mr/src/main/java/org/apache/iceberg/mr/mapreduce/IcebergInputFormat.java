@@ -63,7 +63,6 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.hive.HiveVersion;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
@@ -167,7 +166,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       tasksIterable.forEach(
           task -> {
             if (applyResidual && (model == InputFormatConfig.InMemoryDataModel.HIVE)) {
-              // TODO: We do not support residual evaluation for HIVE and PIG in memory data model
+              // TODO: We do not support residual evaluation for HIVE in memory data model
               // yet
               checkResiduals(task);
             }
@@ -213,11 +212,11 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     private static final String HIVE_VECTORIZED_READER_CLASS =
         "org.apache.iceberg.mr.hive.vector.HiveVectorizedReader";
-    private static final DynMethods.StaticMethod HIVE_VECTORIZED_READER_BUILDER;
+    private static DynMethods.StaticMethod hiveVectorizedReaderBuilder;
 
     static {
-      if (HiveVersion.min(HiveVersion.HIVE_3)) {
-        HIVE_VECTORIZED_READER_BUILDER =
+      try {
+        hiveVectorizedReaderBuilder =
             DynMethods.builder("reader")
                 .impl(
                     HIVE_VECTORIZED_READER_CLASS,
@@ -226,8 +225,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
                     Map.class,
                     TaskAttemptContext.class)
                 .buildStatic();
-      } else {
-        HIVE_VECTORIZED_READER_BUILDER = null;
+      } catch (Exception e) {
+        hiveVectorizedReaderBuilder = null;
       }
     }
 
@@ -386,9 +385,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
       switch (inMemoryDataModel) {
         case HIVE:
-          // TODO implement value readers for Pig and Hive
-          throw new UnsupportedOperationException(
-              "Avro support not yet supported for Pig and Hive");
+          // TODO implement value readers for Hive
+          throw new UnsupportedOperationException("Avro support not yet supported for Hive");
         case GENERIC:
           avroReadBuilder.createReaderFunc(
               (expIcebergSchema, expAvroSchema) ->
@@ -402,19 +400,11 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     private CloseableIterable<T> newParquetIterable(
         InputFile inputFile, FileScanTask task, Schema readSchema) {
-      Map<Integer, ?> idToConstant =
-          constantsMap(task, IdentityPartitionConverters::convertConstant);
       CloseableIterable<T> parquetIterator = null;
 
       switch (inMemoryDataModel) {
         case HIVE:
-          if (HiveVersion.min(HiveVersion.HIVE_3)) {
-            parquetIterator =
-                HIVE_VECTORIZED_READER_BUILDER.invoke(inputFile, task, idToConstant, context);
-          } else {
-            throw new UnsupportedOperationException(
-                "Vectorized read is unsupported for Hive 2 integration.");
-          }
+          parquetIterator = hiveVectorizedReaderBuilder.invoke(inputFile, task, null, context);
           break;
         case GENERIC:
           Parquet.ReadBuilder parquetReadBuilder =
@@ -452,13 +442,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       // ORC does not support reuse containers yet
       switch (inMemoryDataModel) {
         case HIVE:
-          if (HiveVersion.min(HiveVersion.HIVE_3)) {
-            orcIterator =
-                HIVE_VECTORIZED_READER_BUILDER.invoke(inputFile, task, idToConstant, context);
-          } else {
-            throw new UnsupportedOperationException(
-                "Vectorized read is unsupported for Hive 2 integration.");
-          }
+          orcIterator = hiveVectorizedReaderBuilder.invoke(inputFile, task, null, context);
           break;
         case GENERIC:
           ORC.ReadBuilder orcReadBuilder =
