@@ -40,8 +40,8 @@ ENV CATALOG_JDBC_PASSWORD=password
 ENV REST_PORT=8181
 
 # Healthcheck for the iceberg rest service
-HEALTHCHECK --start-period=30s --retries=3 \
-  CMD curl --fail http://localhost:$REST_PORT || exit 1
+HEALTHCHECK --retries=10 --interval=1s \
+  CMD curl --fail http://localhost:$REST_PORT/v1/config || exit 1
 
 EXPOSE $REST_PORT
 USER iceberg:iceberg
