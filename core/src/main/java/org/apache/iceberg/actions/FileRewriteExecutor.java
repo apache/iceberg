@@ -24,7 +24,19 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
 
 /**
- * A class for rewriting content file groups ({@link FileRewriteGroup}).
+ * A class for rewriting content file groups ({@link FileRewriteGroup}). The lifecycle for the
+ * executor looks like the following:
+ *
+ * <ul>
+ *   <li>{@link #init(Map)} initializes the executor with the configuration parameters
+ *   <li>{@link #initPlan(FileRewritePlan)} initializes the executor with the configuration
+ *       calculated during planning ({@link FileRewritePlan#writeMaxFileSize()}, {@link
+ *       RewriteFilePlan#outputSpecId()}
+ *   <li>{@link #rewrite(FileRewriteGroup)} called for every group in the plan to do the actual
+ *       rewrite of the files, and returns the generated new files.
+ * </ul>
+ *
+ * A single executor could be used to rewrite multiple groups for the same plan.
  *
  * @param <I> the Java type of the plan info
  * @param <T> the Java type of the tasks to read content files

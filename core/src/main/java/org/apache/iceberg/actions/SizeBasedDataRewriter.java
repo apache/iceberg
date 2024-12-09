@@ -42,12 +42,16 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
    *
    * <p>Defaults to Integer.MAX_VALUE, which means this feature is not enabled by default.
    *
-   * @deprecated since 1.8.0, will be removed in 1.9.0; use {@link RewriteFileGroupPlanner} and
-   *     {@link FileRewriteExecutor}.
+   * @deprecated since 1.8.0, will be removed in 1.9.0; use {@link
+   *     RewriteFileGroupPlanner#DELETE_FILE_THRESHOLD}.
    */
   @Deprecated public static final String DELETE_FILE_THRESHOLD = "delete-file-threshold";
 
-  public static final int DELETE_FILE_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
+  /**
+   * @deprecated since 1.8.0, will be removed in 1.9.0; use {@link
+   *     RewriteFileGroupPlanner#DELETE_FILE_THRESHOLD_DEFAULT}.
+   */
+  @Deprecated public static final int DELETE_FILE_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
 
   private int deleteFileThreshold;
 

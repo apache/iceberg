@@ -26,10 +26,17 @@ import org.apache.iceberg.ContentScanTask;
 /**
  * A class for planning content file rewrites.
  *
- * <p>The entire rewrite operation is broken down into pieces based on partitioning, and size-based
- * groups within a partition. These subunits of the rewrite are referred to as file groups. A file
- * group will be processed by a {@link FileRewriteExecutor} in a single framework "action". For
- * example, in Spark this means that each group would be rewritten in its own Spark job.
+ * <p>The entire rewrite operation is broken down into pieces. The grouping is based on partitioning
+ * and the planning could create multiple groups within a partition. As a result {@link
+ * FileRewritePlan} is generated which contains the data need by the {@link FileRewriteExecutor}s
+ * which execute the actual file rewrite.
+ *
+ * <p>The lifecycle of the planner is:
+ *
+ * <ul>
+ *   <li>{@link #init(Map)} initializes the planner with the configuration parameters
+ *   <li>{@link #plan()} generates the plan for the given configuration
+ * </ul>
  *
  * @param <I> the Java type of the plan info
  * @param <T> the Java type of the tasks to read content files
