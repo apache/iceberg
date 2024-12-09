@@ -97,11 +97,9 @@ public class TestTableMetadata {
 
   public TableOperations ops = new LocalTableOperations(temp);
 
-
   private static Stream<Integer> formatVersionsProvider() {
     return Stream.of(1, 2, 3);
   }
-
 
   @ParameterizedTest
   @MethodSource("formatVersionsProvider")
@@ -172,7 +170,7 @@ public class TestTableMetadata {
     TableMetadata expected =
         new TableMetadata(
             null,
-                formatVersion,
+            formatVersion,
             UUID.randomUUID().toString(),
             TEST_LOCATION,
             SEQ_NO,
@@ -376,7 +374,7 @@ public class TestTableMetadata {
             () ->
                 new TableMetadata(
                     null,
-                        formatVersion,
+                    formatVersion,
                     UUID.randomUUID().toString(),
                     TEST_LOCATION,
                     SEQ_NO,
@@ -426,7 +424,7 @@ public class TestTableMetadata {
             () ->
                 new TableMetadata(
                     null,
-                        formatVersion,
+                    formatVersion,
                     UUID.randomUUID().toString(),
                     TEST_LOCATION,
                     SEQ_NO,
@@ -471,7 +469,7 @@ public class TestTableMetadata {
             () ->
                 new TableMetadata(
                     null,
-                        formatVersion,
+                    formatVersion,
                     UUID.randomUUID().toString(),
                     TEST_LOCATION,
                     SEQ_NO,
@@ -578,7 +576,7 @@ public class TestTableMetadata {
     TableMetadata base =
         new TableMetadata(
             null,
-                formatVersion,
+            formatVersion,
             UUID.randomUUID().toString(),
             TEST_LOCATION,
             0,
@@ -1109,7 +1107,8 @@ public class TestTableMetadata {
             .build();
     String location = "file://tmp/db/table";
     TableMetadata metadata =
-        TableMetadata.newTableMetadata(schema, spec, SortOrder.unsorted(), location, ImmutableMap.of(), formatVersion);
+        TableMetadata.newTableMetadata(
+            schema, spec, SortOrder.unsorted(), location, ImmutableMap.of(), formatVersion);
 
     // newTableMetadata should reassign column ids and partition field ids.
     PartitionSpec expected =
@@ -1189,36 +1188,36 @@ public class TestTableMetadata {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
     Schema schema =
-            new Schema(
-                    Types.NestedField.required(1, "x", Types.LongType.get()),
-                    Types.NestedField.required(2, "y", Types.LongType.get()));
+        new Schema(
+            Types.NestedField.required(1, "x", Types.LongType.get()),
+            Types.NestedField.required(2, "y", Types.LongType.get()));
     PartitionSpec spec =
-            PartitionSpec.builderFor(schema).withSpecId(0).identity("x").identity("y").build();
+        PartitionSpec.builderFor(schema).withSpecId(0).identity("x").identity("y").build();
     String location = "file://tmp/db/table";
     TableMetadata metadata =
-            TableMetadata.newTableMetadata(
-                    schema, spec, SortOrder.unsorted(), location, ImmutableMap.of(), formatVersion);
+        TableMetadata.newTableMetadata(
+            schema, spec, SortOrder.unsorted(), location, ImmutableMap.of(), formatVersion);
     assertThat(metadata.spec()).isEqualTo(spec);
 
     Schema updatedSchema =
-            new Schema(
-                    Types.NestedField.required(1, "x", Types.LongType.get()),
-                    Types.NestedField.required(2, "z", Types.StringType.get()));
+        new Schema(
+            Types.NestedField.required(1, "x", Types.LongType.get()),
+            Types.NestedField.required(2, "z", Types.StringType.get()));
     PartitionSpec updatedSpec =
-            PartitionSpec.builderFor(updatedSchema).withSpecId(0).bucket("z", 8).identity("x").build();
+        PartitionSpec.builderFor(updatedSchema).withSpecId(0).bucket("z", 8).identity("x").build();
     TableMetadata updated =
-            metadata.buildReplacement(
-                    updatedSchema, updatedSpec, SortOrder.unsorted(), location, ImmutableMap.of());
+        metadata.buildReplacement(
+            updatedSchema, updatedSpec, SortOrder.unsorted(), location, ImmutableMap.of());
     PartitionSpec expected =
-            PartitionSpec.builderFor(updated.schema())
-                    .withSpecId(1)
-                    .add(3, 1002, "z_bucket", Transforms.bucket(8))
-                    .add(1, 1000, "x", Transforms.identity())
-                    .build();
+        PartitionSpec.builderFor(updated.schema())
+            .withSpecId(1)
+            .add(3, 1002, "z_bucket", Transforms.bucket(8))
+            .add(1, 1000, "x", Transforms.identity())
+            .build();
     assertThat(updated.spec())
-            .as(
-                    "Should reassign the partition field IDs and reuse any existing IDs for equivalent fields")
-            .isEqualTo(expected);
+        .as(
+            "Should reassign the partition field IDs and reuse any existing IDs for equivalent fields")
+        .isEqualTo(expected);
   }
 
   @ParameterizedTest
@@ -1228,7 +1227,10 @@ public class TestTableMetadata {
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of("format-version", String.valueOf(formatVersion)));
+            schema,
+            PartitionSpec.unpartitioned(),
+            null,
+            ImmutableMap.of("format-version", String.valueOf(formatVersion)));
     assertThat(meta.formatVersion()).isEqualTo(formatVersion);
     assertThat(meta.sortOrder().isUnsorted()).isTrue();
     assertThat(meta.replaceSortOrder(SortOrder.unsorted()))
@@ -1245,7 +1247,11 @@ public class TestTableMetadata {
 
     TableMetadata sortedByX =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), order, null, ImmutableMap.of("format-version", String.valueOf(formatVersion)));
+            schema,
+            PartitionSpec.unpartitioned(),
+            order,
+            null,
+            ImmutableMap.of("format-version", String.valueOf(formatVersion)));
     assertThat(sortedByX.formatVersion()).isEqualTo(formatVersion);
     assertThat(sortedByX.sortOrders()).hasSize(1);
     assertThat(sortedByX.sortOrder().orderId()).isEqualTo(1);
@@ -1284,7 +1290,12 @@ public class TestTableMetadata {
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, ImmutableMap.of(), formatVersion);
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            null,
+            ImmutableMap.of(),
+            formatVersion);
     assertThat(meta.statisticsFiles()).as("Should default to no statistics files").isEmpty();
   }
 
@@ -1295,7 +1306,12 @@ public class TestTableMetadata {
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, ImmutableMap.of(), formatVersion);
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            null,
+            ImmutableMap.of(),
+            formatVersion);
 
     TableMetadata withStatistics =
         TableMetadata.buildFrom(meta)
@@ -1336,7 +1352,12 @@ public class TestTableMetadata {
     TableMetadata meta =
         TableMetadata.buildFrom(
                 TableMetadata.newTableMetadata(
-                    schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, ImmutableMap.of(), formatVersion))
+                    schema,
+                    PartitionSpec.unpartitioned(),
+                    SortOrder.unsorted(),
+                    null,
+                    ImmutableMap.of(),
+                    formatVersion))
             .setStatistics(
                 43,
                 new GenericStatisticsFile(
@@ -1368,7 +1389,12 @@ public class TestTableMetadata {
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, ImmutableMap.of(), formatVersion);
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            null,
+            ImmutableMap.of(),
+            formatVersion);
     assertThat(meta.partitionStatisticsFiles())
         .as("Should default to no partition statistics files")
         .isEmpty();
@@ -1381,7 +1407,12 @@ public class TestTableMetadata {
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, ImmutableMap.of(), formatVersion);
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            null,
+            ImmutableMap.of(),
+            formatVersion);
 
     TableMetadata withPartitionStatistics =
         TableMetadata.buildFrom(meta)
@@ -1432,7 +1463,12 @@ public class TestTableMetadata {
     TableMetadata meta =
         TableMetadata.buildFrom(
                 TableMetadata.newTableMetadata(
-                    schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, ImmutableMap.of(), formatVersion))
+                    schema,
+                    PartitionSpec.unpartitioned(),
+                    SortOrder.unsorted(),
+                    null,
+                    ImmutableMap.of(),
+                    formatVersion))
             .setPartitionStatistics(
                 ImmutableGenericPartitionStatisticsFile.builder()
                     .snapshotId(43)
@@ -1492,7 +1528,12 @@ public class TestTableMetadata {
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, ImmutableMap.of(), formatVersion);
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            null,
+            ImmutableMap.of(),
+            formatVersion);
 
     Schema newSchema =
         new Schema(
@@ -1510,7 +1551,12 @@ public class TestTableMetadata {
         new Schema(0, Types.NestedField.required(1, "y", Types.LongType.get(), "comment"));
     TableMetadata freshTable =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, ImmutableMap.of(), formatVersion);
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            null,
+            ImmutableMap.of(),
+            formatVersion);
     assertThat(freshTable.currentSchemaId()).isEqualTo(TableMetadata.INITIAL_SCHEMA_ID);
     assertSameSchemaList(ImmutableList.of(schema), freshTable.schemas());
     assertThat(freshTable.schema().asStruct()).isEqualTo(schema.asStruct());
@@ -1580,7 +1626,8 @@ public class TestTableMetadata {
             schema,
             PartitionSpec.unpartitioned(),
             null,
-            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion), "key", "val"));
+            ImmutableMap.of(
+                TableProperties.FORMAT_VERSION, String.valueOf(formatVersion), "key", "val"));
 
     assertThat(meta.formatVersion()).isEqualTo(formatVersion);
     assertThat(meta.properties())
@@ -1706,7 +1753,9 @@ public class TestTableMetadata {
                     formatVersion))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format("Table properties should not contain reserved properties, but got {format-version=%s}", formatVersion));
+            String.format(
+                "Table properties should not contain reserved properties, but got {format-version=%s}",
+                formatVersion));
 
     assertThatThrownBy(
             () ->
@@ -1728,7 +1777,12 @@ public class TestTableMetadata {
     String locationWithoutSlash = "/with_trailing_slash";
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            TEST_SCHEMA, SPEC_5, SORT_ORDER_3, locationWithSlash, Collections.emptyMap(), formatVersion);
+            TEST_SCHEMA,
+            SPEC_5,
+            SORT_ORDER_3,
+            locationWithSlash,
+            Collections.emptyMap(),
+            formatVersion);
     assertThat(meta.location())
         .as("Metadata should never return a location ending in a slash")
         .isEqualTo(locationWithoutSlash);
@@ -1805,5 +1859,116 @@ public class TestTableMetadata {
     assertThat(updatedMetadata.lastUpdatedMillis()).isEqualTo(newMetadata.lastUpdatedMillis());
     assertThat(updatedMetadata.metadataFileLocation()).isEqualTo("updated-metadata-location");
     assertThat(updatedMetadata.previousFiles()).isEmpty();
+  }
+
+  @Test
+  public void testRowLineageEnabledInV3() {
+
+    TableMetadata meta =
+        new TableMetadata(
+            null,
+            3,
+            UUID.randomUUID().toString(),
+            TEST_LOCATION,
+            SEQ_NO,
+            System.currentTimeMillis(),
+            3,
+            7,
+            ImmutableList.of(TEST_SCHEMA),
+            5,
+            ImmutableList.of(SPEC_5),
+            SPEC_5.lastAssignedFieldId(),
+            3,
+            ImmutableList.of(SORT_ORDER_3),
+            ImmutableMap.of("property", "value"),
+            -1,
+            ImmutableList.of(),
+            null,
+            ImmutableList.of(),
+            ImmutableList.of(),
+            ImmutableMap.of(),
+            ImmutableList.of(),
+            ImmutableList.of(),
+            true,
+            0L,
+            ImmutableList.of());
+
+    assertThat(meta.rowLinageEnabled()).isTrue();
+    assertThat(meta.nextRowId()).isEqualTo(0);
+  }
+
+  @Test
+  public void testRowLineageEnabledAndMissingNextRowId() {
+    assertThatThrownBy(
+            () ->
+                new TableMetadata(
+                    null,
+                    3,
+                    UUID.randomUUID().toString(),
+                    TEST_LOCATION,
+                    SEQ_NO,
+                    System.currentTimeMillis(),
+                    3,
+                    7,
+                    ImmutableList.of(TEST_SCHEMA),
+                    5,
+                    ImmutableList.of(SPEC_5),
+                    SPEC_5.lastAssignedFieldId(),
+                    3,
+                    ImmutableList.of(SORT_ORDER_3),
+                    ImmutableMap.of("property", "value"),
+                    -1,
+                    ImmutableList.of(),
+                    null,
+                    ImmutableList.of(),
+                    ImmutableList.of(),
+                    ImmutableMap.of(),
+                    ImmutableList.of(),
+                    ImmutableList.of(),
+                    true,
+                    -1L,
+                    ImmutableList.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Next row id is required when row lineage is enabled");
+  }
+
+  @ParameterizedTest
+  @MethodSource("formatVersionsProvider")
+  public void testRowLineageUnsupportedInV1AndV2(int formatVersion) {
+    assumeThat(formatVersion).isLessThanOrEqualTo(2);
+
+    assertThatThrownBy(
+            () ->
+                new TableMetadata(
+                    null,
+                    formatVersion,
+                    UUID.randomUUID().toString(),
+                    TEST_LOCATION,
+                    0,
+                    System.currentTimeMillis(),
+                    3,
+                    7,
+                    ImmutableList.of(TEST_SCHEMA),
+                    5,
+                    ImmutableList.of(SPEC_5),
+                    SPEC_5.lastAssignedFieldId(),
+                    3,
+                    ImmutableList.of(SORT_ORDER_3),
+                    ImmutableMap.of("property", "value"),
+                    -1,
+                    ImmutableList.of(),
+                    null,
+                    ImmutableList.of(),
+                    ImmutableList.of(),
+                    ImmutableMap.of(),
+                    ImmutableList.of(),
+                    ImmutableList.of(),
+                    true,
+                    0L,
+                    ImmutableList.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            String.format(
+                "Row lineage is only supported in v3 (current version v%s)", formatVersion));
   }
 }
