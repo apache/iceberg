@@ -29,6 +29,7 @@ import java.util.UUID;
 import java.util.stream.IntStream;
 import org.apache.iceberg.DataFilesTable;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.PositionDeletesScanTask;
@@ -107,12 +108,16 @@ class SparkBinPackPositionDeletesRewriter extends SizeBasedPositionDeletesRewrit
 
     // keep only valid position deletes
     Dataset<Row> dataFiles = dataFiles(partitionType, partition);
-    Column joinCond = posDeletes.col("file_path").equalTo(dataFiles.col("file_path"));
+    Column joinCond =
+        posDeletes
+            .col(MetadataColumns.DELETE_FILE_PATH.name())
+            .equalTo(dataFiles.col(MetadataColumns.DELETE_FILE_PATH.name()));
     Dataset<Row> validDeletes = posDeletes.join(dataFiles, joinCond, "leftsemi");
 
     // write the packed deletes into new files where each split becomes a new file
     validDeletes
-        .sortWithinPartitions("file_path", "pos")
+        .sortWithinPartitions(
+            MetadataColumns.DELETE_FILE_PATH.name(), MetadataColumns.DELETE_FILE_POS.name())
         .write()
         .format("iceberg")
         .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupId)
