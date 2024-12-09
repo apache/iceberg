@@ -61,7 +61,7 @@ public abstract class TableSourceTestBase extends TestBase {
     super.getTableEnv()
         .getConfig()
         .getConfiguration()
-        .setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE.key(), useFlip27Source);
+        .set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE, useFlip27Source);
     return super.getTableEnv();
   }
 

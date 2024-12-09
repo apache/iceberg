@@ -31,8 +31,8 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Expressions;
-import org.apache.flink.table.api.TableColumn;
-import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.catalog.Column;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.expressions.ApiExpressionUtils;
 import org.apache.flink.table.expressions.CallExpression;
 import org.apache.flink.table.expressions.Expression;
@@ -43,6 +43,7 @@ import org.apache.flink.table.expressions.UnresolvedReferenceExpression;
 import org.apache.flink.table.expressions.ValueLiteralExpression;
 import org.apache.flink.table.expressions.utils.ApiExpressionDefaultVisitor;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
+import org.apache.flink.table.types.DataType;
 import org.apache.iceberg.expressions.And;
 import org.apache.iceberg.expressions.BoundLiteralPredicate;
 import org.apache.iceberg.expressions.Not;
@@ -55,21 +56,26 @@ import org.junit.jupiter.api.Test;
 
 public class TestFlinkFilters {
 
-  private static final TableSchema TABLE_SCHEMA =
-      TableSchema.builder()
-          .field("field1", DataTypes.INT())
-          .field("field2", DataTypes.BIGINT())
-          .field("field3", DataTypes.FLOAT())
-          .field("field4", DataTypes.DOUBLE())
-          .field("field5", DataTypes.STRING())
-          .field("field6", DataTypes.BOOLEAN())
-          .field("field7", DataTypes.BINARY(2))
-          .field("field8", DataTypes.DECIMAL(10, 2))
-          .field("field9", DataTypes.DATE())
-          .field("field10", DataTypes.TIME())
-          .field("field11", DataTypes.TIMESTAMP())
-          .field("field12", DataTypes.TIMESTAMP_WITH_LOCAL_TIME_ZONE())
-          .build();
+  private static final ResolvedSchema TABLE_SCHEMA =
+      ResolvedSchema.physical(
+          new String[] {
+            "field1", "field2", "field3", "field4", "field5", "field6", "field7", "field8",
+            "field9", "field10", "field11", "field12"
+          },
+          new DataType[] {
+            DataTypes.INT(),
+            DataTypes.BIGINT(),
+            DataTypes.FLOAT(),
+            DataTypes.DOUBLE(),
+            DataTypes.STRING(),
+            DataTypes.BOOLEAN(),
+            DataTypes.BINARY(2),
+            DataTypes.DECIMAL(10, 2),
+            DataTypes.DATE(),
+            DataTypes.TIME(),
+            DataTypes.TIMESTAMP(),
+            DataTypes.TIMESTAMP_WITH_LOCAL_TIME_ZONE()
+          });
 
   // A map list of fields and values used to verify the conversion of flink expression to iceberg
   // expression
@@ -408,14 +414,14 @@ public class TestFlinkFilters {
 
   private static Expression resolve(Expression originalExpression) {
     return originalExpression.accept(
-        new ApiExpressionDefaultVisitor<Expression>() {
+        new ApiExpressionDefaultVisitor<>() {
           @Override
           public Expression visit(UnresolvedReferenceExpression unresolvedReference) {
             String name = unresolvedReference.getName();
-            Optional<TableColumn> field = TABLE_SCHEMA.getTableColumn(name);
+            Optional<Column> field = TABLE_SCHEMA.getColumn(name);
             if (field.isPresent()) {
-              int index = TABLE_SCHEMA.getTableColumns().indexOf(field.get());
-              return new FieldReferenceExpression(name, field.get().getType(), 0, index);
+              int index = TABLE_SCHEMA.getColumns().indexOf(field.get());
+              return new FieldReferenceExpression(name, field.get().getDataType(), 0, index);
             } else {
               return null;
             }
@@ -427,7 +433,7 @@ public class TestFlinkFilters {
                 unresolvedCall.getChildren().stream()
                     .map(e -> (ResolvedExpression) e.accept(this))
                     .collect(Collectors.toList());
-            return new CallExpression(
+            return CallExpression.anonymous(
                 unresolvedCall.getFunctionDefinition(), children, DataTypes.STRING());
           }
 
