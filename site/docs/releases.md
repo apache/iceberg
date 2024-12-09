@@ -90,6 +90,8 @@ The 1.7.1 release contains bug fixes and new features. For full release notes vi
 * Kafka Connect
     - Fix Hadoop dependency exclusion ([\#11516](https://github.com/apache/iceberg/pull/11516))
 
+## Past releases
+
 ### 1.7.0 release
 
 Apache Iceberg 1.7.0 was released on November 8, 2024.
@@ -274,8 +276,6 @@ The 1.6.0 release contains fixes, dependency updates, and new features (like Kaf
     - Bump Google Cloud Libraries to 26.43.0
 
 For more details, please visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.6.0).
-
-## Past releases
 
 ### 1.5.2 release
 Apache Iceberg 1.5.2 was released on May 9, 2024.
