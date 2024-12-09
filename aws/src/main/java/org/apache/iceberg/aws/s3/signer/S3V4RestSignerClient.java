@@ -295,9 +295,8 @@ public abstract class S3V4RestSignerClient
     } else {
       Map<String, String> responseHeaders = Maps.newHashMap();
       Consumer<Map<String, String>> responseHeadersConsumer = responseHeaders::putAll;
-      RESTClient client = httpClient();
       S3SignResponse s3SignResponse =
-          client
+          httpClient()
               .withAuthSession(authSession())
               .post(
                   endpoint(),
