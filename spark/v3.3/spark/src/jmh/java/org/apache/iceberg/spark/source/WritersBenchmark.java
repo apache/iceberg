@@ -41,8 +41,6 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FanoutDataWriter;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
-import org.apache.iceberg.io.TaskWriter;
-import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -151,33 +149,6 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
 
   @Benchmark
   @Threads(1)
-  public void writeUnpartitionedLegacyDataWriter(Blackhole blackhole) throws IOException {
-    FileIO io = table().io();
-
-    OutputFileFactory fileFactory = newFileFactory();
-
-    Schema writeSchema = table().schema();
-    StructType sparkWriteType = SparkSchemaUtil.convert(writeSchema);
-    SparkAppenderFactory appenders =
-        SparkAppenderFactory.builderFor(table(), writeSchema, sparkWriteType)
-            .spec(unpartitionedSpec)
-            .build();
-
-    TaskWriter<InternalRow> writer =
-        new UnpartitionedWriter<>(
-            unpartitionedSpec, fileFormat(), appenders, fileFactory, io, TARGET_FILE_SIZE_IN_BYTES);
-
-    try (TaskWriter<InternalRow> closableWriter = writer) {
-      for (InternalRow row : rows) {
-        closableWriter.write(row);
-      }
-    }
-
-    blackhole.consume(writer.complete());
-  }
-
-  @Benchmark
-  @Threads(1)
   public void writePartitionedClusteredDataWriter(Blackhole blackhole) throws IOException {
     FileIO io = table().io();
 
@@ -208,40 +179,6 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
 
   @Benchmark
   @Threads(1)
-  public void writePartitionedLegacyDataWriter(Blackhole blackhole) throws IOException {
-    FileIO io = table().io();
-
-    OutputFileFactory fileFactory = newFileFactory();
-
-    Schema writeSchema = table().schema();
-    StructType sparkWriteType = SparkSchemaUtil.convert(writeSchema);
-    SparkAppenderFactory appenders =
-        SparkAppenderFactory.builderFor(table(), writeSchema, sparkWriteType)
-            .spec(partitionedSpec)
-            .build();
-
-    TaskWriter<InternalRow> writer =
-        new SparkPartitionedWriter(
-            partitionedSpec,
-            fileFormat(),
-            appenders,
-            fileFactory,
-            io,
-            TARGET_FILE_SIZE_IN_BYTES,
-            writeSchema,
-            sparkWriteType);
-
-    try (TaskWriter<InternalRow> closableWriter = writer) {
-      for (InternalRow row : rows) {
-        closableWriter.write(row);
-      }
-    }
-
-    blackhole.consume(writer.complete());
-  }
-
-  @Benchmark
-  @Threads(1)
   public void writePartitionedFanoutDataWriter(Blackhole blackhole) throws IOException {
     FileIO io = table().io();
 
@@ -268,40 +205,6 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
     }
 
     blackhole.consume(writer);
-  }
-
-  @Benchmark
-  @Threads(1)
-  public void writePartitionedLegacyFanoutDataWriter(Blackhole blackhole) throws IOException {
-    FileIO io = table().io();
-
-    OutputFileFactory fileFactory = newFileFactory();
-
-    Schema writeSchema = table().schema();
-    StructType sparkWriteType = SparkSchemaUtil.convert(writeSchema);
-    SparkAppenderFactory appenders =
-        SparkAppenderFactory.builderFor(table(), writeSchema, sparkWriteType)
-            .spec(partitionedSpec)
-            .build();
-
-    TaskWriter<InternalRow> writer =
-        new SparkPartitionedFanoutWriter(
-            partitionedSpec,
-            fileFormat(),
-            appenders,
-            fileFactory,
-            io,
-            TARGET_FILE_SIZE_IN_BYTES,
-            writeSchema,
-            sparkWriteType);
-
-    try (TaskWriter<InternalRow> closableWriter = writer) {
-      for (InternalRow row : rows) {
-        closableWriter.write(row);
-      }
-    }
-
-    blackhole.consume(writer.complete());
   }
 
   @Benchmark
