@@ -1068,8 +1068,14 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                         "added_data_files_count",
                         manifest.content() == DATA ? manifest.addedFilesCount() : 0)
                     .set(
+                        "added_rows_count",
+                        manifest.content() == DATA ? manifest.addedRowsCount() : 0L)
+                    .set(
                         "existing_data_files_count",
                         manifest.content() == DATA ? manifest.existingFilesCount() : 0)
+                    .set(
+                        "existing_rows_count",
+                        manifest.content() == DATA ? manifest.existingRowsCount() : 0L)
                     .set(
                         "deleted_data_files_count",
                         manifest.content() == DATA ? manifest.deletedFilesCount() : 0)
@@ -1082,6 +1088,9 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                     .set(
                         "deleted_delete_files_count",
                         manifest.content() == DELETES ? manifest.deletedFilesCount() : 0)
+                    .set(
+                        "deleted_rows_count",
+                        manifest.content() == DELETES ? manifest.deletedRowsCount() : 0L)
                     .set(
                         "partition_summaries",
                         Lists.transform(
@@ -2246,9 +2255,11 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .set("partition_spec_id", manifest.partitionSpecId())
         .set("added_snapshot_id", manifest.snapshotId())
         .set("added_data_files_count", manifest.content() == DATA ? manifest.addedFilesCount() : 0)
+        .set("added_rows_count", manifest.content() == DATA ? manifest.addedRowsCount() : 0L)
         .set(
             "existing_data_files_count",
             manifest.content() == DATA ? manifest.existingFilesCount() : 0)
+        .set("existing_rows_count", manifest.content() == DATA ? manifest.existingRowsCount() : 0L)
         .set(
             "deleted_data_files_count",
             manifest.content() == DATA ? manifest.deletedFilesCount() : 0)
@@ -2261,6 +2272,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .set(
             "deleted_delete_files_count",
             manifest.content() == DELETES ? manifest.deletedFilesCount() : 0)
+        .set("deleted_rows_count", manifest.content() == DELETES ? manifest.deletedRowsCount() : 0L)
         .set(
             "partition_summaries",
             Lists.transform(
