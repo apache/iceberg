@@ -1,0 +1,76 @@
+{
+  "format-version": 3,
+  "table-uuid": "9faafb13-1ce7-4603-93f8-197afc7394a9",
+  "location": "s3://bucket/test/location",
+  "last-sequence-number": 34,
+  "last-updated-ms": 1733710954170,
+  "last-column-id": 3,
+  "current-schema-id": 7,
+  "schemas": [
+    {
+      "type": "struct",
+      "schema-id": 7,
+      "fields": [
+        {
+          "id": 1,
+          "name": "x",
+          "required": true,
+          "type": "long"
+        },
+        {
+          "id": 2,
+          "name": "y",
+          "required": true,
+          "type": "long",
+          "doc": "comment"
+        },
+        {
+          "id": 3,
+          "name": "z",
+          "required": true,
+          "type": "long"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "schema-id": 6,
+      "fields": [
+        {
+          "id": 10,
+          "name": "x",
+          "required": true,
+          "type": "string"
+        }
+      ]
+    }
+  ],
+  "default-spec-id": 5,
+  "partition-specs": [
+    {
+      "spec-id": 5,
+      "fields": []
+    }
+  ],
+  "last-partition-id": 999,
+  "default-sort-order-id": 3,
+  "sort-orders": [
+    {
+      "order-id": 3,
+      "fields": [
+        {
+          "transform": "identity",
+          "source-id": 2,
+          "direction": "asc",
+          "null-order": "nulls-first"
+        },
+        {
+          "transform": "bucket[4]",
+          "source-id": 3,
+          "direction": "desc",
+          "null-order": "nulls-last"
+        }
+      ]
+    }
+  ]
+}
