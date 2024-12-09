@@ -32,6 +32,7 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
@@ -145,22 +146,26 @@ public class CachingCatalog implements Catalog {
     }
 
     if (MetadataTableUtils.hasMetadataTableName(canonicalized)) {
-      TableIdentifier originTableIdentifier =
-          TableIdentifier.of(canonicalized.namespace().levels());
-      Table originTable = tableCache.get(originTableIdentifier, catalog::loadTable);
+      try {
+        TableIdentifier originTableIdentifier =
+            TableIdentifier.of(canonicalized.namespace().levels());
+        Table originTable = tableCache.get(originTableIdentifier, catalog::loadTable);
 
-      // share TableOperations instance of origin table for all metadata tables, so that metadata
-      // table instances are
-      // also refreshed as well when origin table instance is refreshed.
-      if (originTable instanceof HasTableOperations) {
-        TableOperations ops = ((HasTableOperations) originTable).operations();
-        MetadataTableType type = MetadataTableType.from(canonicalized.name());
+        // share TableOperations instance of origin table for all metadata tables, so that metadata
+        // table instances are
+        // also refreshed as well when origin table instance is refreshed.
+        if (originTable instanceof HasTableOperations) {
+          TableOperations ops = ((HasTableOperations) originTable).operations();
+          MetadataTableType type = MetadataTableType.from(canonicalized.name());
 
-        Table metadataTable =
-            MetadataTableUtils.createMetadataTableInstance(
-                ops, catalog.name(), originTableIdentifier, canonicalized, type);
-        tableCache.put(canonicalized, metadataTable);
-        return metadataTable;
+          Table metadataTable =
+              MetadataTableUtils.createMetadataTableInstance(
+                  ops, catalog.name(), originTableIdentifier, canonicalized, type);
+          tableCache.put(canonicalized, metadataTable);
+          return metadataTable;
+        }
+      } catch (NoSuchTableException e) {
+        // it's not a metadata table so ignore exception and load as a normal table
       }
     }
 
