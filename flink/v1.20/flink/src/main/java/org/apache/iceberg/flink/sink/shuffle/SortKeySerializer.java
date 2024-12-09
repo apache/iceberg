@@ -52,7 +52,7 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
   private final int size;
   private final Types.NestedField[] transformedFields;
 
-  private int version = SortKeySerializerSnapshot.CURRENT_VERSION;
+  private int version;
 
   private transient SortKey sortKey;
 
@@ -79,24 +79,7 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
   }
 
   SortKeySerializer(Schema schema, SortOrder sortOrder) {
-    this.schema = schema;
-    this.sortOrder = sortOrder;
-    this.size = sortOrder.fields().size();
-
-    this.transformedFields = new Types.NestedField[size];
-    for (int i = 0; i < size; ++i) {
-      SortField sortField = sortOrder.fields().get(i);
-      Types.NestedField sourceField = schema.findField(sortField.sourceId());
-      Type resultType = sortField.transform().getResultType(sourceField.type());
-      Types.NestedField transformedField =
-          Types.NestedField.of(
-              sourceField.fieldId(),
-              sourceField.isOptional(),
-              sourceField.name(),
-              resultType,
-              sourceField.doc());
-      transformedFields[i] = transformedField;
-    }
+    this(schema, sortOrder, SortKeySerializerSnapshot.CURRENT_VERSION);
   }
 
   private SortKey lazySortKey() {
