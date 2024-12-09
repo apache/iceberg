@@ -237,7 +237,7 @@ public class HadoopTableOperations implements TableOperations {
     for (TableMetadataParser.Codec codec : TABLE_METADATA_PARSER_CODEC_VALUES) {
       Path metadataFile = metadataFilePath(metadataVersion, codec);
       FileSystem fs = getFileSystem(metadataFile, conf);
-      if (fs.exists(metadataFile)) {
+      if (fs.isFile(metadataFile)) {
         return metadataFile;
       }
 
@@ -245,7 +245,7 @@ public class HadoopTableOperations implements TableOperations {
         // we have to be backward-compatible with .metadata.json.gz files
         metadataFile = oldMetadataFilePath(metadataVersion, codec);
         fs = getFileSystem(metadataFile, conf);
-        if (fs.exists(metadataFile)) {
+        if (fs.isFile(metadataFile)) {
           return metadataFile;
         }
       }
@@ -364,7 +364,7 @@ public class HadoopTableOperations implements TableOperations {
             "Failed to acquire lock on file: %s with owner: %s", dst, src);
       }
 
-      if (fs.exists(dst)) {
+      if (fs.isFile(dst)) {
         CommitFailedException cfe =
             new CommitFailedException("Version %d already exists: %s", nextVersion, dst);
         RuntimeException re = tryDelete(src);
