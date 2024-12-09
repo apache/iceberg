@@ -138,7 +138,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
       super.close();
     } finally {
       AuthSessionCache cache = sessionCache;
-      sessionCache = null;
+      this.sessionCache = null;
       if (cache != null) {
         cache.close();
       }

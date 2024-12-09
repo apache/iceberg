@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
@@ -562,14 +561,8 @@ public class RESTCatalogAdapter implements RESTClient {
       Map<String, String> headers,
       Object body) {
     URI baseUri = URI.create("https://localhost:8080");
-    ObjectMapper mapper = RESTObjectMapper.mapper();
     ImmutableHTTPRequest.Builder builder =
-        ImmutableHTTPRequest.builder()
-            .baseUri(baseUri)
-            .mapper(mapper)
-            .method(method)
-            .path(path)
-            .body(body);
+        ImmutableHTTPRequest.builder().baseUri(baseUri).method(method).path(path).body(body);
 
     if (queryParams != null) {
       builder.queryParameters(queryParams);

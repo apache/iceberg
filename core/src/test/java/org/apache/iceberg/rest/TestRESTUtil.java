@@ -208,7 +208,7 @@ public class TestRESTUtil {
   }
 
   @ParameterizedTest
-  @MethodSource
+  @MethodSource("encodeRequestBody")
   public void encodeRequestBody(HTTPRequest request, String expected) {
     assertThat(RESTUtil.encodeRequestBody(request)).isEqualTo(expected);
   }
