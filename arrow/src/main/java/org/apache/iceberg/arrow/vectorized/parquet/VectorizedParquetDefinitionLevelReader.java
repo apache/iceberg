@@ -27,7 +27,6 @@ import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.IntVector;
-import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.ValuesAsBytesReader;
@@ -493,48 +492,6 @@ public final class VectorizedParquetDefinitionLevelReader
     }
   }
 
-  /**
-   * @deprecated since 1.7.0, will be removed in 1.8.0.
-   */
-  @Deprecated
-  class FixedWidthBinaryReader extends BaseReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector,
-        int idx,
-        ValuesAsBytesReader valuesReader,
-        int typeWidth,
-        byte[] byteArray) {
-      ByteBuffer buffer = valuesReader.getBuffer(typeWidth);
-      ((VarBinaryVector) vector)
-          .setSafe(
-              idx,
-              buffer.array(),
-              buffer.position() + buffer.arrayOffset(),
-              buffer.limit() - buffer.position());
-    }
-
-    @Override
-    protected void nextDictEncodedVal(
-        FieldVector vector,
-        int idx,
-        VectorizedDictionaryEncodedParquetValuesReader reader,
-        int numValuesToRead,
-        Dictionary dict,
-        NullabilityHolder nullabilityHolder,
-        int typeWidth,
-        Mode mode) {
-      if (Mode.RLE.equals(mode)) {
-        reader
-            .fixedWidthBinaryDictEncodedReader()
-            .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
-      } else if (Mode.PACKED.equals(mode)) {
-        ByteBuffer buffer = dict.decodeToBinary(reader.readInteger()).toByteBuffer();
-        vector.getDataBuffer().setBytes((long) idx * typeWidth, buffer);
-      }
-    }
-  }
-
   class FixedSizeBinaryReader extends BaseReader {
     @Override
     protected void nextVal(
@@ -734,14 +691,6 @@ public final class VectorizedParquetDefinitionLevelReader
 
   TimestampInt96Reader timestampInt96Reader() {
     return new TimestampInt96Reader();
-  }
-
-  /**
-   * @deprecated since 1.7.0, will be removed in 1.8.0.
-   */
-  @Deprecated
-  FixedWidthBinaryReader fixedWidthBinaryReader() {
-    return new FixedWidthBinaryReader();
   }
 
   FixedSizeBinaryReader fixedSizeBinaryReader() {
