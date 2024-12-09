@@ -23,12 +23,14 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -36,10 +38,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.auth.AuthSessionCache;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
+import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.util.PropertyUtil;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,11 +78,13 @@ public abstract class S3V4RestSignerClient
   private static final String SCOPE = "sign";
 
   @SuppressWarnings("immutables:incompat")
-  // FIXME auth manager is not properly closed
   private static volatile AuthManager authManager;
 
   @SuppressWarnings("immutables:incompat")
   private static volatile RESTClient httpClient;
+
+  @SuppressWarnings("immutables:incompat")
+  private static volatile AuthSessionCache authSessionCache;
 
   public abstract Map<String, String> properties();
 
@@ -95,6 +103,38 @@ public abstract class S3V4RestSignerClient
     return properties().getOrDefault(S3_SIGNER_ENDPOINT, S3_SIGNER_DEFAULT_ENDPOINT);
   }
 
+  /** A credential to exchange for a token in the OAuth2 client credentials flow. */
+  @Nullable
+  @Value.Lazy
+  public String credential() {
+    return properties().get(OAuth2Properties.CREDENTIAL);
+  }
+
+  /** Token endpoint URI to fetch token from if the Rest Catalog is not the authorization server. */
+  @Value.Lazy
+  public String oauth2ServerUri() {
+    return properties().getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
+  }
+
+  @Value.Lazy
+  public Map<String, String> optionalOAuthParams() {
+    return OAuth2Util.buildOptionalParam(properties());
+  }
+
+  /** A Bearer token supplier which will be used for interaction with the server. */
+  @Value.Default
+  public Supplier<String> token() {
+    return () -> properties().get(OAuth2Properties.TOKEN);
+  }
+
+  @Value.Lazy
+  boolean keepTokenRefreshed() {
+    return PropertyUtil.propertyAsBoolean(
+        properties(),
+        OAuth2Properties.TOKEN_REFRESH_ENABLED,
+        OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
+  }
+
   private AuthManager authManager() {
     if (null == authManager) {
       synchronized (S3V4RestSignerClient.class) {
@@ -105,6 +145,24 @@ public abstract class S3V4RestSignerClient
     }
 
     return authManager;
+  }
+
+  private AuthSessionCache authSessionCache() {
+    if (null == authSessionCache) {
+      synchronized (S3V4RestSignerClient.class) {
+        if (null == authSessionCache) {
+          long expirationIntervalMs =
+              PropertyUtil.propertyAsLong(
+                  properties(),
+                  CatalogProperties.AUTH_SESSION_TIMEOUT_MS,
+                  CatalogProperties.AUTH_SESSION_TIMEOUT_MS_DEFAULT);
+
+          authSessionCache = new AuthSessionCache(Duration.ofMillis(expirationIntervalMs));
+        }
+      }
+    }
+
+    return authSessionCache;
   }
 
   private RESTClient httpClient() {
@@ -121,6 +179,55 @@ public abstract class S3V4RestSignerClient
     }
 
     return httpClient;
+  }
+
+  private AuthSession authSession() {
+    String token = token().get();
+    if (null != token) {
+      return authSessionCache()
+          .cachedSession(
+              token,
+              () -> {
+                Map<String, String> properties =
+                    ImmutableMap.<String, String>builder()
+                        .putAll(properties())
+                        .putAll(optionalOAuthParams())
+                        .put(OAuth2Properties.OAUTH2_SERVER_URI, oauth2ServerUri())
+                        .put(
+                            OAuth2Properties.TOKEN_REFRESH_ENABLED,
+                            String.valueOf(keepTokenRefreshed()))
+                        .put(OAuth2Properties.TOKEN, token)
+                        .put(OAuth2Properties.SCOPE, SCOPE)
+                        .buildKeepingLast();
+                return authManager().catalogSession(httpClient(), properties);
+              });
+    }
+
+    if (credentialProvided()) {
+      return authSessionCache()
+          .cachedSession(
+              credential(),
+              () -> {
+                Map<String, String> properties =
+                    ImmutableMap.<String, String>builder()
+                        .putAll(properties())
+                        .putAll(optionalOAuthParams())
+                        .put(OAuth2Properties.OAUTH2_SERVER_URI, oauth2ServerUri())
+                        .put(
+                            OAuth2Properties.TOKEN_REFRESH_ENABLED,
+                            String.valueOf(keepTokenRefreshed()))
+                        .put(OAuth2Properties.CREDENTIAL, credential())
+                        .put(OAuth2Properties.SCOPE, SCOPE)
+                        .buildKeepingLast();
+                return authManager().catalogSession(httpClient(), properties);
+              });
+    }
+
+    return AuthSession.EMPTY;
+  }
+
+  private boolean credentialProvided() {
+    return null != credential() && !credential().isEmpty();
   }
 
   @Value.Check
@@ -188,16 +295,10 @@ public abstract class S3V4RestSignerClient
     } else {
       Map<String, String> responseHeaders = Maps.newHashMap();
       Consumer<Map<String, String>> responseHeadersConsumer = responseHeaders::putAll;
-      Map<String, String> properties =
-          ImmutableMap.<String, String>builder()
-              .putAll(properties())
-              .put(OAuth2Properties.SCOPE, SCOPE)
-              .buildKeepingLast();
-      AuthSession authSession = authManager().catalogSession(httpClient(), properties);
       RESTClient client = httpClient();
       S3SignResponse s3SignResponse =
           client
-              .withAuthSession(authSession)
+              .withAuthSession(authSession())
               .post(
                   endpoint(),
                   remoteSigningRequest,
