@@ -50,6 +50,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -184,11 +185,17 @@ public class TestPositionDeletesReader extends TestBase {
         actualRows.add(reader.get().copy());
       }
 
-      assertThat(internalRowsToJava(actualRows))
+      String dataFileLocation =
+          formatVersion >= 3 ? deleteFile1.referencedDataFile() : dataFile1.location();
+      Object[] first = {
+        UTF8String.fromString(dataFileLocation), 0L, UTF8String.fromString(deleteFile1.location())
+      };
+      Object[] second = {
+        UTF8String.fromString(dataFileLocation), 1L, UTF8String.fromString(deleteFile1.location())
+      };
+      assertThat(internalRowsToJava(actualRows, projectedSchema))
           .hasSize(2)
-          .containsExactly(
-              rowFromDeleteFile(dataFile1, deleteFile1, 0L),
-              rowFromDeleteFile(dataFile1, deleteFile1, 1L));
+          .containsExactly(first, second);
     }
 
     assertThat(scanTasks.get(1)).isInstanceOf(PositionDeletesScanTask.class);
@@ -205,11 +212,70 @@ public class TestPositionDeletesReader extends TestBase {
         actualRows.add(reader.get().copy());
       }
 
-      assertThat(internalRowsToJava(actualRows))
+      String dataFileLocation =
+          formatVersion >= 3 ? deleteFile2.referencedDataFile() : dataFile2.location();
+      Object[] first = {
+        UTF8String.fromString(dataFileLocation), 2L, UTF8String.fromString(deleteFile2.location())
+      };
+      Object[] second = {
+        UTF8String.fromString(dataFileLocation), 3L, UTF8String.fromString(deleteFile2.location())
+      };
+      assertThat(internalRowsToJava(actualRows, projectedSchema))
+          .hasSize(2)
+          .containsExactly(first, second);
+    }
+  }
+
+  @TestTemplate
+  public void readPositionDeletesTableWithDifferentColumnOrdering() throws IOException {
+    Pair<DeleteFile, CharSequenceSet> posDeletes1 =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            TestHelpers.Row.of(0),
+            Lists.newArrayList(
+                Pair.of(dataFile1.location(), 0L), Pair.of(dataFile1.location(), 1L)),
+            formatVersion);
+
+    DeleteFile deleteFile1 = posDeletes1.first();
+    table
+        .newRowDelta()
+        .addDeletes(deleteFile1)
+        .validateDataFilesExist(posDeletes1.second())
+        .commit();
+
+    Table positionDeletesTable =
+        catalog.loadTable(TableIdentifier.of("default", "test", "position_deletes"));
+
+    // select a few fields in backwards order
+    Schema projectedSchema =
+        new Schema(MetadataColumns.DELETE_FILE_POS, MetadataColumns.DELETE_FILE_PATH);
+
+    List<ScanTask> scanTasks =
+        Lists.newArrayList(
+            positionDeletesTable.newBatchScan().project(projectedSchema).planFiles());
+    assertThat(scanTasks).hasSize(1);
+
+    assertThat(scanTasks.get(0)).isInstanceOf(PositionDeletesScanTask.class);
+    PositionDeletesScanTask scanTask1 = (PositionDeletesScanTask) scanTasks.get(0);
+
+    try (PositionDeletesRowReader reader =
+        new PositionDeletesRowReader(
+            table,
+            new BaseScanTaskGroup<>(null, ImmutableList.of(scanTask1)),
+            positionDeletesTable.schema(),
+            projectedSchema,
+            false)) {
+      List<InternalRow> actualRows = Lists.newArrayList();
+      while (reader.next()) {
+        actualRows.add(reader.get().copy());
+      }
+
+      assertThat(internalRowsToJava(actualRows, projectedSchema))
           .hasSize(2)
           .containsExactly(
-              rowFromDeleteFile(dataFile2, deleteFile2, 2L),
-              rowFromDeleteFile(dataFile2, deleteFile2, 3L));
+              new Object[] {0L, UTF8String.fromString(dataFile1.location())},
+              new Object[] {1L, UTF8String.fromString(dataFile1.location())});
     }
   }
 
@@ -221,27 +287,15 @@ public class TestPositionDeletesReader extends TestBase {
         records);
   }
 
-  private List<Object[]> internalRowsToJava(List<InternalRow> rows) {
-    return rows.stream().map(this::toJava).collect(Collectors.toList());
+  private List<Object[]> internalRowsToJava(List<InternalRow> rows, Schema projection) {
+    return rows.stream().map(row -> toJava(row, projection)).collect(Collectors.toList());
   }
 
-  private Object[] toJava(InternalRow row) {
+  private Object[] toJava(InternalRow row, Schema projection) {
     Object[] values = new Object[row.numFields()];
-    values[0] = row.getUTF8String(0);
-    values[1] = row.getLong(1);
-    values[2] = row.getUTF8String(2);
+    for (int i = 0; i < projection.columns().size(); i++) {
+      values[i] = row.get(i, SparkSchemaUtil.convert(projection.columns().get(i).type()));
+    }
     return values;
-  }
-
-  private Object[] rowFromDeleteFile(
-      DataFile dataFile, DeleteFile deleteFile, long deletedPosition) {
-    return Lists.newArrayList(
-            UTF8String.fromString(
-                null != deleteFile.referencedDataFile()
-                    ? deleteFile.referencedDataFile()
-                    : dataFile.location()),
-            deletedPosition,
-            UTF8String.fromString(deleteFile.location()))
-        .toArray();
   }
 }
