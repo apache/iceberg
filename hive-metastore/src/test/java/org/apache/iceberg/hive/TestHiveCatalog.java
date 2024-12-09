@@ -421,7 +421,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
       assertThat(sortOrder.fields().get(0).nullOrder())
           .as("Null order must match ")
           .isEqualTo(NULLS_FIRST);
-      Transform<?, ?> transform = Transforms.identity(Types.IntegerType.get());
+      Transform<?, ?> transform = Transforms.identity();
       assertThat(sortOrder.fields().get(0).transform())
           .as("Transform must match")
           .isEqualTo(transform);

@@ -34,12 +34,6 @@ public class UnknownTransform<S, T> implements Transform<S, T> {
   }
 
   @Override
-  public T apply(S value) {
-    throw new UnsupportedOperationException(
-        String.format("Cannot apply unsupported transform: %s", transform));
-  }
-
-  @Override
   public SerializableFunction<S, T> bind(Type type) {
     throw new UnsupportedOperationException(
         String.format("Cannot bind unsupported transform: %s", transform));
