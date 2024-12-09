@@ -739,7 +739,7 @@ public class TableMetadata implements Serializable {
     return new Builder(this).upgradeFormatVersion(newFormatVersion).build();
   }
 
-  private static PartitionSpec updateSpecSchema(Schema schema, PartitionSpec partitionSpec) {
+  protected static PartitionSpec updateSpecSchema(Schema schema, PartitionSpec partitionSpec) {
     PartitionSpec.Builder specBuilder =
         PartitionSpec.builderFor(schema).withSpecId(partitionSpec.specId());
 
