@@ -1282,9 +1282,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
             .withPartitionSpec(SPEC)
             .withProperty("format-version", "2")
             .create();
-    assertThat(((BaseTable) table).operations().current().formatVersion())
-        .as("Should be a v2 table")
-        .isEqualTo(2);
+    assertThat(table.formatVersion()).as("Should be a v2 table").isEqualTo(2);
 
     table.updateSpec().addField("id").commit();
 
@@ -2519,7 +2517,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {1, 2})
+  @ValueSource(ints = {1, 2, 3})
   public void createTableTransaction(int formatVersion) {
     if (requiresNamespaceCreate()) {
       catalog().createNamespace(NS);
@@ -2533,8 +2531,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
             ImmutableMap.of("format-version", String.valueOf(formatVersion)))
         .commitTransaction();
 
-    BaseTable table = (BaseTable) catalog().loadTable(TABLE);
-    assertThat(table.operations().current().formatVersion()).isEqualTo(formatVersion);
+    assertThat(catalog().loadTable(TABLE).formatVersion()).isEqualTo(formatVersion);
   }
 
   @ParameterizedTest
