@@ -43,7 +43,6 @@ public interface HTTPRequest {
    * Returns the base URI configured at the REST client level. The base URI is used to construct the
    * full {@link #requestUri()}.
    */
-  @Value.Parameter(order = 0)
   URI baseUri();
 
   /**
@@ -56,19 +55,15 @@ public interface HTTPRequest {
   }
 
   /** Returns the HTTP method of this request. */
-  @Value.Parameter(order = 1)
   HTTPMethod method();
 
   /** Returns the path of this request. */
-  @Value.Parameter(order = 2)
   String path();
 
   /** Returns the query parameters of this request. */
-  @Value.Parameter(order = 3)
   Map<String, String> queryParameters();
 
   /** Returns all the headers of this request. The map is case-sensitive! */
-  @Value.Parameter(order = 4)
   @Value.Redacted
   Map<String, List<String>> headers();
 
@@ -84,7 +79,6 @@ public interface HTTPRequest {
 
   /** Returns the raw, unencoded request body. */
   @Nullable
-  @Value.Parameter(order = 5)
   @Value.Redacted
   Object body();
 
@@ -105,21 +99,9 @@ public interface HTTPRequest {
     return RESTObjectMapper.mapper();
   }
 
-  HTTPRequest withBaseUri(URI baseUri);
-
-  HTTPRequest withMethod(HTTPMethod method);
-
-  HTTPRequest withPath(String path);
-
-  HTTPRequest withQueryParameters(Map<String, ? extends String> queryParameters);
-
-  HTTPRequest withHeaders(Map<String, ? extends List<String>> headers);
-
-  HTTPRequest withBody(Object body);
-
   default HTTPRequest putHeadersIfAbsent(Map<String, String> headers) {
     Map<String, List<String>> newHeaders = Maps.newLinkedHashMap(headers());
     headers.forEach((name, value) -> newHeaders.putIfAbsent(name, List.of(value)));
-    return withHeaders(newHeaders);
+    return ImmutableHTTPRequest.builder().from(this).headers(newHeaders).build();
   }
 }
