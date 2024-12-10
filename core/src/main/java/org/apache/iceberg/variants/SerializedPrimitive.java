@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.variants;
 
-import static org.apache.iceberg.variants.VariantUtil.basicType;
-
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -37,7 +35,7 @@ class SerializedPrimitive extends Variants.SerializedValue implements VariantPri
   static SerializedPrimitive from(ByteBuffer value, int header) {
     Preconditions.checkArgument(
         value.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
-    Variants.BasicType basicType = basicType(header);
+    Variants.BasicType basicType = VariantUtil.basicType(header);
     Preconditions.checkArgument(
         basicType == Variants.BasicType.PRIMITIVE,
         "Invalid primitive, basic type != PRIMITIVE: " + basicType);

@@ -26,7 +26,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 
 public class TestPrimitiveWrapper {
-  private static final VariantPrimitive<?>[] primitives =
+  private static final VariantPrimitive<?>[] PRIMITIVES =
       new VariantPrimitive[] {
         Variants.ofNull(),
         Variants.of(true),
@@ -60,7 +60,7 @@ public class TestPrimitiveWrapper {
       };
 
   @ParameterizedTest
-  @FieldSource("primitives")
+  @FieldSource("PRIMITIVES")
   public void testPrimitiveValueSerialization(VariantPrimitive<?> primitive) {
     // write the value to the middle of a large buffer
     int size = primitive.sizeInBytes();

@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.variants;
 
-import static org.apache.iceberg.variants.VariantUtil.basicType;
-
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Iterator;
@@ -41,7 +39,7 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
   static SerializedObject from(SerializedMetadata metadata, ByteBuffer value, int header) {
     Preconditions.checkArgument(
         value.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
-    Variants.BasicType basicType = basicType(header);
+    Variants.BasicType basicType = VariantUtil.basicType(header);
     Preconditions.checkArgument(
         basicType == Variants.BasicType.OBJECT, "Invalid object, basic type: " + basicType);
     return new SerializedObject(metadata, value, header);
