@@ -393,7 +393,11 @@ public class HiveTableTest extends HiveTableBaseTest {
     String testTableName = "test_table_exists";
     TableIdentifier identifier = TableIdentifier.of(DB_NAME, testTableName);
     TableIdentifier metadataIdentifier = TableIdentifier.of(DB_NAME, testTableName, "partitions");
+    TableIdentifier invalidIdentifier = TableIdentifier.of(DB_NAME, "invalid", testTableName);
 
+    assertThat(catalog.tableExists(invalidIdentifier))
+        .as("Should return false on invalid identifier")
+        .isFalse();
     assertThat(catalog.tableExists(identifier))
         .as("Table should not exist before create")
         .isFalse();
