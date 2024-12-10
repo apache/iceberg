@@ -214,7 +214,7 @@ Notes:
 1. Timestamp values _without time zone_ represent a date and time of day regardless of zone: the time value is independent of zone adjustments (`2017-11-16 17:10:34` is always retrieved as `2017-11-16 17:10:34`).
 2. Timestamp values _with time zone_ represent a point in time: values are stored as UTC and do not retain a source time zone (`2017-11-16 17:10:34 PST` is stored/retrieved as `2017-11-17 01:10:34 UTC` and these values are considered identical).
 3. Character strings must be stored as UTF-8 encoded byte arrays.
-4. CRS (coordinate reference system) is a mapping of how coordinates refer to locations on earth. A custom crs is represented by a string of the format type:content, where type can be `srid` (where content is the srid) or `projjson` (where content is the name of a table property where the projjson string is stored. If this field is null (no custom crs provided), CRS defaults to OGC:CRS84, which means the data must be stored in longitude, latitude based on the WGS84 datum. Fixed and cannot be changed by schema evolution.
+4. CRS (coordinate reference system) is a mapping of how coordinates refer to locations on earth. A custom crs is represented by a string of the format type:content, where type can be `srid` (where content is the srid) or `projjson` (where content is the name of a table property where the projjson string is stored). If this field is null (no custom crs provided), CRS defaults to OGC:CRS84, which means the data must be stored in longitude, latitude based on the WGS84 datum. Fixed and cannot be changed by schema evolution.
 5. See [4]. This must be a geographic CRS, where longitudes are bound by [-180, 180] and latitudes are bound by [-90, 90].
 6. Edge-interpolation algorithm. This is a mandatory field and cannot be changed by schema evolution. See [Appendix G](#appendix-g-geospatial-notes)
 For details on how to serialize a schema to JSON, see Appendix C.
@@ -1658,11 +1658,12 @@ When processing point in time queries implementations should use "snapshot-log" 
 
 ## Appendix G: Geospatial Notes
 
-The Geometry class hierarchy and its WKT and WKB serializations (ISO supporting XY, XYZ, XYM, XYZM) are defined by [OpenGIS Implementation Specification for Geographic information – Simple feature access – Part 1: Common architecture](https://portal.ogc.org/files/?artifact_id=25355), from [OGC (Open Geospatial Consortium)](https://www.ogc.org/standard/sfa/).
+The Geometry and Geography class hierarchy and its WKT and WKB serializations (ISO supporting XY, XYZ, XYM, XYZM) are defined by [OpenGIS Implementation Specification for Geographic information – Simple feature access – Part 1: Common architecture](https://portal.ogc.org/files/?artifact_id=25355), from [OGC (Open Geospatial Consortium)](https://www.ogc.org/standard/sfa/).
 
 The version of the OGC standard first used here is 1.2.1, but future versions may also used if the WKB representation remains wire-compatible.
 
 Coordinate axis order is always (x, y) where x is easting or longitude, and y is northing or latitude. This ordering explicitly overrides the axis order specified in the CRS.
+
 Possible values for edge-interpolation algorithm (A) for `geography` types are:
 * `spherical`: edges are interpolated as geodesics on a sphere. The radius of the underlying sphere is the mean radius of the spheroid defined by the CRS, defined as (2 * major_axis_length + minor_axis_length / 3).
 * `vincenty`: [https://en.wikipedia.org/wiki/Vincenty%27s_formulae](https://en.wikipedia.org/wiki/Vincenty%27s_formulae)
