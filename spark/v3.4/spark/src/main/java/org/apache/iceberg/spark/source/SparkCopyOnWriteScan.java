@@ -130,7 +130,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
           this.filteredLocations = fileLocations;
           List<FileScanTask> filteredTasks =
               tasks().stream()
-                  .filter(file -> fileLocations.contains(file.file().path().toString()))
+                  .filter(file -> fileLocations.contains(file.file().location()))
                   .collect(Collectors.toList());
 
           LOG.info(

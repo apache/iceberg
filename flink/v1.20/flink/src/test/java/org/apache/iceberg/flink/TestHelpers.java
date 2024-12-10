@@ -602,7 +602,7 @@ public class TestHelpers {
     assertThat(actual).isNotNull();
     assertThat(actual.specId()).as("SpecId").isEqualTo(expected.specId());
     assertThat(actual.content()).as("Content").isEqualTo(expected.content());
-    assertThat(actual.path()).as("Path").isEqualTo(expected.path());
+    assertThat(actual.location()).as("Location").isEqualTo(expected.location());
     assertThat(actual.format()).as("Format").isEqualTo(expected.format());
     assertThat(actual.partition().size())
         .as("Partition size")

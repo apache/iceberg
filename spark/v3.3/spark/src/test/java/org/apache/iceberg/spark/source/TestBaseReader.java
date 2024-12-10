@@ -114,7 +114,7 @@ public class TestBaseReader {
     }
 
     private String getKey(FileScanTask task) {
-      return task.file().path().toString();
+      return task.file().location();
     }
   }
 

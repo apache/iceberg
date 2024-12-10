@@ -33,6 +33,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.RowDelta;
@@ -209,7 +210,7 @@ class Coordinator extends Channel {
             .filter(payload -> payload.dataFiles() != null)
             .flatMap(payload -> payload.dataFiles().stream())
             .filter(dataFile -> dataFile.recordCount() > 0)
-            .filter(distinctByKey(dataFile -> dataFile.path().toString()))
+            .filter(distinctByKey(ContentFile::location))
             .collect(Collectors.toList());
 
     List<DeleteFile> deleteFiles =
@@ -217,7 +218,7 @@ class Coordinator extends Channel {
             .filter(payload -> payload.deleteFiles() != null)
             .flatMap(payload -> payload.deleteFiles().stream())
             .filter(deleteFile -> deleteFile.recordCount() > 0)
-            .filter(distinctByKey(deleteFile -> deleteFile.path().toString()))
+            .filter(distinctByKey(ContentFile::location))
             .collect(Collectors.toList());
 
     if (terminated) {

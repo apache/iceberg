@@ -1983,8 +1983,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
   private List<DeleteFile> writePosDeletesToFile(
       Table table, DataFile dataFile, int outputDeleteFiles) {
-    return writePosDeletes(
-        table, dataFile.partition(), dataFile.path().toString(), outputDeleteFiles);
+    return writePosDeletes(table, dataFile.partition(), dataFile.location(), outputDeleteFiles);
   }
 
   private List<DeleteFile> writePosDeletes(

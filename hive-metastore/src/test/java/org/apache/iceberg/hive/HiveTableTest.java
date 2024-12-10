@@ -497,7 +497,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     String file1Location = appendData(table, "file1");
     List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles());
     assertThat(tasks).as("Should scan 1 file").hasSize(1);
-    assertThat(file1Location).isEqualTo(tasks.get(0).file().path());
+    assertThat(file1Location).isEqualTo(tasks.get(0).file().location());
 
     // collect metadata file
     List<String> metadataFiles =
@@ -528,7 +528,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     tasks = Lists.newArrayList(table.newScan().planFiles());
     assertThat(tasks).as("Should scan 2 files").hasSize(2);
     Set<String> files =
-        tasks.stream().map(task -> task.file().path().toString()).collect(Collectors.toSet());
+        tasks.stream().map(task -> task.file().location()).collect(Collectors.toSet());
     assertThat(files).contains(file1Location, file2Location);
   }
 

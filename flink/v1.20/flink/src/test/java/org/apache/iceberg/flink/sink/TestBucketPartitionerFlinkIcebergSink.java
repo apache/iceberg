@@ -184,7 +184,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
       for (FileScanTask scanTask : fileScanTasks) {
         long recordCountInFile = scanTask.file().recordCount();
 
-        String[] splitFilePath = scanTask.file().path().toString().split("/");
+        String[] splitFilePath = scanTask.file().location().split("/");
         // Filename example: 00007-0-a7d3a29a-33e9-4740-88f4-0f494397d60c-00001.parquet
         // Writer ID: .......^^^^^
         String filename = splitFilePath[splitFilePath.length - 1];

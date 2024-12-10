@@ -486,7 +486,7 @@ class V2Metadata {
 
     @Override
     public CharSequence path() {
-      return wrapped.path();
+      return wrapped.location();
     }
 
     @Override

@@ -81,7 +81,7 @@ class SparkCleanupUtil {
    * @param files a list of files to delete
    */
   public static void deleteFiles(String context, FileIO io, List<? extends ContentFile<?>> files) {
-    List<String> paths = Lists.transform(files, file -> file.path().toString());
+    List<String> paths = Lists.transform(files, ContentFile::location);
     deletePaths(context, io, paths);
   }
 

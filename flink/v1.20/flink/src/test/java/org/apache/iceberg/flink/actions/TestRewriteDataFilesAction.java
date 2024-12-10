@@ -390,7 +390,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
     assertThat(dataFilesRewrote).hasSize(2);
     // the biggest file do not be rewrote
     List rewroteDataFileNames =
-        dataFilesRewrote.stream().map(ContentFile::path).collect(Collectors.toList());
+        dataFilesRewrote.stream().map(ContentFile::location).collect(Collectors.toList());
     assertThat(rewroteDataFileNames).contains(file.getAbsolutePath());
 
     // Assert the table records as expected.
