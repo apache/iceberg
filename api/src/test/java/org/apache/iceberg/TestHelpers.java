@@ -748,11 +748,6 @@ public class TestHelpers {
       return this;
     }
 
-    public ExpectedSpecBuilder addField(String transformAsString, int sourceId, String name) {
-      unboundPartitionSpecBuilder.addField(transformAsString, sourceId, name);
-      return this;
-    }
-
     public PartitionSpec build() {
       Preconditions.checkNotNull(schema, "Field schema is missing");
       return unboundPartitionSpecBuilder.build().bind(schema);
