@@ -1666,5 +1666,5 @@ Possible values for edge-interpolation algorithm (A) for `geography` types are:
 * `spherical`: edges are interpolated as geodesics on a sphere. The radius of the underlying sphere is the mean radius of the spheroid defined by the CRS, defined as (2 * major_axis_length + minor_axis_length / 3).
 * `vincenty`: [https://en.wikipedia.org/wiki/Vincenty%27s_formulae](https://en.wikipedia.org/wiki/Vincenty%27s_formulae)
 * `andoyer-lambert-thomas`: Thomas, Paul D. Spheroidal geodesics, reference systems, & local geometry. US Naval Oceanographic Office, 1970.
-* `andoyer-lambert`
+* `andoyer-lambert`: Thomas, Paul D. Mathematical models for navigation systems. US Naval Oceanographic Office, 1965.
 * `karney`: [Karney, Charles FF. "Algorithms for geodesics." Journal of Geodesy 87 (2013): 43-55](https://link.springer.com/content/pdf/10.1007/s00190-012-0578-z.pdf), and [GeographicLib](https://geographiclib.sourceforge.io/)
