@@ -81,7 +81,8 @@ public class RewritePositionDeleteFilesSparkAction
           MAX_CONCURRENT_FILE_GROUP_REWRITES,
           PARTIAL_PROGRESS_ENABLED,
           PARTIAL_PROGRESS_MAX_COMMITS,
-          REWRITE_JOB_ORDER);
+          REWRITE_JOB_ORDER,
+          IGNORE_INVALID_OPTIONS);
   private static final Result EMPTY_RESULT =
       ImmutableRewritePositionDeleteFiles.Result.builder().build();
 
@@ -358,17 +359,22 @@ public class RewritePositionDeleteFilesSparkAction
   }
 
   private void validateAndInitOptions() {
-    Set<String> validOptions = Sets.newHashSet(rewriter.validOptions());
-    validOptions.addAll(VALID_OPTIONS);
+    boolean ignoreInvalidOptions =
+        PropertyUtil.propertyAsBoolean(
+            options(), IGNORE_INVALID_OPTIONS, IGNORE_INVALID_OPTIONS_DEFAULT);
+    if (!ignoreInvalidOptions) {
+      Set<String> validOptions = Sets.newHashSet(rewriter.validOptions());
+      validOptions.addAll(VALID_OPTIONS);
 
-    Set<String> invalidKeys = Sets.newHashSet(options().keySet());
-    invalidKeys.removeAll(validOptions);
+      Set<String> invalidKeys = Sets.newHashSet(options().keySet());
+      invalidKeys.removeAll(validOptions);
 
-    Preconditions.checkArgument(
-        invalidKeys.isEmpty(),
-        "Cannot use options %s, they are not supported by the action or the rewriter %s",
-        invalidKeys,
-        rewriter.description());
+      Preconditions.checkArgument(
+          invalidKeys.isEmpty(),
+          "Cannot use options %s, they are not supported by the action or the rewriter %s",
+          invalidKeys,
+          rewriter.description());
+    }
 
     rewriter.init(options());
 

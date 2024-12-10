@@ -79,6 +79,15 @@ public interface RewritePositionDeleteFiles
   String REWRITE_JOB_ORDER_DEFAULT = RewriteJobOrder.NONE.orderName();
 
   /**
+   * If set to true, the rewrite operation will ignore invalid options.
+   *
+   * <p>Defaults to false.
+   */
+  String IGNORE_INVALID_OPTIONS = "ignore-invalid-options";
+
+  boolean IGNORE_INVALID_OPTIONS_DEFAULT = false;
+
+  /**
    * A filter for finding deletes to rewrite.
    *
    * <p>The filter will be converted to a partition filter with an inclusive projection. Any file
