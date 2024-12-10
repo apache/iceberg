@@ -1667,4 +1667,4 @@ Possible values for edge-interpolation algorithm (A) for `geography` types are:
 * `vincenty`: [https://en.wikipedia.org/wiki/Vincenty%27s_formulae](https://en.wikipedia.org/wiki/Vincenty%27s_formulae)
 * `andoyer-lambert-thomas`
 * `andoyer-lambert`
-* `karney`
+* `karney`: [Karney, Charles FF. "Algorithms for geodesics." Journal of Geodesy 87 (2013): 43-55](https://link.springer.com/content/pdf/10.1007/s00190-012-0578-z.pdf), and [GeographicLib](https://geographiclib.sourceforge.io/)
