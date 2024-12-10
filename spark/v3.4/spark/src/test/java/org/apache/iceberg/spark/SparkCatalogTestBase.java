@@ -19,6 +19,8 @@
 package org.apache.iceberg.spark;
 
 import java.util.Map;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
@@ -45,6 +47,14 @@ public abstract class SparkCatalogTestBase extends SparkTestBaseWithCatalog {
         SparkCatalogConfig.SPARK.catalogName(),
         SparkCatalogConfig.SPARK.implementation(),
         SparkCatalogConfig.SPARK.properties()
+      },
+      {
+        SparkCatalogConfig.REST.catalogName(),
+        SparkCatalogConfig.REST.implementation(),
+        ImmutableMap.builder()
+            .putAll(SparkCatalogConfig.REST.properties())
+            .put(CatalogProperties.URI, REST_SERVER_RULE.uri())
+            .build()
       }
     };
   }

@@ -461,12 +461,15 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
 
     String statsFileName = "stats-file-" + UUID.randomUUID();
+    String location = table.location();
+    // not every catalog will return file proto for local directories
+    // i.e. Hadoop and Hive Catalog do, Jdbc and REST do not
+    if (!location.startsWith("file:")) {
+      location = "file:" + location;
+    }
+
     File statsLocation =
-        new File(new URI(table.location()))
-            .toPath()
-            .resolve("data")
-            .resolve(statsFileName)
-            .toFile();
+        new File(new URI(location)).toPath().resolve("data").resolve(statsFileName).toFile();
     StatisticsFile statisticsFile;
     try (PuffinWriter puffinWriter = Puffin.write(Files.localOutput(statsLocation)).build()) {
       long snapshotId = table.currentSnapshot().snapshotId();
