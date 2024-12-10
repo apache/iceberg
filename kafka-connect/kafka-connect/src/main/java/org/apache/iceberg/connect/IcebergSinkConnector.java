@@ -16,21 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.iceberg.connect;
+
+import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.connect.data.PartitionEvolutionUtils;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.Tasks;
+import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.connect.connector.Task;
+import org.apache.kafka.connect.sink.SinkConnector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.kafka.common.config.ConfigDef;
-import org.apache.kafka.connect.connector.Task;
-import org.apache.kafka.connect.sink.SinkConnector;
 
 public class IcebergSinkConnector extends SinkConnector {
 
+  private static final Logger LOG = LoggerFactory.getLogger(IcebergSinkConnector.class);
   private Map<String, String> props;
+  private IcebergSinkConfig config;
 
   @Override
   public String version() {
@@ -40,6 +51,7 @@ public class IcebergSinkConnector extends SinkConnector {
   @Override
   public void start(Map<String, String> connectorProps) {
     this.props = connectorProps;
+    this.config = new IcebergSinkConfig(this.props);
   }
 
   @Override
@@ -49,15 +61,48 @@ public class IcebergSinkConnector extends SinkConnector {
 
   @Override
   public List<Map<String, String>> taskConfigs(int maxTasks) {
-    String txnSuffix = "-txn-" + UUID.randomUUID() + "-";
+    if (config.isPartitionEvolutionSupported()) {
+      checkForPartitionEvolution();
+    }
+    String txnSuffix = generateTransactionSuffix();
     return IntStream.range(0, maxTasks)
-        .mapToObj(
-            i -> {
-              Map<String, String> map = Maps.newHashMap(props);
-              map.put(IcebergSinkConfig.INTERNAL_TRANSACTIONAL_SUFFIX_PROP, txnSuffix + i);
-              return map;
-            })
-        .collect(Collectors.toList());
+            .mapToObj(i -> createTaskConfig(txnSuffix, i))
+            .collect(Collectors.toList());
+  }
+
+  private String generateTransactionSuffix() {
+    return "-txn-" + UUID.randomUUID() + "-";
+  }
+
+  private Map<String, String> createTaskConfig(String txnSuffix, int taskNUmber) {
+    Map<String, String> taskConfig = Maps.newHashMap(props);
+    taskConfig.put(IcebergSinkConfig.INTERNAL_TRANSACTIONAL_SUFFIX_PROP, txnSuffix + taskNUmber);
+    return taskConfig;
+  }
+
+  private void checkForPartitionEvolution() {
+    Catalog catalog = null;
+    try {
+      catalog = CatalogUtils.loadCatalog(config);
+      for(String tableName : config.tables()) {
+        Table table = catalog.loadTable(TableIdentifier.parse(tableName));
+        Tasks.range(1)
+                .retry(IcebergSinkConfig.SCHEMA_UPDATE_RETRIES)
+                .run(notUsed -> PartitionEvolutionUtils.checkAndEvolvePartition(table, config));
+      }
+    } catch (Exception ex) {
+      LOG.error("An error occurred while checking for the partition evolution for the job = {}", config.connectorName(), ex);
+    } finally {
+      if(null != catalog) {
+        if(catalog instanceof AutoCloseable) {
+          try {
+            ((AutoCloseable) catalog).close();
+          } catch (Exception e) {
+            LOG.warn("An error occurred closing catalog instance, ignoring...", e);
+          }
+        }
+      }
+    }
   }
 
   @Override
