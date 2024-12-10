@@ -1662,6 +1662,7 @@ The Geometry class hierarchy and its WKT and WKB serializations (ISO supporting 
 
 The version of the OGC standard first used here is 1.2.1, but future versions may also used if the WKB representation remains wire-compatible.
 
+Coordinate axis order is always (x, y) where x is easting or longitude, and y is northing or latitude. This ordering explicitly overrides the axis order specified in the CRS.
 Possible values for edge-interpolation algorithm (A) for `geography` types are:
 * `spherical`: edges are interpolated as geodesics on a sphere. The radius of the underlying sphere is the mean radius of the spheroid defined by the CRS, defined as (2 * major_axis_length + minor_axis_length / 3).
 * `vincenty`: [https://en.wikipedia.org/wiki/Vincenty%27s_formulae](https://en.wikipedia.org/wiki/Vincenty%27s_formulae)
