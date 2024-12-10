@@ -24,9 +24,6 @@ import static org.assertj.core.api.Assertions.withPrecision;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.GenericArrayData;
 import org.apache.flink.table.data.GenericMapData;
@@ -34,34 +31,20 @@ import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.iceberg.Files;
-import org.apache.iceberg.Parameter;
-import org.apache.iceberg.ParameterizedTestExtension;
-import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
-import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-@ExtendWith(ParameterizedTestExtension.class)
 public class TestRowProjection {
 
   @TempDir private Path temp;
-
-  @Parameter(index = 0)
-  protected Boolean useAvroPlannedReader;
-
-  @Parameters(name = "useAvroPlannedReader={0}")
-  protected static List<Object[]> parameters() {
-    return Arrays.asList(new Object[] {Boolean.FALSE}, new Object[] {Boolean.TRUE});
-  }
 
   private RowData writeAndRead(String desc, Schema writeSchema, Schema readSchema, RowData row)
       throws IOException {
@@ -79,20 +62,14 @@ public class TestRowProjection {
     Avro.ReadBuilder builder =
         Avro.read(Files.localInput(file))
             .project(readSchema)
-            .createReaderFunc(FlinkAvroReader::new);
-    if (useAvroPlannedReader) {
-      builder =
-          Avro.read(Files.localInput(file))
-              .project(readSchema)
-              .createResolvingReader(FlinkPlannedAvroReader::create);
-    }
+            .createResolvingReader(FlinkPlannedAvroReader::create);
 
     Iterable<RowData> records = builder.build();
 
     return Iterables.getOnlyElement(records);
   }
 
-  @TestTemplate
+  @Test
   public void testFullProjection() throws Exception {
     Schema schema =
         new Schema(
@@ -107,7 +84,7 @@ public class TestRowProjection {
     assertThat(projected.getString(1)).asString().isEqualTo("test");
   }
 
-  @TestTemplate
+  @Test
   public void testSpecialCharacterProjection() throws Exception {
     Schema schema =
         new Schema(
@@ -127,7 +104,7 @@ public class TestRowProjection {
     assertThat(projected.getString(0)).asString().isEqualTo("test");
   }
 
-  @TestTemplate
+  @Test
   public void testReorderedFullProjection() throws Exception {
     Schema schema =
         new Schema(
@@ -147,7 +124,7 @@ public class TestRowProjection {
     assertThat(projected.getLong(1)).isEqualTo(34);
   }
 
-  @TestTemplate
+  @Test
   public void testReorderedProjection() throws Exception {
     Schema schema =
         new Schema(
@@ -169,7 +146,7 @@ public class TestRowProjection {
     assertThat(projected.isNullAt(2)).isTrue();
   }
 
-  @TestTemplate
+  @Test
   public void testRenamedAddedField() throws Exception {
     Schema schema =
         new Schema(
@@ -199,7 +176,7 @@ public class TestRowProjection {
     assertThat(projected.isNullAt(3)).as("Should contain empty value on new column 4").isTrue();
   }
 
-  @TestTemplate
+  @Test
   public void testEmptyProjection() throws Exception {
     Schema schema =
         new Schema(
@@ -214,7 +191,7 @@ public class TestRowProjection {
     assertThat(projected.getArity()).isEqualTo(0);
   }
 
-  @TestTemplate
+  @Test
   public void testBasicProjection() throws Exception {
     Schema writeSchema =
         new Schema(
@@ -238,7 +215,7 @@ public class TestRowProjection {
     assertThat(projected.getString(0)).asString().isEqualTo("test");
   }
 
-  @TestTemplate
+  @Test
   public void testRename() throws Exception {
     Schema writeSchema =
         new Schema(
@@ -261,7 +238,7 @@ public class TestRowProjection {
         .isEqualTo("test");
   }
 
-  @TestTemplate
+  @Test
   public void testNestedStructProjection() throws Exception {
     Schema writeSchema =
         new Schema(
@@ -327,7 +304,7 @@ public class TestRowProjection {
         .isEqualTo(-1.539054f, withPrecision(0.000001f));
   }
 
-  @TestTemplate
+  @Test
   public void testMapProjection() throws IOException {
     Schema writeSchema =
         new Schema(
@@ -369,19 +346,7 @@ public class TestRowProjection {
     assertThat(projected.getMap(0)).isEqualTo(properties);
   }
 
-  private Map<String, ?> toStringMap(Map<?, ?> map) {
-    Map<String, Object> stringMap = Maps.newHashMap();
-    for (Map.Entry<?, ?> entry : map.entrySet()) {
-      if (entry.getValue() instanceof CharSequence) {
-        stringMap.put(entry.getKey().toString(), entry.getValue().toString());
-      } else {
-        stringMap.put(entry.getKey().toString(), entry.getValue());
-      }
-    }
-    return stringMap;
-  }
-
-  @TestTemplate
+  @Test
   public void testMapOfStructsProjection() throws IOException {
     Schema writeSchema =
         new Schema(
@@ -481,7 +446,7 @@ public class TestRowProjection {
         .isEqualTo(52.995143f, withPrecision(0.000001f));
   }
 
-  @TestTemplate
+  @Test
   public void testListProjection() throws IOException {
     Schema writeSchema =
         new Schema(
@@ -510,7 +475,7 @@ public class TestRowProjection {
     assertThat(projected.getArray(0)).isEqualTo(values);
   }
 
-  @TestTemplate
+  @Test
   @SuppressWarnings("unchecked")
   public void testListOfStructsProjection() throws IOException {
     Schema writeSchema =
@@ -587,7 +552,7 @@ public class TestRowProjection {
     assertThat(projectedP2.isNullAt(0)).as("Should project null z").isTrue();
   }
 
-  @TestTemplate
+  @Test
   public void testAddedFieldsWithRequiredChildren() throws Exception {
     Schema schema = new Schema(Types.NestedField.required(1, "a", Types.LongType.get()));
 
