@@ -157,12 +157,15 @@ public class AwsClientProperties implements Serializable {
   }
 
   /**
-   * Set ADAPTIVE_V2 <a
+   * Configure <a
    * href="https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/core/retry/RetryMode.html">RetryMode</a>
-   * for an AWS client builder.
+   * to ADAPTIVE_V2 for AWS clients
    *
-   * <p>For more details, see
-   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/core/client/config/ClientOverrideConfiguration.Builder.html#retryStrategy(software.amazon.awssdk.core.retry.RetryMode)
+   * <p>Sample usage:
+   *
+   * <pre>
+   *   KmsClient.builder().applyMutation(awsClientProperties::applyRetryConfigurations)
+   * </pre>
    */
   public <T extends AwsClientBuilder> void applyRetryConfigurations(T builder) {
     ClientOverrideConfiguration.Builder configBuilder =
