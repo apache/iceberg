@@ -37,7 +37,8 @@ public class UnknownTransform<S, T> implements Transform<S, T> {
    * Transforms a value to its corresponding partition value.
    *
    * @param value a source value
-   * @return a transformed partition value
+   * @return ∅
+   * @throws UnsupportedOperationException Implementation is unknown
    * @deprecated will be removed in 2.0.0; use {@link #bind(Type)} instead
    */
   @Deprecated

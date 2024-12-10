@@ -98,7 +98,7 @@ class VoidTransform<S> implements Transform<S, Void> {
    * <p>null values will return "null"
    *
    * @param value a transformed value
-   * @return a human-readable String representation of the value
+   * @return a human-readable String representation of null
    * @deprecated will be removed in 2.0.0; use {@link #toHumanString(Type, Object)} instead
    */
   @Deprecated
