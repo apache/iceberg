@@ -23,21 +23,29 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.analysis.ViewUtil.IcebergViewHelper
 import org.apache.spark.sql.catalyst.expressions.Alias
+import org.apache.spark.sql.catalyst.expressions.BaseGroupingSets
+import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.expressions.Literal
+import org.apache.spark.sql.catalyst.expressions.SortOrder
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.expressions.UpCast
 import org.apache.spark.sql.catalyst.parser.ParseException
+import org.apache.spark.sql.catalyst.plans.logical.Aggregate
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
+import org.apache.spark.sql.catalyst.plans.logical.Sort
 import org.apache.spark.sql.catalyst.plans.logical.SubqueryAlias
 import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.CurrentOrigin
+import org.apache.spark.sql.catalyst.trees.CurrentOrigin.withOrigin
 import org.apache.spark.sql.catalyst.trees.Origin
 import org.apache.spark.sql.connector.catalog.CatalogManager
 import org.apache.spark.sql.connector.catalog.LookupCatalog
 import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.errors.QueryCompilationErrors
+import org.apache.spark.sql.types.IntegerType
 import org.apache.spark.sql.types.MetadataBuilder
 
 case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with LookupCatalog {
@@ -45,6 +53,18 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   protected lazy val catalogManager: CatalogManager = spark.sessionState.catalogManager
+
+  private def containIntLiteral(e: Expression): Boolean = e match {
+    case Literal(_, IntegerType) => true
+    case gs: BaseGroupingSets => gs.children.exists(containIntLiteral)
+    case _ => false
+  }
+
+  private def substituteUnresolvedOrdinal(expression: Expression): Expression = expression match {
+    case ordinal@Literal(index: Int, IntegerType) =>
+      withOrigin(ordinal.origin)(UnresolvedOrdinal(index))
+    case e => e
+  }
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case u@UnresolvedRelation(nameParts, _, _)
@@ -65,6 +85,25 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       if query.resolved && !c.rewritten =>
       val aliased = aliasColumns(query, columnAliases, columnComments)
       c.copy(query = aliased, queryColumnNames = query.schema.fieldNames, rewritten = true)
+
+    case s: Sort if conf.orderByOrdinal && s.order.exists(o => containIntLiteral(o.child)) =>
+      val newOrders = s.order.map {
+        case order@SortOrder(ordinal@Literal(index: Int, IntegerType), _, _, _) =>
+          val newOrdinal = withOrigin(ordinal.origin)(UnresolvedOrdinal(index))
+          withOrigin(order.origin)(order.copy(child = newOrdinal))
+        case other => other
+      }
+      withOrigin(s.origin)(s.copy(order = newOrders))
+
+    case a: Aggregate if conf.groupByOrdinal && a.groupingExpressions.exists(containIntLiteral) =>
+      val newGroups = a.groupingExpressions.map {
+        case ordinal@Literal(index: Int, IntegerType) =>
+          withOrigin(ordinal.origin)(UnresolvedOrdinal(index))
+        case gs: BaseGroupingSets =>
+          withOrigin(gs.origin)(gs.withNewChildren(gs.children.map(substituteUnresolvedOrdinal)))
+        case other => other
+      }
+      withOrigin(a.origin)(a.copy(groupingExpressions = newGroups))
   }
 
   private def aliasColumns(
