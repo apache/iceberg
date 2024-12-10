@@ -350,6 +350,8 @@ public class S3TablesCatalogTest {
   public static class TestLocationProvider implements LocationProvider {
     public TestLocationProvider() {}
 
+    public TestLocationProvider(String tableLocation, Map<String, String> properties) {}
+
     @Override
     public String newDataLocation(String s) {
       return "dummylocation";
@@ -370,7 +372,7 @@ public class S3TablesCatalogTest {
         .thenReturn(
             ImmutableMap.of(
                 TableProperties.WRITE_LOCATION_PROVIDER_IMPL,
-                "com.amazon.s3tables.iceberg.S3TablesCatalogTest$TestLocationProvider"));
+                "org.apache.iceberg.aws.s3tables.S3TablesCatalogTest$TestLocationProvider"));
     when(mockTableOperations.current()).thenReturn(mockTableMetadata);
     when(mockTableOperations.locationProvider()).thenCallRealMethod();
     LocationProvider locationProvider = mockTableOperations.locationProvider();

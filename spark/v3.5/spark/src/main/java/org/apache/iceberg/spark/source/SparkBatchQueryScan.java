@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionScanTask;
@@ -162,13 +163,13 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     }
   }
 
-  protected Map<String, DeleteFileSet> rewritableDeletes() {
+  protected Map<String, DeleteFileSet> rewritableDeletes(boolean forDVs) {
     Map<String, DeleteFileSet> rewritableDeletes = Maps.newHashMap();
 
     for (ScanTask task : tasks()) {
       FileScanTask fileScanTask = task.asFileScanTask();
       for (DeleteFile deleteFile : fileScanTask.deletes()) {
-        if (ContentFileUtil.isFileScoped(deleteFile)) {
+        if (shouldRewrite(deleteFile, forDVs)) {
           rewritableDeletes
               .computeIfAbsent(fileScanTask.file().location(), ignored -> DeleteFileSet.create())
               .add(deleteFile);
@@ -177,6 +178,16 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     }
 
     return rewritableDeletes;
+  }
+
+  // for DVs all position deletes must be rewritten
+  // for position deletes, only file-scoped deletes must be rewritten
+  private boolean shouldRewrite(DeleteFile deleteFile, boolean forDVs) {
+    if (forDVs) {
+      return deleteFile.content() != FileContent.EQUALITY_DELETES;
+    }
+
+    return ContentFileUtil.isFileScoped(deleteFile);
   }
 
   // at this moment, Spark can only pass IN filters for a single attribute
