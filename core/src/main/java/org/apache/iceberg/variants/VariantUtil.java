@@ -87,7 +87,7 @@ class VariantUtil {
       case 4:
         return buffer.getInt(base);
       case 3:
-        return ((int) buffer.getShort(base)) & 0xFFFF | (buffer.get(base + 2) & 0xFF) << 16;
+        return (((int) buffer.getShort(base)) & 0xFFFF) | ((buffer.get(base + 2) & 0xFF) << 16);
       case 2:
         return ((int) buffer.getShort(base)) & 0xFFFF;
       case 1:

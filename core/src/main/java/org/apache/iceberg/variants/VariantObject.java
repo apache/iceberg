@@ -23,6 +23,7 @@ public interface VariantObject extends VariantValue {
   /** Returns the {@link VariantValue} for the field named {@code name} in this object. */
   VariantValue get(String name);
 
+  @Override
   default Variants.PhysicalType type() {
     return Variants.PhysicalType.OBJECT;
   }

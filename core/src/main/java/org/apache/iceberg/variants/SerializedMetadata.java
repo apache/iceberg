@@ -27,7 +27,6 @@ class SerializedMetadata implements VariantMetadata, Variants.Serialized {
   private static final int SUPPORTED_VERSION = 1;
   private static final int VERSION_MASK = 0b1111;
   private static final int SORTED_STRINGS = 0b10000;
-  private static final int RESERVED = 0b100000;
   private static final int OFFSET_SIZE_MASK = 0b11000000;
   private static final int OFFSET_SIZE_SHIFT = 6;
 
