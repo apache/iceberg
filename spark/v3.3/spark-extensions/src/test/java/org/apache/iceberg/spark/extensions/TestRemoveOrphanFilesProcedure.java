@@ -433,8 +433,7 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
         "Should have 1 delete manifest", 1, TestHelpers.deleteManifests(table).size());
     Assert.assertEquals("Should have 1 delete file", 1, TestHelpers.deleteFiles(table).size());
     Path deleteManifestPath = new Path(TestHelpers.deleteManifests(table).iterator().next().path());
-    Path deleteFilePath =
-        new Path(String.valueOf(TestHelpers.deleteFiles(table).iterator().next().path()));
+    Path deleteFilePath = new Path(TestHelpers.deleteFiles(table).iterator().next().location());
 
     // wait to ensure files are old enough
     waitUntilAfter(System.currentTimeMillis());

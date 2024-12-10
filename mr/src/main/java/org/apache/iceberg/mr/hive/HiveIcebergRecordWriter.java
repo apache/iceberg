@@ -113,7 +113,7 @@ class HiveIcebergRecordWriter extends PartitionedFanoutWriter<Record>
           .onFailure(
               (file, exception) ->
                   LOG.debug("Failed on to remove file {} on abort", file, exception))
-          .run(dataFile -> io.deleteFile(dataFile.path().toString()));
+          .run(dataFile -> io.deleteFile(dataFile.location()));
     }
 
     LOG.info(

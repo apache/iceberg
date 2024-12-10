@@ -266,7 +266,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
                 .select("data_file.file_path")
                 .collectAsList());
 
-    List<Object[]> singleExpected = ImmutableList.of(row(file.path()));
+    List<Object[]> singleExpected = ImmutableList.of(row(file.location()));
 
     assertEquals(
         "Should prune a single element from a nested struct", singleExpected, singleActual);
@@ -305,7 +305,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
     List<Object[]> multiExpected =
         ImmutableList.of(
-            row(file.path(), file.valueCounts(), file.recordCount(), file.columnSizes()));
+            row(file.location(), file.valueCounts(), file.recordCount(), file.columnSizes()));
 
     assertEquals("Should prune a single element from a nested struct", multiExpected, multiActual);
   }
@@ -339,7 +339,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
     List<Object[]> multiExpected =
         ImmutableList.of(
-            row(file.path(), file.valueCounts(), file.recordCount(), file.columnSizes()));
+            row(file.location(), file.valueCounts(), file.recordCount(), file.columnSizes()));
 
     assertEquals("Should prune a single element from a row", multiExpected, multiActual);
   }
@@ -2341,7 +2341,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     StructLike dataFilePartition = dataFile.partition();
 
     PositionDelete<InternalRow> delete = PositionDelete.create();
-    delete.set(dataFile.path(), pos, null);
+    delete.set(dataFile.location(), pos, null);
 
     return writePositionDeletes(table, dataFileSpec, dataFilePartition, ImmutableList.of(delete));
   }

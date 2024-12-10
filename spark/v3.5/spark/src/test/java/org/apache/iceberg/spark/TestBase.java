@@ -142,7 +142,7 @@ public abstract class TestBase extends SparkTestHelperBase {
   }
 
   protected void withUnavailableFiles(Iterable<? extends ContentFile<?>> files, Action action) {
-    Iterable<String> fileLocations = Iterables.transform(files, file -> file.location());
+    Iterable<String> fileLocations = Iterables.transform(files, ContentFile::location);
     withUnavailableLocations(fileLocations, action);
   }
 

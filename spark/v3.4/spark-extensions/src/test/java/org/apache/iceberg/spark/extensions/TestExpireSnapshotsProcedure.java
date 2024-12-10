@@ -292,7 +292,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
     Assert.assertEquals("Should have 1 delete file", 1, TestHelpers.deleteFiles(table).size());
     Path deleteManifestPath = new Path(TestHelpers.deleteManifests(table).iterator().next().path());
     DeleteFile deleteFile = TestHelpers.deleteFiles(table).iterator().next();
-    Path deleteFilePath = new Path(String.valueOf(deleteFile.path()));
+    Path deleteFilePath = new Path(deleteFile.location());
 
     sql(
         "CALL %s.system.rewrite_data_files("
