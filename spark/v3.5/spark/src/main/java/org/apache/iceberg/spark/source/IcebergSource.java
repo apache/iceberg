@@ -245,7 +245,12 @@ public class IcebergSource
               "cache-enabled", "false" // the source should not use a cache
               );
       spark.conf().set(DEFAULT_CATALOG, SparkCatalog.class.getName());
-      config.forEach((key, value) -> spark.conf().set(DEFAULT_CATALOG + "." + key, value));
+      config.forEach((key, value) -> {
+        String configKey = DEFAULT_CATALOG+ "." + key;
+        if (!spark.conf().getOption(configKey).isDefined()) {
+          spark.conf().set(configKey, value);
+        }
+      });
     }
 
     if (!spark.conf().contains(DEFAULT_CACHE_CATALOG)) {
