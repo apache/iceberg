@@ -19,6 +19,8 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.TableProperties.MERGE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.MERGE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.MERGE_MODE;
@@ -1612,6 +1614,8 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
         tableName, MERGE_ISOLATION_LEVEL, "snapshot");
+    sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName, COMMIT_NUM_RETRIES, "10");
+    sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName, COMMIT_MIN_RETRY_WAIT_MS, "10");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
     createBranchIfNeeded();
