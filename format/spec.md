@@ -205,15 +205,18 @@ Supported primitive types are defined in the table below. Primitive types added 
 |                  | **`uuid`**         | Universally unique identifiers                                           | Should use 16-byte fixed                         |
 |                  | **`fixed(L)`**     | Fixed-length byte array of length L                                      |                                                  |
 |                  | **`binary`**       | Arbitrary-length byte array                                              |                                                  |
-| [v3](#version-3) | **`geometry(C)`**  | Geometry features from [OGC – Simple feature access](https://portal.ogc.org/files/?artifact_id=25355). See [Appendix G](#appendix-g-geospatial-notes)). Parameterized by crs C [4]. If not specified, C is OGC:CRS84. |                                                        |
+| [v3](#version-3) | **`geometry(C)`**  | Geometry features from [OGC – Simple feature access](https://portal.ogc.org/files/?artifact_id=25355). Edges interpolation is always linear/planar. See [Appendix G](#appendix-g-geospatial-notes)). Parameterized by crs C [4]. If not specified, C is `OGC:CRS84`. |                                                        |
+| [v3](#version-3) | **`geography(C, A)`**  | Geometry features from [OGC – Simple feature access](https://portal.ogc.org/files/?artifact_id=25355). See [Appendix G](#appendix-g-geospatial-notes)). Parameterized by crs C[5] and edge-interpolation algoritm A [6]. If not specified, C is `OGC:CRS84`. |                                                        |
+
 
 Notes:
 
 1. Timestamp values _without time zone_ represent a date and time of day regardless of zone: the time value is independent of zone adjustments (`2017-11-16 17:10:34` is always retrieved as `2017-11-16 17:10:34`).
 2. Timestamp values _with time zone_ represent a point in time: values are stored as UTC and do not retain a source time zone (`2017-11-16 17:10:34 PST` is stored/retrieved as `2017-11-17 01:10:34 UTC` and these values are considered identical).
 3. Character strings must be stored as UTF-8 encoded byte arrays.
-4. CRS (coordinate reference system) is a mapping of how coordinates refer to locations on earth. A custom crs can be specified by a string, which is a table property whose value is the crs representation, and with an additional '.type' suffix is optionally another table property whose value describes the representation's encoding. If this field is null (no custom CRS provided), CRS defaults to OGC:CRS84, which means the data must be stored in longitude, latitude based on the WGS84 datum. Fixed and cannot be changed by schema evolution.
-
+4. CRS (coordinate reference system) is a mapping of how coordinates refer to locations on earth. A custom crs is represented by a string of the format type:content, where type can be `srid` (where content is the srid) or `projjson` (where content is the name of a table property where the projjson string is stored. If this field is null (no custom crs provided), CRS defaults to OGC:CRS84, which means the data must be stored in longitude, latitude based on the WGS84 datum. Fixed and cannot be changed by schema evolution.
+5. See [4]. This must be a geographic CRS, where longitudes are bound by [-180, 180] and latitudes are bound by [-90, 90].
+6. Edge-interpolation algorithm. This is a mandatory field and cannot be changed by schema evolution. See [Appendix G](#appendix-g-geospatial-notes)
 For details on how to serialize a schema to JSON, see Appendix C.
 
 
@@ -451,7 +454,7 @@ Partition field IDs must be reused if an existing partition spec contains an equ
 
 | Transform name    | Description                                                  | Source types                                                                                              | Result type |
 |-------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|-------------|
-| **`identity`**    | Source value, unmodified                                     | Any except `geometry`                                                                                     | Source type |
+| **`identity`**    | Source value, unmodified                                     | Any except `geometry` and `geography`                                                                     | Source type |
 | **`bucket[N]`**   | Hash of value, mod `N` (see below)                           | `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `uuid`, `fixed`, `binary` | `int`       |
 | **`truncate[W]`** | Value truncated to width `W` (see below)                     | `int`, `long`, `decimal`, `string`, `binary`                                                              | Source type |
 | **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
@@ -586,8 +589,8 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 | _optional_ | _optional_ | _optional_ | **`110  null_value_counts`**      | `map<121: int, 122: long>`                                                  | Map from column id to number of null values in the column                                                                                                                                                          |
 | _optional_ | _optional_ | _optional_ | **`137  nan_value_counts`**       | `map<138: int, 139: long>`                                                  | Map from column id to number of NaN values in the column                                                                                                                                                           |
 | _optional_ | _optional_ | _optional_ | **`111  distinct_counts`**        | `map<123: int, 124: long>`                                                  | Map from column id to number of distinct values in the column; distinct counts must be derived using values in the file by counting or using sketches, but not using methods like merging existing distinct counts |
-| _optional_ | _optional_ | _optional_ | **`125  lower_bounds`**           | `map<126: int, 127: binary>`                                                | Map from column id to lower bound in the column serialized as binary [1]. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2] For `geometry` types, see [7].      |
-| _optional_ | _optional_ | _optional_ | **`128  upper_bounds`**           | `map<129: int, 130: binary>`                                                | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file [2] For `geometry` type, see [8]     |
+| _optional_ | _optional_ | _optional_ | **`125  lower_bounds`**           | `map<126: int, 127: binary>`                                                | Map from column id to lower bound in the column serialized as binary [1]. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2]. See [7] for`geometry` and [8] for `geography`.  |
+| _optional_ | _optional_ | _optional_ | **`128  upper_bounds`**           | `map<129: int, 130: binary>`                                                | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file [2]. See [9] for `geometry` and [10] for `geography`. |
 | _optional_ | _optional_ | _optional_ | **`131  key_metadata`**           | `binary`                                                                    | Implementation-specific key metadata for encryption                                                                                                                                                                |
 | _optional_ | _optional_ | _optional_ | **`132  split_offsets`**          | `list<133: long>`                                                           | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending                                                                                                    |
 |            | _optional_ | _optional_ | **`135  equality_ids`**           | `list<136: int>`                                                            | Field ids used to determine row equality in equality delete files. Required when `content=2` and should be null otherwise. Fields with ids listed in this column must be present in the delete file                |
@@ -605,8 +608,10 @@ Notes:
 4. Position delete metadata can use `referenced_data_file` when all deletes tracked by the entry are in a single data file. Setting the referenced file is required for deletion vectors.
 5. The `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. For deletion vectors, these values are required and must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
 6. The following field ids are reserved on `data_file`: 141.
-7. `geometry`, this is a point: X = westernmost bound of all geometries in file, Y = northernmost bound of all geometries in file, Z is min value for all component points of all geometries in the file, M is min value of all component points of all geometries in the file. See Appendix D for encoding.
-8. `geometry`, this is a point: X = easternmost bound of all geometries in file, Y = southernmost bound of all geometries in file, Z is max value for all component points of all geometries in the file, M is max value of all component points of all geometries in the file. See Appendix D for encoding.
+7. `geometry`, this is a point: X, Y, Z, and M take the min value of all component points of all geometries in file. See Appendix D for encoding.
+8. `geography`, this is a point: X = westernmost bound of all geometries in file, Y = northernmost bound of all geometries in file, Z is min value for all component points of all geometries in the file, M is min value of all component points of all geometries in the file. See Appendix D for encoding.
+9. `geometry`, this is a point: X, Y, Z, and M take the max value of all component points of all geometries in file. See Appendix D for encoding.
+10. `geography`, this is a point: X = easternmost bound of all geometries in file, Y = southernmost bound of all geometries in file, Z is max value for all component points of all geometries in the file, M is max value of all component points of all geometries in the file. See Appendix D for encoding.
 
 The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
 
@@ -1157,6 +1162,7 @@ Maps with non-string keys must use an array representation with the `map` logica
 |**`list`**|`array`||
 |**`map`**|`array` of key-value records, or `map` when keys are strings (optional).|Array storage must use logical type name `map` and must store elements that are 2-field records. The first field is a non-null key and the second field is the value.|
 |**`geometry`**|`bytes`| WKB format, see [Appendix G](#appendix-g-geospatial-notes)                                                                                                                             |
+|**`geography`**|`bytes`| WKB format, see [Appendix G](#appendix-g-geospatial-notes)                                                                                                                             |
 
 Notes:
 
@@ -1211,7 +1217,9 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`struct`**       | `group`                                                            |                                             |                                                                |
 | **`list`**         | `3-level list`                                                     | `LIST`                                      | See Parquet docs for 3-level representation.                   |
 | **`map`**          | `3-level map`                                                      | `MAP`                                       | See Parquet docs for 3-level representation.                   |
-| **`geometry`**     | `binary`                                                           | `GEOMETRY`                                  | WKB format, see [Appendix G](#appendix-g-geospatial-notes).    |
+| **`geometry`**     | `binary`                                                           | `GEOMETRY`                                  | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                             |
+| **`geography`**    | `binary`                                                           | `GEOGRAPHY`                                 | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                             |
+
 
 When reading an `unknown` column, any corresponding column must be ignored and replaced with `null` values.
 
@@ -1242,7 +1250,9 @@ When reading an `unknown` column, any corresponding column must be ignored and r
 | **`struct`**       | `struct`            |                                                      |                                                                                         |
 | **`list`**         | `array`             |                                                      |                                                                                         |
 | **`map`**          | `map`               |                                                      |                                                                                         |
-| **`geometry`**     | `binary`            |                                                      | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                             |
+| **`geometry`**     | `binary`            |                                                      | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                                                      |
+| **`geography`**    | `binary`            |                                                      | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                                                      |
+
 
 Notes:
 
@@ -1336,7 +1346,9 @@ Types are serialized according to this table:
 |**`struct`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": <field id int>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": <boolean>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": <type JSON>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"doc": <comment string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": <JSON encoding of default value>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": <JSON encoding of default value>`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}, ...`<br />&nbsp;&nbsp;`] }`|`{`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 1,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "id",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": true,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": "uuid",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": "0db3e2a8-9d1d-42b9-aa7b-74ebe558dceb",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": "ec5911be-b0a7-458c-8438-c9a3e53cffae"`<br />&nbsp;&nbsp;`}, {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 2,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "data",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": false,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`} ]`<br />`}`|
 |**`list`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": <id int>,`<br />&nbsp;&nbsp;`"element-required": <bool>`<br />&nbsp;&nbsp;`"element": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": 3,`<br />&nbsp;&nbsp;`"element-required": true,`<br />&nbsp;&nbsp;`"element": "string"`<br />`}`|
 |**`map`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": <key id int>,`<br />&nbsp;&nbsp;`"key": <type JSON>,`<br />&nbsp;&nbsp;`"value-id": <val id int>,`<br />&nbsp;&nbsp;`"value-required": <bool>`<br />&nbsp;&nbsp;`"value": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": 4,`<br />&nbsp;&nbsp;`"key": "string",`<br />&nbsp;&nbsp;`"value-id": 5,`<br />&nbsp;&nbsp;`"value-required": false,`<br />&nbsp;&nbsp;`"value": "double"`<br />`}`|
-| **`geometry(C)`** | `JSON object: {`<br />&nbsp;&nbsp;`"type": "geometry",`<br />&nbsp;&nbsp;`"crs": <C>,`<br />`}` | `{`<br />&nbsp;&nbsp;`"type": "geometry",`<br />&nbsp;&nbsp;`"crs": "OGC:CRS84",`<br />`}`  |
+| **`geometry(C)`** | `JSON object: {`<br />&nbsp;&nbsp;`"type": "geometry",`<br />&nbsp;&nbsp;`"crs": <C>`<br />`}` | `{`<br />&nbsp;&nbsp;`"type": "geometry",`<br />&nbsp;&nbsp;`"crs": "OGC:CRS84"`<br />`}`  |
+| **`geography(C)`** | `JSON object: {`<br />&nbsp;&nbsp;`"type": "geography",`<br />&nbsp;&nbsp;`"crs": <C>,`<br />&nbsp;&nbsp;`"algorithm": <A>`<br />}` | `{`<br />&nbsp;&nbsp;`"type": "geography",`<br />&nbsp;&nbsp;`"crs": "OGC:CRS84",`<br />&nbsp;&nbsp;`"algorithm": "spherical"` <br /> `}`  |
+
 
 Note that default values are serialized using the JSON single-value serialization in [Appendix D](#appendix-d-single-value-serialization).
 
@@ -1487,6 +1499,8 @@ This serialization scheme is for storing single values as individual binary valu
 | **`list`**                   | Not supported                                                                                                |
 | **`map`**                    | Not supported                                                                                                |
 | **`geometry`**               | A single point, encoded as a {x, y, optional z, optional m} concatenation of its 8-byte little-endian IEEE 754 coordinate values, with the optional coordinates encoded as NaN if unset. |
+| **`geography`**              | A single point, encoded as a {x, y, optional z, optional m} concatenation of its 8-byte little-endian IEEE 754 coordinate values, with the optional coordinates encoded as NaN if unset. |
+
 
 ### JSON single-value serialization
 
@@ -1514,6 +1528,8 @@ This serialization scheme is for storing single values as individual binary valu
 | **`list`**         | **`JSON array of values`**                | `[1, 2, 3]`                                | Stores a JSON array of values that are serialized using this JSON single-value format |
 | **`map`**          | **`JSON object of key and value arrays`** | `{ "keys": ["a", "b"], "values": [1, 2] }` | Stores arrays of keys and values; individual keys and values are serialized using this JSON single-value format |
 | **`geometry`**     | **`JSON string`**                         | `POINT (30 10)`                            | Stored using WKT representation, see [Appendix G](#appendix-g-geospatial-notes) |
+| **`geography`**    | **`JSON string`**                         | `POINT (30 10)`                            | Stored using WKT representation, see [Appendix G](#appendix-g-geospatial-notes) |
+
 
 ## Appendix E: Format version changes
 
@@ -1645,3 +1661,10 @@ When processing point in time queries implementations should use "snapshot-log" 
 The Geometry class hierarchy and its WKT and WKB serializations (ISO supporting XY, XYZ, XYM, XYZM) are defined by [OpenGIS Implementation Specification for Geographic information – Simple feature access – Part 1: Common architecture](https://portal.ogc.org/files/?artifact_id=25355), from [OGC (Open Geospatial Consortium)](https://www.ogc.org/standard/sfa/).
 
 The version of the OGC standard first used here is 1.2.1, but future versions may also used if the WKB representation remains wire-compatible.
+
+Possible values for edge-interpolation algorithm (A) for `geography` types are:
+* `spherical`: edges are interpolated as geodesics on a sphere. The radius of the underlying sphere is the mean radius of the spheroid defined by the CRS, defined as (2 * major_axis_length + minor_axis_length / 3).
+* `vincenty`: [https://en.wikipedia.org/wiki/Vincenty%27s_formulae](https://en.wikipedia.org/wiki/Vincenty%27s_formulae)
+* `andoyer-lambert-thomas`
+* `andoyer-lambert`
+* `karney`
