@@ -62,13 +62,14 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   private final FileIO io;
   private final EncryptionManager encryption;
   private final Map<String, SnapshotRef> refs;
+  private final UUID uuid;
+  private final int formatVersion;
 
   private transient volatile LocationProvider lazyLocationProvider = null;
   private transient volatile Table lazyTable = null;
   private transient volatile Schema lazySchema = null;
   private transient volatile Map<Integer, PartitionSpec> lazySpecs = null;
   private transient volatile SortOrder lazySortOrder = null;
-  private final UUID uuid;
 
   protected SerializableTable(Table table) {
     this.name = table.name();
@@ -85,6 +86,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     this.encryption = table.encryption();
     this.refs = SerializableMap.copyOf(table.refs());
     this.uuid = table.uuid();
+    this.formatVersion = formatVersion(table);
   }
 
   /**
@@ -156,6 +158,21 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   @Override
   public Map<String, String> properties() {
     return properties;
+  }
+
+  public int formatVersion() {
+    return formatVersion;
+  }
+
+  private int formatVersion(Table table) {
+    if (table instanceof HasTableOperations) {
+      return ((HasTableOperations) table).operations().current().formatVersion();
+    } else {
+      // formatVersion=-1 will never be used/returned, because
+      // SerializableMetadataTable#formatVersion() will throw an UOE when the format version is
+      // retrieved
+      return -1;
+    }
   }
 
   @Override
@@ -426,6 +443,12 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     public StaticTableOperations operations() {
       throw new UnsupportedOperationException(
           this.getClass().getName() + " does not support operations()");
+    }
+
+    @Override
+    public int formatVersion() {
+      throw new UnsupportedOperationException(
+          this.getClass().getName() + " does not have a format version");
     }
 
     public MetadataTableType type() {
