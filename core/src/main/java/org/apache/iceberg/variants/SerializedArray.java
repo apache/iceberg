@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.variants;
 
-import static org.apache.iceberg.variants.VariantUtil.basicType;
-
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -38,7 +36,7 @@ class SerializedArray extends Variants.SerializedValue implements VariantArray {
   static SerializedArray from(SerializedMetadata metadata, ByteBuffer value, int header) {
     Preconditions.checkArgument(
         value.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
-    Variants.BasicType basicType = basicType(header);
+    Variants.BasicType basicType = VariantUtil.basicType(header);
     Preconditions.checkArgument(
         basicType == Variants.BasicType.ARRAY, "Invalid array, basic type: " + basicType);
     return new SerializedArray(metadata, value, header);
