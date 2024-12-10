@@ -170,7 +170,7 @@ class VariantUtil {
 
   static byte objectHeader(boolean isLarge, int fieldIdSize, int offsetSize) {
     return (byte)
-        ((isLarge ? 0x1000000 : 0) | ((fieldIdSize - 1) << 4) | ((offsetSize - 1) << 2) | 0b10);
+        ((isLarge ? 0b1000000 : 0) | ((fieldIdSize - 1) << 4) | ((offsetSize - 1) << 2) | 0b10);
   }
 
   static byte arrayHeader(boolean isLarge, int offsetSize) {

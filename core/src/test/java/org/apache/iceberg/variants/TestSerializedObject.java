@@ -24,6 +24,7 @@ import java.util.Random;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.RandomUtil;
 import org.apache.iceberg.variants.Variants.PhysicalType;
 import org.assertj.core.api.Assertions;
@@ -196,6 +197,31 @@ public class TestSerializedObject {
     Assertions.assertThat(object.get("c").asPrimitive().get()).isEqualTo((byte) 3);
     Assertions.assertThat(object.get("really-big").type()).isEqualTo(PhysicalType.STRING);
     Assertions.assertThat(object.get("really-big").asPrimitive().get()).isEqualTo(randomString);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  public void testLargeObject(boolean sortFieldNames) {
+    Map<String, VariantPrimitive<String>> fields = Maps.newHashMap();
+    for (int i = 0; i < 10_000; i += 1) {
+      fields.put(RandomUtil.generateString(10, random), Variants.of(RandomUtil.generateString(10, random)));
+    }
+
+    ByteBuffer meta = VariantTestUtil.createMetadata(fields.keySet(), sortFieldNames);
+    ByteBuffer value = VariantTestUtil.createObject(meta, (Map) fields);
+
+    SerializedMetadata metadata = SerializedMetadata.from(meta);
+    SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
+
+    Assertions.assertThat(object.type()).isEqualTo(Variants.PhysicalType.OBJECT);
+    Assertions.assertThat(object.numElements()).isEqualTo(10_000);
+
+    for (Map.Entry<String, VariantPrimitive<String>> entry : fields.entrySet()) {
+      VariantValue fieldValue = object.get(entry.getKey());
+      Assertions.assertThat(fieldValue.type()).isEqualTo(Variants.PhysicalType.STRING);
+      Assertions.assertThat(fieldValue.asPrimitive().get()).isEqualTo(entry.getValue().get());
+    }
   }
 
   @ParameterizedTest
