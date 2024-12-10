@@ -51,8 +51,8 @@ Iceberg materialized views are implemented as a combination of an Iceberg view a
 The metadata for a materialized view extends the common view metadata, adding a pointer to the precomputed data and refresh information to determine if the data is still fresh. 
 The refresh information is composed of data about the so-called "source tables", which are the tables referenced in the query definition of the materialized view. 
 The storage table can be in the states of "fresh", "stale" or "invalid", which are determined from the following situations:
-* **fresh** -- The `snapshot_id`'s of the last refresh operation match the current `snapshot_id`'s of the source tables.
-* **stale** -- The `snapshot_id`'s do not match, indicating that a refresh operation needs to be performed to capture the latest source table changes.
+* **fresh** -- The `snapshot_id`s of the last refresh operation match the current `snapshot_id`s of the source tables.
+* **stale** -- The `snapshot_id`s do not match, indicating that a refresh operation needs to be performed to capture the latest source table changes.
 * **invalid** -- The current `version_id` of the materialized view does not match the `refresh-version-id` of the refresh state. 
 
 ## Specification
@@ -185,7 +185,7 @@ The full identifier holds a reference, containing a namespace and a name, of a t
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
-| _optional_  | `catalog`      | A string specifying the name of the catalog. If set to `null`, the catalog is the same as the views' catalog |
+| _optional_  | `catalog`      | A string specifying the name of the catalog. If set to `null`, the catalog is the same as the view's catalog |
 | _required_  | `namespace`    | A list of namespace levels |
 | _required_  | `name`         | A string specifying the name of the table/view |
 
