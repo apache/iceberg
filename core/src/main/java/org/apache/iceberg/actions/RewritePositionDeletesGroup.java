@@ -30,6 +30,7 @@ import org.apache.iceberg.actions.RewritePositionDeleteFiles.FileGroupRewriteRes
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.DeleteFileSet;
+import org.apache.iceberg.util.ScanTaskUtil;
 
 /**
  * Container class representing a set of position delete files to be rewritten by a {@link
@@ -109,7 +110,7 @@ public class RewritePositionDeletesGroup {
   }
 
   public long addedBytes() {
-    return addedDeleteFiles.stream().mapToLong(DeleteFile::fileSizeInBytes).sum();
+    return addedDeleteFiles.stream().mapToLong(ScanTaskUtil::contentSizeInBytes).sum();
   }
 
   public int numRewrittenDeleteFiles() {
