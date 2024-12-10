@@ -41,6 +41,7 @@ import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.model.GetTablesRequest;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3tables.S3TablesClient;
 
 public class TestAwsClientFactories {
 
@@ -304,6 +305,11 @@ public class TestAwsClientFactories {
 
     @Override
     public DynamoDbClient dynamo() {
+      return null;
+    }
+
+    @Override
+    public S3TablesClient s3tables() {
       return null;
     }
 

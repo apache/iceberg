@@ -31,6 +31,7 @@ project(":iceberg-aws-bundle") {
     implementation "software.amazon.awssdk:iam"
     implementation "software.amazon.awssdk:sso"
     implementation "software.amazon.awssdk:s3"
+    implementation "software.amazon.awssdk:s3tables"
     implementation "software.amazon.awssdk:kms"
     implementation "software.amazon.awssdk:glue"
     implementation "software.amazon.awssdk:sts"

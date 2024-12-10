@@ -24,6 +24,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3tables.S3TablesClient;
 
 /**
  * Interface to customize AWS clients used by Iceberg. A custom factory must have a no-arg
@@ -58,6 +59,13 @@ public interface AwsClientFactory extends Serializable {
    * @return dynamoDB client
    */
   DynamoDbClient dynamo();
+
+  /**
+   * create a Amazon S3 Tables client
+   *
+   * @return s3tables client
+   */
+  S3TablesClient s3tables();
 
   /**
    * Initialize AWS client factory from catalog properties.

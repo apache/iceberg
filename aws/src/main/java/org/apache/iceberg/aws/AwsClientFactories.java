@@ -42,6 +42,7 @@ import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
+import software.amazon.awssdk.services.s3tables.S3TablesClient;
 
 public class AwsClientFactories {
 
@@ -144,6 +145,16 @@ public class AwsClientFactories {
           .applyMutation(httpClientProperties::applyHttpClientConfigurations)
           .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
           .applyMutation(awsProperties::applyDynamoDbEndpointConfigurations)
+          .build();
+    }
+
+    @Override
+    public S3TablesClient s3tables() {
+      return S3TablesClient.builder()
+          .applyMutation(awsClientProperties::applyClientRegionConfiguration)
+          .applyMutation(httpClientProperties::applyHttpClientConfigurations)
+          .applyMutation(httpClientProperties::applyUserAgentConfigurationsForS3Tables)
+          .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
           .build();
     }
 

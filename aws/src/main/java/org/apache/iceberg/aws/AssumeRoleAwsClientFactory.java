@@ -29,6 +29,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3tables.S3TablesClient;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
@@ -73,6 +74,15 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
         .applyMutation(this::applyAssumeRoleConfigurations)
         .applyMutation(httpClientProperties::applyHttpClientConfigurations)
         .applyMutation(awsProperties::applyDynamoDbEndpointConfigurations)
+        .build();
+  }
+
+  @Override
+  public S3TablesClient s3tables() {
+    return S3TablesClient.builder()
+        .applyMutation(this::applyAssumeRoleConfigurations)
+        .applyMutation(httpClientProperties::applyHttpClientConfigurations)
+        .applyMutation(httpClientProperties::applyUserAgentConfigurationsForS3Tables)
         .build();
   }
 

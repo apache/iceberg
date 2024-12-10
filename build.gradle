@@ -465,6 +465,7 @@ project(':iceberg-aws') {
     compileOnly("software.amazon.awssdk:auth")
     compileOnly("software.amazon.awssdk:http-auth-aws-crt")
     compileOnly("software.amazon.awssdk:s3")
+    compileOnly("software.amazon.awssdk:s3tables")
     compileOnly("software.amazon.awssdk:kms")
     compileOnly("software.amazon.awssdk:glue")
     compileOnly("software.amazon.awssdk:sts")
@@ -483,6 +484,7 @@ project(':iceberg-aws') {
     testImplementation(platform(libs.awssdk.bom))
     testImplementation("software.amazon.awssdk:iam")
     testImplementation("software.amazon.awssdk:s3control")
+    testImplementation("software.amazon.awssdk:s3tables")
     testImplementation("software.amazon.s3.accessgrants:aws-s3-accessgrants-java-plugin")
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation libs.esotericsoftware.kryo

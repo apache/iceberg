@@ -21,10 +21,13 @@ package org.apache.iceberg.aws;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.Map;
+import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
+import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
+import software.amazon.awssdk.services.s3tables.S3TablesClientBuilder;
 
 public class HttpClientProperties implements Serializable {
 
@@ -186,6 +189,9 @@ public class HttpClientProperties implements Serializable {
   public static final String APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED =
       "http-client.apache.use-idle-connection-reaper-enabled";
 
+  /** Controls the userAgent alias for client requests to S3_tables */
+  public static final String S3_TABLES_ICEBERG_CATALOG_USER_AGENT = "s3tables-iceberg-catalog/";
+
   private String httpClientType;
   private final Map<String, String> httpClientProperties;
 
@@ -252,5 +258,22 @@ public class HttpClientProperties implements Serializable {
           String.format("Cannot create %s to generate and configure the http client builder", impl),
           e);
     }
+  }
+
+  /**
+   * Override the user agent for a s3 tables sdk client
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3TablesClient.builder().applyMutation(s3TablesProperties::applyUserAgentConfigurations)
+   * </pre>
+   */
+  public <T extends S3TablesClientBuilder> void applyUserAgentConfigurationsForS3Tables(T builder) {
+    builder.overrideConfiguration(
+        c ->
+            c.putAdvancedOption(
+                SdkAdvancedClientOption.USER_AGENT_PREFIX,
+                S3_TABLES_ICEBERG_CATALOG_USER_AGENT + IcebergBuild.fullVersion()));
   }
 }
