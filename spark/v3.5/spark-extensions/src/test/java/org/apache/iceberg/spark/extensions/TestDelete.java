@@ -23,6 +23,7 @@ import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
 import static org.apache.iceberg.RowLevelOperationMode.MERGE_ON_READ;
 import static org.apache.iceberg.SnapshotSummary.ADDED_DVS_PROP;
 import static org.apache.iceberg.SnapshotSummary.ADD_POS_DELETE_FILES_PROP;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
 import static org.apache.iceberg.TableProperties.DELETE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.DELETE_MODE;
@@ -1150,6 +1151,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
         tableName, DELETE_ISOLATION_LEVEL, "snapshot");
+    sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName, COMMIT_MIN_RETRY_WAIT_MS, "10");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
     createBranchIfNeeded();
