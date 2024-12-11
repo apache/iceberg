@@ -49,6 +49,15 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   private static final Schema UUID_SCHEMA =
       LogicalTypes.uuid().addToSchema(Schema.createFixed("uuid_fixed", null, null, 16));
   private static final Schema BINARY_SCHEMA = Schema.create(Schema.Type.BYTES);
+  private static final Schema VARIANT_SCHEMA =
+      Schema.createRecord(
+          "variant",
+          null,
+          null,
+          false,
+          List.of(
+              new Schema.Field("value", BINARY_SCHEMA),
+              new Schema.Field("metadata", BINARY_SCHEMA)));
 
   static {
     TIMESTAMP_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, false);
@@ -185,6 +194,11 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
     cacheSchema(map, mapSchema);
 
     return mapSchema;
+  }
+
+  @Override
+  public Schema variant() {
+    return VARIANT_SCHEMA;
   }
 
   @Override

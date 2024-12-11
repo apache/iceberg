@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.parquet;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.avro.generic.GenericData.Fixed;
 import org.apache.avro.generic.IndexedRecord;
@@ -101,6 +102,11 @@ public class ParquetAvroWriter {
           repeatedR,
           ParquetValueWriters.option(keyType, keyD, keyWriter),
           ParquetValueWriters.option(valueType, valueD, valueWriter));
+    }
+
+    @Override
+    public ParquetValueWriter<?> variant(GroupType variant) {
+      return new VariantWriter(variant);
     }
 
     @Override
@@ -188,6 +194,42 @@ public class ParquetAvroWriter {
     @Override
     protected Object get(IndexedRecord struct, int index) {
       return struct.get(index);
+    }
+  }
+
+  private static class VariantWriter extends StructWriter<ParquetVariant> {
+    private VariantWriter(GroupType variant) {
+      super(
+          List.of(
+              ParquetValueWriters.byteBuffers(
+                  new ColumnDescriptor(
+                      new String[] {variant.getName(), "value"},
+                      new PrimitiveType(
+                          Type.Repetition.REQUIRED,
+                          PrimitiveType.PrimitiveTypeName.BINARY,
+                          "value"),
+                      0,
+                      0)),
+              ParquetValueWriters.byteBuffers(
+                  new ColumnDescriptor(
+                      new String[] {variant.getName(), "metadata"},
+                      new PrimitiveType(
+                          Type.Repetition.REQUIRED,
+                          PrimitiveType.PrimitiveTypeName.BINARY,
+                          "metadata"),
+                      0,
+                      0))));
+    }
+
+    @Override
+    protected ByteBuffer get(ParquetVariant variant, int index) {
+      if (index == 0) {
+        return ByteBuffer.wrap(variant.getValue());
+      } else if (index == 1) {
+        return ByteBuffer.wrap(variant.getMetadata());
+      }
+
+      throw new IllegalArgumentException("Invalid index: " + index + " for variant");
     }
   }
 }
