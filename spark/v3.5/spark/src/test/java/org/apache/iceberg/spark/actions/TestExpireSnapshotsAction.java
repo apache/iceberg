@@ -874,7 +874,7 @@ public class TestExpireSnapshotsAction extends TestBase {
                     .allManifests(table.io())
                     .get(0)
                     .path(), // manifest contained only deletes, was dropped
-                FILE_A.path()) // deleted
+                FILE_A.location()) // deleted
             );
 
     checkExpirationResults(1, 0, 0, 2, 2, result);
@@ -941,7 +941,7 @@ public class TestExpireSnapshotsAction extends TestBase {
                     .get(0)
                     .path(), // manifest was rewritten for delete
                 secondSnapshot.manifestListLocation(), // snapshot expired
-                FILE_A.path()) // deleted
+                FILE_A.location()) // deleted
             );
     checkExpirationResults(1, 0, 0, 1, 2, result);
   }
@@ -1053,7 +1053,7 @@ public class TestExpireSnapshotsAction extends TestBase {
                 secondSnapshot.manifestListLocation(), // snapshot expired
                 Iterables.getOnlyElement(secondSnapshotManifests)
                     .path(), // manifest is no longer referenced
-                FILE_B.path()) // added, but rolled back
+                FILE_B.location()) // added, but rolled back
             );
 
     checkExpirationResults(1, 0, 0, 1, 1, result);

@@ -444,7 +444,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
     Set<String> matchingFileLocations = Sets.newHashSet();
     try (CloseableIterable<FileScanTask> files = table.newScan().filter(filter).planFiles()) {
       for (FileScanTask file : files) {
-        String path = file.file().path().toString();
+        String path = file.file().location();
         matchingFileLocations.add(path);
       }
     } catch (IOException e) {
@@ -454,7 +454,7 @@ public class TestRuntimeFiltering extends SparkTestBaseWithCatalog {
     Set<String> deletedFileLocations = Sets.newHashSet();
     try (CloseableIterable<FileScanTask> files = table.newScan().planFiles()) {
       for (FileScanTask file : files) {
-        String path = file.file().path().toString();
+        String path = file.file().location();
         if (!matchingFileLocations.contains(path)) {
           io.deleteFile(path);
           deletedFileLocations.add(path);

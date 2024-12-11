@@ -164,7 +164,7 @@ public class TestRewriteManifests extends TestBase {
 
     // cluster by path will split the manifest into two
 
-    table.rewriteManifests().clusterBy(file -> file.location()).commit();
+    table.rewriteManifests().clusterBy(ContentFile::location).commit();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
     assertThat(manifests).hasSize(2);

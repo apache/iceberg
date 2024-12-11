@@ -82,7 +82,7 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
 
   @Override
   protected CloseableIterator<ColumnarBatch> open(FileScanTask task) {
-    String filePath = task.file().path().toString();
+    String filePath = task.file().location();
     LOG.debug("Opening data file {}", filePath);
 
     // update the current file for Spark's filename() function
