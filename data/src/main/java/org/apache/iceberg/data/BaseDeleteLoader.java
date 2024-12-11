@@ -54,8 +54,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.apache.iceberg.relocated.com.google.common.math.LongMath;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.ContentFileUtil;
+import org.apache.iceberg.util.PathMap;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -200,7 +200,7 @@ public class BaseDeleteLoader implements DeleteLoader {
     long estimatedSize = estimatePosDeletesSize(deleteFile);
     if (canCache(estimatedSize)) {
       String cacheKey = deleteFile.location();
-      CharSequenceMap<PositionDeleteIndex> indexes =
+      PathMap<PositionDeleteIndex> indexes =
           getOrLoad(cacheKey, () -> readPosDeletes(deleteFile), estimatedSize);
       return indexes.getOrDefault(filePath, PositionDeleteIndex.empty());
     } else {
@@ -208,9 +208,9 @@ public class BaseDeleteLoader implements DeleteLoader {
     }
   }
 
-  private CharSequenceMap<PositionDeleteIndex> readPosDeletes(DeleteFile deleteFile) {
+  private PathMap<PositionDeleteIndex> readPosDeletes(DeleteFile deleteFile) {
     CloseableIterable<Record> deletes = openDeletes(deleteFile, POS_DELETE_SCHEMA);
-    return Deletes.toPositionIndexes(deletes, deleteFile);
+    return Deletes.toPathPositionIndexes(deletes, deleteFile);
   }
 
   private PositionDeleteIndex readPosDeletes(DeleteFile deleteFile, CharSequence filePath) {
