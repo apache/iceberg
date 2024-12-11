@@ -52,6 +52,14 @@ enum Timestamps implements Transform<Long, Integer> {
     this.apply = apply;
   }
 
+  /**
+   * Transforms a value to its corresponding partition value.
+   *
+   * @param timestamp a source value
+   * @return a transformed partition value
+   * @deprecated will be removed in 2.0.0; use {@link #bind(Type)} instead
+   */
+  @Deprecated
   @Override
   public Integer apply(Long timestamp) {
     return apply.apply(timestamp);
