@@ -36,7 +36,6 @@ import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.EnvironmentContext;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -60,7 +59,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.SparkView;
@@ -351,7 +349,7 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public boolean dropTable(Identifier ident) {
-    return dropTableWithoutPurging(ident);
+    return dropTable(ident, false);
   }
 
   @Override
@@ -361,32 +359,18 @@ public class SparkCatalog extends BaseCatalog {
       ValidationException.check(
           PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
           "Cannot purge table: GC is disabled (deleting files may corrupt other tables)");
-      String metadataFileLocation =
-          ((HasTableOperations) table).operations().current().metadataFileLocation();
 
-      boolean dropped = dropTableWithoutPurging(ident);
-
-      if (dropped) {
-        // check whether the metadata file exists because HadoopCatalog/HadoopTables
-        // will drop the warehouse directly and ignore the `purge` argument
-        boolean metadataFileExists = table.io().newInputFile(metadataFileLocation).exists();
-
-        if (metadataFileExists) {
-          SparkActions.get().deleteReachableFiles(metadataFileLocation).io(table.io()).execute();
-        }
-      }
-
-      return dropped;
+      return dropTable(ident, true);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       return false;
     }
   }
 
-  private boolean dropTableWithoutPurging(Identifier ident) {
+  private boolean dropTable(Identifier ident, boolean purge) {
     if (isPathIdentifier(ident)) {
-      return tables.dropTable(((PathIdentifier) ident).location(), false /* don't purge data */);
+      return tables.dropTable(((PathIdentifier) ident).location(), purge);
     } else {
-      return icebergCatalog.dropTable(buildIdentifier(ident), false /* don't purge data */);
+      return icebergCatalog.dropTable(buildIdentifier(ident), purge);
     }
   }
 
