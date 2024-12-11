@@ -205,8 +205,8 @@ Supported primitive types are defined in the table below. Primitive types added 
 |                  | **`uuid`**         | Universally unique identifiers                                           | Should use 16-byte fixed                         |
 |                  | **`fixed(L)`**     | Fixed-length byte array of length L                                      |                                                  |
 |                  | **`binary`**       | Arbitrary-length byte array                                              |                                                  |
-| [v3](#version-3) | **`geometry(C)`**  | Geometry features from [OGC – Simple feature access](https://portal.ogc.org/files/?artifact_id=25355). Edges interpolation is always linear/planar. See [Appendix G](#appendix-g-geospatial-notes)). Parameterized by crs C [4]. If not specified, C is `OGC:CRS84`. |                                                        |
-| [v3](#version-3) | **`geography(C, A)`**  | Geometry features from [OGC – Simple feature access](https://portal.ogc.org/files/?artifact_id=25355). See [Appendix G](#appendix-g-geospatial-notes)). Parameterized by crs C[5] and edge-interpolation algoritm A [6]. If not specified, C is `OGC:CRS84`. |                                                        |
+| [v3](#version-3) | **`geometry(C)`**  | Geometry features from [OGC – Simple feature access](https://portal.ogc.org/files/?artifact_id=25355). Edges interpolation is always linear/planar. See [Appendix G](#appendix-g-geospatial-notes). Parameterized by crs C [4]. If not specified, C is `OGC:CRS84`. |                                                        |
+| [v3](#version-3) | **`geography(C, A)`**  | Geometry features from [OGC – Simple feature access](https://portal.ogc.org/files/?artifact_id=25355). See [Appendix G](#appendix-g-geospatial-notes). Parameterized by crs C[5] and edge-interpolation algoritm A [6]. If not specified, C is `OGC:CRS84`. |                                                        |
 
 
 Notes:
@@ -214,9 +214,9 @@ Notes:
 1. Timestamp values _without time zone_ represent a date and time of day regardless of zone: the time value is independent of zone adjustments (`2017-11-16 17:10:34` is always retrieved as `2017-11-16 17:10:34`).
 2. Timestamp values _with time zone_ represent a point in time: values are stored as UTC and do not retain a source time zone (`2017-11-16 17:10:34 PST` is stored/retrieved as `2017-11-17 01:10:34 UTC` and these values are considered identical).
 3. Character strings must be stored as UTF-8 encoded byte arrays.
-4. CRS (coordinate reference system) is a mapping of how coordinates refer to locations on earth. A custom crs is represented by a string of the format type:content, where type can be `srid` (where content is the srid) or `projjson` (where content is the name of a table property where the projjson string is stored). If this field is null (no custom crs provided), CRS defaults to OGC:CRS84, which means the data must be stored in longitude, latitude based on the WGS84 datum. Fixed and cannot be changed by schema evolution.
+4. CRS (coordinate reference system) is a mapping of how coordinates refer to locations on earth. See [Appendix G](#appendix-g-geospatial-notes) for specifying custom CRS. If this field is null (no custom crs provided), CRS defaults to `OGC:CRS84`, which means the data must be stored in longitude, latitude based on the WGS84 datum. Fixed and cannot be changed by schema evolution.
 5. See [4]. This must be a geographic CRS, where longitudes are bound by [-180, 180] and latitudes are bound by [-90, 90].
-6. Edge-interpolation algorithm. This is a mandatory field and cannot be changed by schema evolution. See [Appendix G](#appendix-g-geospatial-notes)
+6. Edge-interpolation algorithm. This is a mandatory field and cannot be changed by schema evolution. See [Appendix G](#appendix-g-geospatial-notes).
 For details on how to serialize a schema to JSON, see Appendix C.
 
 
@@ -1663,9 +1663,19 @@ The version of the OGC standard first used here is 1.2.1, but future versions ma
 
 Coordinate axis order is always (x, y) where x is easting or longitude, and y is northing or latitude. This ordering explicitly overrides the axis order specified in the CRS.
 
-Possible values for edge-interpolation algorithm (A) for `geography` types are:
+### Supported CRS Customizations
+A custom crs is represented by a string of the format `$type:$content`.
+
+Supported values for `type` are:
+* `srid`: [Spatial reference identifier](https://en.wikipedia.org/wiki/Spatial_reference_system#Identifier), `content` is the identifier itself.
+* `projjson`: [PROJJSON](https://proj.org/en/stable/specifications/projjson.html), `content` is the name of a table property where the projjson string is stored.
+
+### Supported Edge-Interpolation Algorithms
+The edge-interpolation algorithm is specified as a parameter (A) for `geography` types.
+
+Supported values are:
 * `spherical`: edges are interpolated as geodesics on a sphere. The radius of the underlying sphere is the mean radius of the spheroid defined by the CRS, defined as (2 * major_axis_length + minor_axis_length / 3).
 * `vincenty`: [https://en.wikipedia.org/wiki/Vincenty%27s_formulae](https://en.wikipedia.org/wiki/Vincenty%27s_formulae)
-* `andoyer-lambert-thomas`: Thomas, Paul D. Spheroidal geodesics, reference systems, & local geometry. US Naval Oceanographic Office, 1970.
-* `andoyer-lambert`: Thomas, Paul D. Mathematical models for navigation systems. US Naval Oceanographic Office, 1965.
+* `thomas`: Thomas, Paul D. Spheroidal geodesics, reference systems, & local geometry. US Naval Oceanographic Office, 1970.
+* `andoyer`: Thomas, Paul D. Mathematical models for navigation systems. US Naval Oceanographic Office, 1965.
 * `karney`: [Karney, Charles FF. "Algorithms for geodesics." Journal of Geodesy 87 (2013): 43-55](https://link.springer.com/content/pdf/10.1007/s00190-012-0578-z.pdf), and [GeographicLib](https://geographiclib.sourceforge.io/)
