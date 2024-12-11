@@ -47,7 +47,7 @@ public class Endpoint {
   public static final Endpoint V1_DELETE_NAMESPACE =
       Endpoint.create("DELETE", ResourcePaths.V1_NAMESPACE);
   public static final Endpoint V1_NAMESPACE_EXISTS =
-          Endpoint.create("HEAD", ResourcePaths.V1_NAMESPACE);
+      Endpoint.create("HEAD", ResourcePaths.V1_NAMESPACE);
   public static final Endpoint V1_COMMIT_TRANSACTION =
       Endpoint.create("POST", ResourcePaths.V1_TRANSACTIONS_COMMIT);
 
