@@ -137,6 +137,31 @@ public class TestViews extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void readFromViewWithNullColumn() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = viewName("viewWithNullColumn");
+    String sql = String.format("SELECT id , NULL as col_test FROM %s WHERE id <=1", tableName);
+
+    assertThat(sql(sql)).hasSize(1);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        // use non-existing column name to make sure only the SQL definition for spark is loaded
+        .withQuery("trino", String.format("SELECT non_existing FROM %s", tableName))
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(1)
+        .containsExactlyInAnyOrder(row(1, null));
+  }
+
+  @TestTemplate
   public void readFromTrinoView() throws NoSuchTableException {
     insertRows(10);
     String viewName = viewName("trinoView");
