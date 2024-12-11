@@ -93,6 +93,26 @@ public class TestTables {
     return new TestTable(ops, name, reporter);
   }
 
+  public static TestTable create(
+      File temp,
+      String name,
+      Schema schema,
+      PartitionSpec spec,
+      int formatVersion,
+      Map<String, String> properties) {
+    TestTableOperations ops = new TestTableOperations(name, temp);
+    if (ops.current() != null) {
+      throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
+    }
+
+    ops.commit(
+        null,
+        newTableMetadata(
+            schema, spec, SortOrder.unsorted(), temp.toString(), properties, formatVersion));
+
+    return new TestTable(ops, name);
+  }
+
   public static Transaction beginCreate(File temp, String name, Schema schema, PartitionSpec spec) {
     return beginCreate(temp, name, schema, spec, SortOrder.unsorted());
   }
