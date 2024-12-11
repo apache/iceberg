@@ -168,6 +168,17 @@ class SchemaUpdate implements UpdateSchema {
       fullName = name;
     }
 
+    // when adding structs with empty fields, Parquet fails complaining
+    // Cannot write a schema with an empty group, so fail on add column
+    // More details: https://issues.apache.org/jira/browse/SPARK-20593
+    Preconditions.checkArgument(
+        !type.isNestedType()
+            || !type.asNestedType().isStructType()
+            || (type.asNestedType().isStructType()
+                && !((Types.StructType) type).fields().isEmpty()),
+        "Cannot add struct with empty fields: %s",
+        type);
+
     // assign new IDs in order
     int newId = assignNewColumnId();
 
