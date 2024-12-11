@@ -898,7 +898,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
       List<Pair<CharSequence, Long>> deletes = Lists.newArrayList();
       for (DataFile partitionFile : partitionFiles) {
         for (int deletePos = 0; deletePos < deletesPerDataFile; deletePos++) {
-          deletes.add(Pair.of(partitionFile.path(), (long) deletePos));
+          deletes.add(Pair.of(partitionFile.location(), (long) deletePos));
           counter++;
           if (counter == deleteFileSize) {
             // Dump to file and reset variables
@@ -936,17 +936,17 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
   private <T extends ContentFile<?>> List<T> except(List<T> first, List<T> second) {
     Set<String> secondPaths =
-        second.stream().map(f -> f.path().toString()).collect(Collectors.toSet());
+        second.stream().map(ContentFile::location).collect(Collectors.toSet());
     return first.stream()
-        .filter(f -> !secondPaths.contains(f.path().toString()))
+        .filter(f -> !secondPaths.contains(f.location()))
         .collect(Collectors.toList());
   }
 
   private void assertNotContains(List<DeleteFile> original, List<DeleteFile> rewritten) {
     Set<String> originalPaths =
-        original.stream().map(f -> f.path().toString()).collect(Collectors.toSet());
+        original.stream().map(ContentFile::location).collect(Collectors.toSet());
     Set<String> rewrittenPaths =
-        rewritten.stream().map(f -> f.path().toString()).collect(Collectors.toSet());
+        rewritten.stream().map(ContentFile::location).collect(Collectors.toSet());
     rewrittenPaths.retainAll(originalPaths);
     assertThat(rewrittenPaths).hasSize(0);
   }
@@ -955,7 +955,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     for (DeleteFile deleteFile : deleteFiles) {
       Dataset<Row> deletes =
           spark.read().format("iceberg").load("default." + TABLE_NAME + ".position_deletes");
-      deletes.filter(deletes.col("delete_file_path").equalTo(deleteFile.path().toString()));
+      deletes.filter(deletes.col("delete_file_path").equalTo(deleteFile.location()));
       List<Row> rows = deletes.collectAsList();
       assertThat(rows).as("Empty delete file found").isNotEmpty();
       int lastPos = 0;

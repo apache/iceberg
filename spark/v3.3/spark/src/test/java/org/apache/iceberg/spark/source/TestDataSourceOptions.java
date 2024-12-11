@@ -109,7 +109,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       tasks.forEach(
           task -> {
-            FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
+            FileFormat fileFormat = FileFormat.fromFileName(task.file().location());
             Assert.assertEquals(FileFormat.PARQUET, fileFormat);
           });
     }
@@ -134,7 +134,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       tasks.forEach(
           task -> {
-            FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
+            FileFormat fileFormat = FileFormat.fromFileName(task.file().location());
             Assert.assertEquals(FileFormat.AVRO, fileFormat);
           });
     }
