@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.spark;
 
-import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
+import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTORE_URIS;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -75,7 +75,7 @@ public abstract class SparkTestBase extends SparkTestHelperBase {
         SparkSession.builder()
             .master("local[2]")
             .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
-            .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
+            .config("spark.hadoop." + METASTORE_URIS.varname, hiveConf.get(METASTORE_URIS.varname))
             .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
             .enableHiveSupport()
             .getOrCreate();

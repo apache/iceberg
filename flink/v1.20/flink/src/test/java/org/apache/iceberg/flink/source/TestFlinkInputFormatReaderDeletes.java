@@ -44,8 +44,8 @@ public class TestFlinkInputFormatReaderDeletes extends TestFlinkReaderDeletesBas
     Map<String, String> properties = Maps.newHashMap();
     properties.put(
         CatalogProperties.WAREHOUSE_LOCATION,
-        hiveConf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname));
-    properties.put(CatalogProperties.URI, hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname));
+        hiveConf.get(HiveConf.ConfVars.METASTORE_WAREHOUSE.varname));
+    properties.put(CatalogProperties.URI, hiveConf.get(HiveConf.ConfVars.METASTORE_URIS.varname));
     properties.put(
         CatalogProperties.CLIENT_POOL_SIZE,
         Integer.toString(hiveConf.getInt("iceberg.hive.client-pool-size", 5)));

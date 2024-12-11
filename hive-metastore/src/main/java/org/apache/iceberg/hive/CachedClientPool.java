@@ -132,7 +132,7 @@ public class CachedClientPool implements ClientPool<IMetaStoreClient, TException
   static Key extractKey(String cacheKeys, Configuration conf) {
     // generate key elements in a certain order, so that the Key instances are comparable
     List<Object> elements = Lists.newArrayList();
-    elements.add(conf.get(HiveConf.ConfVars.METASTOREURIS.varname, ""));
+    elements.add(conf.get(HiveConf.ConfVars.METASTORE_URIS.varname, ""));
     elements.add(conf.get(HiveCatalog.HIVE_CONF_CATALOG, "hive"));
     if (cacheKeys == null || cacheKeys.isEmpty()) {
       return Key.of(elements);

@@ -57,7 +57,8 @@ public class TestFlinkHiveCatalog extends TestBase {
       Configuration newConf = new Configuration(hiveConf);
       // Set another new directory which is different with the hive metastore's warehouse path.
       newConf.set(
-          HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file://" + warehouseDir.getAbsolutePath());
+          HiveConf.ConfVars.METASTORE_WAREHOUSE.varname,
+          "file://" + warehouseDir.getAbsolutePath());
       newConf.writeXml(fos);
     }
     assertThat(hiveSiteXML.toPath()).exists();

@@ -180,20 +180,10 @@ if (sparkVersions.contains("3.5")) {
   project(":iceberg-spark:spark-runtime-3.5_${scalaVersion}").name = "iceberg-spark-runtime-3.5_${scalaVersion}"
 }
 
-// hive 3 depends on hive 2, so always add hive 2 if hive3 is enabled
-if (hiveVersions.contains("2") || hiveVersions.contains("3")) {
+if (hiveVersions.contains("2")) {
   include 'mr'
-  include 'hive-runtime'
 
   project(':mr').name = 'iceberg-mr'
-  project(':hive-runtime').name = 'iceberg-hive-runtime'
-}
-
-if (hiveVersions.contains("3")) {
-  include 'hive3'
-  include 'hive3-orc-bundle'
-  project(':hive3').name = 'iceberg-hive3'
-  project(':hive3-orc-bundle').name = 'iceberg-hive3-orc-bundle'
 }
 
 if (kafkaVersions.contains("3")) {
