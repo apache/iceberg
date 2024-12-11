@@ -204,7 +204,7 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
         .forEach(
             file ->
                 Assert.assertTrue(
-                    "FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString())));
+                    "FILE_A should be deleted", deletedFiles.contains(FILE_A.location())));
     checkRemoveFilesResults(4L, 0, 0, 6L, 4L, 6, result);
   }
 

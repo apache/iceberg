@@ -313,21 +313,21 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
             .collectAsList();
     List<Tuple2<Long, String>> expected =
         ImmutableList.of(
-            Tuple2.apply(1L, FILE_B.path().toString()),
-            Tuple2.apply(1L, FILE_C.path().toString()),
-            Tuple2.apply(1L, FILE_D.path().toString()),
-            Tuple2.apply(2L, FILE_A_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, fileADeletes.path().toString()),
-            Tuple2.apply(2L, FILE_A2_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, fileA2Deletes.path().toString()),
-            Tuple2.apply(2L, FILE_B_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, fileBDeletes.path().toString()),
-            Tuple2.apply(2L, FILE_B2_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, fileB2Deletes.path().toString()),
-            Tuple2.apply(3L, FILE_A2.path().toString()),
-            Tuple2.apply(3L, FILE_B2.path().toString()),
-            Tuple2.apply(3L, FILE_C2.path().toString()),
-            Tuple2.apply(3L, FILE_D2.path().toString()));
+            Tuple2.apply(1L, FILE_B.location()),
+            Tuple2.apply(1L, FILE_C.location()),
+            Tuple2.apply(1L, FILE_D.location()),
+            Tuple2.apply(2L, FILE_A_EQ_DELETES.location()),
+            Tuple2.apply(2L, fileADeletes.location()),
+            Tuple2.apply(2L, FILE_A2_EQ_DELETES.location()),
+            Tuple2.apply(2L, fileA2Deletes.location()),
+            Tuple2.apply(2L, FILE_B_EQ_DELETES.location()),
+            Tuple2.apply(2L, fileBDeletes.location()),
+            Tuple2.apply(2L, FILE_B2_EQ_DELETES.location()),
+            Tuple2.apply(2L, fileB2Deletes.location()),
+            Tuple2.apply(3L, FILE_A2.location()),
+            Tuple2.apply(3L, FILE_B2.location()),
+            Tuple2.apply(3L, FILE_C2.location()),
+            Tuple2.apply(3L, FILE_D2.location()));
     assertThat(actual).containsExactlyInAnyOrderElementsOf(expected);
 
     RemoveDanglingDeleteFiles.Result result =
@@ -338,16 +338,16 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
 
     Set<CharSequence> removedDeleteFiles =
         StreamSupport.stream(result.removedDeleteFiles().spliterator(), false)
-            .map(DeleteFile::path)
+            .map(DeleteFile::location)
             .collect(Collectors.toSet());
     assertThat(removedDeleteFiles)
         .as("Expected 4 delete files removed")
         .hasSize(4)
         .containsExactlyInAnyOrder(
-            fileADeletes.path(),
-            fileA2Deletes.path(),
-            FILE_A_EQ_DELETES.path(),
-            FILE_A2_EQ_DELETES.path());
+            fileADeletes.location(),
+            fileA2Deletes.location(),
+            FILE_A_EQ_DELETES.location(),
+            FILE_A2_EQ_DELETES.location());
 
     List<Tuple2<Long, String>> actualAfter =
         spark
@@ -361,17 +361,17 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
             .collectAsList();
     List<Tuple2<Long, String>> expectedAfter =
         ImmutableList.of(
-            Tuple2.apply(1L, FILE_B.path().toString()),
-            Tuple2.apply(1L, FILE_C.path().toString()),
-            Tuple2.apply(1L, FILE_D.path().toString()),
-            Tuple2.apply(2L, FILE_B_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, fileBDeletes.path().toString()),
-            Tuple2.apply(2L, FILE_B2_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, fileB2Deletes.path().toString()),
-            Tuple2.apply(3L, FILE_A2.path().toString()),
-            Tuple2.apply(3L, FILE_B2.path().toString()),
-            Tuple2.apply(3L, FILE_C2.path().toString()),
-            Tuple2.apply(3L, FILE_D2.path().toString()));
+            Tuple2.apply(1L, FILE_B.location()),
+            Tuple2.apply(1L, FILE_C.location()),
+            Tuple2.apply(1L, FILE_D.location()),
+            Tuple2.apply(2L, FILE_B_EQ_DELETES.location()),
+            Tuple2.apply(2L, fileBDeletes.location()),
+            Tuple2.apply(2L, FILE_B2_EQ_DELETES.location()),
+            Tuple2.apply(2L, fileB2Deletes.location()),
+            Tuple2.apply(3L, FILE_A2.location()),
+            Tuple2.apply(3L, FILE_B2.location()),
+            Tuple2.apply(3L, FILE_C2.location()),
+            Tuple2.apply(3L, FILE_D2.location()));
     assertThat(actualAfter).containsExactlyInAnyOrderElementsOf(expectedAfter);
   }
 
@@ -414,21 +414,21 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
             .collectAsList();
     List<Tuple2<Long, String>> expected =
         ImmutableList.of(
-            Tuple2.apply(1L, FILE_A.path().toString()),
-            Tuple2.apply(1L, FILE_C.path().toString()),
-            Tuple2.apply(1L, FILE_D.path().toString()),
-            Tuple2.apply(2L, FILE_A_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, fileADeletes.path().toString()),
-            Tuple2.apply(2L, FILE_A2.path().toString()),
-            Tuple2.apply(2L, FILE_A2_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, fileA2Deletes.path().toString()),
-            Tuple2.apply(2L, FILE_B_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, fileBDeletes.path().toString()),
-            Tuple2.apply(2L, FILE_B2.path().toString()),
-            Tuple2.apply(2L, FILE_B2_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, fileB2Deletes.path().toString()),
-            Tuple2.apply(2L, FILE_C2.path().toString()),
-            Tuple2.apply(2L, FILE_D2.path().toString()));
+            Tuple2.apply(1L, FILE_A.location()),
+            Tuple2.apply(1L, FILE_C.location()),
+            Tuple2.apply(1L, FILE_D.location()),
+            Tuple2.apply(2L, FILE_A_EQ_DELETES.location()),
+            Tuple2.apply(2L, fileADeletes.location()),
+            Tuple2.apply(2L, FILE_A2.location()),
+            Tuple2.apply(2L, FILE_A2_EQ_DELETES.location()),
+            Tuple2.apply(2L, fileA2Deletes.location()),
+            Tuple2.apply(2L, FILE_B_EQ_DELETES.location()),
+            Tuple2.apply(2L, fileBDeletes.location()),
+            Tuple2.apply(2L, FILE_B2.location()),
+            Tuple2.apply(2L, FILE_B2_EQ_DELETES.location()),
+            Tuple2.apply(2L, fileB2Deletes.location()),
+            Tuple2.apply(2L, FILE_C2.location()),
+            Tuple2.apply(2L, FILE_D2.location()));
     assertThat(actual).containsExactlyInAnyOrderElementsOf(expected);
 
     RemoveDanglingDeleteFiles.Result result =
@@ -438,12 +438,12 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
     // because there are no data files in partition with a lesser sequence number
     Set<CharSequence> removedDeleteFiles =
         StreamSupport.stream(result.removedDeleteFiles().spliterator(), false)
-            .map(DeleteFile::path)
+            .map(DeleteFile::location)
             .collect(Collectors.toSet());
     assertThat(removedDeleteFiles)
         .as("Expected two delete files removed")
         .hasSize(2)
-        .containsExactlyInAnyOrder(FILE_B_EQ_DELETES.path(), FILE_B2_EQ_DELETES.path());
+        .containsExactlyInAnyOrder(FILE_B_EQ_DELETES.location(), FILE_B2_EQ_DELETES.location());
 
     List<Tuple2<Long, String>> actualAfter =
         spark
@@ -457,19 +457,19 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
             .collectAsList();
     List<Tuple2<Long, String>> expectedAfter =
         ImmutableList.of(
-            Tuple2.apply(1L, FILE_A.path().toString()),
-            Tuple2.apply(1L, FILE_C.path().toString()),
-            Tuple2.apply(1L, FILE_D.path().toString()),
-            Tuple2.apply(2L, FILE_A_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, fileADeletes.path().toString()),
-            Tuple2.apply(2L, FILE_A2.path().toString()),
-            Tuple2.apply(2L, FILE_A2_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, fileA2Deletes.path().toString()),
-            Tuple2.apply(2L, fileBDeletes.path().toString()),
-            Tuple2.apply(2L, FILE_B2.path().toString()),
-            Tuple2.apply(2L, fileB2Deletes.path().toString()),
-            Tuple2.apply(2L, FILE_C2.path().toString()),
-            Tuple2.apply(2L, FILE_D2.path().toString()));
+            Tuple2.apply(1L, FILE_A.location()),
+            Tuple2.apply(1L, FILE_C.location()),
+            Tuple2.apply(1L, FILE_D.location()),
+            Tuple2.apply(2L, FILE_A_EQ_DELETES.location()),
+            Tuple2.apply(2L, fileADeletes.location()),
+            Tuple2.apply(2L, FILE_A2.location()),
+            Tuple2.apply(2L, FILE_A2_EQ_DELETES.location()),
+            Tuple2.apply(2L, fileA2Deletes.location()),
+            Tuple2.apply(2L, fileBDeletes.location()),
+            Tuple2.apply(2L, FILE_B2.location()),
+            Tuple2.apply(2L, fileB2Deletes.location()),
+            Tuple2.apply(2L, FILE_C2.location()),
+            Tuple2.apply(2L, FILE_D2.location()));
     assertThat(actualAfter).containsExactlyInAnyOrderElementsOf(expectedAfter);
   }
 

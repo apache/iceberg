@@ -168,7 +168,7 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
     List<ManifestFile> manifestFiles = table.currentSnapshot().dataManifests(table.io());
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifestFiles.get(0), table.io())) {
       DataFile file = reader.iterator().next();
-      InputFile inputFile = table.io().newInputFile(file.path().toString());
+      InputFile inputFile = table.io().newInputFile(file.location());
       assertThat(getCompressionType(inputFile))
           .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }
@@ -182,7 +182,7 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
     try (ManifestReader<DeleteFile> reader =
         ManifestFiles.readDeleteManifest(deleteManifestFiles.get(0), table.io(), specMap)) {
       DeleteFile file = reader.iterator().next();
-      InputFile inputFile = table.io().newInputFile(file.path().toString());
+      InputFile inputFile = table.io().newInputFile(file.location());
       assertThat(getCompressionType(inputFile))
           .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }
@@ -196,7 +196,7 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
     try (ManifestReader<DeleteFile> reader =
         ManifestFiles.readDeleteManifest(deleteManifestFiles.get(0), table.io(), specMap)) {
       DeleteFile file = reader.iterator().next();
-      InputFile inputFile = table.io().newInputFile(file.path().toString());
+      InputFile inputFile = table.io().newInputFile(file.location());
       assertThat(getCompressionType(inputFile))
           .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }

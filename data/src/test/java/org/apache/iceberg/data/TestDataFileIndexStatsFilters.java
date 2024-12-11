@@ -451,7 +451,7 @@ public class TestDataFileIndexStatsFilters {
   }
 
   private CharSequenceSet deletePaths(FileScanTask task) {
-    return CharSequenceSet.of(Iterables.transform(task.deletes(), ContentFile::path));
+    return CharSequenceSet.of(Iterables.transform(task.deletes(), ContentFile::location));
   }
 
   private List<FileScanTask> planTasks() throws IOException {

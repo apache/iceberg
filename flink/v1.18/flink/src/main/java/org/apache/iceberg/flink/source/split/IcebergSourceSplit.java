@@ -107,7 +107,7 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
             .map(
                 fileScanTask ->
                     MoreObjects.toStringHelper(fileScanTask)
-                        .add("file", fileScanTask.file().path().toString())
+                        .add("file", fileScanTask.file().location())
                         .add("start", fileScanTask.start())
                         .add("length", fileScanTask.length())
                         .toString())

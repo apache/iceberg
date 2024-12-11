@@ -197,8 +197,8 @@ public class TestDataFrameWrites extends AvroDataTest {
                 Assert.assertTrue(
                     String.format(
                         "File should have the parent directory %s, but has: %s.",
-                        expectedDataDir.getAbsolutePath(), dataFile.path()),
-                    URI.create(dataFile.path().toString())
+                        expectedDataDir.getAbsolutePath(), dataFile.location()),
+                    URI.create(dataFile.location())
                         .getPath()
                         .startsWith(expectedDataDir.getAbsolutePath())));
   }

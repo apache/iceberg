@@ -850,7 +850,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     @Override
     public CharSequence path() {
-      return deleteFile.path();
+      return deleteFile.location();
     }
 
     @Override

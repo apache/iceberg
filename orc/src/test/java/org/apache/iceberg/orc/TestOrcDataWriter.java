@@ -85,7 +85,7 @@ public class TestOrcDataWriter {
 
   private List<Long> stripeOffsetsFromReader(DataFile dataFile, OrcFile.ReaderOptions options)
       throws IOException {
-    return OrcFile.createReader(new Path(dataFile.path().toString()), options).getStripes().stream()
+    return OrcFile.createReader(new Path(dataFile.location()), options).getStripes().stream()
         .map(StripeInformation::getOffset)
         .collect(Collectors.toList());
   }

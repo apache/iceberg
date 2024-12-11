@@ -1299,7 +1299,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
 
     // remove the data file from the 'hr' partition to ensure it is not scanned
     DataFile dataFile = Iterables.getOnlyElement(snapshot.addedDataFiles(table.io()));
-    table.io().deleteFile(dataFile.path().toString());
+    table.io().deleteFile(dataFile.location());
 
     // disable dynamic pruning and rely only on static predicate pushdown
     withSQLConf(

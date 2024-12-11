@@ -161,10 +161,9 @@ public class TestContinuousSplitPlannerImpl {
     assertThat(split.task().files()).hasSize(2);
     Set<String> discoveredFiles =
         split.task().files().stream()
-            .map(fileScanTask -> fileScanTask.file().path().toString())
+            .map(fileScanTask -> fileScanTask.file().location())
             .collect(Collectors.toSet());
-    Set<String> expectedFiles =
-        ImmutableSet.of(dataFile1.path().toString(), dataFile2.path().toString());
+    Set<String> expectedFiles = ImmutableSet.of(dataFile1.location(), dataFile2.location());
     assertThat(discoveredFiles).containsExactlyInAnyOrderElementsOf(expectedFiles);
 
     IcebergEnumeratorPosition lastPosition = initialResult.toPosition();
@@ -244,10 +243,10 @@ public class TestContinuousSplitPlannerImpl {
     assertThat(split.task().files()).hasSize(1);
     Set<String> discoveredFiles =
         split.task().files().stream()
-            .map(fileScanTask -> fileScanTask.file().path().toString())
+            .map(fileScanTask -> fileScanTask.file().location())
             .collect(Collectors.toSet());
     // should discover dataFile2 appended in snapshot2
-    Set<String> expectedFiles = ImmutableSet.of(dataFile2.path().toString());
+    Set<String> expectedFiles = ImmutableSet.of(dataFile2.location());
     assertThat(discoveredFiles).containsExactlyElementsOf(expectedFiles);
 
     IcebergEnumeratorPosition lastPosition = secondResult.toPosition();
@@ -316,11 +315,10 @@ public class TestContinuousSplitPlannerImpl {
     assertThat(split.task().files()).hasSize(2);
     Set<String> discoveredFiles =
         split.task().files().stream()
-            .map(fileScanTask -> fileScanTask.file().path().toString())
+            .map(fileScanTask -> fileScanTask.file().location())
             .collect(Collectors.toSet());
     // should discover files appended in both snapshot1 and snapshot2
-    Set<String> expectedFiles =
-        ImmutableSet.of(dataFile1.path().toString(), dataFile2.path().toString());
+    Set<String> expectedFiles = ImmutableSet.of(dataFile1.location(), dataFile2.location());
     assertThat(discoveredFiles).containsExactlyInAnyOrderElementsOf(expectedFiles);
 
     IcebergEnumeratorPosition lastPosition = secondResult.toPosition();
@@ -406,10 +404,10 @@ public class TestContinuousSplitPlannerImpl {
     assertThat(split.task().files()).hasSize(1);
     Set<String> discoveredFiles =
         split.task().files().stream()
-            .map(fileScanTask -> fileScanTask.file().path().toString())
+            .map(fileScanTask -> fileScanTask.file().location())
             .collect(Collectors.toSet());
     // should  discover dataFile2 appended in snapshot2
-    Set<String> expectedFiles = ImmutableSet.of(dataFile2.path().toString());
+    Set<String> expectedFiles = ImmutableSet.of(dataFile2.location());
     assertThat(discoveredFiles).containsExactlyElementsOf(expectedFiles);
 
     IcebergEnumeratorPosition lastPosition = secondResult.toPosition();
@@ -489,10 +487,10 @@ public class TestContinuousSplitPlannerImpl {
     assertThat(split.task().files()).hasSize(1);
     Set<String> discoveredFiles =
         split.task().files().stream()
-            .map(fileScanTask -> fileScanTask.file().path().toString())
+            .map(fileScanTask -> fileScanTask.file().location())
             .collect(Collectors.toSet());
     // should discover dataFile2 appended in snapshot2
-    Set<String> expectedFiles = ImmutableSet.of(dataFile2.path().toString());
+    Set<String> expectedFiles = ImmutableSet.of(dataFile2.location());
     assertThat(discoveredFiles).containsExactlyElementsOf(expectedFiles);
 
     IcebergEnumeratorPosition lastPosition = secondResult.toPosition();
@@ -529,12 +527,12 @@ public class TestContinuousSplitPlannerImpl {
     ContinuousEnumerationResult secondResult = splitPlanner.planSplits(initialResult.toPosition());
     // should discover dataFile1 appended in snapshot1
     verifyMaxPlanningSnapshotCountResult(
-        secondResult, null, snapshot1, ImmutableSet.of(dataFile1.path().toString()));
+        secondResult, null, snapshot1, ImmutableSet.of(dataFile1.location()));
 
     ContinuousEnumerationResult thirdResult = splitPlanner.planSplits(secondResult.toPosition());
     // should discover dataFile2 appended in snapshot2
     verifyMaxPlanningSnapshotCountResult(
-        thirdResult, snapshot1, snapshot2, ImmutableSet.of(dataFile2.path().toString()));
+        thirdResult, snapshot1, snapshot2, ImmutableSet.of(dataFile2.location()));
   }
 
   @Test
@@ -670,7 +668,7 @@ public class TestContinuousSplitPlannerImpl {
     assertThat(split.task().files()).hasSize(1);
     Set<String> discoveredFiles =
         split.task().files().stream()
-            .map(fileScanTask -> fileScanTask.file().path().toString())
+            .map(fileScanTask -> fileScanTask.file().location())
             .collect(Collectors.toSet());
     assertThat(discoveredFiles).containsExactlyElementsOf(expectedFiles);
   }

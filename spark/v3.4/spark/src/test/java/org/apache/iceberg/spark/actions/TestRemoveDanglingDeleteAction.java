@@ -264,21 +264,21 @@ public class TestRemoveDanglingDeleteAction extends SparkTestBase {
             .collectAsList();
     List<Tuple2<Long, String>> expected =
         ImmutableList.of(
-            Tuple2.apply(1L, FILE_B.path().toString()),
-            Tuple2.apply(1L, FILE_C.path().toString()),
-            Tuple2.apply(1L, FILE_D.path().toString()),
-            Tuple2.apply(2L, FILE_A_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_A_POS_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_A2_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_A2_POS_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_B_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_B_POS_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_B2_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_B2_POS_DELETES.path().toString()),
-            Tuple2.apply(3L, FILE_A2.path().toString()),
-            Tuple2.apply(3L, FILE_B2.path().toString()),
-            Tuple2.apply(3L, FILE_C2.path().toString()),
-            Tuple2.apply(3L, FILE_D2.path().toString()));
+            Tuple2.apply(1L, FILE_B.location()),
+            Tuple2.apply(1L, FILE_C.location()),
+            Tuple2.apply(1L, FILE_D.location()),
+            Tuple2.apply(2L, FILE_A_EQ_DELETES.location()),
+            Tuple2.apply(2L, FILE_A_POS_DELETES.location()),
+            Tuple2.apply(2L, FILE_A2_EQ_DELETES.location()),
+            Tuple2.apply(2L, FILE_A2_POS_DELETES.location()),
+            Tuple2.apply(2L, FILE_B_EQ_DELETES.location()),
+            Tuple2.apply(2L, FILE_B_POS_DELETES.location()),
+            Tuple2.apply(2L, FILE_B2_EQ_DELETES.location()),
+            Tuple2.apply(2L, FILE_B2_POS_DELETES.location()),
+            Tuple2.apply(3L, FILE_A2.location()),
+            Tuple2.apply(3L, FILE_B2.location()),
+            Tuple2.apply(3L, FILE_C2.location()),
+            Tuple2.apply(3L, FILE_D2.location()));
     assertThat(actual).isEqualTo(expected);
     RemoveDanglingDeleteFiles.Result result =
         SparkActions.get().removeDanglingDeleteFiles(table).execute();
@@ -286,16 +286,16 @@ public class TestRemoveDanglingDeleteAction extends SparkTestBase {
     // because there are no data files in partition with a lesser sequence number
     Set<CharSequence> removedDeleteFiles =
         StreamSupport.stream(result.removedDeleteFiles().spliterator(), false)
-            .map(DeleteFile::path)
+            .map(DeleteFile::location)
             .collect(Collectors.toSet());
     assertThat(removedDeleteFiles)
         .as("Expected 4 delete files removed")
         .hasSize(4)
         .containsExactlyInAnyOrder(
-            FILE_A_POS_DELETES.path(),
-            FILE_A2_POS_DELETES.path(),
-            FILE_A_EQ_DELETES.path(),
-            FILE_A2_EQ_DELETES.path());
+            FILE_A_POS_DELETES.location(),
+            FILE_A2_POS_DELETES.location(),
+            FILE_A_EQ_DELETES.location(),
+            FILE_A2_EQ_DELETES.location());
     List<Tuple2<Long, String>> actualAfter =
         spark
             .read()
@@ -308,17 +308,17 @@ public class TestRemoveDanglingDeleteAction extends SparkTestBase {
             .collectAsList();
     List<Tuple2<Long, String>> expectedAfter =
         ImmutableList.of(
-            Tuple2.apply(1L, FILE_B.path().toString()),
-            Tuple2.apply(1L, FILE_C.path().toString()),
-            Tuple2.apply(1L, FILE_D.path().toString()),
-            Tuple2.apply(2L, FILE_B_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_B_POS_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_B2_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_B2_POS_DELETES.path().toString()),
-            Tuple2.apply(3L, FILE_A2.path().toString()),
-            Tuple2.apply(3L, FILE_B2.path().toString()),
-            Tuple2.apply(3L, FILE_C2.path().toString()),
-            Tuple2.apply(3L, FILE_D2.path().toString()));
+            Tuple2.apply(1L, FILE_B.location()),
+            Tuple2.apply(1L, FILE_C.location()),
+            Tuple2.apply(1L, FILE_D.location()),
+            Tuple2.apply(2L, FILE_B_EQ_DELETES.location()),
+            Tuple2.apply(2L, FILE_B_POS_DELETES.location()),
+            Tuple2.apply(2L, FILE_B2_EQ_DELETES.location()),
+            Tuple2.apply(2L, FILE_B2_POS_DELETES.location()),
+            Tuple2.apply(3L, FILE_A2.location()),
+            Tuple2.apply(3L, FILE_B2.location()),
+            Tuple2.apply(3L, FILE_C2.location()),
+            Tuple2.apply(3L, FILE_D2.location()));
     assertThat(actualAfter).isEqualTo(expectedAfter);
   }
 
@@ -354,21 +354,21 @@ public class TestRemoveDanglingDeleteAction extends SparkTestBase {
             .collectAsList();
     List<Tuple2<Long, String>> expected =
         ImmutableList.of(
-            Tuple2.apply(1L, FILE_A.path().toString()),
-            Tuple2.apply(1L, FILE_C.path().toString()),
-            Tuple2.apply(1L, FILE_D.path().toString()),
-            Tuple2.apply(2L, FILE_A_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_A_POS_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_A2.path().toString()),
-            Tuple2.apply(2L, FILE_A2_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_A2_POS_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_B_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_B_POS_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_B2.path().toString()),
-            Tuple2.apply(2L, FILE_B2_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_B2_POS_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_C2.path().toString()),
-            Tuple2.apply(2L, FILE_D2.path().toString()));
+            Tuple2.apply(1L, FILE_A.location()),
+            Tuple2.apply(1L, FILE_C.location()),
+            Tuple2.apply(1L, FILE_D.location()),
+            Tuple2.apply(2L, FILE_A_EQ_DELETES.location()),
+            Tuple2.apply(2L, FILE_A_POS_DELETES.location()),
+            Tuple2.apply(2L, FILE_A2.location()),
+            Tuple2.apply(2L, FILE_A2_EQ_DELETES.location()),
+            Tuple2.apply(2L, FILE_A2_POS_DELETES.location()),
+            Tuple2.apply(2L, FILE_B_EQ_DELETES.location()),
+            Tuple2.apply(2L, FILE_B_POS_DELETES.location()),
+            Tuple2.apply(2L, FILE_B2.location()),
+            Tuple2.apply(2L, FILE_B2_EQ_DELETES.location()),
+            Tuple2.apply(2L, FILE_B2_POS_DELETES.location()),
+            Tuple2.apply(2L, FILE_C2.location()),
+            Tuple2.apply(2L, FILE_D2.location()));
     assertThat(actual).isEqualTo(expected);
     RemoveDanglingDeleteFiles.Result result =
         SparkActions.get().removeDanglingDeleteFiles(table).execute();
@@ -376,12 +376,12 @@ public class TestRemoveDanglingDeleteAction extends SparkTestBase {
     // because there are no data files in partition with a lesser sequence number
     Set<CharSequence> removedDeleteFiles =
         StreamSupport.stream(result.removedDeleteFiles().spliterator(), false)
-            .map(DeleteFile::path)
+            .map(DeleteFile::location)
             .collect(Collectors.toSet());
     assertThat(removedDeleteFiles)
         .as("Expected two delete files removed")
         .hasSize(2)
-        .containsExactlyInAnyOrder(FILE_B_EQ_DELETES.path(), FILE_B2_EQ_DELETES.path());
+        .containsExactlyInAnyOrder(FILE_B_EQ_DELETES.location(), FILE_B2_EQ_DELETES.location());
     List<Tuple2<Long, String>> actualAfter =
         spark
             .read()
@@ -394,19 +394,19 @@ public class TestRemoveDanglingDeleteAction extends SparkTestBase {
             .collectAsList();
     List<Tuple2<Long, String>> expectedAfter =
         ImmutableList.of(
-            Tuple2.apply(1L, FILE_A.path().toString()),
-            Tuple2.apply(1L, FILE_C.path().toString()),
-            Tuple2.apply(1L, FILE_D.path().toString()),
-            Tuple2.apply(2L, FILE_A_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_A_POS_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_A2.path().toString()),
-            Tuple2.apply(2L, FILE_A2_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_A2_POS_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_B_POS_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_B2.path().toString()),
-            Tuple2.apply(2L, FILE_B2_POS_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_C2.path().toString()),
-            Tuple2.apply(2L, FILE_D2.path().toString()));
+            Tuple2.apply(1L, FILE_A.location()),
+            Tuple2.apply(1L, FILE_C.location()),
+            Tuple2.apply(1L, FILE_D.location()),
+            Tuple2.apply(2L, FILE_A_EQ_DELETES.location()),
+            Tuple2.apply(2L, FILE_A_POS_DELETES.location()),
+            Tuple2.apply(2L, FILE_A2.location()),
+            Tuple2.apply(2L, FILE_A2_EQ_DELETES.location()),
+            Tuple2.apply(2L, FILE_A2_POS_DELETES.location()),
+            Tuple2.apply(2L, FILE_B_POS_DELETES.location()),
+            Tuple2.apply(2L, FILE_B2.location()),
+            Tuple2.apply(2L, FILE_B2_POS_DELETES.location()),
+            Tuple2.apply(2L, FILE_C2.location()),
+            Tuple2.apply(2L, FILE_D2.location()));
     assertThat(actualAfter).isEqualTo(expectedAfter);
   }
 
