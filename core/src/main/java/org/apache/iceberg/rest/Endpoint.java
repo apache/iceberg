@@ -46,6 +46,8 @@ public class Endpoint {
       Endpoint.create("POST", ResourcePaths.V1_NAMESPACE_PROPERTIES);
   public static final Endpoint V1_DELETE_NAMESPACE =
       Endpoint.create("DELETE", ResourcePaths.V1_NAMESPACE);
+  public static final Endpoint V1_NAMESPACE_EXISTS =
+          Endpoint.create("HEAD", ResourcePaths.V1_NAMESPACE);
   public static final Endpoint V1_COMMIT_TRANSACTION =
       Endpoint.create("POST", ResourcePaths.V1_TRANSACTIONS_COMMIT);
 
@@ -61,6 +63,19 @@ public class Endpoint {
       Endpoint.create("POST", ResourcePaths.V1_TABLE_REGISTER);
   public static final Endpoint V1_REPORT_METRICS =
       Endpoint.create("POST", ResourcePaths.V1_TABLE_METRICS);
+  public static final Endpoint V1_TABLE_EXISTS = Endpoint.create("HEAD", ResourcePaths.V1_TABLE);
+  public static final Endpoint V1_TABLE_CREDENTIALS =
+      Endpoint.create("GET", ResourcePaths.V1_TABLE_CREDENTIALS);
+
+  // table scan plan endpoints
+  public static final Endpoint V1_SUBMIT_TABLE_SCAN_PLAN =
+      Endpoint.create("POST", ResourcePaths.V1_TABLE_SCAN_PLAN_SUBMIT);
+  public static final Endpoint V1_FETCH_TABLE_SCAN_PLAN =
+      Endpoint.create("GET", ResourcePaths.V1_TABLE_SCAN_PLAN);
+  public static final Endpoint V1_CANCEL_TABLE_SCAN_PLAN =
+      Endpoint.create("DELETE", ResourcePaths.V1_TABLE_SCAN_PLAN);
+  public static final Endpoint V1_FETCH_TABLE_SCAN_PLAN_TASKS =
+      Endpoint.create("POST", ResourcePaths.V1_TABLE_SCAN_PLAN_TASKS);
 
   // view endpoints
   public static final Endpoint V1_LIST_VIEWS = Endpoint.create("GET", ResourcePaths.V1_VIEWS);
@@ -70,6 +85,7 @@ public class Endpoint {
   public static final Endpoint V1_DELETE_VIEW = Endpoint.create("DELETE", ResourcePaths.V1_VIEW);
   public static final Endpoint V1_RENAME_VIEW =
       Endpoint.create("POST", ResourcePaths.V1_VIEW_RENAME);
+  public static final Endpoint V1_VIEW_EXISTS = Endpoint.create("HEAD", ResourcePaths.V1_VIEW);
 
   private static final Splitter ENDPOINT_SPLITTER = Splitter.on(" ");
   private static final Joiner ENDPOINT_JOINER = Joiner.on(" ");

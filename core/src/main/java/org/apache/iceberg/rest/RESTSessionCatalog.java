@@ -149,6 +149,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           .add(Endpoint.V1_RENAME_TABLE)
           .add(Endpoint.V1_REGISTER_TABLE)
           .add(Endpoint.V1_REPORT_METRICS)
+          .add(Endpoint.V1_TABLE_EXISTS)
           .build();
 
   private static final Set<Endpoint> VIEW_ENDPOINTS =
@@ -434,6 +435,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public boolean tableExists(SessionContext context, TableIdentifier identifier) {
+    Endpoint.check(endpoints, Endpoint.V1_TABLE_EXISTS);
     checkIdentifierIsValid(identifier);
 
     try {
