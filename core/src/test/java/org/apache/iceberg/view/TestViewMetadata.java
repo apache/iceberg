@@ -1181,4 +1181,118 @@ public class TestViewMetadata {
                 + "Previous dialects: [trino]\n"
                 + "New dialects: [spark]");
   }
+
+  @Test
+  public void assignFreshSchemaIdWhereNewSchemasFieldIdIsSmallerThanHighestFieldId() {
+    Schema schemaOne = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
+    Schema schemaTwo = new Schema(Types.NestedField.required(2, "y", Types.LongType.get()));
+    Schema schemaThree = new Schema(Types.NestedField.required(3, "z", Types.LongType.get()));
+    Schema newSchema = new Schema(Types.NestedField.required(1, "a", Types.LongType.get()));
+
+    ViewMetadata metadata =
+        ViewMetadata.builder()
+            .setLocation("custom-location")
+            .addSchema(schemaOne)
+            .addSchema(schemaTwo)
+            .addSchema(schemaThree)
+            .setCurrentVersion(
+                ImmutableViewVersion.builder()
+                    .versionId(1)
+                    .schemaId(0)
+                    .timestampMillis(System.currentTimeMillis())
+                    .defaultNamespace(Namespace.empty())
+                    .build(),
+                schemaOne)
+            .build();
+
+    ViewMetadata replacement =
+        ViewMetadata.buildFrom(metadata)
+            .setCurrentVersion(
+                ImmutableViewVersion.builder()
+                    .versionId(2)
+                    .schemaId(0)
+                    .timestampMillis(System.currentTimeMillis())
+                    .defaultNamespace(Namespace.empty())
+                    .build(),
+                newSchema)
+            .build();
+
+    assertThat(replacement.schema().highestFieldId()).isEqualTo(4);
+  }
+
+  @Test
+  public void assignFreshSchemaIdWhereNewSchemasFieldIdIsGreaterThanHighestFieldId() {
+    Schema schemaOne = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
+    Schema schemaTwo = new Schema(Types.NestedField.required(2, "y", Types.LongType.get()));
+    Schema schemaThree = new Schema(Types.NestedField.required(3, "z", Types.LongType.get()));
+    Schema newSchema = new Schema(Types.NestedField.required(12, "a", Types.LongType.get()));
+
+    ViewMetadata metadata =
+        ViewMetadata.builder()
+            .setLocation("custom-location")
+            .addSchema(schemaOne)
+            .addSchema(schemaTwo)
+            .addSchema(schemaThree)
+            .setCurrentVersion(
+                ImmutableViewVersion.builder()
+                    .versionId(1)
+                    .schemaId(0)
+                    .timestampMillis(System.currentTimeMillis())
+                    .defaultNamespace(Namespace.empty())
+                    .build(),
+                schemaOne)
+            .build();
+
+    ViewMetadata replacement =
+        ViewMetadata.buildFrom(metadata)
+            .setCurrentVersion(
+                ImmutableViewVersion.builder()
+                    .versionId(2)
+                    .schemaId(0)
+                    .timestampMillis(System.currentTimeMillis())
+                    .defaultNamespace(Namespace.empty())
+                    .build(),
+                newSchema)
+            .build();
+
+    assertThat(replacement.schema().highestFieldId()).isEqualTo(4);
+  }
+
+  @Test
+  public void assignFreshSchemaIdWhereNewSchemasFieldIdSameAsHighestFieldId() {
+    Schema schemaOne = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
+    Schema schemaTwo = new Schema(Types.NestedField.required(2, "y", Types.LongType.get()));
+    Schema schemaThree = new Schema(Types.NestedField.required(3, "z", Types.LongType.get()));
+    Schema newSchema = new Schema(Types.NestedField.required(3, "a", Types.LongType.get()));
+
+    ViewMetadata metadata =
+        ViewMetadata.builder()
+            .setLocation("custom-location")
+            .addSchema(schemaOne)
+            .addSchema(schemaTwo)
+            .addSchema(schemaThree)
+            .setCurrentVersion(
+                ImmutableViewVersion.builder()
+                    .versionId(1)
+                    .schemaId(0)
+                    .timestampMillis(System.currentTimeMillis())
+                    .defaultNamespace(Namespace.empty())
+                    .build(),
+                schemaOne)
+            .build();
+
+    ViewMetadata replacement =
+        ViewMetadata.buildFrom(metadata)
+            .setCurrentVersion(
+                ImmutableViewVersion.builder()
+                    .versionId(2)
+                    .schemaId(0)
+                    .timestampMillis(System.currentTimeMillis())
+                    .defaultNamespace(Namespace.empty())
+                    .build(),
+                newSchema)
+            .build();
+
+    assertThat(replacement.schema().highestFieldId()).isEqualTo(4);
+  }
 }

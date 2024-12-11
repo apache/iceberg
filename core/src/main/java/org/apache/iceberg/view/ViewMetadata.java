@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -38,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
@@ -258,7 +260,22 @@ public interface ViewMetadata extends Serializable {
     }
 
     public Builder setCurrentVersion(ViewVersion version, Schema schema) {
-      int newSchemaId = addSchemaInternal(schema);
+      Schema freshSchema;
+      if (history.isEmpty()) {
+        // view metadata is created
+        freshSchema =
+            TypeUtil.assignFreshIds(
+                INITIAL_SCHEMA_ID, schema, new AtomicInteger(0)::incrementAndGet);
+      } else {
+        // view metadata is replaced
+        Schema baseSchema = schemasById.get(versionsById.get(currentVersionId).schemaId());
+        AtomicInteger highestFieldId =
+            new AtomicInteger(
+                schemas.stream().map(Schema::highestFieldId).max(Integer::compareTo).orElse(0));
+        freshSchema = TypeUtil.assignFreshIds(schema, baseSchema, highestFieldId::incrementAndGet);
+      }
+
+      int newSchemaId = addSchemaInternal(freshSchema);
       ViewVersion newVersion =
           ImmutableViewVersion.builder().from(version).schemaId(newSchemaId).build();
       return setCurrentVersionId(addVersionInternal(newVersion));
