@@ -1213,6 +1213,18 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   @Override
+  public boolean viewExists(SessionContext context, TableIdentifier identifier) {
+    checkViewIdentifierIsValid(identifier);
+
+    try {
+      client.head(paths.view(identifier), headers(context), ErrorHandlers.viewErrorHandler());
+      return true;
+    } catch (NoSuchViewException e) {
+      return false;
+    }
+  }
+
+  @Override
   public View loadView(SessionContext context, TableIdentifier identifier) {
     Endpoint.check(
         endpoints,

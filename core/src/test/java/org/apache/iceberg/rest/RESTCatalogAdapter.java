@@ -156,6 +156,7 @@ public class RESTCatalogAdapter implements RESTClient {
         CommitTransactionRequest.class,
         null),
     LIST_VIEWS(HTTPMethod.GET, ResourcePaths.V1_VIEWS, null, ListTablesResponse.class),
+    VIEW_EXISTS(HTTPMethod.HEAD, ResourcePaths.V1_VIEW),
     LOAD_VIEW(HTTPMethod.GET, ResourcePaths.V1_VIEW, null, LoadViewResponse.class),
     CREATE_VIEW(
         HTTPMethod.POST, ResourcePaths.V1_VIEWS, CreateViewRequest.class, LoadViewResponse.class),
@@ -467,6 +468,15 @@ public class RESTCatalogAdapter implements RESTClient {
             CreateViewRequest request = castRequest(CreateViewRequest.class, body);
             return castResponse(
                 responseType, CatalogHandlers.createView(asViewCatalog, namespace, request));
+          }
+          break;
+        }
+
+      case VIEW_EXISTS:
+        {
+          if (null != asViewCatalog) {
+            CatalogHandlers.viewExists(asViewCatalog, viewIdentFromPathVars(vars));
+            return null;
           }
           break;
         }
