@@ -282,7 +282,9 @@ public class TestShreddedObject {
   public void testLargeObject(boolean sortFieldNames) {
     Map<String, VariantPrimitive<String>> fields = Maps.newHashMap();
     for (int i = 0; i < 10_000; i += 1) {
-      fields.put(RandomUtil.generateString(10, random), Variants.of(RandomUtil.generateString(10, random)));
+      fields.put(
+          RandomUtil.generateString(10, random),
+          Variants.of(RandomUtil.generateString(10, random)));
     }
 
     SerializedMetadata metadata =
