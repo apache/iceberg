@@ -214,7 +214,7 @@ Notes:
 1. Timestamp values _without time zone_ represent a date and time of day regardless of zone: the time value is independent of zone adjustments (`2017-11-16 17:10:34` is always retrieved as `2017-11-16 17:10:34`).
 2. Timestamp values _with time zone_ represent a point in time: values are stored as UTC and do not retain a source time zone (`2017-11-16 17:10:34 PST` is stored/retrieved as `2017-11-17 01:10:34 UTC` and these values are considered identical).
 3. Character strings must be stored as UTF-8 encoded byte arrays.
-4. CRS (coordinate reference system) is a mapping of how coordinates refer to locations on earth. See [Appendix G](#appendix-g-geospatial-notes) for specifying custom CRS. If this field is null (no custom crs provided), CRS defaults to `OGC:CRS84`, which means the data must be stored in longitude, latitude based on the WGS84 datum. Fixed and cannot be changed by schema evolution.
+4. CRS (coordinate reference system) is a mapping of how coordinates refer to locations on Earth. See [Appendix G](#appendix-g-geospatial-notes) for specifying custom CRS. If this field is null (no custom crs provided), CRS defaults to `OGC:CRS84`, which means the data must be stored in longitude, latitude based on the WGS84 datum. Fixed and cannot be changed by schema evolution.
 5. See [4]. This must be a geographic CRS, where longitudes are bound by [-180, 180] and latitudes are bound by [-90, 90].
 6. Edge-interpolation algorithm. This is a mandatory field and cannot be changed by schema evolution. See [Appendix G](#appendix-g-geospatial-notes).
 For details on how to serialize a schema to JSON, see Appendix C.
