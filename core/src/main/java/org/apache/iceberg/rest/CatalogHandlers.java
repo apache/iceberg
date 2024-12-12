@@ -507,6 +507,12 @@ public class CatalogHandlers {
         .build();
   }
 
+  public static void viewExists(ViewCatalog catalog, TableIdentifier viewIdentifier) {
+    if (!catalog.viewExists(viewIdentifier)) {
+      throw new NoSuchViewException("View does not exist: %s", viewIdentifier);
+    }
+  }
+
   public static LoadViewResponse loadView(ViewCatalog catalog, TableIdentifier viewIdentifier) {
     View view = catalog.loadView(viewIdentifier);
     return viewResponse(view);
