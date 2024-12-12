@@ -381,7 +381,7 @@ public class SparkScanBuilder
     AtomicInteger nextId = new AtomicInteger();
     return new Schema(
         metaColumnFields,
-        table.schema().identifierFieldIds(),
+        Sets.newHashSet(),
         oldId -> {
           if (!idsToReassign.contains(oldId)) {
             return oldId;
