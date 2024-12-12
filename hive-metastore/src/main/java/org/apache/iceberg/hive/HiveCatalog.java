@@ -412,6 +412,43 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     }
   }
 
+  /**
+   * Check whether table or metadata table exists.
+   *
+   * <p>Note: If a hive table with the same identifier exists in catalog, this method will return
+   * {@code false}.
+   *
+   * @param identifier a table identifier
+   * @return true if the table exists, false otherwise
+   */
+  @Override
+  public boolean tableExists(TableIdentifier identifier) {
+    TableIdentifier baseTableIdentifier = identifier;
+    if (!isValidIdentifier(identifier)) {
+      if (!isValidMetadataIdentifier(identifier)) {
+        return false;
+      } else {
+        baseTableIdentifier = TableIdentifier.of(identifier.namespace().levels());
+      }
+    }
+
+    String database = baseTableIdentifier.namespace().level(0);
+    String tableName = baseTableIdentifier.name();
+    try {
+      Table table = clients.run(client -> client.getTable(database, tableName));
+      HiveOperationsBase.validateTableIsIceberg(table, fullTableName(name, baseTableIdentifier));
+      return true;
+    } catch (NoSuchTableException | NoSuchObjectException e) {
+      return false;
+    } catch (TException e) {
+      throw new RuntimeException("Failed to check table existence of " + baseTableIdentifier, e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException(
+          "Interrupted in call to check table existence of " + baseTableIdentifier, e);
+    }
+  }
+
   @Override
   public void createNamespace(Namespace namespace, Map<String, String> meta) {
     Preconditions.checkArgument(
