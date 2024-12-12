@@ -124,6 +124,7 @@ public class RESTCatalogAdapter implements RESTClient {
         ResourcePaths.V1_NAMESPACES,
         CreateNamespaceRequest.class,
         CreateNamespaceResponse.class),
+    NAMESPACE_EXISTS(HTTPMethod.HEAD, ResourcePaths.V1_NAMESPACE),
     LOAD_NAMESPACE(HTTPMethod.GET, ResourcePaths.V1_NAMESPACE, null, GetNamespaceResponse.class),
     DROP_NAMESPACE(HTTPMethod.DELETE, ResourcePaths.V1_NAMESPACE),
     UPDATE_NAMESPACE(
@@ -327,6 +328,13 @@ public class RESTCatalogAdapter implements RESTClient {
           CreateNamespaceRequest request = castRequest(CreateNamespaceRequest.class, body);
           return castResponse(
               responseType, CatalogHandlers.createNamespace(asNamespaceCatalog, request));
+        }
+        break;
+
+      case NAMESPACE_EXISTS:
+        if (asNamespaceCatalog != null) {
+          CatalogHandlers.namespaceExists(asNamespaceCatalog, namespaceFromPathVars(vars));
+          return null;
         }
         break;
 

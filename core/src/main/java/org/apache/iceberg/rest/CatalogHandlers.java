@@ -163,6 +163,12 @@ public class CatalogHandlers {
         .build();
   }
 
+  public static void namespaceExists(SupportsNamespaces catalog, Namespace namespace) {
+    if (!catalog.namespaceExists(namespace)) {
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+    }
+  }
+
   public static GetNamespaceResponse loadNamespace(
       SupportsNamespaces catalog, Namespace namespace) {
     Map<String, String> properties = catalog.loadNamespaceMetadata(namespace);

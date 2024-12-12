@@ -653,6 +653,19 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   @Override
+  public boolean namespaceExists(SessionContext context, Namespace namespace) {
+    checkNamespaceIsValid(namespace);
+
+    try {
+      client.head(
+          paths.namespace(namespace), headers(context), ErrorHandlers.namespaceErrorHandler());
+      return true;
+    } catch (NoSuchNamespaceException e) {
+      return false;
+    }
+  }
+
+  @Override
   public Map<String, String> loadNamespaceMetadata(SessionContext context, Namespace ns) {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_NAMESPACE);
     checkNamespaceIsValid(ns);
