@@ -44,6 +44,45 @@ class TestAuthManagers {
   }
 
   @Test
+  void oauth2Explicit() {
+    try (AuthManager manager =
+        AuthManagers.loadAuthManager(
+            "test", Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_TYPE_OAUTH2))) {
+      assertThat(manager).isInstanceOf(OAuth2Manager.class);
+    }
+    assertThat(streamCaptor.toString())
+        .contains("Loading AuthManager implementation: org.apache.iceberg.rest.auth.OAuth2Manager");
+  }
+
+  @Test
+  void oauth2InferredFromToken() {
+    try (AuthManager manager =
+        AuthManagers.loadAuthManager("test", Map.of(OAuth2Properties.TOKEN, "irrelevant"))) {
+      assertThat(manager).isInstanceOf(OAuth2Manager.class);
+    }
+    assertThat(streamCaptor.toString())
+        .contains(
+            "Inferring rest.auth.type=oauth2 since property token was provided. "
+                + "Please explicitly set rest.auth.type to avoid this warning.");
+    assertThat(streamCaptor.toString())
+        .contains("Loading AuthManager implementation: org.apache.iceberg.rest.auth.OAuth2Manager");
+  }
+
+  @Test
+  void oauth2InferredFromCredential() {
+    try (AuthManager manager =
+        AuthManagers.loadAuthManager("test", Map.of(OAuth2Properties.CREDENTIAL, "irrelevant"))) {
+      assertThat(manager).isInstanceOf(OAuth2Manager.class);
+    }
+    assertThat(streamCaptor.toString())
+        .contains(
+            "Inferring rest.auth.type=oauth2 since property credential was provided. "
+                + "Please explicitly set rest.auth.type to avoid this warning.");
+    assertThat(streamCaptor.toString())
+        .contains("Loading AuthManager implementation: org.apache.iceberg.rest.auth.OAuth2Manager");
+  }
+
+  @Test
   void noop() {
     try (AuthManager manager = AuthManagers.loadAuthManager("test", Map.of())) {
       assertThat(manager).isInstanceOf(NoopAuthManager.class);
