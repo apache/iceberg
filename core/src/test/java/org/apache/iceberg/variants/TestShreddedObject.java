@@ -251,8 +251,35 @@ public class TestShreddedObject {
 
   @Test
   public void testThreeByteOffsets() {
-    // a string larger than 65535 bytes to push the value offset size above 1 byte
+    // a string larger than 65535 bytes to push the value offset size above 2 bytes
     String randomString = RandomUtil.generateString(70_000, random);
+    SerializedPrimitive reallyBigString = VariantTestUtil.createString(randomString);
+
+    Map<String, VariantValue> data = Maps.newHashMap();
+    data.putAll(FIELDS);
+    data.put("really-big", reallyBigString);
+
+    Pair<SerializedMetadata, ShreddedObject> pair = createShreddedObject(data);
+    VariantValue value = roundTripLargeBuffer(pair.second(), pair.first());
+
+    Assertions.assertThat(value.type()).isEqualTo(Variants.PhysicalType.OBJECT);
+    SerializedObject object = (SerializedObject) value;
+    Assertions.assertThat(object.numElements()).isEqualTo(4);
+
+    Assertions.assertThat(object.get("a").type()).isEqualTo(Variants.PhysicalType.INT32);
+    Assertions.assertThat(object.get("a").asPrimitive().get()).isEqualTo(34);
+    Assertions.assertThat(object.get("b").type()).isEqualTo(Variants.PhysicalType.STRING);
+    Assertions.assertThat(object.get("b").asPrimitive().get()).isEqualTo("iceberg");
+    Assertions.assertThat(object.get("c").type()).isEqualTo(Variants.PhysicalType.DECIMAL4);
+    Assertions.assertThat(object.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
+    Assertions.assertThat(object.get("really-big").type()).isEqualTo(Variants.PhysicalType.STRING);
+    Assertions.assertThat(object.get("really-big").asPrimitive().get()).isEqualTo(randomString);
+  }
+
+  @Test
+  public void testFourByteOffsets() {
+    // a string larger than 16777215 bytes to push the value offset size above 3 bytes
+    String randomString = RandomUtil.generateString(16_777_300, random);
     SerializedPrimitive reallyBigString = VariantTestUtil.createString(randomString);
 
     Map<String, VariantValue> data = Maps.newHashMap();
