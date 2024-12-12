@@ -563,6 +563,40 @@ public class TestViews extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void readFromViewWithGroupByOrdinal() throws NoSuchTableException {
+    insertRows(3);
+    insertRows(2);
+    String viewName = viewName("viewWithGroupByOrdinal");
+    String sql = String.format("SELECT id, count(1) FROM %s GROUP BY 1", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1, 2L), row(2, 2L), row(3, 1L));
+  }
+
+  @TestTemplate
+  public void createViewWithGroupByOrdinal() throws NoSuchTableException {
+    insertRows(3);
+    insertRows(2);
+    String viewName = viewName("createViewWithGroupByOrdinal");
+    sql("CREATE VIEW %s AS SELECT id, count(1) FROM %s GROUP BY 1", viewName, tableName);
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1, 2L), row(2, 2L), row(3, 1L));
+  }
+
+  @TestTemplate
   public void rewriteFunctionIdentifier() {
     assumeThat(catalogName)
         .as("system namespace doesn't exist in SparkSessionCatalog")
