@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.variants;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.RandomUtil;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.util.Sets;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -35,42 +37,39 @@ public class TestSerializedMetadata {
   public void testEmptyVariantMetadata() {
     SerializedMetadata metadata = SerializedMetadata.from(SerializedMetadata.EMPTY_V1_BUFFER);
 
-    Assertions.assertThat(metadata.isSorted()).isFalse();
-    Assertions.assertThat(metadata.dictionarySize()).isEqualTo(0);
-    Assertions.assertThatThrownBy(() -> metadata.get(0))
-        .isInstanceOf(ArrayIndexOutOfBoundsException.class);
+    assertThat(metadata.isSorted()).isFalse();
+    assertThat(metadata.dictionarySize()).isEqualTo(0);
+    assertThatThrownBy(() -> metadata.get(0)).isInstanceOf(ArrayIndexOutOfBoundsException.class);
   }
 
   @Test
   public void testHeaderSorted() {
     SerializedMetadata metadata = SerializedMetadata.from(new byte[] {0b10001, 0x00});
 
-    Assertions.assertThat(metadata.isSorted()).isTrue();
-    Assertions.assertThat(metadata.dictionarySize()).isEqualTo(0);
+    assertThat(metadata.isSorted()).isTrue();
+    assertThat(metadata.dictionarySize()).isEqualTo(0);
   }
 
   @Test
   public void testHeaderOffsetSize() {
     // offset size is 4-byte LE = 1
-    Assertions.assertThat(
+    assertThat(
             SerializedMetadata.from(new byte[] {(byte) 0b11010001, 0x01, 0x00, 0x00, 0x00})
                 .dictionarySize())
         .isEqualTo(1);
 
     // offset size is 3-byte LE = 1
-    Assertions.assertThat(
+    assertThat(
             SerializedMetadata.from(new byte[] {(byte) 0b10010001, 0x01, 0x00, 0x00})
                 .dictionarySize())
         .isEqualTo(1);
 
     // offset size is 2-byte LE = 1
-    Assertions.assertThat(
-            SerializedMetadata.from(new byte[] {(byte) 0b01010001, 0x01, 0x00}).dictionarySize())
+    assertThat(SerializedMetadata.from(new byte[] {(byte) 0b01010001, 0x01, 0x00}).dictionarySize())
         .isEqualTo(1);
 
     // offset size is 1-byte LE = 1
-    Assertions.assertThat(
-            SerializedMetadata.from(new byte[] {(byte) 0b00010001, 0x01}).dictionarySize())
+    assertThat(SerializedMetadata.from(new byte[] {(byte) 0b00010001, 0x01}).dictionarySize())
         .isEqualTo(1);
   }
 
@@ -82,13 +81,12 @@ public class TestSerializedMetadata {
               0b10001, 0x05, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 'a', 'b', 'c', 'd', 'e'
             });
 
-    Assertions.assertThat(metadata.get(0)).isEqualTo("a");
-    Assertions.assertThat(metadata.get(1)).isEqualTo("b");
-    Assertions.assertThat(metadata.get(2)).isEqualTo("c");
-    Assertions.assertThat(metadata.get(3)).isEqualTo("d");
-    Assertions.assertThat(metadata.get(4)).isEqualTo("e");
-    Assertions.assertThatThrownBy(() -> metadata.get(5))
-        .isInstanceOf(ArrayIndexOutOfBoundsException.class);
+    assertThat(metadata.get(0)).isEqualTo("a");
+    assertThat(metadata.get(1)).isEqualTo("b");
+    assertThat(metadata.get(2)).isEqualTo("c");
+    assertThat(metadata.get(3)).isEqualTo("d");
+    assertThat(metadata.get(4)).isEqualTo("e");
+    assertThatThrownBy(() -> metadata.get(5)).isInstanceOf(ArrayIndexOutOfBoundsException.class);
   }
 
   @Test
@@ -99,13 +97,12 @@ public class TestSerializedMetadata {
               0b10001, 0x05, 0x00, 0x01, 0x02, 0x05, 0x06, 0x07, 'a', 'b', 'x', 'y', 'z', 'd', 'e'
             });
 
-    Assertions.assertThat(metadata.get(0)).isEqualTo("a");
-    Assertions.assertThat(metadata.get(1)).isEqualTo("b");
-    Assertions.assertThat(metadata.get(2)).isEqualTo("xyz");
-    Assertions.assertThat(metadata.get(3)).isEqualTo("d");
-    Assertions.assertThat(metadata.get(4)).isEqualTo("e");
-    Assertions.assertThatThrownBy(() -> metadata.get(5))
-        .isInstanceOf(ArrayIndexOutOfBoundsException.class);
+    assertThat(metadata.get(0)).isEqualTo("a");
+    assertThat(metadata.get(1)).isEqualTo("b");
+    assertThat(metadata.get(2)).isEqualTo("xyz");
+    assertThat(metadata.get(3)).isEqualTo("d");
+    assertThat(metadata.get(4)).isEqualTo("e");
+    assertThatThrownBy(() -> metadata.get(5)).isInstanceOf(ArrayIndexOutOfBoundsException.class);
   }
 
   @Test
@@ -117,13 +114,12 @@ public class TestSerializedMetadata {
               0x07, 0x00, 'a', 'b', 'x', 'y', 'z', 'd', 'e'
             });
 
-    Assertions.assertThat(metadata.get(0)).isEqualTo("a");
-    Assertions.assertThat(metadata.get(1)).isEqualTo("b");
-    Assertions.assertThat(metadata.get(2)).isEqualTo("xyz");
-    Assertions.assertThat(metadata.get(3)).isEqualTo("d");
-    Assertions.assertThat(metadata.get(4)).isEqualTo("e");
-    Assertions.assertThatThrownBy(() -> metadata.get(5))
-        .isInstanceOf(ArrayIndexOutOfBoundsException.class);
+    assertThat(metadata.get(0)).isEqualTo("a");
+    assertThat(metadata.get(1)).isEqualTo("b");
+    assertThat(metadata.get(2)).isEqualTo("xyz");
+    assertThat(metadata.get(3)).isEqualTo("d");
+    assertThat(metadata.get(4)).isEqualTo("e");
+    assertThatThrownBy(() -> metadata.get(5)).isInstanceOf(ArrayIndexOutOfBoundsException.class);
   }
 
   @Test
@@ -133,17 +129,17 @@ public class TestSerializedMetadata {
             new byte[] {
               0b10001, 0x05, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 'a', 'b', 'c', 'd', 'e'
             });
-    Assertions.assertThat(metadata.id("A")).isEqualTo(-1);
-    Assertions.assertThat(metadata.id("a")).isEqualTo(0);
-    Assertions.assertThat(metadata.id("aa")).isEqualTo(-1);
-    Assertions.assertThat(metadata.id("b")).isEqualTo(1);
-    Assertions.assertThat(metadata.id("bb")).isEqualTo(-1);
-    Assertions.assertThat(metadata.id("c")).isEqualTo(2);
-    Assertions.assertThat(metadata.id("cc")).isEqualTo(-1);
-    Assertions.assertThat(metadata.id("d")).isEqualTo(3);
-    Assertions.assertThat(metadata.id("dd")).isEqualTo(-1);
-    Assertions.assertThat(metadata.id("e")).isEqualTo(4);
-    Assertions.assertThat(metadata.id("ee")).isEqualTo(-1);
+    assertThat(metadata.id("A")).isEqualTo(-1);
+    assertThat(metadata.id("a")).isEqualTo(0);
+    assertThat(metadata.id("aa")).isEqualTo(-1);
+    assertThat(metadata.id("b")).isEqualTo(1);
+    assertThat(metadata.id("bb")).isEqualTo(-1);
+    assertThat(metadata.id("c")).isEqualTo(2);
+    assertThat(metadata.id("cc")).isEqualTo(-1);
+    assertThat(metadata.id("d")).isEqualTo(3);
+    assertThat(metadata.id("dd")).isEqualTo(-1);
+    assertThat(metadata.id("e")).isEqualTo(4);
+    assertThat(metadata.id("ee")).isEqualTo(-1);
   }
 
   @Test
@@ -153,17 +149,17 @@ public class TestSerializedMetadata {
             new byte[] {
               0b00001, 0x05, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 'e', 'd', 'c', 'b', 'a'
             });
-    Assertions.assertThat(metadata.id("A")).isEqualTo(-1);
-    Assertions.assertThat(metadata.id("a")).isEqualTo(4);
-    Assertions.assertThat(metadata.id("aa")).isEqualTo(-1);
-    Assertions.assertThat(metadata.id("b")).isEqualTo(3);
-    Assertions.assertThat(metadata.id("bb")).isEqualTo(-1);
-    Assertions.assertThat(metadata.id("c")).isEqualTo(2);
-    Assertions.assertThat(metadata.id("cc")).isEqualTo(-1);
-    Assertions.assertThat(metadata.id("d")).isEqualTo(1);
-    Assertions.assertThat(metadata.id("dd")).isEqualTo(-1);
-    Assertions.assertThat(metadata.id("e")).isEqualTo(0);
-    Assertions.assertThat(metadata.id("ee")).isEqualTo(-1);
+    assertThat(metadata.id("A")).isEqualTo(-1);
+    assertThat(metadata.id("a")).isEqualTo(4);
+    assertThat(metadata.id("aa")).isEqualTo(-1);
+    assertThat(metadata.id("b")).isEqualTo(3);
+    assertThat(metadata.id("bb")).isEqualTo(-1);
+    assertThat(metadata.id("c")).isEqualTo(2);
+    assertThat(metadata.id("cc")).isEqualTo(-1);
+    assertThat(metadata.id("d")).isEqualTo(1);
+    assertThat(metadata.id("dd")).isEqualTo(-1);
+    assertThat(metadata.id("e")).isEqualTo(0);
+    assertThat(metadata.id("ee")).isEqualTo(-1);
   }
 
   @ParameterizedTest
@@ -179,8 +175,8 @@ public class TestSerializedMetadata {
     ByteBuffer buffer = VariantTestUtil.createMetadata(keySet, sortFieldNames);
     SerializedMetadata metadata = SerializedMetadata.from(buffer);
 
-    Assertions.assertThat(metadata.dictionarySize()).isEqualTo(10_000);
-    Assertions.assertThat(metadata.id(lastKey)).isGreaterThan(0);
+    assertThat(metadata.dictionarySize()).isEqualTo(10_000);
+    assertThat(metadata.id(lastKey)).isGreaterThan(0);
   }
 
   @ParameterizedTest
@@ -196,27 +192,27 @@ public class TestSerializedMetadata {
     ByteBuffer buffer = VariantTestUtil.createMetadata(keySet, sortFieldNames);
     SerializedMetadata metadata = SerializedMetadata.from(buffer);
 
-    Assertions.assertThat(metadata.dictionarySize()).isEqualTo(100_000);
-    Assertions.assertThat(metadata.id(lastKey)).isGreaterThan(0);
+    assertThat(metadata.dictionarySize()).isEqualTo(100_000);
+    assertThat(metadata.id(lastKey)).isGreaterThan(0);
   }
 
   @Test
   public void testInvalidMetadataVersion() {
-    Assertions.assertThatThrownBy(() -> SerializedMetadata.from(new byte[] {0x02, 0x00}))
+    assertThatThrownBy(() -> SerializedMetadata.from(new byte[] {0x02, 0x00}))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Unsupported version: 2");
   }
 
   @Test
   public void testMissingLength() {
-    Assertions.assertThatThrownBy(() -> SerializedMetadata.from(new byte[] {0x01}))
+    assertThatThrownBy(() -> SerializedMetadata.from(new byte[] {0x01}))
         .isInstanceOf(IndexOutOfBoundsException.class);
   }
 
   @Test
   public void testLengthTooShort() {
     // missing the 4th length byte
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> SerializedMetadata.from(new byte[] {(byte) 0b11010001, 0x00, 0x00, 0x00}))
         .isInstanceOf(IndexOutOfBoundsException.class);
   }

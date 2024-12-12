@@ -18,10 +18,11 @@
  */
 package org.apache.iceberg.variants;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 
@@ -74,8 +75,8 @@ public class TestPrimitiveWrapper {
 
     // read and validate the serialized bytes
     VariantValue actual = Variants.from(SerializedMetadata.EMPTY_V1_BUFFER, readBuffer);
-    Assertions.assertThat(actual.type()).isEqualTo(primitive.type());
-    Assertions.assertThat(actual).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(actual.asPrimitive().get()).isEqualTo(primitive.get());
+    assertThat(actual.type()).isEqualTo(primitive.type());
+    assertThat(actual).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.asPrimitive().get()).isEqualTo(primitive.get());
   }
 }

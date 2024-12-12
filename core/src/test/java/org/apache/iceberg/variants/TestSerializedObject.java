@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.variants;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Random;
@@ -25,10 +27,9 @@ import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.RandomUtil;
 import org.apache.iceberg.variants.Variants.PhysicalType;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.util.Sets;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -36,12 +37,12 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class TestSerializedObject {
   private static final SerializedMetadata EMPTY_METADATA =
       SerializedMetadata.from(SerializedMetadata.EMPTY_V1_BUFFER);
-  private static final SerializedPrimitive i1 = SerializedPrimitive.from(new byte[] {0b1100, 1});
-  private static final SerializedPrimitive i2 = SerializedPrimitive.from(new byte[] {0b1100, 2});
-  private static final SerializedPrimitive i3 = SerializedPrimitive.from(new byte[] {0b1100, 3});
-  private static final SerializedPrimitive vNull = SerializedPrimitive.from(new byte[] {0x00});
-  private static final SerializedPrimitive vTrue = SerializedPrimitive.from(new byte[] {0b100});
-  private static final SerializedPrimitive date =
+  private static final SerializedPrimitive I1 = SerializedPrimitive.from(new byte[] {0b1100, 1});
+  private static final SerializedPrimitive I2 = SerializedPrimitive.from(new byte[] {0b1100, 2});
+  private static final SerializedPrimitive I3 = SerializedPrimitive.from(new byte[] {0b1100, 3});
+  private static final SerializedPrimitive NULL = SerializedPrimitive.from(new byte[] {0x00});
+  private static final SerializedPrimitive TRUE = SerializedPrimitive.from(new byte[] {0b100});
+  private static final SerializedPrimitive DATE =
       SerializedPrimitive.from(new byte[] {0b101100, (byte) 0xF4, 0x43, 0x00, 0x00});
 
   private final Random random = new Random(198725);
@@ -50,8 +51,8 @@ public class TestSerializedObject {
   public void testEmptyObject() {
     SerializedObject object = SerializedObject.from(EMPTY_METADATA, new byte[] {0b10, 0x00});
 
-    Assertions.assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    Assertions.assertThat(object.numElements()).isEqualTo(0);
+    assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(object.numElements()).isEqualTo(0);
   }
 
   @Test
@@ -59,52 +60,52 @@ public class TestSerializedObject {
     SerializedObject object =
         SerializedObject.from(EMPTY_METADATA, new byte[] {0b1000010, 0x00, 0x00, 0x00, 0x00});
 
-    Assertions.assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    Assertions.assertThat(object.numElements()).isEqualTo(0);
+    assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(object.numElements()).isEqualTo(0);
   }
 
   @Test
   public void testSimpleObject() {
-    Map<String, VariantValue> data = ImmutableMap.of("a", i1, "b", i2, "c", i3);
+    Map<String, VariantValue> data = ImmutableMap.of("a", I1, "b", I2, "c", I3);
     ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), true /* sort names */);
     ByteBuffer value = VariantTestUtil.createObject(meta, data);
 
     SerializedMetadata metadata = SerializedMetadata.from(meta);
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
-    Assertions.assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    Assertions.assertThat(object.numElements()).isEqualTo(3);
+    assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(object.numElements()).isEqualTo(3);
 
-    Assertions.assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
-    Assertions.assertThat(object.get("b").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(object.get("b").asPrimitive().get()).isEqualTo((byte) 2);
-    Assertions.assertThat(object.get("c").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(object.get("c").asPrimitive().get()).isEqualTo((byte) 3);
+    assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
+    assertThat(object.get("b").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("b").asPrimitive().get()).isEqualTo((byte) 2);
+    assertThat(object.get("c").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("c").asPrimitive().get()).isEqualTo((byte) 3);
 
-    Assertions.assertThat(object.get("d")).isEqualTo(null);
+    assertThat(object.get("d")).isEqualTo(null);
   }
 
   @Test
   public void testOutOfOrderKeys() {
-    Map<String, VariantValue> data = ImmutableMap.of("b", i2, "a", i1, "c", i3);
+    Map<String, VariantValue> data = ImmutableMap.of("b", I2, "a", I1, "c", I3);
     ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), false /* sort names */);
     ByteBuffer value = VariantTestUtil.createObject(meta, data);
 
     SerializedMetadata metadata = SerializedMetadata.from(meta);
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
-    Assertions.assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    Assertions.assertThat(object.numElements()).isEqualTo(3);
+    assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(object.numElements()).isEqualTo(3);
 
-    Assertions.assertThat(object.get("d")).isEqualTo(null);
+    assertThat(object.get("d")).isEqualTo(null);
 
-    Assertions.assertThat(object.get("c").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(object.get("c").asPrimitive().get()).isEqualTo((byte) 3);
-    Assertions.assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
-    Assertions.assertThat(object.get("b").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(object.get("b").asPrimitive().get()).isEqualTo((byte) 2);
+    assertThat(object.get("c").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("c").asPrimitive().get()).isEqualTo((byte) 3);
+    assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
+    assertThat(object.get("b").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("b").asPrimitive().get()).isEqualTo((byte) 2);
   }
 
   @Test
@@ -114,34 +115,34 @@ public class TestSerializedObject {
             ImmutableList.of("a", "b", "c", "d", "e", "f"), true /* sort names */);
     SerializedMetadata metadata = SerializedMetadata.from(meta);
 
-    Map<String, VariantValue> inner = ImmutableMap.of("b", i2, "f", i3);
+    Map<String, VariantValue> inner = ImmutableMap.of("b", I2, "f", I3);
     ByteBuffer innerBuffer = VariantTestUtil.createObject(meta, inner);
     SerializedObject innerObject = SerializedObject.from(metadata, innerBuffer, innerBuffer.get(0));
     Map<String, VariantValue> data =
-        ImmutableMap.of("a", i1, "b", date, "c", vNull, "d", vTrue, "e", innerObject);
+        ImmutableMap.of("a", I1, "b", DATE, "c", NULL, "d", TRUE, "e", innerObject);
     ByteBuffer value = VariantTestUtil.createObject(meta, data);
 
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
-    Assertions.assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    Assertions.assertThat(object.numElements()).isEqualTo(5);
+    assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(object.numElements()).isEqualTo(5);
 
-    Assertions.assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
-    Assertions.assertThat(object.get("b").type()).isEqualTo(PhysicalType.DATE);
-    Assertions.assertThat(((SerializedPrimitive) object.get("b")).get()).isEqualTo(17396);
-    Assertions.assertThat(object.get("c").type()).isEqualTo(PhysicalType.NULL);
-    Assertions.assertThat(((SerializedPrimitive) object.get("c")).get()).isEqualTo(null);
-    Assertions.assertThat(object.get("d").type()).isEqualTo(PhysicalType.BOOLEAN_TRUE);
-    Assertions.assertThat(((SerializedPrimitive) object.get("d")).get()).isEqualTo(true);
+    assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
+    assertThat(object.get("b").type()).isEqualTo(PhysicalType.DATE);
+    assertThat(((SerializedPrimitive) object.get("b")).get()).isEqualTo(17396);
+    assertThat(object.get("c").type()).isEqualTo(PhysicalType.NULL);
+    assertThat(((SerializedPrimitive) object.get("c")).get()).isEqualTo(null);
+    assertThat(object.get("d").type()).isEqualTo(PhysicalType.BOOLEAN_TRUE);
+    assertThat(((SerializedPrimitive) object.get("d")).get()).isEqualTo(true);
 
-    Assertions.assertThat(object.get("e").type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(object.get("e").type()).isEqualTo(PhysicalType.OBJECT);
     SerializedObject actualInner = (SerializedObject) object.get("e").asObject();
-    Assertions.assertThat(actualInner.numElements()).isEqualTo(2);
-    Assertions.assertThat(actualInner.get("b").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(actualInner.get("b").asPrimitive().get()).isEqualTo((byte) 2);
-    Assertions.assertThat(actualInner.get("f").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(actualInner.get("f").asPrimitive().get()).isEqualTo((byte) 3);
+    assertThat(actualInner.numElements()).isEqualTo(2);
+    assertThat(actualInner.get("b").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(actualInner.get("b").asPrimitive().get()).isEqualTo((byte) 2);
+    assertThat(actualInner.get("f").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(actualInner.get("f").asPrimitive().get()).isEqualTo((byte) 3);
   }
 
   @Test
@@ -151,24 +152,24 @@ public class TestSerializedObject {
     SerializedPrimitive bigString = VariantTestUtil.createString(randomString);
 
     // note that order doesn't matter. fields are sorted by name
-    Map<String, VariantValue> data = ImmutableMap.of("big", bigString, "a", i1, "b", i2, "c", i3);
+    Map<String, VariantValue> data = ImmutableMap.of("big", bigString, "a", I1, "b", I2, "c", I3);
     ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), true /* sort names */);
     ByteBuffer value = VariantTestUtil.createObject(meta, data);
 
     SerializedMetadata metadata = SerializedMetadata.from(meta);
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
-    Assertions.assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    Assertions.assertThat(object.numElements()).isEqualTo(4);
+    assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(object.numElements()).isEqualTo(4);
 
-    Assertions.assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
-    Assertions.assertThat(object.get("b").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(object.get("b").asPrimitive().get()).isEqualTo((byte) 2);
-    Assertions.assertThat(object.get("c").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(object.get("c").asPrimitive().get()).isEqualTo((byte) 3);
-    Assertions.assertThat(object.get("big").type()).isEqualTo(PhysicalType.STRING);
-    Assertions.assertThat(object.get("big").asPrimitive().get()).isEqualTo(randomString);
+    assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
+    assertThat(object.get("b").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("b").asPrimitive().get()).isEqualTo((byte) 2);
+    assertThat(object.get("c").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("c").asPrimitive().get()).isEqualTo((byte) 3);
+    assertThat(object.get("big").type()).isEqualTo(PhysicalType.STRING);
+    assertThat(object.get("big").asPrimitive().get()).isEqualTo(randomString);
   }
 
   @Test
@@ -179,24 +180,24 @@ public class TestSerializedObject {
 
     // note that order doesn't matter. fields are sorted by name
     Map<String, VariantValue> data =
-        ImmutableMap.of("really-big", reallyBigString, "a", i1, "b", i2, "c", i3);
+        ImmutableMap.of("really-big", reallyBigString, "a", I1, "b", I2, "c", I3);
     ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), true /* sort names */);
     ByteBuffer value = VariantTestUtil.createObject(meta, data);
 
     SerializedMetadata metadata = SerializedMetadata.from(meta);
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
-    Assertions.assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    Assertions.assertThat(object.numElements()).isEqualTo(4);
+    assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(object.numElements()).isEqualTo(4);
 
-    Assertions.assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
-    Assertions.assertThat(object.get("b").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(object.get("b").asPrimitive().get()).isEqualTo((byte) 2);
-    Assertions.assertThat(object.get("c").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(object.get("c").asPrimitive().get()).isEqualTo((byte) 3);
-    Assertions.assertThat(object.get("really-big").type()).isEqualTo(PhysicalType.STRING);
-    Assertions.assertThat(object.get("really-big").asPrimitive().get()).isEqualTo(randomString);
+    assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
+    assertThat(object.get("b").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("b").asPrimitive().get()).isEqualTo((byte) 2);
+    assertThat(object.get("c").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("c").asPrimitive().get()).isEqualTo((byte) 3);
+    assertThat(object.get("really-big").type()).isEqualTo(PhysicalType.STRING);
+    assertThat(object.get("really-big").asPrimitive().get()).isEqualTo(randomString);
   }
 
   @ParameterizedTest
@@ -216,13 +217,13 @@ public class TestSerializedObject {
     SerializedMetadata metadata = SerializedMetadata.from(meta);
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
-    Assertions.assertThat(object.type()).isEqualTo(Variants.PhysicalType.OBJECT);
-    Assertions.assertThat(object.numElements()).isEqualTo(10_000);
+    assertThat(object.type()).isEqualTo(Variants.PhysicalType.OBJECT);
+    assertThat(object.numElements()).isEqualTo(10_000);
 
     for (Map.Entry<String, VariantPrimitive<String>> entry : fields.entrySet()) {
       VariantValue fieldValue = object.get(entry.getKey());
-      Assertions.assertThat(fieldValue.type()).isEqualTo(Variants.PhysicalType.STRING);
-      Assertions.assertThat(fieldValue.asPrimitive().get()).isEqualTo(entry.getValue().get());
+      assertThat(fieldValue.type()).isEqualTo(Variants.PhysicalType.STRING);
+      assertThat(fieldValue.asPrimitive().get()).isEqualTo(entry.getValue().get());
     }
   }
 
@@ -234,7 +235,7 @@ public class TestSerializedObject {
       keySet.add(RandomUtil.generateString(10, random));
     }
 
-    Map<String, VariantValue> data = ImmutableMap.of("aa", i1, "AA", i2, "ZZ", i3);
+    Map<String, VariantValue> data = ImmutableMap.of("aa", I1, "AA", I2, "ZZ", I3);
 
     // create metadata from the large key set and the actual keys
     keySet.addAll(data.keySet());
@@ -244,15 +245,15 @@ public class TestSerializedObject {
     SerializedMetadata metadata = SerializedMetadata.from(meta);
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
-    Assertions.assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    Assertions.assertThat(object.numElements()).isEqualTo(3);
+    assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(object.numElements()).isEqualTo(3);
 
-    Assertions.assertThat(object.get("aa").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(object.get("aa").asPrimitive().get()).isEqualTo((byte) 1);
-    Assertions.assertThat(object.get("AA").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(object.get("AA").asPrimitive().get()).isEqualTo((byte) 2);
-    Assertions.assertThat(object.get("ZZ").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(object.get("ZZ").asPrimitive().get()).isEqualTo((byte) 3);
+    assertThat(object.get("aa").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("aa").asPrimitive().get()).isEqualTo((byte) 1);
+    assertThat(object.get("AA").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("AA").asPrimitive().get()).isEqualTo((byte) 2);
+    assertThat(object.get("ZZ").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("ZZ").asPrimitive().get()).isEqualTo((byte) 3);
   }
 
   @ParameterizedTest
@@ -263,7 +264,7 @@ public class TestSerializedObject {
       keySet.add(RandomUtil.generateString(10, random));
     }
 
-    Map<String, VariantValue> data = ImmutableMap.of("aa", i1, "AA", i2, "ZZ", i3);
+    Map<String, VariantValue> data = ImmutableMap.of("aa", I1, "AA", I2, "ZZ", I3);
 
     // create metadata from the large key set and the actual keys
     keySet.addAll(data.keySet());
@@ -273,14 +274,14 @@ public class TestSerializedObject {
     SerializedMetadata metadata = SerializedMetadata.from(meta);
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
-    Assertions.assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    Assertions.assertThat(object.numElements()).isEqualTo(3);
+    assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(object.numElements()).isEqualTo(3);
 
-    Assertions.assertThat(object.get("aa").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(object.get("aa").asPrimitive().get()).isEqualTo((byte) 1);
-    Assertions.assertThat(object.get("AA").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(object.get("AA").asPrimitive().get()).isEqualTo((byte) 2);
-    Assertions.assertThat(object.get("ZZ").type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(object.get("ZZ").asPrimitive().get()).isEqualTo((byte) 3);
+    assertThat(object.get("aa").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("aa").asPrimitive().get()).isEqualTo((byte) 1);
+    assertThat(object.get("AA").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("AA").asPrimitive().get()).isEqualTo((byte) 2);
+    assertThat(object.get("ZZ").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("ZZ").asPrimitive().get()).isEqualTo((byte) 3);
   }
 }
