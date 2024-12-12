@@ -117,7 +117,7 @@ class ShreddedObject implements VariantObject {
       this.fieldIdSize = VariantUtil.sizeOf(metadata.dictionarySize());
       this.shreddedFields = shreddedFields;
 
-      int dataSize = 0;
+      int totalDataSize = 0;
       // get the unshredded field names and values as byte buffers
       ImmutableMap.Builder<String, ByteBuffer> unshreddedBuilder = ImmutableMap.builder();
       if (unshredded != null) {
@@ -128,7 +128,7 @@ class ShreddedObject implements VariantObject {
           if (!replaced) {
             ByteBuffer value = unshredded.sliceValue(field.second());
             unshreddedBuilder.put(name, value);
-            dataSize += value.remaining();
+            totalDataSize += value.remaining();
           }
         }
       }
@@ -140,12 +140,12 @@ class ShreddedObject implements VariantObject {
       this.isLarge = numElements > 0xFF;
 
       for (VariantValue value : shreddedFields.values()) {
-        dataSize += value.sizeInBytes();
+        totalDataSize += value.sizeInBytes();
       }
 
-      this.dataSize = dataSize;
+      this.dataSize = totalDataSize;
       // offset size is the size needed to store the length of the data section
-      this.offsetSize = VariantUtil.sizeOf(dataSize);
+      this.offsetSize = VariantUtil.sizeOf(totalDataSize);
     }
 
     private int size() {

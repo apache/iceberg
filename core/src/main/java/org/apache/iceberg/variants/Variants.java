@@ -25,6 +25,8 @@ import java.util.Map;
 import org.apache.iceberg.util.DateTimeUtil;
 
 public class Variants {
+  private Variants() {}
+
   enum LogicalType {
     NULL,
     BOOLEAN,
