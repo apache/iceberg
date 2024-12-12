@@ -18,11 +18,13 @@
  */
 package org.apache.iceberg.variants;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.variants.Variants.PhysicalType;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestSerializedPrimitives {
@@ -30,32 +32,32 @@ public class TestSerializedPrimitives {
   public void testNull() {
     VariantPrimitive<?> value = SerializedPrimitive.from(new byte[] {primitiveHeader(0)});
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.NULL);
-    Assertions.assertThat(value.get()).isEqualTo(null);
+    assertThat(value.type()).isEqualTo(PhysicalType.NULL);
+    assertThat(value.get()).isEqualTo(null);
   }
 
   @Test
   public void testTrue() {
     VariantPrimitive<?> value = SerializedPrimitive.from(new byte[] {primitiveHeader(1)});
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.BOOLEAN_TRUE);
-    Assertions.assertThat(value.get()).isEqualTo(true);
+    assertThat(value.type()).isEqualTo(PhysicalType.BOOLEAN_TRUE);
+    assertThat(value.get()).isEqualTo(true);
   }
 
   @Test
   public void testFalse() {
     VariantPrimitive<?> value = SerializedPrimitive.from(new byte[] {primitiveHeader(2)});
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.BOOLEAN_FALSE);
-    Assertions.assertThat(value.get()).isEqualTo(false);
+    assertThat(value.type()).isEqualTo(PhysicalType.BOOLEAN_FALSE);
+    assertThat(value.get()).isEqualTo(false);
   }
 
   @Test
   public void testInt8() {
     VariantPrimitive<?> value = SerializedPrimitive.from(new byte[] {primitiveHeader(3), 34});
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(value.get()).isEqualTo((byte) 34);
+    assertThat(value.type()).isEqualTo(PhysicalType.INT8);
+    assertThat(value.get()).isEqualTo((byte) 34);
   }
 
   @Test
@@ -63,8 +65,8 @@ public class TestSerializedPrimitives {
     VariantPrimitive<?> value =
         SerializedPrimitive.from(new byte[] {primitiveHeader(3), (byte) 0xFF});
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.INT8);
-    Assertions.assertThat(value.get()).isEqualTo((byte) -1);
+    assertThat(value.type()).isEqualTo(PhysicalType.INT8);
+    assertThat(value.get()).isEqualTo((byte) -1);
   }
 
   @Test
@@ -72,8 +74,8 @@ public class TestSerializedPrimitives {
     VariantPrimitive<?> value =
         SerializedPrimitive.from(new byte[] {primitiveHeader(4), (byte) 0xD2, 0x04});
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.INT16);
-    Assertions.assertThat(value.get()).isEqualTo((short) 1234);
+    assertThat(value.type()).isEqualTo(PhysicalType.INT16);
+    assertThat(value.get()).isEqualTo((short) 1234);
   }
 
   @Test
@@ -81,8 +83,8 @@ public class TestSerializedPrimitives {
     VariantPrimitive<?> value =
         SerializedPrimitive.from(new byte[] {primitiveHeader(4), (byte) 0xFF, (byte) 0xFF});
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.INT16);
-    Assertions.assertThat(value.get()).isEqualTo((short) -1);
+    assertThat(value.type()).isEqualTo(PhysicalType.INT16);
+    assertThat(value.get()).isEqualTo((short) -1);
   }
 
   @Test
@@ -91,8 +93,8 @@ public class TestSerializedPrimitives {
         SerializedPrimitive.from(
             new byte[] {primitiveHeader(5), (byte) 0xD2, 0x02, (byte) 0x96, 0x49});
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.INT32);
-    Assertions.assertThat(value.get()).isEqualTo(1234567890);
+    assertThat(value.type()).isEqualTo(PhysicalType.INT32);
+    assertThat(value.get()).isEqualTo(1234567890);
   }
 
   @Test
@@ -101,8 +103,8 @@ public class TestSerializedPrimitives {
         SerializedPrimitive.from(
             new byte[] {primitiveHeader(5), (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF});
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.INT32);
-    Assertions.assertThat(value.get()).isEqualTo(-1);
+    assertThat(value.type()).isEqualTo(PhysicalType.INT32);
+    assertThat(value.get()).isEqualTo(-1);
   }
 
   @Test
@@ -121,8 +123,8 @@ public class TestSerializedPrimitives {
               0x11
             });
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.INT64);
-    Assertions.assertThat(value.get()).isEqualTo(1234567890987654321L);
+    assertThat(value.type()).isEqualTo(PhysicalType.INT64);
+    assertThat(value.get()).isEqualTo(1234567890987654321L);
   }
 
   @Test
@@ -141,8 +143,8 @@ public class TestSerializedPrimitives {
               (byte) 0xFF
             });
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.INT64);
-    Assertions.assertThat(value.get()).isEqualTo(-1L);
+    assertThat(value.type()).isEqualTo(PhysicalType.INT64);
+    assertThat(value.get()).isEqualTo(-1L);
   }
 
   @Test
@@ -161,8 +163,8 @@ public class TestSerializedPrimitives {
               0x11
             });
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.DOUBLE);
-    Assertions.assertThat(value.get()).isEqualTo(Double.longBitsToDouble(1234567890987654321L));
+    assertThat(value.type()).isEqualTo(PhysicalType.DOUBLE);
+    assertThat(value.get()).isEqualTo(Double.longBitsToDouble(1234567890987654321L));
   }
 
   @Test
@@ -171,8 +173,8 @@ public class TestSerializedPrimitives {
         SerializedPrimitive.from(
             new byte[] {primitiveHeader(7), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, (byte) 0x80});
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.DOUBLE);
-    Assertions.assertThat(value.get()).isEqualTo(-0.0D);
+    assertThat(value.type()).isEqualTo(PhysicalType.DOUBLE);
+    assertThat(value.get()).isEqualTo(-0.0D);
   }
 
   @Test
@@ -181,8 +183,8 @@ public class TestSerializedPrimitives {
         SerializedPrimitive.from(
             new byte[] {primitiveHeader(8), 0x04, (byte) 0xD2, 0x02, (byte) 0x96, 0x49});
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.DECIMAL4);
-    Assertions.assertThat(value.get()).isEqualTo(new BigDecimal("123456.7890"));
+    assertThat(value.type()).isEqualTo(PhysicalType.DECIMAL4);
+    assertThat(value.get()).isEqualTo(new BigDecimal("123456.7890"));
   }
 
   @Test
@@ -193,8 +195,8 @@ public class TestSerializedPrimitives {
               primitiveHeader(8), 0x04, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF
             });
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.DECIMAL4);
-    Assertions.assertThat(value.get()).isEqualTo(new BigDecimal("-0.0001"));
+    assertThat(value.type()).isEqualTo(PhysicalType.DECIMAL4);
+    assertThat(value.get()).isEqualTo(new BigDecimal("-0.0001"));
   }
 
   @Test
@@ -214,8 +216,8 @@ public class TestSerializedPrimitives {
               0x11
             });
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.DECIMAL8);
-    Assertions.assertThat(value.get()).isEqualTo(new BigDecimal("1234567890.987654321"));
+    assertThat(value.type()).isEqualTo(PhysicalType.DECIMAL8);
+    assertThat(value.get()).isEqualTo(new BigDecimal("1234567890.987654321"));
   }
 
   @Test
@@ -235,8 +237,8 @@ public class TestSerializedPrimitives {
               (byte) 0xFF
             });
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.DECIMAL8);
-    Assertions.assertThat(value.get()).isEqualTo(new BigDecimal("-0.000000001"));
+    assertThat(value.type()).isEqualTo(PhysicalType.DECIMAL8);
+    assertThat(value.get()).isEqualTo(new BigDecimal("-0.000000001"));
   }
 
   @Test
@@ -264,8 +266,8 @@ public class TestSerializedPrimitives {
               0x00
             });
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.DECIMAL16);
-    Assertions.assertThat(value.get()).isEqualTo(new BigDecimal("9876543210.123456789"));
+    assertThat(value.type()).isEqualTo(PhysicalType.DECIMAL16);
+    assertThat(value.get()).isEqualTo(new BigDecimal("9876543210.123456789"));
   }
 
   @Test
@@ -293,8 +295,8 @@ public class TestSerializedPrimitives {
               (byte) 0xFF,
             });
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.DECIMAL16);
-    Assertions.assertThat(value.get()).isEqualTo(new BigDecimal("-9876543210.123456789"));
+    assertThat(value.type()).isEqualTo(PhysicalType.DECIMAL16);
+    assertThat(value.get()).isEqualTo(new BigDecimal("-9876543210.123456789"));
   }
 
   @Test
@@ -302,8 +304,8 @@ public class TestSerializedPrimitives {
     VariantPrimitive<?> value =
         SerializedPrimitive.from(new byte[] {primitiveHeader(11), (byte) 0xF4, 0x43, 0x00, 0x00});
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.DATE);
-    Assertions.assertThat(DateTimeUtil.daysToIsoDate((int) value.get())).isEqualTo("2017-08-18");
+    assertThat(value.type()).isEqualTo(PhysicalType.DATE);
+    assertThat(DateTimeUtil.daysToIsoDate((int) value.get())).isEqualTo("2017-08-18");
   }
 
   @Test
@@ -312,8 +314,8 @@ public class TestSerializedPrimitives {
         SerializedPrimitive.from(
             new byte[] {primitiveHeader(11), (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF});
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.DATE);
-    Assertions.assertThat(DateTimeUtil.daysToIsoDate((int) value.get())).isEqualTo("1969-12-31");
+    assertThat(value.type()).isEqualTo(PhysicalType.DATE);
+    assertThat(DateTimeUtil.daysToIsoDate((int) value.get())).isEqualTo("1969-12-31");
   }
 
   @Test
@@ -332,8 +334,8 @@ public class TestSerializedPrimitives {
               0x00
             });
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPTZ);
-    Assertions.assertThat(DateTimeUtil.microsToIsoTimestamptz((long) value.get()))
+    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPTZ);
+    assertThat(DateTimeUtil.microsToIsoTimestamptz((long) value.get()))
         .isEqualTo("2017-08-18T14:21:01.919+00:00");
   }
 
@@ -353,8 +355,8 @@ public class TestSerializedPrimitives {
               (byte) 0xFF
             });
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPTZ);
-    Assertions.assertThat(DateTimeUtil.microsToIsoTimestamptz((long) value.get()))
+    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPTZ);
+    assertThat(DateTimeUtil.microsToIsoTimestamptz((long) value.get()))
         .isEqualTo("1969-12-31T23:59:59.999999+00:00");
   }
 
@@ -374,8 +376,8 @@ public class TestSerializedPrimitives {
               0x00
             });
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPNTZ);
-    Assertions.assertThat(DateTimeUtil.microsToIsoTimestamp((long) value.get()))
+    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPNTZ);
+    assertThat(DateTimeUtil.microsToIsoTimestamp((long) value.get()))
         .isEqualTo("2017-08-18T14:21:01.919");
   }
 
@@ -395,8 +397,8 @@ public class TestSerializedPrimitives {
               (byte) 0xFF
             });
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPNTZ);
-    Assertions.assertThat(DateTimeUtil.microsToIsoTimestamp((long) value.get()))
+    assertThat(value.type()).isEqualTo(PhysicalType.TIMESTAMPNTZ);
+    assertThat(DateTimeUtil.microsToIsoTimestamp((long) value.get()))
         .isEqualTo("1969-12-31T23:59:59.999999");
   }
 
@@ -406,8 +408,8 @@ public class TestSerializedPrimitives {
         SerializedPrimitive.from(
             new byte[] {primitiveHeader(14), (byte) 0xD2, 0x02, (byte) 0x96, 0x49});
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.FLOAT);
-    Assertions.assertThat(value.get()).isEqualTo(Float.intBitsToFloat(1234567890));
+    assertThat(value.type()).isEqualTo(PhysicalType.FLOAT);
+    assertThat(value.get()).isEqualTo(Float.intBitsToFloat(1234567890));
   }
 
   @Test
@@ -415,8 +417,8 @@ public class TestSerializedPrimitives {
     VariantPrimitive<?> value =
         SerializedPrimitive.from(new byte[] {primitiveHeader(14), 0x00, 0x00, 0x00, (byte) 0x80});
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.FLOAT);
-    Assertions.assertThat(value.get()).isEqualTo(-0.0F);
+    assertThat(value.type()).isEqualTo(PhysicalType.FLOAT);
+    assertThat(value.get()).isEqualTo(-0.0F);
   }
 
   @Test
@@ -425,9 +427,8 @@ public class TestSerializedPrimitives {
         SerializedPrimitive.from(
             new byte[] {primitiveHeader(15), 0x05, 0x00, 0x00, 0x00, 'a', 'b', 'c', 'd', 'e'});
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.BINARY);
-    Assertions.assertThat(value.get())
-        .isEqualTo(ByteBuffer.wrap(new byte[] {'a', 'b', 'c', 'd', 'e'}));
+    assertThat(value.type()).isEqualTo(PhysicalType.BINARY);
+    assertThat(value.get()).isEqualTo(ByteBuffer.wrap(new byte[] {'a', 'b', 'c', 'd', 'e'}));
   }
 
   @Test
@@ -438,8 +439,8 @@ public class TestSerializedPrimitives {
               primitiveHeader(16), 0x07, 0x00, 0x00, 0x00, 'i', 'c', 'e', 'b', 'e', 'r', 'g'
             });
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.STRING);
-    Assertions.assertThat(value.get()).isEqualTo("iceberg");
+    assertThat(value.type()).isEqualTo(PhysicalType.STRING);
+    assertThat(value.get()).isEqualTo("iceberg");
   }
 
   @Test
@@ -447,13 +448,13 @@ public class TestSerializedPrimitives {
     VariantPrimitive<?> value =
         SerializedShortString.from(new byte[] {0b11101, 'i', 'c', 'e', 'b', 'e', 'r', 'g'});
 
-    Assertions.assertThat(value.type()).isEqualTo(PhysicalType.STRING);
-    Assertions.assertThat(value.get()).isEqualTo("iceberg");
+    assertThat(value.type()).isEqualTo(PhysicalType.STRING);
+    assertThat(value.get()).isEqualTo("iceberg");
   }
 
   @Test
   public void testUnsupportedType() {
-    Assertions.assertThatThrownBy(() -> SerializedPrimitive.from(new byte[] {primitiveHeader(17)}))
+    assertThatThrownBy(() -> SerializedPrimitive.from(new byte[] {primitiveHeader(17)}))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Unknown primitive physical type: 17");
   }

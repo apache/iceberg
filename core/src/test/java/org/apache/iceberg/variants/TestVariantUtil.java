@@ -18,26 +18,27 @@
  */
 package org.apache.iceberg.variants;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.nio.ByteBuffer;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestVariantUtil {
   @Test
   public void testReadByteUnsigned() {
     ByteBuffer buffer = ByteBuffer.wrap(new byte[] {(byte) 0xFF});
-    Assertions.assertThat(VariantUtil.readByte(buffer, 0)).isEqualTo(255);
+    assertThat(VariantUtil.readByte(buffer, 0)).isEqualTo(255);
   }
 
   @Test
   public void testRead2ByteUnsigned() {
     ByteBuffer buffer = ByteBuffer.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF});
-    Assertions.assertThat(VariantUtil.readLittleEndianUnsigned(buffer, 0, 2)).isEqualTo(65535);
+    assertThat(VariantUtil.readLittleEndianUnsigned(buffer, 0, 2)).isEqualTo(65535);
   }
 
   @Test
   public void testRead3ByteUnsigned() {
     ByteBuffer buffer = ByteBuffer.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF, (byte) 0xFF});
-    Assertions.assertThat(VariantUtil.readLittleEndianUnsigned(buffer, 0, 3)).isEqualTo(16777215);
+    assertThat(VariantUtil.readLittleEndianUnsigned(buffer, 0, 3)).isEqualTo(16777215);
   }
 }

@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.variants;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -26,11 +29,10 @@ import java.util.Random;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.RandomUtil;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.util.Sets;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -51,12 +53,12 @@ public class TestShreddedObject {
   public void testShreddedFields() {
     ShreddedObject object = createShreddedObject(FIELDS).second();
 
-    Assertions.assertThat(object.get("a")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(object.get("a").asPrimitive().get()).isEqualTo(34);
-    Assertions.assertThat(object.get("b")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(object.get("b").asPrimitive().get()).isEqualTo("iceberg");
-    Assertions.assertThat(object.get("c")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(object.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
+    assertThat(object.get("a")).isInstanceOf(VariantPrimitive.class);
+    assertThat(object.get("a").asPrimitive().get()).isEqualTo(34);
+    assertThat(object.get("b")).isInstanceOf(VariantPrimitive.class);
+    assertThat(object.get("b").asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(object.get("c")).isInstanceOf(VariantPrimitive.class);
+    assertThat(object.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
   }
 
   @Test
@@ -67,16 +69,16 @@ public class TestShreddedObject {
 
     VariantValue value = roundTripMinimalBuffer(object, metadata);
 
-    Assertions.assertThat(value).isInstanceOf(SerializedObject.class);
+    assertThat(value).isInstanceOf(SerializedObject.class);
     SerializedObject actual = (SerializedObject) value;
 
-    Assertions.assertThat(actual.numElements()).isEqualTo(3);
-    Assertions.assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
-    Assertions.assertThat(actual.get("b")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(actual.get("b").asPrimitive().get()).isEqualTo("iceberg");
-    Assertions.assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(actual.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
+    assertThat(actual.numElements()).isEqualTo(3);
+    assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
+    assertThat(actual.get("b")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("b").asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
   }
 
   @Test
@@ -87,16 +89,16 @@ public class TestShreddedObject {
 
     VariantValue value = roundTripLargeBuffer(object, metadata);
 
-    Assertions.assertThat(value).isInstanceOf(SerializedObject.class);
+    assertThat(value).isInstanceOf(SerializedObject.class);
     SerializedObject actual = (SerializedObject) value;
 
-    Assertions.assertThat(actual.numElements()).isEqualTo(3);
-    Assertions.assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
-    Assertions.assertThat(actual.get("b")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(actual.get("b").asPrimitive().get()).isEqualTo("iceberg");
-    Assertions.assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(actual.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
+    assertThat(actual.numElements()).isEqualTo(3);
+    assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
+    assertThat(actual.get("b")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("b").asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
   }
 
   @Test
@@ -107,16 +109,16 @@ public class TestShreddedObject {
 
     VariantValue value = roundTripMinimalBuffer(object, metadata);
 
-    Assertions.assertThat(value).isInstanceOf(SerializedObject.class);
+    assertThat(value).isInstanceOf(SerializedObject.class);
     SerializedObject actual = (SerializedObject) value;
 
-    Assertions.assertThat(actual.numElements()).isEqualTo(3);
-    Assertions.assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
-    Assertions.assertThat(actual.get("b")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(actual.get("b").asPrimitive().get()).isEqualTo("iceberg");
-    Assertions.assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(actual.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
+    assertThat(actual.numElements()).isEqualTo(3);
+    assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
+    assertThat(actual.get("b")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("b").asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
   }
 
   @Test
@@ -127,16 +129,16 @@ public class TestShreddedObject {
 
     VariantValue value = roundTripLargeBuffer(object, metadata);
 
-    Assertions.assertThat(value).isInstanceOf(SerializedObject.class);
+    assertThat(value).isInstanceOf(SerializedObject.class);
     SerializedObject actual = (SerializedObject) value;
 
-    Assertions.assertThat(actual.numElements()).isEqualTo(3);
-    Assertions.assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
-    Assertions.assertThat(actual.get("b")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(actual.get("b").asPrimitive().get()).isEqualTo("iceberg");
-    Assertions.assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(actual.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
+    assertThat(actual.numElements()).isEqualTo(3);
+    assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
+    assertThat(actual.get("b")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("b").asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
   }
 
   @Test
@@ -146,13 +148,13 @@ public class TestShreddedObject {
     // replace field c with a new value
     partial.put("c", Variants.ofIsoDate("2024-10-12"));
 
-    Assertions.assertThat(partial.get("a")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(partial.get("a").asPrimitive().get()).isEqualTo(34);
-    Assertions.assertThat(partial.get("b")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(partial.get("b").asPrimitive().get()).isEqualTo("iceberg");
-    Assertions.assertThat(partial.get("c")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(partial.get("c").type()).isEqualTo(Variants.PhysicalType.DATE);
-    Assertions.assertThat(partial.get("c").asPrimitive().get())
+    assertThat(partial.get("a")).isInstanceOf(VariantPrimitive.class);
+    assertThat(partial.get("a").asPrimitive().get()).isEqualTo(34);
+    assertThat(partial.get("b")).isInstanceOf(VariantPrimitive.class);
+    assertThat(partial.get("b").asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(partial.get("c")).isInstanceOf(VariantPrimitive.class);
+    assertThat(partial.get("c").type()).isEqualTo(Variants.PhysicalType.DATE);
+    assertThat(partial.get("c").asPrimitive().get())
         .isEqualTo(DateTimeUtil.isoDateToDays("2024-10-12"));
   }
 
@@ -161,7 +163,7 @@ public class TestShreddedObject {
     ShreddedObject partial = createUnshreddedObject(FIELDS).second();
 
     // missing fields are returned as null
-    Assertions.assertThat(partial.get("d")).isNull();
+    assertThat(partial.get("d")).isNull();
   }
 
   @Test
@@ -169,7 +171,7 @@ public class TestShreddedObject {
     ShreddedObject partial = createUnshreddedObject(FIELDS).second();
 
     // d is not defined in the variant metadata and will fail
-    Assertions.assertThatThrownBy(() -> partial.put("d", Variants.ofIsoDate("2024-10-12")))
+    assertThatThrownBy(() -> partial.put("d", Variants.ofIsoDate("2024-10-12")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find field name in metadata: d");
   }
@@ -185,16 +187,16 @@ public class TestShreddedObject {
 
     VariantValue value = roundTripMinimalBuffer(partial, metadata);
 
-    Assertions.assertThat(value).isInstanceOf(SerializedObject.class);
+    assertThat(value).isInstanceOf(SerializedObject.class);
     SerializedObject actual = (SerializedObject) value;
 
-    Assertions.assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
-    Assertions.assertThat(actual.get("b")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(actual.get("b").asPrimitive().get()).isEqualTo("iceberg");
-    Assertions.assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(actual.get("c").type()).isEqualTo(Variants.PhysicalType.DATE);
-    Assertions.assertThat(actual.get("c").asPrimitive().get())
+    assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
+    assertThat(actual.get("b")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("b").asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("c").type()).isEqualTo(Variants.PhysicalType.DATE);
+    assertThat(actual.get("c").asPrimitive().get())
         .isEqualTo(DateTimeUtil.isoDateToDays("2024-10-12"));
   }
 
@@ -209,16 +211,16 @@ public class TestShreddedObject {
 
     VariantValue value = roundTripLargeBuffer(partial, metadata);
 
-    Assertions.assertThat(value).isInstanceOf(SerializedObject.class);
+    assertThat(value).isInstanceOf(SerializedObject.class);
     SerializedObject actual = (SerializedObject) value;
 
-    Assertions.assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
-    Assertions.assertThat(actual.get("b")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(actual.get("b").asPrimitive().get()).isEqualTo("iceberg");
-    Assertions.assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
-    Assertions.assertThat(actual.get("c").type()).isEqualTo(Variants.PhysicalType.DATE);
-    Assertions.assertThat(actual.get("c").asPrimitive().get())
+    assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
+    assertThat(actual.get("b")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("b").asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("c").type()).isEqualTo(Variants.PhysicalType.DATE);
+    assertThat(actual.get("c").asPrimitive().get())
         .isEqualTo(DateTimeUtil.isoDateToDays("2024-10-12"));
   }
 
@@ -235,18 +237,18 @@ public class TestShreddedObject {
     Pair<SerializedMetadata, ShreddedObject> pair = createShreddedObject(data);
     VariantValue value = roundTripLargeBuffer(pair.second(), pair.first());
 
-    Assertions.assertThat(value.type()).isEqualTo(Variants.PhysicalType.OBJECT);
+    assertThat(value.type()).isEqualTo(Variants.PhysicalType.OBJECT);
     SerializedObject object = (SerializedObject) value;
-    Assertions.assertThat(object.numElements()).isEqualTo(4);
+    assertThat(object.numElements()).isEqualTo(4);
 
-    Assertions.assertThat(object.get("a").type()).isEqualTo(Variants.PhysicalType.INT32);
-    Assertions.assertThat(object.get("a").asPrimitive().get()).isEqualTo(34);
-    Assertions.assertThat(object.get("b").type()).isEqualTo(Variants.PhysicalType.STRING);
-    Assertions.assertThat(object.get("b").asPrimitive().get()).isEqualTo("iceberg");
-    Assertions.assertThat(object.get("c").type()).isEqualTo(Variants.PhysicalType.DECIMAL4);
-    Assertions.assertThat(object.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
-    Assertions.assertThat(object.get("big").type()).isEqualTo(Variants.PhysicalType.STRING);
-    Assertions.assertThat(object.get("big").asPrimitive().get()).isEqualTo(randomString);
+    assertThat(object.get("a").type()).isEqualTo(Variants.PhysicalType.INT32);
+    assertThat(object.get("a").asPrimitive().get()).isEqualTo(34);
+    assertThat(object.get("b").type()).isEqualTo(Variants.PhysicalType.STRING);
+    assertThat(object.get("b").asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(object.get("c").type()).isEqualTo(Variants.PhysicalType.DECIMAL4);
+    assertThat(object.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
+    assertThat(object.get("big").type()).isEqualTo(Variants.PhysicalType.STRING);
+    assertThat(object.get("big").asPrimitive().get()).isEqualTo(randomString);
   }
 
   @Test
@@ -262,18 +264,18 @@ public class TestShreddedObject {
     Pair<SerializedMetadata, ShreddedObject> pair = createShreddedObject(data);
     VariantValue value = roundTripLargeBuffer(pair.second(), pair.first());
 
-    Assertions.assertThat(value.type()).isEqualTo(Variants.PhysicalType.OBJECT);
+    assertThat(value.type()).isEqualTo(Variants.PhysicalType.OBJECT);
     SerializedObject object = (SerializedObject) value;
-    Assertions.assertThat(object.numElements()).isEqualTo(4);
+    assertThat(object.numElements()).isEqualTo(4);
 
-    Assertions.assertThat(object.get("a").type()).isEqualTo(Variants.PhysicalType.INT32);
-    Assertions.assertThat(object.get("a").asPrimitive().get()).isEqualTo(34);
-    Assertions.assertThat(object.get("b").type()).isEqualTo(Variants.PhysicalType.STRING);
-    Assertions.assertThat(object.get("b").asPrimitive().get()).isEqualTo("iceberg");
-    Assertions.assertThat(object.get("c").type()).isEqualTo(Variants.PhysicalType.DECIMAL4);
-    Assertions.assertThat(object.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
-    Assertions.assertThat(object.get("really-big").type()).isEqualTo(Variants.PhysicalType.STRING);
-    Assertions.assertThat(object.get("really-big").asPrimitive().get()).isEqualTo(randomString);
+    assertThat(object.get("a").type()).isEqualTo(Variants.PhysicalType.INT32);
+    assertThat(object.get("a").asPrimitive().get()).isEqualTo(34);
+    assertThat(object.get("b").type()).isEqualTo(Variants.PhysicalType.STRING);
+    assertThat(object.get("b").asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(object.get("c").type()).isEqualTo(Variants.PhysicalType.DECIMAL4);
+    assertThat(object.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
+    assertThat(object.get("really-big").type()).isEqualTo(Variants.PhysicalType.STRING);
+    assertThat(object.get("really-big").asPrimitive().get()).isEqualTo(randomString);
   }
 
   @Test
@@ -289,18 +291,18 @@ public class TestShreddedObject {
     Pair<SerializedMetadata, ShreddedObject> pair = createShreddedObject(data);
     VariantValue value = roundTripLargeBuffer(pair.second(), pair.first());
 
-    Assertions.assertThat(value.type()).isEqualTo(Variants.PhysicalType.OBJECT);
+    assertThat(value.type()).isEqualTo(Variants.PhysicalType.OBJECT);
     SerializedObject object = (SerializedObject) value;
-    Assertions.assertThat(object.numElements()).isEqualTo(4);
+    assertThat(object.numElements()).isEqualTo(4);
 
-    Assertions.assertThat(object.get("a").type()).isEqualTo(Variants.PhysicalType.INT32);
-    Assertions.assertThat(object.get("a").asPrimitive().get()).isEqualTo(34);
-    Assertions.assertThat(object.get("b").type()).isEqualTo(Variants.PhysicalType.STRING);
-    Assertions.assertThat(object.get("b").asPrimitive().get()).isEqualTo("iceberg");
-    Assertions.assertThat(object.get("c").type()).isEqualTo(Variants.PhysicalType.DECIMAL4);
-    Assertions.assertThat(object.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
-    Assertions.assertThat(object.get("really-big").type()).isEqualTo(Variants.PhysicalType.STRING);
-    Assertions.assertThat(object.get("really-big").asPrimitive().get()).isEqualTo(randomString);
+    assertThat(object.get("a").type()).isEqualTo(Variants.PhysicalType.INT32);
+    assertThat(object.get("a").asPrimitive().get()).isEqualTo(34);
+    assertThat(object.get("b").type()).isEqualTo(Variants.PhysicalType.STRING);
+    assertThat(object.get("b").asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(object.get("c").type()).isEqualTo(Variants.PhysicalType.DECIMAL4);
+    assertThat(object.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
+    assertThat(object.get("really-big").type()).isEqualTo(Variants.PhysicalType.STRING);
+    assertThat(object.get("really-big").asPrimitive().get()).isEqualTo(randomString);
   }
 
   @ParameterizedTest
@@ -320,14 +322,14 @@ public class TestShreddedObject {
     ShreddedObject shredded = createShreddedObject(metadata, (Map) fields);
     VariantValue value = roundTripLargeBuffer(shredded, metadata);
 
-    Assertions.assertThat(value.type()).isEqualTo(Variants.PhysicalType.OBJECT);
+    assertThat(value.type()).isEqualTo(Variants.PhysicalType.OBJECT);
     SerializedObject object = (SerializedObject) value;
-    Assertions.assertThat(object.numElements()).isEqualTo(10_000);
+    assertThat(object.numElements()).isEqualTo(10_000);
 
     for (Map.Entry<String, VariantPrimitive<String>> entry : fields.entrySet()) {
       VariantValue fieldValue = object.get(entry.getKey());
-      Assertions.assertThat(fieldValue.type()).isEqualTo(Variants.PhysicalType.STRING);
-      Assertions.assertThat(fieldValue.asPrimitive().get()).isEqualTo(entry.getValue().get());
+      assertThat(fieldValue.type()).isEqualTo(Variants.PhysicalType.STRING);
+      assertThat(fieldValue.asPrimitive().get()).isEqualTo(entry.getValue().get());
     }
   }
 
@@ -350,16 +352,16 @@ public class TestShreddedObject {
     ShreddedObject shredded = createShreddedObject(metadata, data);
     VariantValue value = roundTripLargeBuffer(shredded, metadata);
 
-    Assertions.assertThat(value.type()).isEqualTo(Variants.PhysicalType.OBJECT);
+    assertThat(value.type()).isEqualTo(Variants.PhysicalType.OBJECT);
     SerializedObject object = (SerializedObject) value;
-    Assertions.assertThat(object.numElements()).isEqualTo(3);
+    assertThat(object.numElements()).isEqualTo(3);
 
-    Assertions.assertThat(object.get("aa").type()).isEqualTo(Variants.PhysicalType.INT32);
-    Assertions.assertThat(object.get("aa").asPrimitive().get()).isEqualTo(34);
-    Assertions.assertThat(object.get("AA").type()).isEqualTo(Variants.PhysicalType.STRING);
-    Assertions.assertThat(object.get("AA").asPrimitive().get()).isEqualTo("iceberg");
-    Assertions.assertThat(object.get("ZZ").type()).isEqualTo(Variants.PhysicalType.DECIMAL4);
-    Assertions.assertThat(object.get("ZZ").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
+    assertThat(object.get("aa").type()).isEqualTo(Variants.PhysicalType.INT32);
+    assertThat(object.get("aa").asPrimitive().get()).isEqualTo(34);
+    assertThat(object.get("AA").type()).isEqualTo(Variants.PhysicalType.STRING);
+    assertThat(object.get("AA").asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(object.get("ZZ").type()).isEqualTo(Variants.PhysicalType.DECIMAL4);
+    assertThat(object.get("ZZ").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
   }
 
   @ParameterizedTest
@@ -381,16 +383,16 @@ public class TestShreddedObject {
     ShreddedObject shredded = createShreddedObject(metadata, data);
     VariantValue value = roundTripLargeBuffer(shredded, metadata);
 
-    Assertions.assertThat(value.type()).isEqualTo(Variants.PhysicalType.OBJECT);
+    assertThat(value.type()).isEqualTo(Variants.PhysicalType.OBJECT);
     SerializedObject object = (SerializedObject) value;
-    Assertions.assertThat(object.numElements()).isEqualTo(3);
+    assertThat(object.numElements()).isEqualTo(3);
 
-    Assertions.assertThat(object.get("aa").type()).isEqualTo(Variants.PhysicalType.INT32);
-    Assertions.assertThat(object.get("aa").asPrimitive().get()).isEqualTo(34);
-    Assertions.assertThat(object.get("AA").type()).isEqualTo(Variants.PhysicalType.STRING);
-    Assertions.assertThat(object.get("AA").asPrimitive().get()).isEqualTo("iceberg");
-    Assertions.assertThat(object.get("ZZ").type()).isEqualTo(Variants.PhysicalType.DECIMAL4);
-    Assertions.assertThat(object.get("ZZ").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
+    assertThat(object.get("aa").type()).isEqualTo(Variants.PhysicalType.INT32);
+    assertThat(object.get("aa").asPrimitive().get()).isEqualTo(34);
+    assertThat(object.get("AA").type()).isEqualTo(Variants.PhysicalType.STRING);
+    assertThat(object.get("AA").asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(object.get("ZZ").type()).isEqualTo(Variants.PhysicalType.DECIMAL4);
+    assertThat(object.get("ZZ").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
   }
 
   static VariantValue roundTripMinimalBuffer(ShreddedObject object, SerializedMetadata metadata) {
