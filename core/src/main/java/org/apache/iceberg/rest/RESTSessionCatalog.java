@@ -138,24 +138,26 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       ImmutableSet.<Endpoint>builder()
           .add(Endpoint.V1_LIST_NAMESPACES)
           .add(Endpoint.V1_LOAD_NAMESPACE)
+          .add(Endpoint.V1_NAMESPACE_EXISTS)
           .add(Endpoint.V1_CREATE_NAMESPACE)
           .add(Endpoint.V1_UPDATE_NAMESPACE)
           .add(Endpoint.V1_DELETE_NAMESPACE)
           .add(Endpoint.V1_LIST_TABLES)
           .add(Endpoint.V1_LOAD_TABLE)
+          .add(Endpoint.V1_TABLE_EXISTS)
           .add(Endpoint.V1_CREATE_TABLE)
           .add(Endpoint.V1_UPDATE_TABLE)
           .add(Endpoint.V1_DELETE_TABLE)
           .add(Endpoint.V1_RENAME_TABLE)
           .add(Endpoint.V1_REGISTER_TABLE)
           .add(Endpoint.V1_REPORT_METRICS)
-          .add(Endpoint.V1_TABLE_EXISTS)
           .build();
 
   private static final Set<Endpoint> VIEW_ENDPOINTS =
       ImmutableSet.<Endpoint>builder()
           .add(Endpoint.V1_LIST_VIEWS)
           .add(Endpoint.V1_LOAD_VIEW)
+          .add(Endpoint.V1_VIEW_EXISTS)
           .add(Endpoint.V1_CREATE_VIEW)
           .add(Endpoint.V1_UPDATE_VIEW)
           .add(Endpoint.V1_DELETE_VIEW)
@@ -656,6 +658,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public boolean namespaceExists(SessionContext context, Namespace namespace) {
+    Endpoint.check(endpoints, Endpoint.V1_NAMESPACE_EXISTS);
     checkNamespaceIsValid(namespace);
 
     try {
@@ -1229,6 +1232,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public boolean viewExists(SessionContext context, TableIdentifier identifier) {
+    Endpoint.check(endpoints, Endpoint.V1_VIEW_EXISTS);
     checkViewIdentifierIsValid(identifier);
 
     try {

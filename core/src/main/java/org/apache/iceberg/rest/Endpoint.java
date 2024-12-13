@@ -40,20 +40,21 @@ public class Endpoint {
       Endpoint.create("GET", ResourcePaths.V1_NAMESPACES);
   public static final Endpoint V1_LOAD_NAMESPACE =
       Endpoint.create("GET", ResourcePaths.V1_NAMESPACE);
+  public static final Endpoint V1_NAMESPACE_EXISTS =
+      Endpoint.create("HEAD", ResourcePaths.V1_NAMESPACE);
   public static final Endpoint V1_CREATE_NAMESPACE =
       Endpoint.create("POST", ResourcePaths.V1_NAMESPACES);
   public static final Endpoint V1_UPDATE_NAMESPACE =
       Endpoint.create("POST", ResourcePaths.V1_NAMESPACE_PROPERTIES);
   public static final Endpoint V1_DELETE_NAMESPACE =
       Endpoint.create("DELETE", ResourcePaths.V1_NAMESPACE);
-  public static final Endpoint V1_NAMESPACE_EXISTS =
-      Endpoint.create("HEAD", ResourcePaths.V1_NAMESPACE);
   public static final Endpoint V1_COMMIT_TRANSACTION =
       Endpoint.create("POST", ResourcePaths.V1_TRANSACTIONS_COMMIT);
 
   // table endpoints
   public static final Endpoint V1_LIST_TABLES = Endpoint.create("GET", ResourcePaths.V1_TABLES);
   public static final Endpoint V1_LOAD_TABLE = Endpoint.create("GET", ResourcePaths.V1_TABLE);
+  public static final Endpoint V1_TABLE_EXISTS = Endpoint.create("HEAD", ResourcePaths.V1_TABLE);
   public static final Endpoint V1_CREATE_TABLE = Endpoint.create("POST", ResourcePaths.V1_TABLES);
   public static final Endpoint V1_UPDATE_TABLE = Endpoint.create("POST", ResourcePaths.V1_TABLE);
   public static final Endpoint V1_DELETE_TABLE = Endpoint.create("DELETE", ResourcePaths.V1_TABLE);
@@ -63,7 +64,6 @@ public class Endpoint {
       Endpoint.create("POST", ResourcePaths.V1_TABLE_REGISTER);
   public static final Endpoint V1_REPORT_METRICS =
       Endpoint.create("POST", ResourcePaths.V1_TABLE_METRICS);
-  public static final Endpoint V1_TABLE_EXISTS = Endpoint.create("HEAD", ResourcePaths.V1_TABLE);
   public static final Endpoint V1_TABLE_CREDENTIALS =
       Endpoint.create("GET", ResourcePaths.V1_TABLE_CREDENTIALS);
 
@@ -80,12 +80,12 @@ public class Endpoint {
   // view endpoints
   public static final Endpoint V1_LIST_VIEWS = Endpoint.create("GET", ResourcePaths.V1_VIEWS);
   public static final Endpoint V1_LOAD_VIEW = Endpoint.create("GET", ResourcePaths.V1_VIEW);
+  public static final Endpoint V1_VIEW_EXISTS = Endpoint.create("HEAD", ResourcePaths.V1_VIEW);
   public static final Endpoint V1_CREATE_VIEW = Endpoint.create("POST", ResourcePaths.V1_VIEWS);
   public static final Endpoint V1_UPDATE_VIEW = Endpoint.create("POST", ResourcePaths.V1_VIEW);
   public static final Endpoint V1_DELETE_VIEW = Endpoint.create("DELETE", ResourcePaths.V1_VIEW);
   public static final Endpoint V1_RENAME_VIEW =
       Endpoint.create("POST", ResourcePaths.V1_VIEW_RENAME);
-  public static final Endpoint V1_VIEW_EXISTS = Endpoint.create("HEAD", ResourcePaths.V1_VIEW);
 
   private static final Splitter ENDPOINT_SPLITTER = Splitter.on(" ");
   private static final Joiner ENDPOINT_JOINER = Joiner.on(" ");
