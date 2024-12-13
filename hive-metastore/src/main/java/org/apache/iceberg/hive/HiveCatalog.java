@@ -22,7 +22,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.function.Suppliers;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -88,7 +90,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
 
   private String name;
   private Configuration conf;
-  private FileIO fileIO;
+  private Supplier<FileIO> fileIO;
   private ClientPool<IMetaStoreClient, TException> clients;
   private boolean listAllTables = false;
   private Map<String, String> catalogProperties;
@@ -121,8 +123,8 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
     this.fileIO =
         fileIOImpl == null
-            ? new HadoopFileIO(conf)
-            : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
+            ? () -> new HadoopFileIO(conf)
+            : () -> CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     this.clients = new CachedClientPool(conf, properties);
     this.fileIOTracker = new FileIOTracker();
@@ -667,14 +669,14 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     String dbName = tableIdentifier.namespace().level(0);
     String tableName = tableIdentifier.name();
     HiveTableOperations ops =
-        new HiveTableOperations(conf, clients, fileIO, name, dbName, tableName);
+        new HiveTableOperations(conf, clients, fileIO.get(), name, dbName, tableName);
     fileIOTracker.track(ops);
     return ops;
   }
 
   @Override
   protected ViewOperations newViewOps(TableIdentifier identifier) {
-    return new HiveViewOperations(conf, clients, fileIO, name, identifier);
+    return new HiveViewOperations(conf, clients, fileIO.get(), name, identifier);
   }
 
   @Override
