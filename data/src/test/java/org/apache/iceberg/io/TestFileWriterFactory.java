@@ -41,7 +41,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -476,7 +476,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
       case AVRO:
         try (CloseableIterable<Record> records =
-            Avro.read(inputFile).project(schema).createReaderFunc(DataReader::create).build()) {
+            Avro.read(inputFile).project(schema).createResolvingReader(PlannedDataReader::create).build()) {
 
           return ImmutableList.copyOf(records);
         }
