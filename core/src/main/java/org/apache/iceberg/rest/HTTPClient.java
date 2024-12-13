@@ -78,10 +78,10 @@ public class HTTPClient implements RESTClient {
   static final String CLIENT_GIT_COMMIT_SHORT_HEADER = "X-Client-Git-Commit-Short";
 
   private static final String REST_MAX_RETRIES = "rest.client.max-retries";
-  private static final String REST_MAX_CONNECTIONS = "rest.client.max-connections";
-  private static final int REST_MAX_CONNECTIONS_DEFAULT = 100;
-  private static final String REST_MAX_CONNECTIONS_PER_ROUTE = "rest.client.connections-per-route";
-  private static final int REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT = 100;
+  static final String REST_MAX_CONNECTIONS = "rest.client.max-connections";
+  static final int REST_MAX_CONNECTIONS_DEFAULT = 100;
+  static final String REST_MAX_CONNECTIONS_PER_ROUTE = "rest.client.connections-per-route";
+  static final int REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT = 100;
 
   @VisibleForTesting
   static final String REST_CONNECTION_TIMEOUT_MS = "rest.client.connection-timeout-ms";
@@ -468,7 +468,11 @@ public class HTTPClient implements RESTClient {
 
     return connectionManagerBuilder
         .useSystemProperties()
-        .setMaxConnTotal(Integer.getInteger(REST_MAX_CONNECTIONS, REST_MAX_CONNECTIONS_DEFAULT))
+        .setMaxConnTotal(
+            Integer.getInteger(
+                REST_MAX_CONNECTIONS,
+                PropertyUtil.propertyAsInt(
+                    properties, REST_MAX_CONNECTIONS, REST_MAX_CONNECTIONS_DEFAULT)))
         .setMaxConnPerRoute(
             PropertyUtil.propertyAsInt(
                 properties, REST_MAX_CONNECTIONS_PER_ROUTE, REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT))
