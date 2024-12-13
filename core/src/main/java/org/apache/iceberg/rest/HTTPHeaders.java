@@ -59,7 +59,7 @@ public interface HTTPHeaders {
    * Returns a new instance with the added header, or the current instance if the header is already
    * present.
    */
-  default HTTPHeaders addIfAbsent(HTTPHeader header) {
+  default HTTPHeaders withHeaderIfAbsent(HTTPHeader header) {
     Preconditions.checkNotNull(header, "header");
     return contains(header.name())
         ? this
@@ -71,7 +71,7 @@ public interface HTTPHeaders {
    * Returns a new instance with the added headers, or the current instance if all headers are
    * already present.
    */
-  default HTTPHeaders addIfAbsent(HTTPHeaders headers) {
+  default HTTPHeaders withHeaderIfAbsent(HTTPHeaders headers) {
     Preconditions.checkNotNull(headers, "headers");
     List<HTTPHeader> newHeaders =
         headers.entries().stream().filter(e -> !contains(e.name())).collect(Collectors.toList());

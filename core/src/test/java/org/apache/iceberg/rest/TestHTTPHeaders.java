@@ -57,11 +57,11 @@ class TestHTTPHeaders {
   }
 
   @Test
-  void addIfAbsentHTTPHeader() {
-    HTTPHeaders actual = headers.addIfAbsent(HTTPHeader.of("Header1", "value1c"));
+  void withHeaderIfAbsentHTTPHeader() {
+    HTTPHeaders actual = headers.withHeaderIfAbsent(HTTPHeader.of("Header1", "value1c"));
     assertThat(actual).isSameAs(headers);
 
-    actual = headers.addIfAbsent(HTTPHeader.of("header3", "value3"));
+    actual = headers.withHeaderIfAbsent(HTTPHeader.of("header3", "value3"));
     assertThat(actual.entries())
         .containsExactly(
             HTTPHeader.of("header1", "value1a"),
@@ -69,18 +69,19 @@ class TestHTTPHeaders {
             HTTPHeader.of("header2", "value2"),
             HTTPHeader.of("header3", "value3"));
 
-    assertThatThrownBy(() -> headers.addIfAbsent((HTTPHeader) null))
+    assertThatThrownBy(() -> headers.withHeaderIfAbsent((HTTPHeader) null))
         .isInstanceOf(NullPointerException.class)
         .hasMessage("header");
   }
 
   @Test
-  void addIfAbsentHTTPHeaders() {
-    HTTPHeaders actual = headers.addIfAbsent(HTTPHeaders.of(HTTPHeader.of("Header1", "value1c")));
+  void withHeaderIfAbsentHTTPHeaders() {
+    HTTPHeaders actual =
+        headers.withHeaderIfAbsent(HTTPHeaders.of(HTTPHeader.of("Header1", "value1c")));
     assertThat(actual).isSameAs(headers);
 
     actual =
-        headers.addIfAbsent(
+        headers.withHeaderIfAbsent(
             ImmutableHTTPHeaders.builder()
                 .addEntry(HTTPHeader.of("Header1", "value1c"))
                 .addEntry(HTTPHeader.of("header3", "value3"))
@@ -95,7 +96,7 @@ class TestHTTPHeaders {
                     HTTPHeader.of("header3", "value3"))
                 .build());
 
-    assertThatThrownBy(() -> headers.addIfAbsent((HTTPHeaders) null))
+    assertThatThrownBy(() -> headers.withHeaderIfAbsent((HTTPHeaders) null))
         .isInstanceOf(NullPointerException.class)
         .hasMessage("headers");
   }

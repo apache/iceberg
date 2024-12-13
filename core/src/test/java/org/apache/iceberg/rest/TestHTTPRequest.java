@@ -21,16 +21,22 @@ package org.apache.iceberg.rest;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.Mockito;
 
 class TestHTTPRequest {
 
@@ -96,43 +102,86 @@ class TestHTTPRequest {
             "Failed to create request URI from base http://localhost/ not a valid path, params {}");
   }
 
-  @ParameterizedTest
-  @MethodSource("validRequestBodies")
-  public void encodedBody(HTTPRequest request, String expected) {
-    assertThat(request.encodedBody()).isEqualTo(expected);
+  @Test
+  public void encodedBodyJSON() {
+    HTTPRequest request =
+        ImmutableHTTPRequest.builder()
+            .baseUri(URI.create("http://localhost"))
+            .method(HTTPRequest.HTTPMethod.POST)
+            .path("v1/namespaces/ns")
+            .body(
+                CreateNamespaceRequest.builder()
+                    .withNamespace(Namespace.of("ns"))
+                    .setProperties(ImmutableMap.of("prop1", "value1"))
+                    .build())
+            .build();
+    assertThat(request.encodedBody())
+        .isEqualTo("{\"namespace\":[\"ns\"],\"properties\":{\"prop1\":\"value1\"}}");
   }
 
-  public static Stream<Arguments> validRequestBodies() {
-    return Stream.of(
-        // form data
-        Arguments.of(
-            ImmutableHTTPRequest.builder()
-                .baseUri(URI.create("http://localhost"))
-                .method(HTTPRequest.HTTPMethod.POST)
-                .path("token")
-                .body(
-                    ImmutableMap.of(
-                        "grant_type", "urn:ietf:params:oauth:grant-type:token-exchange",
-                        "subject_token", "token",
-                        "subject_token_type", "urn:ietf:params:oauth:token-type:access_token",
-                        "scope", "catalog"))
-                .build(),
+  @Test
+  public void encodedBodyJSONInvalid() throws JsonProcessingException {
+    ObjectMapper mapper = Mockito.mock(ObjectMapper.class);
+    Mockito.when(mapper.writeValueAsString(Mockito.any()))
+        .thenThrow(new JsonMappingException(null, "invalid"));
+    HTTPRequest request =
+        ImmutableHTTPRequest.builder()
+            .baseUri(URI.create("http://localhost"))
+            .method(HTTPRequest.HTTPMethod.POST)
+            .path("token")
+            .body("invalid")
+            .mapper(mapper)
+            .build();
+    assertThatThrownBy(request::encodedBody)
+        .isInstanceOf(RESTException.class)
+        .hasMessage("Failed to encode request body: invalid");
+  }
+
+  @Test
+  public void encodedBodyFormData() {
+    HTTPRequest request =
+        ImmutableHTTPRequest.builder()
+            .baseUri(URI.create("http://localhost"))
+            .method(HTTPRequest.HTTPMethod.POST)
+            .path("token")
+            .body(
+                ImmutableMap.of(
+                    "grant_type", "urn:ietf:params:oauth:grant-type:token-exchange",
+                    "subject_token", "token",
+                    "subject_token_type", "urn:ietf:params:oauth:token-type:access_token",
+                    "scope", "catalog"))
+            .build();
+    assertThat(request.encodedBody())
+        .isEqualTo(
             "grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange&"
                 + "subject_token=token&"
                 + "subject_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Aaccess_token&"
-                + "scope=catalog"),
-        // JSON
-        Arguments.of(
-            ImmutableHTTPRequest.builder()
-                .baseUri(URI.create("http://localhost"))
-                .method(HTTPRequest.HTTPMethod.POST)
-                .path("v1/namespaces/ns") // trailing slash should be removed
-                .body(
-                    CreateNamespaceRequest.builder()
-                        .withNamespace(Namespace.of("ns"))
-                        .setProperties(ImmutableMap.of("prop1", "value1"))
-                        .build())
-                .build(),
-            "{\"namespace\":[\"ns\"],\"properties\":{\"prop1\":\"value1\"}}"));
+                + "scope=catalog");
+  }
+
+  @Test
+  public void encodedBodyFormDataNullKeysAndValues() {
+    Map<String, String> body = Maps.newHashMap();
+    body.put(null, "token");
+    body.put("scope", null);
+    HTTPRequest request =
+        ImmutableHTTPRequest.builder()
+            .baseUri(URI.create("http://localhost"))
+            .method(HTTPRequest.HTTPMethod.POST)
+            .path("token")
+            .body(body)
+            .build();
+    assertThat(request.encodedBody()).isEqualTo("null=token&scope=null");
+  }
+
+  @Test
+  public void encodedBodyNull() {
+    HTTPRequest request =
+        ImmutableHTTPRequest.builder()
+            .baseUri(URI.create("http://localhost"))
+            .method(HTTPRequest.HTTPMethod.POST)
+            .path("token")
+            .build();
+    assertThat(request.encodedBody()).isNull();
   }
 }
