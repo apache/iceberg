@@ -69,8 +69,9 @@ class TestHTTPHeaders {
             HTTPHeader.of("header2", "value2"),
             HTTPHeader.of("header3", "value3"));
 
-    assertThatThrownBy(() -> headers.addIfAbsent((HTTPHeaders) null))
-        .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> headers.addIfAbsent((HTTPHeader) null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("header");
   }
 
   @Test
@@ -95,19 +96,23 @@ class TestHTTPHeaders {
                 .build());
 
     assertThatThrownBy(() -> headers.addIfAbsent((HTTPHeaders) null))
-        .isInstanceOf(NullPointerException.class);
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("headers");
   }
 
   @Test
   void invalidHeader() {
     // invalid input (null name or value)
     assertThatThrownBy(() -> HTTPHeader.of(null, "value1"))
-        .isInstanceOf(NullPointerException.class);
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("name");
     assertThatThrownBy(() -> HTTPHeader.of("header1", null))
-        .isInstanceOf(NullPointerException.class);
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("value");
 
     // invalid input (empty name)
     assertThatThrownBy(() -> HTTPHeader.of("", "value1"))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Header name cannot be empty");
   }
 }
