@@ -19,7 +19,9 @@
 package org.apache.iceberg.data.parquet;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -34,15 +36,14 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.DataTest;
 import org.apache.iceberg.data.DataTestHelpers;
-import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.NestedField;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.junit.jupiter.api.Test;
@@ -50,14 +51,18 @@ import org.junit.jupiter.api.Test;
 public class TestGenericData extends DataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    List<Record> expected = RandomGenericData.generate(schema, 100, 0L);
+    writeAndValidate(schema, schema);
+  }
+
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
+    List<Record> expected = RandomGenericData.generate(writeSchema, 100, 12228L);
 
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).isTrue();
 
     try (FileAppender<Record> appender =
         Parquet.write(Files.localOutput(testFile))
-            .schema(schema)
+            .schema(writeSchema)
             .createWriterFunc(GenericParquetWriter::buildWriter)
             .build()) {
       appender.addAll(expected);
@@ -66,29 +71,29 @@ public class TestGenericData extends DataTest {
     List<Record> rows;
     try (CloseableIterable<Record> reader =
         Parquet.read(Files.localInput(testFile))
-            .project(schema)
-            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+            .project(expectedSchema)
+            .createReaderFunc(
+                fileSchema -> GenericParquetReaders.buildReader(expectedSchema, fileSchema))
             .build()) {
       rows = Lists.newArrayList(reader);
     }
 
     for (int i = 0; i < expected.size(); i += 1) {
-      DataTestHelpers.assertEquals(schema.asStruct(), expected.get(i), rows.get(i));
+      DataTestHelpers.assertEquals(expectedSchema.asStruct(), expected.get(i), rows.get(i));
     }
 
     // test reuseContainers
     try (CloseableIterable<Record> reader =
         Parquet.read(Files.localInput(testFile))
-            .project(schema)
+            .project(expectedSchema)
             .reuseContainers()
-            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+            .createReaderFunc(
+                fileSchema -> GenericParquetReaders.buildReader(expectedSchema, fileSchema))
             .build()) {
-      CloseableIterator it = reader.iterator();
-      int idx = 0;
-      while (it.hasNext()) {
-        GenericRecord actualRecord = (GenericRecord) it.next();
-        DataTestHelpers.assertEquals(schema.asStruct(), expected.get(idx), actualRecord);
-        idx++;
+      int index = 0;
+      for (Record actualRecord : reader) {
+        DataTestHelpers.assertEquals(expectedSchema.asStruct(), expected.get(index), actualRecord);
+        index += 1;
       }
     }
   }
@@ -131,14 +136,143 @@ public class TestGenericData extends DataTest {
             .reuseContainers()
             .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
             .build()) {
-      CloseableIterator it = reader.iterator();
-      assertThat(it).hasNext();
-      while (it.hasNext()) {
-        GenericRecord actualRecord = (GenericRecord) it.next();
+      for (Record actualRecord : reader) {
         assertThat(actualRecord.get(0, ArrayList.class)).first().isEqualTo(expectedBinary);
         assertThat(actualRecord.get(1, ByteBuffer.class)).isEqualTo(expectedBinary);
-        assertThat(it).isExhausted();
       }
+
+      assertThat(Lists.newArrayList(reader).size()).isEqualTo(1);
     }
+  }
+
+  @Test
+  public void testMissingRequiredWithoutDefault() {
+    Schema writeSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault("wrong!")
+                .withDoc("Should not produce default value")
+                .build());
+
+    Schema expectedSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault("wrong!")
+                .build(),
+            NestedField.required("missing_str")
+                .withId(6)
+                .ofType(Types.StringType.get())
+                .withDoc("Missing required field with no default")
+                .build());
+
+    assertThatThrownBy(() -> writeAndValidate(writeSchema, expectedSchema))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing required field: missing_str");
+  }
+
+  @Test
+  public void testDefaultValues() throws IOException {
+    Schema writeSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault("wrong!")
+                .withDoc("Should not produce default value")
+                .build());
+
+    Schema expectedSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault("wrong!")
+                .build(),
+            NestedField.required("missing_str")
+                .withId(6)
+                .ofType(Types.StringType.get())
+                .withInitialDefault("orange")
+                .build(),
+            NestedField.optional("missing_int")
+                .withId(7)
+                .ofType(Types.IntegerType.get())
+                .withInitialDefault(34)
+                .build());
+
+    writeAndValidate(writeSchema, expectedSchema);
+  }
+
+  @Test
+  public void testNullDefaultValue() throws IOException {
+    Schema writeSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault("wrong!")
+                .withDoc("Should not produce default value")
+                .build());
+
+    Schema expectedSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault("wrong!")
+                .build(),
+            NestedField.optional("missing_date").withId(3).ofType(Types.DateType.get()).build());
+
+    writeAndValidate(writeSchema, expectedSchema);
+  }
+
+  @Test
+  public void testNestedDefaultValue() throws IOException {
+    Schema writeSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault("wrong!")
+                .withDoc("Should not produce default value")
+                .build(),
+            NestedField.optional("nested")
+                .withId(3)
+                .ofType(Types.StructType.of(required(4, "inner", Types.StringType.get())))
+                .withDoc("Used to test nested field defaults")
+                .build());
+
+    Schema expectedSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault("wrong!")
+                .build(),
+            NestedField.optional("nested")
+                .withId(3)
+                .ofType(
+                    Types.StructType.of(
+                        required(4, "inner", Types.StringType.get()),
+                        NestedField.optional("missing_inner_float")
+                            .withId(5)
+                            .ofType(Types.FloatType.get())
+                            .withInitialDefault(-0.0F)
+                            .build()))
+                .withDoc("Used to test nested field defaults")
+                .build());
+
+    writeAndValidate(writeSchema, expectedSchema);
   }
 }
