@@ -41,6 +41,7 @@ include 'dell'
 include 'snowflake'
 include 'delta-lake'
 include 'open-api'
+include 'mr'
 
 project(':bom').name = 'iceberg-bom'
 project(':api').name = 'iceberg-api'
@@ -65,11 +66,11 @@ project(':dell').name = 'iceberg-dell'
 project(':snowflake').name = 'iceberg-snowflake'
 project(':delta-lake').name = 'iceberg-delta-lake'
 project(':open-api').name = 'iceberg-open-api'
+project(':mr').name = 'iceberg-mr'
 
 if (null != System.getProperty("allModules")) {
   System.setProperty("flinkVersions", System.getProperty("knownFlinkVersions"))
   System.setProperty("sparkVersions", System.getProperty("knownSparkVersions"))
-  System.setProperty("hiveVersions", System.getProperty("knownHiveVersions"))
   System.setProperty("kafkaVersions", System.getProperty("knownKafkaVersions"))
 }
 
@@ -79,14 +80,6 @@ List<String> flinkVersions = flinkVersionsString != null && !flinkVersionsString
 
 if (!knownFlinkVersions.containsAll(flinkVersions)) {
   throw new GradleException("Found unsupported Flink versions: " + (flinkVersions - knownFlinkVersions))
-}
-
-List<String> knownHiveVersions = System.getProperty("knownHiveVersions").split(",")
-String hiveVersionsString = System.getProperty("hiveVersions") != null ? System.getProperty("hiveVersions") : System.getProperty("defaultHiveVersions")
-List<String> hiveVersions = hiveVersionsString != null && !hiveVersionsString.isEmpty() ? hiveVersionsString.split(",") : []
-
-if (!knownHiveVersions.containsAll(hiveVersions)) {
-  throw new GradleException("Found unsupported Hive versions: " + (hiveVersions - knownHiveVersions))
 }
 
 List<String> knownSparkVersions = System.getProperty("knownSparkVersions").split(",")
@@ -178,12 +171,6 @@ if (sparkVersions.contains("3.5")) {
   project(":iceberg-spark:spark-extensions-3.5_${scalaVersion}").name = "iceberg-spark-extensions-3.5_${scalaVersion}"
   project(":iceberg-spark:spark-runtime-3.5_${scalaVersion}").projectDir = file('spark/v3.5/spark-runtime')
   project(":iceberg-spark:spark-runtime-3.5_${scalaVersion}").name = "iceberg-spark-runtime-3.5_${scalaVersion}"
-}
-
-if (hiveVersions.contains("2")) {
-  include 'mr'
-
-  project(':mr').name = 'iceberg-mr'
 }
 
 if (kafkaVersions.contains("3")) {

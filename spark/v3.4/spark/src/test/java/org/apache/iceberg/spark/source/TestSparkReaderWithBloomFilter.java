@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.spark.source;
 
-import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTORE_URIS;
+import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
@@ -175,7 +175,7 @@ public class TestSparkReaderWithBloomFilter {
     spark =
         SparkSession.builder()
             .master("local[2]")
-            .config("spark.hadoop." + METASTORE_URIS.varname, hiveConf.get(METASTORE_URIS.varname))
+            .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
             .enableHiveSupport()
             .getOrCreate();
 
