@@ -72,19 +72,6 @@ public class TestIdentity {
   }
 
   @Test
-  public void testDateHumanStringDeprecated() {
-    Types.DateType date = Types.DateType.get();
-    Transform<Integer, Integer> identity = Transforms.identity(date);
-
-    String dateString = "2017-12-01";
-    Literal<Integer> dateLit = Literal.of(dateString).to(date);
-
-    assertThat(identity.toHumanString(dateLit.value()))
-        .as("Should produce identical date")
-        .isEqualTo(dateString);
-  }
-
-  @Test
   public void testTimeHumanString() {
     Types.TimeType time = Types.TimeType.get();
     Transform<Long, Long> identity = Transforms.identity();
@@ -162,14 +149,6 @@ public class TestIdentity {
     assertThatThrownBy(() -> Transforms.identity().bind(Types.VariantType.get()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot bind to unsupported type: variant");
-
-    assertThatThrownBy(() -> Transforms.fromString(Types.VariantType.get(), "identity"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Unsupported type for identity: variant");
-
-    assertThatThrownBy(() -> Transforms.identity(Types.VariantType.get()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Unsupported type for identity: variant");
 
     assertThat(Transforms.identity().canTransform(Types.VariantType.get())).isFalse();
   }

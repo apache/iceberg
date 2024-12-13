@@ -338,8 +338,8 @@ public class TestSortOrder {
                 Types.StructType.of(Types.NestedField.optional(6, "v", Types.VariantType.get()))));
 
     assertThatThrownBy(() -> SortOrder.builderFor(v3Schema).withOrderId(10).asc("struct.v").build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Unsupported type for identity: variant");
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot sort by non-primitive source field: variant");
   }
 
   @TestTemplate

@@ -35,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
 import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.BucketUtil;
+import org.apache.iceberg.util.SerializableFunction;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -169,56 +170,58 @@ public class TestBucketing {
   public void testTimestampNanoPromotion() {
     Types.TimestampType tsType = Types.TimestampType.withoutZone();
     Types.TimestampNanoType tsNsType = Types.TimestampNanoType.withoutZone();
-    Bucket<Object> tsNsBucket = Bucket.get(tsNsType, 1);
-    Bucket<Object> tsBucket = Bucket.get(tsType, 1);
+    SerializableFunction<Object, Integer> tsNsBucket = Bucket.get(Integer.MAX_VALUE).bind(tsNsType);
+    SerializableFunction<Object, Integer> tsBucket = Bucket.get(Integer.MAX_VALUE).bind(tsType);
 
     // Values from spec Appendix B: 32-bit Hash Requirements
-    assertThat(tsBucket.hash(Literal.of("2017-11-16T22:31:08").to(tsType).value()))
+    assertThat(tsBucket.apply(Literal.of("2017-11-16T22:31:08").to(tsType).value()))
         .as(
-            "Spec example: hash(2017-11-16T22:31:08) = -2047944441 for Timestamp and TimestampNano should match")
-        .isEqualTo(-2047944441);
-    assertThat(tsNsBucket.hash(Literal.of("2017-11-16T22:31:08").to(tsNsType).value()))
+            "Spec example: hash(2017-11-16T22:31:08) = 99539207 for Timestamp and TimestampNano should match")
+        .isEqualTo(99539207);
+    assertThat(tsNsBucket.apply(Literal.of("2017-11-16T22:31:08").to(tsNsType).value()))
         .as(
-            "Spec example: hash(2017-11-16T22:31:08) = -2047944441 for Timestamp and TimestampNano should match")
-        .isEqualTo(-2047944441);
+            "Spec example: hash(2017-11-16T22:31:08) = 99539207 for Timestamp and TimestampNano should match")
+        .isEqualTo(99539207);
 
-    assertThat(tsBucket.hash(Literal.of("2017-11-16T22:31:08.000001").to(tsType).value()))
+    assertThat(tsBucket.apply(Literal.of("2017-11-16T22:31:08.000001").to(tsType).value()))
         .as(
-            "Spec example: hash(2017-11-16T22:31:08.000001) = -1207196810 for Timestamp and TimestampNano should match")
-        .isEqualTo(-1207196810);
-    assertThat(tsNsBucket.hash(Literal.of("2017-11-16T22:31:08.000001001").to(tsNsType).value()))
+            "Spec example: hash(2017-11-16T22:31:08.000001) = 940286838 for Timestamp and TimestampNano should match")
+        .isEqualTo(940286838);
+    assertThat(tsNsBucket.apply(Literal.of("2017-11-16T22:31:08.000001001").to(tsNsType).value()))
         .as(
-            "Spec example: hash(2017-11-16T22:31:08.000001) = -1207196810 for Timestamp and TimestampNano should match")
-        .isEqualTo(-1207196810);
+            "Spec example: hash(2017-11-16T22:31:08.000001) = 940286838 for Timestamp and TimestampNano should match")
+        .isEqualTo(940286838);
   }
 
   @Test
   public void testTimestampTzNanoPromotion() {
     Types.TimestampType tsTzType = Types.TimestampType.withZone();
     Types.TimestampNanoType tsTzNsType = Types.TimestampNanoType.withZone();
-    Bucket<Object> tsTzNsBucket = Bucket.get(tsTzNsType, 1);
-    Bucket<Object> tsTzBucket = Bucket.get(tsTzType, 1);
+    SerializableFunction<Object, Integer> tsTzNsBucket =
+        Bucket.get(Integer.MAX_VALUE).bind(tsTzNsType);
+    SerializableFunction<Object, Integer> tsTzBucket = Bucket.get(Integer.MAX_VALUE).bind(tsTzType);
 
     // Values from spec Appendix B: 32-bit Hash Requirements
-    assertThat(tsTzBucket.hash(Literal.of("2017-11-16T14:31:08-08:00").to(tsTzType).value()))
+    assertThat(tsTzBucket.apply(Literal.of("2017-11-16T14:31:08-08:00").to(tsTzType).value()))
         .as(
-            "Spec example: hash(2017-11-16T14:31:08-08:00) = -2047944441 for Timestamp and TimestampNano should match")
-        .isEqualTo(-2047944441);
-    assertThat(tsTzNsBucket.hash(Literal.of("2017-11-16T14:31:08-08:00").to(tsTzNsType).value()))
+            "Spec example: hash(2017-11-16T14:31:08-08:00) = 99539207 for Timestamp and TimestampNano should match")
+        .isEqualTo(99539207);
+    assertThat(tsTzNsBucket.apply(Literal.of("2017-11-16T14:31:08-08:00").to(tsTzNsType).value()))
         .as(
-            "Spec example: hash(2017-11-16T14:31:08-08:00) = -2047944441 for Timestamp and TimestampNano should match")
-        .isEqualTo(-2047944441);
+            "Spec example: hash(2017-11-16T14:31:08-08:00) = 99539207 for Timestamp and TimestampNano should match")
+        .isEqualTo(99539207);
 
-    assertThat(tsTzBucket.hash(Literal.of("2017-11-16T14:31:08.000001-08:00").to(tsTzType).value()))
-        .as(
-            "Spec example: hash(2017-11-16T14:31:08.000001-08:00) = -1207196810 for Timestamp and TimestampNano should match")
-        .isEqualTo(-1207196810);
     assertThat(
-            tsTzNsBucket.hash(
+            tsTzBucket.apply(Literal.of("2017-11-16T14:31:08.000001-08:00").to(tsTzType).value()))
+        .as(
+            "Spec example: hash(2017-11-16T14:31:08.000001-08:00) = 940286838 for Timestamp and TimestampNano should match")
+        .isEqualTo(940286838);
+    assertThat(
+            tsTzNsBucket.apply(
                 Literal.of("2017-11-16T14:31:08.000001001-08:00").to(tsTzNsType).value()))
         .as(
-            "Spec example: hash(2017-11-16T14:31:08.000001-08:00) = -1207196810 for Timestamp and TimestampNano should match")
-        .isEqualTo(-1207196810);
+            "Spec example: hash(2017-11-16T14:31:08.000001-08:00) = 940286838 for Timestamp and TimestampNano should match")
+        .isEqualTo(940286838);
   }
 
   @Test
@@ -419,10 +422,6 @@ public class TestBucketing {
 
   @Test
   public void testVariantUnsupported() {
-    assertThatThrownBy(() -> Transforms.bucket(Types.VariantType.get(), 3))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot bucket by type: variant");
-
     Transform<Object, Integer> bucket = Transforms.bucket(3);
     assertThatThrownBy(() -> bucket.bind(Types.VariantType.get()))
         .isInstanceOf(IllegalArgumentException.class)
