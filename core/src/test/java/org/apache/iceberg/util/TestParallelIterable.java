@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -39,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multiset;
 import org.apache.iceberg.util.ParallelIterable.ParallelIterator;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 public class TestParallelIterable {
   @Test
@@ -143,7 +145,7 @@ public class TestParallelIterable {
 
   @Test
   public void limitQueueSize() {
-    ExecutorService executor = Executors.newCachedThreadPool();
+    ExecutorService executor = Executors.newSingleThreadExecutor();
     try {
       List<Iterable<Integer>> iterables =
           ImmutableList.of(
@@ -167,7 +169,7 @@ public class TestParallelIterable {
       while (iterator.hasNext()) {
         assertThat(iterator.queueSize())
             .as("iterator internal queue size")
-            .isLessThanOrEqualTo(maxQueueSize + iterables.size());
+            .isLessThanOrEqualTo(100);
         actualValues.add(iterator.next());
       }
 
@@ -182,41 +184,61 @@ public class TestParallelIterable {
   }
 
   @Test
-  public void queueSizeOne() {
-    ExecutorService executor = Executors.newCachedThreadPool();
+  @Timeout(10)
+  public void noDeadlock() {
+    // This test simulates a scenario where iterators use a constrained resource
+    // (e.g. an S3 connection pool that has a limit on the number of connections).
+    // In this case, the constrained resource shouldn't cause a deadlock when queue
+    // is full and the iterator is waiting for the queue to be drained.
+    ExecutorService executor = Executors.newFixedThreadPool(1);
     try {
-      List<Iterable<Integer>> iterables =
+      Semaphore semaphore = new Semaphore(1);
+
+      List<Iterable<Integer>> iterablesA =
           ImmutableList.of(
-              () -> IntStream.range(0, 100).iterator(),
-              () -> IntStream.range(0, 100).iterator(),
-              () -> IntStream.range(0, 100).iterator());
+              testIterable(
+                  semaphore::acquire, semaphore::release, IntStream.range(0, 100).iterator()));
+      List<Iterable<Integer>> iterablesB =
+          ImmutableList.of(
+              testIterable(
+                  semaphore::acquire, semaphore::release, IntStream.range(200, 300).iterator()));
 
-      Multiset<Integer> expectedValues =
-          IntStream.range(0, 100)
-              .boxed()
-              .flatMap(i -> Stream.of(i, i, i))
-              .collect(ImmutableMultiset.toImmutableMultiset());
+      ParallelIterable<Integer> parallelIterableA = new ParallelIterable<>(iterablesA, executor, 1);
+      ParallelIterable<Integer> parallelIterableB = new ParallelIterable<>(iterablesB, executor, 1);
 
-      ParallelIterable<Integer> parallelIterable = new ParallelIterable<>(iterables, executor, 1);
-      ParallelIterator<Integer> iterator = (ParallelIterator<Integer>) parallelIterable.iterator();
+      parallelIterableA.iterator().next();
+      parallelIterableB.iterator().next();
+    } finally {
+      executor.shutdownNow();
+    }
+  }
 
-      Multiset<Integer> actualValues = HashMultiset.create();
-
-      while (iterator.hasNext()) {
-        assertThat(iterator.queueSize())
-            .as("iterator internal queue size")
-            .isLessThanOrEqualTo(1 + iterables.size());
-        actualValues.add(iterator.next());
+  private <T> CloseableIterable<T> testIterable(
+      RunnableWithException open, RunnableWithException close, Iterator<T> iterator) {
+    return new CloseableIterable<T>() {
+      @Override
+      public void close() {
+        try {
+          close.run();
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
       }
 
-      assertThat(actualValues)
-          .as("multiset of values returned by the iterator")
-          .isEqualTo(expectedValues);
+      @Override
+      public CloseableIterator<T> iterator() {
+        try {
+          open.run();
+          return CloseableIterator.withClose(iterator);
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+      }
+    };
+  }
 
-      iterator.close();
-    } finally {
-      executor.shutdown();
-    }
+  private interface RunnableWithException {
+    void run() throws Exception;
   }
 
   private void queueHasElements(ParallelIterator<Integer> iterator) {

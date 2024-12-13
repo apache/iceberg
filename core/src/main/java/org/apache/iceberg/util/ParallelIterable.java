@@ -257,17 +257,24 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     @Override
     public Optional<Task<T>> get() {
       try {
+        if (queue.size() >= approximateMaxQueueSize) {
+          // Yield when queue is over the size limit. Task will be resubmitted later and continue
+          // the work.
+          //
+          // Tasks might hold references (via iterator) to constrained resources
+          // (e.g. pooled connections). Hence, tasks should yield only when
+          // iterator is not instantiated. Otherwise, there could be
+          // a deadlock when yielded tasks are waiting to be executed while
+          // currently executed tasks are waiting for the resources that are held
+          // by the yielded tasks.
+          return Optional.of(this);
+        }
+
         if (iterator == null) {
           iterator = input.iterator();
         }
 
         while (iterator.hasNext()) {
-          if (queue.size() >= approximateMaxQueueSize) {
-            // Yield when queue is over the size limit. Task will be resubmitted later and continue
-            // the work.
-            return Optional.of(this);
-          }
-
           T next = iterator.next();
           if (closed.get()) {
             break;
