@@ -19,8 +19,8 @@
 package org.apache.iceberg.rest;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.immutables.value.Value;
 
 /**
@@ -60,7 +60,7 @@ public interface HTTPHeaders {
    * present.
    */
   default HTTPHeaders addIfAbsent(HTTPHeader header) {
-    Objects.requireNonNull(header, "header");
+    Preconditions.checkNotNull(header, "header");
     return contains(header.name())
         ? this
         : ImmutableHTTPHeaders.builder().from(this).addEntry(header).build();
@@ -72,7 +72,7 @@ public interface HTTPHeaders {
    * already present.
    */
   default HTTPHeaders addIfAbsent(HTTPHeaders headers) {
-    Objects.requireNonNull(headers, "headers");
+    Preconditions.checkNotNull(headers, "headers");
     List<HTTPHeader> newHeaders =
         headers.entries().stream().filter(e -> !contains(e.name())).collect(Collectors.toList());
     return newHeaders.isEmpty()
