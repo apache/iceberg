@@ -20,12 +20,12 @@ package org.apache.iceberg.flink.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.junit.jupiter.api.Test;
 
 public class TestBoundedTableFactory extends ChangeLogTableTestBase {
@@ -69,7 +69,7 @@ public class TestBoundedTableFactory extends ChangeLogTableTestBase {
         "CREATE TABLE %s(id INT, data STRING) WITH ('connector'='BoundedSource', 'data-id'='%s')",
         tableName, dataId);
 
-    List<Row> rowSet = dataSet.stream().flatMap(Streams::stream).collect(Collectors.toList());
+    List<Row> rowSet = dataSet.stream().flatMap(Collection::stream).collect(Collectors.toList());
     assertThat(sql("SELECT * FROM %s", tableName)).isEqualTo(rowSet);
 
     assertThat(sql("SELECT * FROM %s WHERE data='aaa'", tableName))

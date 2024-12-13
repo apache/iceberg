@@ -145,7 +145,7 @@ public class TestIcebergSourceBoundedGenericRecord {
     env.getConfig().enableObjectReuse();
 
     Configuration config = new Configuration();
-    config.setInteger(FlinkConfigOptions.SOURCE_READER_FETCH_BATCH_RECORD_COUNT, 128);
+    config.set(FlinkConfigOptions.SOURCE_READER_FETCH_BATCH_RECORD_COUNT, 128);
     Table table;
     try (TableLoader tableLoader = CATALOG_EXTENSION.tableLoader()) {
       tableLoader.open();
