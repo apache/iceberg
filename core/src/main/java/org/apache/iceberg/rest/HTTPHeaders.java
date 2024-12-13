@@ -19,12 +19,7 @@
 package org.apache.iceberg.rest;
 
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.stream.Collectors;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableListMultimap;
-import org.apache.iceberg.relocated.com.google.common.collect.ListMultimap;
-import org.apache.iceberg.relocated.com.google.common.collect.Multimap;
 import org.immutables.value.Value;
 
 /**
@@ -45,53 +40,6 @@ public interface HTTPHeaders {
 
   /** Returns all the header entries in this group. */
   List<HTTPHeader> entries();
-
-  /**
-   * Returns a map representation of the headers where each header name is mapped to a list of its
-   * values. Header names are case-insensitive.
-   */
-  @Value.Lazy
-  default Map<String, List<String>> asMap() {
-    return entries().stream()
-        .collect(Collectors.groupingBy(h -> h.name().toLowerCase(Locale.ROOT)))
-        .values()
-        .stream()
-        .collect(
-            Collectors.toMap(
-                headers -> headers.get(0).name(),
-                headers -> headers.stream().map(HTTPHeader::value).collect(Collectors.toList())));
-  }
-
-  /**
-   * Returns a simple map representation of the headers where each header name is mapped to its
-   * first value. If a header has multiple values, only the first value is used. Header names are
-   * case-insensitive.
-   */
-  @Value.Lazy
-  default Map<String, String> asSimpleMap() {
-    return entries().stream()
-        .collect(Collectors.groupingBy(h -> h.name().toLowerCase(Locale.ROOT)))
-        .values()
-        .stream()
-        .collect(
-            Collectors.toMap(headers -> headers.get(0).name(), headers -> headers.get(0).value()));
-  }
-
-  /**
-   * Returns a {@link ListMultimap} representation of the headers. Header names are
-   * case-insensitive.
-   */
-  @Value.Lazy
-  default ListMultimap<String, String> asMultiMap() {
-    return entries().stream()
-        .collect(Collectors.groupingBy(h -> h.name().toLowerCase(Locale.ROOT)))
-        .values()
-        .stream()
-        .collect(
-            ImmutableListMultimap.flatteningToImmutableListMultimap(
-                headers -> headers.get(0).name(),
-                headers -> headers.stream().map(HTTPHeader::value)));
-  }
 
   /** Returns all the entries in this group for the given name (case-insensitive). */
   default List<HTTPHeader> entries(String name) {
@@ -131,23 +79,6 @@ public interface HTTPHeaders {
 
   static HTTPHeaders of(HTTPHeader... headers) {
     return ImmutableHTTPHeaders.builder().addEntries(headers).build();
-  }
-
-  static HTTPHeaders fromMap(Map<String, ? extends Iterable<String>> headers) {
-    ImmutableHTTPHeaders.Builder builder = ImmutableHTTPHeaders.builder();
-    headers.forEach(
-        (name, values) -> values.forEach(value -> builder.addEntry(HTTPHeader.of(name, value))));
-    return builder.build();
-  }
-
-  static HTTPHeaders fromSimpleMap(Map<String, String> headers) {
-    ImmutableHTTPHeaders.Builder builder = ImmutableHTTPHeaders.builder();
-    headers.forEach((name, value) -> builder.addEntry(HTTPHeader.of(name, value)));
-    return builder.build();
-  }
-
-  static HTTPHeaders fromMultiMap(Multimap<String, String> headers) {
-    return fromMap(headers.asMap());
   }
 
   /** Represents an HTTP header as a name-value pair. */

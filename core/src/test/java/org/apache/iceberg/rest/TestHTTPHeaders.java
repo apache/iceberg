@@ -21,12 +21,6 @@ package org.apache.iceberg.rest;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.List;
-import java.util.Map;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableListMultimap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPHeaders.HTTPHeader;
 import org.junit.jupiter.api.Test;
 
@@ -37,32 +31,6 @@ class TestHTTPHeaders {
           HTTPHeader.of("header1", "value1a"),
           HTTPHeader.of("HEADER1", "value1b"),
           HTTPHeader.of("header2", "value2"));
-
-  @Test
-  void asMap() {
-    assertThat(headers.asMap())
-        .isEqualTo(
-            Map.of(
-                "header1", List.of("value1a", "value1b"),
-                "header2", List.of("value2")));
-  }
-
-  @Test
-  void asSimpleMap() {
-    assertThat(headers.asSimpleMap())
-        .isEqualTo(
-            Map.of(
-                "header1", "value1a",
-                "header2", "value2"));
-  }
-
-  @Test
-  void asMultiMap() {
-    assertThat(headers.asMultiMap())
-        .isEqualTo(
-            ImmutableListMultimap.of(
-                "header1", "value1a", "header1", "value1b", "header2", "value2"));
-  }
 
   @Test
   void entries() {
@@ -94,12 +62,12 @@ class TestHTTPHeaders {
     assertThat(actual).isSameAs(headers);
 
     actual = headers.addIfAbsent(HTTPHeader.of("header3", "value3"));
-    assertThat(actual.asMap())
-        .isEqualTo(
-            Map.of(
-                "header1", List.of("value1a", "value1b"),
-                "header2", List.of("value2"),
-                "header3", List.of("value3")));
+    assertThat(actual.entries())
+        .containsExactly(
+            HTTPHeader.of("header1", "value1a"),
+            HTTPHeader.of("HEADER1", "value1b"),
+            HTTPHeader.of("header2", "value2"),
+            HTTPHeader.of("header3", "value3"));
 
     assertThatThrownBy(() -> headers.addIfAbsent((HTTPHeaders) null))
         .isInstanceOf(NullPointerException.class);
@@ -128,99 +96,6 @@ class TestHTTPHeaders {
 
     assertThatThrownBy(() -> headers.addIfAbsent((HTTPHeaders) null))
         .isInstanceOf(NullPointerException.class);
-  }
-
-  @Test
-  void fromMap() {
-    HTTPHeaders actual =
-        HTTPHeaders.fromMap(
-            ImmutableMap.of(
-                "header1", List.of("value1a", "value1b"),
-                "header2", List.of("value2")));
-    assertThat(actual)
-        .isEqualTo(
-            ImmutableHTTPHeaders.builder()
-                .addEntry(HTTPHeader.of("header1", "value1a"))
-                .addEntry(HTTPHeader.of("header1", "value1b"))
-                .addEntry(HTTPHeader.of("header2", "value2"))
-                .build());
-
-    // invalid input (null name or value)
-    assertThatThrownBy(
-            () -> {
-              Map<String, List<String>> map = Maps.newHashMap();
-              map.put(null, Lists.newArrayList("value1"));
-              HTTPHeaders.fromMap(map);
-            })
-        .isInstanceOf(NullPointerException.class);
-    assertThatThrownBy(
-            () -> {
-              Map<String, List<String>> map = Maps.newHashMap();
-              map.put("header", null);
-              HTTPHeaders.fromMap(map);
-            })
-        .isInstanceOf(NullPointerException.class);
-    assertThatThrownBy(
-            () -> HTTPHeaders.fromMap(Map.of("header1", Lists.newArrayList("value1", null))))
-        .isInstanceOf(NullPointerException.class);
-
-    // invalid input (empty name)
-    assertThatThrownBy(() -> HTTPHeaders.fromMap(Map.of("", List.of("value1"))))
-        .isInstanceOf(IllegalArgumentException.class);
-  }
-
-  @Test
-  void fromSimpleMap() {
-    HTTPHeaders actual =
-        HTTPHeaders.fromSimpleMap(
-            ImmutableMap.of(
-                "header1", "value1a",
-                "header2", "value2"));
-    assertThat(actual)
-        .isEqualTo(
-            ImmutableHTTPHeaders.builder()
-                .addEntry(HTTPHeader.of("header1", "value1a"))
-                .addEntry(HTTPHeader.of("header2", "value2"))
-                .build());
-
-    // invalid input (null name or value)
-    assertThatThrownBy(
-            () -> {
-              Map<String, String> map = Maps.newHashMap();
-              map.put(null, "value1");
-              HTTPHeaders.fromSimpleMap(map);
-            })
-        .isInstanceOf(NullPointerException.class);
-    assertThatThrownBy(
-            () -> {
-              Map<String, String> map = Maps.newHashMap();
-              map.put("header", null);
-              HTTPHeaders.fromSimpleMap(map);
-            })
-        .isInstanceOf(NullPointerException.class);
-
-    // invalid input (empty name)
-    assertThatThrownBy(() -> HTTPHeaders.fromSimpleMap(Map.of("", "value1")))
-        .isInstanceOf(IllegalArgumentException.class);
-  }
-
-  @Test
-  void fromMultiMap() {
-    HTTPHeaders actual =
-        HTTPHeaders.fromMultiMap(
-            ImmutableListMultimap.of(
-                "header1", "value1a", "header2", "value2", "header1", "value1b"));
-    assertThat(actual)
-        .isEqualTo(
-            ImmutableHTTPHeaders.builder()
-                .addEntry(HTTPHeader.of("header1", "value1a"))
-                .addEntry(HTTPHeader.of("header1", "value1b"))
-                .addEntry(HTTPHeader.of("header2", "value2"))
-                .build());
-
-    // invalid input (empty name)
-    assertThatThrownBy(() -> HTTPHeaders.fromMultiMap(ImmutableListMultimap.of("", "value1")))
-        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
