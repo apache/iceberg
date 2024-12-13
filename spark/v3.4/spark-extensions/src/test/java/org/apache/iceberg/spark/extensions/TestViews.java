@@ -1795,8 +1795,9 @@ public class TestViews extends SparkExtensionsTestBase {
     assertThat(view.schema().asStruct())
         .isEqualTo(
             new Schema(
-                    Types.NestedField.optional(0, "new_id", Types.IntegerType.get(), "some ID"),
-                    Types.NestedField.optional(1, "new_data", Types.StringType.get(), "some data"))
+                    0,
+                    Types.NestedField.optional(1, "new_id", Types.IntegerType.get(), "some ID"),
+                    Types.NestedField.optional(2, "new_data", Types.StringType.get(), "some data"))
                 .asStruct());
 
     sql("CREATE OR REPLACE VIEW %s (updated_id COMMENT 'updated ID') AS %s", viewName, updatedSql);
@@ -1810,8 +1811,9 @@ public class TestViews extends SparkExtensionsTestBase {
     assertThat(view.schema().asStruct())
         .isEqualTo(
             new Schema(
+                    1,
                     Types.NestedField.optional(
-                        0, "updated_id", Types.IntegerType.get(), "updated ID"))
+                        3, "updated_id", Types.IntegerType.get(), "updated ID"))
                 .asStruct());
   }
 
