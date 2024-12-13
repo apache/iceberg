@@ -18,10 +18,14 @@
  */
 package org.apache.iceberg.rest;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Map;
 import javax.annotation.Nullable;
+import org.apache.hc.core5.net.URIBuilder;
+import org.apache.iceberg.exceptions.RESTException;
 import org.immutables.value.Value;
 
 /** Represents an HTTP request. */
@@ -49,7 +53,19 @@ public interface HTTPRequest {
    */
   @Value.Lazy
   default URI requestUri() {
-    return RESTUtil.buildRequestUri(this);
+    // if full path is provided, use the input path as path
+    String fullPath =
+        (path().startsWith("https://") || path().startsWith("http://"))
+            ? path()
+            : String.format("%s/%s", baseUri(), path());
+    try {
+      URIBuilder builder = new URIBuilder(RESTUtil.stripTrailingSlash(fullPath));
+      queryParameters().forEach(builder::addParameter);
+      return builder.build();
+    } catch (URISyntaxException e) {
+      throw new RESTException(
+          "Failed to create request URI from base %s, params %s", fullPath, queryParameters());
+    }
   }
 
   /** Returns the HTTP method of this request. */
@@ -77,7 +93,17 @@ public interface HTTPRequest {
   @Nullable
   @Value.Redacted
   default String encodedBody() {
-    return RESTUtil.encodeRequestBody(this);
+    Object body = body();
+    if (body instanceof Map) {
+      return RESTUtil.encodeFormData((Map<?, ?>) body);
+    } else if (body != null) {
+      try {
+        return mapper().writeValueAsString(body);
+      } catch (JsonProcessingException e) {
+        throw new RESTException(e, "Failed to encode request body: %s", body);
+      }
+    }
+    return null;
   }
 
   /**
@@ -87,5 +113,14 @@ public interface HTTPRequest {
   @Value.Default
   default ObjectMapper mapper() {
     return RESTObjectMapper.mapper();
+  }
+
+  @Value.Check
+  default void check() {
+    if (path().startsWith("/")) {
+      throw new RESTException(
+          "Received a malformed path for a REST request: %s. Paths should not start with /",
+          path());
+    }
   }
 }

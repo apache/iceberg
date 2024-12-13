@@ -161,6 +161,13 @@ public interface HTTPHeaders {
     @Value.Redacted
     String value();
 
+    @Value.Check
+    default void check() {
+      if (name().isEmpty()) {
+        throw new IllegalArgumentException("Header name cannot be empty");
+      }
+    }
+
     static HTTPHeader of(String name, String value) {
       return ImmutableHTTPHeader.builder().name(name).value(value).build();
     }
