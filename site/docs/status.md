@@ -20,8 +20,7 @@ title: "Implementation Status"
 
 # Implementations Status
 
-Apache iceberg now has implementations of the iceberg spec in multiple languages. This page provides a summary of the
-current status of these implementations.
+Apache iceberg's spec is implemented in multiple languages. This page provides an overview of the current capabilities.
 
 ## Versions
 
@@ -54,6 +53,10 @@ This section describes the versions of each implementation that are being tracke
 | uuid           | Y    | Y         | Y    | Y  |
 | fixed          | Y    | Y         | Y    | Y  |
 | binary         | Y    | Y         | Y    | Y  |
+| variant        | Y    | Y         | Y    | Y  |
+| list           | Y    | Y         | Y    | Y  |
+| map            | Y    | Y         | Y    | Y  |
+| struct         | Y    | Y         | Y    | Y  |
 
 ## Data File Formats
 
@@ -79,7 +82,7 @@ This section describes the versions of each implementation that are being tracke
 
 | Operation                   | Java | PyIceberg | Rust | Go |
 |-----------------------------|------|-----------|------|----|
-| Update schema               | Y    | N         | N    | N  |
+| Update schema               | Y    | Y         | N    | N  |
 | Update partition spec       | Y    | N         | N    | N  |
 | Update table properties     | Y    | Y         | Y    | N  |
 | Replace sort order          | Y    | N         | N    | N  |
@@ -88,7 +91,6 @@ This section describes the versions of each implementation that are being tracke
 | Rewrite files               | Y    | N         | N    | N  |
 | Rewrite manifests           | Y    | N         | N    | N  |
 | Overwrite files             | Y    | N         | N    | N  |
-| Row delta                   | Y    | N         | N    | N  |
 | Delete files                | Y    | N         | N    | N  |
 | Update statistics           | Y    | N         | N    | N  |
 | Update partition statistics | Y    | N         | N    | N  |
@@ -121,18 +123,18 @@ This section describes the versions of each implementation that are being tracke
 
 | Operation           | Java | PyIceberg | Rust | Go |
 |---------------------|------|-----------|------|----|
-| Plan with data file | Y    | N         | Y    | N  |
-| Read data file      | Y    | N         | Y    | N  |
+| Plan with data file | Y    | Y         | Y    | Y  |
+| Read data file      | Y    | Y         | Y    | Y  |
 
 ### Table Spec V2
 
 | Operation                  | Java | PyIceberg | Rust | Go |
 |----------------------------|------|-----------|------|----|
-| Plan with data file        | Y    | N         | Y    | N  |
-| Plan with position deletes | Y    | N         | N    | N  |
+| Plan with data file        | Y    | Y         | Y    | Y  |
+| Plan with position deletes | Y    | Y         | N    | Y  |
 | Plan with equality deletes | Y    | N         | N    | N  |
-| Read data file             | Y    | N         | Y    | N  |
-| Read with position deletes | Y    | N         | N    | N  |
+| Read data file             | Y    | Y         | Y    | Y  |
+| Read with position deletes | Y    | Y         | N    | Y  |
 | Read with equality deletes | Y    | N         | N    | N  |
 
 ## Table Write Operations
@@ -194,14 +196,14 @@ This section describes the versions of each implementation that are being tracke
 
 | Namespace Operation | Java | PyIceberg | Rust | Go |
 |---------------------|------|-----------|------|----|
-| listNamespaces      | Y    | N         | N    | N  |
-| createNamespace     | Y    | N         | N    | N  |
-| dropNamespace       | Y    | N         | N    | N  |
-| namespaceExists     | Y    | N         | N    | N  |
-| renameNamespace     | Y    | N         | N    | N  |
-| updateNamespace     | Y    | N         | N    | N  |
-| deleteNamespace     | Y    | N         | N    | N  |
-| loadNamespace       | Y    | N         | N    | N  |
+| listNamespaces      | Y    | N         | N    | Y  |
+| createNamespace     | Y    | N         | N    | Y  |
+| dropNamespace       | Y    | N         | N    | Y  |
+| namespaceExists     | Y    | N         | N    | Y  |
+| renameNamespace     | Y    | N         | N    | Y  |
+| updateNamespace     | Y    | N         | N    | Y  |
+| deleteNamespace     | Y    | N         | N    | Y  |
+| loadNamespace       | Y    | N         | N    | Y  |
 
 ### Sql Catalog
 
