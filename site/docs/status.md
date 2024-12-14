@@ -79,8 +79,8 @@ This section describes the versions of each implementation that are being tracke
 
 | Operation                   | Java | PyIceberg | Rust | Go |
 |-----------------------------|------|-----------|------|----|
-| Update schema               | Y    | N         | N    | N  |
-| Update partition spec       | Y    | N         | N    | N  |
+| Update schema               | Y    | N         | Y    | N  |
+| Update partition spec       | Y    | N         | Y    | N  |
 | Update table properties     | Y    | Y         | Y    | N  |
 | Replace sort order          | Y    | N         | N    | N  |
 | Update table location       | Y    | N         | N    | N  |
