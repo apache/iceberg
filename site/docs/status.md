@@ -82,15 +82,15 @@ This section describes the versions of each implementation that are being tracke
 
 | Operation                   | Java | PyIceberg | Rust | Go |
 |-----------------------------|------|-----------|------|----|
-| Update schema               | Y    | Y         | N    | N  |
-| Update partition spec       | Y    | N         | N    | N  |
+| Update schema               | Y    | N         | Y    | N  |
+| Update partition spec       | Y    | N         | Y    | N  |
 | Update table properties     | Y    | Y         | Y    | N  |
 | Replace sort order          | Y    | N         | N    | N  |
 | Update table location       | Y    | N         | N    | N  |
-| Append data files           | Y    | N         | N    | N  |
-| Rewrite files               | Y    | N         | N    | N  |
-| Rewrite manifests           | Y    | N         | N    | N  |
-| Overwrite files             | Y    | N         | N    | N  |
+| Append data files           | Y    | Y         | N    | N  |
+| Rewrite files               | Y    | Y         | N    | N  |
+| Rewrite manifests           | Y    | Y         | N    | N  |
+| Overwrite files             | Y    | Y         | N    | N  |
 | Delete files                | Y    | N         | N    | N  |
 | Update statistics           | Y    | N         | N    | N  |
 | Update partition statistics | Y    | N         | N    | N  |
@@ -101,17 +101,17 @@ This section describes the versions of each implementation that are being tracke
 
 | Operation                   | Java | PyIceberg | Rust | Go |
 |-----------------------------|------|-----------|------|----|
-| Update schema               | Y    | N         | N    | N  |
-| Update partition spec       | Y    | N         | N    | N  |
+| Update schema               | Y    | Y         | N    | N  |
+| Update partition spec       | Y    | Y         | N    | N  |
 | Update table properties     | Y    | Y         | Y    | N  |
 | Replace sort order          | Y    | N         | N    | N  |
 | Update table location       | Y    | N         | N    | N  |
-| Append data files           | Y    | N         | N    | N  |
-| Rewrite files               | Y    | N         | N    | N  |
-| Rewrite manifests           | Y    | N         | N    | N  |
-| Overwrite files             | Y    | N         | N    | N  |
+| Append data files           | Y    | Y         | N    | N  |
+| Rewrite files               | Y    | Y         | N    | N  |
+| Rewrite manifests           | Y    | Y         | N    | N  |
+| Overwrite files             | Y    | Y         | N    | N  |
 | Row delta                   | Y    | N         | N    | N  |
-| Delete files                | Y    | N         | N    | N  |
+| Delete files                | Y    | Y         | N    | N  |
 | Update statistics           | Y    | N         | N    | N  |
 | Update partition statistics | Y    | N         | N    | N  |
 | Expire snapshots            | Y    | N         | N    | N  |
@@ -124,17 +124,17 @@ This section describes the versions of each implementation that are being tracke
 | Operation           | Java | PyIceberg | Rust | Go |
 |---------------------|------|-----------|------|----|
 | Plan with data file | Y    | Y         | Y    | Y  |
-| Read data file      | Y    | Y         | Y    | Y  |
+| Read data file      | Y    | N         | Y    | N  |
 
 ### Table Spec V2
 
 | Operation                  | Java | PyIceberg | Rust | Go |
 |----------------------------|------|-----------|------|----|
 | Plan with data file        | Y    | Y         | Y    | Y  |
-| Plan with position deletes | Y    | Y         | N    | Y  |
-| Plan with equality deletes | Y    | N         | N    | N  |
-| Read data file             | Y    | Y         | Y    | Y  |
-| Read with position deletes | Y    | Y         | N    | Y  |
+| Plan with position deletes | Y    | Y         | N    | N  |
+| Plan with equality deletes | Y    | Y         | N    | N  |
+| Read data file             | Y    | Y         | Y    | N  |
+| Read with position deletes | Y    | Y         | N    | N  |
 | Read with equality deletes | Y    | N         | N    | N  |
 
 ## Table Write Operations
@@ -143,13 +143,13 @@ This section describes the versions of each implementation that are being tracke
 
 | Operation   | Java | PyIceberg | Rust | Go |
 |-------------|------|-----------|------|----|
-| Append data | Y    | N         | Y    | N  |
+| Append data | Y    | Y         | Y    | N  |
 
 ### Table Spec V2
 
 | Operation              | Java | PyIceberg | Rust | Go |
 |------------------------|------|-----------|------|----|
-| Append data            | Y    | N         | Y    | N  |
+| Append data            | Y    | Y         | Y    | N  |
 | Write position deletes | Y    | N         | N    | N  |
 | Write equality deletes | Y    | N         | N    | N  |
 
@@ -211,9 +211,9 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 
 | Database | Java | PyIceberg | Rust | Go |
 |----------|------|-----------|------|----|
-| Postgres | Y    | N         | Y    | N  |
-| MySQL    | Y    | N         | Y    | N  |
-| Sqlite   | Y    | N         | Y    | N  |
+| Postgres | Y    | Y         | Y    | N  |
+| MySQL    | Y    | Y         | Y    | N  |
+| SQLite   | Y    | Y         | Y    | N  |
 
 #### Table Spec V1
 
