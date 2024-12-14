@@ -29,7 +29,7 @@ class AzureSasCredentialRefresher {
   private final ScheduledExecutorService refreshExecutor;
   private final AzureSasCredential azureSasCredential;
 
-  private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes;
+  private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes
   private static final long MIN_REFRESH_WAIT_MILLIS = 10;
 
   AzureSasCredentialRefresher(
@@ -46,7 +46,7 @@ class AzureSasCredentialRefresher {
     return this.azureSasCredential;
   }
 
-  private void scheduleRefresh(Long expireAtMillis) {
+  private void scheduleRefresh(Long expiresAtMillis) {
     this.refreshExecutor.schedule(
         () -> {
           Pair<String, Long> sasTokenWithExpiration = sasTokenWithExpirationSupplier.get();
@@ -59,7 +59,7 @@ class AzureSasCredentialRefresher {
         TimeUnit.MILLISECONDS);
   }
 
-  private long refreshDelayMillis(Long expireAtMillis) {
+  private long refreshDelayMillis(Long expiresAtMillis) {
     long expireInMillis = expireAtMillis - System.currentTimeMillis();
     // how much ahead of time to start the request to allow it to complete
     long refreshWindowMillis = Math.min(expireInMillis / 10, MAX_REFRESH_WINDOW_MILLIS);
