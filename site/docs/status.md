@@ -84,10 +84,10 @@ This section describes the versions of each implementation that are being tracke
 | Update table properties     | Y    | Y         | Y    | N  |
 | Replace sort order          | Y    | N         | N    | N  |
 | Update table location       | Y    | N         | N    | N  |
-| Append data files           | Y    | N         | N    | N  |
-| Rewrite files               | Y    | N         | N    | N  |
-| Rewrite manifests           | Y    | N         | N    | N  |
-| Overwrite files             | Y    | N         | N    | N  |
+| Append data files           | Y    | Y         | N    | N  |
+| Rewrite files               | Y    | Y         | N    | N  |
+| Rewrite manifests           | Y    | Y         | N    | N  |
+| Overwrite files             | Y    | Y         | N    | N  |
 | Row delta                   | Y    | N         | N    | N  |
 | Delete files                | Y    | N         | N    | N  |
 | Update statistics           | Y    | N         | N    | N  |
