@@ -121,7 +121,7 @@ This section describes the versions of each implementation that are being tracke
 
 | Operation           | Java | PyIceberg | Rust | Go |
 |---------------------|------|-----------|------|----|
-| Plan with data file | Y    | N         | Y    | N  |
+| Plan with data file | Y    | Y         | Y    | Y  |
 | Read data file      | Y    | N         | Y    | N  |
 
 ### Table Spec V2
