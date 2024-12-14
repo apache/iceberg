@@ -22,7 +22,7 @@ import com.azure.core.credential.AzureSasCredential;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
-import org.apache.commons.lang3.tuple.Pair;
+import org.apache.iceberg.util.Pair;
 
 class AzureSasCredentialRefresher {
   private final Supplier<Pair<String, Long>> sasTokenWithExpirationSupplier;
@@ -38,8 +38,8 @@ class AzureSasCredentialRefresher {
     this.sasTokenWithExpirationSupplier = sasTokenWithExpirationSupplier;
     this.refreshExecutor = refreshExecutor;
     Pair<String, Long> sasTokenWithExpiration = sasTokenWithExpirationSupplier.get();
-    this.azureSasCredential = new AzureSasCredential(sasTokenWithExpiration.getLeft());
-    scheduleRefresh(sasTokenWithExpiration.getRight());
+    this.azureSasCredential = new AzureSasCredential(sasTokenWithExpiration.first());
+    scheduleRefresh(sasTokenWithExpiration.second());
   }
 
   public AzureSasCredential azureSasCredential() {
@@ -50,21 +50,19 @@ class AzureSasCredentialRefresher {
     this.refreshExecutor.schedule(
         () -> {
           Pair<String, Long> sasTokenWithExpiration = sasTokenWithExpirationSupplier.get();
-          azureSasCredential.update(sasTokenWithExpiration.getLeft());
-          if (sasTokenWithExpiration.getRight() != null) {
-            this.scheduleRefresh(sasTokenWithExpiration.getRight());
-          }
+          azureSasCredential.update(sasTokenWithExpiration.first());
+          this.scheduleRefresh(sasTokenWithExpiration.second());
         },
-        refreshDelayMillis(expireAtMillis),
+        refreshDelayMillis(expiresAtMillis),
         TimeUnit.MILLISECONDS);
   }
 
   private long refreshDelayMillis(Long expiresAtMillis) {
-    long expireInMillis = expireAtMillis - System.currentTimeMillis();
+    long expiresInMillis = expiresAtMillis - System.currentTimeMillis();
     // how much ahead of time to start the request to allow it to complete
-    long refreshWindowMillis = Math.min(expireInMillis / 10, MAX_REFRESH_WINDOW_MILLIS);
+    long refreshWindowMillis = Math.min(expiresInMillis / 10, MAX_REFRESH_WINDOW_MILLIS);
     // how much time to wait before expiration
-    long waitIntervalMillis = expireInMillis - refreshWindowMillis;
+    long waitIntervalMillis = expiresInMillis - refreshWindowMillis;
     // how much time to actually wait
     return Math.max(waitIntervalMillis, MIN_REFRESH_WAIT_MILLIS);
   }
