@@ -101,6 +101,9 @@ Spark 3.5 added support for `WHEN NOT MATCHED BY SOURCE ... THEN ...` to update 
 WHEN NOT MATCHED BY SOURCE THEN UPDATE SET status = 'invalid'
 ```
 
+!!! danger
+    Note: For copy on write table,Please Do Not Modify the Source Data Table During Execution.Due to the need for Spark to use the source table consecutively twice for computation,the relation which is created of source data must remain constant through the two different passes of the source data.If the source data query would return different results user will see odd behavior.
+
 ### `INSERT OVERWRITE`
 
 `INSERT OVERWRITE` can replace data in the table with the result of a query. Overwrites are atomic operations for Iceberg tables.
