@@ -209,9 +209,9 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 
 | Database | Java | PyIceberg | Rust | Go |
 |----------|------|-----------|------|----|
-| Postgres | Y    | N         | Y    | N  |
-| MySQL    | Y    | N         | Y    | N  |
-| Sqlite   | Y    | N         | Y    | N  |
+| Postgres | Y    | Y         | Y    | N  |
+| MySQL    | Y    | Y         | Y    | N  |
+| SQLite   | Y    | Y         | Y    | N  |
 
 #### Table Spec V1
 
