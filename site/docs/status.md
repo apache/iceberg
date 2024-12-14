@@ -147,7 +147,7 @@ This section describes the versions of each implementation that are being tracke
 
 | Operation              | Java | PyIceberg | Rust | Go |
 |------------------------|------|-----------|------|----|
-| Append data            | Y    | N         | Y    | N  |
+| Append data            | Y    | Y         | Y    | N  |
 | Write position deletes | Y    | N         | N    | N  |
 | Write equality deletes | Y    | N         | N    | N  |
 
