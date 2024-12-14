@@ -131,8 +131,8 @@ This section describes the versions of each implementation that are being tracke
 | Plan with data file        | Y    | Y         | Y    | Y  |
 | Plan with position deletes | Y    | N         | N    | N  |
 | Plan with equality deletes | Y    | N         | N    | N  |
-| Read data file             | Y    | N         | Y    | N  |
-| Read with position deletes | Y    | N         | N    | N  |
+| Read data file             | Y    | Y         | Y    | N  |
+| Read with position deletes | Y    | Y         | N    | N  |
 | Read with equality deletes | Y    | N         | N    | N  |
 
 ## Table Write Operations
