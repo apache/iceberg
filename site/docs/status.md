@@ -22,16 +22,14 @@ title: "Implementation Status"
 
 Apache iceberg's spec is implemented in multiple languages. This page provides an overview of the current capabilities.
 
-## Versions
+## Libraries
 
-This section describes the versions of each implementation that are being tracked in this page.
+This section lists the libraries that implement the iceberg spec.
 
-| Language  | Version |
-|-----------|---------|
-| Java      | 1.7.1   |
-| PyIceberg | 0.7.0   |
-| Rust      | 0.3.0   |
-| Go        | 0.1.0   |
+- [Java](https://mvnrepository.com/artifact/org.apache.iceberg)
+- [PyIceberg](https://pypi.org/project/pyiceberg/)
+- [Rust](https://crates.io/crates/iceberg)
+- [Go](https://pkg.go.dev/github.com/apache/iceberg)
 
 ## Data Types
 
@@ -68,13 +66,12 @@ This section describes the versions of each implementation that are being tracke
 
 ## File IO
 
-| Storage              | Java | PyIceberg | Rust | Go |
-|----------------------|------|-----------|------|----|
-| Local Filesystem     | Y    | Y         | Y    | Y  |
-| Hadoop Filesystem    | Y    | Y         | Y    | Y  |
-| Aws S3               | Y    | Y         | Y    | Y  |
-| Google Cloud Storage | Y    | Y         | Y    | Y  |
-| Memory Fs            | Y    | Y         | Y    | Y  |
+| Storage           | Java | PyIceberg | Rust | Go |
+|-------------------|------|-----------|------|----|
+| Local Filesystem  | Y    | Y         | Y    | Y  |
+| Hadoop Filesystem | Y    | Y         | Y    | Y  |
+| S3 Compatible     | Y    | Y         | Y    | Y  |
+| GCS Compatible    | Y    | Y         | Y    | Y  |
 
 ## Table Update Operations
 
@@ -194,16 +191,14 @@ This section describes the versions of each implementation that are being tracke
 
 #### Namespace Operations
 
-| Namespace Operation | Java | PyIceberg | Rust | Go |
-|---------------------|------|-----------|------|----|
-| listNamespaces      | Y    | N         | N    | Y  |
-| createNamespace     | Y    | N         | N    | Y  |
-| dropNamespace       | Y    | N         | N    | Y  |
-| namespaceExists     | Y    | N         | N    | Y  |
-| renameNamespace     | Y    | N         | N    | Y  |
-| updateNamespace     | Y    | N         | N    | Y  |
-| deleteNamespace     | Y    | N         | N    | Y  |
-| loadNamespace       | Y    | N         | N    | Y  |
+| Namespace Operation       | Java | PyIceberg | Rust | Go |
+|---------------------------|------|-----------|------|----|
+| listNamespaces            | Y    | Y         | Y    | Y  |
+| createNamespace           | Y    | Y         | Y    | Y  |
+| dropNamespace             | Y    | Y         | Y    | Y  |
+| namespaceExists           | Y    | N         | Y    | Y  |
+| updateNamespaceProperties | Y    | Y         | Y    | Y  |
+| loadNamespaceMetadata     | Y    | N         | Y    | Y  |
 
 ### Sql Catalog
 
@@ -252,16 +247,16 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 
 #### Namespace Operations
 
-| Namespace Operation | Java | PyIceberg | Rust | Go |
-|---------------------|------|-----------|------|----|
-| listNamespaces      | Y    | N         | N    | N  |
-| createNamespace     | Y    | N         | N    | N  |
-| dropNamespace       | Y    | N         | N    | N  |
-| namespaceExists     | Y    | N         | N    | N  |
-| renameNamespace     | Y    | N         | N    | N  |
-| updateNamespace     | Y    | N         | N    | N  |
-| deleteNamespace     | Y    | N         | N    | N  |
-| loadNamespace       | Y    | N         | N    | N  |
+| Namespace Operation       | Java | PyIceberg | Rust | Go |
+|---------------------------|------|-----------|------|----|
+| listNamespaces            | Y    | N         | N    | N  |
+| createNamespace           | Y    | N         | N    | N  |
+| dropNamespace             | Y    | Y         | Y    | Y  |
+| namespaceExists           | Y    | N         | N    | N  |
+| renameNamespace           | Y    | N         | N    | N  |
+| updateNamespace           | Y    | N         | N    | N  |
+| updateNamespaceProperties | Y    | Y         | Y    | Y  |
+| loadNamespaceMetadata     | Y    | N         | N    | N  |
 
 ### Glue Catalog
 
@@ -302,16 +297,15 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 
 #### Namespace Operations
 
-| Namespace Operation | Java | PyIceberg | Rust | Go |
-|---------------------|------|-----------|------|----|
-| listNamespaces      | Y    | N         | N    | N  |
-| createNamespace     | Y    | N         | N    | N  |
-| dropNamespace       | Y    | N         | N    | N  |
-| namespaceExists     | Y    | N         | N    | N  |
-| renameNamespace     | Y    | N         | N    | N  |
-| updateNamespace     | Y    | N         | N    | N  |
-| deleteNamespace     | Y    | N         | N    | N  |
-| loadNamespace       | Y    | N         | N    | N  |
+| Namespace Operation       | Java | PyIceberg | Rust | Go |
+|---------------------------|------|-----------|------|----|
+| listNamespaces            | Y    | N         | N    | N  |
+| createNamespace           | Y    | N         | N    | N  |
+| dropNamespace             | Y    | N         | N    | N  |
+| namespaceExists           | Y    | N         | N    | N  |
+| renameNamespace           | Y    | N         | N    | N  |
+| updateNamespaceProperties | Y    | Y         | Y    | Y  |
+| loadNamespaceMetadata     | Y    | N         | N    | N  |
 
 ### Hive Metastore Catalog
 
@@ -352,13 +346,13 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 
 #### Namespace Operations
 
-| Namespace Operation | Java | PyIceberg | Rust | Go |
-|---------------------|------|-----------|------|----|
-| listNamespaces      | Y    | N         | N    | N  |
-| createNamespace     | Y    | N         | N    | N  |
-| dropNamespace       | Y    | N         | N    | N  |
-| namespaceExists     | Y    | N         | N    | N  |
-| renameNamespace     | Y    | N         | N    | N  |
-| updateNamespace     | Y    | N         | N    | N  |
-| deleteNamespace     | Y    | N         | N    | N  |
-| loadNamespace       | Y    | N         | N    | N  |
+| Namespace Operation       | Java | PyIceberg | Rust | Go |
+|---------------------------|------|-----------|------|----|
+| listNamespaces            | Y    | N         | N    | N  |
+| createNamespace           | Y    | N         | N    | N  |
+| dropNamespace             | Y    | N         | N    | N  |
+| namespaceExists           | Y    | N         | N    | N  |
+| renameNamespace           | Y    | N         | N    | N  |
+| updateNamespace           | Y    | N         | N    | N  |
+| updateNamespaceProperties | Y    | Y         | Y    | Y  |
+| loadNamespaceMetadata     | Y    | N         | N    | N  |
