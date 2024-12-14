@@ -99,17 +99,17 @@ This section describes the versions of each implementation that are being tracke
 
 | Operation                   | Java | PyIceberg | Rust | Go |
 |-----------------------------|------|-----------|------|----|
-| Update schema               | Y    | N         | N    | N  |
-| Update partition spec       | Y    | N         | N    | N  |
+| Update schema               | Y    | Y         | N    | N  |
+| Update partition spec       | Y    | Y         | N    | N  |
 | Update table properties     | Y    | Y         | Y    | N  |
 | Replace sort order          | Y    | N         | N    | N  |
 | Update table location       | Y    | N         | N    | N  |
-| Append data files           | Y    | N         | N    | N  |
-| Rewrite files               | Y    | N         | N    | N  |
-| Rewrite manifests           | Y    | N         | N    | N  |
-| Overwrite files             | Y    | N         | N    | N  |
+| Append data files           | Y    | Y         | N    | N  |
+| Rewrite files               | Y    | Y         | N    | N  |
+| Rewrite manifests           | Y    | Y         | N    | N  |
+| Overwrite files             | Y    | Y         | N    | N  |
 | Row delta                   | Y    | N         | N    | N  |
-| Delete files                | Y    | N         | N    | N  |
+| Delete files                | Y    | Y         | N    | N  |
 | Update statistics           | Y    | N         | N    | N  |
 | Update partition statistics | Y    | N         | N    | N  |
 | Expire snapshots            | Y    | N         | N    | N  |
