@@ -53,7 +53,8 @@ class GenericReaders {
     return TimestamptzReader.INSTANCE;
   }
 
-  static ValueReader<Record> struct(List<Pair<Integer, ValueReader<?>>> readPlan, StructType struct) {
+  static ValueReader<Record> struct(
+      List<Pair<Integer, ValueReader<?>>> readPlan, StructType struct) {
     return new PlannedRecordReader(readPlan, struct);
   }
 
@@ -109,8 +110,7 @@ class GenericReaders {
   private static class PlannedRecordReader extends ValueReaders.PlannedStructReader<Record> {
     private final StructType structType;
 
-    private PlannedRecordReader(
-        List<Pair<Integer, ValueReader<?>>> readPlan, StructType struct) {
+    private PlannedRecordReader(List<Pair<Integer, ValueReader<?>>> readPlan, StructType struct) {
       super(readPlan);
       this.structType = struct;
     }

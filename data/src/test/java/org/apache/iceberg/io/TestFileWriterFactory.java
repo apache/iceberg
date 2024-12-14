@@ -476,7 +476,10 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
       case AVRO:
         try (CloseableIterable<Record> records =
-            Avro.read(inputFile).project(schema).createResolvingReader(PlannedDataReader::create).build()) {
+            Avro.read(inputFile)
+                .project(schema)
+                .createResolvingReader(PlannedDataReader::create)
+                .build()) {
 
           return ImmutableList.copyOf(records);
         }

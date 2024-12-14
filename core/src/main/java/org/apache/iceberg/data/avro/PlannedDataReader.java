@@ -52,7 +52,8 @@ public class PlannedDataReader<T> implements DatumReader<T>, SupportsRowPosition
   private final Map<Integer, ?> idToConstant;
   private ValueReader<T> reader;
 
-  protected PlannedDataReader(org.apache.iceberg.Schema expectedSchema, Map<Integer, ?> idToConstant) {
+  protected PlannedDataReader(
+      org.apache.iceberg.Schema expectedSchema, Map<Integer, ?> idToConstant) {
     this.expectedSchema = expectedSchema;
     this.idToConstant = idToConstant;
   }

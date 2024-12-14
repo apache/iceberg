@@ -610,7 +610,10 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
 
       case AVRO:
         iterable =
-            Avro.read(inputFile).project(schema).createResolvingReader(PlannedDataReader::create).build();
+            Avro.read(inputFile)
+                .project(schema)
+                .createResolvingReader(PlannedDataReader::create)
+                .build();
         break;
 
       case ORC:
