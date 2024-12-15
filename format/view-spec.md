@@ -203,7 +203,7 @@ The refresh state record captures the state of all source tables and source view
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
-| _required_  | `refresh-version-id`         | The `version-id` of the materialized view when the refresh operation was performed  | 
+| _required_  | `view-version-id`         | The `version-id` of the materialized view when the refresh operation was performed  | 
 | _required_  | `source-table-states`        | A list of [source table](#source-table) records for all tables that are directly or indirectly referenced in the materialized view query |
 | _required_  | `source-view-states`         | A list of [source view](#source-view) records for all views that are directly or indirectly referenced in the materialized view query |
 | _required_  | `refresh-start-timestamp-ms` | A timestamp of when the refresh operation was started |
