@@ -208,6 +208,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
       exclude group: 'com.zaxxer', module: 'HikariCP'
       exclude group: 'org.slf4j'
     }
+    integrationImplementation(libs.hive4.standalone.metastore.server)
 
     integrationImplementation("${libs.hive4.exec.get().module}:${libs.hive4.exec.get().getVersion()}:core") {
       exclude group: 'org.apache.avro', module: 'avro'

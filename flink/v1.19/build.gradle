@@ -116,6 +116,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
       exclude group: 'com.zaxxer', module: 'HikariCP'
       exclude group: 'org.slf4j'
     }
+    testImplementation(libs.hive4.standalone.metastore.server)
 
     testImplementation libs.awaitility
     testImplementation libs.assertj.core

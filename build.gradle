@@ -593,6 +593,8 @@ project(':iceberg-delta-lake') {
       }
       integrationImplementation project(path: ':iceberg-hive-metastore')
       integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+      integrationImplementation(libs.hive4.metastore)
+      integrationImplementation(libs.hive4.standalone.metastore.server)
       integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive35.get()}") {
         exclude group: 'org.apache.avro', module: 'avro'
         exclude group: 'org.apache.arrow'
@@ -601,6 +603,7 @@ project(':iceberg-delta-lake') {
         exclude group: 'io.netty', module: 'netty-buffer'
         exclude group: 'io.netty', module: 'netty-common'
         exclude group: 'org.roaringbitmap'
+        exclude group: 'org.apache.hive'
       }
     }
   }

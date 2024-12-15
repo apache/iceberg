@@ -15,9 +15,7 @@
 -- limitations under the License.
 --
 -- This file was copied from Apache Hive, at:
--- https://github.com/apache/hive/blob/master/standalone-metastore/metastore-server/src/main/sql/derby/hive-schema-3.1.0.derby.sql
---
--- This has been modified slightly for compatibility with older Hive versions.
+-- https://github.com/apache/hive/blob/master/standalone-metastore/metastore-server/src/main/sql/derby/hive-schema-4.0.0.derby.sql
 --
 -- Timestamp: 2011-09-22 15:32:02.024
 -- Source database is: /home/carl/Work/repos/hive1/metastore/scripts/upgrade/derby/mdb
@@ -37,14 +35,19 @@ CREATE FUNCTION "APP"."NUCLEUS_MATCHES" (TEXT VARCHAR(8000),PATTERN VARCHAR(8000
 -- DDL Statements for tables
 -- ----------------------------------------------
 CREATE TABLE "APP"."DBS" (
-  "DB_ID" BIGINT NOT NULL,
-  "DESC" VARCHAR(4000),
-  "DB_LOCATION_URI" VARCHAR(4000) NOT NULL,
-  "NAME" VARCHAR(128),
-  "OWNER_NAME" VARCHAR(128),
-  "OWNER_TYPE" VARCHAR(10),
-  "CTLG_NAME" VARCHAR(256)
-);
+                             "DB_ID" BIGINT NOT NULL,
+                             "DESC" VARCHAR(4000),
+    "DB_LOCATION_URI" VARCHAR(4000) NOT NULL,
+    "NAME" VARCHAR(128),
+    "OWNER_NAME" VARCHAR(128),
+    "OWNER_TYPE" VARCHAR(10),
+    "CTLG_NAME" VARCHAR(256) NOT NULL DEFAULT 'hive',
+    "CREATE_TIME" INTEGER,
+    "DB_MANAGED_LOCATION_URI" VARCHAR(4000),
+    "TYPE" VARCHAR(32) DEFAULT 'NATIVE' NOT NULL,
+    "DATACONNECTOR_NAME" VARCHAR(128),
+    "REMOTE_DBNAME" VARCHAR(128)
+    );
 
 CREATE TABLE "APP"."TBL_PRIVS" ("TBL_GRANT_ID" BIGINT NOT NULL, "CREATE_TIME" INTEGER NOT NULL, "GRANT_OPTION" SMALLINT NOT NULL, "GRANTOR" VARCHAR(128), "GRANTOR_TYPE" VARCHAR(128), "PRINCIPAL_NAME" VARCHAR(128), "PRINCIPAL_TYPE" VARCHAR(128), "TBL_PRIV" VARCHAR(128), "TBL_ID" BIGINT, "AUTHORIZER" VARCHAR(128));
 
@@ -64,11 +67,9 @@ CREATE TABLE "APP"."PARTITION_KEY_VALS" ("PART_ID" BIGINT NOT NULL, "PART_KEY_VA
 
 CREATE TABLE "APP"."DB_PRIVS" ("DB_GRANT_ID" BIGINT NOT NULL, "CREATE_TIME" INTEGER NOT NULL, "DB_ID" BIGINT, "GRANT_OPTION" SMALLINT NOT NULL, "GRANTOR" VARCHAR(128), "GRANTOR_TYPE" VARCHAR(128), "PRINCIPAL_NAME" VARCHAR(128), "PRINCIPAL_TYPE" VARCHAR(128), "DB_PRIV" VARCHAR(128), "AUTHORIZER" VARCHAR(128));
 
-CREATE TABLE "APP"."IDXS" ("INDEX_ID" BIGINT NOT NULL, "CREATE_TIME" INTEGER NOT NULL, "DEFERRED_REBUILD" CHAR(1) NOT NULL, "INDEX_HANDLER_CLASS" VARCHAR(4000), "INDEX_NAME" VARCHAR(128), "INDEX_TBL_ID" BIGINT, "LAST_ACCESS_TIME" INTEGER NOT NULL, "ORIG_TBL_ID" BIGINT, "SD_ID" BIGINT);
+CREATE TABLE "APP"."DC_PRIVS" ("DC_GRANT_ID" BIGINT NOT NULL, "CREATE_TIME" INTEGER NOT NULL, "NAME" VARCHAR(128), "GRANT_OPTION" SMALLINT NOT NULL, "GRANTOR" VARCHAR(128), "GRANTOR_TYPE" VARCHAR(128), "PRINCIPAL_NAME" VARCHAR(128), "PRINCIPAL_TYPE" VARCHAR(128), "DC_PRIV" VARCHAR(128), "AUTHORIZER" VARCHAR(128));
 
-CREATE TABLE "APP"."INDEX_PARAMS" ("INDEX_ID" BIGINT NOT NULL, "PARAM_KEY" VARCHAR(256) NOT NULL, "PARAM_VALUE" VARCHAR(4000));
-
-CREATE TABLE "APP"."PARTITIONS" ("PART_ID" BIGINT NOT NULL, "CREATE_TIME" INTEGER NOT NULL, "LAST_ACCESS_TIME" INTEGER NOT NULL, "PART_NAME" VARCHAR(767), "SD_ID" BIGINT, "TBL_ID" BIGINT);
+CREATE TABLE "APP"."PARTITIONS" ("PART_ID" BIGINT NOT NULL, "CREATE_TIME" INTEGER NOT NULL, "LAST_ACCESS_TIME" INTEGER NOT NULL, "PART_NAME" VARCHAR(767), "SD_ID" BIGINT, "TBL_ID" BIGINT, "WRITE_ID" BIGINT DEFAULT 0);
 
 CREATE TABLE "APP"."SERDES" ("SERDE_ID" BIGINT NOT NULL, "NAME" VARCHAR(128), "SLIB" VARCHAR(4000), "DESCRIPTION" VARCHAR(4000), "SERIALIZER_CLASS" VARCHAR(4000), "DESERIALIZER_CLASS" VARCHAR(4000), SERDE_TYPE INTEGER);
 
@@ -80,23 +81,23 @@ CREATE TABLE "APP"."TYPES" ("TYPES_ID" BIGINT NOT NULL, "TYPE_NAME" VARCHAR(128)
 
 CREATE TABLE "APP"."GLOBAL_PRIVS" ("USER_GRANT_ID" BIGINT NOT NULL, "CREATE_TIME" INTEGER NOT NULL, "GRANT_OPTION" SMALLINT NOT NULL, "GRANTOR" VARCHAR(128), "GRANTOR_TYPE" VARCHAR(128), "PRINCIPAL_NAME" VARCHAR(128), "PRINCIPAL_TYPE" VARCHAR(128), "USER_PRIV" VARCHAR(128), "AUTHORIZER" VARCHAR(128));
 
-CREATE TABLE "APP"."PARTITION_PARAMS" ("PART_ID" BIGINT NOT NULL, "PARAM_KEY" VARCHAR(256) NOT NULL, "PARAM_VALUE" VARCHAR(4000));
+CREATE TABLE "APP"."PARTITION_PARAMS" ("PART_ID" BIGINT NOT NULL, "PARAM_KEY" VARCHAR(256) NOT NULL, "PARAM_VALUE" CLOB);
 
 CREATE TABLE "APP"."PARTITION_EVENTS" (
-    "PART_NAME_ID" BIGINT NOT NULL,
-    "CAT_NAME" VARCHAR(256),
+                                          "PART_NAME_ID" BIGINT NOT NULL,
+                                          "CAT_NAME" VARCHAR(256),
     "DB_NAME" VARCHAR(128),
     "EVENT_TIME" BIGINT NOT NULL,
     "EVENT_TYPE" INTEGER NOT NULL,
     "PARTITION_NAME" VARCHAR(767),
     "TBL_NAME" VARCHAR(256)
-);
+    );
 
 CREATE TABLE "APP"."COLUMNS" ("SD_ID" BIGINT NOT NULL, "COMMENT" VARCHAR(256), "COLUMN_NAME" VARCHAR(128) NOT NULL, "TYPE_NAME" VARCHAR(4000) NOT NULL, "INTEGER_IDX" INTEGER NOT NULL);
 
 CREATE TABLE "APP"."ROLES" ("ROLE_ID" BIGINT NOT NULL, "CREATE_TIME" INTEGER NOT NULL, "OWNER_NAME" VARCHAR(128), "ROLE_NAME" VARCHAR(128));
 
-CREATE TABLE "APP"."TBLS" ("TBL_ID" BIGINT NOT NULL, "CREATE_TIME" INTEGER NOT NULL, "DB_ID" BIGINT, "LAST_ACCESS_TIME" INTEGER NOT NULL, "OWNER" VARCHAR(767), "OWNER_TYPE" VARCHAR(10), "RETENTION" INTEGER NOT NULL, "SD_ID" BIGINT, "TBL_NAME" VARCHAR(256), "TBL_TYPE" VARCHAR(128), "VIEW_EXPANDED_TEXT" LONG VARCHAR, "VIEW_ORIGINAL_TEXT" LONG VARCHAR, "IS_REWRITE_ENABLED" CHAR(1) NOT NULL DEFAULT 'N');
+CREATE TABLE "APP"."TBLS" ("TBL_ID" BIGINT NOT NULL, "CREATE_TIME" INTEGER NOT NULL, "DB_ID" BIGINT, "LAST_ACCESS_TIME" INTEGER NOT NULL, "OWNER" VARCHAR(767), "OWNER_TYPE" VARCHAR(10), "RETENTION" INTEGER NOT NULL, "SD_ID" BIGINT, "TBL_NAME" VARCHAR(256), "TBL_TYPE" VARCHAR(128), "VIEW_EXPANDED_TEXT" LONG VARCHAR, "VIEW_ORIGINAL_TEXT" LONG VARCHAR, "IS_REWRITE_ENABLED" CHAR(1) NOT NULL DEFAULT 'N',  "WRITE_ID" BIGINT DEFAULT 0);
 
 CREATE TABLE "APP"."PARTITION_KEYS" ("TBL_ID" BIGINT NOT NULL, "PKEY_COMMENT" VARCHAR(4000), "PKEY_NAME" VARCHAR(128) NOT NULL, "PKEY_TYPE" VARCHAR(767) NOT NULL, "INTEGER_IDX" INTEGER NOT NULL);
 
@@ -107,7 +108,7 @@ CREATE TABLE "APP"."SDS" ("SD_ID" BIGINT NOT NULL, "INPUT_FORMAT" VARCHAR(4000),
 CREATE TABLE "APP"."SEQUENCE_TABLE" ("SEQUENCE_NAME" VARCHAR(256) NOT NULL, "NEXT_VAL" BIGINT NOT NULL);
 
 CREATE TABLE "APP"."TAB_COL_STATS"(
-    "CAT_NAME" VARCHAR(256) NOT NULL,
+                                      "CAT_NAME" VARCHAR(256) NOT NULL,
     "DB_NAME" VARCHAR(128) NOT NULL,
     "TABLE_NAME" VARCHAR(256) NOT NULL,
     "COLUMN_NAME" VARCHAR(767) NOT NULL,
@@ -127,8 +128,10 @@ CREATE TABLE "APP"."TAB_COL_STATS"(
     "LAST_ANALYZED" BIGINT,
     "CS_ID" BIGINT NOT NULL,
     "TBL_ID" BIGINT NOT NULL,
-    "BIT_VECTOR" BLOB
-);
+    "BIT_VECTOR" BLOB,
+    "ENGINE" VARCHAR(128) NOT NULL,
+    "HISTOGRAM" BLOB
+    );
 
 CREATE TABLE "APP"."TABLE_PARAMS" ("TBL_ID" BIGINT NOT NULL, "PARAM_KEY" VARCHAR(256) NOT NULL, "PARAM_VALUE" CLOB);
 
@@ -155,7 +158,7 @@ CREATE TABLE "APP"."MASTER_KEYS" ("KEY_ID" INTEGER NOT NULL generated always as 
 CREATE TABLE "APP"."DELEGATION_TOKENS" ( "TOKEN_IDENT" VARCHAR(767) NOT NULL, "TOKEN" VARCHAR(767));
 
 CREATE TABLE "APP"."PART_COL_STATS"(
-    "CAT_NAME" VARCHAR(256) NOT NULL,
+                                       "CAT_NAME" VARCHAR(256) NOT NULL,
     "DB_NAME" VARCHAR(128) NOT NULL,
     "TABLE_NAME" VARCHAR(256) NOT NULL,
     "PARTITION_NAME" VARCHAR(767) NOT NULL,
@@ -176,8 +179,10 @@ CREATE TABLE "APP"."PART_COL_STATS"(
     "NUM_FALSES" BIGINT,
     "LAST_ANALYZED" BIGINT,
     "CS_ID" BIGINT NOT NULL,
-    "PART_ID" BIGINT NOT NULL
-);
+    "PART_ID" BIGINT NOT NULL,
+    "ENGINE" VARCHAR(128) NOT NULL,
+    "HISTOGRAM" BLOB
+    );
 
 CREATE TABLE "APP"."VERSION" ("VER_ID" BIGINT NOT NULL, "SCHEMA_VERSION" VARCHAR(127) NOT NULL, "VERSION_COMMENT" VARCHAR(255));
 
@@ -186,8 +191,8 @@ CREATE TABLE "APP"."FUNCS" ("FUNC_ID" BIGINT NOT NULL, "CLASS_NAME" VARCHAR(4000
 CREATE TABLE "APP"."FUNC_RU" ("FUNC_ID" BIGINT NOT NULL, "RESOURCE_TYPE" INTEGER NOT NULL, "RESOURCE_URI" VARCHAR(4000), "INTEGER_IDX" INTEGER NOT NULL);
 
 CREATE TABLE "APP"."NOTIFICATION_LOG" (
-    "NL_ID" BIGINT NOT NULL,
-    "CAT_NAME" VARCHAR(256),
+                                          "NL_ID" BIGINT NOT NULL,
+                                          "CAT_NAME" VARCHAR(256),
     "DB_NAME" VARCHAR(128),
     "EVENT_ID" BIGINT NOT NULL,
     "EVENT_TIME" INTEGER NOT NULL,
@@ -195,15 +200,36 @@ CREATE TABLE "APP"."NOTIFICATION_LOG" (
     "MESSAGE" CLOB,
     "TBL_NAME" VARCHAR(256),
     "MESSAGE_FORMAT" VARCHAR(16)
-);
+    );
+
+CREATE UNIQUE INDEX "APP"."NOTIFICATION_LOG_EVENT_ID" ON "APP"."NOTIFICATION_LOG" ("EVENT_ID");
 
 CREATE TABLE "APP"."NOTIFICATION_SEQUENCE" ("NNI_ID" BIGINT NOT NULL, "NEXT_EVENT_ID" BIGINT NOT NULL);
 
-CREATE TABLE "APP"."KEY_CONSTRAINTS" ("CHILD_CD_ID" BIGINT, "CHILD_INTEGER_IDX" INTEGER, "CHILD_TBL_ID" BIGINT, "PARENT_CD_ID" BIGINT , "PARENT_INTEGER_IDX" INTEGER, "PARENT_TBL_ID" BIGINT NOT NULL,  "POSITION" BIGINT NOT NULL, "CONSTRAINT_NAME" VARCHAR(400) NOT NULL, "CONSTRAINT_TYPE" SMALLINT NOT NULL, "UPDATE_RULE" SMALLINT, "DELETE_RULE" SMALLINT, "ENABLE_VALIDATE_RELY" SMALLINT NOT NULL, "DEFAULT_VALUE" VARCHAR(400));
+CREATE TABLE "APP"."KEY_CONSTRAINTS" (
+                                         "CHILD_CD_ID" BIGINT,
+                                         "CHILD_INTEGER_IDX" INTEGER,
+                                         "CHILD_TBL_ID" BIGINT,
+                                         "PARENT_CD_ID" BIGINT,
+                                         "PARENT_INTEGER_IDX" INTEGER,
+                                         "PARENT_TBL_ID" BIGINT NOT NULL,
+                                         "POSITION" BIGINT NOT NULL,
+                                         "CONSTRAINT_NAME" VARCHAR(400) NOT NULL,
+    "CONSTRAINT_TYPE" SMALLINT NOT NULL,
+    "UPDATE_RULE" SMALLINT,
+    "DELETE_RULE" SMALLINT,
+    "ENABLE_VALIDATE_RELY" SMALLINT NOT NULL,
+    "DEFAULT_VALUE" VARCHAR(400)
+    );
 
-CREATE TABLE "APP"."METASTORE_DB_PROPERTIES" ("PROPERTY_KEY" VARCHAR(255) NOT NULL, "PROPERTY_VALUE" VARCHAR(1000) NOT NULL, "DESCRIPTION" VARCHAR(1000));
+CREATE TABLE "APP"."METASTORE_DB_PROPERTIES" (
+                                                 "PROPERTY_KEY" VARCHAR(255) NOT NULL,
+    "PROPERTY_VALUE" VARCHAR(1000) NOT NULL,
+    "DESCRIPTION" VARCHAR(1000),
+    "PROPERTYCONTENT" BLOB
+    );
 
-CREATE TABLE "APP"."WM_RESOURCEPLAN" (RP_ID BIGINT NOT NULL, NAME VARCHAR(128) NOT NULL, QUERY_PARALLELISM INTEGER, STATUS VARCHAR(20) NOT NULL, DEFAULT_POOL_ID BIGINT);
+CREATE TABLE "APP"."WM_RESOURCEPLAN" (RP_ID BIGINT NOT NULL, NS VARCHAR(128), NAME VARCHAR(128) NOT NULL, QUERY_PARALLELISM INTEGER, STATUS VARCHAR(20) NOT NULL, DEFAULT_POOL_ID BIGINT);
 
 CREATE TABLE "APP"."WM_POOL" (POOL_ID BIGINT NOT NULL, RP_ID BIGINT NOT NULL, PATH VARCHAR(1024) NOT NULL, ALLOC_FRACTION DOUBLE, QUERY_PARALLELISM INTEGER, SCHEDULING_POLICY VARCHAR(1024));
 
@@ -214,24 +240,32 @@ CREATE TABLE "APP"."WM_POOL_TO_TRIGGER"  (POOL_ID BIGINT NOT NULL, TRIGGER_ID BI
 CREATE TABLE "APP"."WM_MAPPING" (MAPPING_ID BIGINT NOT NULL, RP_ID BIGINT NOT NULL, ENTITY_TYPE VARCHAR(128) NOT NULL, ENTITY_NAME VARCHAR(128) NOT NULL, POOL_ID BIGINT, ORDERING INTEGER);
 
 CREATE TABLE "APP"."MV_CREATION_METADATA" (
-  "MV_CREATION_METADATA_ID" BIGINT NOT NULL,
-  "CAT_NAME" VARCHAR(256) NOT NULL,
-  "DB_NAME" VARCHAR(128) NOT NULL,
-  "TBL_NAME" VARCHAR(256) NOT NULL,
-  "TXN_LIST" CLOB,
-  "MATERIALIZATION_TIME" BIGINT NOT NULL
-);
+                                              "MV_CREATION_METADATA_ID" BIGINT NOT NULL,
+                                              "CAT_NAME" VARCHAR(256) NOT NULL,
+    "DB_NAME" VARCHAR(128) NOT NULL,
+    "TBL_NAME" VARCHAR(256) NOT NULL,
+    "TXN_LIST" CLOB,
+    "MATERIALIZATION_TIME" BIGINT NOT NULL
+    );
 
 CREATE TABLE "APP"."MV_TABLES_USED" (
-  "MV_CREATION_METADATA_ID" BIGINT NOT NULL,
-  "TBL_ID" BIGINT NOT NULL
+                                        "MV_CREATION_METADATA_ID" BIGINT NOT NULL,
+                                        "TBL_ID" BIGINT NOT NULL,
+                                        "INSERTED_COUNT" BIGINT NOT NULL DEFAULT 0,
+                                        "UPDATED_COUNT" BIGINT NOT NULL DEFAULT 0,
+                                        "DELETED_COUNT" BIGINT NOT NULL DEFAULT 0
 );
 
 CREATE TABLE "APP"."CTLGS" (
-    "CTLG_ID" BIGINT NOT NULL,
-    "NAME" VARCHAR(256) UNIQUE,
+                               "CTLG_ID" BIGINT NOT NULL,
+                               "NAME" VARCHAR(256) UNIQUE,
     "DESC" VARCHAR(4000),
-    "LOCATION_URI" VARCHAR(4000) NOT NULL);
+    "LOCATION_URI" VARCHAR(4000) NOT NULL,
+    "CREATE_TIME" INTEGER);
+
+-- Insert a default value.  The location is TBD.  Hive will fix this when it starts
+INSERT INTO "APP"."CTLGS" ("CTLG_ID", "NAME", "DESC", "LOCATION_URI", "CREATE_TIME")
+VALUES (1, 'hive', 'Default catalog for Hive', 'TBD', NULL);
 
 -- ----------------------------------------------
 -- DML Statements
@@ -245,15 +279,15 @@ INSERT INTO "APP"."SEQUENCE_TABLE" ("SEQUENCE_NAME", "NEXT_VAL") SELECT * FROM (
 -- DDL Statements for indexes
 -- ----------------------------------------------
 
-CREATE UNIQUE INDEX "APP"."UNIQUEINDEX" ON "APP"."IDXS" ("INDEX_NAME", "ORIG_TBL_ID");
-
 CREATE INDEX "APP"."TABLECOLUMNPRIVILEGEINDEX" ON "APP"."TBL_COL_PRIVS" ("AUTHORIZER", "TBL_ID", "COLUMN_NAME", "PRINCIPAL_NAME", "PRINCIPAL_TYPE", "TBL_COL_PRIV", "GRANTOR", "GRANTOR_TYPE");
 
 CREATE UNIQUE INDEX "APP"."DBPRIVILEGEINDEX" ON "APP"."DB_PRIVS" ("AUTHORIZER", "DB_ID", "PRINCIPAL_NAME", "PRINCIPAL_TYPE", "DB_PRIV", "GRANTOR", "GRANTOR_TYPE");
 
-CREATE INDEX "APP"."PCS_STATS_IDX" ON "APP"."PART_COL_STATS" ("CAT_NAME", "DB_NAME","TABLE_NAME","COLUMN_NAME","PARTITION_NAME");
+CREATE UNIQUE INDEX "APP"."DCPRIVILEGEINDEX" ON "APP"."DC_PRIVS" ("AUTHORIZER", "NAME", "PRINCIPAL_NAME", "PRINCIPAL_TYPE", "DC_PRIV", "GRANTOR", "GRANTOR_TYPE");
 
-CREATE INDEX "APP"."TAB_COL_STATS_IDX" ON "APP"."TAB_COL_STATS" ("CAT_NAME", "DB_NAME", "TABLE_NAME", "COLUMN_NAME");
+CREATE INDEX "APP"."PCS_STATS_IDX" ON "APP"."PART_COL_STATS" ("DB_NAME","TABLE_NAME","COLUMN_NAME","PARTITION_NAME","CAT_NAME");
+
+CREATE INDEX "APP"."TAB_COL_STATS_IDX" ON "APP"."TAB_COL_STATS" ("DB_NAME", "TABLE_NAME", "COLUMN_NAME", "CAT_NAME");
 
 CREATE INDEX "APP"."PARTPRIVILEGEINDEX" ON "APP"."PART_PRIVS" ("AUTHORIZER", "PART_ID", "PRINCIPAL_NAME", "PRINCIPAL_TYPE", "PART_PRIV", "GRANTOR", "GRANTOR_TYPE");
 
@@ -273,7 +307,7 @@ CREATE UNIQUE INDEX "APP"."UNIQUE_TYPE" ON "APP"."TYPES" ("TYPE_NAME");
 
 CREATE INDEX "APP"."PARTITIONCOLUMNPRIVILEGEINDEX" ON "APP"."PART_COL_PRIVS" ("AUTHORIZER", "PART_ID", "COLUMN_NAME", "PRINCIPAL_NAME", "PRINCIPAL_TYPE", "PART_COL_PRIV", "GRANTOR", "GRANTOR_TYPE");
 
-CREATE UNIQUE INDEX "APP"."UNIQUEPARTITION" ON "APP"."PARTITIONS" ("PART_NAME", "TBL_ID");
+CREATE UNIQUE INDEX "APP"."UNIQUEPARTITION" ON "APP"."PARTITIONS" ("TBL_ID", "PART_NAME");
 
 CREATE UNIQUE INDEX "APP"."UNIQUEFUNCTION" ON "APP"."FUNCS" ("FUNC_NAME", "DB_ID");
 
@@ -285,7 +319,7 @@ CREATE INDEX "APP"."CONSTRAINTS_PARENT_TBL_ID_INDEX" ON "APP"."KEY_CONSTRAINTS"(
 
 CREATE INDEX "APP"."CONSTRAINTS_CONSTRAINT_TYPE_INDEX" ON "APP"."KEY_CONSTRAINTS"("CONSTRAINT_TYPE");
 
-CREATE UNIQUE INDEX "APP"."UNIQUE_WM_RESOURCEPLAN" ON "APP"."WM_RESOURCEPLAN" ("NAME");
+CREATE UNIQUE INDEX "APP"."UNIQUE_WM_RESOURCEPLAN" ON "APP"."WM_RESOURCEPLAN" ("NS", "NAME");
 
 CREATE UNIQUE INDEX "APP"."UNIQUE_WM_POOL" ON "APP"."WM_POOL" ("RP_ID", "PATH");
 
@@ -303,7 +337,6 @@ CREATE UNIQUE INDEX "APP"."UNIQUE_CATALOG" ON "APP"."CTLGS" ("NAME");
 -- ----------------------------------------------
 
 -- primary/unique
-ALTER TABLE "APP"."IDXS" ADD CONSTRAINT "IDXS_PK" PRIMARY KEY ("INDEX_ID");
 
 ALTER TABLE "APP"."TBL_COL_PRIVS" ADD CONSTRAINT "TBL_COL_PRIVS_PK" PRIMARY KEY ("TBL_COLUMN_GRANT_ID");
 
@@ -311,7 +344,7 @@ ALTER TABLE "APP"."CDS" ADD CONSTRAINT "SQL110922153006460" PRIMARY KEY ("CD_ID"
 
 ALTER TABLE "APP"."DB_PRIVS" ADD CONSTRAINT "DB_PRIVS_PK" PRIMARY KEY ("DB_GRANT_ID");
 
-ALTER TABLE "APP"."INDEX_PARAMS" ADD CONSTRAINT "INDEX_PARAMS_PK" PRIMARY KEY ("INDEX_ID", "PARAM_KEY");
+ALTER TABLE "APP"."DC_PRIVS" ADD CONSTRAINT "DC_PRIVS_PK" PRIMARY KEY ("DC_GRANT_ID");
 
 ALTER TABLE "APP"."PARTITION_KEYS" ADD CONSTRAINT "PARTITION_KEY_PK" PRIMARY KEY ("TBL_ID", "PKEY_NAME");
 
@@ -389,7 +422,9 @@ ALTER TABLE "APP"."NOTIFICATION_LOG" ADD CONSTRAINT "NOTIFICATION_LOG_PK" PRIMAR
 
 ALTER TABLE "APP"."NOTIFICATION_SEQUENCE" ADD CONSTRAINT "NOTIFICATION_SEQUENCE_PK" PRIMARY KEY ("NNI_ID");
 
-ALTER TABLE "APP"."KEY_CONSTRAINTS" ADD CONSTRAINT "CONSTRAINTS_PK" PRIMARY KEY ("CONSTRAINT_NAME", "POSITION");
+ALTER TABLE "APP"."NOTIFICATION_SEQUENCE" ADD CONSTRAINT "ONE_ROW_CONSTRAINT" CHECK (NNI_ID = 1);
+
+ALTER TABLE "APP"."KEY_CONSTRAINTS" ADD CONSTRAINT "CONSTRAINTS_PK" PRIMARY KEY ("PARENT_TBL_ID", "CONSTRAINT_NAME", "POSITION");
 
 ALTER TABLE "APP"."METASTORE_DB_PROPERTIES" ADD CONSTRAINT "PROPERTY_KEY_PK" PRIMARY KEY ("PROPERTY_KEY");
 
@@ -399,17 +434,9 @@ ALTER TABLE "APP"."CTLGS" ADD CONSTRAINT "CTLG_PK" PRIMARY KEY ("CTLG_ID");
 
 
 -- foreign
-ALTER TABLE "APP"."IDXS" ADD CONSTRAINT "IDXS_FK1" FOREIGN KEY ("ORIG_TBL_ID") REFERENCES "APP"."TBLS" ("TBL_ID") ON DELETE NO ACTION ON UPDATE NO ACTION;
-
-ALTER TABLE "APP"."IDXS" ADD CONSTRAINT "IDXS_FK2" FOREIGN KEY ("SD_ID") REFERENCES "APP"."SDS" ("SD_ID") ON DELETE NO ACTION ON UPDATE NO ACTION;
-
-ALTER TABLE "APP"."IDXS" ADD CONSTRAINT "IDXS_FK3" FOREIGN KEY ("INDEX_TBL_ID") REFERENCES "APP"."TBLS" ("TBL_ID") ON DELETE NO ACTION ON UPDATE NO ACTION;
-
 ALTER TABLE "APP"."TBL_COL_PRIVS" ADD CONSTRAINT "TBL_COL_PRIVS_FK1" FOREIGN KEY ("TBL_ID") REFERENCES "APP"."TBLS" ("TBL_ID") ON DELETE NO ACTION ON UPDATE NO ACTION;
 
 ALTER TABLE "APP"."DB_PRIVS" ADD CONSTRAINT "DB_PRIVS_FK1" FOREIGN KEY ("DB_ID") REFERENCES "APP"."DBS" ("DB_ID") ON DELETE NO ACTION ON UPDATE NO ACTION;
-
-ALTER TABLE "APP"."INDEX_PARAMS" ADD CONSTRAINT "INDEX_PARAMS_FK1" FOREIGN KEY ("INDEX_ID") REFERENCES "APP"."IDXS" ("INDEX_ID") ON DELETE NO ACTION ON UPDATE NO ACTION;
 
 ALTER TABLE "APP"."PARTITION_KEYS" ADD CONSTRAINT "PARTITION_KEYS_FK1" FOREIGN KEY ("TBL_ID") REFERENCES "APP"."TBLS" ("TBL_ID") ON DELETE NO ACTION ON UPDATE NO ACTION;
 
@@ -501,6 +528,8 @@ ALTER TABLE "APP"."WM_MAPPING" ADD CONSTRAINT "WM_MAPPING_FK1" FOREIGN KEY ("RP_
 
 ALTER TABLE "APP"."WM_MAPPING" ADD CONSTRAINT "WM_MAPPING_FK2" FOREIGN KEY ("POOL_ID") REFERENCES "APP"."WM_POOL" ("POOL_ID") ON DELETE NO ACTION ON UPDATE NO ACTION;
 
+ALTER TABLE "APP"."MV_TABLES_USED" ADD CONSTRAINT "MV_TABLES_USED_PK" PRIMARY KEY ("TBL_ID", "MV_CREATION_METADATA_ID");
+
 ALTER TABLE "APP"."MV_TABLES_USED" ADD CONSTRAINT "MV_TABLES_USED_FK1" FOREIGN KEY ("MV_CREATION_METADATA_ID") REFERENCES "APP"."MV_CREATION_METADATA" ("MV_CREATION_METADATA_ID") ON DELETE NO ACTION ON UPDATE NO ACTION;
 
 ALTER TABLE "APP"."MV_TABLES_USED" ADD CONSTRAINT "MV_TABLES_USED_FK2" FOREIGN KEY ("TBL_ID") REFERENCES "APP"."TBLS" ("TBL_ID") ON DELETE NO ACTION ON UPDATE NO ACTION;
@@ -511,216 +540,357 @@ ALTER TABLE "APP"."DBS" ADD CONSTRAINT "DBS_CTLG_FK" FOREIGN KEY ("CTLG_NAME") R
 -- DDL Statements for checks
 -- ----------------------------------------------
 
-ALTER TABLE "APP"."IDXS" ADD CONSTRAINT "SQL110318025504980" CHECK (DEFERRED_REBUILD IN ('Y','N'));
-
 ALTER TABLE "APP"."SDS" ADD CONSTRAINT "SQL110318025505550" CHECK (IS_COMPRESSED IN ('Y','N'));
 
 -- ----------------------------
 -- Transaction and Lock Tables
 -- ----------------------------
 CREATE TABLE TXNS (
-  TXN_ID bigint PRIMARY KEY,
-  TXN_STATE char(1) NOT NULL,
-  TXN_STARTED bigint NOT NULL,
-  TXN_LAST_HEARTBEAT bigint NOT NULL,
-  TXN_USER varchar(128) NOT NULL,
-  TXN_HOST varchar(128) NOT NULL,
-  TXN_AGENT_INFO varchar(128),
-  TXN_META_INFO varchar(128),
-  TXN_HEARTBEAT_COUNT integer,
-  TXN_TYPE integer
+                      TXN_ID bigint PRIMARY KEY GENERATED BY DEFAULT AS IDENTITY,
+                      TXN_STATE char(1) NOT NULL,
+                      TXN_STARTED bigint NOT NULL,
+                      TXN_LAST_HEARTBEAT bigint NOT NULL,
+                      TXN_USER varchar(128) NOT NULL,
+                      TXN_HOST varchar(128) NOT NULL,
+                      TXN_AGENT_INFO varchar(128),
+                      TXN_META_INFO varchar(128),
+                      TXN_HEARTBEAT_COUNT integer,
+                      TXN_TYPE integer
 );
 
+INSERT INTO TXNS (TXN_ID, TXN_STATE, TXN_STARTED, TXN_LAST_HEARTBEAT, TXN_USER, TXN_HOST)
+VALUES(0, 'c', 0, 0, '', '');
+
 CREATE TABLE TXN_COMPONENTS (
-  TC_TXNID bigint NOT NULL REFERENCES TXNS (TXN_ID),
-  TC_DATABASE varchar(128) NOT NULL,
-  TC_TABLE varchar(128),
-  TC_PARTITION varchar(767),
-  TC_OPERATION_TYPE char(1) NOT NULL,
-  TC_WRITEID bigint
+                                TC_TXNID bigint NOT NULL REFERENCES TXNS (TXN_ID),
+                                TC_DATABASE varchar(128) NOT NULL,
+                                TC_TABLE varchar(256),
+                                TC_PARTITION varchar(767),
+                                TC_OPERATION_TYPE char(1) NOT NULL,
+                                TC_WRITEID bigint
 );
 
 CREATE INDEX TC_TXNID_INDEX ON TXN_COMPONENTS (TC_TXNID);
 
 CREATE TABLE COMPLETED_TXN_COMPONENTS (
-  CTC_TXNID bigint NOT NULL,
-  CTC_DATABASE varchar(128) NOT NULL,
-  CTC_TABLE varchar(256),
-  CTC_PARTITION varchar(767),
-  CTC_TIMESTAMP timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
-  CTC_WRITEID bigint,
-  CTC_UPDATE_DELETE char(1) NOT NULL
+                                          CTC_TXNID bigint NOT NULL,
+                                          CTC_DATABASE varchar(128) NOT NULL,
+                                          CTC_TABLE varchar(256),
+                                          CTC_PARTITION varchar(767),
+                                          CTC_TIMESTAMP timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                                          CTC_WRITEID bigint,
+                                          CTC_UPDATE_DELETE char(1) NOT NULL
 );
 
 CREATE INDEX COMPLETED_TXN_COMPONENTS_IDX ON COMPLETED_TXN_COMPONENTS (CTC_DATABASE, CTC_TABLE, CTC_PARTITION);
 
-CREATE TABLE NEXT_TXN_ID (
-  NTXN_NEXT bigint NOT NULL
+CREATE TABLE TXN_LOCK_TBL (
+                              TXN_LOCK bigint NOT NULL
 );
-INSERT INTO NEXT_TXN_ID VALUES(1);
+INSERT INTO TXN_LOCK_TBL VALUES(1);
 
 CREATE TABLE HIVE_LOCKS (
-  HL_LOCK_EXT_ID bigint NOT NULL,
-  HL_LOCK_INT_ID bigint NOT NULL,
-  HL_TXNID bigint NOT NULL,
-  HL_DB varchar(128) NOT NULL,
-  HL_TABLE varchar(128),
-  HL_PARTITION varchar(767),
-  HL_LOCK_STATE char(1) NOT NULL,
-  HL_LOCK_TYPE char(1) NOT NULL,
-  HL_LAST_HEARTBEAT bigint NOT NULL,
-  HL_ACQUIRED_AT bigint,
-  HL_USER varchar(128) NOT NULL,
-  HL_HOST varchar(128) NOT NULL,
-  HL_HEARTBEAT_COUNT integer,
-  HL_AGENT_INFO varchar(128),
-  HL_BLOCKEDBY_EXT_ID bigint,
-  HL_BLOCKEDBY_INT_ID bigint,
-  PRIMARY KEY(HL_LOCK_EXT_ID, HL_LOCK_INT_ID)
+                            HL_LOCK_EXT_ID bigint NOT NULL,
+                            HL_LOCK_INT_ID bigint NOT NULL,
+                            HL_TXNID bigint NOT NULL,
+                            HL_DB varchar(128) NOT NULL,
+                            HL_TABLE varchar(256),
+                            HL_PARTITION varchar(767),
+                            HL_LOCK_STATE char(1) NOT NULL,
+                            HL_LOCK_TYPE char(1) NOT NULL,
+                            HL_LAST_HEARTBEAT bigint NOT NULL,
+                            HL_ACQUIRED_AT bigint,
+                            HL_USER varchar(128) NOT NULL,
+                            HL_HOST varchar(128) NOT NULL,
+                            HL_HEARTBEAT_COUNT integer,
+                            HL_AGENT_INFO varchar(128),
+                            HL_BLOCKEDBY_EXT_ID bigint,
+                            HL_BLOCKEDBY_INT_ID bigint,
+                            PRIMARY KEY(HL_LOCK_EXT_ID, HL_LOCK_INT_ID)
 );
 
 CREATE INDEX HL_TXNID_INDEX ON HIVE_LOCKS (HL_TXNID);
 
 CREATE TABLE NEXT_LOCK_ID (
-  NL_NEXT bigint NOT NULL
+                              NL_NEXT bigint NOT NULL
 );
 INSERT INTO NEXT_LOCK_ID VALUES(1);
 
 CREATE TABLE COMPACTION_QUEUE (
-  CQ_ID bigint PRIMARY KEY,
-  CQ_DATABASE varchar(128) NOT NULL,
-  CQ_TABLE varchar(128) NOT NULL,
-  CQ_PARTITION varchar(767),
-  CQ_STATE char(1) NOT NULL,
-  CQ_TYPE char(1) NOT NULL,
-  CQ_TBLPROPERTIES varchar(2048),
-  CQ_WORKER_ID varchar(128),
-  CQ_START bigint,
-  CQ_RUN_AS varchar(128),
-  CQ_HIGHEST_WRITE_ID bigint,
-  CQ_META_INFO varchar(2048) for bit data,
-  CQ_HADOOP_JOB_ID varchar(32)
+                                  CQ_ID bigint PRIMARY KEY,
+                                  CQ_DATABASE varchar(128) NOT NULL,
+                                  CQ_TABLE varchar(256) NOT NULL,
+                                  CQ_PARTITION varchar(767),
+                                  CQ_STATE char(1) NOT NULL,
+                                  CQ_TYPE char(1) NOT NULL,
+                                  CQ_TBLPROPERTIES varchar(2048),
+                                  CQ_WORKER_ID varchar(128),
+                                  CQ_ENQUEUE_TIME bigint,
+                                  CQ_START bigint,
+                                  CQ_RUN_AS varchar(128),
+                                  CQ_HIGHEST_WRITE_ID bigint,
+                                  CQ_META_INFO varchar(2048) for bit data,
+                                  CQ_HADOOP_JOB_ID varchar(32),
+                                  CQ_ERROR_MESSAGE clob,
+                                  CQ_NEXT_TXN_ID bigint,
+                                  CQ_TXN_ID bigint,
+                                  CQ_COMMIT_TIME bigint,
+                                  CQ_INITIATOR_ID varchar(128),
+                                  CQ_INITIATOR_VERSION varchar(128),
+                                  CQ_WORKER_VERSION varchar(128),
+                                  CQ_CLEANER_START bigint,
+                                  CQ_RETRY_RETENTION bigint NOT NULL DEFAULT 0,
+                                  CQ_POOL_NAME varchar(128),
+                                  CQ_NUMBER_OF_BUCKETS integer,
+                                  CQ_ORDER_BY varchar(4000)
 );
 
 CREATE TABLE NEXT_COMPACTION_QUEUE_ID (
-  NCQ_NEXT bigint NOT NULL
+                                          NCQ_NEXT bigint NOT NULL
 );
 INSERT INTO NEXT_COMPACTION_QUEUE_ID VALUES(1);
 
 CREATE TABLE COMPLETED_COMPACTIONS (
-  CC_ID bigint PRIMARY KEY,
-  CC_DATABASE varchar(128) NOT NULL,
-  CC_TABLE varchar(128) NOT NULL,
-  CC_PARTITION varchar(767),
-  CC_STATE char(1) NOT NULL,
-  CC_TYPE char(1) NOT NULL,
-  CC_TBLPROPERTIES varchar(2048),
-  CC_WORKER_ID varchar(128),
-  CC_START bigint,
-  CC_END bigint,
-  CC_RUN_AS varchar(128),
-  CC_HIGHEST_WRITE_ID bigint,
-  CC_META_INFO varchar(2048) for bit data,
-  CC_HADOOP_JOB_ID varchar(32)
+                                       CC_ID bigint PRIMARY KEY,
+                                       CC_DATABASE varchar(128) NOT NULL,
+                                       CC_TABLE varchar(256) NOT NULL,
+                                       CC_PARTITION varchar(767),
+                                       CC_STATE char(1) NOT NULL,
+                                       CC_TYPE char(1) NOT NULL,
+                                       CC_TBLPROPERTIES varchar(2048),
+                                       CC_WORKER_ID varchar(128),
+                                       CC_ENQUEUE_TIME bigint,
+                                       CC_START bigint,
+                                       CC_END bigint,
+                                       CC_RUN_AS varchar(128),
+                                       CC_HIGHEST_WRITE_ID bigint,
+                                       CC_META_INFO varchar(2048) for bit data,
+                                       CC_HADOOP_JOB_ID varchar(32),
+                                       CC_ERROR_MESSAGE clob,
+                                       CC_NEXT_TXN_ID bigint,
+                                       CC_TXN_ID bigint,
+                                       CC_COMMIT_TIME bigint,
+                                       CC_INITIATOR_ID varchar(128),
+                                       CC_INITIATOR_VERSION varchar(128),
+                                       CC_WORKER_VERSION varchar(128),
+                                       CC_POOL_NAME varchar(128),
+                                       CC_NUMBER_OF_BUCKETS integer,
+                                       CC_ORDER_BY varchar(4000)
+);
+
+CREATE INDEX COMPLETED_COMPACTIONS_RES ON COMPLETED_COMPACTIONS (CC_DATABASE,CC_TABLE,CC_PARTITION);
+
+-- HIVE-25842
+CREATE TABLE COMPACTION_METRICS_CACHE (
+                                          CMC_DATABASE varchar(128) NOT NULL,
+                                          CMC_TABLE varchar(256) NOT NULL,
+                                          CMC_PARTITION varchar(767),
+                                          CMC_METRIC_TYPE varchar(128) NOT NULL,
+                                          CMC_METRIC_VALUE integer NOT NULL,
+                                          CMC_VERSION integer NOT NULL
 );
 
 CREATE TABLE AUX_TABLE (
-  MT_KEY1 varchar(128) NOT NULL,
-  MT_KEY2 bigint NOT NULL,
-  MT_COMMENT varchar(255),
-  PRIMARY KEY(MT_KEY1, MT_KEY2)
+                           MT_KEY1 varchar(128) NOT NULL,
+                           MT_KEY2 bigint NOT NULL,
+                           MT_COMMENT varchar(255),
+                           PRIMARY KEY(MT_KEY1, MT_KEY2)
 );
 
 --1st 4 cols make up a PK but since WS_PARTITION is nullable we can't declare such PK
 --This is a good candidate for Index orgainzed table
 CREATE TABLE WRITE_SET (
-  WS_DATABASE varchar(128) NOT NULL,
-  WS_TABLE varchar(128) NOT NULL,
-  WS_PARTITION varchar(767),
-  WS_TXNID bigint NOT NULL,
-  WS_COMMIT_ID bigint NOT NULL,
-  WS_OPERATION_TYPE char(1) NOT NULL
+                           WS_DATABASE varchar(128) NOT NULL,
+                           WS_TABLE varchar(256) NOT NULL,
+                           WS_PARTITION varchar(767),
+                           WS_TXNID bigint NOT NULL,
+                           WS_COMMIT_ID bigint NOT NULL,
+                           WS_OPERATION_TYPE char(1) NOT NULL
 );
 
 CREATE TABLE TXN_TO_WRITE_ID (
-  T2W_TXNID bigint NOT NULL,
-  T2W_DATABASE varchar(128) NOT NULL,
-  T2W_TABLE varchar(256) NOT NULL,
-  T2W_WRITEID bigint NOT NULL
+                                 T2W_TXNID bigint NOT NULL,
+                                 T2W_DATABASE varchar(128) NOT NULL,
+                                 T2W_TABLE varchar(256) NOT NULL,
+                                 T2W_WRITEID bigint NOT NULL
 );
 
 CREATE UNIQUE INDEX TBL_TO_TXN_ID_IDX ON TXN_TO_WRITE_ID (T2W_DATABASE, T2W_TABLE, T2W_TXNID);
 CREATE UNIQUE INDEX TBL_TO_WRITE_ID_IDX ON TXN_TO_WRITE_ID (T2W_DATABASE, T2W_TABLE, T2W_WRITEID);
 
 CREATE TABLE NEXT_WRITE_ID (
-  NWI_DATABASE varchar(128) NOT NULL,
-  NWI_TABLE varchar(256) NOT NULL,
-  NWI_NEXT bigint NOT NULL
+                               NWI_DATABASE varchar(128) NOT NULL,
+                               NWI_TABLE varchar(256) NOT NULL,
+                               NWI_NEXT bigint NOT NULL
 );
 
 CREATE UNIQUE INDEX NEXT_WRITE_ID_IDX ON NEXT_WRITE_ID (NWI_DATABASE, NWI_TABLE);
 
+CREATE TABLE MIN_HISTORY_WRITE_ID (
+                                      MH_TXNID bigint NOT NULL REFERENCES TXNS (TXN_ID),
+                                      MH_DATABASE varchar(128) NOT NULL,
+                                      MH_TABLE varchar(256) NOT NULL,
+                                      MH_WRITEID bigint NOT NULL
+);
+
 CREATE TABLE MIN_HISTORY_LEVEL (
-  MHL_TXNID bigint NOT NULL,
-  MHL_MIN_OPEN_TXNID bigint NOT NULL,
-  PRIMARY KEY(MHL_TXNID)
+                                   MHL_TXNID bigint NOT NULL,
+                                   MHL_MIN_OPEN_TXNID bigint NOT NULL,
+                                   PRIMARY KEY(MHL_TXNID)
 );
 
 CREATE INDEX MIN_HISTORY_LEVEL_IDX ON MIN_HISTORY_LEVEL (MHL_MIN_OPEN_TXNID);
 
 CREATE TABLE MATERIALIZATION_REBUILD_LOCKS (
-  MRL_TXN_ID BIGINT NOT NULL,
-  MRL_DB_NAME VARCHAR(128) NOT NULL,
-  MRL_TBL_NAME VARCHAR(256) NOT NULL,
-  MRL_LAST_HEARTBEAT BIGINT NOT NULL,
-  PRIMARY KEY(MRL_TXN_ID)
+                                               MRL_TXN_ID BIGINT NOT NULL,
+                                               MRL_DB_NAME VARCHAR(128) NOT NULL,
+                                               MRL_TBL_NAME VARCHAR(256) NOT NULL,
+                                               MRL_LAST_HEARTBEAT BIGINT NOT NULL,
+                                               PRIMARY KEY(MRL_TXN_ID)
 );
 
 CREATE TABLE "APP"."I_SCHEMA" (
-  "SCHEMA_ID" bigint primary key,
-  "SCHEMA_TYPE" integer not null,
-  "NAME" varchar(256) unique,
-  "DB_ID" bigint references "APP"."DBS" ("DB_ID"),
-  "COMPATIBILITY" integer not null,
-  "VALIDATION_LEVEL" integer not null,
-  "CAN_EVOLVE" char(1) not null,
-  "SCHEMA_GROUP" varchar(256),
-  "DESCRIPTION" varchar(4000)
-);
+                                  "SCHEMA_ID" bigint primary key,
+                                  "SCHEMA_TYPE" integer not null,
+                                  "NAME" varchar(256) unique,
+    "DB_ID" bigint references "APP"."DBS" ("DB_ID"),
+    "COMPATIBILITY" integer not null,
+    "VALIDATION_LEVEL" integer not null,
+    "CAN_EVOLVE" char(1) not null,
+    "SCHEMA_GROUP" varchar(256),
+    "DESCRIPTION" varchar(4000)
+    );
 
 CREATE TABLE "APP"."SCHEMA_VERSION" (
-  "SCHEMA_VERSION_ID" bigint primary key,
-  "SCHEMA_ID" bigint references "APP"."I_SCHEMA" ("SCHEMA_ID"),
-  "VERSION" integer not null,
-  "CREATED_AT" bigint not null,
-  "CD_ID" bigint references "APP"."CDS" ("CD_ID"),
-  "STATE" integer not null,
-  "DESCRIPTION" varchar(4000),
-  "SCHEMA_TEXT" clob,
-  "FINGERPRINT" varchar(256),
-  "SCHEMA_VERSION_NAME" varchar(256),
-  "SERDE_ID" bigint references "APP"."SERDES" ("SERDE_ID")
-);
+                                        "SCHEMA_VERSION_ID" bigint primary key,
+                                        "SCHEMA_ID" bigint references "APP"."I_SCHEMA" ("SCHEMA_ID"),
+    "VERSION" integer not null,
+    "CREATED_AT" bigint not null,
+    "CD_ID" bigint references "APP"."CDS" ("CD_ID"),
+    "STATE" integer not null,
+    "DESCRIPTION" varchar(4000),
+    "SCHEMA_TEXT" clob,
+    "FINGERPRINT" varchar(256),
+    "SCHEMA_VERSION_NAME" varchar(256),
+    "SERDE_ID" bigint references "APP"."SERDES" ("SERDE_ID")
+    );
 
 CREATE UNIQUE INDEX "APP"."UNIQUE_SCHEMA_VERSION" ON "APP"."SCHEMA_VERSION" ("SCHEMA_ID", "VERSION");
 
 CREATE TABLE REPL_TXN_MAP (
-  RTM_REPL_POLICY varchar(256) NOT NULL,
-  RTM_SRC_TXN_ID bigint NOT NULL,
-  RTM_TARGET_TXN_ID bigint NOT NULL,
-  PRIMARY KEY (RTM_REPL_POLICY, RTM_SRC_TXN_ID)
+                              RTM_REPL_POLICY varchar(256) NOT NULL,
+                              RTM_SRC_TXN_ID bigint NOT NULL,
+                              RTM_TARGET_TXN_ID bigint NOT NULL,
+                              PRIMARY KEY (RTM_REPL_POLICY, RTM_SRC_TXN_ID)
 );
 
 CREATE TABLE "APP"."RUNTIME_STATS" (
-  "RS_ID" bigint primary key,
-  "CREATE_TIME" integer not null,
-  "WEIGHT" integer not null,
-  "PAYLOAD" BLOB
+                                       "RS_ID" bigint primary key,
+                                       "CREATE_TIME" integer not null,
+                                       "WEIGHT" integer not null,
+                                       "PAYLOAD" BLOB
 );
 
 CREATE INDEX IDX_RUNTIME_STATS_CREATE_TIME ON RUNTIME_STATS(CREATE_TIME);
 
+CREATE TABLE TXN_WRITE_NOTIFICATION_LOG (
+                                            WNL_ID bigint NOT NULL,
+                                            WNL_TXNID bigint NOT NULL,
+                                            WNL_WRITEID bigint NOT NULL,
+                                            WNL_DATABASE varchar(128) NOT NULL,
+                                            WNL_TABLE varchar(256) NOT NULL,
+                                            WNL_PARTITION varchar(767) NOT NULL,
+                                            WNL_TABLE_OBJ clob NOT NULL,
+                                            WNL_PARTITION_OBJ clob,
+                                            WNL_FILES clob,
+                                            WNL_EVENT_TIME integer NOT NULL,
+                                            PRIMARY KEY (WNL_TXNID, WNL_DATABASE, WNL_TABLE, WNL_PARTITION)
+);
+INSERT INTO SEQUENCE_TABLE (SEQUENCE_NAME, NEXT_VAL) VALUES ('org.apache.hadoop.hive.metastore.model.MTxnWriteNotificationLog', 1);
+
+CREATE TABLE "APP"."SCHEDULED_QUERIES" (
+                                           "SCHEDULED_QUERY_ID" bigint primary key not null,
+                                           "SCHEDULE_NAME" varchar(256) not null,
+    "ENABLED" CHAR(1) NOT NULL DEFAULT 'N',
+    "CLUSTER_NAMESPACE" varchar(256) not null,
+    "USER" varchar(128) not null,
+    "SCHEDULE" varchar(256) not null,
+    "QUERY" varchar(4000) not null,
+    "NEXT_EXECUTION" integer,
+    "ACTIVE_EXECUTION_ID" bigint
+    );
+
+CREATE INDEX NEXTEXECUTIONINDEX ON APP.SCHEDULED_QUERIES (ENABLED,CLUSTER_NAMESPACE,NEXT_EXECUTION);
+CREATE UNIQUE INDEX UNIQUE_SCHEDULED_QUERIES_NAME ON APP.SCHEDULED_QUERIES (SCHEDULE_NAME,CLUSTER_NAMESPACE);
+
+CREATE TABLE APP.SCHEDULED_EXECUTIONS (
+                                          SCHEDULED_EXECUTION_ID bigint primary key not null,
+                                          EXECUTOR_QUERY_ID VARCHAR(256),
+                                          SCHEDULED_QUERY_ID bigint not null,
+                                          START_TIME integer not null,
+                                          END_TIME INTEGER,
+                                          LAST_UPDATE_TIME INTEGER,
+                                          ERROR_MESSAGE VARCHAR(2000),
+                                          STATE VARCHAR(256),
+                                          CONSTRAINT SCHEDULED_EXECUTIONS_SCHQ_FK FOREIGN KEY (SCHEDULED_QUERY_ID) REFERENCES APP.SCHEDULED_QUERIES(SCHEDULED_QUERY_ID) ON DELETE CASCADE
+);
+
+CREATE INDEX LASTUPDATETIMEINDEX ON APP.SCHEDULED_EXECUTIONS (LAST_UPDATE_TIME);
+CREATE INDEX SCHEDULED_EXECUTIONS_SCHQID ON APP.SCHEDULED_EXECUTIONS (SCHEDULED_QUERY_ID);
+CREATE UNIQUE INDEX SCHEDULED_EXECUTIONS_UNIQUE_ID ON APP.SCHEDULED_EXECUTIONS (SCHEDULED_EXECUTION_ID);
+
+--HIVE-23516
+CREATE TABLE "APP"."REPLICATION_METRICS" (
+                                             "RM_SCHEDULED_EXECUTION_ID" bigint NOT NULL,
+                                             "RM_POLICY" varchar(256) NOT NULL,
+    "RM_DUMP_EXECUTION_ID" bigint NOT NULL,
+    "RM_METADATA" varchar(4000),
+    "RM_PROGRESS" varchar(10000),
+    "RM_START_TIME" integer not null,
+    "MESSAGE_FORMAT" VARCHAR(16) DEFAULT 'json-0.2',
+    PRIMARY KEY("RM_SCHEDULED_EXECUTION_ID")
+    );
+
+CREATE INDEX "POLICY_IDX" ON "APP"."REPLICATION_METRICS" ("RM_POLICY");
+CREATE INDEX "DUMP_IDX" ON "APP"."REPLICATION_METRICS" ("RM_DUMP_EXECUTION_ID");
+
+-- Create stored procedure tables
+CREATE TABLE "APP"."STORED_PROCS" (
+                                      "SP_ID" BIGINT NOT NULL,
+                                      "CREATE_TIME" INTEGER NOT NULL,
+                                      "DB_ID" BIGINT NOT NULL,
+                                      "NAME" VARCHAR(256) NOT NULL,
+    "OWNER_NAME" VARCHAR(128) NOT NULL,
+    "SOURCE" clob NOT NULL,
+    PRIMARY KEY ("SP_ID")
+    );
+
+CREATE UNIQUE INDEX "UNIQUESTOREDPROC" ON "STORED_PROCS" ("NAME", "DB_ID");
+ALTER TABLE "STORED_PROCS" ADD CONSTRAINT "STOREDPROC_FK1" FOREIGN KEY ("DB_ID") REFERENCES "DBS" ("DB_ID");
+
+CREATE TABLE "APP"."DATACONNECTORS" ("NAME" VARCHAR(128) NOT NULL, "TYPE" VARCHAR(32) NOT NULL, "URL" VARCHAR(4000) NOT NULL, "COMMENT" VARCHAR(256), "OWNER_NAME" VARCHAR(256), "OWNER_TYPE" VARCHAR(10), "CREATE_TIME" INTEGER NOT NULL);
+CREATE TABLE "APP"."DATACONNECTOR_PARAMS" ("NAME" VARCHAR(128) NOT NULL, "PARAM_KEY" VARCHAR(180) NOT NULL, "PARAM_VALUE" VARCHAR(4000));
+ALTER TABLE "APP"."DATACONNECTORS" ADD CONSTRAINT "DATACONNECTORS_KEY_PK" PRIMARY KEY ("NAME");
+ALTER TABLE "APP"."DATACONNECTOR_PARAMS" ADD CONSTRAINT "DATACONNECTOR_PARAMS_KEY_PK" PRIMARY KEY ("NAME", "PARAM_KEY");
+ALTER TABLE "APP"."DATACONNECTOR_PARAMS" ADD CONSTRAINT "NAME_FK1" FOREIGN KEY ("NAME") REFERENCES "APP"."DATACONNECTORS" ("NAME") ON DELETE NO ACTION ON UPDATE NO ACTION;
+ALTER TABLE "APP"."DC_PRIVS" ADD CONSTRAINT "DC_PRIVS_FK1" FOREIGN KEY ("NAME") REFERENCES "APP"."DATACONNECTORS" ("NAME") ON DELETE NO ACTION ON UPDATE NO ACTION;
+
+-- Create stored procedure packages
+CREATE TABLE "APP"."PACKAGES" (
+                                  "PKG_ID" BIGINT NOT NULL,
+                                  "CREATE_TIME" INTEGER NOT NULL,
+                                  "DB_ID" BIGINT NOT NULL,
+                                  "NAME" VARCHAR(256) NOT NULL,
+    "OWNER_NAME" VARCHAR(128) NOT NULL,
+    "HEADER" clob NOT NULL,
+    "BODY" clob NOT NULL,
+    PRIMARY KEY ("PKG_ID")
+    );
+
+CREATE UNIQUE INDEX "UNIQUEPKG" ON "PACKAGES" ("NAME", "DB_ID");
+ALTER TABLE "PACKAGES" ADD CONSTRAINT "PACKAGES_FK1" FOREIGN KEY ("DB_ID") REFERENCES "DBS" ("DB_ID");
+
 -- -----------------------------------------------------------------
 -- Record schema version. Should be the last step in the init script
 -- -----------------------------------------------------------------
-INSERT INTO "APP"."VERSION" (VER_ID, SCHEMA_VERSION, VERSION_COMMENT) VALUES (1, '3.1.0', 'Hive release version 3.1.0');
+INSERT INTO "APP"."VERSION" (VER_ID, SCHEMA_VERSION, VERSION_COMMENT) VALUES (1, '4.0.0', 'Hive release version 4.0.0');
