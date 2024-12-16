@@ -124,7 +124,7 @@ public class PlannedDataReader<T> implements DatumReader<T>, SupportsRowPosition
     }
 
     @Override
-    public ValueReader<?> primitive(Type ignored, Schema primitive) {
+    public ValueReader<?> primitive(Type partner, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
         switch (logicalType.getName()) {
@@ -159,10 +159,16 @@ public class PlannedDataReader<T> implements DatumReader<T>, SupportsRowPosition
         case BOOLEAN:
           return ValueReaders.booleans();
         case INT:
+          if (partner != null && partner.typeId() == Type.TypeID.LONG) {
+            return ValueReaders.intsAsLongs();
+          }
           return ValueReaders.ints();
         case LONG:
           return ValueReaders.longs();
         case FLOAT:
+          if (partner != null && partner.typeId() == Type.TypeID.DOUBLE) {
+            return ValueReaders.floatsAsDoubles();
+          }
           return ValueReaders.floats();
         case DOUBLE:
           return ValueReaders.doubles();
