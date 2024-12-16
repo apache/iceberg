@@ -86,6 +86,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     private final CompletableFuture<Optional<Task<T>>>[] taskFutures;
     private final ConcurrentLinkedQueue<T> queue = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final int maxQueueSize;
 
     private ParallelIterator(
         Iterable<? extends Iterable<T>> iterables, ExecutorService workerPool, int maxQueueSize) {
@@ -97,6 +98,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
       this.workerPool = workerPool;
       // submit 2 tasks per worker at a time
       this.taskFutures = new CompletableFuture[2 * ThreadPools.WORKER_THREAD_POOL_SIZE];
+      this.maxQueueSize = maxQueueSize;
     }
 
     @Override
@@ -153,6 +155,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
             try {
               Optional<Task<T>> continuation = taskFutures[i].get();
               continuation.ifPresent(yieldedTasks::addLast);
+              taskFutures[i] = null;
             } catch (ExecutionException e) {
               if (e.getCause() instanceof RuntimeException) {
                 // rethrow a runtime exception
@@ -165,7 +168,10 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
             }
           }
 
-          taskFutures[i] = submitNextTask();
+          // submit a new task if there is space in the queue
+          if (queue.size() < maxQueueSize) {
+            taskFutures[i] = submitNextTask();
+          }
         }
 
         if (taskFutures[i] != null) {
