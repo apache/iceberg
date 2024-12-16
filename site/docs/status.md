@@ -73,7 +73,7 @@ This section lists the libraries that implement the iceberg spec.
 | S3 Compatible     | Y    | Y         | Y    | Y  |
 | GCS Compatible    | Y    | Y         | Y    | Y  |
 
-## Table Update Operations
+## Table Maintenance Operations
 
 ### Table Spec V1
 
@@ -84,11 +84,6 @@ This section lists the libraries that implement the iceberg spec.
 | Update table properties     | Y    | Y         | Y    | N  |
 | Replace sort order          | Y    | N         | N    | N  |
 | Update table location       | Y    | N         | N    | N  |
-| Append data files           | Y    | Y         | N    | N  |
-| Rewrite files               | Y    | Y         | N    | N  |
-| Rewrite manifests           | Y    | Y         | N    | N  |
-| Overwrite files             | Y    | Y         | N    | N  |
-| Delete files                | Y    | N         | N    | N  |
 | Update statistics           | Y    | N         | N    | N  |
 | Update partition statistics | Y    | N         | N    | N  |
 | Expire snapshots            | Y    | N         | N    | N  |
@@ -103,16 +98,35 @@ This section lists the libraries that implement the iceberg spec.
 | Update table properties     | Y    | Y         | Y    | N  |
 | Replace sort order          | Y    | N         | N    | N  |
 | Update table location       | Y    | N         | N    | N  |
+| Update statistics           | Y    | N         | N    | N  |
+| Update partition statistics | Y    | N         | N    | N  |
+| Expire snapshots            | Y    | N         | N    | N  |
+| Manage snapshots            | Y    | N         | N    | N  |
+
+
+
+## Table Update Operations
+
+### Table Spec V1
+
+| Operation                   | Java | PyIceberg | Rust | Go |
+|-----------------------------|------|-----------|------|----|
+| Append data files           | Y    | Y         | N    | N  |
+| Rewrite files               | Y    | Y         | N    | N  |
+| Rewrite manifests           | Y    | Y         | N    | N  |
+| Overwrite files             | Y    | Y         | N    | N  |
+| Delete files                | Y    | N         | N    | N  |
+
+### Table Spec V2
+
+| Operation                   | Java | PyIceberg | Rust | Go |
+|-----------------------------|------|-----------|------|----|
 | Append data files           | Y    | Y         | N    | N  |
 | Rewrite files               | Y    | Y         | N    | N  |
 | Rewrite manifests           | Y    | Y         | N    | N  |
 | Overwrite files             | Y    | Y         | N    | N  |
 | Row delta                   | Y    | N         | N    | N  |
 | Delete files                | Y    | Y         | N    | N  |
-| Update statistics           | Y    | N         | N    | N  |
-| Update partition statistics | Y    | N         | N    | N  |
-| Expire snapshots            | Y    | N         | N    | N  |
-| Manage snapshots            | Y    | N         | N    | N  |
 
 ## Table Read Operations
 
@@ -253,8 +267,6 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 | createNamespace           | Y    | N         | N    | N  |
 | dropNamespace             | Y    | Y         | Y    | Y  |
 | namespaceExists           | Y    | N         | N    | N  |
-| renameNamespace           | Y    | N         | N    | N  |
-| updateNamespace           | Y    | N         | N    | N  |
 | updateNamespaceProperties | Y    | Y         | Y    | Y  |
 | loadNamespaceMetadata     | Y    | N         | N    | N  |
 
@@ -303,7 +315,6 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 | createNamespace           | Y    | N         | N    | N  |
 | dropNamespace             | Y    | N         | N    | N  |
 | namespaceExists           | Y    | N         | N    | N  |
-| renameNamespace           | Y    | N         | N    | N  |
 | updateNamespaceProperties | Y    | Y         | Y    | Y  |
 | loadNamespaceMetadata     | Y    | N         | N    | N  |
 
@@ -352,7 +363,5 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 | createNamespace           | Y    | N         | N    | N  |
 | dropNamespace             | Y    | N         | N    | N  |
 | namespaceExists           | Y    | N         | N    | N  |
-| renameNamespace           | Y    | N         | N    | N  |
-| updateNamespace           | Y    | N         | N    | N  |
 | updateNamespaceProperties | Y    | Y         | Y    | Y  |
 | loadNamespaceMetadata     | Y    | N         | N    | N  |
