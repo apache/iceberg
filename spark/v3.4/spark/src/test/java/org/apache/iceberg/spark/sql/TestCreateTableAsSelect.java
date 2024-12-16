@@ -394,6 +394,8 @@ public class TestCreateTableAsSelect extends SparkCatalogTestBase {
             + "FROM %s ORDER BY 3, 1",
         tableName, sourceName);
 
+    rtasTable.refresh();
+
     Schema expectedSchema =
         new Schema(
             Types.NestedField.optional(1, "id", Types.LongType.get()),
