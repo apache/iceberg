@@ -1590,12 +1590,14 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     updateSchema.commit();
 
     UpdatePartitionSpec updateSpec = create.updateSpec().addField("new_col");
-    PartitionSpec newSpec = updateSpec.apply();
     updateSpec.commit();
 
     ReplaceSortOrder replaceSortOrder = create.replaceSortOrder().asc("new_col");
     SortOrder newSortOrder = replaceSortOrder.apply();
     replaceSortOrder.commit();
+
+    // Get new spec after commit to write new file with new spec
+    PartitionSpec newSpec = create.table().spec();
 
     DataFile anotherFile =
         DataFiles.builder(newSpec)
