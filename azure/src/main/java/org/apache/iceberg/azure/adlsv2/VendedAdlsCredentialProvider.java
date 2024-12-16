@@ -33,7 +33,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTClient;
-import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.credentials.Credential;
@@ -141,21 +140,13 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
   }
 
   private LoadCredentialsResponse fetchCredentials() {
-    Map<String, String> headers =
-        RESTUtil.merge(
-            configHeaders(properties),
-            OAuth2Util.authHeaders(properties.get(OAuth2Properties.TOKEN)));
     return httpClient()
         .get(
             properties.get(URI),
             null,
             LoadCredentialsResponse.class,
-            headers,
+            OAuth2Util.authHeaders(properties.get(OAuth2Properties.TOKEN)),
             ErrorHandlers.defaultErrorHandler());
-  }
-
-  private Map<String, String> configHeaders(Map<String, String> props) {
-    return RESTUtil.extractPrefixMap(props, "header.");
   }
 
   private void checkCredential(Credential credential, String property) {
