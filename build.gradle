@@ -119,8 +119,8 @@ allprojects {
   repositories {
     mavenCentral()
     mavenLocal()
-    // Spark 3.5.4 RC1 staging repo
-    maven { url = "https://repository.apache.org/content/repositories/orgapachespark-1471/" }
+    // Spark 3.5.4 RC2 staging repo
+    maven { url = "https://repository.apache.org/content/repositories/orgapachespark-1473/" }
   }
 }
 
