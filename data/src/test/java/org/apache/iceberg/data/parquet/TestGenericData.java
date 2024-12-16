@@ -147,24 +147,11 @@ public class TestGenericData extends DataTest {
 
   @Test
   public void testMissingRequiredWithoutDefault() {
-    Schema writeSchema =
-        new Schema(
-            required(1, "id", Types.LongType.get()),
-            NestedField.optional("data")
-                .withId(2)
-                .ofType(Types.StringType.get())
-                .withInitialDefault("wrong!")
-                .withDoc("Should not produce default value")
-                .build());
+    Schema writeSchema = new Schema(required(1, "id", Types.LongType.get()));
 
     Schema expectedSchema =
         new Schema(
             required(1, "id", Types.LongType.get()),
-            NestedField.optional("data")
-                .withId(2)
-                .ofType(Types.StringType.get())
-                .withInitialDefault("wrong!")
-                .build(),
             NestedField.required("missing_str")
                 .withId(6)
                 .ofType(Types.StringType.get())
@@ -270,6 +257,101 @@ public class TestGenericData extends DataTest {
                             .ofType(Types.FloatType.get())
                             .withInitialDefault(-0.0F)
                             .build()))
+                .withDoc("Used to test nested field defaults")
+                .build());
+
+    writeAndValidate(writeSchema, expectedSchema);
+  }
+
+  @Test
+  public void testMapNestedDefaultValue() throws IOException {
+    Schema writeSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault("wrong!")
+                .withDoc("Should not produce default value")
+                .build(),
+            NestedField.optional("nested_map")
+                .withId(3)
+                .ofType(
+                    Types.MapType.ofOptional(
+                        4,
+                        5,
+                        Types.StringType.get(),
+                        Types.StructType.of(required(6, "value_str", Types.StringType.get()))))
+                .withDoc("Used to test nested map value field defaults")
+                .build());
+
+    Schema expectedSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault("wrong!")
+                .build(),
+            NestedField.optional("nested_map")
+                .withId(3)
+                .ofType(
+                    Types.MapType.ofOptional(
+                        4,
+                        5,
+                        Types.StringType.get(),
+                        Types.StructType.of(
+                            required(6, "value_str", Types.StringType.get()),
+                            Types.NestedField.optional("value_int")
+                                .withId(7)
+                                .ofType(Types.IntegerType.get())
+                                .withInitialDefault(34)
+                                .build())))
+                .withDoc("Used to test nested field defaults")
+                .build());
+
+    writeAndValidate(writeSchema, expectedSchema);
+  }
+
+  @Test
+  public void testListNestedDefaultValue() throws IOException {
+    Schema writeSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault("wrong!")
+                .withDoc("Should not produce default value")
+                .build(),
+            NestedField.optional("nested_list")
+                .withId(3)
+                .ofType(
+                    Types.ListType.ofOptional(
+                        4, Types.StructType.of(required(5, "element_str", Types.StringType.get()))))
+                .withDoc("Used to test nested field defaults")
+                .build());
+
+    Schema expectedSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault("wrong!")
+                .build(),
+            NestedField.optional("nested_list")
+                .withId(3)
+                .ofType(
+                    Types.ListType.ofOptional(
+                        4,
+                        Types.StructType.of(
+                            required(5, "element_str", Types.StringType.get()),
+                            Types.NestedField.optional("element_int")
+                                .withId(7)
+                                .ofType(Types.IntegerType.get())
+                                .withInitialDefault(34)
+                                .build())))
                 .withDoc("Used to test nested field defaults")
                 .build());
 
