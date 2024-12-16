@@ -38,9 +38,9 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.metastore.HiveMetaStore;
+import org.apache.hadoop.hive.metastore.HMSHandler;
+import org.apache.hadoop.hive.metastore.HMSHandlerProxyFactory;
 import org.apache.hadoop.hive.metastore.IHMSHandler;
-import org.apache.hadoop.hive.metastore.RetryingHMSHandler;
 import org.apache.hadoop.hive.metastore.TSetIpAddressProcessor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -59,18 +59,12 @@ public class TestHiveMetastore {
   private static final String DEFAULT_DATABASE_NAME = "default";
   private static final int DEFAULT_POOL_SIZE = 5;
 
-  // create the metastore handlers based on whether we're working with Hive2 or Hive3 dependencies
-  // we need to do this because there is a breaking API change between Hive2 and Hive3
-  private static final DynConstructors.Ctor<HiveMetaStore.HMSHandler> HMS_HANDLER_CTOR =
-      DynConstructors.builder()
-          .impl(HiveMetaStore.HMSHandler.class, String.class, Configuration.class)
-          .impl(HiveMetaStore.HMSHandler.class, String.class, HiveConf.class)
-          .build();
+  private static final DynConstructors.Ctor<HMSHandler> HMS_HANDLER_CTOR =
+      DynConstructors.builder().impl(HMSHandler.class, String.class, Configuration.class).build();
 
   private static final DynMethods.StaticMethod GET_BASE_HMS_HANDLER =
       DynMethods.builder("getProxy")
-          .impl(RetryingHMSHandler.class, Configuration.class, IHMSHandler.class, boolean.class)
-          .impl(RetryingHMSHandler.class, HiveConf.class, IHMSHandler.class, boolean.class)
+          .impl(HMSHandlerProxyFactory.class, Configuration.class, IHMSHandler.class, boolean.class)
           .buildStatic();
 
   // Hive3 introduces background metastore tasks (MetastoreTaskThread) for performing various
@@ -125,7 +119,7 @@ public class TestHiveMetastore {
   private HiveConf hiveConf;
   private ExecutorService executorService;
   private TServer server;
-  private HiveMetaStore.HMSHandler baseHandler;
+  private HMSHandler baseHandler;
   private HiveClientPool clientPool;
 
   /**
@@ -165,8 +159,8 @@ public class TestHiveMetastore {
       // in Hive3, setting this as a system prop ensures that it will be picked up whenever a new
       // HiveConf is created
       System.setProperty(
-          HiveConf.ConfVars.METASTOREURIS.varname,
-          hiveConf.getVar(HiveConf.ConfVars.METASTOREURIS));
+          HiveConf.ConfVars.METASTORE_URIS.varname,
+          hiveConf.getVar(HiveConf.ConfVars.METASTORE_URIS));
 
       this.clientPool = new HiveClientPool(1, hiveConf);
     } catch (Exception e) {
@@ -244,7 +238,7 @@ public class TestHiveMetastore {
       throws Exception {
     HiveConf serverConf = new HiveConf(conf);
     serverConf.set(
-        HiveConf.ConfVars.METASTORECONNECTURLKEY.varname,
+        HiveConf.ConfVars.METASTORE_CONNECT_URL_KEY.varname,
         "jdbc:derby:" + DERBY_PATH + ";create=true");
     baseHandler = HMS_HANDLER_CTOR.newInstance("new db based metaserver", serverConf);
     IHMSHandler handler = GET_BASE_HMS_HANDLER.invoke(serverConf, baseHandler, false);
@@ -261,9 +255,9 @@ public class TestHiveMetastore {
   }
 
   private void initConf(HiveConf conf, int port) {
-    conf.set(HiveConf.ConfVars.METASTOREURIS.varname, "thrift://localhost:" + port);
+    conf.set(HiveConf.ConfVars.METASTORE_URIS.varname, "thrift://localhost:" + port);
     conf.set(
-        HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file:" + HIVE_LOCAL_DIR.getAbsolutePath());
+        HiveConf.ConfVars.METASTORE_WAREHOUSE.varname, "file:" + HIVE_LOCAL_DIR.getAbsolutePath());
     conf.set(HiveConf.ConfVars.METASTORE_TRY_DIRECT_SQL.varname, "false");
     conf.set(HiveConf.ConfVars.METASTORE_DISALLOW_INCOMPATIBLE_COL_TYPE_CHANGES.varname, "false");
     conf.set("iceberg.hive.client-pool-size", "2");
@@ -277,7 +271,7 @@ public class TestHiveMetastore {
     ScriptRunner scriptRunner = new ScriptRunner(connection, true, true);
 
     ClassLoader classLoader = ClassLoader.getSystemClassLoader();
-    InputStream inputStream = classLoader.getResourceAsStream("hive-schema-3.1.0.derby.sql");
+    InputStream inputStream = classLoader.getResourceAsStream("hive-schema-4.0.0.derby.sql");
     try (Reader reader = new InputStreamReader(inputStream)) {
       scriptRunner.runScript(reader);
     }

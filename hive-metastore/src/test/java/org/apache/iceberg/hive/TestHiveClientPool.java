@@ -30,12 +30,12 @@ import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
-import org.apache.hadoop.hive.metastore.MetaStoreUtils;
 import org.apache.hadoop.hive.metastore.api.Function;
 import org.apache.hadoop.hive.metastore.api.FunctionType;
 import org.apache.hadoop.hive.metastore.api.GetAllFunctionsResponse;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
+import org.apache.hadoop.hive.metastore.utils.JavaUtils;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.thrift.transport.TTransportException;
 import org.junit.jupiter.api.AfterEach;
@@ -73,13 +73,13 @@ public class TestHiveClientPool {
   @Test
   public void testConf() {
     HiveConf conf = createHiveConf();
-    conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file:/mywarehouse/");
+    conf.set(HiveConf.ConfVars.METASTORE_WAREHOUSE.varname, "file:/mywarehouse/");
 
     HiveClientPool clientPool = new HiveClientPool(10, conf);
     HiveConf clientConf = clientPool.hiveConf();
 
-    assertThat(clientConf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname))
-        .isEqualTo(conf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname));
+    assertThat(clientConf.get(HiveConf.ConfVars.METASTORE_WAREHOUSE.varname))
+        .isEqualTo(conf.get(HiveConf.ConfVars.METASTORE_WAREHOUSE.varname));
     assertThat(clientPool.poolSize()).isEqualTo(10);
 
     // 'hive.metastore.sasl.enabled' should be 'true' as defined in xml
@@ -121,36 +121,36 @@ public class TestHiveClientPool {
 
   @Test
   public void testExceptionMessages() {
-    try (MockedStatic<MetaStoreUtils> mockedStatic = Mockito.mockStatic(MetaStoreUtils.class)) {
+    try (MockedStatic<JavaUtils> mockedStatic = Mockito.mockStatic(JavaUtils.class)) {
       mockedStatic
-          .when(() -> MetaStoreUtils.newInstance(any(), any(), any()))
+          .when(() -> JavaUtils.newInstance(any(), any(), any()))
           .thenThrow(new RuntimeException(new MetaException("Another meta exception")));
       assertThatThrownBy(() -> clients.run(client -> client.getTables("default", "t")))
           .isInstanceOf(RuntimeMetaException.class)
           .hasMessage("Failed to connect to Hive Metastore");
     }
 
-    try (MockedStatic<MetaStoreUtils> mockedStatic = Mockito.mockStatic(MetaStoreUtils.class)) {
+    try (MockedStatic<JavaUtils> mockedStatic = Mockito.mockStatic(JavaUtils.class)) {
       mockedStatic
-          .when(() -> MetaStoreUtils.newInstance(any(), any(), any()))
+          .when(() -> JavaUtils.newInstance(any(), any(), any()))
           .thenThrow(new RuntimeException(new MetaException()));
       assertThatThrownBy(() -> clients.run(client -> client.getTables("default", "t")))
           .isInstanceOf(RuntimeMetaException.class)
           .hasMessage("Failed to connect to Hive Metastore");
     }
 
-    try (MockedStatic<MetaStoreUtils> mockedStatic = Mockito.mockStatic(MetaStoreUtils.class)) {
+    try (MockedStatic<JavaUtils> mockedStatic = Mockito.mockStatic(JavaUtils.class)) {
       mockedStatic
-          .when(() -> MetaStoreUtils.newInstance(any(), any(), any()))
+          .when(() -> JavaUtils.newInstance(any(), any(), any()))
           .thenThrow(new RuntimeException());
       assertThatThrownBy(() -> clients.run(client -> client.getTables("default", "t")))
           .isInstanceOf(RuntimeMetaException.class)
           .hasMessage("Failed to connect to Hive Metastore");
     }
 
-    try (MockedStatic<MetaStoreUtils> mockedStatic = Mockito.mockStatic(MetaStoreUtils.class)) {
+    try (MockedStatic<JavaUtils> mockedStatic = Mockito.mockStatic(JavaUtils.class)) {
       mockedStatic
-          .when(() -> MetaStoreUtils.newInstance(any(), any(), any()))
+          .when(() -> JavaUtils.newInstance(any(), any(), any()))
           .thenThrow(new RuntimeException("Another instance of Derby may have already booted"));
       assertThatThrownBy(() -> clients.run(client -> client.getTables("default", "t")))
           .isInstanceOf(RuntimeMetaException.class)

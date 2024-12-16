@@ -43,8 +43,8 @@ public abstract class SparkDeltaLakeSnapshotTestBase {
             .master("local[2]")
             .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
             .config(
-                "spark.hadoop." + HiveConf.ConfVars.METASTOREURIS.varname,
-                hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname))
+                "spark.hadoop." + HiveConf.ConfVars.METASTORE_URIS.varname,
+                hiveConf.get(HiveConf.ConfVars.METASTORE_URIS.varname))
             .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
             .config("spark.databricks.delta.retentionDurationCheck.enabled", "false")
             .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
