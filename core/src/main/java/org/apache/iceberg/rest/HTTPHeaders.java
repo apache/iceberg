@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.immutables.value.Value;
@@ -40,13 +41,13 @@ public interface HTTPHeaders {
   HTTPHeaders EMPTY = of();
 
   /** Returns all the header entries in this group. */
-  List<HTTPHeader> entries();
+  Set<HTTPHeader> entries();
 
   /** Returns all the entries in this group for the given name (case-insensitive). */
-  default List<HTTPHeader> entries(String name) {
+  default Set<HTTPHeader> entries(String name) {
     return entries().stream()
         .filter(header -> header.name().equalsIgnoreCase(name))
-        .collect(Collectors.toList());
+        .collect(Collectors.toSet());
   }
 
   /** Returns whether this group contains an entry with the given name (case-insensitive). */
@@ -59,7 +60,7 @@ public interface HTTPHeaders {
    * Returns a new instance with the added header, or the current instance if the header is already
    * present.
    */
-  default HTTPHeaders withHeaderIfAbsent(HTTPHeader header) {
+  default HTTPHeaders putIfAbsent(HTTPHeader header) {
     Preconditions.checkNotNull(header, "header");
     return contains(header.name())
         ? this
@@ -71,7 +72,7 @@ public interface HTTPHeaders {
    * Returns a new instance with the added headers, or the current instance if all headers are
    * already present.
    */
-  default HTTPHeaders withHeaderIfAbsent(HTTPHeaders headers) {
+  default HTTPHeaders putIfAbsent(HTTPHeaders headers) {
     Preconditions.checkNotNull(headers, "headers");
     List<HTTPHeader> newHeaders =
         headers.entries().stream().filter(e -> !contains(e.name())).collect(Collectors.toList());
