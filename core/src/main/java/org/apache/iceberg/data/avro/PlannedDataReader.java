@@ -28,52 +28,51 @@ import org.apache.avro.Schema;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.avro.AvroSchemaWithTypeVisitor;
+import org.apache.iceberg.avro.AvroWithPartnerVisitor;
 import org.apache.iceberg.avro.SupportsRowPosition;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 
-/**
- * @deprecated will be removed in 2.0.0; use {@link PlannedDataReader} instead.
- */
-@Deprecated
-public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
+public class PlannedDataReader<T> implements DatumReader<T>, SupportsRowPosition {
 
-  public static <D> DataReader<D> create(
-      org.apache.iceberg.Schema expectedSchema, Schema readSchema) {
-    return create(expectedSchema, readSchema, ImmutableMap.of());
+  public static <D> PlannedDataReader<D> create(org.apache.iceberg.Schema expectedSchema) {
+    return create(expectedSchema, ImmutableMap.of());
   }
 
-  public static <D> DataReader<D> create(
-      org.apache.iceberg.Schema expectedSchema, Schema readSchema, Map<Integer, ?> idToConstant) {
-    return new DataReader<>(expectedSchema, readSchema, idToConstant);
+  public static <D> PlannedDataReader<D> create(
+      org.apache.iceberg.Schema expectedSchema, Map<Integer, ?> idToConstant) {
+    return new PlannedDataReader<>(expectedSchema, idToConstant);
   }
 
-  private final Schema readSchema;
-  private final ValueReader<T> reader;
-  private Schema fileSchema = null;
+  private final org.apache.iceberg.Schema expectedSchema;
+  private final Map<Integer, ?> idToConstant;
+  private ValueReader<T> reader;
 
-  @SuppressWarnings("unchecked")
-  protected DataReader(
-      org.apache.iceberg.Schema expectedSchema, Schema readSchema, Map<Integer, ?> idToConstant) {
-    this.readSchema = readSchema;
-    this.reader =
-        (ValueReader<T>)
-            AvroSchemaWithTypeVisitor.visit(
-                expectedSchema, readSchema, new ReadBuilder(idToConstant));
+  protected PlannedDataReader(
+      org.apache.iceberg.Schema expectedSchema, Map<Integer, ?> idToConstant) {
+    this.expectedSchema = expectedSchema;
+    this.idToConstant = idToConstant;
   }
 
   @Override
-  public void setSchema(Schema newFileSchema) {
-    this.fileSchema = Schema.applyAliases(newFileSchema, readSchema);
+  @SuppressWarnings("unchecked")
+  public void setSchema(Schema fileSchema) {
+    this.reader =
+        (ValueReader<T>)
+            AvroWithPartnerVisitor.visit(
+                expectedSchema.asStruct(),
+                fileSchema,
+                new ReadBuilder(idToConstant),
+                AvroWithPartnerVisitor.FieldIDAccessors.get());
   }
 
   @Override
   public T read(T reuse, Decoder decoder) throws IOException {
-    return DecoderResolver.resolveAndRead(decoder, readSchema, fileSchema, reader, reuse);
+    return reader.read(decoder, reuse);
   }
 
   @Override
@@ -83,12 +82,7 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
     }
   }
 
-  protected ValueReader<?> createStructReader(
-      Types.StructType struct, List<ValueReader<?>> fields, Map<Integer, ?> idToConstant) {
-    return GenericReaders.struct(struct, fields, idToConstant);
-  }
-
-  private class ReadBuilder extends AvroSchemaWithTypeVisitor<ValueReader<?>> {
+  private static class ReadBuilder extends AvroWithPartnerVisitor<Type, ValueReader<?>> {
     private final Map<Integer, ?> idToConstant;
 
     private ReadBuilder(Map<Integer, ?> idToConstant) {
@@ -96,35 +90,41 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
     }
 
     @Override
-    public ValueReader<?> record(
-        Types.StructType struct, Schema record, List<String> names, List<ValueReader<?>> fields) {
-      return createStructReader(struct, fields, idToConstant);
+    public ValueReader<?> record(Type partner, Schema record, List<ValueReader<?>> fieldReaders) {
+      if (partner == null) {
+        return ValueReaders.skipStruct(fieldReaders);
+      }
+
+      Types.StructType expected = partner.asStructType();
+      List<Pair<Integer, ValueReader<?>>> readPlan =
+          ValueReaders.buildReadPlan(expected, record, fieldReaders, idToConstant);
+
+      return GenericReaders.struct(readPlan, expected);
     }
 
     @Override
-    public ValueReader<?> union(Type ignored, Schema union, List<ValueReader<?>> options) {
+    public ValueReader<?> union(Type partner, Schema union, List<ValueReader<?>> options) {
       return ValueReaders.union(options);
     }
 
     @Override
-    public ValueReader<?> array(
-        Types.ListType ignored, Schema array, ValueReader<?> elementReader) {
+    public ValueReader<?> array(Type ignored, Schema array, ValueReader<?> elementReader) {
       return ValueReaders.array(elementReader);
     }
 
     @Override
-    public ValueReader<?> map(
-        Types.MapType iMap, Schema map, ValueReader<?> keyReader, ValueReader<?> valueReader) {
+    public ValueReader<?> arrayMap(
+        Type ignored, Schema map, ValueReader<?> keyReader, ValueReader<?> valueReader) {
       return ValueReaders.arrayMap(keyReader, valueReader);
     }
 
     @Override
-    public ValueReader<?> map(Types.MapType ignored, Schema map, ValueReader<?> valueReader) {
+    public ValueReader<?> map(Type ignored, Schema map, ValueReader<?> valueReader) {
       return ValueReaders.map(ValueReaders.strings(), valueReader);
     }
 
     @Override
-    public ValueReader<?> primitive(Type.PrimitiveType ignored, Schema primitive) {
+    public ValueReader<?> primitive(Type partner, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
         switch (logicalType.getName()) {
@@ -159,10 +159,16 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
         case BOOLEAN:
           return ValueReaders.booleans();
         case INT:
+          if (partner != null && partner.typeId() == Type.TypeID.LONG) {
+            return ValueReaders.intsAsLongs();
+          }
           return ValueReaders.ints();
         case LONG:
           return ValueReaders.longs();
         case FLOAT:
+          if (partner != null && partner.typeId() == Type.TypeID.DOUBLE) {
+            return ValueReaders.floatsAsDoubles();
+          }
           return ValueReaders.floats();
         case DOUBLE:
           return ValueReaders.doubles();
