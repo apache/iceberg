@@ -289,7 +289,7 @@ public class Parquet {
           .columnBloomFilterEnabled()
           .forEach(
               (colPath, isEnabled) -> {
-                Types.NestedField fieldId = schema.caseInsensitiveFindField(colPath);
+                Types.NestedField fieldId = schema.findField(colPath);
                 if (fieldId == null) {
                   LOG.warn("Skipping bloom filter config for missing field: {}", colPath);
                   return;
