@@ -128,7 +128,11 @@ public class TestNessieViewCatalog extends ViewCatalogTests<NessieCatalog> {
             CatalogProperties.WAREHOUSE_LOCATION,
             temp.toUri().toString(),
             "client-api-version",
-            apiVersion == NessieApiVersion.V2 ? "2" : "1");
+            apiVersion == NessieApiVersion.V2 ? "2" : "1",
+            CatalogProperties.VIEW_DEFAULT_PREFIX + "key1",
+            "catalog-default-key1",
+            CatalogProperties.VIEW_DEFAULT_PREFIX + "key2",
+            "catalog-default-key2");
     newCatalog.initialize("nessie", options);
     return newCatalog;
   }
