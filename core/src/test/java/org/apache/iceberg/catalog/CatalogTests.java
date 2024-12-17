@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -44,6 +45,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.FilesTable;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.HistoryEntry;
+import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.ReplaceSortOrder;
@@ -82,6 +84,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -542,6 +545,60 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThat(catalog.namespaceExists(withDot)).as("Namespace should not exist").isFalse();
   }
 
+  @ParameterizedTest
+  @MethodSource("namespacesAndMetadataTableTypes")
+  public void tableWithMetadataTableName(Namespace namespace, MetadataTableType type) {
+
+    String metadataName = type.name().toLowerCase(Locale.ROOT);
+    TableIdentifier identifier = TableIdentifier.of(namespace, metadataName);
+
+    assumeThat(supportsEmptyNamespace() || !identifier.namespace().isEmpty())
+        .as("Only valid for catalogs that support non-empty namespaces")
+        .isTrue();
+
+    assumeThat(supportsNestedNamespaces() || identifier.namespace().levels().length < 2)
+        .as("Only valid for catalogs that support nested namespaces")
+        .isTrue();
+
+    C catalog = catalog();
+
+    assertThat(catalog.tableExists(identifier)).as("Table should not exist").isFalse();
+
+    if (requiresNamespaceCreate()) {
+      if (supportsEmptyNamespace()) {
+        catalog.createNamespace(Namespace.empty());
+      }
+      for (int i = 1; i <= namespace.length(); i++) {
+        catalog.createNamespace(
+            Namespace.of(Arrays.stream(namespace.levels(), 0, i).toArray(String[]::new)));
+      }
+    }
+
+    assertThatThrownBy(() -> catalog.loadTable(identifier))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessage("Table does not exist: %s", identifier);
+
+    catalog.buildTable(identifier, SCHEMA).create();
+
+    Table table = catalog.loadTable(identifier);
+    assertThat(catalog.tableExists(identifier)).as("Table should exist").isTrue();
+    assertThat(table.name()).isEqualTo(catalog.name() + "." + identifier);
+
+    TableIdentifier metadataIdentifier =
+        TableIdentifier.of(Namespace.of(namespace.levels()), metadataName);
+    Table metadataTable = catalog.loadTable(metadataIdentifier);
+    assertThat(catalog.tableExists(metadataIdentifier)).as("Table should exist").isTrue();
+    assertThat(metadataTable.name()).isEqualTo(catalog.name() + "." + metadataIdentifier);
+  }
+
+  static Stream<Arguments> namespacesAndMetadataTableTypes() {
+    Set<Namespace> namespaces =
+        Set.of(Namespace.empty(), Namespace.of("ns"), Namespace.of("ns1", "ns2"));
+    Set<MetadataTableType> types = Set.of(MetadataTableType.values());
+    return Sets.cartesianProduct(List.of(namespaces, types)).stream()
+        .map(list -> Arguments.of(list.get(0), list.get(1)));
+  }
+
   @Test
   public void testBasicCreateTable() {
     C catalog = catalog();
@@ -951,37 +1008,14 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThat(table.name()).isEqualTo(catalog.name() + "." + metaIdent);
   }
 
-  @ParameterizedTest
-  @MethodSource("nonExistentTableIdentifiers")
-  public void testLoadMissingTable(TableIdentifier identifier) {
+  @Test
+  public void testLoadMissingTable() {
     C catalog = catalog();
 
-    assumeThat(supportsEmptyNamespace() || !identifier.namespace().isEmpty())
-        .as("Only valid for catalogs that support non-empty namespaces")
-        .isTrue();
-
-    assumeThat(supportsNestedNamespaces() || identifier.namespace().levels().length < 2)
-        .as("Only valid for catalogs that support nested namespaces")
-        .isTrue();
-
-    assertThat(catalog.tableExists(identifier)).as("Table should not exist").isFalse();
-    assertThatThrownBy(() -> catalog.loadTable(identifier))
+    assertThat(catalog.tableExists(TBL)).as("Table should not exist").isFalse();
+    assertThatThrownBy(() -> catalog.loadTable(TBL))
         .isInstanceOf(NoSuchTableException.class)
-        .hasMessageFindingMatch("(Table does not exist|Invalid table identifier|): " + identifier);
-  }
-
-  static Stream<TableIdentifier> nonExistentTableIdentifiers() {
-    return Stream.of(
-        TableIdentifier.of("ns"),
-        TableIdentifier.of("ns", "tbl"),
-        TableIdentifier.of("ns1", "ns2", "tbl"),
-        // ambiguous metadata table names
-        TableIdentifier.of("snapshots"),
-        TableIdentifier.of("ns1", "snapshots"),
-        TableIdentifier.of("ns1", "ns2", "snapshots"),
-        TableIdentifier.of("files"),
-        TableIdentifier.of("ns1", "files"),
-        TableIdentifier.of("ns1", "ns2", "files"));
+        .hasMessageStartingWith("Table does not exist: ns.tbl");
   }
 
   @Test
