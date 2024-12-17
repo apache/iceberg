@@ -143,4 +143,10 @@ public class TestJdbcUtil {
       assertThat(updated).isEqualTo(1);
     }
   }
+
+  @Test
+  public void emptyNamespaceInIdentifier() {
+    assertThat(JdbcUtil.stringToTableIdentifier("", "tblName"))
+        .isEqualTo(TableIdentifier.of(Namespace.empty(), "tblName"));
+  }
 }
