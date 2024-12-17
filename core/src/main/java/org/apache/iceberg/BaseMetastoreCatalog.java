@@ -97,8 +97,7 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
   }
 
   private Table loadMetadataTable(TableIdentifier identifier) {
-    String tableName = identifier.name();
-    MetadataTableType type = MetadataTableType.from(tableName);
+    MetadataTableType type = MetadataTableType.from(identifier);
     if (type != null) {
       TableIdentifier baseTableIdentifier = TableIdentifier.of(identifier.namespace().levels());
       TableOperations ops = newTableOps(baseTableIdentifier);
@@ -114,7 +113,7 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
   }
 
   protected boolean isValidMetadataIdentifier(TableIdentifier identifier) {
-    return MetadataTableType.from(identifier.name()) != null
+    return MetadataTableType.from(identifier) != null
         && isValidIdentifier(TableIdentifier.of(identifier.namespace().levels()));
   }
 

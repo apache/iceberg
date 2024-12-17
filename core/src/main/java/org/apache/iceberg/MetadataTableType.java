@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.util.Locale;
+import org.apache.iceberg.catalog.TableIdentifier;
 
 public enum MetadataTableType {
   ENTRIES,
@@ -44,5 +45,13 @@ public enum MetadataTableType {
     } catch (IllegalArgumentException ignored) {
       return null;
     }
+  }
+
+  public static MetadataTableType from(TableIdentifier identifier) {
+    if (identifier.hasNamespace() && identifier.namespace().levels().length >= 2) {
+      return from(identifier.name());
+    }
+
+    return null;
   }
 }

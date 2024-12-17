@@ -33,6 +33,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.spark.CatalogTestBase;
@@ -113,6 +114,26 @@ public class TestCreateTable extends CatalogTestBase {
     assertThat(table.properties().get(TableProperties.DEFAULT_FILE_FORMAT))
         .as("Should not have the default format set")
         .isNull();
+  }
+
+  @TestTemplate
+  public void testTableWithMetadataTableName() {
+    TableIdentifier identifier = TableIdentifier.of("default", "files");
+    String name = tableName(identifier.name());
+    assertThat(validationCatalog.tableExists(identifier))
+        .as("Table should not already exist")
+        .isFalse();
+
+    sql("CREATE TABLE %s (id BIGINT NOT NULL, data STRING) USING iceberg", name);
+
+    Table table = validationCatalog.loadTable(identifier);
+    assertThat(table).as("Should load the new table").isNotNull();
+
+    Table metadataTable =
+        validationCatalog.loadTable(TableIdentifier.of("default", "files", "files"));
+    assertThat(metadataTable).as("Should load the new table").isNotNull();
+
+    sql("DROP TABLE %s", name);
   }
 
   @TestTemplate

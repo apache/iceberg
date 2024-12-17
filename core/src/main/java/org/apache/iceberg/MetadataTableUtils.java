@@ -26,7 +26,7 @@ public class MetadataTableUtils {
   private MetadataTableUtils() {}
 
   public static boolean hasMetadataTableName(TableIdentifier identifier) {
-    return MetadataTableType.from(identifier.name()) != null;
+    return MetadataTableType.from(identifier) != null;
   }
 
   public static Table createMetadataTableInstance(Table table, MetadataTableType type) {

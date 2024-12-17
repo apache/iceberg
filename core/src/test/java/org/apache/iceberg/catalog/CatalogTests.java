@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -43,6 +44,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.FilesTable;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.HistoryEntry;
+import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.ReplaceSortOrder;
@@ -79,6 +81,7 @@ import org.apache.iceberg.util.CharSequenceSet;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
@@ -503,6 +506,36 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThat(properties).as("Properties should be accessible").isNotNull();
     assertThat(catalog.dropNamespace(withDot)).as("Dropping the namespace should succeed").isTrue();
     assertThat(catalog.namespaceExists(withDot)).as("Namespace should not exist").isFalse();
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = MetadataTableType.class)
+  public void tableWithMetadataTableName(MetadataTableType type) {
+    String metadataName = type.name().toLowerCase(Locale.ROOT);
+    C catalog = catalog();
+
+    TableIdentifier identifier = TableIdentifier.of("ns", metadataName);
+
+    assertThat(catalog.tableExists(identifier)).as("Table should not exist").isFalse();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    assertThatThrownBy(() -> catalog.loadTable(identifier))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessage("Table does not exist: ns.%s", metadataName);
+
+    catalog.buildTable(identifier, SCHEMA).create();
+
+    Table table = catalog.loadTable(identifier);
+    assertThat(catalog.tableExists(identifier)).as("Table should exist").isTrue();
+    assertThat(table.name()).isEqualTo(catalog.name() + "." + identifier);
+
+    TableIdentifier metadataIdentifier = TableIdentifier.of("ns", metadataName, metadataName);
+    Table metadataTable = catalog.loadTable(metadataIdentifier);
+    assertThat(catalog.tableExists(metadataIdentifier)).as("Table should exist").isTrue();
+    assertThat(metadataTable.name()).isEqualTo(catalog.name() + "." + metadataIdentifier);
   }
 
   @Test
