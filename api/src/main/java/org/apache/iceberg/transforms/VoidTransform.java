@@ -53,7 +53,7 @@ class VoidTransform<S> implements Transform<S, Void> {
    * Transforms a value to its corresponding partition value.
    *
    * @param value a source value
-   * @return a transformed partition value
+   * @return null
    * @deprecated will be removed in 2.0.0; use {@link #bind(Type)} instead
    */
   @Deprecated
