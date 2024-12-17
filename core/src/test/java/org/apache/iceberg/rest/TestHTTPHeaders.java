@@ -34,6 +34,21 @@ class TestHTTPHeaders {
 
   @Test
   void entries() {
+    assertThat(headers.entries())
+        .containsExactlyInAnyOrder(
+            HTTPHeader.of("header1", "value1a"),
+            HTTPHeader.of("HEADER1", "value1b"),
+            HTTPHeader.of("header2", "value2"));
+
+    // duplicated entries
+    assertThat(
+            HTTPHeaders.of(HTTPHeader.of("header1", "value1"), HTTPHeader.of("header1", "value1"))
+                .entries())
+        .containsExactly(HTTPHeader.of("header1", "value1"));
+  }
+
+  @Test
+  void entriesByName() {
     assertThat(headers.entries("header1"))
         .containsExactlyInAnyOrder(
             HTTPHeader.of("header1", "value1a"), HTTPHeader.of("HEADER1", "value1b"));
