@@ -18,7 +18,7 @@ title: "Implementation Status"
  - limitations under the License.
  -->
 
-# Implementations Status
+# Implementation Status
 
 Apache iceberg's spec is implemented in multiple languages. This page provides an overview of the current capabilities.
 
