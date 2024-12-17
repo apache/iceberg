@@ -267,125 +267,6 @@ class ViewVersion(BaseModel):
     default_namespace: Namespace = Field(..., alias='default-namespace')
 
 
-class BaseUpdate(BaseModel):
-    action: str
-
-
-class AssignUUIDUpdate(BaseUpdate):
-    """
-    Assigning a UUID to a table/view should only be done when creating the table/view. It is not safe to re-assign the UUID if a table/view already has a UUID assigned
-    """
-
-    action: Literal['assign-uuid']
-    uuid: str
-
-
-class UpgradeFormatVersionUpdate(BaseUpdate):
-    action: Literal['upgrade-format-version']
-    format_version: int = Field(..., alias='format-version')
-
-
-class SetCurrentSchemaUpdate(BaseUpdate):
-    action: Literal['set-current-schema']
-    schema_id: int = Field(
-        ...,
-        alias='schema-id',
-        description='Schema ID to set as current, or -1 to set last added schema',
-    )
-
-
-class AddPartitionSpecUpdate(BaseUpdate):
-    action: Literal['add-spec']
-    spec: PartitionSpec
-
-
-class SetDefaultSpecUpdate(BaseUpdate):
-    action: Literal['set-default-spec']
-    spec_id: int = Field(
-        ...,
-        alias='spec-id',
-        description='Partition spec ID to set as the default, or -1 to set last added spec',
-    )
-
-
-class AddSortOrderUpdate(BaseUpdate):
-    action: Literal['add-sort-order']
-    sort_order: SortOrder = Field(..., alias='sort-order')
-
-
-class SetDefaultSortOrderUpdate(BaseUpdate):
-    action: Literal['set-default-sort-order']
-    sort_order_id: int = Field(
-        ...,
-        alias='sort-order-id',
-        description='Sort order ID to set as the default, or -1 to set last added sort order',
-    )
-
-
-class AddSnapshotUpdate(BaseUpdate):
-    action: Literal['add-snapshot']
-    snapshot: Snapshot
-
-
-class SetSnapshotRefUpdate(BaseUpdate, SnapshotReference):
-    action: Literal['set-snapshot-ref']
-    ref_name: str = Field(..., alias='ref-name')
-
-
-class RemoveSnapshotsUpdate(BaseUpdate):
-    action: Literal['remove-snapshots']
-    snapshot_ids: List[int] = Field(..., alias='snapshot-ids')
-
-
-class RemoveSnapshotRefUpdate(BaseUpdate):
-    action: Literal['remove-snapshot-ref']
-    ref_name: str = Field(..., alias='ref-name')
-
-
-class SetLocationUpdate(BaseUpdate):
-    action: Literal['set-location']
-    location: str
-
-
-class SetPropertiesUpdate(BaseUpdate):
-    action: Literal['set-properties']
-    updates: Dict[str, str]
-
-
-class RemovePropertiesUpdate(BaseUpdate):
-    action: Literal['remove-properties']
-    removals: List[str]
-
-
-class AddViewVersionUpdate(BaseUpdate):
-    action: Literal['add-view-version']
-    view_version: ViewVersion = Field(..., alias='view-version')
-
-
-class SetCurrentViewVersionUpdate(BaseUpdate):
-    action: Literal['set-current-view-version']
-    view_version_id: int = Field(
-        ...,
-        alias='view-version-id',
-        description='The view version id to set as current, or -1 to set last added view version id',
-    )
-
-
-class RemoveStatisticsUpdate(BaseUpdate):
-    action: Literal['remove-statistics']
-    snapshot_id: int = Field(..., alias='snapshot-id')
-
-
-class RemovePartitionStatisticsUpdate(BaseUpdate):
-    action: Literal['remove-partition-statistics']
-    snapshot_id: int = Field(..., alias='snapshot-id')
-
-
-class RemovePartitionSpecsUpdate(BaseUpdate):
-    action: Optional[Literal['remove-partition-specs']] = None
-    spec_ids: List[int] = Field(..., alias='spec-ids')
-
-
 class AssertCreate(BaseModel):
     """
     The table must not already exist; used for create transactions
@@ -833,52 +714,6 @@ class FileFormat(BaseModel):
     __root__: Literal['avro', 'orc', 'parquet', 'puffin']
 
 
-class ContentFile(BaseModel):
-    content: str
-    file_path: str = Field(..., alias='file-path')
-    file_format: FileFormat = Field(..., alias='file-format')
-    spec_id: int = Field(..., alias='spec-id')
-    partition: List[PrimitiveTypeValue] = Field(
-        ...,
-        description='A list of partition field values ordered based on the fields of the partition spec specified by the `spec-id`',
-        example=[1, 'bar'],
-    )
-    file_size_in_bytes: int = Field(
-        ..., alias='file-size-in-bytes', description='Total file size in bytes'
-    )
-    record_count: int = Field(
-        ..., alias='record-count', description='Number of records in the file'
-    )
-    key_metadata: Optional[BinaryTypeValue] = Field(
-        None, alias='key-metadata', description='Encryption key metadata blob'
-    )
-    split_offsets: Optional[List[int]] = Field(
-        None, alias='split-offsets', description='List of splittable offsets'
-    )
-    sort_order_id: Optional[int] = Field(None, alias='sort-order-id')
-
-
-class PositionDeleteFile(ContentFile):
-    content: Literal['position-deletes']
-    content_offset: Optional[int] = Field(
-        None,
-        alias='content-offset',
-        description='Offset within the delete file of delete content',
-    )
-    content_size_in_bytes: Optional[int] = Field(
-        None,
-        alias='content-size-in-bytes',
-        description='Length, in bytes, of the delete content; required if content-offset is present',
-    )
-
-
-class EqualityDeleteFile(ContentFile):
-    content: Literal['equality-deletes']
-    equality_ids: Optional[List[int]] = Field(
-        None, alias='equality-ids', description='List of equality field IDs'
-    )
-
-
 class FieldName(BaseModel):
     __root__: str = Field(
         ...,
@@ -891,6 +726,37 @@ class PlanTask(BaseModel):
         ...,
         description='An opaque string provided by the REST server that represents a unit of work to produce file scan tasks for scan planning. This allows clients to fetch tasks across multiple requests to accommodate large result sets.',
     )
+
+
+class ContentEnum(BaseModel):
+    __root__: Literal['data', 'equality-deletes', 'position-deletes']
+
+
+class ActionEnum(BaseModel):
+    __root__: Literal[
+        'add-spec',
+        'add-schema',
+        'add-snapshot',
+        'add-sort-order',
+        'add-view-version',
+        'assign-uuid',
+        'remove-partition-specs',
+        'remove-partition-statistics',
+        'remove-properties',
+        'remove-snapshot-ref',
+        'remove-snapshots',
+        'remove-statistics',
+        'set-current-schema',
+        'set-current-view-version',
+        'set-default-sort-order',
+        'set-default-spec',
+        'set-location',
+        'set-partition-statistics',
+        'set-properties',
+        'set-snapshot-ref',
+        'set-statistics',
+        'upgrade-format-version',
+    ]
 
 
 class CreateNamespaceRequest(BaseModel):
@@ -913,11 +779,130 @@ class TransformTerm(BaseModel):
     term: Reference
 
 
+class BaseUpdate(BaseModel):
+    action: ActionEnum
+
+
+class AssignUUIDUpdate(BaseUpdate):
+    """
+    Assigning a UUID to a table/view should only be done when creating the table/view. It is not safe to re-assign the UUID if a table/view already has a UUID assigned
+    """
+
+    action: ActionEnum
+    uuid: str
+
+
+class UpgradeFormatVersionUpdate(BaseUpdate):
+    action: ActionEnum
+    format_version: int = Field(..., alias='format-version')
+
+
+class SetCurrentSchemaUpdate(BaseUpdate):
+    action: ActionEnum
+    schema_id: int = Field(
+        ...,
+        alias='schema-id',
+        description='Schema ID to set as current, or -1 to set last added schema',
+    )
+
+
+class AddPartitionSpecUpdate(BaseUpdate):
+    action: ActionEnum
+    spec: PartitionSpec
+
+
+class SetDefaultSpecUpdate(BaseUpdate):
+    action: ActionEnum
+    spec_id: int = Field(
+        ...,
+        alias='spec-id',
+        description='Partition spec ID to set as the default, or -1 to set last added spec',
+    )
+
+
+class AddSortOrderUpdate(BaseUpdate):
+    action: ActionEnum
+    sort_order: SortOrder = Field(..., alias='sort-order')
+
+
+class SetDefaultSortOrderUpdate(BaseUpdate):
+    action: ActionEnum
+    sort_order_id: int = Field(
+        ...,
+        alias='sort-order-id',
+        description='Sort order ID to set as the default, or -1 to set last added sort order',
+    )
+
+
+class AddSnapshotUpdate(BaseUpdate):
+    action: ActionEnum
+    snapshot: Snapshot
+
+
+class SetSnapshotRefUpdate(BaseUpdate, SnapshotReference):
+    action: ActionEnum
+    ref_name: str = Field(..., alias='ref-name')
+
+
+class RemoveSnapshotsUpdate(BaseUpdate):
+    action: ActionEnum
+    snapshot_ids: List[int] = Field(..., alias='snapshot-ids')
+
+
+class RemoveSnapshotRefUpdate(BaseUpdate):
+    action: ActionEnum
+    ref_name: str = Field(..., alias='ref-name')
+
+
+class SetLocationUpdate(BaseUpdate):
+    action: ActionEnum
+    location: str
+
+
+class SetPropertiesUpdate(BaseUpdate):
+    action: ActionEnum
+    updates: Dict[str, str]
+
+
+class RemovePropertiesUpdate(BaseUpdate):
+    action: ActionEnum
+    removals: List[str]
+
+
+class AddViewVersionUpdate(BaseUpdate):
+    action: ActionEnum
+    view_version: ViewVersion = Field(..., alias='view-version')
+
+
+class SetCurrentViewVersionUpdate(BaseUpdate):
+    action: ActionEnum
+    view_version_id: int = Field(
+        ...,
+        alias='view-version-id',
+        description='The view version id to set as current, or -1 to set last added view version id',
+    )
+
+
+class RemoveStatisticsUpdate(BaseUpdate):
+    action: ActionEnum
+    snapshot_id: int = Field(..., alias='snapshot-id')
+
+
 class SetPartitionStatisticsUpdate(BaseUpdate):
-    action: Literal['set-partition-statistics']
+    action: ActionEnum
     partition_statistics: PartitionStatisticsFile = Field(
         ..., alias='partition-statistics'
     )
+
+
+class RemovePartitionStatisticsUpdate(BaseUpdate):
+    action: ActionEnum
+    snapshot_id: int = Field(..., alias='snapshot-id')
+
+
+class RemovePartitionSpecsUpdate(BaseUpdate):
+    action: Optional[ActionEnum] = None
+    spec_ids: List[int] = Field(..., alias='spec-ids')
 
 
 class TableRequirement(BaseModel):
@@ -981,8 +966,33 @@ class ValueMap(BaseModel):
     )
 
 
+class ContentFile(BaseModel):
+    content: ContentEnum
+    file_path: str = Field(..., alias='file-path')
+    file_format: FileFormat = Field(..., alias='file-format')
+    spec_id: int = Field(..., alias='spec-id')
+    partition: List[PrimitiveTypeValue] = Field(
+        ...,
+        description='A list of partition field values ordered based on the fields of the partition spec specified by the `spec-id`',
+        example=[1, 'bar'],
+    )
+    file_size_in_bytes: int = Field(
+        ..., alias='file-size-in-bytes', description='Total file size in bytes'
+    )
+    record_count: int = Field(
+        ..., alias='record-count', description='Number of records in the file'
+    )
+    key_metadata: Optional[BinaryTypeValue] = Field(
+        None, alias='key-metadata', description='Encryption key metadata blob'
+    )
+    split_offsets: Optional[List[int]] = Field(
+        None, alias='split-offsets', description='List of splittable offsets'
+    )
+    sort_order_id: Optional[int] = Field(None, alias='sort-order-id')
+
+
 class DataFile(ContentFile):
-    content: Literal['data']
+    content: ContentEnum
     column_sizes: Optional[CountMap] = Field(
         None,
         alias='column-sizes',
@@ -1013,9 +1023,24 @@ class DataFile(ContentFile):
     )
 
 
-class DeleteFile(BaseModel):
-    __root__: Union[PositionDeleteFile, EqualityDeleteFile] = Field(
-        ..., discriminator='content'
+class PositionDeleteFile(ContentFile):
+    content: Literal['position-deletes']
+    content_offset: Optional[int] = Field(
+        None,
+        alias='content-offset',
+        description='Offset within the delete file of delete content',
+    )
+    content_size_in_bytes: Optional[int] = Field(
+        None,
+        alias='content-size-in-bytes',
+        description='Length, in bytes, of the delete content; required if content-offset is present',
+    )
+
+
+class EqualityDeleteFile(ContentFile):
+    content: Literal['equality-deletes']
+    equality_ids: Optional[List[int]] = Field(
+        None, alias='equality-ids', description='List of equality field IDs'
     )
 
 
@@ -1028,9 +1053,15 @@ class Term(BaseModel):
 
 
 class SetStatisticsUpdate(BaseUpdate):
-    action: Literal['set-statistics']
+    action: ActionEnum
     snapshot_id: int = Field(..., alias='snapshot-id')
     statistics: StatisticsFile
+
+
+class DeleteFile(BaseModel):
+    __root__: Union[PositionDeleteFile, EqualityDeleteFile] = Field(
+        ..., discriminator='content'
+    )
 
 
 class UnaryExpression(BaseModel):
@@ -1147,7 +1178,7 @@ class ViewMetadata(BaseModel):
 
 
 class AddSchemaUpdate(BaseUpdate):
-    action: Literal['add-schema']
+    action: ActionEnum
     schema_: Schema = Field(..., alias='schema')
     last_column_id: Optional[int] = Field(
         None,
