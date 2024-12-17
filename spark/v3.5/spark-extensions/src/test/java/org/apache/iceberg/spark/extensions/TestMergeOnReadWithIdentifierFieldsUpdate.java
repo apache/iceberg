@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,9 +39,6 @@ import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestMergeOnReadWithIdentifierFieldsUpdate extends TestUpdate {
@@ -212,7 +212,8 @@ public class TestMergeOnReadWithIdentifierFieldsUpdate extends TestUpdate {
   }
 
   private void initTable(String partitionedBy, DeleteGranularity deleteGranularity) {
-    createTableWithDeleteGranularity("id INT NOT NULL, dep STRING", partitionedBy, deleteGranularity);
+    createTableWithDeleteGranularity(
+        "id INT NOT NULL, dep STRING", partitionedBy, deleteGranularity);
 
     sql("ALTER TABLE %s SET IDENTIFIER FIELDS id", tableName);
 

@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,9 +39,6 @@ import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Encoders;
 import org.junit.jupiter.api.TestTemplate;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 public class TestMergeOnReadWithIdentifierFieldsMerge extends TestMerge {
 

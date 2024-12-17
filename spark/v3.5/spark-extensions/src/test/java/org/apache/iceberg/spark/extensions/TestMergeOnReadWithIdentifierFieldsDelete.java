@@ -18,6 +18,13 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
+
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -49,13 +56,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assumptions.assumeThat;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
-
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestMergeOnReadWithIdentifierFieldsDelete extends TestDelete {
 
@@ -72,7 +72,9 @@ public class TestMergeOnReadWithIdentifierFieldsDelete extends TestDelete {
 
   @TestTemplate
   public void testDeleteWithExecutorCacheLocality() throws NoSuchTableException {
-    sql("CREATE TABLE %s (id INT NOT NULL, dep STRING) USING iceberg PARTITIONED BY (dep)", tableName);
+    sql(
+        "CREATE TABLE %s (id INT NOT NULL, dep STRING) USING iceberg PARTITIONED BY (dep)",
+        tableName);
 
     sql("ALTER TABLE %s SET IDENTIFIER FIELDS id", tableName);
 
