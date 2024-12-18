@@ -347,7 +347,6 @@ project(':iceberg-core') {
     implementation libs.jackson.core
     implementation libs.jackson.databind
     implementation libs.caffeine
-    implementation libs.failsafe
     implementation libs.roaringbitmap
     compileOnly(libs.hadoop2.client) {
       exclude group: 'org.apache.avro', module: 'avro'
