@@ -76,6 +76,8 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException;
+import org.apache.spark.sql.connector.catalog.CatalogV2Util;
+import org.apache.spark.sql.connector.catalog.Column;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.NamespaceChange;
 import org.apache.spark.sql.connector.catalog.StagedTable;
@@ -231,6 +233,7 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
+  @Deprecated
   @Override
   public Table createTable(
       Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
@@ -251,6 +254,14 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
+  public Table createTable(
+      Identifier ident, Column[] columns, Transform[] transforms, Map<String, String> properties)
+      throws TableAlreadyExistsException, NoSuchNamespaceException {
+    return createTable(ident, CatalogV2Util.v2ColumnsToStructType(columns), transforms, properties);
+  }
+
+  @Deprecated
+  @Override
   public StagedTable stageCreate(
       Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
       throws TableAlreadyExistsException {
@@ -269,6 +280,14 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
+  @Override
+  public StagedTable stageCreate(
+      Identifier ident, Column[] columns, Transform[] partitions, Map<String, String> properties)
+      throws TableAlreadyExistsException, NoSuchNamespaceException {
+    return stageCreate(ident, CatalogV2Util.v2ColumnsToStructType(columns), partitions, properties);
+  }
+
+  @Deprecated
   @Override
   public StagedTable stageReplace(
       Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
@@ -289,6 +308,15 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
+  public StagedTable stageReplace(
+      Identifier ident, Column[] columns, Transform[] partitions, Map<String, String> properties)
+      throws NoSuchNamespaceException, NoSuchTableException {
+    return stageReplace(
+        ident, CatalogV2Util.v2ColumnsToStructType(columns), partitions, properties);
+  }
+
+  @Deprecated
+  @Override
   public StagedTable stageCreateOrReplace(
       Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties) {
     Schema icebergSchema = SparkSchemaUtil.convert(schema);
@@ -300,6 +328,14 @@ public class SparkCatalog extends BaseCatalog {
             .withProperties(Spark3Util.rebuildCreateProperties(properties))
             .createOrReplaceTransaction();
     return new StagedSparkTable(transaction);
+  }
+
+  @Override
+  public StagedTable stageCreateOrReplace(
+      Identifier ident, Column[] columns, Transform[] partitions, Map<String, String> properties)
+      throws NoSuchNamespaceException {
+    return stageCreateOrReplace(
+        ident, CatalogV2Util.v2ColumnsToStructType(columns), partitions, properties);
   }
 
   @Override
