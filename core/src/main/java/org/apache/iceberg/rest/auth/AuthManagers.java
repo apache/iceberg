@@ -31,7 +31,6 @@ public class AuthManagers {
   private AuthManagers() {}
 
   public static AuthManager loadAuthManager(String name, Map<String, String> properties) {
-
     String authType =
         properties.getOrDefault(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_TYPE_NONE);
 

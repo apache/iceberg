@@ -32,7 +32,6 @@ class TestDefaultAuthSession {
 
   @Test
   void authenticate() {
-
     try (DefaultAuthSession session =
         DefaultAuthSession.of(HTTPHeaders.of(HTTPHeader.of("Authorization", "s3cr3t")))) {
 
@@ -54,7 +53,6 @@ class TestDefaultAuthSession {
 
   @Test
   void authenticateWithConflictingHeader() {
-
     try (DefaultAuthSession session =
         DefaultAuthSession.of(HTTPHeaders.of(HTTPHeader.of("Authorization", "s3cr3t")))) {
 
