@@ -95,9 +95,9 @@ public class StatisticsOrRecordTypeInformation extends TypeInformation<Statistic
       return true;
     } else if (o != null && this.getClass() == o.getClass()) {
       StatisticsOrRecordTypeInformation that = (StatisticsOrRecordTypeInformation) o;
-      return that.sortOrder.equals(this.sortOrder)
-          && that.rowTypeInformation.equals(this.rowTypeInformation)
-          && that.globalStatisticsSerializer.equals(this.globalStatisticsSerializer);
+      return that.sortOrder.equals(sortOrder)
+          && that.rowTypeInformation.equals(rowTypeInformation)
+          && that.globalStatisticsSerializer.equals(globalStatisticsSerializer);
     } else {
       return false;
     }
