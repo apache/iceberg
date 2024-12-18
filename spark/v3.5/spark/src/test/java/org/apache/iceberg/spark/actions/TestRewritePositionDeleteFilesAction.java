@@ -728,6 +728,27 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
   }
 
+  @TestTemplate
+  public void testIgnoreInvalidOptions() {
+    Table table = createTableUnpartitioned(2, SCALE);
+    assertThatThrownBy(
+            () -> {
+              SparkActions.get(spark)
+                  .rewritePositionDeletes(table)
+                  .option("foobarity", "-5")
+                  .execute();
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot use options [foobarity], they are not supported by the action or the rewriter BIN-PACK");
+
+    SparkActions.get(spark)
+        .rewritePositionDeletes(table)
+        .option("ignore-invalid-options", "true")
+        .option("foobarity", "-5")
+        .execute();
+  }
+
   private Table createTablePartitioned(int partitions, int files, int numRecords) {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
     Table table =
