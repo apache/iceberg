@@ -28,4 +28,9 @@ public class NoopAuthManager implements AuthManager {
   public AuthSession mainSession(RESTClient sharedClient, Map<String, String> properties) {
     return AuthSession.EMPTY;
   }
+
+  @Override
+  public void close() {
+    // no resources to close
+  }
 }

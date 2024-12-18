@@ -102,7 +102,5 @@ public interface AuthManager extends AutoCloseable {
    * <p>This method is called when the owning catalog is closed.
    */
   @Override
-  default void close() {
-    // Do nothing
-  }
+  void close();
 }

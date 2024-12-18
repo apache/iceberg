@@ -41,4 +41,9 @@ public final class BasicAuthManager implements AuthManager {
     String credentials = username + ":" + password;
     return DefaultAuthSession.of(HTTPHeaders.of(OAuth2Util.basicAuthHeaders(credentials)));
   }
+
+  @Override
+  public void close() {
+    // no resources to close
+  }
 }
