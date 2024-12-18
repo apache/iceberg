@@ -30,7 +30,16 @@ import org.apache.iceberg.rest.HTTPRequest;
 public interface AuthSession extends AutoCloseable {
 
   /** An empty session that does nothing. */
-  AuthSession EMPTY = request -> request;
+  AuthSession EMPTY =
+      new AuthSession() {
+        @Override
+        public HTTPRequest authenticate(HTTPRequest request) {
+          return request;
+        }
+
+        @Override
+        public void close() {}
+      };
 
   /**
    * Authenticates the given request and returns a new request with the necessary authentication.
@@ -44,7 +53,5 @@ public interface AuthSession extends AutoCloseable {
    * the cache, or the cache itself is closed.
    */
   @Override
-  default void close() {
-    // Do nothing
-  }
+  void close();
 }

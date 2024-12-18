@@ -46,6 +46,11 @@ public interface DefaultAuthSession extends AuthSession {
         : ImmutableHTTPRequest.builder().from(request).headers(headers).build();
   }
 
+  @Override
+  default void close() {
+    // no resources to close
+  }
+
   static DefaultAuthSession of(HTTPHeaders headers) {
     return ImmutableDefaultAuthSession.builder().headers(headers).build();
   }
