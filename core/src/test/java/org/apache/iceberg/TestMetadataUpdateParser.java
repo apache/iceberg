@@ -435,15 +435,16 @@ public class TestMetadataUpdateParser {
     String action = MetadataUpdateParser.REMOVE_SNAPSHOT_REF;
     String snapshotRef = "snapshot-ref";
     String json = "{\"action\":\"remove-snapshot-ref\",\"ref-name\":\"snapshot-ref\"}";
-    MetadataUpdate expected = new MetadataUpdate.RemoveSnapshotRef(snapshotRef);
+    MetadataUpdate expected = new MetadataUpdate.RemoveSnapshotRef(snapshotRef, true);
     assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
   }
 
   @Test
   public void testRemoveSnapshotRefToJson() {
     String snapshotRef = "snapshot-ref";
-    String expected = "{\"action\":\"remove-snapshot-ref\",\"ref-name\":\"snapshot-ref\"}";
-    MetadataUpdate actual = new MetadataUpdate.RemoveSnapshotRef(snapshotRef);
+    String expected =
+        "{\"action\":\"remove-snapshot-ref\",\"ref-name\":\"snapshot-ref\",\"purge\":false}";
+    MetadataUpdate actual = new MetadataUpdate.RemoveSnapshotRef(snapshotRef, false);
     assertThat(MetadataUpdateParser.toJson(actual))
         .as("RemoveSnapshotRef should convert to the correct JSON value")
         .isEqualTo(expected);

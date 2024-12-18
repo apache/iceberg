@@ -1284,9 +1284,15 @@ public class TableMetadata implements Serializable {
     }
 
     public Builder removeRef(String name) {
+      return removeRef(name, true);
+    }
+
+    public Builder removeRef(String name, boolean purge) {
       if (SnapshotRef.MAIN_BRANCH.equals(name)) {
         this.currentSnapshotId = -1;
-        snapshotLog.clear();
+        if (purge) {
+          snapshotLog.clear();
+        }
       }
 
       SnapshotRef ref = refs.remove(name);
@@ -1297,11 +1303,11 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    private Builder resetMainBranch() {
+    public Builder resetMainBranch() {
       this.currentSnapshotId = -1;
       SnapshotRef ref = refs.remove(SnapshotRef.MAIN_BRANCH);
       if (ref != null) {
-        changes.add(new MetadataUpdate.RemoveSnapshotRef(SnapshotRef.MAIN_BRANCH));
+        changes.add(new MetadataUpdate.RemoveSnapshotRef(SnapshotRef.MAIN_BRANCH, false));
       }
 
       return this;

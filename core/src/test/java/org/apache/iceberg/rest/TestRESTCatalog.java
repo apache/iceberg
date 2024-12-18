@@ -38,6 +38,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
@@ -2416,6 +2417,30 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(ImmutableMap.of("pageToken", "20", "pageSize", "10", "namespace", namespaceName)),
             any(),
             eq(ListTablesResponse.class));
+  }
+
+  @Test
+  public void testReplaceTableKeepsSnapshotLog() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    catalog.createTable(TABLE, SCHEMA);
+
+    Table table = catalog.loadTable(TABLE);
+    table.newAppend().appendFile(FILE_A).commit();
+
+    assertThat(((BaseTable) table).operations().current().snapshotLog()).hasSize(1);
+
+    Transaction replaceTableTransaction = catalog.newReplaceTableTransaction(TABLE, SCHEMA, false);
+    replaceTableTransaction.newAppend().appendFile(FILE_A).commit();
+    replaceTableTransaction.commitTransaction();
+
+    table.refresh();
+    assertThat(((BaseTable) table).operations().current().snapshotLog()).hasSize(2);
   }
 
   @Test
