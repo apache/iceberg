@@ -41,7 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
  * <p>Note: This map does not support null keys.
  *
  * @param <V> the type of values
- * @deprecated since 1.8.0, will be removed in 1.9.0. This class does not implement the Map contract
+ * @deprecated since 1.8.0, will be removed in 2.0.0. This class does not implement the Map contract
  *     correctly.
  */
 @Deprecated
