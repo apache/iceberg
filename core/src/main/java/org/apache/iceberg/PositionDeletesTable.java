@@ -110,31 +110,42 @@ public class PositionDeletesTable extends BaseMetadataTable {
   }
 
   private Schema calculateSchema() {
+    int formatVersion = TableUtil.formatVersion(table());
     Types.StructType partitionType = Partitioning.partitionType(table());
-    List<Types.NestedField> columns =
-        ImmutableList.of(
-            MetadataColumns.DELETE_FILE_PATH,
-            MetadataColumns.DELETE_FILE_POS,
-            Types.NestedField.optional(
-                MetadataColumns.DELETE_FILE_ROW_FIELD_ID,
-                MetadataColumns.DELETE_FILE_ROW_FIELD_NAME,
-                table().schema().asStruct(),
-                MetadataColumns.DELETE_FILE_ROW_DOC),
+    ImmutableList.Builder<Types.NestedField> builder =
+        ImmutableList.<Types.NestedField>builder()
+            .add(MetadataColumns.DELETE_FILE_PATH)
+            .add(MetadataColumns.DELETE_FILE_POS);
+    if (formatVersion == 2) {
+      builder.add(
+          Types.NestedField.optional(
+              MetadataColumns.DELETE_FILE_ROW_FIELD_ID,
+              MetadataColumns.DELETE_FILE_ROW_FIELD_NAME,
+              table().schema().asStruct(),
+              MetadataColumns.DELETE_FILE_ROW_DOC));
+    }
+
+    builder
+        .add(
             Types.NestedField.required(
                 MetadataColumns.PARTITION_COLUMN_ID,
                 PARTITION,
                 partitionType,
-                "Partition that position delete row belongs to"),
+                "Partition that position delete row belongs to"))
+        .add(
             Types.NestedField.required(
                 MetadataColumns.SPEC_ID_COLUMN_ID,
                 SPEC_ID,
                 Types.IntegerType.get(),
-                MetadataColumns.SPEC_ID_COLUMN_DOC),
+                MetadataColumns.SPEC_ID_COLUMN_DOC))
+        .add(
             Types.NestedField.required(
                 MetadataColumns.FILE_PATH_COLUMN_ID,
                 DELETE_FILE_PATH,
                 Types.StringType.get(),
                 MetadataColumns.FILE_PATH_COLUMN_DOC));
+
+    List<Types.NestedField> columns = builder.build();
 
     // Calculate used ids (for de-conflict)
     Set<Integer> currentlyUsedIds =
