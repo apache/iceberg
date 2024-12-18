@@ -21,6 +21,7 @@ package org.apache.iceberg.data.parquet;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.GenericDataUtil;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.parquet.ParquetValueReader;
@@ -49,6 +50,11 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
   protected ParquetValueReader<Record> createStructReader(
       List<Type> types, List<ParquetValueReader<?>> fieldReaders, StructType structType) {
     return new RecordReader(types, fieldReaders, structType);
+  }
+
+  @Override
+  protected Object convertConstant(org.apache.iceberg.types.Type type, Object value) {
+    return GenericDataUtil.internalToGeneric(type, value);
   }
 
   private static class RecordReader extends StructReader<Record, Record> {
