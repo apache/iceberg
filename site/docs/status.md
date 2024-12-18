@@ -20,16 +20,16 @@ title: "Implementation Status"
 
 # Implementation Status
 
-Apache iceberg's spec is implemented in multiple languages. This page provides an overview of the current capabilities.
+Apache Iceberg's table specification is implemented in multiple languages. This page provides an overview of the current capabilities.
 
 ## Libraries
 
-This section lists the libraries that implement the iceberg spec.
+This section lists the libraries that implement the Apache Iceberg specification.
 
 - [Java](https://mvnrepository.com/artifact/org.apache.iceberg)
 - [PyIceberg](https://pypi.org/project/pyiceberg/)
 - [Rust](https://crates.io/crates/iceberg)
-- [Go](https://pkg.go.dev/github.com/apache/iceberg)
+- [Go](https://pkg.go.dev/github.com/apache/iceberg-go)
 
 ## Data Types
 
