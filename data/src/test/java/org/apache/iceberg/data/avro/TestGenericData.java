@@ -24,7 +24,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.stream.Stream;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
@@ -35,8 +38,13 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestGenericData extends DataTest {
   @Override
@@ -289,5 +297,45 @@ public class TestGenericData extends DataTest {
                 .build());
 
     writeAndValidate(writeSchema, expectedSchema);
+  }
+
+  private static Stream<Arguments> primitiveTypesAndDefaults() {
+    return Stream.of(
+        Arguments.of(Types.BooleanType.get(), false),
+        Arguments.of(Types.IntegerType.get(), 34),
+        Arguments.of(Types.LongType.get(), 4900000000L),
+        Arguments.of(Types.FloatType.get(), 12.21F),
+        Arguments.of(Types.DoubleType.get(), -0.0D),
+        Arguments.of(Types.DateType.get(), DateTimeUtil.isoDateToDays("2024-12-17")),
+        Arguments.of(Types.TimeType.get(), DateTimeUtil.isoTimeToMicros("23:59:59.999999")),
+        Arguments.of(
+            Types.TimestampType.withZone(),
+            DateTimeUtil.isoTimestamptzToMicros("2024-12-17T23:59:59.999999+00:00")),
+        Arguments.of(
+            Types.TimestampType.withoutZone(),
+            DateTimeUtil.isoTimestampToMicros("2024-12-17T23:59:59.999999")),
+        Arguments.of(Types.StringType.get(), "iceberg"),
+        Arguments.of(
+            Types.FixedType.ofLength(4), ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d})),
+        Arguments.of(Types.BinaryType.get(), ByteBuffer.wrap(new byte[] {0x0a, 0x0b})),
+        Arguments.of(Types.DecimalType.of(9, 2), new BigDecimal("12.34")));
+  }
+
+  @ParameterizedTest
+  @MethodSource("primitiveTypesAndDefaults")
+  public void testPrimitiveTypeDefaultValues(Type.PrimitiveType type, Object defaultValue)
+      throws IOException {
+    Schema writeSchema = new Schema(required(1, "id", Types.LongType.get()));
+
+    Schema readSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("col_with_default")
+                .withId(2)
+                .ofType(type)
+                .withInitialDefault(defaultValue)
+                .build());
+
+    writeAndValidate(writeSchema, readSchema);
   }
 }

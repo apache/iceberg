@@ -76,6 +76,10 @@ public abstract class BaseParquetReaders<T> {
   protected abstract ParquetValueReader<T> createStructReader(
       List<Type> types, List<ParquetValueReader<?>> fieldReaders, Types.StructType structType);
 
+  protected Object convertConstant(org.apache.iceberg.types.Type type, Object value) {
+    return value;
+  }
+
   private class FallbackReadBuilder extends ReadBuilder {
     private FallbackReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
       super(type, idToConstant);
@@ -283,7 +287,7 @@ public abstract class BaseParquetReaders<T> {
         } else if (field.initialDefault() != null) {
           reorderedFields.add(
               ParquetValueReaders.constant(
-                  field.initialDefault(),
+                  convertConstant(field.type(), field.initialDefault()),
                   maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel)));
           types.add(typesById.get(id));
         } else if (field.isOptional()) {

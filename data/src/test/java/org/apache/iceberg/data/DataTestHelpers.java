@@ -36,7 +36,10 @@ public class DataTestHelpers {
         assertEquals(
             field.type(), expected.getField(expectedField.name()), actual.getField(field.name()));
       } else {
-        assertThat(actual.getField(field.name())).isEqualTo(field.initialDefault());
+        assertEquals(
+            field.type(),
+            GenericDataUtil.internalToGeneric(field.type(), field.initialDefault()),
+            actual.getField(field.name()));
       }
     }
   }
