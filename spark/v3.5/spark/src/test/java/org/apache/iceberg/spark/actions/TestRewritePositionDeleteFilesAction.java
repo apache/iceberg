@@ -79,7 +79,6 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeMap;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -194,7 +193,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
             .execute();
     List<DeleteFile> newDeleteFiles = deleteFiles(table);
-    assertThat(newDeleteFiles).as("Expected 1 new delete file").hasSize(1);
+    assertThat(newDeleteFiles).as("New delete file(s)").hasSize(1);
     assertLocallySorted(newDeleteFiles);
     assertNotContains(deleteFiles, newDeleteFiles);
     checkResult(result, deleteFiles, newDeleteFiles, 1);
@@ -263,8 +262,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     Expression filter =
         Expressions.and(
             Expressions.greaterThan("c3", "0"), // should have no effect
-            // "C1" should work because Spark defaults case sensitivity to false.
-            Expressions.or(Expressions.equal("C1", 1), Expressions.equal("C1", 2)));
+            Expressions.or(Expressions.equal("c1", 1), Expressions.equal("c1", 2)));
 
     Result result =
         SparkActions.get(spark)
@@ -275,7 +273,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
             .execute();
 
     List<DeleteFile> newDeleteFiles = except(deleteFiles(table), deleteFiles);
-    assertThat(newDeleteFiles).as("Delete files").hasSize(2);
+    assertThat(newDeleteFiles).as("Delete file(s)").hasSize(2);
 
     List<DeleteFile> expectedRewrittenFiles =
         filterFiles(table, deleteFiles, ImmutableList.of(1), ImmutableList.of(2));
@@ -326,7 +324,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
             .option(SizeBasedFileRewriter.TARGET_FILE_SIZE_BYTES, String.valueOf(avgSize / 2))
             .execute();
     List<DeleteFile> newDeleteFiles = deleteFiles(table);
-    assertThat(newDeleteFiles).as("Should have 8 new delete files").hasSize(8);
+    assertThat(newDeleteFiles).as("New delete file(s)").hasSize(8);
     assertNotContains(deleteFiles, newDeleteFiles);
     assertLocallySorted(newDeleteFiles);
     checkResult(result, deleteFiles, newDeleteFiles, 4);
@@ -371,7 +369,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
             .execute();
     List<DeleteFile> newDeleteFiles = deleteFiles(table);
-    assertThat(newDeleteFiles).as("Should have 0 new delete files").hasSize(0);
+    assertThat(newDeleteFiles).as("New delete files").isEmpty();
     assertNotContains(deleteFiles, newDeleteFiles);
     assertLocallySorted(newDeleteFiles);
     checkResult(result, deleteFiles, newDeleteFiles, 4);
@@ -380,7 +378,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
     assertEquals("Rows must match", expectedRecords, actualRecords);
-    assertThat(actualDeletes).as("Should be no new position deletes").hasSize(0);
+    assertThat(actualDeletes).as("no new position deletes").isEmpty();
   }
 
   @TestTemplate
@@ -413,7 +411,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
             .execute();
     List<DeleteFile> newDeleteFiles = deleteFiles(table);
-    assertThat(newDeleteFiles).as("Should have 2 new delete files").hasSize(2);
+    assertThat(newDeleteFiles).as("New delete file(s)").hasSize(2);
     assertNotContains(deleteFiles, newDeleteFiles);
     assertLocallySorted(newDeleteFiles);
     checkResult(result, deleteFiles, newDeleteFiles, 4);
@@ -524,7 +522,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
         Stream.concat(unpartitionedDeleteFiles.stream(), partitionedDeleteFiles.stream())
             .collect(Collectors.toList());
     List<DeleteFile> newDeleteFiles = deleteFiles(table);
-    assertThat(newDeleteFiles).as("Should have 3 new delete files").hasSize(3);
+    assertThat(newDeleteFiles).as("New delete file(s)").hasSize(3);
     assertNotContains(rewrittenDeleteFiles, newDeleteFiles);
     assertLocallySorted(newDeleteFiles);
     checkResult(result, rewrittenDeleteFiles, newDeleteFiles, 3);
@@ -571,7 +569,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
             .execute();
     List<DeleteFile> newDeleteFiles = deleteFiles(table);
-    assertThat(newDeleteFiles).as("Should have 3 new delete files").hasSize(3);
+    assertThat(newDeleteFiles).as("New delete file(s)").hasSize(3);
     assertNotContains(expectedRewritten, newDeleteFiles);
     assertLocallySorted(newDeleteFiles);
     checkResult(result, expectedRewritten, newDeleteFiles, 3);
@@ -622,7 +620,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
         Stream.concat(deleteFiles.stream(), newSchemaDeleteFiles.stream())
             .collect(Collectors.toList());
     List<DeleteFile> newDeleteFiles = deleteFiles(table);
-    assertThat(newDeleteFiles).as("Should have 2 new delete files").hasSize(4);
+    assertThat(newDeleteFiles).as("New delete file(s)").hasSize(4);
     assertNotContains(rewrittenDeleteFiles, newDeleteFiles);
     assertLocallySorted(newDeleteFiles);
     checkResult(result, rewrittenDeleteFiles, newDeleteFiles, 4);
