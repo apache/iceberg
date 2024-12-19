@@ -149,24 +149,21 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
   @Override
   public VectorizedReader<?> primitive(
       org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
+
     // Create arrow vector for this field
     if (primitive.getId() == null) {
       return null;
     }
-
     int parquetFieldId = primitive.getId().intValue();
-
     ColumnDescriptor desc = parquetSchema.getColumnDescription(currentPath());
     // Nested types not yet supported for vectorized reads
     if (desc.getMaxRepetitionLevel() > 0) {
       return null;
     }
-
     Types.NestedField icebergField = icebergSchema.findField(parquetFieldId);
     if (icebergField == null) {
       return null;
     }
-
     // Set the validity buffer if null checking is enabled in arrow
     return new VectorizedArrowReader(desc, icebergField, rootAllocator, setArrowValidityVector);
   }

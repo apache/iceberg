@@ -172,7 +172,6 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     if (reuseContainers) {
       readBuilder.reuseContainers();
     }
-
     try (CloseableIterable<ColumnarBatch> batchReader = readBuilder.build()) {
       Iterator<GenericData.Record> expectedIter = expected.iterator();
       Iterator<ColumnarBatch> batches = batchReader.iterator();
@@ -182,7 +181,6 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         numRowsRead += batch.numRows();
         TestHelpers.assertEqualsBatch(schema.asStruct(), expectedIter, batch);
       }
-
       assertThat(numRowsRead).isEqualTo(expectedSize);
     }
   }
