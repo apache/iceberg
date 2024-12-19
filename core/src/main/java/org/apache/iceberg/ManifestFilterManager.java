@@ -363,6 +363,10 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   }
 
   private boolean canContainDeletedFiles(ManifestFile manifest, boolean trustManifestReferences) {
+    if (manifest.minSequenceNumber() > 0 && manifest.minSequenceNumber() < minSequenceNumber) {
+      return true;
+    }
+
     if (hasNoLiveFiles(manifest)) {
       return false;
     }
