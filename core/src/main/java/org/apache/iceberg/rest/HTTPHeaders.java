@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -83,6 +84,15 @@ public interface HTTPHeaders {
 
   static HTTPHeaders of(HTTPHeader... headers) {
     return ImmutableHTTPHeaders.builder().addEntries(headers).build();
+  }
+
+  static HTTPHeaders of(Map<String, String> headers) {
+    return ImmutableHTTPHeaders.builder()
+        .entries(
+            headers.entrySet().stream()
+                .map(e -> HTTPHeader.of(e.getKey(), e.getValue()))
+                .collect(Collectors.toList()))
+        .build();
   }
 
   /** Represents an HTTP header as a name-value pair. */
