@@ -33,8 +33,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
+import org.apache.spark.sql.connector.catalog.Column;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
@@ -91,10 +93,18 @@ public class SparkCachedTableCatalog implements TableCatalog, SupportsFunctions 
     throw new UnsupportedOperationException(CLASS_NAME + " does not support table invalidation");
   }
 
+  @Deprecated
   @Override
   public SparkTable createTable(
       Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties)
       throws TableAlreadyExistsException {
+    throw new UnsupportedOperationException(CLASS_NAME + " does not support creating tables");
+  }
+
+  @Override
+  public org.apache.spark.sql.connector.catalog.Table createTable(
+      Identifier ident, Column[] columns, Transform[] partitions, Map<String, String> properties)
+      throws TableAlreadyExistsException, NoSuchNamespaceException {
     throw new UnsupportedOperationException(CLASS_NAME + " does not support creating tables");
   }
 
