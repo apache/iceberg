@@ -1672,7 +1672,10 @@ Some of them are also used to represent partition-level metrics, in [Optional Pa
 Snapshot summary can include partition-level summary statistics. These fields provide metrics for individual partitions. If included, the following fields should be used
 
 *   `partition-summaries-included`: A string field with values `"true"` or `"false"`. It should be set to `"true"` if the number of changed partitions is below the limit defined by the write.summary.partition-limit configuration.
-*   `partitions.<partition path>`: A prefix for partition-level metrics, appended with the string representation of the partition path. The values are string maps containing partition metrics, which include some fields from [Optional Metrics](#optional-metrics).
+*   `partitions.<partition path>`: A prefix for partition-level metrics, appended with the string representation of the partition path[1]. The values are string maps containing partition metrics, which include some fields from [Optional Metrics](#optional-metrics).
+
+Notes:
+1. Partition paths are written as Hive partition paths in the format `<partition field name>=<partition value>`. For multiple partitions, they are separated by `/` (e.g., `year=2023/month=12/day=19`).
 
 ### Other Fields
 
@@ -1682,4 +1685,3 @@ Snapshot summary can include partition-level summary statistics. These fields pr
 | **`published-wap-id`**   | "12345678" | The Write-Audit-Publish id of a snapshot already been published |
 | **`source-snapshot-id`** | "12345678" | The id of the snapshot picked to be cherry-picked               |
 | **`replace-partitions`** | `true`     | Whether the operation is `ReplacePartitions`                    |
-
