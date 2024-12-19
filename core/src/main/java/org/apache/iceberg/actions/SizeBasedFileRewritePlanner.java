@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -36,7 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A file rewriter that determines which files to rewrite based on their size.
+ * A file rewrite planner that determines which files to rewrite based on their size.
  *
  * <p>If files are smaller than the {@link #MIN_FILE_SIZE_BYTES} threshold or larger than the {@link
  * #MAX_FILE_SIZE_BYTES} threshold, they are considered targets for being rewritten.
@@ -47,15 +46,15 @@ import org.slf4j.LoggerFactory;
  * {@link #TARGET_FILE_SIZE_BYTES}.
  *
  * <p>Note that implementations may add extra conditions for selecting files or filtering groups.
- *
- * @deprecated since 1.8.0, will be removed in 1.9.0; use {@link SizeBasedFileRewritePlanner} and
- *     {@link FileRewriteExecutor}.
  */
-@Deprecated
-public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F extends ContentFile<F>>
-    implements FileRewriter<T, F> {
+public abstract class SizeBasedFileRewritePlanner<
+        I,
+        T extends ContentScanTask<F>,
+        F extends ContentFile<F>,
+        G extends FileRewriteGroup<I, T, F>>
+    implements FileRewritePlanner<I, T, F, G> {
 
-  private static final Logger LOG = LoggerFactory.getLogger(SizeBasedFileRewriter.class);
+  private static final Logger LOG = LoggerFactory.getLogger(SizeBasedFileRewritePlanner.class);
 
   /** The target output file size that this file rewriter will attempt to generate. */
   public static final String TARGET_FILE_SIZE_BYTES = "target-file-size-bytes";
@@ -106,7 +105,7 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
 
   public static final long MAX_FILE_GROUP_SIZE_BYTES_DEFAULT = 100L * 1024 * 1024 * 1024; // 100 GB
 
-  private static final long SPLIT_OVERHEAD = 5 * 1024;
+  private static final long SPLIT_OVERHEAD = 5L * 1024;
 
   private final Table table;
   private long targetFileSize;
@@ -115,22 +114,20 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
   private int minInputFiles;
   private boolean rewriteAll;
   private long maxGroupSize;
-
   private int outputSpecId;
 
-  protected SizeBasedFileRewriter(Table table) {
+  protected SizeBasedFileRewritePlanner(Table table) {
     this.table = table;
   }
 
+  /** Expected target file size before configuration. */
   protected abstract long defaultTargetFileSize();
 
+  /** Additional filter for tasks before grouping. */
   protected abstract Iterable<T> filterFiles(Iterable<T> tasks);
 
+  /** Additional filter for groups. */
   protected abstract Iterable<List<T>> filterFileGroups(List<List<T>> groups);
-
-  protected Table table() {
-    return table;
-  }
 
   @Override
   public Set<String> validOptions() {
@@ -149,7 +146,6 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
     this.targetFileSize = sizeThresholds.get(TARGET_FILE_SIZE_BYTES);
     this.minFileSize = sizeThresholds.get(MIN_FILE_SIZE_BYTES);
     this.maxFileSize = sizeThresholds.get(MAX_FILE_SIZE_BYTES);
-
     this.minInputFiles = minInputFiles(options);
     this.rewriteAll = rewriteAll(options);
     this.maxGroupSize = maxGroupSize(options);
@@ -160,12 +156,15 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
     }
   }
 
+  protected Table table() {
+    return table;
+  }
+
   protected boolean wronglySized(T task) {
     return task.length() < minFileSize || task.length() > maxFileSize;
   }
 
-  @Override
-  public Iterable<List<T>> planFileGroups(Iterable<T> tasks) {
+  protected Iterable<List<T>> planFileGroups(Iterable<T> tasks) {
     Iterable<T> filteredTasks = rewriteAll ? tasks : filterFiles(tasks);
     BinPacking.ListPacker<T> packer = new BinPacking.ListPacker<>(maxGroupSize, 1, false);
     List<List<T>> groups = packer.pack(filteredTasks, ContentScanTask::length);
@@ -199,10 +198,8 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
     long estimatedSplitSize = (inputSize / numOutputFiles(inputSize)) + SPLIT_OVERHEAD;
     if (estimatedSplitSize < targetFileSize) {
       return targetFileSize;
-    } else if (estimatedSplitSize > writeMaxFileSize()) {
-      return writeMaxFileSize();
     } else {
-      return estimatedSplitSize;
+      return Math.min(estimatedSplitSize, writeMaxFileSize());
     }
   }
 
@@ -220,7 +217,7 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
    * @param inputSize a total input size for a file group
    * @return the number of files this rewriter should create
    */
-  protected long numOutputFiles(long inputSize) {
+  protected int numOutputFiles(long inputSize) {
     if (inputSize < targetFileSize) {
       return 1;
     }
@@ -231,18 +228,17 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
 
     if (LongMath.mod(inputSize, targetFileSize) > minFileSize) {
       // the remainder file is of a valid size for this rewrite so keep it
-      return numFilesWithRemainder;
+      return (int) numFilesWithRemainder;
 
-    } else if (avgFileSizeWithoutRemainder
-        < Math.min(1.1 * targetFileSize, (double) writeMaxFileSize())) {
+    } else if (avgFileSizeWithoutRemainder < Math.min(1.1 * targetFileSize, writeMaxFileSize())) {
       // if the reminder is distributed amongst other files,
       // the average file size will be no more than 10% bigger than the target file size
       // so round down and distribute remainder amongst other files
-      return numFilesWithoutRemainder;
+      return (int) numFilesWithoutRemainder;
 
     } else {
       // keep the remainder file as it is not OK to distribute it amongst other files
-      return numFilesWithRemainder;
+      return (int) numFilesWithRemainder;
     }
   }
 
@@ -265,10 +261,6 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
    */
   protected long writeMaxFileSize() {
     return (long) (targetFileSize + ((maxFileSize - targetFileSize) * 0.5));
-  }
-
-  protected PartitionSpec outputSpec() {
-    return table.specs().get(outputSpecId);
   }
 
   protected int outputSpecId() {
