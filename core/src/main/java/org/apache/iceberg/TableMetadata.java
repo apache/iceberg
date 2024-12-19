@@ -1297,7 +1297,7 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    private Builder resetMainBranch() {
+    protected Builder resetMainBranch() {
       this.currentSnapshotId = -1;
       SnapshotRef ref = refs.remove(SnapshotRef.MAIN_BRANCH);
       if (ref != null) {
