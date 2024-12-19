@@ -43,7 +43,7 @@ public interface AuthManager extends AutoCloseable {
    * <p>This method cannot return null. By default, it returns the catalog session.
    */
   default AuthSession initSession(RESTClient initClient, Map<String, String> properties) {
-    return mainSession(initClient, properties);
+    return catalogSession(initClient, properties);
   }
 
   /**
@@ -60,7 +60,7 @@ public interface AuthManager extends AutoCloseable {
    * <p>It is not required to cache the returned session internally, as the catalog will keep it
    * alive for the lifetime of the catalog.
    */
-  AuthSession mainSession(RESTClient sharedClient, Map<String, String> properties);
+  AuthSession catalogSession(RESTClient sharedClient, Map<String, String> properties);
 
   /**
    * Returns a session for a specific context.

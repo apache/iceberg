@@ -27,7 +27,7 @@ import org.apache.iceberg.rest.RESTClient;
 public final class BasicAuthManager implements AuthManager {
 
   @Override
-  public AuthSession mainSession(RESTClient sharedClient, Map<String, String> properties) {
+  public AuthSession catalogSession(RESTClient sharedClient, Map<String, String> properties) {
     Preconditions.checkArgument(
         properties.containsKey(AuthProperties.BASIC_USERNAME),
         "Invalid username: missing required property %s",

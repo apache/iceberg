@@ -25,7 +25,7 @@ import org.apache.iceberg.rest.RESTClient;
 public class NoopAuthManager implements AuthManager {
 
   @Override
-  public AuthSession mainSession(RESTClient sharedClient, Map<String, String> properties) {
+  public AuthSession catalogSession(RESTClient sharedClient, Map<String, String> properties) {
     return AuthSession.EMPTY;
   }
 
