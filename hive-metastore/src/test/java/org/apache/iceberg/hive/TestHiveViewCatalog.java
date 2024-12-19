@@ -126,6 +126,34 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
   }
 
   @Test
+  public void testHiveViewExists() {
+    String dbName = "hivedb";
+    Namespace ns = Namespace.of(dbName);
+    String viewName = "test_hive_view_exists";
+    TableIdentifier identifier = TableIdentifier.of(ns, viewName);
+    TableIdentifier invalidIdentifier = TableIdentifier.of(dbName, "invalid", viewName);
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog.viewExists(invalidIdentifier))
+        .as("Should return false on invalid view identifier")
+        .isFalse();
+    assertThat(catalog.viewExists(identifier)).as("View should not exist before create").isFalse();
+
+    catalog
+        .buildView(identifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(ns)
+        .withQuery("hive", "select * from hivedb.tbl")
+        .create();
+    assertThat(catalog.viewExists(identifier)).as("View should exist after create").isTrue();
+
+    catalog.dropView(identifier);
+    assertThat(catalog.viewExists(identifier)).as("View should not exist after drop").isFalse();
+  }
+
+  @Test
   public void testListViewWithHiveView() throws TException, IOException {
     String dbName = "hivedb";
     Namespace ns = Namespace.of(dbName);
