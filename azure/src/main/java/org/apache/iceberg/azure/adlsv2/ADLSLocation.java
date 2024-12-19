@@ -49,6 +49,7 @@ class ADLSLocation {
   private final String storageAccount;
   private final String container;
   private final String path;
+  private final String host;
 
   /**
    * Creates a new ADLSLocation from a fully qualified URI.
@@ -66,10 +67,11 @@ class ADLSLocation {
     String[] parts = authority.split("@", -1);
     if (parts.length > 1) {
       this.container = parts[0];
-      String host = parts[1];
+      this.host = parts[1];
       this.storageAccount = host.split("\\.", -1)[0];
     } else {
       this.container = null;
+      this.host = authority;
       this.storageAccount = authority.split("\\.", -1)[0];
     }
 
@@ -90,5 +92,10 @@ class ADLSLocation {
   /** Returns ADLS path. */
   public String path() {
     return path;
+  }
+
+  /** Returns ADLS host. */
+  public String host() {
+    return host;
   }
 }

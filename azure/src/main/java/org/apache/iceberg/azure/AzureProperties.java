@@ -81,11 +81,9 @@ public class AzureProperties implements Serializable {
    * Applies configuration to the {@link DataLakeFileSystemClientBuilder} to provide the endpoint
    * and credentials required to create an instance of the client.
    *
-   * <p>The default endpoint is constructed in the form {@code
-   * https://{account}.dfs.core.windows.net} and default credentials are provided via the {@link
-   * com.azure.identity.DefaultAzureCredential}.
+   * <p>Default credentials are provided via the {@link com.azure.identity.DefaultAzureCredential}.
    *
-   * @param account the service account name
+   * @param account the service account key (e.g. a hostname or storage account key to get values)
    * @param builder the builder instance
    */
   public void applyClientConfiguration(String account, DataLakeFileSystemClientBuilder builder) {
@@ -104,7 +102,7 @@ public class AzureProperties implements Serializable {
     if (connectionString != null && !connectionString.isEmpty()) {
       builder.endpoint(connectionString);
     } else {
-      builder.endpoint("https://" + account + ".dfs.core.windows.net");
+      builder.endpoint("https://" + account);
     }
   }
 }
