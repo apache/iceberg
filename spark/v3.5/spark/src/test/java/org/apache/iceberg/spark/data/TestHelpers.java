@@ -79,6 +79,8 @@ import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.TimestampNTZType;
+import org.apache.spark.sql.types.TimestampType$;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 import scala.collection.Seq;
@@ -763,6 +765,12 @@ public class TestHelpers {
     for (int i = 0; i < actual.numFields(); i += 1) {
       StructField field = struct.fields()[i];
       DataType type = field.dataType();
+      // ColumnarRow.get doesn't support TimestampNTZType, causing tests to fail. the representation
+      // is identical to TimestampType so this uses that type to validate.
+      if (type instanceof TimestampNTZType) {
+        type = TimestampType$.MODULE$;
+      }
+
       assertEquals(
           context + "." + field.name(),
           type,
