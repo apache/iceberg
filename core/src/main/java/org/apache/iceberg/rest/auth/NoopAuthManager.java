@@ -24,6 +24,10 @@ import org.apache.iceberg.rest.RESTClient;
 /** An auth manager that does not add any authentication data to outgoing HTTP requests. */
 public class NoopAuthManager implements AuthManager {
 
+  public NoopAuthManager(String ignored) {
+    // no-op
+  }
+
   @Override
   public AuthSession catalogSession(RESTClient sharedClient, Map<String, String> properties) {
     return AuthSession.EMPTY;

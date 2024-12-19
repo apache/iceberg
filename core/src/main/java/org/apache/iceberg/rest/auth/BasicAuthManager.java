@@ -26,6 +26,10 @@ import org.apache.iceberg.rest.RESTClient;
 /** An auth manager that adds static BASIC authentication data to outgoing HTTP requests. */
 public final class BasicAuthManager implements AuthManager {
 
+  public BasicAuthManager(String ignored) {
+    // no-op
+  }
+
   @Override
   public AuthSession catalogSession(RESTClient sharedClient, Map<String, String> properties) {
     Preconditions.checkArgument(

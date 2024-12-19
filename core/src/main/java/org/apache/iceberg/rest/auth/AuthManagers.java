@@ -53,7 +53,6 @@ public class AuthManagers {
           DynConstructors.builder(AuthManager.class)
               .loader(AuthManagers.class.getClassLoader())
               .impl(impl, String.class) // with name
-              .impl(impl) // without name
               .buildChecked();
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(

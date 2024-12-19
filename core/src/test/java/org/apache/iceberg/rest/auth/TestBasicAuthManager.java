@@ -29,7 +29,7 @@ class TestBasicAuthManager {
 
   @Test
   void missingUsername() {
-    try (AuthManager authManager = new BasicAuthManager()) {
+    try (AuthManager authManager = new BasicAuthManager("test")) {
       assertThatThrownBy(() -> authManager.catalogSession(null, Map.of()))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessage(
@@ -39,7 +39,7 @@ class TestBasicAuthManager {
 
   @Test
   void missingPassword() {
-    try (AuthManager authManager = new BasicAuthManager()) {
+    try (AuthManager authManager = new BasicAuthManager("test")) {
       Map<String, String> properties = Map.of(AuthProperties.BASIC_USERNAME, "alice");
       assertThatThrownBy(() -> authManager.catalogSession(null, properties))
           .isInstanceOf(IllegalArgumentException.class)
@@ -52,7 +52,7 @@ class TestBasicAuthManager {
   void success() {
     Map<String, String> properties =
         Map.of(AuthProperties.BASIC_USERNAME, "alice", AuthProperties.BASIC_PASSWORD, "secret");
-    try (AuthManager authManager = new BasicAuthManager();
+    try (AuthManager authManager = new BasicAuthManager("test");
         AuthSession session = authManager.catalogSession(null, properties)) {
       assertThat(session)
           .isEqualTo(
