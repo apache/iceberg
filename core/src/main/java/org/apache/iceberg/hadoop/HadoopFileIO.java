@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -34,6 +35,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
+import org.apache.iceberg.io.FileInfoSummary;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -190,6 +192,29 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
     if (failureCount.get() != 0) {
       throw new BulkDeletionFailureException(failureCount.get());
+    }
+  }
+
+  @Override
+  public void deleteFilesWithSummary(Iterable<FileInfoSummary> filesToDelete)
+      throws BulkDeletionFailureException {
+    AtomicInteger failureCount = new AtomicInteger(0);
+    AtomicLong failureFileSize = new AtomicLong(0);
+    Tasks.foreach(filesToDelete)
+        .executeWith(executorService())
+        .retry(DELETE_RETRY_ATTEMPTS)
+        .stopRetryOn(FileNotFoundException.class)
+        .suppressFailureWhenFinished()
+        .onFailure(
+            (f, e) -> {
+              LOG.error("Failure during bulk delete on file: {} ", f.location(), e);
+              failureCount.incrementAndGet();
+              failureFileSize.addAndGet(f.size());
+            })
+        .run(fileInfo -> deleteFile(fileInfo.location()));
+
+    if (failureCount.get() != 0) {
+      throw new BulkDeletionFailureException(failureCount.get(), failureFileSize.get());
     }
   }
 

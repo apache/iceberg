@@ -22,6 +22,7 @@ import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.lit;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -51,6 +52,7 @@ import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileInfoSummary;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -252,8 +254,14 @@ abstract class BaseSparkAction<ThisT> {
             fileInfo -> {
               String path = fileInfo.getPath();
               String type = fileInfo.getType();
-              deleteFunc.accept(path);
-              summary.deletedFile(path, type);
+              if (fileInfo instanceof RichFileInfo) {
+                long sizeInBytes = ((RichFileInfo) fileInfo).sizeInBytes();
+                deleteFunc.accept(path);
+                summary.deletedFile(path, type, sizeInBytes);
+              } else {
+                deleteFunc.accept(path);
+                summary.deletedFile(path, type, 0); // Size unknown
+              }
             });
 
     return summary;
@@ -274,19 +282,33 @@ abstract class BaseSparkAction<ThisT> {
       List<FileInfo> fileGroup, SupportsBulkOperations io, DeleteSummary summary) {
 
     ListMultimap<String, FileInfo> filesByType = Multimaps.index(fileGroup, FileInfo::getType);
-    ListMultimap<String, String> pathsByType =
-        Multimaps.transformValues(filesByType, FileInfo::getPath);
+    long deletedFilesSize = 0L;
 
-    for (Map.Entry<String, Collection<String>> entry : pathsByType.asMap().entrySet()) {
+    for (Map.Entry<String, Collection<FileInfo>> entry : filesByType.asMap().entrySet()) {
       String type = entry.getKey();
-      Collection<String> paths = entry.getValue();
+      Collection<FileInfo> fileInfos = entry.getValue();
+
+      List<FileInfoSummary> inputs = new ArrayList<>();
+      for (FileInfo info : fileInfos) {
+        if (info instanceof RichFileInfo) {
+          var fileSummary =
+              new FileInfoSummary(info.getPath(), ((RichFileInfo) info).sizeInBytes());
+          deletedFilesSize = deletedFilesSize + ((RichFileInfo) info).sizeInBytes();
+          inputs.add(fileSummary);
+        } else {
+          var fileSummary = new FileInfoSummary(info.getPath(), 0);
+          inputs.add(fileSummary);
+        }
+      }
+
       int failures = 0;
       try {
-        io.deleteFiles(paths);
+        io.deleteFilesWithSummary(inputs);
       } catch (BulkDeletionFailureException e) {
         failures = e.numberFailedObjects();
+        deletedFilesSize = deletedFilesSize - e.sizeOfFailedObjects();
       }
-      summary.deletedFiles(type, paths.size() - failures);
+      summary.deletedFiles(type, inputs.size() - failures, deletedFilesSize);
     }
   }
 
@@ -298,8 +320,10 @@ abstract class BaseSparkAction<ThisT> {
     private final AtomicLong manifestListsCount = new AtomicLong(0L);
     private final AtomicLong statisticsFilesCount = new AtomicLong(0L);
     private final AtomicLong otherFilesCount = new AtomicLong(0L);
+    private final AtomicLong totalSizeInBytes = new AtomicLong(0L);
 
-    public void deletedFiles(String type, int numFiles) {
+    public void deletedFiles(String type, int numFiles, long fileSizeInBytes) {
+      totalSizeInBytes.addAndGet(fileSizeInBytes);
       if (FileContent.DATA.name().equalsIgnoreCase(type)) {
         dataFilesCount.addAndGet(numFiles);
 
@@ -326,7 +350,8 @@ abstract class BaseSparkAction<ThisT> {
       }
     }
 
-    public void deletedFile(String path, String type) {
+    public void deletedFile(String path, String type, long fileSizeInBytes) {
+      totalSizeInBytes.addAndGet(fileSizeInBytes);
       if (FileContent.DATA.name().equalsIgnoreCase(type)) {
         dataFilesCount.incrementAndGet();
         LOG.trace("Deleted data file: {}", path);
@@ -388,6 +413,10 @@ abstract class BaseSparkAction<ThisT> {
       return otherFilesCount.get();
     }
 
+    public long totalSizeInBytes() {
+      return totalSizeInBytes.get();
+    }
+
     public long totalFilesCount() {
       return dataFilesCount()
           + positionDeleteFilesCount()
@@ -417,11 +446,15 @@ abstract class BaseSparkAction<ThisT> {
       Map<Integer, PartitionSpec> specs = table.getValue().specs();
       List<String> proj = ImmutableList.of(DataFile.FILE_PATH.name(), DataFile.CONTENT.name());
 
+      List<String> richProj =
+          ImmutableList.of(
+              DataFile.FILE_PATH.name(), DataFile.CONTENT.name(), DataFile.FILE_SIZE.name());
+
       switch (content) {
         case DATA:
           return CloseableIterator.transform(
-              ManifestFiles.read(manifest, io, specs).select(proj).iterator(),
-              ReadManifest::toFileInfo);
+              ManifestFiles.read(manifest, io, specs).select(richProj).iterator(),
+              ReadManifest::toRichFileInfo);
         case DELETES:
           return CloseableIterator.transform(
               ManifestFiles.readDeleteManifest(manifest, io, specs).select(proj).iterator(),
@@ -433,6 +466,11 @@ abstract class BaseSparkAction<ThisT> {
 
     static FileInfo toFileInfo(ContentFile<?> file) {
       return new FileInfo(file.location(), file.content().toString());
+    }
+
+    static FileInfo toRichFileInfo(ContentFile<?> file) {
+      return new RichFileInfo(
+          file.path().toString(), file.content().toString(), file.fileSizeInBytes());
     }
   }
 }
