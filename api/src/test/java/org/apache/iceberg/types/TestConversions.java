@@ -104,16 +104,14 @@ public class TestConversions {
         .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
     assertThat(Literal.of(400000L).to(TimestampType.withZone()).toByteBuffer().array())
         .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
-    // values passed to assertConversion and Literal.of differ because Literal.of(...) assumes
-    // the value is in micros, which gets converted when to(TimestampNanoType) is called
     assertConversion(
-        400000000L, TimestampNanoType.withoutZone(), new byte[] {0, -124, -41, 23, 0, 0, 0, 0});
+        400000L, TimestampNanoType.withoutZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
     assertConversion(
-        400000000L, TimestampNanoType.withZone(), new byte[] {0, -124, -41, 23, 0, 0, 0, 0});
+        400000L, TimestampNanoType.withZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
     assertThat(Literal.of(400000L).to(TimestampNanoType.withoutZone()).toByteBuffer().array())
-        .isEqualTo(new byte[] {0, -124, -41, 23, 0, 0, 0, 0});
+        .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
     assertThat(Literal.of(400000L).to(TimestampNanoType.withZone()).toByteBuffer().array())
-        .isEqualTo(new byte[] {0, -124, -41, 23, 0, 0, 0, 0});
+        .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
 
     // strings are stored as UTF-8 bytes (without length)
     // 'A' -> 65, 'B' -> 66, 'C' -> 67
