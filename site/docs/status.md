@@ -20,7 +20,8 @@ title: "Implementation Status"
 
 # Implementation Status
 
-Apache Iceberg's table specification is implemented in multiple languages. This page provides an overview of the current capabilities.
+Apache Iceberg's table specification is implemented in multiple languages. This page provides an overview of the current
+capabilities.
 
 ## Libraries
 
@@ -104,50 +105,50 @@ This section lists the libraries that implement the Apache Iceberg specification
 | Expire snapshots            | Y    | N         | N    | N  |
 | Manage snapshots            | Y    | N         | N    | N  |
 
-
-
 ## Table Update Operations
 
 ### Table Spec V1
 
-| Operation                   | Java | PyIceberg | Rust | Go |
-|-----------------------------|------|-----------|------|----|
-| Append data files           | Y    | Y         | N    | N  |
-| Rewrite files               | Y    | Y         | N    | N  |
-| Rewrite manifests           | Y    | Y         | N    | N  |
-| Overwrite files             | Y    | Y         | N    | N  |
-| Delete files                | Y    | N         | N    | N  |
+| Operation         | Java | PyIceberg | Rust | Go |
+|-------------------|------|-----------|------|----|
+| Append data files | Y    | Y         | N    | N  |
+| Rewrite files     | Y    | Y         | N    | N  |
+| Rewrite manifests | Y    | Y         | N    | N  |
+| Overwrite files   | Y    | Y         | N    | N  |
+| Delete files      | Y    | N         | N    | N  |
 
 ### Table Spec V2
 
-| Operation                   | Java | PyIceberg | Rust | Go |
-|-----------------------------|------|-----------|------|----|
-| Append data files           | Y    | Y         | N    | N  |
-| Rewrite files               | Y    | Y         | N    | N  |
-| Rewrite manifests           | Y    | Y         | N    | N  |
-| Overwrite files             | Y    | Y         | N    | N  |
-| Row delta                   | Y    | N         | N    | N  |
-| Delete files                | Y    | Y         | N    | N  |
+| Operation         | Java | PyIceberg | Rust | Go |
+|-------------------|------|-----------|------|----|
+| Append data files | Y    | Y         | N    | N  |
+| Rewrite files     | Y    | Y         | N    | N  |
+| Rewrite manifests | Y    | Y         | N    | N  |
+| Overwrite files   | Y    | Y         | N    | N  |
+| Row delta         | Y    | N         | N    | N  |
+| Delete files      | Y    | Y         | N    | N  |
 
 ## Table Read Operations
 
 ### Table Spec V1
 
-| Operation           | Java | PyIceberg | Rust | Go |
-|---------------------|------|-----------|------|----|
-| Plan with data file | Y    | Y         | Y    | Y  |
-| Read data file      | Y    | N         | Y    | N  |
+| Operation                   | Java | PyIceberg | Rust | Go |
+|-----------------------------|------|-----------|------|----|
+| Plan with data file         | Y    | Y         | Y    | Y  |
+| Plan with puffin statistics | Y    | Y         | Y    | Y  |
+| Read data file              | Y    | N         | Y    | N  |
 
 ### Table Spec V2
 
-| Operation                  | Java | PyIceberg | Rust | Go |
-|----------------------------|------|-----------|------|----|
-| Plan with data file        | Y    | Y         | Y    | Y  |
-| Plan with position deletes | Y    | Y         | N    | N  |
-| Plan with equality deletes | Y    | Y         | N    | N  |
-| Read data file             | Y    | Y         | Y    | N  |
-| Read with position deletes | Y    | Y         | N    | N  |
-| Read with equality deletes | Y    | N         | N    | N  |
+| Operation                   | Java | PyIceberg | Rust | Go |
+|-----------------------------|------|-----------|------|----|
+| Plan with data file         | Y    | Y         | Y    | Y  |
+| Plan with position deletes  | Y    | Y         | N    | N  |
+| Plan with equality deletes  | Y    | Y         | N    | N  |
+| Plan with puffin statistics | Y    | N         | N    | N  |
+| Read data file              | Y    | Y         | Y    | N  |
+| Read with position deletes  | Y    | Y         | N    | N  |
+| Read with equality deletes  | Y    | N         | N    | N  |
 
 ## Table Write Operations
 
