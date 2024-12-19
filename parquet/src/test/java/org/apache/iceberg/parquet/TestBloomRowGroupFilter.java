@@ -109,7 +109,7 @@ public class TestBloomRowGroupFilter {
           optional(22, "timestamp", Types.TimestampType.withoutZone()),
           optional(23, "timestamptz", Types.TimestampType.withZone()),
           optional(24, "binary", Types.BinaryType.get()),
-          optional(25, "int_decimal", Types.DecimalType.of(8, 2)),
+          optional(25, "int-decimal", Types.DecimalType.of(8, 2)),
           optional(26, "long_decimal", Types.DecimalType.of(14, 2)),
           optional(27, "fixed_decimal", Types.DecimalType.of(31, 2)));
 
@@ -140,7 +140,7 @@ public class TestBloomRowGroupFilter {
           optional(22, "_timestamp", Types.TimestampType.withoutZone()),
           optional(23, "_timestamptz", Types.TimestampType.withZone()),
           optional(24, "_binary", Types.BinaryType.get()),
-          optional(25, "_int_decimal", Types.DecimalType.of(8, 2)),
+          optional(25, "_int-decimal", Types.DecimalType.of(8, 2)),
           optional(26, "_long_decimal", Types.DecimalType.of(14, 2)),
           optional(27, "_fixed_decimal", Types.DecimalType.of(31, 2)));
 
@@ -193,6 +193,7 @@ public class TestBloomRowGroupFilter {
 
     // build struct field schema
     org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(UNDERSCORE_STRUCT_FIELD_TYPE);
+    String compatibleFieldName = AvroSchemaUtil.makeCompatibleName("_int-decimal");
 
     OutputFile outFile = Files.localOutput(temp);
     try (FileAppender<Record> appender =
@@ -221,7 +222,7 @@ public class TestBloomRowGroupFilter {
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_timestamp", "true")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_timestamptz", "true")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_binary", "true")
-            .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_int_decimal", "true")
+            .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_int-decimal", "true")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_long_decimal", "true")
             .set(PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX + "_fixed_decimal", "true")
             .build()) {
@@ -256,7 +257,7 @@ public class TestBloomRowGroupFilter {
         builder.set("_timestamp", INSTANT.plusSeconds(i * 86400).toEpochMilli());
         builder.set("_timestamptz", INSTANT.plusSeconds(i * 86400).toEpochMilli());
         builder.set("_binary", RANDOM_BYTES.get(i));
-        builder.set("_int_decimal", new BigDecimal(String.valueOf(77.77 + i)));
+        builder.set(compatibleFieldName, new BigDecimal(String.valueOf(77.77 + i)));
         builder.set("_long_decimal", new BigDecimal(String.valueOf(88.88 + i)));
         builder.set("_fixed_decimal", new BigDecimal(String.valueOf(99.99 + i)));
 
@@ -683,23 +684,23 @@ public class TestBloomRowGroupFilter {
   }
 
   @Test
-  public void testIntDeciamlEq() {
+  public void testIntDecimalEq() {
     for (int i = 0; i < INT_VALUE_COUNT; i++) {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(
-                  SCHEMA, equal("int_decimal", new BigDecimal(String.valueOf(77.77 + i))))
+                  SCHEMA, equal("int-decimal", new BigDecimal(String.valueOf(77.77 + i))))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
       assertThat(shouldRead).as("Should read: decimal within range").isTrue();
     }
 
     boolean shouldRead =
-        new ParquetBloomRowGroupFilter(SCHEMA, equal("int_decimal", new BigDecimal("1234.56")))
+        new ParquetBloomRowGroupFilter(SCHEMA, equal("int-decimal", new BigDecimal("1234.56")))
             .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
     assertThat(shouldRead).as("Should not read: decimal outside range").isFalse();
   }
 
   @Test
-  public void testLongDeciamlEq() {
+  public void testLongDecimalEq() {
     for (int i = 0; i < INT_VALUE_COUNT; i++) {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(
@@ -715,7 +716,7 @@ public class TestBloomRowGroupFilter {
   }
 
   @Test
-  public void testFixedDeciamlEq() {
+  public void testFixedDecimalEq() {
     for (int i = 0; i < INT_VALUE_COUNT; i++) {
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(
