@@ -25,6 +25,7 @@ import java.util.Set;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -157,12 +158,16 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   }
 
   @Override
-  public Object updateEvent() {
+  public Object updateEvent(Snapshot committedSnapshot) {
     long snapshotId = snapshotId();
-    Snapshot snapshot = ops().current().snapshot(snapshotId);
-    long sequenceNumber = snapshot.sequenceNumber();
+    ValidationException.check(
+        snapshotId == committedSnapshot.snapshotId(),
+        "Committed snapshotId %s does not match expected snapshotId %s",
+        committedSnapshot.snapshotId(),
+        snapshotId);
+    long sequenceNumber = committedSnapshot.sequenceNumber();
     return new CreateSnapshotEvent(
-        tableName, operation(), snapshotId, sequenceNumber, snapshot.summary());
+        tableName, operation(), snapshotId, sequenceNumber, committedSnapshot.summary());
   }
 
   @Override

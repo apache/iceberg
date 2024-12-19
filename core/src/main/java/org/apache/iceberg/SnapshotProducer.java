@@ -475,10 +475,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     }
   }
 
+  Object updateEvent(Snapshot committedSnapshot) {
+    return updateEvent();
+  }
+
   private void notifyListeners(Snapshot committedSnapshot) {
     try {
       if (committedSnapshot != null) {
-        Object event = updateEvent();
+        Object event = updateEvent(committedSnapshot);
         if (event != null) {
           Listeners.notifyAll(event);
 

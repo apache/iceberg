@@ -55,12 +55,8 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
-  private static final Logger LOG = LoggerFactory.getLogger(MergingSnapshotProducer.class);
-
   // data is only added in "append" and "overwrite" operations
   private static final Set<String> VALIDATE_ADDED_FILES_OPERATIONS =
       ImmutableSet.of(DataOperations.APPEND, DataOperations.OVERWRITE);
@@ -956,23 +952,16 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   @Override
-  public Object updateEvent() {
+  public Object updateEvent(Snapshot committedSnapshot) {
     long snapshotId = snapshotId();
-    Snapshot justSaved = ops().refresh().snapshot(snapshotId);
-    long sequenceNumber = TableMetadata.INVALID_SEQUENCE_NUMBER;
-    Map<String, String> summary;
-    if (justSaved == null) {
-      // The snapshot just saved may not be present if the latest metadata couldn't be loaded due to
-      // eventual
-      // consistency problems in refresh.
-      LOG.warn("Failed to load committed snapshot: omitting sequence number from notifications");
-      summary = summary();
-    } else {
-      sequenceNumber = justSaved.sequenceNumber();
-      summary = justSaved.summary();
-    }
-
-    return new CreateSnapshotEvent(tableName, operation(), snapshotId, sequenceNumber, summary);
+    ValidationException.check(
+        snapshotId == committedSnapshot.snapshotId(),
+        "Committed snapshotId %s does not match expected snapshotId %s",
+        committedSnapshot.snapshotId(),
+        snapshotId);
+    long sequenceNumber = committedSnapshot.sequenceNumber();
+    return new CreateSnapshotEvent(
+        tableName, operation(), snapshotId, sequenceNumber, committedSnapshot.summary());
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
