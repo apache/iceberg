@@ -126,7 +126,7 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
   }
 
   @Test
-  public void testHiveViewExists() {
+  public void testHiveViewExists() throws IOException, TException {
     String dbName = "hivedb";
     Namespace ns = Namespace.of(dbName);
     String viewName = "test_hive_view_exists";
@@ -151,6 +151,23 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
 
     catalog.dropView(identifier);
     assertThat(catalog.viewExists(identifier)).as("View should not exist after drop").isFalse();
+
+    // create a hive table
+    Table hiveTable =
+        createHiveView(
+            viewName, dbName, Files.createTempDirectory("hive-view-tests-name").toString());
+    HIVE_METASTORE_EXTENSION.metastoreClient().createTable(hiveTable);
+    assertThat(catalog.viewExists(identifier))
+        .as("ViewExists should return false if identifier refers to a non-iceberg view")
+        .isFalse();
+    HIVE_METASTORE_EXTENSION.metastoreClient().dropTable(dbName, viewName);
+
+    catalog.buildTable(identifier, SCHEMA).create();
+    assertThat(catalog.viewExists(identifier))
+        .as("ViewExists should return false if identifier refers to a iceberg table")
+        .isFalse();
+    assertThat(catalog.tableExists(identifier)).isTrue();
+    catalog.dropTable(identifier);
   }
 
   @Test
