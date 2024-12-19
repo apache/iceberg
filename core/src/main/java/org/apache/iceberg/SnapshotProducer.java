@@ -391,6 +391,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   public void commit() {
     // this is always set to the latest commit attempt's snapshot
     AtomicReference<Snapshot> stagedSnapshot = new AtomicReference<>();
+    Snapshot committedSnapshot;
     try (Timed ignore = commitMetrics().totalDuration().start()) {
       try {
         Tasks.foreach(ops)
@@ -444,7 +445,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       }
 
       // at this point, the commit must have succeeded so the stagedSnapshot is committed
-      Snapshot committedSnapshot = stagedSnapshot.get();
+      committedSnapshot = stagedSnapshot.get();
       try {
         LOG.info(
             "Committed snapshot {} ({})",
@@ -468,31 +469,33 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     }
 
     try {
-      notifyListeners();
+      notifyListeners(committedSnapshot);
     } catch (Throwable e) {
       LOG.warn("Failed to notify event listeners", e);
     }
   }
 
-  private void notifyListeners() {
+  private void notifyListeners(Snapshot committedSnapshot) {
     try {
-      Object event = updateEvent();
-      if (event != null) {
-        Listeners.notifyAll(event);
+      if (committedSnapshot != null) {
+        Object event = updateEvent();
+        if (event != null) {
+          Listeners.notifyAll(event);
 
-        if (event instanceof CreateSnapshotEvent) {
-          CreateSnapshotEvent createSnapshotEvent = (CreateSnapshotEvent) event;
+          if (event instanceof CreateSnapshotEvent) {
+            CreateSnapshotEvent createSnapshotEvent = (CreateSnapshotEvent) event;
 
-          reporter.report(
-              ImmutableCommitReport.builder()
-                  .tableName(createSnapshotEvent.tableName())
-                  .snapshotId(createSnapshotEvent.snapshotId())
-                  .operation(createSnapshotEvent.operation())
-                  .sequenceNumber(createSnapshotEvent.sequenceNumber())
-                  .metadata(EnvironmentContext.get())
-                  .commitMetrics(
-                      CommitMetricsResult.from(commitMetrics(), createSnapshotEvent.summary()))
-                  .build());
+            reporter.report(
+                ImmutableCommitReport.builder()
+                    .tableName(createSnapshotEvent.tableName())
+                    .snapshotId(createSnapshotEvent.snapshotId())
+                    .operation(createSnapshotEvent.operation())
+                    .sequenceNumber(createSnapshotEvent.sequenceNumber())
+                    .metadata(EnvironmentContext.get())
+                    .commitMetrics(
+                        CommitMetricsResult.from(commitMetrics(), createSnapshotEvent.summary()))
+                    .build());
+          }
         }
       }
     } catch (RuntimeException e) {
