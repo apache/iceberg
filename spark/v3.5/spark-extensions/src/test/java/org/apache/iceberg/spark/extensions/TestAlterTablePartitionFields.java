@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -29,6 +30,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.source.SparkTable;
+import org.apache.spark.SparkException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -538,7 +540,9 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
 
     sql("ALTER TABLE %s REPLACE PARTITION FIELD day_of_ts WITH days(ts)", tableName);
 
-    sql("ALTER TABLE %s DROP COLUMN day_of_ts", tableName);
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP COLUMN day_of_ts", tableName))
+        .hasMessageContaining("Cannot delete field id")
+        .isInstanceOf(SparkException.class);
   }
 
   @TestTemplate
@@ -549,7 +553,9 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
 
     sql("ALTER TABLE %s REPLACE PARTITION FIELD day_of_ts WITH days(ts)", tableName);
 
-    sql("ALTER TABLE %s DROP COLUMN day_of_ts", tableName);
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP COLUMN day_of_ts", tableName))
+        .hasMessageContaining("Cannot delete field id")
+        .isInstanceOf(SparkException.class);
   }
 
   private void assertPartitioningEquals(SparkTable table, int len, String transform) {

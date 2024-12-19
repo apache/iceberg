@@ -23,7 +23,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.mapping.MappingUtil;
@@ -439,8 +438,7 @@ class SchemaUpdate implements UpdateSchema {
   public Schema apply() {
     Schema newSchema =
         applyChanges(
-            schema, deletes, updates, adds, moves, identifierFieldNames, caseSensitive, base, ops);
-
+            schema, deletes, updates, adds, moves, identifierFieldNames, caseSensitive, base);
     return newSchema;
   }
 
@@ -511,8 +509,7 @@ class SchemaUpdate implements UpdateSchema {
       Multimap<Integer, Move> moves,
       Set<String> identifierFieldNames,
       boolean caseSensitive,
-      TableMetadata base,
-      TableOperations ops) {
+      TableMetadata base) {
     // validate existing identifier fields are not deleted
     Map<Integer, Integer> idToParent = TypeUtil.indexParents(schema.asStruct());
 
@@ -537,33 +534,22 @@ class SchemaUpdate implements UpdateSchema {
       }
     }
 
-    Map<Integer, List<Integer>> specToDeletes = Maps.newHashMap();
-    if (base != null && base.currentSnapshot() != null) {
+    if (base != null) {
       for (int fieldIdToDelete : deletes) {
-        for (PartitionSpec spec : base.specs()) {
-          if (spec.fields().stream()
-              .anyMatch(partitionField -> partitionField.sourceId() == fieldIdToDelete)) {
-            List<Integer> deletesForSpec =
-                specToDeletes.computeIfAbsent(spec.specId(), k -> Lists.newArrayList());
-            deletesForSpec.add(fieldIdToDelete);
-            specToDeletes.put(spec.specId(), deletesForSpec);
-          }
-        }
-      }
-
-      if (!specToDeletes.isEmpty()) {
-        List<ManifestFile> manifests =
-            ManifestLists.read(
-                ops.io().newInputFile(base.currentSnapshot().manifestListLocation()));
-        Optional<ManifestFile> manifestReferencingActivePartition =
-            manifests.stream()
-                .filter(manifest -> specToDeletes.containsKey(manifest.partitionSpecId()))
-                .findAny();
-        Preconditions.checkArgument(
-            !manifestReferencingActivePartition.isPresent(),
-            "Cannot delete field %s as it is used by an active partition spec %s",
-            specToDeletes.get(manifestReferencingActivePartition.get().partitionSpecId()).get(0),
-            manifestReferencingActivePartition.get().partitionSpecId());
+        base.specsById()
+            .forEach(
+                (specId, spec) -> {
+                  // Prevent dropping fields that are referenced in older partitions specs in use.
+                  if (!specId.equals(base.defaultSpecId())) {
+                    if (spec.fields().stream()
+                        .anyMatch(partitionField -> partitionField.sourceId() == fieldIdToDelete)) {
+                      throw new IllegalArgumentException(
+                          String.format(
+                              "Cannot delete field id %s as it is used by an active partition spec id %s",
+                              fieldIdToDelete, specId));
+                    }
+                  }
+                });
       }
     }
 
