@@ -35,58 +35,47 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class IntegrationMultiTableTest extends IntegrationTestBase {
+public class IntegrationTopicRoutingTest extends IntegrationTestBase {
 
   private static final String TEST_DB = "test";
-  private static final String TEST_TABLE1 = "foobar1";
-  private static final String TEST_TABLE2 = "foobar2";
+  private static final String TEST_TABLE1 = "table1";
+  private static final String TEST_TABLE2 = "table2";
   private static final TableIdentifier TABLE_IDENTIFIER1 = TableIdentifier.of(TEST_DB, TEST_TABLE1);
   private static final TableIdentifier TABLE_IDENTIFIER2 = TableIdentifier.of(TEST_DB, TEST_TABLE2);
+  private static final String TEST_TOPIC1 = "topic1";
+  private static final String TEST_TOPIC2 = "topic2";
 
   @BeforeEach
   public void before() {
-    createTopic(testTopic(), TEST_TOPIC_PARTITIONS);
+    createTopic(TEST_TOPIC1, TEST_TOPIC_PARTITIONS);
+    createTopic(TEST_TOPIC2, TEST_TOPIC_PARTITIONS);
     ((SupportsNamespaces) catalog()).createNamespace(Namespace.of(TEST_DB));
   }
 
   @AfterEach
   public void after() {
     context().stopConnector(connectorName());
-    deleteTopic(testTopic());
-    catalog().dropTable(TableIdentifier.of(TEST_DB, TEST_TABLE1));
-    catalog().dropTable(TableIdentifier.of(TEST_DB, TEST_TABLE2));
+    deleteTopic(TEST_TOPIC1);
+    deleteTopic(TEST_TOPIC2);
+    catalog().dropTable(TABLE_IDENTIFIER1);
+    catalog().dropTable(TABLE_IDENTIFIER2);
     ((SupportsNamespaces) catalog()).dropNamespace(Namespace.of(TEST_DB));
   }
 
   @ParameterizedTest
   @NullSource
   @ValueSource(strings = "test_branch")
-  public void testIcebergSink(String branch) {
+  public void testTopicRouter(String branch) {
     // partitioned table
     catalog().createTable(TABLE_IDENTIFIER1, TestEvent.TEST_SCHEMA, TestEvent.TEST_SPEC);
     // unpartitioned table
     catalog().createTable(TABLE_IDENTIFIER2, TestEvent.TEST_SCHEMA);
 
     boolean useSchema = branch == null; // use a schema for one of the tests
-    boolean useNewConfiguration = branch == null; // use new configuration for one of the tests
-    runTest(branch, useSchema, useNewConfiguration);
-
-    List<DataFile> files = dataFiles(TABLE_IDENTIFIER1, branch);
-    assertThat(files).hasSize(1);
-    assertThat(files.get(0).recordCount()).isEqualTo(1);
-    assertSnapshotProps(TABLE_IDENTIFIER1, branch);
-
-    files = dataFiles(TABLE_IDENTIFIER2, branch);
-    assertThat(files).hasSize(1);
-    assertThat(files.get(0).recordCount()).isEqualTo(1);
-    assertSnapshotProps(TABLE_IDENTIFIER2, branch);
-  }
-
-  private void runTest(String branch, boolean useSchema, boolean useNewConfiguration) {
     // set offset reset to earliest so we don't miss any test messages
     KafkaConnectUtils.Config connectorConfig =
         new KafkaConnectUtils.Config(connectorName())
-            .config("topics", testTopic())
+            .config("topics", String.format("%s,%s", TEST_TOPIC1, TEST_TOPIC2))
             .config("connector.class", IcebergSinkConnector.class.getName())
             .config("tasks.max", 2)
             .config("consumer.override.auto.offset.reset", "earliest")
@@ -95,47 +84,58 @@ public class IntegrationMultiTableTest extends IntegrationTestBase {
             .config("value.converter", "org.apache.kafka.connect.json.JsonConverter")
             .config("value.converter.schemas.enable", useSchema)
             .config(
+                "iceberg.tables.route-with",
+                "org.apache.iceberg.connect.data.RecordRouter$TopicRecordRouter")
+            .config(
                 "iceberg.tables",
-                String.format("%s.%s, %s.%s", TEST_DB, TEST_TABLE1, TEST_DB, TEST_TABLE2))
-            .config("iceberg.tables.route-field", "type")
-            .config(String.format("iceberg.table.%s.%s.route-regex", TEST_DB, TEST_TABLE1), "type1")
-            .config(String.format("iceberg.table.%s.%s.route-regex", TEST_DB, TEST_TABLE2), "type2")
+                String.format("%s.%s,%s.%s", TEST_DB, TEST_TABLE1, TEST_DB, TEST_TABLE2))
+            .config(String.format("iceberg.table.%s.%s.route-regex", TEST_DB, TEST_TABLE1), ".*1")
+            .config(String.format("iceberg.table.%s.%s.route-regex", TEST_DB, TEST_TABLE2), ".*2")
             .config("iceberg.control.commit.interval-ms", 1000)
             .config("iceberg.control.commit.timeout-ms", Integer.MAX_VALUE)
             .config("iceberg.kafka.auto.offset.reset", "earliest");
 
-    context().connectorCatalogProperties().forEach(connectorConfig::config);
+    runTest(connectorConfig, branch, useSchema);
+  }
 
-    if (useNewConfiguration) {
-      connectorConfig.config(
-              "iceberg.tables.route-with",
-              "org.apache.iceberg.connect.data.RecordRouter$StaticRecordRouter");
-    }
+  private void runTest(KafkaConnectUtils.Config connectorConfig, String branch, boolean useSchema) {
+
+    context().connectorCatalogProperties().forEach(connectorConfig::config);
 
     if (branch != null) {
       connectorConfig.config("iceberg.tables.default-commit-branch", branch);
     }
 
-    // use a schema for one of the cases
     if (!useSchema) {
       connectorConfig.config("value.converter.schemas.enable", false);
     }
 
     context().startConnector(connectorConfig);
 
-    TestEvent event1 = new TestEvent(1, "type1", Instant.now(), "hello world!");
-    TestEvent event2 = new TestEvent(2, "type2", Instant.now(), "having fun?");
-    TestEvent event3 = new TestEvent(3, "type3", Instant.now(), "ignore me");
+    TestEvent event1 = new TestEvent(1, "type1", Instant.now(), "test1");
+    TestEvent event2 = new TestEvent(2, "type2", Instant.now(), "test2");
+    TestEvent event3 = new TestEvent(3, "type3", Instant.now(), "test3");
 
-    send(testTopic(), event1, useSchema);
-    send(testTopic(), event2, useSchema);
-    send(testTopic(), event3, useSchema);
+    send(TEST_TOPIC1, event1, useSchema);
+    send(TEST_TOPIC2, event2, useSchema);
+    send(TEST_TOPIC2, event3, useSchema);
     flush();
 
     Awaitility.await()
         .atMost(Duration.ofSeconds(30))
         .pollInterval(Duration.ofSeconds(1))
         .untilAsserted(this::assertSnapshotAdded);
+
+    List<DataFile> files = dataFiles(TABLE_IDENTIFIER1, branch);
+    assertThat(files).hasSize(1);
+    assertThat(files.get(0).recordCount()).isEqualTo(1);
+    assertSnapshotProps(TABLE_IDENTIFIER1, branch);
+
+    files = dataFiles(TABLE_IDENTIFIER2, branch);
+    assertThat(files).hasSize(2);
+    assertThat(files.get(0).recordCount()).isEqualTo(1);
+    assertThat(files.get(1).recordCount()).isEqualTo(1);
+    assertSnapshotProps(TABLE_IDENTIFIER2, branch);
   }
 
   private void assertSnapshotAdded() {
