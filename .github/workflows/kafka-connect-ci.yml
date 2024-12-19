@@ -49,9 +49,6 @@ on:
     - 'dev/**'
     - 'mr/**'
     - 'flink/**'
-    - 'hive3/**'
-    - 'hive3-orc-bundle/**'
-    - 'hive-runtime/**'
     - 'spark/**'
     - 'docs/**'
     - 'site/**'
@@ -91,7 +88,7 @@ jobs:
         restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
     - run: |
-        ./gradlew -DsparkVersions= -DhiveVersions= -DflinkVersions= -DkafkaVersions=3 \
+        ./gradlew -DsparkVersions= -DflinkVersions= -DkafkaVersions=3 \
           :iceberg-kafka-connect:iceberg-kafka-connect-events:check \
           :iceberg-kafka-connect:iceberg-kafka-connect:check \
           :iceberg-kafka-connect:iceberg-kafka-connect-runtime:check \
