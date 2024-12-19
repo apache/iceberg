@@ -289,15 +289,19 @@ public class Parquet {
           .columnBloomFilterEnabled()
           .forEach(
               (colPath, isEnabled) -> {
-                Types.NestedField fieldId = schema.findField(colPath);
-                if (fieldId == null) {
+                Types.NestedField field = schema.findField(colPath);
+                if (field == null) {
                   LOG.warn("Skipping bloom filter config for missing field: {}", colPath);
                   return;
                 }
 
-                String parquetColumnPath = fieldIdToParquetPath.get(fieldId.fieldId());
+                int fieldId = field.fieldId();
+                String parquetColumnPath = fieldIdToParquetPath.get(fieldId);
                 if (parquetColumnPath == null) {
-                  LOG.warn("Skipping bloom filter config for missing field: {}", fieldId);
+                  LOG.warn(
+                      "Skipping bloom filter config for field: {} due to missing parquetColumnPath for fieldId: {}",
+                      colPath,
+                      fieldId);
                   return;
                 }
 
