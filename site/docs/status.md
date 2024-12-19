@@ -63,6 +63,7 @@ This section lists the libraries that implement the Apache Iceberg specification
 | Parquet | Y    | Y         | Y    | Y  |
 | ORC     | Y    | N         | N    | N  |
 | Puffin  | Y    | N         | N    | N  |
+| Avro    | Y    | N         | N    | N  |
 
 ## File IO
 
