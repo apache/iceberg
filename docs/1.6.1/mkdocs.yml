@@ -1,0 +1,77 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+site_name: docs/1.6.1
+
+plugins:
+  - search
+
+nav:
+  - index.md
+  - Tables:
+    - branching.md
+    - configuration.md
+    - evolution.md
+    - maintenance.md
+    - metrics-reporting.md
+    - partitioning.md
+    - performance.md
+    - reliability.md
+    - schemas.md
+  - Views:
+    - view-configuration.md
+  - Spark:
+    - spark-getting-started.md
+    - spark-configuration.md
+    - spark-ddl.md
+    - spark-procedures.md
+    - spark-queries.md
+    - spark-structured-streaming.md
+    - spark-writes.md
+  - Flink:
+    - flink.md
+    - flink-connector.md
+    - flink-ddl.md
+    - flink-queries.md
+    - flink-writes.md
+    - flink-actions.md
+    - flink-configuration.md
+  - hive.md
+  - Trino: https://trino.io/docs/current/connector/iceberg.html
+  - Daft: daft.md
+  - Clickhouse: https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg
+  - Presto: https://prestodb.io/docs/current/connector/iceberg.html
+  - Dremio: https://docs.dremio.com/data-formats/apache-iceberg/
+  - Starrocks: https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog
+  - Amazon Athena: https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg.html
+  - Amazon EMR: https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-use-cluster.html
+  - Google BigQuery: https://cloud.google.com/bigquery/docs/iceberg-tables
+  - Snowflake: https://docs.snowflake.com/en/user-guide/tables-iceberg
+  - Impala: https://impala.apache.org/docs/build/html/topics/impala_iceberg.html
+  - Doris: https://doris.apache.org/docs/dev/lakehouse/datalake-analytics/iceberg
+  - Integrations:
+    - aws.md
+    - dell.md
+    - jdbc.md
+    - nessie.md
+  - API:
+    - java-api-quickstart.md
+    - api.md
+    - custom-catalog.md
+  - Javadoc: ../../javadoc/latest/
+  - PyIceberg: https://py.iceberg.apache.org/
+  - IcebergRust: https://rust.iceberg.apache.org/
