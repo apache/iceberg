@@ -202,8 +202,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows must match", expectedRecords, actualRecords);
-    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
+    assertEquals("Rows", expectedRecords, actualRecords);
+    assertEquals("Position deletes", expectedDeletes, actualDeletes);
   }
 
   @TestTemplate
@@ -238,8 +238,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows must match", expectedRecords, actualRecords);
-    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
+    assertEquals("Rows", expectedRecords, actualRecords);
+    assertEquals("Position deletes", expectedDeletes, actualDeletes);
   }
 
   @TestTemplate
@@ -284,8 +284,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows must match", expectedRecords, actualRecords);
-    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
+    assertEquals("Rows", expectedRecords, actualRecords);
+    assertEquals("Position deletes", expectedDeletes, actualDeletes);
 
     withSQLConf(
         ImmutableMap.of(SQLConf.CASE_SENSITIVE().key(), "true"),
@@ -334,8 +334,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows must match", expectedRecords, actualRecords);
-    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
+    assertEquals("Rows", expectedRecords, actualRecords);
+    assertEquals("Position deletes", expectedDeletes, actualDeletes);
   }
 
   @TestTemplate
@@ -379,8 +379,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows must match", expectedRecords, actualRecords);
-    assertThat(actualDeletes).as("No new position deletes").isEmpty();
+    assertEquals("Rows", expectedRecords, actualRecords);
+    assertThat(actualDeletes).as("New position deletes").isEmpty();
   }
 
   @TestTemplate
@@ -432,8 +432,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows must match", expectedRecords, actualRecords);
-    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
+    assertEquals("Rows", expectedRecords, actualRecords);
+    assertEquals("Position deletes", expectedDeletes, actualDeletes);
   }
 
   @TestTemplate
@@ -480,8 +480,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     // Only non-compacted deletes remain
     List<Object[]> expectedDeletesFiltered =
         filterDeletes(expectedDeletes, ImmutableList.of(2), ImmutableList.of(3));
-    assertEquals("Rows must match", expectedRecords, actualRecords);
-    assertEquals("Position deletes must match", expectedDeletesFiltered, allDeletes);
+    assertEquals("Rows", expectedRecords, actualRecords);
+    assertEquals("Position deletes", expectedDeletesFiltered, allDeletes);
   }
 
   @TestTemplate
@@ -532,8 +532,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows must match", expectedRecords, actualRecords);
-    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
+    assertEquals("Rows", expectedRecords, actualRecords);
+    assertEquals("Position deletes", expectedDeletes, actualDeletes);
   }
 
   @TestTemplate
@@ -579,8 +579,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows must match", expectedRecords, actualRecords);
-    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
+    assertEquals("Rows", expectedRecords, actualRecords);
+    assertEquals("Position deletes", expectedDeletes, actualDeletes);
   }
 
   @TestTemplate
@@ -629,7 +629,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     checkSequenceNumbers(table, rewrittenDeleteFiles, newDeleteFiles);
 
     List<Object[]> actualRecords = records(table);
-    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Rows", expectedRecords, actualRecords);
   }
 
   @TestTemplate
@@ -724,8 +724,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows must match", expectedRecords, actualRecords);
-    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
+    assertEquals("Rows", expectedRecords, actualRecords);
+    assertEquals("Position deletes", expectedDeletes, actualDeletes);
   }
 
   private Table createTablePartitioned(int partitions, int files, int numRecords) {
@@ -1054,48 +1054,48 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
       List<DeleteFile> newDeletes,
       int expectedGroups) {
     assertThat(rewrittenDeletes.size())
-        .as("Rewritten delete file count does not match")
+        .as("Rewritten delete file count")
         .isEqualTo(result.rewrittenDeleteFilesCount());
 
     assertThat(newDeletes.size())
-        .as("New delete file count does not match")
+        .as("New delete file count")
         .isEqualTo(result.addedDeleteFilesCount());
 
     assertThat(size(rewrittenDeletes))
-        .as("Rewritten delete byte count does not match")
+        .as("Rewritten delete byte count")
         .isEqualTo(result.rewrittenBytesCount());
 
     assertThat(size(newDeletes))
-        .as("New delete byte count does not match")
+        .as("New delete byte count")
         .isEqualTo(result.addedBytesCount());
 
     assertThat(expectedGroups)
-        .as("Rewrite group count does not match")
+        .as("Rewrite group count")
         .isEqualTo(result.rewriteResults().size());
 
     assertThat(rewrittenDeletes.size())
-        .as("Rewritten delete file count in all groups to match")
+        .as("Rewritten delete file count in all groups")
         .isEqualTo(
             result.rewriteResults().stream()
                 .mapToInt(FileGroupRewriteResult::rewrittenDeleteFilesCount)
                 .sum());
 
     assertThat(newDeletes.size())
-        .as("Added delete file count in all groups to match")
+        .as("Added delete file count in all groups")
         .isEqualTo(
             result.rewriteResults().stream()
                 .mapToInt(FileGroupRewriteResult::addedDeleteFilesCount)
                 .sum());
 
     assertThat(size(rewrittenDeletes))
-        .as("Rewritten delete bytes in all groups to match")
+        .as("Rewritten delete bytes in all groups")
         .isEqualTo(
             result.rewriteResults().stream()
                 .mapToLong(FileGroupRewriteResult::rewrittenBytesCount)
                 .sum());
 
     assertThat(size(newDeletes))
-        .as("Added delete bytes in all groups to match")
+        .as("Added delete bytes in all groups")
         .isEqualTo(
             result.rewriteResults().stream()
                 .mapToLong(FileGroupRewriteResult::addedBytesCount)
