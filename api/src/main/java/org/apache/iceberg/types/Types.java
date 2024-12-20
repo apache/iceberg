@@ -715,8 +715,7 @@ public class Types {
         return false;
       } else if (!Objects.equals(initialDefault, that.initialDefault)) {
         return false;
-      }
-      if (!Objects.equals(writeDefault, that.writeDefault)) {
+      } else if (!Objects.equals(writeDefault, that.writeDefault)) {
         return false;
       }
       return true;
