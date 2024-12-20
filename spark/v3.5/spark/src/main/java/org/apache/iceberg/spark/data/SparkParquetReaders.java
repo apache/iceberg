@@ -186,7 +186,7 @@ public class SparkParquetReaders {
         } else if (field.initialDefault() != null) {
           reorderedFields.add(
               ParquetValueReaders.constant(
-                  SparkUtil.convertConstant(field.type(), field.initialDefault()),
+                  SparkUtil.internalToSpark(field.type(), field.initialDefault()),
                   maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel)));
           types.add(typesById.get(id));
         } else if (field.isOptional()) {
