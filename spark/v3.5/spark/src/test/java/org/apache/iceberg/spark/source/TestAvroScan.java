@@ -43,12 +43,13 @@ public class TestAvroScan extends ScanTestBase {
         new File(dataFolder, FileFormat.AVRO.addExtension(UUID.randomUUID().toString()));
 
     try (FileAppender<Record> writer =
-             Avro.write(localOutput(avroFile)).schema(table.schema()).build()) {
+        Avro.write(localOutput(avroFile)).schema(table.schema()).build()) {
       writer.addAll(records);
     }
 
-    DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
-        .withFileSizeInBytes(avroFile.length())
+    DataFile file =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withFileSizeInBytes(avroFile.length())
             .withRecordCount(records.size())
             .withPath(avroFile.toString())
             .build();

@@ -58,15 +58,16 @@ public class TestParquetScan extends ScanTestBase {
         new File(dataFolder, FileFormat.PARQUET.addExtension(UUID.randomUUID().toString()));
 
     try (FileAppender<GenericData.Record> writer =
-             Parquet.write(localOutput(parquetFile)).schema(table.schema()).build()) {
+        Parquet.write(localOutput(parquetFile)).schema(table.schema()).build()) {
       writer.addAll(records);
     }
 
-    DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
-        .withFileSizeInBytes(parquetFile.length())
-        .withPath(parquetFile.toString())
-        .withRecordCount(records.size())
-        .build();
+    DataFile file =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withFileSizeInBytes(parquetFile.length())
+            .withPath(parquetFile.toString())
+            .withRecordCount(records.size())
+            .build();
 
     table.newAppend().appendFile(file).commit();
   }
@@ -74,9 +75,9 @@ public class TestParquetScan extends ScanTestBase {
   @Override
   protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
     assumeThat(
-        TypeUtil.find(
-            writeSchema,
-            type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()))
+            TypeUtil.find(
+                writeSchema,
+                type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()))
         .as("Cannot handle non-string map keys in parquet-avro")
         .isNull();
 
