@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.variants;
 
+import java.util.NoSuchElementException;
+
 /** A variant metadata dictionary. */
 public interface VariantMetadata extends Variants.Serialized {
   /** Returns the ID for a {@code name} in the dictionary, or -1 if not present. */
@@ -26,7 +28,7 @@ public interface VariantMetadata extends Variants.Serialized {
   /**
    * Returns the field name for an ID in metadata.
    *
-   * @throws ArrayIndexOutOfBoundsException if the dictionary does not contain the ID
+   * @throws NoSuchElementException if the dictionary does not contain the ID
    */
   String get(int id);
 }
