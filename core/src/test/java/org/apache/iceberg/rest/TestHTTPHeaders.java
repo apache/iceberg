@@ -21,6 +21,7 @@ package org.apache.iceberg.rest;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.HTTPHeaders.HTTPHeader;
 import org.junit.jupiter.api.Test;
 
@@ -117,6 +118,17 @@ class TestHTTPHeaders {
     assertThatThrownBy(() -> headers.putIfAbsent((HTTPHeaders) null))
         .isInstanceOf(NullPointerException.class)
         .hasMessage("headers");
+  }
+
+  @Test
+  void ofMap() {
+    HTTPHeaders actual =
+        HTTPHeaders.of(
+            ImmutableMap.of(
+                "header1", "value1a",
+                "HEADER1", "value1b",
+                "header2", "value2"));
+    assertThat(actual).isEqualTo(headers);
   }
 
   @Test
