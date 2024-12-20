@@ -18,34 +18,11 @@
  */
 package org.apache.iceberg.variants;
 
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+/** A variant metadata and value pair. */
+public interface Variant {
+  /** Returns the metadata for all values in the variant. */
+  VariantMetadata metadata();
 
-public final class Variant {
-  private final byte[] value;
-  private final byte[] metadata;
-
-  public Variant(byte[] value, byte[] metadata) {
-    Preconditions.checkArgument(metadata != null && metadata.length >= 1,
-     "Metadata must not be null or empty.");
-    Preconditions.checkArgument(value != null && value.length >= 1,
-        "Value must not be null or empty.");
-
-    Preconditions.checkArgument((metadata[0] & VariantConstants.VERSION_MASK) == VariantConstants.VERSION,
-      "Unsupported metadata version.");
-
-    if (value.length > VariantConstants.SIZE_LIMIT || metadata.length > VariantConstants.SIZE_LIMIT) {
-      throw new VariantSizeLimitException();
-    }
-
-    this.value = value;
-    this.metadata = metadata;
-  }
-
-  public byte[] getMetadata() {
-    return metadata;
-  }
-
-  public byte[] getValue() {
-    return value;
-  }
+  /** Returns the variant value. */
+  VariantValue value();
 }

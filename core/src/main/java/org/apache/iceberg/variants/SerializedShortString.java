@@ -26,11 +26,7 @@ class SerializedShortString extends Variants.SerializedValue implements VariantP
   private static final int LENGTH_MASK = 0b11111100;
   private static final int LENGTH_SHIFT = 2;
 
-  static SerializedShortString from(Variant variant) {
-    return from(variant.getValue());
-  }
-
-    static SerializedShortString from(byte[] bytes) {
+  static SerializedShortString from(byte[] bytes) {
     return from(ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN), bytes[0]);
   }
 
