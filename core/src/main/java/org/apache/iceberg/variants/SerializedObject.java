@@ -24,7 +24,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Pair;
@@ -35,10 +34,6 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
   private static final int FIELD_ID_SIZE_MASK = 0b110000;
   private static final int FIELD_ID_SIZE_SHIFT = 4;
   private static final int IS_LARGE = 0b1000000;
-
-  static SerializedObject from(Variant variant) {
-    return from(SerializedMetadata.from(variant.getMetadata()), variant.getValue());
-  }
 
   static SerializedObject from(SerializedMetadata metadata, byte[] bytes) {
     return from(metadata, ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN), bytes[0]);
@@ -116,8 +111,8 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
     }
   }
 
-  @VisibleForTesting
-  int numElements() {
+  @Override
+  public int numElements() {
     return fieldIds.length;
   }
 

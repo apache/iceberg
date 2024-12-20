@@ -28,10 +28,6 @@ class SerializedPrimitive extends Variants.SerializedValue implements VariantPri
   private static final int PRIMITIVE_TYPE_SHIFT = 2;
   private static final int PRIMITIVE_OFFSET = Variants.HEADER_SIZE;
 
-  static SerializedPrimitive from(Variant variant) {
-    return from(variant.getValue());
-  }
-
   static SerializedPrimitive from(byte[] bytes) {
     return from(ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN), bytes[0]);
   }
