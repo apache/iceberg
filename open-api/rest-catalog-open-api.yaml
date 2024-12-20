@@ -2650,6 +2650,7 @@ components:
       properties:
         action:
           type: string
+          $ref: '#/components/schemas/ActionEnum'
 
     AssignUUIDUpdate:
       description: Assigning a UUID to a table/view should only be done when creating the table/view. It is not safe to re-assign the UUID if a table/view already has a UUID assigned
@@ -2662,6 +2663,7 @@ components:
         action:
           type: string
           enum: ["assign-uuid"]
+          $ref: '#/components/schemas/ActionEnum'
         uuid:
           type: string
 
@@ -2675,6 +2677,7 @@ components:
         action:
           type: string
           enum: ["upgrade-format-version"]
+          $ref: '#/components/schemas/ActionEnum'
         format-version:
           type: integer
 
@@ -2688,6 +2691,7 @@ components:
         action:
           type: string
           enum: ["add-schema"]
+          $ref: '#/components/schemas/ActionEnum'
         schema:
           $ref: '#/components/schemas/Schema'
         last-column-id:
@@ -2710,6 +2714,7 @@ components:
         action:
           type: string
           enum: ["set-current-schema"]
+          $ref: '#/components/schemas/ActionEnum'
         schema-id:
           type: integer
           description: Schema ID to set as current, or -1 to set last added schema
@@ -2724,6 +2729,7 @@ components:
         action:
           type: string
           enum: ["add-spec"]
+          $ref: '#/components/schemas/ActionEnum'
         spec:
           $ref: '#/components/schemas/PartitionSpec'
 
@@ -2737,6 +2743,7 @@ components:
         action:
           type: string
           enum: [ "set-default-spec" ]
+          $ref: '#/components/schemas/ActionEnum'
         spec-id:
           type: integer
           description: Partition spec ID to set as the default, or -1 to set last added spec
@@ -2751,6 +2758,7 @@ components:
         action:
           type: string
           enum: [ "add-sort-order" ]
+          $ref: '#/components/schemas/ActionEnum'
         sort-order:
           $ref: '#/components/schemas/SortOrder'
 
@@ -2764,6 +2772,7 @@ components:
         action:
           type: string
           enum: [ "set-default-sort-order" ]
+          $ref: '#/components/schemas/ActionEnum'
         sort-order-id:
           type: integer
           description: Sort order ID to set as the default, or -1 to set last added sort order
@@ -2778,6 +2787,7 @@ components:
         action:
           type: string
           enum: [ "add-snapshot" ]
+          $ref: '#/components/schemas/ActionEnum'
         snapshot:
           $ref: '#/components/schemas/Snapshot'
 
@@ -2792,6 +2802,7 @@ components:
         action:
           type: string
           enum: [ "set-snapshot-ref" ]
+          $ref: '#/components/schemas/ActionEnum'
         ref-name:
           type: string
 
@@ -2805,6 +2816,7 @@ components:
         action:
           type: string
           enum: [ "remove-snapshots" ]
+          $ref: '#/components/schemas/ActionEnum'
         snapshot-ids:
           type: array
           items:
@@ -2821,6 +2833,7 @@ components:
         action:
           type: string
           enum: [ "remove-snapshot-ref" ]
+          $ref: '#/components/schemas/ActionEnum'
         ref-name:
           type: string
 
@@ -2834,6 +2847,7 @@ components:
         action:
           type: string
           enum: [ "set-location" ]
+          $ref: '#/components/schemas/ActionEnum'
         location:
           type: string
 
@@ -2847,6 +2861,7 @@ components:
         action:
           type: string
           enum: [ "set-properties" ]
+          $ref: '#/components/schemas/ActionEnum'
         updates:
           type: object
           additionalProperties:
@@ -2862,6 +2877,7 @@ components:
         action:
           type: string
           enum: [ "remove-properties" ]
+          $ref: '#/components/schemas/ActionEnum'
         removals:
           type: array
           items:
@@ -2877,6 +2893,7 @@ components:
         action:
           type: string
           enum: [ "add-view-version" ]
+          $ref: '#/components/schemas/ActionEnum'
         view-version:
           $ref: '#/components/schemas/ViewVersion'
 
@@ -2890,6 +2907,7 @@ components:
         action:
           type: string
           enum: [ "set-current-view-version" ]
+          $ref: '#/components/schemas/ActionEnum'
         view-version-id:
           type: integer
           description: The view version id to set as current, or -1 to set last added view version id
@@ -2905,6 +2923,7 @@ components:
         action:
           type: string
           enum: [ "set-statistics" ]
+          $ref: '#/components/schemas/ActionEnum'
         snapshot-id:
           type: integer
           format: int64
@@ -2921,6 +2940,7 @@ components:
         action:
           type: string
           enum: [ "remove-statistics" ]
+          $ref: '#/components/schemas/ActionEnum'
         snapshot-id:
           type: integer
           format: int64
@@ -2935,6 +2955,7 @@ components:
         action:
           type: string
           enum: [ "set-partition-statistics" ]
+          $ref: '#/components/schemas/ActionEnum'
         partition-statistics:
           $ref: '#/components/schemas/PartitionStatisticsFile'
 
@@ -2948,6 +2969,7 @@ components:
         action:
           type: string
           enum: [ "remove-partition-statistics" ]
+          $ref: '#/components/schemas/ActionEnum'
         snapshot-id:
           type: integer
           format: int64
@@ -2961,6 +2983,7 @@ components:
         action:
           type: string
           enum: [ "remove-partition-specs" ]
+          $ref: '#/components/schemas/ActionEnum'
         spec-ids:
           type: array
           items:
@@ -4159,6 +4182,7 @@ components:
       properties:
         content:
           type: string
+          $ref: '#/components/schemas/ContentEnum'
         file-path:
           type: string
         file-format:
@@ -4204,6 +4228,7 @@ components:
         content:
           type: string
           enum: [ "data" ]
+          $ref: '#/components/schemas/ContentEnum'
         column-sizes:
           allOf:
             - $ref: '#/components/schemas/CountMap'
@@ -4248,6 +4273,7 @@ components:
         content:
           type: string
           enum: [ "position-deletes" ]
+          $ref: '#/components/schemas/ContentEnum'
         content-offset:
           type: integer
           format: int64
@@ -4266,6 +4292,7 @@ components:
         content:
           type: string
           enum: [ "equality-deletes" ]
+          $ref: '#/components/schemas/ContentEnum'
         equality-ids:
           type: array
           items:
@@ -4371,6 +4398,39 @@ components:
             residual or use the original filter.
           allOf:
             - $ref: '#/components/schemas/Expression'
+
+    ContentEnum:
+      type: string
+      enum:
+        - data
+        - equality-deletes
+        - position-deletes
+
+    ActionEnum:
+      type: string
+      enum:
+        - add-spec
+        - add-schema
+        - add-snapshot
+        - add-sort-order
+        - add-view-version
+        - assign-uuid
+        - remove-partition-specs
+        - remove-partition-statistics
+        - remove-properties
+        - remove-snapshot-ref
+        - remove-snapshots
+        - remove-statistics
+        - set-current-schema
+        - set-current-view-version
+        - set-default-sort-order
+        - set-default-spec
+        - set-location
+        - set-partition-statistics
+        - set-properties
+        - set-snapshot-ref
+        - set-statistics
+        - upgrade-format-version
 
   #############################
   # Reusable Response Objects #
