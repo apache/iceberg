@@ -51,7 +51,6 @@ public abstract class ScanTestBase extends AvroDataTest {
 
   protected static SparkSession spark = null;
   protected static JavaSparkContext sc = null;
-  protected static HadoopTables tables = new HadoopTables(CONF);
 
   @BeforeAll
   public static void startSpark() {
