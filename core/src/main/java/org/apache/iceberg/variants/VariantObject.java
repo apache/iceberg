@@ -20,6 +20,10 @@ package org.apache.iceberg.variants;
 
 /** An variant object value. */
 public interface VariantObject extends VariantValue {
+  default int numElements() {
+    throw new UnsupportedOperationException();
+  }
+
   /** Returns the {@link VariantValue} for the field named {@code name} in this object. */
   VariantValue get(String name);
 
