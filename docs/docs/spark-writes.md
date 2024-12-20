@@ -102,7 +102,7 @@ WHEN NOT MATCHED BY SOURCE THEN UPDATE SET status = 'invalid'
 ```
 
 !!! danger
-    Note: For copy on write table,Please Do Not Modify the Source Data Table During Execution.Due to the need for Spark to use the source table consecutively twice for computation,the relation which is created of source data must remain constant through the two different passes of the source data.If the source data query would return different results user will see odd behavior(For example: data loss).
+    Note: For copy on write table,if source data table is not iceberg table,Please Do Not Modify the Source Data Table During Execution(For example:hive table,jdbc view table,another datalake table,etc.).Due to the need for Spark to use the source table consecutively twice for computation,the relation which is created of source data must remain constant through the two different passes of the source data.If the source data query would return different results user will see odd behavior(For example: data loss).
 
 ### `INSERT OVERWRITE`
 
