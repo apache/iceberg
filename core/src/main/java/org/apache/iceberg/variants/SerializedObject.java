@@ -21,8 +21,12 @@ package org.apache.iceberg.variants;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Pair;
 
 class SerializedObject extends Variants.SerializedValue implements VariantObject {
@@ -52,6 +56,8 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
   private final Integer[] fieldIds;
   private final int offsetSize;
   private final int offsetListOffset;
+  private final int[] offsets;
+  private final int[] lengths;
   private final int dataOffset;
   private final VariantValue[] values;
 
@@ -66,8 +72,44 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
     this.fieldIdListOffset = Variants.HEADER_SIZE + numElementsSize;
     this.fieldIds = new Integer[numElements];
     this.offsetListOffset = fieldIdListOffset + (numElements * fieldIdSize);
+    this.offsets = new int[numElements];
+    this.lengths = new int[numElements];
     this.dataOffset = offsetListOffset + ((1 + numElements) * offsetSize);
     this.values = new VariantValue[numElements];
+
+    if (numElements > 0) {
+      initOffsetsAndLengths(numElements);
+    }
+  }
+
+  private void initOffsetsAndLengths(int numElements) {
+    // populate offsets list
+    Map<Integer, Integer> offsetToLength = Maps.newHashMap();
+    for (int index = 0; index < numElements; index += 1) {
+      offsets[index] =
+          VariantUtil.readLittleEndianUnsigned(
+              value, offsetListOffset + (index * offsetSize), offsetSize);
+
+      offsetToLength.put(offsets[index], 0);
+    }
+
+    int dataLength =
+        VariantUtil.readLittleEndianUnsigned(
+            value, offsetListOffset + (numElements * offsetSize), offsetSize);
+    offsetToLength.put(dataLength, 0);
+
+    // populate lengths list by sorting offsets
+    List<Integer> sortedOffsets =
+        offsetToLength.keySet().stream().sorted().collect(Collectors.toList());
+    for (int index = 0; index < numElements; index += 1) {
+      int offset = sortedOffsets.get(index);
+      int length = sortedOffsets.get(index + 1) - offset;
+      offsetToLength.put(offset, length);
+    }
+
+    for (int index = 0; index < lengths.length; index += 1) {
+      lengths[index] = offsetToLength.get(offsets[index]);
+    }
   }
 
   @VisibleForTesting
@@ -123,6 +165,7 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
           VariantUtil.readLittleEndianUnsigned(
               value, fieldIdListOffset + (index * fieldIdSize), fieldIdSize);
     }
+
     return fieldIds[index];
   }
 
@@ -136,14 +179,9 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
     }
 
     if (null == values[index]) {
-      int offset =
-          VariantUtil.readLittleEndianUnsigned(
-              value, offsetListOffset + (index * offsetSize), offsetSize);
-      int next =
-          VariantUtil.readLittleEndianUnsigned(
-              value, offsetListOffset + ((1 + index) * offsetSize), offsetSize);
       values[index] =
-          Variants.from(metadata, VariantUtil.slice(value, dataOffset + offset, next - offset));
+          Variants.from(
+              metadata, VariantUtil.slice(value, dataOffset + offsets[index], lengths[index]));
     }
 
     return values[index];
@@ -176,14 +214,7 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
       return ((Variants.Serialized) values[index]).buffer();
     }
 
-    int offset =
-        VariantUtil.readLittleEndianUnsigned(
-            value, offsetListOffset + (index * offsetSize), offsetSize);
-    int next =
-        VariantUtil.readLittleEndianUnsigned(
-            value, offsetListOffset + ((1 + index) * offsetSize), offsetSize);
-
-    return VariantUtil.slice(value, dataOffset + offset, next - offset);
+    return VariantUtil.slice(value, dataOffset + offsets[index], lengths[index]);
   }
 
   @Override

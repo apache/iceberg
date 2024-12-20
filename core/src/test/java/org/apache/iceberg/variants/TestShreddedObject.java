@@ -395,7 +395,8 @@ public class TestShreddedObject {
     assertThat(object.get("ZZ").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
   }
 
-  private static VariantValue roundTripMinimalBuffer(ShreddedObject object, SerializedMetadata metadata) {
+  private static VariantValue roundTripMinimalBuffer(
+      ShreddedObject object, SerializedMetadata metadata) {
     ByteBuffer serialized =
         ByteBuffer.allocate(object.sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
     object.writeTo(serialized, 0);
@@ -403,7 +404,8 @@ public class TestShreddedObject {
     return Variants.from(metadata, serialized);
   }
 
-  private static VariantValue roundTripLargeBuffer(ShreddedObject object, SerializedMetadata metadata) {
+  private static VariantValue roundTripLargeBuffer(
+      ShreddedObject object, SerializedMetadata metadata) {
     ByteBuffer serialized =
         ByteBuffer.allocate(1000 + object.sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
     object.writeTo(serialized, 300);

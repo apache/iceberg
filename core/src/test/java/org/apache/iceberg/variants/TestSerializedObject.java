@@ -44,6 +44,24 @@ public class TestSerializedObject {
   private static final SerializedPrimitive TRUE = SerializedPrimitive.from(new byte[] {0b100});
   private static final SerializedPrimitive DATE =
       SerializedPrimitive.from(new byte[] {0b101100, (byte) 0xF4, 0x43, 0x00, 0x00});
+  private static final byte[] UNSORTED_VALUES =
+      new byte[] {
+        0b10,
+        0x03, // 3 item object
+        0x00,
+        0x01,
+        0x02, // ascending key IDs (a, b, c)
+        0x02,
+        0x04,
+        0x00,
+        0x06, // values at offsets (2, 4, 0)
+        0b1100,
+        0x03, // c = 3 (int8)
+        0b1100,
+        0x01, // a = 1 (int8)
+        0b1100,
+        0x02 // b = 2 (int8)
+      };
 
   private final Random random = new Random(198725);
 
@@ -72,6 +90,27 @@ public class TestSerializedObject {
 
     SerializedMetadata metadata = SerializedMetadata.from(meta);
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
+
+    assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
+    assertThat(object.numElements()).isEqualTo(3);
+
+    assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
+    assertThat(object.get("b").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("b").asPrimitive().get()).isEqualTo((byte) 2);
+    assertThat(object.get("c").type()).isEqualTo(PhysicalType.INT8);
+    assertThat(object.get("c").asPrimitive().get()).isEqualTo((byte) 3);
+
+    assertThat(object.get("d")).isEqualTo(null);
+  }
+
+  @Test
+  public void testUnsortedValues() {
+    ByteBuffer meta =
+        VariantTestUtil.createMetadata(Sets.newHashSet("a", "b", "c"), true /* sort names */);
+
+    SerializedMetadata metadata = SerializedMetadata.from(meta);
+    SerializedObject object = SerializedObject.from(metadata, UNSORTED_VALUES);
 
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
     assertThat(object.numElements()).isEqualTo(3);
