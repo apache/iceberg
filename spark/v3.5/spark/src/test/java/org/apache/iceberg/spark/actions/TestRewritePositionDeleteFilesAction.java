@@ -1065,13 +1065,9 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
         .as("Rewritten delete byte count")
         .isEqualTo(result.rewrittenBytesCount());
 
-    assertThat(size(newDeletes))
-        .as("New delete byte count")
-        .isEqualTo(result.addedBytesCount());
+    assertThat(size(newDeletes)).as("New delete byte count").isEqualTo(result.addedBytesCount());
 
-    assertThat(expectedGroups)
-        .as("Rewrite group count")
-        .isEqualTo(result.rewriteResults().size());
+    assertThat(expectedGroups).as("Rewrite group count").isEqualTo(result.rewriteResults().size());
 
     assertThat(rewrittenDeletes.size())
         .as("Rewritten delete file count in all groups")
