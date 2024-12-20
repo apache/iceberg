@@ -30,7 +30,7 @@ class SerializedShortString extends Variants.SerializedValue implements VariantP
     return from(variant.getValue());
   }
 
-    static SerializedShortString from(byte[] bytes) {
+  static SerializedShortString from(byte[] bytes) {
     return from(ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN), bytes[0]);
   }
 

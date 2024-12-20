@@ -20,7 +20,9 @@ package org.apache.iceberg.variants;
 
 /** An variant array value. */
 public interface VariantArray extends VariantValue {
-  int numElements();
+  default int numElements() {
+    throw new UnsupportedOperationException();
+  }
 
   /** Returns the {@link VariantValue} at {@code index} in this array. */
   VariantValue get(int index);

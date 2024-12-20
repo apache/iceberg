@@ -25,15 +25,17 @@ public final class Variant {
   private final byte[] metadata;
 
   public Variant(byte[] value, byte[] metadata) {
-    Preconditions.checkArgument(metadata != null && metadata.length >= 1,
-     "Metadata must not be null or empty.");
-    Preconditions.checkArgument(value != null && value.length >= 1,
-        "Value must not be null or empty.");
+    Preconditions.checkArgument(
+        metadata != null && metadata.length >= 1, "Metadata must not be null or empty.");
+    Preconditions.checkArgument(
+        value != null && value.length >= 1, "Value must not be null or empty.");
 
-    Preconditions.checkArgument((metadata[0] & VariantConstants.VERSION_MASK) == VariantConstants.VERSION,
-      "Unsupported metadata version.");
+    Preconditions.checkArgument(
+        (metadata[0] & VariantConstants.VERSION_MASK) == VariantConstants.VERSION,
+        "Unsupported metadata version.");
 
-    if (value.length > VariantConstants.SIZE_LIMIT || metadata.length > VariantConstants.SIZE_LIMIT) {
+    if (value.length > VariantConstants.SIZE_LIMIT
+        || metadata.length > VariantConstants.SIZE_LIMIT) {
       throw new VariantSizeLimitException();
     }
 

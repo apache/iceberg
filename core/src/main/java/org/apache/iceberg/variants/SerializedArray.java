@@ -28,7 +28,6 @@ class SerializedArray extends Variants.SerializedValue implements VariantArray {
   private static final int OFFSET_SIZE_SHIFT = 2;
   private static final int IS_LARGE = 0b10000;
 
-
   static SerializedArray from(Variant variant) {
     return from(SerializedMetadata.from(variant.getMetadata()), variant.getValue());
   }
