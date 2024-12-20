@@ -200,7 +200,10 @@ public class RandomUtil {
       "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.!?";
 
   private static String randomString(Random random) {
-    int length = random.nextInt(50);
+    return generateString(random.nextInt(50), random);
+  }
+
+  public static String generateString(int length, Random random) {
     byte[] buffer = new byte[length];
 
     for (int i = 0; i < length; i += 1) {
