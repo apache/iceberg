@@ -41,6 +41,7 @@ import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.assertj.core.api.Assumptions;
+import org.assertj.core.api.Condition;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -282,7 +283,12 @@ public abstract class AvroDataTest {
                 .build());
 
     assertThatThrownBy(() -> writeAndValidate(writeSchema, expectedSchema))
-        .hasRootCauseInstanceOf(IllegalArgumentException.class)
+        .has(
+            new Condition<>(
+                t ->
+                    IllegalArgumentException.class.isInstance(t)
+                        || IllegalArgumentException.class.isInstance(t.getCause()),
+                "Expecting a throwable or cause that is an instance of IllegalArgumentException"))
         .hasMessageContaining("Missing required field: missing_str");
   }
 
