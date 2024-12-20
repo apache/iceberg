@@ -18,34 +18,57 @@
  */
 package org.apache.iceberg.variants;
 
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public final class Variant {
-  private final byte[] value;
   private final byte[] metadata;
+  private final byte[] value;
 
-  public Variant(byte[] value, byte[] metadata) {
-    Preconditions.checkArgument(metadata != null && metadata.length >= 1,
-     "Metadata must not be null or empty.");
-    Preconditions.checkArgument(value != null && value.length >= 1,
-        "Value must not be null or empty.");
+  public Variant(byte[] metadata, byte[] value) {
+    Preconditions.checkArgument(
+        metadata != null && metadata.length >= 1, "Metadata must not be null or empty.");
+    Preconditions.checkArgument(
+        value != null && value.length >= 1, "Value must not be null or empty.");
 
-    Preconditions.checkArgument((metadata[0] & VariantConstants.VERSION_MASK) == VariantConstants.VERSION,
-      "Unsupported metadata version.");
+    Preconditions.checkArgument(
+        (metadata[0] & VariantConstants.VERSION_MASK) == VariantConstants.VERSION,
+        "Unsupported metadata version.");
 
-    if (value.length > VariantConstants.SIZE_LIMIT || metadata.length > VariantConstants.SIZE_LIMIT) {
+    if (value.length > VariantConstants.SIZE_LIMIT
+        || metadata.length > VariantConstants.SIZE_LIMIT) {
       throw new VariantSizeLimitException();
     }
 
-    this.value = value;
     this.metadata = metadata;
+    this.value = value;
   }
 
-  public byte[] getMetadata() {
+  byte[] getMetadata() {
     return metadata;
   }
 
-  public byte[] getValue() {
+  byte[] getValue() {
     return value;
   }
+
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(metadata, value);
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj) {
+      return true;
+    }
+
+    if (!(obj instanceof Variant)) {
+      return false;
+    }
+
+    Variant other = (Variant) obj;
+    return this.metadata == other.metadata && this.value == other.value;
+  }
+
 }

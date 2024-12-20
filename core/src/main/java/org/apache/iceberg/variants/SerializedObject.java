@@ -24,7 +24,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Pair;
@@ -116,8 +115,8 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
     }
   }
 
-  @VisibleForTesting
-  int numElements() {
+  @Override
+  public int numElements() {
     return fieldIds.length;
   }
 
