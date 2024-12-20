@@ -228,6 +228,7 @@ class RemoveSnapshots implements ExpireSnapshots {
                   base.snapshot(snapshot).allManifests(ops.io()).stream()
                       .map(ManifestFile::partitionSpecId)
                       .forEach(reachableSpecs::add));
+
       Set<Integer> specsToRemove =
           base.specs().stream()
               .map(PartitionSpec::specId)

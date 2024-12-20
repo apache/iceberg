@@ -1109,15 +1109,9 @@ public class TableMetadata implements Serializable {
     }
 
     Builder removeSpecs(Iterable<Integer> specIds) {
-      Set<Integer> specIdsToRemove = Sets.newHashSet();
-      for (Integer specId : specIds) {
-        Preconditions.checkArgument(
-            specId != defaultSpecId, "Cannot remove default partition spec");
-        PartitionSpec toBeRemoved = specsById.remove(specId);
-        if (toBeRemoved != null) {
-          specIdsToRemove.add(specId);
-        }
-      }
+      Set<Integer> specIdsToRemove = Sets.newHashSet(specIds);
+      Preconditions.checkArgument(
+          !specIdsToRemove.contains(defaultSpecId), "Cannot remove the default partition spec");
 
       this.specs =
           specs.stream()
