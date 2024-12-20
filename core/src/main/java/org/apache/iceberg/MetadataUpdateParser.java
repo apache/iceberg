@@ -105,6 +105,9 @@ public class MetadataUpdateParser {
   private static final String MAX_SNAPSHOT_AGE_MS = "max-snapshot-age-ms";
   private static final String MAX_REF_AGE_MS = "max-ref-age-ms";
 
+  // RemoveSnapshotRef
+  private static final String PURGE = "purge";
+
   // SetProperties
   // the REST API Spec defines "updates" but we initially used "updated",
   // thus we need to support reading both indefinitely
@@ -417,6 +420,7 @@ public class MetadataUpdateParser {
   private static void writeRemoveSnapshotRef(
       MetadataUpdate.RemoveSnapshotRef update, JsonGenerator gen) throws IOException {
     gen.writeStringField(REF_NAME, update.name());
+    gen.writeBooleanField(PURGE, update.purge());
   }
 
   private static void writeSetProperties(MetadataUpdate.SetProperties update, JsonGenerator gen)
@@ -548,7 +552,11 @@ public class MetadataUpdateParser {
 
   private static MetadataUpdate readRemoveSnapshotRef(JsonNode node) {
     String refName = JsonUtil.getString(REF_NAME, node);
-    return new MetadataUpdate.RemoveSnapshotRef(refName);
+    boolean purge = true; // default to true for backwards compatibility
+    if (node.has(PURGE)) {
+      purge = JsonUtil.getBool(PURGE, node);
+    }
+    return new MetadataUpdate.RemoveSnapshotRef(refName, purge);
   }
 
   private static MetadataUpdate readSetProperties(JsonNode node) {
