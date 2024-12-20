@@ -49,6 +49,8 @@ public class SchemaParser {
   private static final String DOC = "doc";
   private static final String NAME = "name";
   private static final String ID = "id";
+  private static final String INITIAL_DEFAULT = "initial-default";
+  private static final String WRITE_DEFAULT = "write-default";
   private static final String ELEMENT_ID = "element-id";
   private static final String KEY_ID = "key-id";
   private static final String VALUE_ID = "value-id";
@@ -88,6 +90,17 @@ public class SchemaParser {
       if (field.doc() != null) {
         generator.writeStringField(DOC, field.doc());
       }
+
+      if (field.initialDefault() != null) {
+        generator.writeFieldName(INITIAL_DEFAULT);
+        SingleValueParser.toJson(field.type(), field.initialDefault(), generator);
+      }
+
+      if (field.writeDefault() != null) {
+        generator.writeFieldName(WRITE_DEFAULT);
+        SingleValueParser.toJson(field.type(), field.writeDefault(), generator);
+      }
+
       generator.writeEndObject();
     }
     generator.writeEndArray();
@@ -184,6 +197,22 @@ public class SchemaParser {
     throw new IllegalArgumentException("Cannot parse type from json: " + json);
   }
 
+  private static Object defaultFromJson(String defaultField, Type type, JsonNode json) {
+    if (json.has(defaultField)) {
+      return SingleValueParser.fromJson(type, json.get(defaultField));
+    }
+
+    return null;
+  }
+
+  private static Types.NestedField.Builder fieldBuilder(boolean isRequired, String name) {
+    if (isRequired) {
+      return Types.NestedField.required(name);
+    } else {
+      return Types.NestedField.optional(name);
+    }
+  }
+
   private static Types.StructType structFromJson(JsonNode json) {
     JsonNode fieldArray = JsonUtil.get(FIELDS, json);
     Preconditions.checkArgument(
@@ -200,13 +229,19 @@ public class SchemaParser {
       String name = JsonUtil.getString(NAME, field);
       Type type = typeFromJson(JsonUtil.get(TYPE, field));
 
+      Object initialDefault = defaultFromJson(INITIAL_DEFAULT, type, field);
+      Object writeDefault = defaultFromJson(WRITE_DEFAULT, type, field);
+
       String doc = JsonUtil.getStringOrNull(DOC, field);
       boolean isRequired = JsonUtil.getBool(REQUIRED, field);
-      if (isRequired) {
-        fields.add(Types.NestedField.required(id, name, type, doc));
-      } else {
-        fields.add(Types.NestedField.optional(id, name, type, doc));
-      }
+      fields.add(
+          fieldBuilder(isRequired, name)
+              .withId(id)
+              .ofType(type)
+              .withDoc(doc)
+              .withInitialDefault(initialDefault)
+              .withWriteDefault(writeDefault)
+              .build());
     }
 
     return Types.StructType.of(fields);

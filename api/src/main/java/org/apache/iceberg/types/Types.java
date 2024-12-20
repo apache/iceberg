@@ -711,8 +711,15 @@ public class Types {
         return false;
       } else if (!Objects.equals(doc, that.doc)) {
         return false;
+      } else if (!type.equals(that.type)) {
+        return false;
+      } else if (!Objects.equals(initialDefault, that.initialDefault)) {
+        return false;
       }
-      return type.equals(that.type);
+      if (!Objects.equals(writeDefault, that.writeDefault)) {
+        return false;
+      }
+      return true;
     }
 
     @Override

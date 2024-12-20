@@ -96,11 +96,20 @@ public class TestHelpers {
 
   public static void assertEqualsSafe(Types.StructType struct, Record rec, Row row) {
     List<Types.NestedField> fields = struct.fields();
-    for (int i = 0; i < fields.size(); i += 1) {
-      Type fieldType = fields.get(i).type();
+    for (int readPos = 0; readPos < fields.size(); readPos += 1) {
+      Types.NestedField field = fields.get(readPos);
+      Field writeField = rec.getSchema().getField(field.name());
 
-      Object expectedValue = rec.get(i);
-      Object actualValue = row.get(i);
+      Type fieldType = field.type();
+      Object actualValue = row.get(readPos);
+
+      Object expectedValue;
+      if (writeField != null) {
+        int writePos = writeField.pos();
+        expectedValue = rec.get(writePos);
+      } else {
+        expectedValue = field.initialDefault();
+      }
 
       assertEqualsSafe(fieldType, expectedValue, actualValue);
     }
@@ -237,11 +246,21 @@ public class TestHelpers {
             .isEqualTo(String.valueOf(expected));
         break;
       case FIXED:
-        assertThat(expected).as("Should expect a Fixed").isInstanceOf(GenericData.Fixed.class);
+        // generated data is written using Avro or Parquet/Avro so generated rows use
+        // GenericData.Fixed, but default values are converted from Iceberg's internal
+        // representation so the expected value may be either class.
+        byte[] expectedBytes;
+        if (expected instanceof ByteBuffer) {
+          expectedBytes = ByteBuffers.toByteArray((ByteBuffer) expected);
+        } else if (expected instanceof GenericData.Fixed) {
+          expectedBytes = ((GenericData.Fixed) expected).bytes();
+        } else {
+          throw new IllegalStateException(
+              "Invalid expected value, not byte[] or Fixed: " + expected);
+        }
+
         assertThat(actual).as("Should be a byte[]").isInstanceOf(byte[].class);
-        assertThat(actual)
-            .as("Bytes should match")
-            .isEqualTo(((GenericData.Fixed) expected).bytes());
+        assertThat(actual).as("Bytes should match").isEqualTo(expectedBytes);
         break;
       case BINARY:
         assertThat(expected).as("Should expect a ByteBuffer").isInstanceOf(ByteBuffer.class);
