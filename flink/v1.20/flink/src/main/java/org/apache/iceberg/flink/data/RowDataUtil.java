@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.data;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.List;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.util.Utf8;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
@@ -30,6 +31,7 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
@@ -63,6 +65,27 @@ public class RowDataUtil {
         return ByteBuffers.toByteArray((ByteBuffer) value);
       case BINARY: // byte[]
         return ByteBuffers.toByteArray((ByteBuffer) value);
+      case STRUCT: // struct
+        Types.StructType structType = (Types.StructType) type;
+
+        if (structType.fields().isEmpty()) {
+          return new GenericRowData(0);
+        }
+
+        List<Types.NestedField> fields = structType.fields();
+        Object[] values = new Object[fields.size()];
+        StructLike struct = (StructLike) value;
+
+        GenericRowData data = new GenericRowData(fields.size());
+        for (int index = 0; index < fields.size(); index++) {
+          Types.NestedField field = fields.get(index);
+          Type fieldType = field.type();
+          values[index] =
+              convertConstant(fieldType, struct.get(index, fieldType.typeId().javaClass()));
+          data.setField(index, values[index]);
+        }
+
+        return data;
       case TIME: // int mills instead of long
         return (int) ((Long) value / 1000);
       case TIMESTAMP: // TimestampData
