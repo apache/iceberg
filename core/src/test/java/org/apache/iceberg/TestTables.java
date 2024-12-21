@@ -79,6 +79,27 @@ public class TestTables {
       PartitionSpec spec,
       SortOrder sortOrder,
       int formatVersion,
+      FileIO fileIO) {
+    TestTableOperations ops = new TestTableOperations(name, temp, fileIO);
+    if (ops.current() != null) {
+      throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
+    }
+
+    ops.commit(
+        null,
+        newTableMetadata(
+            schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), formatVersion));
+
+    return new TestTable(ops, name);
+  }
+
+  public static TestTable create(
+      File temp,
+      String name,
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      int formatVersion,
       MetricsReporter reporter) {
     TestTableOperations ops = new TestTableOperations(name, temp);
     if (ops.current() != null) {
