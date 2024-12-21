@@ -607,17 +607,16 @@ public class TestTypeUtil {
                 required(10, "a", Types.IntegerType.get()),
                 Types.NestedField.required("c")
                     .withId(11)
-                    .ofType(testType)
+                    .ofType(Types.IntegerType.get())
                     .withInitialDefault(23)
                     .withWriteDefault(34)
                     .build(),
-                required(12, "B", Types.IntegerType.get())),
+                required(12, "B", testType)),
             Sets.newHashSet(10));
     Schema sourceSchema =
         new Schema(
             Lists.newArrayList(
-                required(1, "a", Types.IntegerType.get()),
-                required(15, "B", Types.IntegerType.get())));
+                required(1, "a", Types.IntegerType.get()), required(15, "B", testType)));
 
     Schema actualSchema = TypeUtil.reassignOrRefreshIds(schema, sourceSchema);
     Schema expectedSchema =
@@ -630,7 +629,7 @@ public class TestTypeUtil {
                     .withInitialDefault(23)
                     .withWriteDefault(34)
                     .build(),
-                required(15, "B", Types.IntegerType.get())));
+                required(15, "B", testType)));
 
     assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
   }
