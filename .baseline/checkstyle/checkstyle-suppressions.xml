@@ -48,4 +48,7 @@
 
     <!-- Referencing guava classes should be allowed in classes within bundled-guava module -->
     <suppress files="org.apache.iceberg.GuavaClasses" id="BanUnrelocatedGuavaClasses"/>
+
+    <!-- Suppress checks for CometColumnReader -->
+    <suppress files="org.apache.iceberg.spark.data.vectorized.CometColumnReader" checks="IllegalImport"/>
 </suppressions>
