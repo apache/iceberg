@@ -368,4 +368,17 @@ public class TestSchemaConversions {
         Lists.newArrayList(Iterables.transform(origSchema.columns(), Types.NestedField::doc));
     assertThat(fieldDocs).isEqualTo(origFieldDocs);
   }
+
+  @Test
+  public void testVariantConversion() {
+    org.apache.iceberg.Schema schema =
+        new org.apache.iceberg.Schema(required(1, "variantCol", Types.VariantType.get()));
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+
+    org.apache.avro.Schema variantSchema = avroSchema.getField("variantCol").schema();
+    assertThat(variantSchema.getType()).isEqualTo(org.apache.avro.Schema.Type.RECORD);
+    assertThat(variantSchema.getFields().size()).isEqualTo(2);
+    assertThat(variantSchema.getField("metadata")).isNotNull();
+    assertThat(variantSchema.getField("value")).isNotNull();
+  }
 }
