@@ -18,12 +18,17 @@
  */
 package org.apache.iceberg.encryption;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class EncryptionUtil {
@@ -70,31 +75,93 @@ public class EncryptionUtil {
     return kmsClient;
   }
 
+  /**
+   * @deprecated will be removed in 2.0.0. use {@link #createEncryptionManager(String, int,
+   *     KeyManagementClient)} instead.
+   */
+  @Deprecated
   public static EncryptionManager createEncryptionManager(
       Map<String, String> tableProperties, KeyManagementClient kmsClient) {
-    Preconditions.checkArgument(kmsClient != null, "Invalid KMS client: null");
     String tableKeyId = tableProperties.get(TableProperties.ENCRYPTION_TABLE_KEY);
-
-    if (null == tableKeyId) {
-      // Unencrypted table
-      return PlaintextEncryptionManager.instance();
-    }
-
     int dataKeyLength =
         PropertyUtil.propertyAsInt(
             tableProperties,
             TableProperties.ENCRYPTION_DEK_LENGTH,
             TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
 
+    return createEncryptionManager(tableKeyId, dataKeyLength, kmsClient);
+  }
+
+  public static EncryptionManager createEncryptionManager(
+      String tableKeyId, int dataKeyLength, KeyManagementClient kmsClient) {
+    Preconditions.checkArgument(kmsClient != null, "Invalid KMS client: null");
+
+    if (null == tableKeyId) {
+      // Unencrypted table
+      return PlaintextEncryptionManager.instance();
+    }
+
     Preconditions.checkState(
         dataKeyLength == 16 || dataKeyLength == 24 || dataKeyLength == 32,
         "Invalid data key length: %s (must be 16, 24, or 32)",
         dataKeyLength);
 
-    return new StandardEncryptionManager(tableKeyId, dataKeyLength, kmsClient);
+    return new StandardEncryptionManager(tableKeyId, dataKeyLength, ImmutableList.of(), kmsClient);
   }
 
   public static EncryptedOutputFile plainAsEncryptedOutput(OutputFile encryptingOutputFile) {
     return new BaseEncryptedOutputFile(encryptingOutputFile, EncryptionKeyMetadata.empty());
+  }
+
+  /**
+   * Decrypt the key metadata for a snapshot.
+   *
+   * <p>Encryption for snapshot key metadata is only available for tables using standard encryption.
+   *
+   * @param manifestList a ManifestListFile
+   * @param em the table's EncryptionManager
+   * @return a decrypted key metadata buffer
+   */
+  public static ByteBuffer decryptSnapshotKeyMetadata(
+      ManifestListFile manifestList, EncryptionManager em) {
+    Preconditions.checkState(
+        em instanceof StandardEncryptionManager,
+        "Snapshot key metadata encryption requires a StandardEncryptionManager");
+    ByteBuffer unwrappedKey =
+        ((StandardEncryptionManager) em).unwrapKey(manifestList.keyMetadataKeyId());
+    return decryptSnapshotKeyMetadata(
+        unwrappedKey, manifestList.snapshotId(), manifestList.encryptedKeyMetadata());
+  }
+
+  private static ByteBuffer decryptSnapshotKeyMetadata(
+      ByteBuffer key, long snapshotId, ByteBuffer encryptedKeyMetadata) {
+    Ciphers.AesGcmDecryptor decryptor = new Ciphers.AesGcmDecryptor(ByteBuffers.toByteArray(key));
+    byte[] keyMetadataBytes = ByteBuffers.toByteArray(encryptedKeyMetadata);
+    byte[] decryptedKeyMetadata = decryptor.decrypt(keyMetadataBytes, snapshotIdAsAAD(snapshotId));
+    return ByteBuffer.wrap(decryptedKeyMetadata);
+  }
+
+  /**
+   * Encrypts the key metadata for a snapshot.
+   *
+   * <p>Encryption for snapshot key metadata is only available for tables using standard encryption.
+   *
+   * @param key unwrapped snapshot key bytes
+   * @param snapshotId ID of the table snapshot
+   * @param keyMetadata unencrypted EncryptionKeyMetadata
+   * @return a Pair of the key ID used to encrypt and the encrypted key metadata
+   */
+  public static ByteBuffer encryptSnapshotKeyMetadata(
+      ByteBuffer key, long snapshotId, EncryptionKeyMetadata keyMetadata) {
+    Ciphers.AesGcmEncryptor encryptor = new Ciphers.AesGcmEncryptor(ByteBuffers.toByteArray(key));
+    byte[] keyMetadataBytes = ByteBuffers.toByteArray(keyMetadata.buffer());
+    byte[] encryptedKeyMetadata = encryptor.encrypt(keyMetadataBytes, snapshotIdAsAAD(snapshotId));
+    return ByteBuffer.wrap(encryptedKeyMetadata);
+  }
+
+  private static byte[] snapshotIdAsAAD(long snapshotId) {
+    ByteBuffer asBuffer =
+        ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(0, snapshotId);
+    return ByteBuffers.toByteArray(asBuffer);
   }
 }
