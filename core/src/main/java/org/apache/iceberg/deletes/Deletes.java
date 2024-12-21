@@ -37,6 +37,7 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.Filter;
+import org.apache.iceberg.util.PathMap;
 import org.apache.iceberg.util.SortedMerge;
 import org.apache.iceberg.util.StructLikeSet;
 
@@ -121,6 +122,12 @@ public class Deletes {
     }
   }
 
+  /**
+   * Builds a map of position delete indexes by path.
+   *
+   * @deprecated since 1.8.0, will be removed in 1.9.0. Use {@link #toPathPositionIndexes}.
+   */
+  @Deprecated
   public static <T extends StructLike> CharSequenceMap<PositionDeleteIndex> toPositionIndexes(
       CloseableIterable<T> posDeletes) {
     return toPositionIndexes(posDeletes, null /* unknown delete file */);
@@ -135,7 +142,9 @@ public class Deletes {
    * @param posDeletes position deletes
    * @param file the source delete file for the deletes
    * @return the map of position delete indexes by path
+   * @deprecated since 1.8.0, will be removed in 1.9.0. Use {@link #toPathPositionIndexes}.
    */
+  @Deprecated
   public static <T extends StructLike> CharSequenceMap<PositionDeleteIndex> toPositionIndexes(
       CloseableIterable<T> posDeletes, DeleteFile file) {
     CharSequenceMap<PositionDeleteIndex> indexes = CharSequenceMap.create();
@@ -146,6 +155,35 @@ public class Deletes {
         long position = (long) POSITION_ACCESSOR.get(delete);
         PositionDeleteIndex index =
             indexes.computeIfAbsent(filePath, key -> new BitmapPositionDeleteIndex(file));
+        index.delete(position);
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close position delete source", e);
+    }
+
+    return indexes;
+  }
+
+  /**
+   * Builds a map of position delete indexes by path.
+   *
+   * <p>This method builds a position delete index for each referenced data file and does not filter
+   * deletes. This can be useful when the entire delete file content is needed (e.g. caching).
+   *
+   * @param posDeletes position deletes
+   * @param file the source delete file for the deletes
+   * @return the map of position delete indexes by path
+   */
+  public static <T extends StructLike> PathMap<PositionDeleteIndex> toPathPositionIndexes(
+      CloseableIterable<T> posDeletes, DeleteFile file) {
+    PathMap<PositionDeleteIndex> indexes = PathMap.create();
+
+    try (CloseableIterable<T> deletes = posDeletes) {
+      for (T delete : deletes) {
+        CharSequence filePath = (CharSequence) FILENAME_ACCESSOR.get(delete);
+        long position = (long) POSITION_ACCESSOR.get(delete);
+        PositionDeleteIndex index =
+            indexes.computeIfAbsent(filePath, () -> new BitmapPositionDeleteIndex(file));
         index.delete(position);
       }
     } catch (IOException e) {
