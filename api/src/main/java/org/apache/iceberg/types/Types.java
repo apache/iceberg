@@ -729,6 +729,9 @@ public class Types {
 
   public static class StructType extends NestedType {
     private static final Joiner FIELD_SEP = Joiner.on(", ");
+    private static final int NO_HASHCODE = Integer.MIN_VALUE;
+
+    private transient int hashCode = NO_HASHCODE;
 
     public static StructType of(NestedField... fields) {
       return of(Arrays.asList(fields));
@@ -830,7 +833,10 @@ public class Types {
 
     @Override
     public int hashCode() {
-      return Objects.hash(NestedField.class, Arrays.hashCode(fields));
+      if (hashCode == NO_HASHCODE) {
+        hashCode = Objects.hash(NestedField.class, Arrays.hashCode(fields));
+      }
+      return hashCode;
     }
 
     private List<NestedField> lazyFieldList() {
