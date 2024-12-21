@@ -68,16 +68,12 @@ public class SparkValueConverter {
         }
         return convertedMap;
 
-      case DATE:
-        // if spark.sql.datetime.java8API.enabled is set to true, java.time.LocalDate
-        // for Spark SQL DATE type otherwise java.sql.Date is returned.
-        return DateTimeUtils.anyToDays(object);
-      case TIMESTAMP:
-        return DateTimeUtils.anyToMicros(object);
       case BINARY:
         return ByteBuffer.wrap((byte[]) object);
       case INTEGER:
         return ((Number) object).intValue();
+      case DATE:
+      case TIMESTAMP:
       case BOOLEAN:
       case LONG:
       case FLOAT:
