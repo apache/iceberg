@@ -334,7 +334,7 @@ The REST catalog uses the `apache/iceberg-rest-fixture` docker container from th
 === "CLI"
 
     ```sh
-    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }} \
+    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }},org.apache.iceberg:iceberg-aws-bundle:1.7.1 \
         --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
         --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog \
         --conf spark.sql.catalog.spark_catalog.type=hive \
@@ -347,14 +347,14 @@ The REST catalog uses the `apache/iceberg-rest-fixture` docker container from th
         --conf spark.sql.catalog.rest.s3.path-style-access=true \
         --conf spark.sql.catalog.rest.s3.access-key-id=admin \
         --conf spark.sql.catalog.rest.s3.secret-access-key=password \
-        --conf spark.sql.catalog.rest.s3.region=us-east-1 \
+        --conf spark.sql.catalog.rest.client.region=us-east-1 \
         --conf spark.sql.defaultCatalog=rest
     ```
 
 === "spark-defaults.conf"
 
     ```sh
-    spark.jars.packages                                  org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}
+    spark.jars.packages                                  org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }},org.apache.iceberg:iceberg-aws-bundle:1.7.1
     spark.sql.extensions                                 org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
     spark.sql.catalog.spark_catalog                      org.apache.iceberg.spark.SparkSessionCatalog
     spark.sql.catalog.spark_catalog.type                 hive
@@ -367,7 +367,7 @@ The REST catalog uses the `apache/iceberg-rest-fixture` docker container from th
     spark.sql.catalog.rest.s3.path-style-access          true
     spark.sql.catalog.rest.s3.access-key-id              admin
     spark.sql.catalog.rest.s3.secret-access-key          password
-    spark.sql.catalog.rest.s3.region                     us-east-1
+    spark.sql.catalog.rest.client.region                 us-east-1
     spark.sql.defaultCatalog                             rest
     ```
 
