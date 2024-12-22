@@ -26,11 +26,11 @@ highlight some powerful features. You can learn more about Iceberg's Spark runti
 - [Writing Data to a Table](#writing-data-to-a-table)
 - [Reading Data from a Table](#reading-data-from-a-table)
 - [Adding A Catalog](#adding-a-catalog)
-    - [Configuring JDBC Catalog](#configuring-jdbc-catalog)
-    - [Configuring REST Catalog](#configuring-rest-catalog)
+	- [Configuring JDBC Catalog](#configuring-jdbc-catalog)
+	- [Configuring REST Catalog](#configuring-rest-catalog)
 - [Next steps](#next-steps)
-    - [Adding Iceberg to Spark](#adding-iceberg-to-spark)
-    - [Learn More](#learn-more)
+	- [Adding Iceberg to Spark](#adding-iceberg-to-spark)
+	- [Learn More](#learn-more)
 
 ### Docker-Compose
 
@@ -334,7 +334,7 @@ The REST catalog uses the `apache/iceberg-rest-fixture` docker container from th
 === "CLI"
 
     ```sh
-    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }},org.xerial:sqlite-jdbc:3.46.1.3 \
+    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }} \
         --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
         --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog \
         --conf spark.sql.catalog.spark_catalog.type=hive \
@@ -358,17 +358,17 @@ The REST catalog uses the `apache/iceberg-rest-fixture` docker container from th
     spark.sql.extensions                                 org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
     spark.sql.catalog.spark_catalog                      org.apache.iceberg.spark.SparkSessionCatalog
     spark.sql.catalog.spark_catalog.type                 hive
-    spark.sql.catalog.rest                              org.apache.iceberg.spark.SparkCatalog
-    spark.sql.catalog.rest.type                         rest
-    spark.sql.catalog.rest.uri                         http://localhost:8181
-    spark.sql.catalog.rest.warehouse                   s3://warehouse/
-    spark.sql.catalog.rest.io-impl                     org.apache.iceberg.aws.s3.S3FileIO
-    spark.sql.catalog.rest.s3.endpoint                 http://localhost:9000
-    spark.sql.catalog.rest.s3.access-key-id            admin
-    spark.sql.catalog.rest.s3.secret-access-key        password
-    spark.sql.catalog.rest.s3.path-style-access        true
-    spark.sql.catalog.rest.s3.region                   us-east-1
-    spark.sql.defaultCatalog                            rest
+    spark.sql.catalog.rest                               org.apache.iceberg.spark.SparkCatalog
+    spark.sql.catalog.rest.type                          rest
+    spark.sql.catalog.rest.uri                           http://localhost:8181
+    spark.sql.catalog.rest.warehouse                     s3://warehouse/
+    spark.sql.catalog.rest.io-impl                       org.apache.iceberg.aws.s3.S3FileIO
+    spark.sql.catalog.rest.s3.endpoint                   http://localhost:9000
+    spark.sql.catalog.rest.s3.path-style-access          true
+    spark.sql.catalog.rest.s3.access-key-id              admin
+    spark.sql.catalog.rest.s3.secret-access-key          password
+    spark.sql.catalog.rest.s3.region                     us-east-1
+    spark.sql.defaultCatalog                             rest
     ```
 
 !!! note
