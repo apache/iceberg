@@ -278,6 +278,7 @@ Catalogs are configured using properties under `spark.sql.catalog.(catalog_name)
 You can configure different catalog types, such as JDBC, Hive Metastore, Glue, and REST, to manage Iceberg tables in Spark.
 
 This guide covers the configuration of two popular catalog types:
+
 * JDBC Catalog
 * REST Catalog
 
@@ -288,6 +289,7 @@ To learn more, check out the [Catalog](docs/latest/spark-configuration.md#catalo
 The JDBC catalog stores Iceberg table metadata in a relational database. 
 
 This configuration creates a JDBC-based catalog named `local` for tables under `$PWD/warehouse` and adds support for Iceberg tables to Spark's built-in catalog.
+
 The JDBC catalog uses file-based SQLite database as the backend.
 
 === "CLI"
@@ -326,6 +328,7 @@ The JDBC catalog uses file-based SQLite database as the backend.
 The REST catalog provides a language-agnostic way to manage Iceberg tables through a RESTful service. 
 
 This configuration creates a REST-based catalog named `rest` for tables under `s3://warehouse/` and adds support for Iceberg tables to Spark's built-in catalog.
+
 The REST catalog uses the `apache/iceberg-rest-fixture` docker container from the `docker-compose.yml` above as the backend service with MinIO for S3-compatible storage.
 
 === "CLI"
