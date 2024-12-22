@@ -25,7 +25,7 @@ highlight some powerful features. You can learn more about Iceberg's Spark runti
 - [Creating a table](#creating-a-table)
 - [Writing Data to a Table](#writing-data-to-a-table)
 - [Reading Data from a Table](#reading-data-from-a-table)
-- [Adding A Catalog](#adding-a-catalog)
+- [Adding catalogs](#adding-catalogs)
 	- [Configuring JDBC Catalog](#configuring-jdbc-catalog)
 	- [Configuring REST Catalog](#configuring-rest-catalog)
 - [Next steps](#next-steps)
@@ -271,7 +271,7 @@ To read a table, simply use the Iceberg table's name.
     df = spark.table("demo.nyc.taxis").show()
     ```
 
-### Adding A Catalog
+### Adding catalogs
 
 Apache Iceberg provides several catalog implementations to manage tables and enable SQL operations. 
 Catalogs are configured using properties under `spark.sql.catalog.(catalog_name)`.

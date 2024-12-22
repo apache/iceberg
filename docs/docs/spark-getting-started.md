@@ -59,7 +59,7 @@ spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ iceber
     --conf spark.sql.catalog.local.warehouse=$PWD/warehouse
 ```
 
-For example configuring a REST-based catalog, see [Configuring REST Catalog](spark-quickstart.md#configuring-rest-catalog)
+For example configuring a REST-based catalog, see [Configuring REST Catalog](/spark-quickstart#configuring-rest-catalog)
 
 ### Creating a table
 
