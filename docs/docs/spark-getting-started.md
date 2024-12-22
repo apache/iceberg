@@ -43,7 +43,7 @@ spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ iceb
 
 Iceberg comes with [catalogs](spark-configuration.md#catalogs) that enable SQL commands to manage tables and load them by name. Catalogs are configured using properties under `spark.sql.catalog.(catalog_name)`.
 
-This command creates a jdbc-based catalog named `local` for tables under `$PWD` and adds support for Iceberg tables to Spark's built-in catalog:
+This command creates a JDBC-based catalog named `local` for tables under `$PWD/warehouse` and adds support for Iceberg tables to Spark's built-in catalog:
 
 ```sh
 spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }},org.xerial:sqlite-jdbc:3.46.1.3 \
