@@ -673,6 +673,8 @@ The snapshot summary's `operation` field is used by some operations, like snapsh
 *   `overwrite` -- Data and delete files were added and removed in a logical overwrite operation.
 *   `delete` -- Data files were removed and their contents logically deleted and/or delete files were added to delete rows.
 
+For other optional snapshot summary fields, see [Appendix G](#appendix-g-optional-snapshot-summary-fields).
+
 Data and delete files for a snapshot can be stored in more than one manifest. This enables:
 
 *   Appends can add a new manifest to minimize the amount of data written, instead of adding new records by rewriting and appending to an existing manifest. (This is called a “fast append”.)
@@ -683,7 +685,6 @@ Manifests for a snapshot are tracked by a manifest list.
 
 Valid snapshots are stored as a list in table metadata. For serialization, see Appendix C.
 
-
 #### Snapshot Row IDs
 
 When row lineage is not enabled, `first-row-id` must be omitted. The rest of this section applies when row lineage is enabled.
@@ -691,7 +692,6 @@ When row lineage is not enabled, `first-row-id` must be omitted. The rest of thi
 A snapshot's `first-row-id` is assigned to the table's current `next-row-id` on each commit attempt. If a commit is retried, the `first-row-id` must be reassigned. If a commit contains no new rows, `first-row-id` should be omitted.
 
 The snapshot's `first-row-id` is the starting `first_row_id` assigned to manifests in the snapshot's manifest list.
-
 
 ### Manifest Lists
 
@@ -1633,3 +1633,55 @@ might indicate different snapshot IDs for a specific timestamp. The discrepancie
 
 When processing point in time queries implementations should use "snapshot-log" metadata to lookup the table state at the given point in time. This ensures time-travel queries reflect the state of the table at the provided timestamp. For example a SQL query like `SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00Z';` would find the snapshot of the Iceberg table just prior to '1986-10-26 01:21:00 UTC' in the snapshot logs and use the metadata from that snapshot to perform the scan of the table. If no  snapshot exists prior to the timestamp given or "snapshot-log" is not populated (it is an optional field), then systems should raise an informative error message about the missing metadata.
 
+## Appendix G: Optional Snapshot Summary Fields
+
+### Metrics
+Snapshot summary can include metrics fields to track numeric stats of the snapshot. The value of these fields should be numeric strings (e.g., `"120"`)
+Some of them are also used to represent partition-level metrics, in [Optional Partition-Level Summary](#optional-partition-level-summary).
+
+| Field                               | Description                                                       | Used in Partition-Level Summary |
+|-------------------------------------|-------------------------------------------------------------------|---------------------------------|
+| **`added-data-files`**              | Number of data files added in the current snapshot                | Yes                             |
+| **`deleted-data-files`**            | Number of data files deleted in the current snapshot              | Yes                             |
+| **`total-data-files`**              | Total number of data files in the current snapshot                | No                              |
+| **`added-delete-files`**            | Number of delete files added in the current snapshot              | Yes                             |
+| **`added-equality-delete-files`**   | Number of equality delete files added in the current snapshot     | Yes                             |
+| **`removed-equality-delete-files`** | Number of equality delete files removed in the current snapshot   | Yes                             |
+| **`added-position-delete-files`**   | Number of position delete files added in the current snapshot     | Yes                             |
+| **`removed-position-delete-files`** | Number of position delete files removed in the current snapshot   | Yes                             |
+| **`added-dvs`**                     | Number of deletion vectors added in the current snapshot          | Yes                             |
+| **`removed-dvs`**                   | Number of deletion vectors removed in the current snapshot        | Yes                             |
+| **`removed-delete-files`**          | Number of delete files removed in the current snapshot            | Yes                             |
+| **`total-delete-files`**            | Total number of delete files in the current snapshot              | No                              |
+| **`added-records`**                 | Number of records added in the current snapshot                   | Yes                             |
+| **`deleted-records`**               | Number of records deleted in the current snapshot                 | Yes                             |
+| **`total-records`**                 | Total number of records in the current snapshot                   | No                              |
+| **`added-files-size`**              | The size of files added in the current snapshot                   | Yes                             |
+| **`removed-files-size`**            | The size of files removed in the current snapshot                 | Yes                             |
+| **`total-files-size`**              | The size of all files in the current snapshot                     | No                              |
+| **`added-position-deletes`**        | Number of position delete records added in the current snapshot   | Yes                             |
+| **`removed-position-deletes`**      | Number of position delete records removed in the current snapshot | Yes                             |
+| **`total-position-deletes`**        | Total number of position delete records in the current snapshot   | No                              |
+| **`added-equality-deletes`**        | Number of equality delete records added in the current snapshot   | Yes                             |
+| **`removed-equality-deletes`**      | Number of equality delete records removed in the current snapshot | Yes                             |
+| **`total-equality-deletes`**        | Total number of equality delete records in the current snapshot   | No                              |
+| **`deleted-duplicate-files`**       | Number of duplicate files deleted in the current snapshot         | No                              |
+| **`changed-partition-count`**       | Number of partitions changed in the current snapshot              | No                              |
+
+### Partition-Level Summary
+Snapshot summary can include partition-level summary statistics. These fields provide metrics for individual partitions. If included, the following fields should be used
+
+*   `partition-summaries-included`: A string field with values `"true"` or `"false"`. It should be set to `"true"` if the number of changed partitions is below the limit defined by the write.summary.partition-limit configuration.
+*   `partitions.<partition path>`: A prefix for partition-level metrics, appended with the string representation of the partition path[1]. The values are string maps containing partition metrics, which include some fields from [Optional Metrics](#optional-metrics).
+
+Notes:
+1. Partition paths are written as Hive partition paths in the format `<partition field name>=<partition value>`. For multiple partitions, they are separated by `/` (e.g., `year=2023/month=12/day=19`).
+
+### Other Fields
+
+| Field                    | Example    | Description                                                     |
+|--------------------------|------------|-----------------------------------------------------------------|
+| **`wap.id`**             | "12345678" | The Write-Audit-Publish id of a staged snapshot                 |
+| **`published-wap-id`**   | "12345678" | The Write-Audit-Publish id of a snapshot already been published |
+| **`source-snapshot-id`** | "12345678" | The id of the snapshot picked to be cherry-picked               |
+| **`replace-partitions`** | `true`     | Whether the operation is `ReplacePartitions`                    |
