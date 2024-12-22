@@ -316,7 +316,7 @@ The JDBC catalog uses file-based SQLite database as the backend.
     spark.sql.catalog.local                              org.apache.iceberg.spark.SparkCatalog
     spark.sql.catalog.local.type                         jdbc
     spark.sql.catalog.local.uri                          jdbc:sqlite:iceberg_catalog_db.sqlite
-    spark.sql.catalog.local.warehouse                    $PWD/warehouse
+    spark.sql.catalog.local.warehouse                    warehouse
     spark.sql.defaultCatalog                             local
     ```
 
