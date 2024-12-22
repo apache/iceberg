@@ -26,11 +26,11 @@ highlight some powerful features. You can learn more about Iceberg's Spark runti
 - [Writing Data to a Table](#writing-data-to-a-table)
 - [Reading Data from a Table](#reading-data-from-a-table)
 - [Adding A Catalog](#adding-a-catalog)
-  - [Configuring JDBC Catalog](#configuring-jdbc-catalog)
-  - [Configuring REST Catalog](#configuring-rest-catalog)
+    - [Configuring JDBC Catalog](#configuring-jdbc-catalog)
+    - [Configuring REST Catalog](#configuring-rest-catalog)
 - [Next steps](#next-steps)
-  - [Adding Iceberg to Spark](#adding-iceberg-to-spark)
-  - [Learn More](#learn-more)
+    - [Adding Iceberg to Spark](#adding-iceberg-to-spark)
+    - [Learn More](#learn-more)
 
 ### Docker-Compose
 
