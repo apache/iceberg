@@ -26,6 +26,8 @@ highlight some powerful features. You can learn more about Iceberg's Spark runti
 - [Writing Data to a Table](#writing-data-to-a-table)
 - [Reading Data from a Table](#reading-data-from-a-table)
 - [Adding A Catalog](#adding-a-catalog)
+  - [Configuring JDBC Catalog](#configuring-jdbc-catalog)
+  - [Configuring REST Catalog](#configuring-rest-catalog)
 - [Next steps](#next-steps)
   - [Adding Iceberg to Spark](#adding-iceberg-to-spark)
   - [Learn More](#learn-more)
@@ -271,12 +273,22 @@ To read a table, simply use the Iceberg table's name.
 
 ### Adding A Catalog
 
-Iceberg has several catalog back-ends that can be used to track tables, like JDBC, Hive MetaStore and Glue.
-Catalogs are configured using properties under `spark.sql.catalog.(catalog_name)`. In this guide,
-we use JDBC, but you can follow these instructions to configure other catalog types. To learn more, check out
-the [Catalog](docs/latest/spark-configuration.md#catalogs) page in the Spark section.
+Apache Iceberg provides several catalog implementations to manage tables and enable SQL operations. 
+Catalogs are configured using properties under `spark.sql.catalog.(catalog_name)`.
+You can configure different catalog types, such as JDBC, Hive Metastore, Glue, and REST, to manage Iceberg tables in Spark.
 
-This configuration creates a jdbc-based catalog named `local` for tables under `$PWD` and adds support for Iceberg tables to Spark's built-in catalog.
+This guide covers the configuration of two popular catalog types:
+* JDBC Catalog
+* REST Catalog
+
+To learn more, check out the [Catalog](docs/latest/spark-configuration.md#catalogs) page in the Spark section.
+
+#### Configuring JDBC Catalog
+
+The JDBC catalog stores Iceberg table metadata in a relational database. 
+
+This configuration creates a JDBC-based catalog named `local` for tables under `$PWD/warehouse` and adds support for Iceberg tables to Spark's built-in catalog.
+The JDBC catalog uses file-based SQLite database as the backend.
 
 === "CLI"
 
@@ -308,6 +320,56 @@ This configuration creates a jdbc-based catalog named `local` for tables under `
 
 !!! note
     If your Iceberg catalog is not set as the default catalog, you will have to switch to it by executing `USE local;`
+
+#### Configuring REST Catalog
+
+The REST catalog provides a language-agnostic way to manage Iceberg tables through a RESTful service. 
+
+This configuration creates a REST-based catalog named `rest` for tables under `s3://warehouse/` and adds support for Iceberg tables to Spark's built-in catalog.
+The REST catalog uses the `apache/iceberg-rest-fixture` docker container from the `docker-compose.yml` above as the backend service with MinIO for S3-compatible storage.
+
+=== "CLI"
+
+    ```sh
+    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }},org.xerial:sqlite-jdbc:3.46.1.3 \
+        --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
+        --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog \
+        --conf spark.sql.catalog.spark_catalog.type=hive \
+        --conf spark.sql.catalog.rest=org.apache.iceberg.spark.SparkCatalog \
+        --conf spark.sql.catalog.rest.type=rest \
+        --conf spark.sql.catalog.rest.uri=http://localhost:8181 \
+        --conf spark.sql.catalog.rest.warehouse=s3://warehouse/ \
+        --conf spark.sql.catalog.rest.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
+        --conf spark.sql.catalog.rest.s3.endpoint=http://localhost:9000 \
+        --conf spark.sql.catalog.rest.s3.path-style-access=true \
+        --conf spark.sql.catalog.rest.s3.access-key-id=admin \
+        --conf spark.sql.catalog.rest.s3.secret-access-key=password \
+        --conf spark.sql.catalog.rest.s3.region=us-east-1 \
+        --conf spark.sql.defaultCatalog=rest
+    ```
+
+=== "spark-defaults.conf"
+
+    ```sh
+    spark.jars.packages                                  org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}
+    spark.sql.extensions                                 org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+    spark.sql.catalog.spark_catalog                      org.apache.iceberg.spark.SparkSessionCatalog
+    spark.sql.catalog.spark_catalog.type                 hive
+    spark.sql.catalog.rest                              org.apache.iceberg.spark.SparkCatalog
+    spark.sql.catalog.rest.type                         rest
+    spark.sql.catalog.rest.uri                         http://localhost:8181
+    spark.sql.catalog.rest.warehouse                   s3://warehouse/
+    spark.sql.catalog.rest.io-impl                     org.apache.iceberg.aws.s3.S3FileIO
+    spark.sql.catalog.rest.s3.endpoint                 http://localhost:9000
+    spark.sql.catalog.rest.s3.access-key-id            admin
+    spark.sql.catalog.rest.s3.secret-access-key        password
+    spark.sql.catalog.rest.s3.path-style-access        true
+    spark.sql.catalog.rest.s3.region                   us-east-1
+    spark.sql.defaultCatalog                            rest
+    ```
+
+!!! note
+    If your Iceberg catalog is not set as the default catalog, you will have to switch to it by executing `USE rest;`
 
 ### Next steps
 
