@@ -80,6 +80,9 @@ public abstract class BaseParquetReaders<T> {
     return value;
   }
 
+  protected abstract ParquetValueReader<T> createVariantReader(
+      List<ParquetValueReader<?>> fieldReaders);
+
   private class FallbackReadBuilder extends ReadBuilder {
     private FallbackReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
       super(type, idToConstant);
@@ -401,6 +404,30 @@ public abstract class BaseParquetReaders<T> {
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
+    }
+
+    @Override
+    public ParquetValueReader<?> variant(GroupType variant) {
+      return createVariantReader(
+          List.of(
+              new ParquetValueReaders.ByteArrayReader(
+                  new ColumnDescriptor(
+                      new String[] {variant.getName(), "value"},
+                      new PrimitiveType(
+                          Type.Repetition.REQUIRED,
+                          PrimitiveType.PrimitiveTypeName.BINARY,
+                          "value"),
+                      0,
+                      0)),
+              new ParquetValueReaders.ByteArrayReader(
+                  new ColumnDescriptor(
+                      new String[] {variant.getName(), "metadata"},
+                      new PrimitiveType(
+                          Type.Repetition.REQUIRED,
+                          PrimitiveType.PrimitiveTypeName.BINARY,
+                          "metadata"),
+                      0,
+                      0))));
     }
 
     MessageType type() {

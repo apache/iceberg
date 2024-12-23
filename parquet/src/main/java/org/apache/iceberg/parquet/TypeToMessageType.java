@@ -77,6 +77,19 @@ public class TypeToMessageType {
     return builder.id(id).named(AvroSchemaUtil.makeCompatibleName(name));
   }
 
+  public GroupType variant(Type.Repetition repetition, int id, String name) {
+    Types.GroupBuilder<GroupType> builder = Types.buildGroup(repetition);
+
+    return builder
+        .addField(
+            new org.apache.parquet.schema.PrimitiveType(Type.Repetition.REQUIRED, BINARY, "value"))
+        .addField(
+            new org.apache.parquet.schema.PrimitiveType(
+                Type.Repetition.REQUIRED, BINARY, "metadata"))
+        .id(id)
+        .named(AvroSchemaUtil.makeCompatibleName(name));
+  }
+
   public Type field(NestedField field) {
     Type.Repetition repetition =
         field.isOptional() ? Type.Repetition.OPTIONAL : Type.Repetition.REQUIRED;
@@ -85,7 +98,8 @@ public class TypeToMessageType {
 
     if (field.type().isPrimitiveType()) {
       return primitive(field.type().asPrimitiveType(), repetition, id, name);
-
+    } else if (field.type().isVariantType()) {
+      return variant(repetition, id, name);
     } else {
       NestedType nested = field.type().asNestedType();
       if (nested.isStructType()) {
