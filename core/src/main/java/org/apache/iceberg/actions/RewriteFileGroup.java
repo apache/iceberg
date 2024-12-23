@@ -31,26 +31,26 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.DataFileSet;
 
 /**
- * Container class representing a set of files to be rewritten by a RewriteAction and the new files
- * which have been written by the action.
+ * Container class representing a set of data files to be rewritten by a RewriteAction and the new
+ * files which have been written by the action.
  */
-public class RewriteFileGroup {
-  private final FileGroupInfo info;
-  private final List<FileScanTask> fileScanTasks;
-
+public class RewriteFileGroup extends FileRewriteGroup<FileGroupInfo, FileScanTask, DataFile> {
   private DataFileSet addedFiles = DataFileSet.create();
 
+  /**
+   * @deprecated since 1.8.0, will be removed in 1.9.0.
+   */
+  @Deprecated
   public RewriteFileGroup(FileGroupInfo info, List<FileScanTask> fileScanTasks) {
-    this.info = info;
-    this.fileScanTasks = fileScanTasks;
+    this(info, fileScanTasks, 0L, 0);
   }
 
-  public FileGroupInfo info() {
-    return info;
-  }
-
-  public List<FileScanTask> fileScans() {
-    return fileScanTasks;
+  public RewriteFileGroup(
+      FileGroupInfo info,
+      List<FileScanTask> fileScanTasks,
+      long splitSize,
+      int expectedOutputFiles) {
+    super(info, fileScanTasks, splitSize, expectedOutputFiles);
   }
 
   public void setOutputFiles(Set<DataFile> files) {
@@ -70,9 +70,9 @@ public class RewriteFileGroup {
   public RewriteDataFiles.FileGroupRewriteResult asResult() {
     Preconditions.checkState(addedFiles != null, "Cannot get result, Group was never rewritten");
     return ImmutableRewriteDataFiles.FileGroupRewriteResult.builder()
-        .info(info)
+        .info(info())
         .addedDataFilesCount(addedFiles.size())
-        .rewrittenDataFilesCount(fileScanTasks.size())
+        .rewrittenDataFilesCount(fileScans().size())
         .rewrittenBytesCount(sizeInBytes())
         .build();
   }
@@ -80,8 +80,8 @@ public class RewriteFileGroup {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("info", info)
-        .add("numRewrittenFiles", fileScanTasks.size())
+        .add("info", info())
+        .add("numRewrittenFiles", fileScans().size())
         .add(
             "numAddedFiles",
             addedFiles == null ? "Rewrite Incomplete" : Integer.toString(addedFiles.size()))
@@ -89,14 +89,19 @@ public class RewriteFileGroup {
         .toString();
   }
 
-  public long sizeInBytes() {
-    return fileScanTasks.stream().mapToLong(FileScanTask::length).sum();
-  }
-
+  /**
+   * @deprecated since 1.8.0, will be removed in 1.9.0. Use {@link #numInputFiles()} instead.
+   */
+  @Deprecated
   public int numFiles() {
-    return fileScanTasks.size();
+    return fileScans().size();
   }
 
+  /**
+   * @deprecated since 1.8.0, will be removed in 1.9.0. Use {@link
+   *     FileRewriteGroup#taskComparator(RewriteJobOrder)} instead.
+   */
+  @Deprecated
   public static Comparator<RewriteFileGroup> comparator(RewriteJobOrder rewriteJobOrder) {
     switch (rewriteJobOrder) {
       case BYTES_ASC:
