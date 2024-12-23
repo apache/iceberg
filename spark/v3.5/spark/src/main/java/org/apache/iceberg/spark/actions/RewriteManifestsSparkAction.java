@@ -65,7 +65,6 @@ import org.apache.iceberg.spark.SparkDeleteFile;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.broadcast.Broadcast;
@@ -76,9 +75,7 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.api.java.UDF1;
-import org.apache.spark.sql.expressions.UserDefinedFunction;
 import org.apache.spark.sql.functions;
-import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -118,7 +115,6 @@ public class RewriteManifestsSparkAction
   private String outputLocation;
 
   private List<String> partitionFieldClustering = null;
-  private Function<DataFile, String> partitionClusteringFunction = null;
 
   RewriteManifestsSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -175,28 +171,25 @@ public class RewriteManifestsSparkAction
   }
 
   @Override
-  public RewriteManifestsSparkAction clusterBy(List<String> clusteringColumns) {
-    // Collect set of allowable partition columns to cluster on
+  public RewriteManifestsSparkAction clusterBy(List<String> partitionFields) {
+    // Collect set of available partition columns to cluster on
     Set<String> availablePartitionNames =
         spec.fields().stream().map(PartitionField::name).collect(Collectors.toSet());
 
+    // Identify specified partition fields that are not available in the spec
+    List<String> missingFields =
+        partitionFields.stream()
+            .filter(field -> !availablePartitionNames.contains(field))
+            .collect(Collectors.toList());
+
     // Check if these partition fields are included in the spec
     Preconditions.checkArgument(
-        clusteringColumns.stream().allMatch(availablePartitionNames::contains),
-        "Cannot use custom clustering to rewrite manifests '%s'. All partition columns must be "
-            + "defined in the current partition spec: %s. Choose from the available partitionable columns: %s",
-        clusteringColumns,
-        this.spec.specId(),
-        availablePartitionNames);
+        missingFields.isEmpty(),
+        "Cannot set manifest clustering because specified field(s) %s were not found in current partition spec %s.",
+        missingFields,
+        this.spec.specId());
 
-    this.partitionFieldClustering = clusteringColumns;
-    return this;
-  }
-
-  @Override
-  public RewriteManifests clusterBy(Function<DataFile, String> clusteringFunction) {
-    this.partitionClusteringFunction =
-        (Function<DataFile, String> & Serializable) clusteringFunction;
+    this.partitionFieldClustering = partitionFields;
     return this;
   }
 
@@ -293,26 +286,7 @@ public class RewriteManifestsSparkAction
     // Extract desired clustering criteria into a dedicated column
     Dataset<Row> clusteredManifestEntryDF;
 
-    if (partitionClusteringFunction != null) {
-      LOG.info(
-          "Sorting manifests for specId {} using custom clustering function",
-          spec.specId(),
-          partitionClusteringFunction);
-      Types.StructType partitionType = DataFile.getType(table.spec().partitionType());
-      StructType dataFileSchema = manifestEntryDF.select("data_file.*").schema();
-
-      // Create a UDF to wrap the custom partitionClusteringFunction call
-      UserDefinedFunction clusteringUdf =
-          functions.udf(
-              new CustomDataFileClusteringUdf(
-                  this.partitionClusteringFunction, partitionType, dataFileSchema),
-              DataTypes.StringType);
-      // Apply supplied partitionSortFunction function to the data_file datums within this dataframe
-      // The results are stored as a String in the new __clustering_column__
-      clusteredManifestEntryDF =
-          manifestEntryDF.withColumn(
-              CUSTOM_CLUSTERING_COLUMN_NAME, clusteringUdf.apply(col("data_file")));
-    } else if (partitionFieldClustering != null) {
+    if (partitionFieldClustering != null) {
       LOG.info(
           "Clustering manifests for specId {} by partition columns by {} ",
           spec.specId(),
