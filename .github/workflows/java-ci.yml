@@ -45,7 +45,7 @@ on:
     - '.github/workflows/spark-ci.yml'
     - '.github/workflows/stale.yml'
     - '.gitignore'
-    - '.asf.yml'
+    - '.asf.yaml'
     - 'dev/**'
     - 'docs/**'
     - 'site/**'

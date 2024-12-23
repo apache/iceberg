@@ -45,7 +45,7 @@ on:
     - '.github/workflows/site-ci.yml'
     - '.github/workflows/stale.yml'
     - '.gitignore'
-    - '.asf.yml'
+    - '.asf.yaml'
     - 'dev/**'
     - 'site/**'
     - 'mr/**'
