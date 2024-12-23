@@ -47,10 +47,11 @@ nav:
     - View spec: view-spec.md
     - Puffin spec: puffin-spec.md
     - AES GCM Stream spec: gcm-stream-spec.md
+    - Implementation status: status.md
     - Multi-engine support: multi-engine-support.md
     - How to release: how-to-release.md
     - Terms: terms.md
-    - ASF: 
+    - ASF:
       - Sponsorship: https://www.apache.org/foundation/thanks.html
       - Events: https://www.apache.org/events/current-event.html
       - Privacy: https://privacy.apache.org/policies/privacy-policy-public.html
