@@ -32,9 +32,11 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLNonTransientConnectionException;
+import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -161,6 +163,32 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     // second initialization should not fail even if tables are already created
     jdbcCatalog.initialize("test_jdbc_catalog", properties);
     jdbcCatalog.initialize("test_jdbc_catalog", properties);
+  }
+
+  @Test
+  public void testEscape() throws Exception {
+    java.nio.file.Path dbFile = Files.createTempFile("icebergInitCatalogTables", "db");
+    String jdbcUrl = "jdbc:sqlite:" + dbFile.toAbsolutePath();
+
+    try (Connection connection = DriverManager.getConnection(jdbcUrl);
+        Statement statement = connection.createStatement()) {
+      statement.execute(
+          String.format(
+              "CREATE TABLE %s(x int)", JdbcUtil.CATALOG_TABLE_VIEW_NAME.replace("_", "x")));
+      statement.execute(
+          String.format(
+              "CREATE TABLE %s(x int)",
+              JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME.replace("_", "x")));
+    }
+
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
+    properties.put(CatalogProperties.URI, jdbcUrl);
+    JdbcCatalog jdbcCatalog = new JdbcCatalog();
+    jdbcCatalog.setConf(conf);
+    assertThat(catalogTablesExist(jdbcUrl)).isFalse();
+    jdbcCatalog.initialize("test_jdbc_catalog", properties);
+    assertThat(catalogTablesExist(jdbcUrl)).isTrue();
   }
 
   @Test
