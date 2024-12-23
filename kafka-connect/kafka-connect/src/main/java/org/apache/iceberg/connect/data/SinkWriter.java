@@ -116,12 +116,24 @@ public class SinkWriter {
 
   private void routeRecordDynamically(SinkRecord record) {
     String routeField = config.tablesRouteField();
-    Preconditions.checkNotNull(routeField, "Route field cannot be null with dynamic routing");
+    String routePattern = config.tablesRoutePattern();
 
-    String routeValue = extractRouteValue(record.value(), routeField);
-    if (routeValue != null) {
-      String tableName = routeValue.toLowerCase(Locale.ROOT);
-      writerForTable(tableName, record, true).write(record);
+    Preconditions.checkState(
+        routeField != null || routePattern != null,
+        "Route field and route pattern cannot both be null with dynamic routing");
+
+    if (routeField != null) {
+      String routeValue = extractRouteValue(record.value(), routeField);
+      if (routeValue != null) {
+        String tableName = routeValue.toLowerCase(Locale.ROOT);
+        writerForTable(tableName, record, true).write(record);
+      }
+    } else {
+      // route using pattern
+      String tableName = formatRoutePattern(record, routePattern);
+      if (tableName != null) {
+        writerForTable(tableName, record, true).write(record);
+      }
     }
   }
 
@@ -131,6 +143,20 @@ public class SinkWriter {
     }
     Object routeValue = RecordUtils.extractFromRecordValue(recordValue, routeField);
     return routeValue == null ? null : routeValue.toString();
+  }
+
+  private String formatRoutePattern(SinkRecord record, String routePattern) {
+    if (routePattern == null) {
+      return null;
+    }
+
+    String topicName = record.topic();
+    if (topicName == null) {
+      return null;
+    }
+
+    // replace topic namespace separator
+    return routePattern.replace("{topic}", topicName.replace(".", "_"));
   }
 
   private RecordWriter writerForTable(
