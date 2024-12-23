@@ -110,6 +110,8 @@ public class TableMetadataParser {
   static final String METADATA_LOG = "metadata-log";
   static final String STATISTICS = "statistics";
   static final String PARTITION_STATISTICS = "partition-statistics";
+  static final String ROW_LINEAGE = "row-lineage";
+  static final String NEXT_ROW_ID = "next-row-id";
 
   public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
     internalWrite(metadata, outputFile, true);
@@ -240,6 +242,13 @@ public class TableMetadataParser {
     }
     generator.writeEndArray();
 
+    if (metadata.formatVersion() == 3) {
+      generator.writeBooleanField(ROW_LINEAGE, metadata.rowLinageEnabled());
+      if (metadata.nextRowId() > -1L) {
+        generator.writeNumberField(NEXT_ROW_ID, metadata.nextRowId());
+      }
+    }
+
     generator.writeArrayFieldStart(SNAPSHOT_LOG);
     for (HistoryEntry logEntry : metadata.snapshotLog()) {
       generator.writeStartObject();
@@ -352,6 +361,7 @@ public class TableMetadataParser {
       ImmutableList.Builder<Schema> builder = ImmutableList.builder();
       for (JsonNode schemaNode : schemaArray) {
         Schema current = SchemaParser.fromJson(schemaNode);
+        Schema.checkCompatibility(current, formatVersion);
         if (current.schemaId() == currentSchemaId) {
           schema = current;
         }
@@ -372,6 +382,7 @@ public class TableMetadataParser {
           formatVersion == 1, "%s must exist in format v%s", SCHEMAS, formatVersion);
 
       schema = SchemaParser.fromJson(JsonUtil.get(SCHEMA, node));
+      Schema.checkCompatibility(schema, formatVersion);
       currentSchemaId = schema.schemaId();
       schemas = ImmutableList.of(schema);
     }
@@ -521,6 +532,18 @@ public class TableMetadataParser {
       }
     }
 
+    boolean rowLineageEnabled = false;
+    if (formatVersion == 3 && node.hasNonNull(ROW_LINEAGE)) {
+      rowLineageEnabled = JsonUtil.getBool(ROW_LINEAGE, node);
+    }
+    Long nextRowId = JsonUtil.getLongOrNull(NEXT_ROW_ID, node);
+    Preconditions.checkArgument(
+        !rowLineageEnabled || nextRowId != null,
+        "Next row must be set when row lineage is enabled");
+    if (nextRowId == null) {
+      nextRowId = -1L;
+    }
+
     return new TableMetadata(
         metadataLocation,
         formatVersion,
@@ -545,6 +568,8 @@ public class TableMetadataParser {
         refs,
         statisticsFiles,
         partitionStatisticsFiles,
+        rowLineageEnabled,
+        nextRowId,
         ImmutableList.of() /* no changes from the file */);
   }
 
