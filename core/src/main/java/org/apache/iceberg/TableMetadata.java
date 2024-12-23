@@ -1286,7 +1286,6 @@ public class TableMetadata implements Serializable {
     public Builder removeRef(String name) {
       if (SnapshotRef.MAIN_BRANCH.equals(name)) {
         this.currentSnapshotId = -1;
-        snapshotLog.clear();
       }
 
       SnapshotRef ref = refs.remove(name);
