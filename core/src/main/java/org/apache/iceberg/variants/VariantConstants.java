@@ -18,22 +18,16 @@
  */
 package org.apache.iceberg.variants;
 
-/** An variant object value. */
-public interface VariantObject extends VariantValue {
-  default int numElements() {
-    throw new UnsupportedOperationException();
-  }
+public class VariantConstants {
+  public static final byte VERSION = 1; // Variant version
+  public static final int SIZE_LIMIT = 1 << 24; // metadata and value size limits
 
-  /** Returns the {@link VariantValue} for the field named {@code name} in this object. */
-  VariantValue get(String name);
+  // The lower 4 bits of the first metadata byte contain the version.
+  public static final byte VERSION_MASK = 0x0F;
 
-  @Override
-  default Variants.PhysicalType type() {
-    return Variants.PhysicalType.OBJECT;
-  }
+  public static final int MAX_DECIMAL4_PRECISION = 9;
+  public static final int MAX_DECIMAL8_PRECISION = 18;
+  public static final int MAX_DECIMAL16_PRECISION = 38;
 
-  @Override
-  default VariantObject asObject() {
-    return this;
-  }
+  private VariantConstants() {}
 }

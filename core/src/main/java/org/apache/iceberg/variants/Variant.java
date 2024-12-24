@@ -18,11 +18,57 @@
  */
 package org.apache.iceberg.variants;
 
-/** A variant metadata and value pair. */
-public interface Variant {
-  /** Returns the metadata for all values in the variant. */
-  VariantMetadata metadata();
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-  /** Returns the variant value. */
-  VariantValue value();
+public final class Variant {
+  private final byte[] metadata;
+  private final byte[] value;
+
+  public Variant(byte[] metadata, byte[] value) {
+    Preconditions.checkArgument(
+        metadata != null && metadata.length >= 1, "Metadata must not be null or empty.");
+    Preconditions.checkArgument(
+        value != null && value.length >= 1, "Value must not be null or empty.");
+
+    Preconditions.checkArgument(
+        (metadata[0] & VariantConstants.VERSION_MASK) == VariantConstants.VERSION,
+        "Unsupported metadata version.");
+
+    if (value.length > VariantConstants.SIZE_LIMIT
+        || metadata.length > VariantConstants.SIZE_LIMIT) {
+      throw new VariantSizeLimitException();
+    }
+
+    this.metadata = metadata;
+    this.value = value;
+  }
+
+  byte[] getMetadata() {
+    return metadata;
+  }
+
+  byte[] getValue() {
+    return value;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(metadata, value);
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj) {
+      return true;
+    }
+
+    if (!(obj instanceof Variant)) {
+      return false;
+    }
+
+    Variant other = (Variant) obj;
+    return this.metadata == other.metadata && this.value == other.value;
+  }
+
 }
