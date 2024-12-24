@@ -674,7 +674,8 @@ public class FlinkSink {
                           out.collect(statisticsOrRecord.record());
                         }
                       })
-              // Set the parallelism same as writerParallelism avoid broken chain
+              // Set the parallelism same as writerParallelism to
+              // promote operator chaining with the downstream writer operator
               .setParallelism(writerParallelism)
               .returns(RowData.class);
 
