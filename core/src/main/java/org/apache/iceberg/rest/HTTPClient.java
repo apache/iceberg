@@ -34,11 +34,11 @@ import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
+import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
@@ -133,7 +133,7 @@ public class HTTPClient implements RESTClient {
     this.httpClient = clientBuilder.build();
   }
 
-  private static String extractResponseBodyAsString(CloseableHttpResponse response) {
+  private static String extractResponseBodyAsString(ClassicHttpResponse response) {
     try {
       if (response.getEntity() == null) {
         return null;
@@ -147,14 +147,14 @@ public class HTTPClient implements RESTClient {
   }
 
   // Per the spec, the only currently defined / used "success" responses are 200 and 202.
-  private static boolean isSuccessful(CloseableHttpResponse response) {
+  private static boolean isSuccessful(ClassicHttpResponse response) {
     int code = response.getCode();
     return code == HttpStatus.SC_OK
         || code == HttpStatus.SC_ACCEPTED
         || code == HttpStatus.SC_NO_CONTENT;
   }
 
-  private static ErrorResponse buildDefaultErrorResponse(CloseableHttpResponse response) {
+  private static ErrorResponse buildDefaultErrorResponse(ClassicHttpResponse response) {
     String responseReason = response.getReasonPhrase();
     String message =
         responseReason != null && !responseReason.isEmpty()
@@ -171,7 +171,7 @@ public class HTTPClient implements RESTClient {
   // Process a failed response through the provided errorHandler, and throw a RESTException if the
   // provided error handler doesn't already throw.
   private static void throwFailure(
-      CloseableHttpResponse response, String responseBody, Consumer<ErrorResponse> errorHandler) {
+      ClassicHttpResponse response, String responseBody, Consumer<ErrorResponse> errorHandler) {
     ErrorResponse errorResponse = null;
 
     if (responseBody != null) {
@@ -302,42 +302,48 @@ public class HTTPClient implements RESTClient {
       addRequestHeaders(request, headers, ContentType.APPLICATION_JSON.getMimeType());
     }
 
-    try (CloseableHttpResponse response = httpClient.execute(request)) {
-      Map<String, String> respHeaders = Maps.newHashMap();
-      for (Header header : response.getHeaders()) {
-        respHeaders.put(header.getName(), header.getValue());
-      }
+    try {
+      return httpClient.execute(
+          request,
+          response -> {
+            Map<String, String> respHeaders = Maps.newHashMap();
+            for (Header header : response.getHeaders()) {
+              respHeaders.put(header.getName(), header.getValue());
+            }
 
-      responseHeaders.accept(respHeaders);
+            responseHeaders.accept(respHeaders);
 
-      // Skip parsing the response stream for any successful request not expecting a response body
-      if (response.getCode() == HttpStatus.SC_NO_CONTENT
-          || (responseType == null && isSuccessful(response))) {
-        return null;
-      }
+            // Skip parsing the response stream for any successful request not expecting a response
+            // body
+            if (response.getCode() == HttpStatus.SC_NO_CONTENT
+                || (responseType == null && isSuccessful(response))) {
+              return null;
+            }
 
-      String responseBody = extractResponseBodyAsString(response);
+            String responseBody = extractResponseBodyAsString(response);
 
-      if (!isSuccessful(response)) {
-        // The provided error handler is expected to throw, but a RESTException is thrown if not.
-        throwFailure(response, responseBody, errorHandler);
-      }
+            if (!isSuccessful(response)) {
+              // The provided error handler is expected to throw, but a RESTException is thrown if
+              // not.
+              throwFailure(response, responseBody, errorHandler);
+            }
 
-      if (responseBody == null) {
-        throw new RESTException(
-            "Invalid (null) response body for request (expected %s): method=%s, path=%s, status=%d",
-            responseType.getSimpleName(), method.name(), path, response.getCode());
-      }
+            if (responseBody == null) {
+              throw new RESTException(
+                  "Invalid (null) response body for request (expected %s): method=%s, path=%s, status=%d",
+                  responseType.getSimpleName(), method.name(), path, response.getCode());
+            }
 
-      try {
-        return mapper.readValue(responseBody, responseType);
-      } catch (JsonProcessingException e) {
-        throw new RESTException(
-            e,
-            "Received a success response code of %d, but failed to parse response body into %s",
-            response.getCode(),
-            responseType.getSimpleName());
-      }
+            try {
+              return mapper.readValue(responseBody, responseType);
+            } catch (JsonProcessingException e) {
+              throw new RESTException(
+                  e,
+                  "Received a success response code of %d, but failed to parse response body into %s",
+                  response.getCode(),
+                  responseType.getSimpleName());
+            }
+          });
     } catch (IOException e) {
       throw new RESTException(e, "Error occurred while processing %s request", method);
     }
