@@ -84,7 +84,7 @@ public class TestSparkMetadataColumns extends TestBase {
       TestHelpers.newExpectedSpecBuilder()
           .withSchema(SCHEMA)
           .withSpecId(1)
-          .addField("zero", 1, "id_zero")
+          .addField("zero", 1, 1000, "id_zero")
           .build();
 
   @Parameters(name = "fileFormat = {0}, vectorized = {1}, formatVersion = {2}")
