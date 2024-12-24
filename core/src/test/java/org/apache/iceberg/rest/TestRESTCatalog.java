@@ -32,19 +32,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
-import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -2419,34 +2416,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(ImmutableMap.of("pageToken", "20", "pageSize", "10", "namespace", namespaceName)),
             any(),
             eq(ListTablesResponse.class));
-  }
-
-  @Test
-  public void testReplaceTableKeepsSnapshotLog() {
-    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
-    RESTCatalog catalog = catalog(adapter);
-
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TABLE.namespace());
-    }
-
-    catalog.createTable(TABLE, SCHEMA);
-
-    Table table = catalog.loadTable(TABLE);
-    table.newAppend().appendFile(FILE_A).commit();
-
-    List<HistoryEntry> snapshotLogBeforeReplace =
-        ((BaseTable) table).operations().current().snapshotLog();
-    assertThat(snapshotLogBeforeReplace).hasSize(1);
-
-    Transaction replaceTableTransaction = catalog.newReplaceTableTransaction(TABLE, SCHEMA, false);
-    replaceTableTransaction.newAppend().appendFile(FILE_A).commit();
-    replaceTableTransaction.commitTransaction();
-
-    table.refresh();
-    assertThat(((BaseTable) table).operations().current().snapshotLog())
-        .hasSize(2)
-        .containsAll(snapshotLogBeforeReplace);
   }
 
   @Test
