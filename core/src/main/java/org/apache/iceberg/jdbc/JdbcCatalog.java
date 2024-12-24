@@ -162,8 +162,8 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
             DatabaseMetaData dbMeta = conn.getMetaData();
             ResultSet tableExists =
                 dbMeta.getTables(
-                    null /* catalog name */,
-                    null /* schemaPattern */,
+                    conn.getCatalog() /* catalog name */,
+                    escape(conn.getSchema(), dbMeta.getSearchStringEscape()) /* schemaPattern */,
                     JdbcUtil.CATALOG_TABLE_VIEW_NAME /* tableNamePattern */,
                     null /* types */);
             if (tableExists.next()) {
@@ -181,8 +181,8 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
             DatabaseMetaData dbMeta = conn.getMetaData();
             ResultSet tableExists =
                 dbMeta.getTables(
-                    null /* catalog name */,
-                    null /* schemaPattern */,
+                    conn.getCatalog() /* catalog name */,
+                    escape(conn.getSchema(), dbMeta.getSearchStringEscape()) /* schemaPattern */,
                     JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME /* tableNamePattern */,
                     null /* types */);
 
@@ -206,6 +206,10 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
       Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(e, "Interrupted in call to initialize");
     }
+  }
+
+  private static String escape(String name, String escape) {
+    return name.replace("_", escape + "_").replace("%", escape + "%");
   }
 
   private void updateSchemaIfRequired() {
