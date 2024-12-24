@@ -32,6 +32,7 @@ import java.util.List;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
+import org.apache.avro.SchemaFormatter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
@@ -320,7 +321,8 @@ public class TestSchemaConversions {
                 "properties",
                 Types.MapType.ofOptional(18, 19, Types.StringType.get(), Types.StringType.get())));
 
-    AvroSchemaUtil.convert(schema, "newTableName").toString(true);
+    SchemaFormatter.getInstance("json/pretty")
+        .format(AvroSchemaUtil.convert(schema, "newTableName"));
   }
 
   @Test
