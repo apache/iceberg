@@ -560,20 +560,15 @@ public class SparkScanBuilder
     }
 
     boolean emptyScan = false;
-    if (startTimestamp != null) {
-      if (table.currentSnapshot() != null
-          && table.currentSnapshot().timestampMillis() < startTimestamp) {
-        emptyScan = true;
+    if (startTimestamp != null || endTimestamp != null) {
+      if (startTimestamp != null) {
+        startSnapshotId = getStartSnapshotId(startTimestamp);
       }
-      startSnapshotId = getStartSnapshotId(startTimestamp);
-      if (startSnapshotId == null && endTimestamp == null) {
-        emptyScan = true;
+      if (endTimestamp != null) {
+        endSnapshotId = getEndSnapshotId(startTimestamp, endTimestamp);
       }
-    }
-
-    if (endTimestamp != null) {
-      endSnapshotId = getEndSnapshotId(endTimestamp);
       if ((startSnapshotId == null && endSnapshotId == null)
+          || (endSnapshotId == null && endTimestamp != null)
           || (startSnapshotId != null && startSnapshotId.equals(endSnapshotId))) {
         emptyScan = true;
       }
@@ -605,7 +600,6 @@ public class SparkScanBuilder
 
   private Long getStartSnapshotId(Long startTimestamp) {
     Snapshot oldestSnapshotAfter = SnapshotUtil.oldestAncestorAfter(table, startTimestamp);
-
     if (oldestSnapshotAfter == null) {
       return null;
     } else if (oldestSnapshotAfter.timestampMillis() == startTimestamp) {
@@ -615,10 +609,14 @@ public class SparkScanBuilder
     }
   }
 
-  private Long getEndSnapshotId(Long endTimestamp) {
+  private Long getEndSnapshotId(Long startTimestamp, Long endTimestamp) {
     Long endSnapshotId = null;
     for (Snapshot snapshot : SnapshotUtil.currentAncestors(table)) {
-      if (snapshot.timestampMillis() <= endTimestamp) {
+      long ts = snapshot.timestampMillis();
+      if (startTimestamp != null && ts <= startTimestamp) {
+        break;
+      }
+      if (ts <= endTimestamp) {
         endSnapshotId = snapshot.snapshotId();
         break;
       }
