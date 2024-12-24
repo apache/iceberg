@@ -152,13 +152,14 @@ public class HadoopTableTestBase {
   }
 
   int readVersionHint() throws IOException {
-    return Integer.parseInt(Files.readFirstLine(versionHintFile, StandardCharsets.UTF_8));
+    return Integer.parseInt(
+        Files.asCharSource(versionHintFile, StandardCharsets.UTF_8).readFirstLine());
   }
 
   void replaceVersionHint(int version) throws IOException {
     // remove the checksum that will no longer match
     new File(metadataDir, ".version-hint.text.crc").delete();
-    Files.write(String.valueOf(version), versionHintFile, StandardCharsets.UTF_8);
+    Files.asCharSink(versionHintFile, StandardCharsets.UTF_8).write(String.valueOf(version));
   }
 
   /*
