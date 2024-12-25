@@ -74,7 +74,7 @@ public class ExpireSnapshotsProcessor extends ProcessFunction<Trigger, TaskResul
     this.table = tableLoader.loadTable();
     this.plannerPool =
         plannerPoolSize != null
-            ? ThreadPools.newWorkerPool(table.name() + "-table--planner", plannerPoolSize)
+            ? ThreadPools.newFixedThreadPool(table.name() + "-table--planner", plannerPoolSize)
             : ThreadPools.getWorkerPool();
   }
 
