@@ -46,6 +46,7 @@ import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsType;
 import org.apache.iceberg.flink.source.BoundedTestSource;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -228,6 +229,44 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
         env.addSource(
             createRangeDistributionBoundedSource(createCharRows(numOfCheckpoints, 10)),
             ROW_TYPE_INFO);
+    FlinkSink.Builder builder =
+        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+            .table(table)
+            .tableLoader(tableLoader)
+            .writeParallelism(parallelism);
+
+    // sort based on partition columns
+    builder.append();
+    env.execute(getClass().getSimpleName());
+
+    table.refresh();
+    // ordered in reverse timeline from the newest snapshot to the oldest snapshot
+    List<Snapshot> snapshots = Lists.newArrayList(table.snapshots().iterator());
+    // only keep the snapshots with added data files
+    snapshots =
+        snapshots.stream()
+            .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
+            .collect(Collectors.toList());
+
+    // Sometimes we will have more checkpoints than the bounded source if we pass the
+    // auto checkpoint interval. Thus producing multiple snapshots.
+    assertThat(snapshots).hasSizeGreaterThanOrEqualTo(numOfCheckpoints);
+  }
+
+  @TestTemplate
+  public void testRangeDistributionWithNullValue() throws Exception {
+    assumeThat(partitioned).isTrue();
+
+    table
+        .updateProperties()
+        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.RANGE.modeName())
+        .commit();
+
+    int numOfCheckpoints = 6;
+    List<List<Row>> charRows = createCharRows(numOfCheckpoints, 10);
+    charRows.add(ImmutableList.of(Row.of(1, null)));
+    DataStream<Row> dataStream =
+        env.addSource(createRangeDistributionBoundedSource(charRows), ROW_TYPE_INFO);
     FlinkSink.Builder builder =
         FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
             .table(table)
