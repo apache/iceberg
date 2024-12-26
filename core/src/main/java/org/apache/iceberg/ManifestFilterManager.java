@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.apache.iceberg.exceptions.MissingRequiredFilesToDeleteException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -34,7 +35,6 @@ import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -52,7 +52,6 @@ import org.slf4j.LoggerFactory;
 
 abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private static final Logger LOG = LoggerFactory.getLogger(ManifestFilterManager.class);
-  private static final Joiner COMMA = Joiner.on(",");
 
   protected static class DeleteException extends ValidationException {
     private final String partition;
@@ -260,24 +259,23 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private void validateRequiredDeletes(ManifestFile... manifests) {
     if (failMissingDeletePaths) {
       Set<F> deletedFiles = deletedFiles(manifests);
-      ValidationException.check(
-          deletedFiles.containsAll(deleteFiles),
-          "Missing required files to delete: %s",
-          COMMA.join(
-              deleteFiles.stream()
-                  .filter(f -> !deletedFiles.contains(f))
-                  .map(ContentFile::location)
-                  .collect(Collectors.toList())));
+      if (!deletedFiles.containsAll(deleteFiles)) {
+        throw new MissingRequiredFilesToDeleteException(
+            deleteFiles.stream()
+                .filter(f -> !deletedFiles.contains(f))
+                .map(ContentFile::location)
+                .collect(Collectors.toList()));
+      }
 
       CharSequenceSet deletedFilePaths =
           deletedFiles.stream()
               .map(ContentFile::location)
               .collect(Collectors.toCollection(CharSequenceSet::empty));
 
-      ValidationException.check(
-          deletedFilePaths.containsAll(deletePaths),
-          "Missing required files to delete: %s",
-          COMMA.join(Iterables.filter(deletePaths, path -> !deletedFilePaths.contains(path))));
+      if (!deletedFilePaths.containsAll(deletePaths)) {
+        throw new MissingRequiredFilesToDeleteException(
+            Iterables.filter(deletePaths, path -> !deletedFilePaths.contains(path)));
+      }
     }
   }
 
