@@ -138,7 +138,7 @@ For example, setting this in the `hive-site.xml` loaded by Spark will enable the
 by Spark.
 
 !!! danger
-    Starting with Apache Iceberg `0.11.0`, when using Hive with Tez you also have to disable vectorization (`hive.vectorized.execution.enabled=false`).
+    Starting with Apache Iceberg `0.11.0`, when using Hive(version<4.0.0) with Tez you also have to disable vectorization (`hive.vectorized.execution.enabled=false`).
 
 ##### Table property configuration
 
