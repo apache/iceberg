@@ -50,10 +50,23 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
   /**
    * Expires all snapshots older than the given timestamp.
    *
+   * <p>A snapshot kept by this method can still be expired by {@link #keepAtMost(int)}.
+   *
    * @param timestampMillis a long timestamp, as returned by {@link System#currentTimeMillis()}
    * @return this for method chaining
    */
   ExpireSnapshots expireOlderThan(long timestampMillis);
+
+  /**
+   * Keeps at most {@code numSnapshots} ancestors of the current snapshot and expires older
+   * ancestors.
+   *
+   * <p>A snapshot kept by this method can still be expired by {@link #expireOlderThan(long)}.
+   *
+   * @param numSnapshots the number of snapshots to keep at most
+   * @return this for method chaining
+   */
+  ExpireSnapshots keepAtMost(int numSnapshots);
 
   /**
    * Retains the most recent ancestors of the current snapshot.

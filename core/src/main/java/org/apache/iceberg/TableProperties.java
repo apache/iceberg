@@ -349,6 +349,9 @@ public class TableProperties {
   public static final String MIN_SNAPSHOTS_TO_KEEP = "history.expire.min-snapshots-to-keep";
   public static final int MIN_SNAPSHOTS_TO_KEEP_DEFAULT = 1;
 
+  public static final String MAX_SNAPSHOTS_TO_KEEP = "history.expire.max-snapshots-to-keep";
+  public static final int MAX_SNAPSHOTS_TO_KEEP_DEFAULT = Integer.MAX_VALUE;
+
   public static final String MAX_REF_AGE_MS = "history.expire.max-ref-age-ms";
   public static final long MAX_REF_AGE_MS_DEFAULT = Long.MAX_VALUE;
 
