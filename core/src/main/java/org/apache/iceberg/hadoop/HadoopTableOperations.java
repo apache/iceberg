@@ -344,7 +344,7 @@ public class HadoopTableOperations implements TableOperations {
 
         return maxVersion;
       } catch (IOException io) {
-        LOG.warn("Error trying to recover version-hint.txt data for {}", versionHintFile, e);
+        LOG.warn("Error trying to recover the latest version number for {}", versionHintFile, io);
         return 0;
       }
     }
