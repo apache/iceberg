@@ -27,6 +27,7 @@ import org.apache.comet.parquet.BatchReader;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.parquet.VectorizedReader;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
@@ -124,40 +125,40 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
     }
   }
 
-  private class ColumnBatchLoader extends BaseColumnBatchLoader {
+  private class ColumnBatchLoader {
+    private final int numRowsToRead;
+    // the rowId mapping to skip deleted rows for all column vectors inside a batch, it is null when
+    // there is no deletes
+    private int[] rowIdMapping;
+    // the array to indicate if a row is deleted or not, it is null when there is no "_deleted"
+    // metadata column
+    private boolean[] isDeleted;
+
     ColumnBatchLoader(int numRowsToRead) {
-      super(numRowsToRead, hasIsDeletedColumn, deletes, rowStartPosInBatch);
+      Preconditions.checkArgument(
+          numRowsToRead > 0, "Invalid number of rows to read: %s", numRowsToRead);
+      this.numRowsToRead = numRowsToRead;
+      if (hasIsDeletedColumn) {
+        isDeleted = new boolean[numRowsToRead];
+      }
     }
 
-    @Override
-    public ColumnarBatch loadDataToColumnBatch() {
-      int numRowsUndeleted = initRowIdMapping();
+    ColumnarBatch loadDataToColumnBatch() {
       ColumnVector[] arrowColumnVectors = readDataToColumnVectors();
+      ColumnarBatch columnarBatch = new ColumnarBatch(arrowColumnVectors);
+      ColumnarBatchUtil.applyDeletesToColumnarBatch(
+          columnarBatch, deletes, isDeleted, numRowsToRead, rowStartPosInBatch, hasIsDeletedColumn);
 
-      ColumnarBatch newColumnarBatch =
-          initializeColumnBatchWithDeletions(arrowColumnVectors, numRowsUndeleted);
+      if (hasIsDeletedColumn) {
+        // reset the row id mapping array, so that it doesn't filter out the deleted rows
+        ColumnarBatchUtil.resetRowIdMapping(columnarBatch, numRowsToRead);
+      }
 
       if (hasIsDeletedColumn) {
         readDeletedColumnIfNecessary(arrowColumnVectors);
       }
 
-      return newColumnarBatch;
-    }
-
-    @Override
-    protected ColumnVector[] readDataToColumnVectors() {
-      ColumnVector[] columnVectors = new ColumnVector[readers.length];
-      // Fetch rows for all readers in the delegate
-      delegate.nextBatch(numRowsToRead);
-      for (int i = 0; i < readers.length; i++) {
-        CometVector bv = readers[i].getVector();
-        org.apache.comet.vector.CometVector vector = readers[i].getDelegate().currentBatch();
-        bv.setDelegate(vector);
-        bv.setRowIdMapping(rowIdMapping);
-        columnVectors[i] = bv;
-      }
-
-      return columnVectors;
+      return columnarBatch;
     }
 
     void readDeletedColumnIfNecessary(ColumnVector[] columnVectors) {
@@ -169,6 +170,20 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
           columnVectors[i] = deleteColumnReader.getVector();
         }
       }
+    }
+
+    protected ColumnVector[] readDataToColumnVectors() {
+      ColumnVector[] columnVectors = new ColumnVector[readers.length];
+      // Fetch rows for all readers in the delegate
+      delegate.nextBatch(numRowsToRead);
+      for (int i = 0; i < readers.length; i++) {
+        CometVector bv = readers[i].getVector();
+        org.apache.comet.vector.CometVector vector = readers[i].getDelegate().currentBatch();
+        bv.setDelegate(vector);
+        columnVectors[i] = bv;
+      }
+
+      return columnVectors;
     }
   }
 }
