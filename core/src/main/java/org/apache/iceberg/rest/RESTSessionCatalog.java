@@ -1318,6 +1318,21 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       checkViewIdentifierIsValid(identifier);
       this.identifier = identifier;
       this.context = context;
+      this.properties.putAll(viewDefaultProperties());
+    }
+
+    /**
+     * Get default view properties set at Catalog level through catalog properties.
+     *
+     * @return default view properties specified in catalog properties
+     */
+    private Map<String, String> viewDefaultProperties() {
+      Map<String, String> viewDefaultProperties =
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.VIEW_DEFAULT_PREFIX);
+      LOG.info(
+          "View properties set at catalog level through catalog properties: {}",
+          viewDefaultProperties);
+      return viewDefaultProperties;
     }
 
     @Override
