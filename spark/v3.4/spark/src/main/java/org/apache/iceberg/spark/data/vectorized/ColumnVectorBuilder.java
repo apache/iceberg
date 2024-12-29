@@ -28,9 +28,9 @@ class ColumnVectorBuilder {
   private boolean[] isDeleted;
   private boolean withDelete;
 
-  public ColumnVectorBuilder withDeletedRows(boolean[] isDeletedArray, boolean withDelete) {
+  public ColumnVectorBuilder withDeletedRows(boolean[] isDeletedArray, boolean delete) {
     this.isDeleted = isDeletedArray;
-    this.withDelete = withDelete;
+    this.withDelete = delete;
     return this;
   }
 
