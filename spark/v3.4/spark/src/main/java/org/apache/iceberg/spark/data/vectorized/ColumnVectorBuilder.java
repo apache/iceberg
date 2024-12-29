@@ -26,11 +26,11 @@ import org.apache.spark.sql.vectorized.ColumnVector;
 
 class ColumnVectorBuilder {
   private boolean[] isDeleted;
-  private int[] rowIdMapping;
+  private boolean withDelete;
 
-  public ColumnVectorBuilder withDeletedRows(int[] rowIdMappingArray, boolean[] isDeletedArray) {
-    this.rowIdMapping = rowIdMappingArray;
+  public ColumnVectorBuilder withDeletedRows(boolean[] isDeletedArray, boolean withDelete) {
     this.isDeleted = isDeletedArray;
+    this.withDelete = withDelete;
     return this;
   }
 
@@ -46,8 +46,8 @@ class ColumnVectorBuilder {
       } else {
         throw new IllegalStateException("Unknown dummy vector holder: " + holder);
       }
-    } else if (rowIdMapping != null) {
-      return new ColumnVectorWithFilter(holder, rowIdMapping);
+    } else if (withDelete) {
+      return new ColumnVectorWithFilter(holder);
     } else {
       return new IcebergArrowColumnVector(holder);
     }

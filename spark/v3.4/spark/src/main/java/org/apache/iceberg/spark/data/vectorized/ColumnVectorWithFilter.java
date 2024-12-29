@@ -24,10 +24,18 @@ import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class ColumnVectorWithFilter extends IcebergArrowColumnVector {
-  private final int[] rowIdMapping;
+  private int[] rowIdMapping;
 
   public ColumnVectorWithFilter(VectorHolder holder, int[] rowIdMapping) {
     super(holder);
+    this.rowIdMapping = rowIdMapping;
+  }
+
+  public ColumnVectorWithFilter(VectorHolder holder) {
+    super(holder);
+  }
+
+  public void setRowIdMapping(int[] rowIdMapping) {
     this.rowIdMapping = rowIdMapping;
   }
 

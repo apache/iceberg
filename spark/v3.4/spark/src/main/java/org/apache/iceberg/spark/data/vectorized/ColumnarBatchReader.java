@@ -83,21 +83,36 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
     return columnarBatch;
   }
 
-  private class ColumnBatchLoader extends BaseColumnBatchLoader {
+  private class ColumnBatchLoader {
+    private final int numRowsToRead;
+    // the array to indicate if a row is deleted or not, it is null when there is no "_deleted"
+    // metadata column
+    private boolean[] isDeleted;
 
     ColumnBatchLoader(int numRowsToRead) {
-      super(numRowsToRead, hasIsDeletedColumn, deletes, rowStartPosInBatch);
+      Preconditions.checkArgument(
+          numRowsToRead > 0, "Invalid number of rows to read: %s", numRowsToRead);
+      this.numRowsToRead = numRowsToRead;
+      if (hasIsDeletedColumn) {
+        isDeleted = new boolean[numRowsToRead];
+      }
     }
 
-    @Override
-    public ColumnarBatch loadDataToColumnBatch() {
-      int numRowsUndeleted = initRowIdMapping();
+    ColumnarBatch loadDataToColumnBatch() {
       ColumnVector[] arrowColumnVectors = readDataToColumnVectors();
-      return initializeColumnBatchWithDeletions(arrowColumnVectors, numRowsUndeleted);
+      ColumnarBatch columnarBatch = new ColumnarBatch(arrowColumnVectors);
+      ColumnarBatchUtil.applyDeletesToColumnarBatch(
+          columnarBatch, deletes, isDeleted, numRowsToRead, rowStartPosInBatch, hasIsDeletedColumn);
+
+      if (hasIsDeletedColumn) {
+        // reset the row id mapping array, so that it doesn't filter out the deleted rows
+        ColumnarBatchUtil.resetRowIdMapping(columnarBatch, numRowsToRead);
+      }
+
+      return columnarBatch;
     }
 
-    @Override
-    protected ColumnVector[] readDataToColumnVectors() {
+    ColumnVector[] readDataToColumnVectors() {
       ColumnVector[] arrowColumnVectors = new ColumnVector[readers.length];
 
       ColumnVectorBuilder columnVectorBuilder = new ColumnVectorBuilder();
@@ -112,7 +127,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
 
         arrowColumnVectors[i] =
             columnVectorBuilder
-                .withDeletedRows(rowIdMapping, isDeleted)
+                .withDeletedRows(isDeleted, deletes != null)
                 .build(vectorHolders[i], numRowsInVector);
       }
       return arrowColumnVectors;
