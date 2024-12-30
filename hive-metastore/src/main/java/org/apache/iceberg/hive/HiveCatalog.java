@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.hive;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -53,7 +52,6 @@ import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.FileIOTracker;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -92,7 +90,6 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   private ClientPool<IMetaStoreClient, TException> clients;
   private boolean listAllTables = false;
   private Map<String, String> catalogProperties;
-  private FileIOTracker fileIOTracker;
 
   public HiveCatalog() {}
 
@@ -125,7 +122,6 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
             : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     this.clients = new CachedClientPool(conf, properties);
-    this.fileIOTracker = new FileIOTracker();
   }
 
   @Override
@@ -629,10 +625,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   public TableOperations newTableOps(TableIdentifier tableIdentifier) {
     String dbName = tableIdentifier.namespace().level(0);
     String tableName = tableIdentifier.name();
-    HiveTableOperations ops =
-        new HiveTableOperations(conf, clients, fileIO, name, dbName, tableName);
-    fileIOTracker.track(ops);
-    return ops;
+    return new HiveTableOperations(conf, clients, fileIO, name, dbName, tableName);
   }
 
   @Override
@@ -759,14 +752,6 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   @Override
   protected Map<String, String> properties() {
     return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
-  }
-
-  @Override
-  public void close() throws IOException {
-    super.close();
-    if (fileIOTracker != null) {
-      fileIOTracker.close();
-    }
   }
 
   @VisibleForTesting
