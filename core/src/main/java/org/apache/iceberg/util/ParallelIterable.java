@@ -31,6 +31,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
@@ -85,6 +86,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     private final ExecutorService workerPool;
     private final CompletableFuture<Optional<Task<T>>>[] taskFutures;
     private final ConcurrentLinkedQueue<T> queue = new ConcurrentLinkedQueue<>();
+    private final AtomicInteger queueSize = new AtomicInteger(0);
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     private ParallelIterator(
@@ -92,7 +94,8 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
       Preconditions.checkArgument(maxQueueSize > 0, "Max queue size must be greater than 0");
       this.tasks =
           Iterables.transform(
-                  iterables, iterable -> new Task<>(iterable, queue, closed, maxQueueSize))
+                  iterables,
+                  iterable -> new Task<>(iterable, queue, queueSize, closed, maxQueueSize))
               .iterator();
       this.workerPool = workerPool;
       // submit 2 tasks per worker at a time
@@ -130,6 +133,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
 
         // clean queue
         this.queue.clear();
+        this.queueSize.set(0);
       } catch (IOException e) {
         throw new UncheckedIOException("Close failed", e);
       }
@@ -226,18 +230,23 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
       if (!hasNext()) {
         throw new NoSuchElementException();
       }
-      return queue.poll();
+      T result = queue.poll();
+      if (result != null) {
+        queueSize.decrementAndGet();
+      }
+      return result;
     }
 
     @VisibleForTesting
     int queueSize() {
-      return queue.size();
+      return queueSize.get();
     }
   }
 
   private static class Task<T> implements Supplier<Optional<Task<T>>>, Closeable {
     private final Iterable<T> input;
     private final ConcurrentLinkedQueue<T> queue;
+    private final AtomicInteger queueSize;
     private final AtomicBoolean closed;
     private final int approximateMaxQueueSize;
 
@@ -246,10 +255,12 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     Task(
         Iterable<T> input,
         ConcurrentLinkedQueue<T> queue,
+        AtomicInteger queueSize,
         AtomicBoolean closed,
         int approximateMaxQueueSize) {
       this.input = Preconditions.checkNotNull(input, "input cannot be null");
       this.queue = Preconditions.checkNotNull(queue, "queue cannot be null");
+      this.queueSize = Preconditions.checkNotNull(queueSize, "queue cannot be null");
       this.closed = Preconditions.checkNotNull(closed, "closed cannot be null");
       this.approximateMaxQueueSize = approximateMaxQueueSize;
     }
@@ -262,7 +273,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
         }
 
         while (iterator.hasNext()) {
-          if (queue.size() >= approximateMaxQueueSize) {
+          if (queueSize.get() >= approximateMaxQueueSize) {
             // Yield when queue is over the size limit. Task will be resubmitted later and continue
             // the work.
             return Optional.of(this);
@@ -274,6 +285,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
           }
 
           queue.add(next);
+          queueSize.incrementAndGet();
         }
       } catch (Throwable e) {
         try {
