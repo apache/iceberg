@@ -106,6 +106,10 @@ public class ParquetValueWriters {
     return new BytesWriter(desc);
   }
 
+  public static PrimitiveWriter<byte[]> fixed(ColumnDescriptor desc) {
+    return new FixedWriter(desc);
+  }
+
   public static <E> CollectionWriter<E> collections(int dl, int rl, ParquetValueWriter<E> writer) {
     return new CollectionWriter<>(dl, rl, writer);
   }
@@ -310,6 +314,17 @@ public class ParquetValueWriters {
     @Override
     public void write(int repetitionLevel, ByteBuffer buffer) {
       column.writeBinary(repetitionLevel, Binary.fromReusedByteBuffer(buffer));
+    }
+  }
+
+  private static class FixedWriter extends PrimitiveWriter<byte[]> {
+    private FixedWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, byte[] value) {
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(value));
     }
   }
 
