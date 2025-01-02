@@ -1138,6 +1138,19 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    Builder removeSpecs(Iterable<Integer> specIds) {
+      Set<Integer> specIdsToRemove = Sets.newHashSet(specIds);
+      Preconditions.checkArgument(
+          !specIdsToRemove.contains(defaultSpecId), "Cannot remove the default partition spec");
+
+      this.specs =
+          specs.stream()
+              .filter(s -> !specIdsToRemove.contains(s.specId()))
+              .collect(Collectors.toList());
+      changes.add(new MetadataUpdate.RemovePartitionSpecs(specIdsToRemove));
+      return this;
+    }
+
     public Builder addPartitionSpec(UnboundPartitionSpec spec) {
       addPartitionSpecInternal(spec.bind(schemasById.get(currentSchemaId)));
       return this;

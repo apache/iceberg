@@ -59,6 +59,7 @@ public class MetadataUpdateParser {
   static final String SET_CURRENT_VIEW_VERSION = "set-current-view-version";
   static final String SET_PARTITION_STATISTICS = "set-partition-statistics";
   static final String REMOVE_PARTITION_STATISTICS = "remove-partition-statistics";
+  static final String REMOVE_PARTITION_SPECS = "remove-partition-specs";
 
   // AssignUUID
   private static final String UUID = "uuid";
@@ -126,6 +127,9 @@ public class MetadataUpdateParser {
   // SetCurrentViewVersion
   private static final String VIEW_VERSION_ID = "view-version-id";
 
+  // RemovePartitionSpecs
+  private static final String SPEC_IDS = "spec-ids";
+
   private static final Map<Class<? extends MetadataUpdate>, String> ACTIONS =
       ImmutableMap.<Class<? extends MetadataUpdate>, String>builder()
           .put(MetadataUpdate.AssignUUID.class, ASSIGN_UUID)
@@ -149,6 +153,7 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.SetLocation.class, SET_LOCATION)
           .put(MetadataUpdate.AddViewVersion.class, ADD_VIEW_VERSION)
           .put(MetadataUpdate.SetCurrentViewVersion.class, SET_CURRENT_VIEW_VERSION)
+          .put(MetadataUpdate.RemovePartitionSpecs.class, REMOVE_PARTITION_SPECS)
           .buildOrThrow();
 
   public static String toJson(MetadataUpdate metadataUpdate) {
@@ -241,6 +246,9 @@ public class MetadataUpdateParser {
         writeSetCurrentViewVersionId(
             (MetadataUpdate.SetCurrentViewVersion) metadataUpdate, generator);
         break;
+      case REMOVE_PARTITION_SPECS:
+        writeRemovePartitionSpecs((MetadataUpdate.RemovePartitionSpecs) metadataUpdate, generator);
+        break;
       default:
         throw new IllegalArgumentException(
             String.format(
@@ -312,6 +320,8 @@ public class MetadataUpdateParser {
         return readAddViewVersion(jsonNode);
       case SET_CURRENT_VIEW_VERSION:
         return readCurrentViewVersionId(jsonNode);
+      case REMOVE_PARTITION_SPECS:
+        return readRemovePartitionSpecs(jsonNode);
       default:
         throw new UnsupportedOperationException(
             String.format("Cannot convert metadata update action to json: %s", action));
@@ -445,6 +455,11 @@ public class MetadataUpdateParser {
   private static void writeSetCurrentViewVersionId(
       MetadataUpdate.SetCurrentViewVersion metadataUpdate, JsonGenerator gen) throws IOException {
     gen.writeNumberField(VIEW_VERSION_ID, metadataUpdate.versionId());
+  }
+
+  private static void writeRemovePartitionSpecs(
+      MetadataUpdate.RemovePartitionSpecs metadataUpdate, JsonGenerator gen) throws IOException {
+    JsonUtil.writeIntegerArray(SPEC_IDS, metadataUpdate.specIds(), gen);
   }
 
   private static MetadataUpdate readAssignUUID(JsonNode node) {
@@ -595,5 +610,9 @@ public class MetadataUpdateParser {
 
   private static MetadataUpdate readCurrentViewVersionId(JsonNode node) {
     return new MetadataUpdate.SetCurrentViewVersion(JsonUtil.getInt(VIEW_VERSION_ID, node));
+  }
+
+  private static MetadataUpdate readRemovePartitionSpecs(JsonNode node) {
+    return new MetadataUpdate.RemovePartitionSpecs(JsonUtil.getIntegerSet(SPEC_IDS, node));
   }
 }
