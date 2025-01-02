@@ -747,18 +747,20 @@ To reference a metadata table the full name of the table should be used, like:
 
 Currently the following metadata tables are available in Hive:
 
-* all_data_files 
-* all_delete_files 
-* all_entries all_files 
-* all_manifests 
-* data_files 
-* delete_files 
-* entries 
-* files 
-* manifests 
-* metadata_log_entries 
-* partitions 
-* refs 
+* all_data_files
+* all_delete_files
+* all_entries
+* all_files
+* all_manifests
+* data_files
+* delete_files
+* entries
+* files
+* history
+* manifests
+* metadata_log_entries
+* partitions
+* refs
 * snapshots
 
 ```sql
