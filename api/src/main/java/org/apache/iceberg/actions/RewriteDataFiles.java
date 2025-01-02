@@ -119,6 +119,15 @@ public interface RewriteDataFiles
   boolean REMOVE_DANGLING_DELETES_DEFAULT = false;
 
   /**
+   * If set to true, the rewrite operation will ignore invalid options.
+   *
+   * <p>Defaults to false.
+   */
+  String IGNORE_INVALID_OPTIONS = "ignore-invalid-options";
+
+  boolean IGNORE_INVALID_OPTIONS_DEFAULT = false;
+
+  /**
    * Forces the rewrite job order based on the value.
    *
    * <p>
