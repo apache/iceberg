@@ -344,13 +344,13 @@ public class Parquet {
                 .withMaxBloomFilterBytes(bloomFilterMaxBytes);
 
         for (Map.Entry<String, String> entry : columnBloomFilterEnabled.entrySet()) {
-          String colPath = entry.getKey();
+          String colPath = AvroSchemaUtil.makeCompatibleName(entry.getKey());
           String bloomEnabled = entry.getValue();
           propsBuilder.withBloomFilterEnabled(colPath, Boolean.parseBoolean(bloomEnabled));
         }
 
         for (Map.Entry<String, String> entry : columnBloomFilterFpp.entrySet()) {
-          String colPath = entry.getKey();
+          String colPath = AvroSchemaUtil.makeCompatibleName(entry.getKey());
           String fpp = entry.getValue();
           propsBuilder.withBloomFilterFPP(colPath, Double.parseDouble(fpp));
         }
@@ -387,13 +387,13 @@ public class Parquet {
                 .withEncryption(fileEncryptionProperties);
 
         for (Map.Entry<String, String> entry : columnBloomFilterEnabled.entrySet()) {
-          String colPath = entry.getKey();
+          String colPath = AvroSchemaUtil.makeCompatibleName(entry.getKey());
           String bloomEnabled = entry.getValue();
           parquetWriteBuilder.withBloomFilterEnabled(colPath, Boolean.parseBoolean(bloomEnabled));
         }
 
         for (Map.Entry<String, String> entry : columnBloomFilterFpp.entrySet()) {
-          String colPath = entry.getKey();
+          String colPath = AvroSchemaUtil.makeCompatibleName(entry.getKey());
           String fpp = entry.getValue();
           parquetWriteBuilder.withBloomFilterFPP(colPath, Double.parseDouble(fpp));
         }
