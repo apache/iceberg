@@ -649,6 +649,30 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testDefaultTableProperties() {
+    C catalog = catalog();
+
+    TableIdentifier ident = TableIdentifier.of("ns", "table");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(ident.namespace());
+    }
+
+    assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
+
+    Table table =
+        catalog()
+            .buildTable(ident, SCHEMA)
+            .withProperty("default-key2", "catalog-overridden-key2")
+            .create();
+    assertThat(table.properties())
+        .containsEntry("default-key1", "catalog-default-key1")
+        .containsEntry("default-key2", "catalog-overridden-key2");
+
+    assertThat(catalog.dropTable(ident)).as("Should successfully drop table").isTrue();
+  }
+
+  @Test
   public void testLoadTable() {
     C catalog = catalog();
 
