@@ -410,27 +410,64 @@ workloads with exceptionally high throughput against tables that S3 has not yet 
 | s3.retry.min-wait-ms | 2s      | Minimum wait time to retry a S3 operation.                                            |
 | s3.retry.max-wait-ms | 20s     | Maximum wait time to retry a S3 read operation.                                       |
 
-### S3 Strong Consistency
-
-In November 2020, S3 announced [strong consistency](https://aws.amazon.com/s3/consistency/) for all read operations, and Iceberg is updated to fully leverage this feature.
-There is no redundant consistency wait and check which might negatively impact performance during IO operations.
 
 ### Hadoop S3A FileSystem
 
 Before `S3FileIO` was introduced, many Iceberg users choose to use `HadoopFileIO` to write data to S3 through the [S3A FileSystem](https://github.com/apache/hadoop/blob/trunk/hadoop-tools/hadoop-aws/src/main/java/org/apache/hadoop/fs/s3a/S3AFileSystem.java).
-As introduced in the previous sections, `S3FileIO` adopts the latest AWS clients and S3 features for optimized security and performance
- and is thus recommended for S3 use cases rather than the S3A FileSystem.
+As introduced in the previous sections, `S3FileIO` adopts the latest AWS clients and S3 features for optimized security and performance with Apache Iceberg
+ and is thus recommended for S3 use cases rather than the S3A FileSystem. 
+
+In contrast, the Apache Hadoop S3A connector
+* Uses the most recent AWS v2 client they have qualified across a broad set of applications, including Apache Spark, Apache Hive, Apache HBase and more. This may lag the Iceberg artifacts.
+* Supports Amazon S3 Express One Zone storage.
+* Contains detection and recovery for S3 failures beyond that in the AWS SDK, recovery added "one support call at a time".
+* Supports OpenSSL as an optional TLS transport layer, for tangible performance improvements over the JDK implementation.
+* Supports scatter/gather IO "vector IO" and other features for high-performance parquet reads.
+* Has an explict "FIPS mode" which uses the FIPS endpoints available in some AWS regions.
+* Includes [auditing via the S3 Server Logs](https://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/auditing.html), which can be used to answer important questions such as "who deleted all the files?" and "which job is triggering throttling?".
+* Collects [client-side statistics](https://apachecon.com/acasia2022/sessions/bigdata-1191.html) for identification of performance and connectivity issues.
 
 `S3FileIO` writes data with `s3://` URI scheme, but it is also compatible with schemes written by the S3A FileSystem.
 This means for any table manifests containing `s3a://` or `s3n://` file paths, `S3FileIO` is still able to read them.
 This feature allows people to easily switch from S3A to `S3FileIO`.
 
-If for any reason you have to use S3A, here are the instructions:
+To use S3A, here are the instructions:
 
 1. To store data using S3A, specify the `warehouse` catalog property to be an S3A path, e.g. `s3a://my-bucket/my-warehouse` 
 2. For `HiveCatalog`, to also store metadata using S3A, specify the Hadoop config property `hive.metastore.warehouse.dir` to be an S3A path.
-3. Add [hadoop-aws](https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-aws) as a runtime dependency of your compute engine.
-4. Configure AWS settings based on [hadoop-aws documentation](https://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/index.html) (make sure you check the version, S3A configuration varies a lot based on the version you use).   
+3. Add [hadoop-aws](https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-aws) as a runtime dependency of your compute engine. The version of this module must be the exact same version as the rest of any hadoop binaries on the classpath.
+4. For the latest features, bug fixes and best performance, use the latest versions of hadoop and hadoop-aws libraries.
+5. Use the exact same shaded version of the AWS SDK as the `hadoop-aws` module was built and tested with. Older versions are unlikely to work, newer versions will be unqualified and lack any fixes for problems identified during the qualification process.  
+6. Configure AWS settings based on [hadoop-aws documentation](https://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/index.html) (make sure you check the version, S3A configuration varies a lot based on the version you use).   
+
+#### S3A: Maximizing Parquet and Iceberg Performance.
+
+For best performance, the S3A connector should be configured for the Parquet and iceberg workloads
+based on the recommedations of [Maximizing Performance when working with the S3A Connector](https://hadoop.apache.org/docs/stable/hadoop-aws/tools/hadoop-aws/performance.html).
+
+For applications reading Parquet data, including Iceberg manifests, specific settings to use are listed below.
+
+
+| Property                           | Recommended value | Description                                                                            |
+|------------------------------------|-------------------|----------------------------------------------------------------------------------------|
+| fs.s3a.experimental.input.fadvise  | parquet, random   | Optimizes file reading for random IO, or, if explicitly supported, parquet files       |
+| fs.s3a.vectored.read.min.seek.size | 128M              | Threshold below which "nearby" Vector IO ranges are coalesced into single GET requests |
+| parquet.hadoop.vectored.io.enabled | true              | Flag to enable Vector IO in parquet                                                    |
+| iceberg.hadoop.bulk.delete.enabled | true              | Iceberg to use Hadoop 3.4.1+ bulk delete API, where available                          |
+
+Optional properties
+
+
+```shell
+spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.my_catalog.warehouse=s3a://my-bucket/my/key/prefix \
+    --conf spark.sql.catalog.my_catalog.type=glue \
+    --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.hadoop.HadoopFileIO \
+    --conf "spark.sql.catalog.my_catalog.fs.s3a.experimental.input.fadvise=parquet, random" \
+    --conf spark.sql.catalog.my_catalog.fs.s3a.vectored.read.min.seek.size=128M \
+    --conf spark.sql.catalog.my_catalog.parquet.hadoop.vectored.io.enabled=true
+    --conf spark.sql.catalog.my_catalog.iceberg.hadoop.bulk.delete.enabled=true
+```
 
 ### S3 Write Checksum Verification
 
