@@ -18,9 +18,12 @@
  */
 package org.apache.iceberg.data;
 
+import java.nio.ByteBuffer;
+import java.util.UUID;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
 
 public class IdentityPartitionConverters {
@@ -48,6 +51,18 @@ public class IdentityPartitionConverters {
       case FIXED:
         if (value instanceof GenericData.Fixed) {
           return ((GenericData.Fixed) value).bytes();
+        } else if (value instanceof ByteBuffer) {
+          return ByteBuffers.toByteArray((ByteBuffer) value);
+        }
+        return value;
+      case UUID:
+        if (value instanceof ByteBuffer) {
+          return ByteBuffers.toByteArray((ByteBuffer) value);
+        }
+        return value;
+      case BINARY:
+        if (value instanceof byte[]) {
+          return ByteBuffer.wrap((byte[]) value);
         }
         return value;
       default:
