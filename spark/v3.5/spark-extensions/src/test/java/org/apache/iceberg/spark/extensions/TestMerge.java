@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
+import static org.apache.iceberg.RowLevelOperationMode.MERGE_ON_READ;
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
 import static org.apache.iceberg.TableProperties.MERGE_DISTRIBUTION_MODE;
@@ -56,6 +57,7 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -233,7 +235,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
   @TestTemplate
   public void testCoalesceMerge() {
-    assumeThat(formatVersion).isLessThan(3);
     createAndInitTable("id INT, salary INT, dep STRING");
 
     String[] records = new String[100];
@@ -252,7 +253,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             SPLIT_OPEN_FILE_COST,
             String.valueOf(Integer.MAX_VALUE),
             MERGE_DISTRIBUTION_MODE,
-            DistributionMode.NONE.modeName());
+            DistributionMode.NONE.modeName(),
+            TableProperties.DELETE_GRANULARITY,
+            DeleteGranularity.PARTITION.toString());
     sql("ALTER TABLE %s SET TBLPROPERTIES (%s)", tableName, tablePropsAsString(tableProps));
 
     createBranchIfNeeded();
@@ -295,6 +298,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       // AQE detects that all shuffle blocks are small and processes them in 1 task
       // otherwise, there would be 200 tasks writing to the table
       validateProperty(currentSnapshot, SnapshotSummary.ADDED_FILES_PROP, "1");
+    } else if (mode(table) == MERGE_ON_READ && formatVersion >= 3) {
+      validateProperty(currentSnapshot, SnapshotSummary.ADDED_DELETE_FILES_PROP, "4");
+      validateProperty(currentSnapshot, SnapshotSummary.ADDED_DVS_PROP, "4");
     } else {
       // MoR MERGE would perform a join on `id`
       // every task has data for each of 200 reducers

@@ -757,7 +757,9 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
         TableProperties.FORMAT_VERSION,
         "2",
         TableProperties.DEFAULT_FILE_FORMAT,
-        format.toString());
+        format.toString(),
+        TableProperties.DELETE_GRANULARITY,
+        DeleteGranularity.PARTITION.toString());
   }
 
   private void writeRecords(Table table, int files, int numRecords) {
