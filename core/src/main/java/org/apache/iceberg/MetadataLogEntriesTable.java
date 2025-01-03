@@ -110,7 +110,8 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
       latestSnapshotId = SnapshotUtil.snapshotIdAsOfTime(table, metadataLogEntry.timestampMillis());
       latestSnapshot = table.snapshot(latestSnapshotId);
     } catch (IllegalArgumentException ignored) {
-      // implies this metadata file was created at table creation
+      // implies this metadata file was created at table creation or
+      // its corresponding or subsequent snapshot has been removed
     }
 
     return StaticDataTask.Row.of(
