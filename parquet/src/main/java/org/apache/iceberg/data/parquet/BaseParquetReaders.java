@@ -250,7 +250,7 @@ public abstract class BaseParquetReaders<T> {
 
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
 
-      if (primitive.getOriginalType() != null) {
+      if (primitive.getLogicalTypeAnnotation() != null) {
         return primitive
             .getLogicalTypeAnnotation()
             .accept(logicalTypeReaderVisitor(desc, expected, primitive))
