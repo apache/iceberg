@@ -300,6 +300,7 @@ The result is:
 | i                                  | BUCKET\[2\]    | NULL
 
 The supported transformations for Hive are the same as for Spark:
+
 * years(ts): partition by year
 * months(ts): partition by month
 * days(ts) or date(ts): equivalent to dateint partitioning
@@ -841,8 +842,6 @@ ALTER TABLE ice_t EXECUTE ROLLBACK(1111);
 ### Compaction
 
 Hive 4 supports full table compaction of Iceberg tables using the following commands:
-* Using the `ALTER TABLE ... COMPACT` syntax
-* Using the `OPTIMIZE TABLE ... REWRITE DATA` syntax
 ```sql
 -- Using the ALTER TABLE ... COMPACT syntax
 ALTER TABLE t COMPACT 'major';
