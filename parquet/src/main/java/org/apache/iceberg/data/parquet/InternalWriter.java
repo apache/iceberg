@@ -23,11 +23,10 @@ import java.util.Optional;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
+import org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 
 /**
@@ -47,104 +46,27 @@ public class InternalWriter extends BaseParquetWriter<StructLike> {
 
   @Override
   protected StructWriter<StructLike> createStructWriter(List<ParquetValueWriter<?>> writers) {
-    return new ParquetStructWriter(writers);
+    return new StructLikeWriter(writers);
   }
 
   @Override
-  protected LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<
-          ParquetValueWriters.PrimitiveWriter<?>>
-      logicalTypeWriterVisitor(ColumnDescriptor desc) {
-    return new LogicalTypeWriterVisitor(desc);
+  protected PrimitiveWriter<?> fixedWriter(ColumnDescriptor desc) {
+    return ParquetValueWriters.fixedBuffer(desc);
   }
 
   @Override
-  protected ParquetValueWriters.PrimitiveWriter<?> fixedWriter(ColumnDescriptor desc) {
-    // accepts ByteBuffer and internally writes as binary.
-    return ParquetValueWriters.byteBuffers(desc);
+  protected Optional<PrimitiveWriter<?>> uuidWriter(ColumnDescriptor desc) {
+    return Optional.of(ParquetValueWriters.uuids(desc));
   }
 
-  private static class ParquetStructWriter extends StructWriter<StructLike> {
-    private ParquetStructWriter(List<ParquetValueWriter<?>> writers) {
+  private static class StructLikeWriter extends StructWriter<StructLike> {
+    private StructLikeWriter(List<ParquetValueWriter<?>> writers) {
       super(writers);
     }
 
     @Override
     protected Object get(StructLike struct, int index) {
       return struct.get(index, Object.class);
-    }
-  }
-
-  private static class LogicalTypeWriterVisitor
-      implements LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<
-          ParquetValueWriters.PrimitiveWriter<?>> {
-    private final ColumnDescriptor desc;
-
-    private LogicalTypeWriterVisitor(ColumnDescriptor desc) {
-      this.desc = desc;
-    }
-
-    @Override
-    public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
-        LogicalTypeAnnotation.StringLogicalTypeAnnotation stringType) {
-      return Optional.of(ParquetValueWriters.strings(desc));
-    }
-
-    @Override
-    public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
-        LogicalTypeAnnotation.EnumLogicalTypeAnnotation enumType) {
-      return Optional.of(ParquetValueWriters.strings(desc));
-    }
-
-    @Override
-    public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
-        LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimalType) {
-      switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
-        case INT32:
-          return Optional.of(
-              ParquetValueWriters.decimalAsInteger(
-                  desc, decimalType.getPrecision(), decimalType.getScale()));
-        case INT64:
-          return Optional.of(
-              ParquetValueWriters.decimalAsLong(
-                  desc, decimalType.getPrecision(), decimalType.getScale()));
-        case BINARY:
-        case FIXED_LEN_BYTE_ARRAY:
-          return Optional.of(
-              ParquetValueWriters.decimalAsFixed(
-                  desc, decimalType.getPrecision(), decimalType.getScale()));
-      }
-      return Optional.empty();
-    }
-
-    @Override
-    public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
-        LogicalTypeAnnotation.IntLogicalTypeAnnotation intType) {
-      Preconditions.checkArgument(
-          intType.isSigned() || intType.getBitWidth() < 64,
-          "Cannot read uint64: not a supported Java type");
-      if (intType.getBitWidth() < 64) {
-        return Optional.of(ParquetValueWriters.ints(desc));
-      } else {
-        return Optional.of(ParquetValueWriters.longs(desc));
-      }
-    }
-
-    @Override
-    public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
-        LogicalTypeAnnotation.JsonLogicalTypeAnnotation jsonLogicalType) {
-      return Optional.of(ParquetValueWriters.strings(desc));
-    }
-
-    @Override
-    public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
-        LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonType) {
-      return Optional.of(ParquetValueWriters.byteBuffers(desc));
-    }
-
-    @Override
-    public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
-        LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
-      return Optional.of(ParquetValueWriters.uuids(desc));
     }
   }
 }

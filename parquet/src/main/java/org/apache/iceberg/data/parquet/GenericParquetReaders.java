@@ -38,12 +38,10 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.parquet.ParquetValueReaders.StructReader;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 public class GenericParquetReaders extends BaseParquetReaders<Record> {
@@ -69,15 +67,6 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
   }
 
   @Override
-  protected LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<ParquetValueReader<?>>
-      logicalTypeReaderVisitor(
-          ColumnDescriptor desc,
-          org.apache.iceberg.types.Type.PrimitiveType expected,
-          PrimitiveType primitive) {
-    return new LogicalTypeAnnotationParquetValueReaderVisitor(desc, expected, primitive);
-  }
-
-  @Override
   protected ParquetValueReaders.PrimitiveReader<?> fixedReader(ColumnDescriptor desc) {
     return new FixedReader(desc);
   }
@@ -85,6 +74,41 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
   @Override
   protected ParquetValueReaders.PrimitiveReader<?> int96Reader(ColumnDescriptor desc) {
     return new TimestampInt96Reader(desc);
+  }
+
+  @Override
+  protected Optional<ParquetValueReader<?>> dateReader(ColumnDescriptor desc) {
+    return Optional.of(new DateReader(desc));
+  }
+
+  @Override
+  protected Optional<ParquetValueReader<?>> timeReader(
+      ColumnDescriptor desc, LogicalTypeAnnotation.TimeUnit unit) {
+    switch (unit) {
+      case MICROS:
+        return Optional.of(new TimeReader(desc));
+      case MILLIS:
+        return Optional.of(new TimeMillisReader(desc));
+      default:
+        return Optional.empty();
+    }
+  }
+
+  @Override
+  protected Optional<ParquetValueReader<?>> timestampReader(
+      ColumnDescriptor desc, LogicalTypeAnnotation.TimeUnit unit, boolean isAdjustedToUTC) {
+    switch (unit) {
+      case MICROS:
+        return isAdjustedToUTC
+            ? Optional.of(new TimestamptzReader(desc))
+            : Optional.of(new TimestampReader(desc));
+      case MILLIS:
+        return isAdjustedToUTC
+            ? Optional.of(new TimestamptzMillisReader(desc))
+            : Optional.of(new TimestampMillisReader(desc));
+      default:
+        return Optional.empty();
+    }
   }
 
   @Override
@@ -125,114 +149,6 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     @Override
     protected void set(Record struct, int pos, Object value) {
       struct.set(pos, value);
-    }
-  }
-
-  private class LogicalTypeAnnotationParquetValueReaderVisitor
-      implements LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<ParquetValueReader<?>> {
-
-    private final ColumnDescriptor desc;
-    private final org.apache.iceberg.types.Type.PrimitiveType expected;
-    private final PrimitiveType primitive;
-
-    LogicalTypeAnnotationParquetValueReaderVisitor(
-        ColumnDescriptor desc,
-        org.apache.iceberg.types.Type.PrimitiveType expected,
-        PrimitiveType primitive) {
-      this.desc = desc;
-      this.expected = expected;
-      this.primitive = primitive;
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.StringLogicalTypeAnnotation stringLogicalType) {
-      return Optional.of(new ParquetValueReaders.StringReader(desc));
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.EnumLogicalTypeAnnotation enumLogicalType) {
-      return Optional.of(new ParquetValueReaders.StringReader(desc));
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimalLogicalType) {
-      switch (primitive.getPrimitiveTypeName()) {
-        case BINARY:
-        case FIXED_LEN_BYTE_ARRAY:
-          return Optional.of(
-              new ParquetValueReaders.BinaryAsDecimalReader(desc, decimalLogicalType.getScale()));
-        case INT64:
-          return Optional.of(
-              new ParquetValueReaders.LongAsDecimalReader(desc, decimalLogicalType.getScale()));
-        case INT32:
-          return Optional.of(
-              new ParquetValueReaders.IntegerAsDecimalReader(desc, decimalLogicalType.getScale()));
-        default:
-          throw new UnsupportedOperationException(
-              "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
-      }
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.DateLogicalTypeAnnotation dateLogicalType) {
-      return Optional.of(new DateReader(desc));
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.TimeLogicalTypeAnnotation timeLogicalType) {
-      if (timeLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS) {
-        return Optional.of(new TimeReader(desc));
-      } else if (timeLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS) {
-        return Optional.of(new TimeMillisReader(desc));
-      }
-
-      return Optional.empty();
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampLogicalType) {
-      if (timestampLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS) {
-        Types.TimestampType tsMicrosType = (Types.TimestampType) expected;
-        return tsMicrosType.shouldAdjustToUTC()
-            ? Optional.of(new TimestamptzReader(desc))
-            : Optional.of(new TimestampReader(desc));
-      } else if (timestampLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS) {
-        Types.TimestampType tsMillisType = (Types.TimestampType) expected;
-        return tsMillisType.shouldAdjustToUTC()
-            ? Optional.of(new TimestamptzMillisReader(desc))
-            : Optional.of(new TimestampMillisReader(desc));
-      }
-
-      return LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(timestampLogicalType);
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogicalType) {
-      if (intLogicalType.getBitWidth() == 64) {
-        return Optional.of(new ParquetValueReaders.UnboxedReader<>(desc));
-      }
-      return (expected.typeId() == org.apache.iceberg.types.Type.TypeID.LONG)
-          ? Optional.of(new ParquetValueReaders.IntAsLongReader(desc))
-          : Optional.of(new ParquetValueReaders.UnboxedReader<>(desc));
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.JsonLogicalTypeAnnotation jsonLogicalType) {
-      return Optional.of(new ParquetValueReaders.StringReader(desc));
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonLogicalType) {
-      return Optional.of(new ParquetValueReaders.BytesReader(desc));
     }
   }
 

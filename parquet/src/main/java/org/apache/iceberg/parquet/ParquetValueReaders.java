@@ -24,6 +24,7 @@ import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -422,6 +423,41 @@ public class ParquetValueReaders {
     @Override
     public byte[] read(byte[] ignored) {
       return column.nextBinary().getBytes();
+    }
+  }
+
+  public static class TimestampInt96Reader extends UnboxedReader<Long> {
+
+    public TimestampInt96Reader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Long read(Long ignored) {
+      return readLong();
+    }
+
+    @Override
+    public long readLong() {
+      final ByteBuffer byteBuffer =
+          column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+      return ParquetUtil.extractTimestampInt96(byteBuffer);
+    }
+  }
+
+  public static class TimestampMillisReader extends UnboxedReader<Long> {
+    public TimestampMillisReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Long read(Long ignored) {
+      return readLong();
+    }
+
+    @Override
+    public long readLong() {
+      return 1000L * column.nextInteger();
     }
   }
 

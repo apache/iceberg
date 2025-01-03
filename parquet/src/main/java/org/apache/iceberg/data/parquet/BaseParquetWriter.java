@@ -23,6 +23,7 @@ import java.util.Optional;
 import org.apache.iceberg.parquet.ParquetTypeVisitor;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.GroupType;
@@ -41,11 +42,26 @@ public abstract class BaseParquetWriter<T> {
   protected abstract ParquetValueWriters.StructWriter<T> createStructWriter(
       List<ParquetValueWriter<?>> writers);
 
-  protected abstract LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<
-          ParquetValueWriters.PrimitiveWriter<?>>
-      logicalTypeWriterVisitor(ColumnDescriptor desc);
+  protected ParquetValueWriters.PrimitiveWriter<?> fixedWriter(ColumnDescriptor desc) {
+    return ParquetValueWriters.fixed(desc);
+  }
 
-  protected abstract ParquetValueWriters.PrimitiveWriter<?> fixedWriter(ColumnDescriptor desc);
+  protected Optional<ParquetValueWriters.PrimitiveWriter<?>> dateWriter(ColumnDescriptor desc) {
+    return Optional.empty();
+  }
+
+  protected Optional<ParquetValueWriters.PrimitiveWriter<?>> timeWriter(ColumnDescriptor desc) {
+    return Optional.empty();
+  }
+
+  protected Optional<ParquetValueWriters.PrimitiveWriter<?>> timestampWriter(
+      ColumnDescriptor desc, boolean isAdjustedToUTC) {
+    return Optional.empty();
+  }
+
+  protected Optional<ParquetValueWriters.PrimitiveWriter<?>> uuidWriter(ColumnDescriptor desc) {
+    return Optional.empty();
+  }
 
   private class WriteBuilder extends ParquetTypeVisitor<ParquetValueWriter<?>> {
     private final MessageType type;
@@ -117,7 +133,7 @@ public abstract class BaseParquetWriter<T> {
       LogicalTypeAnnotation logicalType = primitive.getLogicalTypeAnnotation();
       if (logicalType != null) {
         Optional<ParquetValueWriters.PrimitiveWriter<?>> writer =
-            logicalType.accept(logicalTypeWriterVisitor(desc));
+            logicalType.accept(new LogicalTypeWriterVisitor(desc));
         if (writer.isPresent()) {
           return writer.get();
         }
@@ -141,6 +157,106 @@ public abstract class BaseParquetWriter<T> {
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
+    }
+  }
+
+  private class LogicalTypeWriterVisitor
+      implements LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<
+          ParquetValueWriters.PrimitiveWriter<?>> {
+    private final ColumnDescriptor desc;
+
+    private LogicalTypeWriterVisitor(ColumnDescriptor desc) {
+      this.desc = desc;
+    }
+
+    @Override
+    public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
+        LogicalTypeAnnotation.StringLogicalTypeAnnotation stringType) {
+      return Optional.of(ParquetValueWriters.strings(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
+        LogicalTypeAnnotation.EnumLogicalTypeAnnotation enumType) {
+      return Optional.of(ParquetValueWriters.strings(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
+        LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimalType) {
+      switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
+        case INT32:
+          return Optional.of(
+              ParquetValueWriters.decimalAsInteger(
+                  desc, decimalType.getPrecision(), decimalType.getScale()));
+        case INT64:
+          return Optional.of(
+              ParquetValueWriters.decimalAsLong(
+                  desc, decimalType.getPrecision(), decimalType.getScale()));
+        case BINARY:
+        case FIXED_LEN_BYTE_ARRAY:
+          return Optional.of(
+              ParquetValueWriters.decimalAsFixed(
+                  desc, decimalType.getPrecision(), decimalType.getScale()));
+      }
+      return Optional.empty();
+    }
+
+    @Override
+    public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
+        LogicalTypeAnnotation.DateLogicalTypeAnnotation dateType) {
+      return dateWriter(desc);
+    }
+
+    @Override
+    public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
+        LogicalTypeAnnotation.TimeLogicalTypeAnnotation timeType) {
+      Preconditions.checkArgument(
+          LogicalTypeAnnotation.TimeUnit.MICROS.equals(timeType.getUnit()),
+          "Cannot write time in %s, only MICROS is supported",
+          timeType.getUnit());
+      return timeWriter(desc);
+    }
+
+    @Override
+    public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
+        LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampType) {
+      Preconditions.checkArgument(
+          LogicalTypeAnnotation.TimeUnit.MICROS.equals(timestampType.getUnit()),
+          "Cannot write timestamp in %s, only MICROS is supported",
+          timestampType.getUnit());
+      return timestampWriter(desc, timestampType.isAdjustedToUTC());
+    }
+
+    @Override
+    public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
+        LogicalTypeAnnotation.IntLogicalTypeAnnotation intType) {
+      Preconditions.checkArgument(
+          intType.isSigned() || intType.getBitWidth() < 64,
+          "Cannot read uint64: not a supported Java type");
+      if (intType.getBitWidth() < 64) {
+        return Optional.of(ParquetValueWriters.ints(desc));
+      } else {
+        return Optional.of(ParquetValueWriters.longs(desc));
+      }
+    }
+
+    @Override
+    public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
+        LogicalTypeAnnotation.JsonLogicalTypeAnnotation jsonLogicalType) {
+      return Optional.of(ParquetValueWriters.strings(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
+        LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonType) {
+      return Optional.of(ParquetValueWriters.byteBuffers(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
+        LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
+      return uuidWriter(desc);
     }
   }
 }
