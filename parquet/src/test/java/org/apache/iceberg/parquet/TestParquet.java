@@ -27,6 +27,7 @@ import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.write;
 import static org.apache.iceberg.relocated.com.google.common.collect.Iterables.getOnlyElement;
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
@@ -52,6 +53,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantBuilder;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -217,6 +220,42 @@ public class TestParquet {
 
     assertThat(recordRead.get("arraybytes")).isEqualTo(expectedByteList);
     assertThat(recordRead.get("topbytes")).isEqualTo(expectedBinary);
+  }
+
+  @Test
+  public void testVariant() throws IOException {
+    Schema schema = new Schema(required(1, "variantCol", Types.VariantType.get()));
+    String input = "{\"name\":\"John\",\"age\":30}";
+
+    File file = createTempFile(temp);
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(1);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+
+    GenericData.Record record = new GenericData.Record(avroSchema);
+    Variant writeVariant = VariantBuilder.parseJson(input);
+    record.put("variantCol", writeVariant);
+    records.add(record);
+
+    long actualSize =
+        write(
+            file,
+            schema,
+            Collections.emptyMap(),
+            ParquetAvroWriter::buildWriter,
+            records.toArray(new GenericData.Record[] {}));
+
+    long expectedSize = ParquetIO.file(localInput(file)).getLength();
+    assertThat(actualSize).isEqualTo(expectedSize);
+
+    // Test read the variant data
+    Iterable<GenericData.Record> readRecords =
+        Parquet.read(Files.localInput(file)).project(schema).callInit().build();
+    for (GenericData.Record readRecord : readRecords) {
+      GenericData.Record variantRecord = (GenericData.Record) readRecord.get("variantCol");
+
+      assertThat(variantRecord.get("metadata")).isEqualTo(ByteBuffer.wrap(writeVariant.getMetadata()));
+      assertThat(variantRecord.get("value")).isEqualTo(ByteBuffer.wrap(writeVariant.getValue()));
+    }
   }
 
   private Pair<File, Long> generateFile(
