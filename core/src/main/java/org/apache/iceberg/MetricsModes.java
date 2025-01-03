@@ -94,7 +94,8 @@ public class MetricsModes {
 
   /**
    * Under this mode, value_counts, null_value_counts, nan_value_counts and truncated lower_bounds,
-   * upper_bounds are persisted.
+   * upper_bounds are persisted. If truncate is set to 0 then the no values will be persisted for
+   * binaries or strings.
    */
   public static class Truncate extends ProxySerializableMetricsMode {
     private final int length;
@@ -104,7 +105,7 @@ public class MetricsModes {
     }
 
     public static Truncate withLength(int length) {
-      Preconditions.checkArgument(length > 0, "Truncate length should be positive");
+      Preconditions.checkArgument(length >= 0, "Truncate length should be non-negative");
       return new Truncate(length);
     }
 

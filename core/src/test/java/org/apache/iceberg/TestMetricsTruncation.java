@@ -96,6 +96,7 @@ public class TestMetricsTruncation {
             "Output must have the first two bytes of the input. A lower bound exists "
                 + "even though the first two bytes are the max value")
         .isEqualTo(0);
+    assertThat(truncateBinaryMin(Literal.of(test2), 0)).isNull();
   }
 
   @Test
@@ -135,6 +136,7 @@ public class TestMetricsTruncation {
             "Since a shorter sequence is considered smaller, output must have two bytes "
                 + "and the second byte of the input must be incremented")
         .isEqualTo(0);
+    assertThat(truncateBinaryMax(Literal.of(test4), 0)).isNull();
   }
 
   @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
@@ -182,6 +184,7 @@ public class TestMetricsTruncation {
     assertThat(cmp.compare(truncateStringMin(Literal.of(test4), 1).value(), test4_1_expected))
         .as("Output must have the first 4 byte UTF-8 character of the input")
         .isEqualTo(0);
+    assertThat(truncateStringMax(Literal.of(test4), 0)).isNull();
   }
 
   @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
@@ -301,5 +304,6 @@ public class TestMetricsTruncation {
             "Test the last character is `Character.MIN_SURROGATE - 1` after truncated, it should be incremented to "
                 + "next valid Unicode scalar value `Character.MAX_SURROGATE + 1`")
         .isEqualTo(0);
+    assertThat(truncateStringMax(Literal.of(test9), 0)).isNull();
   }
 }

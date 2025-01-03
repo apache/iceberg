@@ -335,7 +335,6 @@ public class OrcMetrics {
     CharSequence charSequence = (CharSequence) value;
     MetricsModes.Truncate truncateMode = (MetricsModes.Truncate) metricsMode;
     int truncateLength = truncateMode.length();
-
     switch (bound) {
       case UPPER:
         return Optional.ofNullable(
