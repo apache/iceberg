@@ -46,6 +46,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
+import org.apache.iceberg.exceptions.NoSuchIcebergViewException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
@@ -442,6 +443,29 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
       Thread.currentThread().interrupt();
       throw new RuntimeException(
           "Interrupted in call to check table existence of " + baseTableIdentifier, e);
+    }
+  }
+
+  @Override
+  public boolean viewExists(TableIdentifier viewIdentifier) {
+    if (!isValidIdentifier(viewIdentifier)) {
+      return false;
+    }
+
+    String database = viewIdentifier.namespace().level(0);
+    String viewName = viewIdentifier.name();
+    try {
+      Table table = clients.run(client -> client.getTable(database, viewName));
+      HiveOperationsBase.validateTableIsIcebergView(table, fullTableName(name, viewIdentifier));
+      return true;
+    } catch (NoSuchIcebergViewException | NoSuchObjectException e) {
+      return false;
+    } catch (TException e) {
+      throw new RuntimeException("Failed to check view existence of " + viewIdentifier, e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException(
+          "Interrupted in call to check view existence of " + viewIdentifier, e);
     }
   }
 
