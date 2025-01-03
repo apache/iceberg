@@ -19,10 +19,12 @@
 package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.MetadataTableType.ENTRIES;
+import static org.apache.spark.sql.functions.col;
 
 import java.io.Serializable;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -37,6 +39,7 @@ import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.RollingManifestWriter;
@@ -71,6 +74,7 @@ import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.functions;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -98,6 +102,8 @@ public class RewriteManifestsSparkAction
           .addedManifests(ImmutableList.of())
           .build();
 
+  private static final String CUSTOM_CLUSTERING_COLUMN_NAME = "__clustering_column__";
+
   private final Table table;
   private final int formatVersion;
   private final long targetManifestSizeBytes;
@@ -106,6 +112,8 @@ public class RewriteManifestsSparkAction
   private PartitionSpec spec;
   private Predicate<ManifestFile> predicate = manifest -> true;
   private String outputLocation;
+
+  private List<String> partitionFieldClustering = null;
 
   RewriteManifestsSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -158,6 +166,29 @@ public class RewriteManifestsSparkAction
     } else {
       LOG.warn("Ignoring provided staging location as new manifests will be committed directly");
     }
+    return this;
+  }
+
+  @Override
+  public RewriteManifestsSparkAction clusterBy(List<String> partitionFields) {
+    // Collect set of available partition columns to cluster on
+    Set<String> availablePartitionNames =
+        spec.fields().stream().map(PartitionField::name).collect(Collectors.toSet());
+
+    // Identify specified partition fields that are not available in the spec
+    List<String> missingFields =
+        partitionFields.stream()
+            .filter(field -> !availablePartitionNames.contains(field))
+            .collect(Collectors.toList());
+
+    // Check if these partition fields are included in the spec
+    Preconditions.checkArgument(
+        missingFields.isEmpty(),
+        "Cannot set manifest clustering because specified field(s) %s were not found in current partition spec %s.",
+        missingFields,
+        this.spec.specId());
+
+    this.partitionFieldClustering = partitionFields;
     return this;
   }
 
@@ -251,12 +282,40 @@ public class RewriteManifestsSparkAction
   private List<ManifestFile> writePartitionedManifests(
       ManifestContent content, Dataset<Row> manifestEntryDF, int numManifests) {
 
+    // Extract desired clustering criteria into a dedicated column
+    Dataset<Row> clusteredManifestEntryDF;
+
+    if (partitionFieldClustering != null) {
+      LOG.info(
+          "Clustering manifests for specId {} by partition columns by {} ",
+          spec.specId(),
+          partitionFieldClustering);
+
+      // Map the top level partition column names to the column name referenced within the manifest
+      // entry dataframe
+      Column[] actualPartitionColumns =
+          partitionFieldClustering.stream()
+              .map(p -> col("data_file.partition." + p))
+              .toArray(Column[]::new);
+
+      // Form a new temporary column to cluster manifests on, based on the custom clustering columns
+      // order provided
+      clusteredManifestEntryDF =
+          manifestEntryDF.withColumn(
+              CUSTOM_CLUSTERING_COLUMN_NAME, functions.struct(actualPartitionColumns));
+    } else {
+      clusteredManifestEntryDF =
+          manifestEntryDF.withColumn(CUSTOM_CLUSTERING_COLUMN_NAME, col("data_file.partition"));
+    }
+
     return withReusableDS(
-        manifestEntryDF,
+        clusteredManifestEntryDF,
         df -> {
           WriteManifests<?> writeFunc = newWriteManifestsFunc(content, df.schema());
-          Column partitionColumn = df.col("data_file.partition");
-          Dataset<Row> transformedDF = repartitionAndSort(df, partitionColumn, numManifests);
+          Column partitionColumn = df.col(CUSTOM_CLUSTERING_COLUMN_NAME);
+          Dataset<Row> transformedDF =
+              repartitionAndSort(df, partitionColumn, numManifests)
+                  .drop(CUSTOM_CLUSTERING_COLUMN_NAME);
           return writeFunc.apply(transformedDF).collectAsList();
         });
   }
