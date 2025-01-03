@@ -27,9 +27,11 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.io.api.Binary;
@@ -398,6 +400,17 @@ public class ParquetValueReaders {
         data.get(array, 0, data.remaining());
         return ByteBuffer.wrap(array);
       }
+    }
+  }
+
+  public static class UUIDReader extends PrimitiveReader<UUID> {
+    public UUIDReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public UUID read(UUID reuse) {
+      return UUIDUtil.convert(column.nextBinary().toByteBuffer());
     }
   }
 
