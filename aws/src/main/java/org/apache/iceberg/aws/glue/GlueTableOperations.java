@@ -273,7 +273,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     }
   }
 
-  private Table getGlueTable() {
+  Table getGlueTable() {
     try {
       GetTableResponse response =
           glue.getTable(
