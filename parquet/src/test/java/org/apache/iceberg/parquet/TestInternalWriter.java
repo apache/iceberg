@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import org.apache.iceberg.DataFile;
@@ -36,7 +37,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.InternalReader;
 import org.apache.iceberg.data.parquet.InternalWriter;
 import org.apache.iceberg.expressions.Literal;
@@ -44,6 +44,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructProjection;
 import org.junit.jupiter.api.Test;
@@ -118,8 +119,8 @@ public class TestInternalWriter {
     assertThat(dataFile.partition().size()).as("Partition should be empty").isEqualTo(0);
     assertThat(dataFile.keyMetadata()).as("Key metadata should be null").isNull();
 
-    List<Record> writtenRecords;
-    try (CloseableIterable<Record> reader =
+    List<StructLike> writtenRecords;
+    try (CloseableIterable<StructLike> reader =
         Parquet.read(file.toInputFile())
             .project(schema)
             .createReaderFunc(fileSchema -> InternalReader.buildReader(schema, fileSchema))
@@ -127,6 +128,7 @@ public class TestInternalWriter {
       writtenRecords = Lists.newArrayList(reader);
     }
     assertThat(writtenRecords).hasSize(1);
-    assertThat(writtenRecords.get(0)).isEqualTo(record);
+    Comparator<StructLike> structLikeComparator = Comparators.forType(schema.asStruct());
+    assertThat(structLikeComparator.compare(writtenRecords.get(0), row)).isZero();
   }
 }
