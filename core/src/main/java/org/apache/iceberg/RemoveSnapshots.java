@@ -30,6 +30,8 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 import static org.apache.iceberg.TableProperties.MAX_REF_AGE_MS;
 import static org.apache.iceberg.TableProperties.MAX_REF_AGE_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.MAX_SNAPSHOTS_TO_KEEP;
+import static org.apache.iceberg.TableProperties.MAX_SNAPSHOTS_TO_KEEP_DEFAULT;
 import static org.apache.iceberg.TableProperties.MAX_SNAPSHOT_AGE_MS;
 import static org.apache.iceberg.TableProperties.MAX_SNAPSHOT_AGE_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.MIN_SNAPSHOTS_TO_KEEP;
@@ -80,6 +82,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   private TableMetadata base;
   private long defaultExpireOlderThan;
   private int defaultMinNumSnapshots;
+  private int defaultMaxNumSnapshots;
   private Consumer<String> deleteFunc = defaultDelete;
   private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
   private ExecutorService planExecutorService = ThreadPools.getWorkerPool();
@@ -102,6 +105,9 @@ class RemoveSnapshots implements ExpireSnapshots {
     this.defaultMinNumSnapshots =
         PropertyUtil.propertyAsInt(
             base.properties(), MIN_SNAPSHOTS_TO_KEEP, MIN_SNAPSHOTS_TO_KEEP_DEFAULT);
+    this.defaultMaxNumSnapshots =
+        PropertyUtil.propertyAsInt(
+            base.properties(), MAX_SNAPSHOTS_TO_KEEP, MAX_SNAPSHOTS_TO_KEEP_DEFAULT);
 
     this.defaultMaxRefAgeMs =
         PropertyUtil.propertyAsLong(base.properties(), MAX_REF_AGE_MS, MAX_REF_AGE_MS_DEFAULT);
@@ -128,6 +134,16 @@ class RemoveSnapshots implements ExpireSnapshots {
         DateTimeUtil.formatTimestampMillis(timestampMillis),
         timestampMillis);
     this.defaultExpireOlderThan = timestampMillis;
+    return this;
+  }
+
+  @Override
+  public ExpireSnapshots keepAtMost(int numSnapshots) {
+    Preconditions.checkArgument(
+        1 <= numSnapshots,
+        "Number of snapshots to keep at most must be at least 1, cannot be: %s",
+        numSnapshots);
+    this.defaultMaxNumSnapshots = numSnapshots;
     return this;
   }
 
@@ -245,9 +261,13 @@ class RemoveSnapshots implements ExpireSnapshots {
             ref.maxSnapshotAgeMs() != null ? now - ref.maxSnapshotAgeMs() : defaultExpireOlderThan;
         int minSnapshotsToKeep =
             ref.minSnapshotsToKeep() != null ? ref.minSnapshotsToKeep() : defaultMinNumSnapshots;
+        int maxSnapshotsToKeep = Math.max(defaultMaxNumSnapshots, minSnapshotsToKeep);
         branchSnapshotsToRetain.addAll(
             computeBranchSnapshotsToRetain(
-                ref.snapshotId(), expireSnapshotsOlderThan, minSnapshotsToKeep));
+                ref.snapshotId(),
+                expireSnapshotsOlderThan,
+                minSnapshotsToKeep,
+                maxSnapshotsToKeep));
       }
     }
 
@@ -255,11 +275,16 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   private Set<Long> computeBranchSnapshotsToRetain(
-      long snapshot, long expireSnapshotsOlderThan, int minSnapshotsToKeep) {
+      long snapshot,
+      long expireSnapshotsOlderThan,
+      int minSnapshotsToKeep,
+      int maxSnapshotsToKeep) {
     Set<Long> idsToRetain = Sets.newHashSet();
     for (Snapshot ancestor : SnapshotUtil.ancestorsOf(snapshot, base::snapshot)) {
-      if (idsToRetain.size() < minSnapshotsToKeep
-          || ancestor.timestampMillis() >= expireSnapshotsOlderThan) {
+      int retainSize = idsToRetain.size();
+      if (retainSize < minSnapshotsToKeep
+          || (retainSize < maxSnapshotsToKeep
+              && ancestor.timestampMillis() >= expireSnapshotsOlderThan)) {
         idsToRetain.add(ancestor.snapshotId());
       } else {
         return idsToRetain;
