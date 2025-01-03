@@ -21,17 +21,24 @@ package org.apache.iceberg.spark.source;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.iceberg.BlobMetadata;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.StatisticsFile;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.expressions.AggregateEvaluator;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -73,6 +80,7 @@ import org.apache.iceberg.spark.source.metrics.TotalDataManifests;
 import org.apache.iceberg.spark.source.metrics.TotalDeleteFileSize;
 import org.apache.iceberg.spark.source.metrics.TotalDeleteManifests;
 import org.apache.iceberg.spark.source.metrics.TotalPlanningDuration;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -193,44 +201,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
         Boolean.parseBoolean(spark.conf().get(SQLConf.CBO_ENABLED().key(), "false"));
     Map<NamedReference, ColumnStatistics> colStatsMap = Collections.emptyMap();
     if (readConf.reportColumnStats() && cboEnabled) {
-      colStatsMap = Maps.newHashMap();
-      List<StatisticsFile> files = table.statisticsFiles();
-      if (!files.isEmpty()) {
-        List<BlobMetadata> metadataList = (files.get(0)).blobMetadata();
-
-        Map<Integer, List<BlobMetadata>> groupedByField =
-            metadataList.stream()
-                .collect(
-                    Collectors.groupingBy(
-                        metadata -> metadata.fields().get(0), Collectors.toList()));
-
-        for (Map.Entry<Integer, List<BlobMetadata>> entry : groupedByField.entrySet()) {
-          String colName = table.schema().findColumnName(entry.getKey());
-          NamedReference ref = FieldReference.column(colName);
-          Long ndv = null;
-
-          for (BlobMetadata blobMetadata : entry.getValue()) {
-            if (blobMetadata
-                .type()
-                .equals(org.apache.iceberg.puffin.StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1)) {
-              String ndvStr = blobMetadata.properties().get(NDV_KEY);
-              if (!Strings.isNullOrEmpty(ndvStr)) {
-                ndv = Long.parseLong(ndvStr);
-              } else {
-                LOG.debug("{} is not set in BlobMetadata for column {}", NDV_KEY, colName);
-              }
-            } else {
-              LOG.debug("Blob type {} is not supported yet", blobMetadata.type());
-            }
-          }
-          ColumnStatistics colStats =
-              new SparkColumnStatistics(ndv, null, null, null, null, null, null);
-
-          colStatsMap.put(ref, colStats);
-        }
-      }
+      colStatsMap = collectColumnStats();
     }
-
     // estimate stats using snapshot summary only for partitioned tables
     // (metadata tables are unpartitioned)
     if (!table.spec().isUnpartitioned() && filterExpressions.isEmpty()) {
@@ -246,6 +218,148 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     long rowsCount = taskGroups().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
     long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), rowsCount);
     return new Stats(sizeInBytes, rowsCount, colStatsMap);
+  }
+
+  private Map<NamedReference, ColumnStatistics> collectColumnStats() {
+    Map<NamedReference, ColumnStatistics> colStatsMap = Maps.newHashMap();
+    Map<Integer, Long> ndvs = Maps.newHashMap();
+    Map<Integer, Long> nullCounts = Maps.newHashMap();
+    Map<Integer, Object> minValues = Maps.newHashMap();
+    Map<Integer, Object> maxValues = Maps.newHashMap();
+    List<StatisticsFile> files = table.statisticsFiles();
+    if (!files.isEmpty()) {
+      List<BlobMetadata> metadataList = (files.get(0)).blobMetadata();
+
+      // collects stats on fly only if property is enabled
+      if (readConf.deriveStatsFromManifestOnFly()) {
+        deriveStatsOnFly(minValues, maxValues, nullCounts);
+      }
+
+      Map<Integer, List<BlobMetadata>> groupedByField =
+          metadataList.stream()
+              .collect(
+                  Collectors.groupingBy(metadata -> metadata.fields().get(0), Collectors.toList()));
+
+      for (Map.Entry<Integer, List<BlobMetadata>> entry : groupedByField.entrySet()) {
+        String colName = table.schema().findColumnName(entry.getKey());
+
+        for (BlobMetadata blobMetadata : entry.getValue()) {
+          if (blobMetadata
+              .type()
+              .equals(org.apache.iceberg.puffin.StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1)) {
+            String ndvStr = blobMetadata.properties().get(NDV_KEY);
+            if (!Strings.isNullOrEmpty(ndvStr)) {
+              ndvs.put(entry.getKey(), Long.parseLong(ndvStr));
+            } else {
+              LOG.debug("{} is not set in BlobMetadata for column {}", NDV_KEY, colName);
+            }
+          } else {
+            LOG.debug("Blob type {} is not supported yet", blobMetadata.type());
+          }
+        }
+      }
+    }
+    // populate the stats
+    for (Types.NestedField field : table.schema().columns()) {
+      colStatsMap.put(
+          FieldReference.column(table.schema().findColumnName(field.fieldId())),
+          new SparkColumnStatistics(
+              ndvs.getOrDefault(field.fieldId(), null),
+              minValues.getOrDefault(field.fieldId(), null),
+              maxValues.getOrDefault(field.fieldId(), null),
+              nullCounts.getOrDefault(field.fieldId(), null),
+              null,
+              null,
+              null));
+    }
+    return colStatsMap;
+  }
+
+  private void deriveStatsOnFly(
+      Map<Integer, Object> minValues,
+      Map<Integer, Object> maxValues,
+      Map<Integer, Long> nullCounts) {
+    List<FileScanTask> fileScanTasks =
+        taskGroups().stream()
+            .flatMap(taskGroup -> taskGroup.tasks().stream())
+            .filter(ScanTask::isFileScanTask)
+            .map(ScanTask::asFileScanTask)
+            .collect(Collectors.toList());
+    // extract the distinct files which are part of the task planning
+    Set<DataFile> dataFiles =
+        fileScanTasks.stream().map(FileScanTask::file).collect(Collectors.toSet());
+
+    // check for row level deletes
+    boolean existsWithDeletes = fileScanTasks.stream().anyMatch(task -> !task.deletes().isEmpty());
+    if (!existsWithDeletes) {
+      // For each column we collect min/max and non-null count
+      List<Expression> expressions =
+          table.schema().columns().stream()
+              .map(
+                  field -> {
+                    String colName = field.name(); // Extract the column name
+                    // Create expressions for max and min non-null count
+                    return List.of(
+                        Expressions.min(colName),
+                        Expressions.max(colName),
+                        Expressions.count(colName));
+                  })
+              .flatMap(List::stream) // Flatten the lists into a single stream
+              .collect(Collectors.toList());
+
+      AggregateEvaluator aggregateEvaluator =
+          AggregateEvaluator.create(table.schema(), expressions);
+
+      for (DataFile dataFile : dataFiles) {
+        aggregateEvaluator.update(dataFile);
+      }
+
+      if (!aggregateEvaluator.allAggregatorsValid()) {
+        return;
+      }
+      // get the total row count to compute the number of null rows
+      long rowsCount = totalRecords(table().currentSnapshot());
+      // populate the map with the results
+      StructLike res = aggregateEvaluator.result();
+
+      IntStream.range(0, table.schema().columns().size())
+          .forEach(
+              index -> {
+                int columnIndex = index * 3;
+                Type.PrimitiveType fieldType =
+                    table.schema().columns().get(index).type().asPrimitiveType();
+                if (isValidMinMaxType(fieldType)) {
+                  minValues.put(
+                      table.schema().columns().get(index).fieldId(),
+                      res.get(columnIndex, Object.class));
+                  maxValues.put(
+                      table.schema().columns().get(index).fieldId(),
+                      res.get(columnIndex + 1, Object.class));
+                }
+                nullCounts.put(
+                    table.schema().columns().get(index).fieldId(),
+                    rowsCount - res.get(columnIndex + 2, Long.class));
+              });
+    } else {
+      LOG.info("Skip deriving stats on the fly : detected row level deletes");
+    }
+  }
+
+  // min/max are calculated for numeric, Date, and Timestamp only
+  private boolean isValidMinMaxType(Type type) {
+    switch (type.typeId()) {
+      case DATE:
+      case TIMESTAMP:
+      case INTEGER:
+      case LONG:
+      case FLOAT:
+      case DOUBLE:
+      case DECIMAL:
+      case BOOLEAN:
+        return true;
+      default:
+        return false;
+    }
   }
 
   private long totalRecords(Snapshot snapshot) {
