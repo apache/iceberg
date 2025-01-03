@@ -437,8 +437,8 @@ class SchemaUpdate implements UpdateSchema {
   @Override
   public Schema apply() {
     Schema newSchema =
-        applyChanges(schema, deletes, updates, adds, moves, identifierFieldNames, caseSensitive);
-
+        applyChanges(
+            schema, deletes, updates, adds, moves, identifierFieldNames, caseSensitive, base);
     return newSchema;
   }
 
@@ -508,7 +508,8 @@ class SchemaUpdate implements UpdateSchema {
       Multimap<Integer, Types.NestedField> adds,
       Multimap<Integer, Move> moves,
       Set<String> identifierFieldNames,
-      boolean caseSensitive) {
+      boolean caseSensitive,
+      TableMetadata base) {
     // validate existing identifier fields are not deleted
     Map<Integer, Integer> idToParent = TypeUtil.indexParents(schema.asStruct());
 
@@ -530,6 +531,25 @@ class SchemaUpdate implements UpdateSchema {
               field);
           parentId = idToParent.get(parentId);
         }
+      }
+    }
+
+    if (base != null) {
+      for (int fieldIdToDelete : deletes) {
+        base.specsById()
+            .forEach(
+                (specId, spec) -> {
+                  // Prevent dropping fields that are referenced in older partitions specs in use.
+                  if (!specId.equals(base.defaultSpecId())) {
+                    if (spec.fields().stream()
+                        .anyMatch(partitionField -> partitionField.sourceId() == fieldIdToDelete)) {
+                      throw new IllegalArgumentException(
+                          String.format(
+                              "Cannot delete field id %s as it is used by an active partition spec id %s",
+                              fieldIdToDelete, specId));
+                    }
+                  }
+                });
       }
     }
 
