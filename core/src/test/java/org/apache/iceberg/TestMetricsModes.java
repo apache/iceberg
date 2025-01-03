@@ -63,6 +63,7 @@ public class TestMetricsModes {
     assertThat(MetricsModes.fromString("nOnE")).isEqualTo(None.get());
     assertThat(MetricsModes.fromString("counts")).isEqualTo(Counts.get());
     assertThat(MetricsModes.fromString("coUntS")).isEqualTo(Counts.get());
+    assertThat(MetricsModes.fromString("truncate(0)")).isEqualTo(Truncate.withLength(0));
     assertThat(MetricsModes.fromString("truncate(1)")).isEqualTo(Truncate.withLength(1));
     assertThat(MetricsModes.fromString("truNcAte(10)")).isEqualTo(Truncate.withLength(10));
     assertThat(MetricsModes.fromString("full")).isEqualTo(Full.get());
@@ -71,9 +72,9 @@ public class TestMetricsModes {
 
   @TestTemplate
   public void testInvalidTruncationLength() {
-    assertThatThrownBy(() -> MetricsModes.fromString("truncate(0)"))
+    assertThatThrownBy(() -> MetricsModes.fromString("truncate(-1)"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Truncate length should be positive");
+        .hasMessage("Truncate length should be non-negative");
   }
 
   @TestTemplate

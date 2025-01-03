@@ -39,7 +39,7 @@ public class UnicodeUtil {
    * length
    */
   public static CharSequence truncateString(CharSequence input, int length) {
-    Preconditions.checkArgument(length > 0, "Truncate length should be positive");
+    Preconditions.checkArgument(length >= 0, "Truncate length should be non-negative");
     StringBuilder sb = new StringBuilder(input);
     // Get the number of unicode characters in the input
     int numUniCodeCharacters = sb.codePointCount(0, sb.length());
@@ -60,6 +60,9 @@ public class UnicodeUtil {
    */
   public static Literal<CharSequence> truncateStringMin(Literal<CharSequence> input, int length) {
     // Truncate the input to the specified truncate length.
+    if (length == 0) {
+      return null;
+    }
     CharSequence truncatedInput = truncateString(input.value(), length);
     return Literal.of(truncatedInput);
   }
@@ -69,6 +72,9 @@ public class UnicodeUtil {
    * of unicode characters in the truncated charSequence is lesser than or equal to length
    */
   public static Literal<CharSequence> truncateStringMax(Literal<CharSequence> input, int length) {
+    if (length == 0) {
+      return null;
+    }
     CharSequence inputCharSeq = input.value();
     // Truncate the input to the specified truncate length.
     StringBuilder truncatedStringBuilder = new StringBuilder(truncateString(inputCharSeq, length));

@@ -286,13 +286,19 @@ public class ParquetUtil {
         int truncateLength = truncateMode.length();
         switch (type.typeId()) {
           case STRING:
-            lowerBounds.put(
-                id, UnicodeUtil.truncateStringMin((Literal<CharSequence>) min, truncateLength));
+            Literal<CharSequence> truncatedStringMin =
+                UnicodeUtil.truncateStringMin((Literal<CharSequence>) min, truncateLength);
+            if (truncatedStringMin != null) {
+              lowerBounds.put(id, truncatedStringMin);
+            }
             break;
           case FIXED:
           case BINARY:
-            lowerBounds.put(
-                id, BinaryUtil.truncateBinaryMin((Literal<ByteBuffer>) min, truncateLength));
+            Literal<ByteBuffer> truncatedBinaryMin =
+                BinaryUtil.truncateBinaryMin((Literal<ByteBuffer>) min, truncateLength);
+            if (truncatedBinaryMin != null) {
+              lowerBounds.put(id, truncatedBinaryMin);
+            }
             break;
           default:
             lowerBounds.put(id, min);
@@ -322,6 +328,7 @@ public class ParquetUtil {
             if (truncatedMaxString != null) {
               upperBounds.put(id, truncatedMaxString);
             }
+
             break;
           case FIXED:
           case BINARY:
