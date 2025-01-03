@@ -785,6 +785,15 @@ Enter a query to expire snapshots having the following timestamp: `2021-12-09 05
 ALTER TABLE test_table EXECUTE expire_snapshots('2021-12-09 05:39:18.689000000');
 ```
 
+### `DELETE ORPHAN-FILES`
+
+Used to remove files which are not referenced in any metadata files of an Iceberg table and can thus be considered "orphaned".
+The function is available with the following syntax:
+```sql
+ALTER TABLE table_a EXECUTE DELETE ORPHAN-FILES;
+ALTER TABLE table_a EXECUTE DELETE ORPHAN-FILES OLDER THAN ('2021-12-09 05:39:18.689000000');
+```
+
 ### Type compatibility
 
 Hive and Iceberg support different set of types. Iceberg can perform type conversion automatically, but not for all
