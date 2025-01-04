@@ -539,9 +539,12 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     waitUntilAfter(System.currentTimeMillis());
 
     SparkActions actions = SparkActions.get();
+    DeleteOrphanFilesSparkAction action =
+        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis());
+    // test list methods by directly instantiating the action
+    assertThatDatasetsAreEqualIgnoringOrder(action.listWithPrefix(), action.listWithoutPrefix());
 
-    DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+    DeleteOrphanFiles.Result result = action.execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete 2 files").hasSize(2);
   }
@@ -575,9 +578,12 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     waitUntilAfter(System.currentTimeMillis());
 
     SparkActions actions = SparkActions.get();
+    DeleteOrphanFilesSparkAction action =
+        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis());
+    // test list methods by directly instantiating the action
+    assertThatDatasetsAreEqualIgnoringOrder(action.listWithPrefix(), action.listWithoutPrefix());
 
-    DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+    DeleteOrphanFiles.Result result = action.execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete 2 files").hasSize(2);
   }
@@ -605,17 +611,23 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     Path dataPath = new Path(tableLocation + "/data");
     FileSystem fs = dataPath.getFileSystem(spark.sessionState().newHadoopConf());
     Path pathToFileInHiddenFolder = new Path(dataPath, "_c2_trunc/file.txt");
-    fs.createNewFile(pathToFileInHiddenFolder);
+    fs.createNewFile(new Path(dataPath, "_c2_trunc/file.txt"));
+    Path pathToFileInHiddenFolder2 = new Path(dataPath, "_c2_trunc/subfolder/file.txt");
+    fs.createNewFile(pathToFileInHiddenFolder2);
 
     waitUntilAfter(System.currentTimeMillis());
 
     SparkActions actions = SparkActions.get();
+    DeleteOrphanFilesSparkAction action =
+        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis());
+    // test list methods by directly instantiating the action
+    assertThatDatasetsAreEqualIgnoringOrder(action.listWithPrefix(), action.listWithoutPrefix());
 
-    DeleteOrphanFiles.Result result =
-        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+    DeleteOrphanFiles.Result result = action.execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete 0 files").isEmpty();
     assertThat(fs.exists(pathToFileInHiddenFolder)).isTrue();
+    assertThat(fs.exists(pathToFileInHiddenFolder2)).isTrue();
   }
 
   private List<String> snapshotFiles(long snapshotId) {
@@ -675,12 +687,10 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     waitUntilAfter(System.currentTimeMillis());
 
     SparkActions actions = SparkActions.get();
-    DeleteOrphanFiles.Result result =
-        actions
-            .deleteOrphanFiles(table)
-            .olderThan(System.currentTimeMillis())
-            .deleteWith(s -> {})
-            .execute();
+    DeleteOrphanFilesSparkAction action =
+        actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).deleteWith(s -> {});
+    assertThatDatasetsAreEqualIgnoringOrder(action.listWithPrefix(), action.listWithoutPrefix());
+    DeleteOrphanFiles.Result result = action.execute();
     assertThat(result.orphanFileLocations())
         .as("Action should find 1 file")
         .isEqualTo(invalidFiles);
@@ -713,8 +723,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
     table.refresh();
 
-    DeleteOrphanFiles.Result result =
-        SparkActions.get().deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
+    DeleteOrphanFilesSparkAction action =
+        SparkActions.get().deleteOrphanFiles(table).olderThan(System.currentTimeMillis());
+    assertThatDatasetsAreEqualIgnoringOrder(action.listWithPrefix(), action.listWithoutPrefix());
+
+    DeleteOrphanFiles.Result result = action.execute();
 
     assertThat(result.orphanFileLocations()).as("Should delete only 1 file").hasSize(1);
 
@@ -830,37 +843,41 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .withColumnRenamed("filePath", "file_path")
             .withColumnRenamed("lastModified", "last_modified");
 
-    DeleteOrphanFiles.Result result1 =
+    DeleteOrphanFiles.Result deletedOrphanFiles1 =
         actions
             .deleteOrphanFiles(table)
             .compareToFileList(compareToFileList)
             .deleteWith(s -> {})
             .execute();
-    assertThat(result1.orphanFileLocations())
+    assertThat(deletedOrphanFiles1.orphanFileLocations())
         .as("Default olderThan interval should be safe")
         .isEmpty();
 
-    DeleteOrphanFiles.Result result2 =
+    DeleteOrphanFiles.Result deletedOrphanFiles2 =
         actions
             .deleteOrphanFiles(table)
             .compareToFileList(compareToFileList)
             .olderThan(System.currentTimeMillis())
             .deleteWith(s -> {})
             .execute();
-    assertThat(result2.orphanFileLocations())
+    assertThat(deletedOrphanFiles2.orphanFileLocations())
         .as("Action should find 1 file")
         .isEqualTo(invalidFilePaths);
     assertThat(fs.exists(new Path(invalidFilePaths.get(0))))
         .as("Invalid file should be present")
         .isTrue();
 
-    DeleteOrphanFiles.Result result3 =
+    DeleteOrphanFilesSparkAction deleteOrphanFilesSparkAction3 =
         actions
             .deleteOrphanFiles(table)
             .compareToFileList(compareToFileList)
-            .olderThan(System.currentTimeMillis())
-            .execute();
-    assertThat(result3.orphanFileLocations())
+            .olderThan(System.currentTimeMillis());
+    assertThatDatasetsAreEqualIgnoringOrder(
+        deleteOrphanFilesSparkAction3.listWithPrefix(),
+        deleteOrphanFilesSparkAction3.listWithoutPrefix());
+
+    DeleteOrphanFiles.Result deletedOrphanFiles3 = deleteOrphanFilesSparkAction3.execute();
+    assertThat(deletedOrphanFiles3.orphanFileLocations())
         .as("Action should delete 1 file")
         .isEqualTo(invalidFilePaths);
     assertThat(fs.exists(new Path(invalidFilePaths.get(0))))
@@ -885,13 +902,19 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .withColumnRenamed("filePath", "file_path")
             .withColumnRenamed("lastModified", "last_modified");
 
-    DeleteOrphanFiles.Result result4 =
+    DeleteOrphanFilesSparkAction deleteOrphanFilesSparkAction4 =
         actions
             .deleteOrphanFiles(table)
             .compareToFileList(compareToFileListWithOutsideLocation)
-            .deleteWith(s -> {})
-            .execute();
-    assertThat(result4.orphanFileLocations()).as("Action should find nothing").isEmpty();
+            .deleteWith(s -> {});
+    assertThatDatasetsAreEqualIgnoringOrder(
+        deleteOrphanFilesSparkAction4.listWithPrefix(),
+        deleteOrphanFilesSparkAction4.listWithoutPrefix());
+
+    DeleteOrphanFiles.Result deletedOrphanFiles4 = deleteOrphanFilesSparkAction4.execute();
+    assertThat(deletedOrphanFiles4.orphanFileLocations())
+        .as("Action should find nothing")
+        .isEmpty();
   }
 
   protected long waitUntilAfter(long timestampMillis) {
@@ -1099,5 +1122,12 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         DeleteOrphanFilesSparkAction.findOrphanFiles(
             spark, toFileUri.apply(actualFileDS), toFileUri.apply(validFileDS), mode);
     assertThat(orphanFiles).isEqualTo(expectedOrphanFiles);
+  }
+
+  private void assertThatDatasetsAreEqualIgnoringOrder(
+      Dataset<String> actual, Dataset<String> expected) {
+    assertThat(actual.collectAsList())
+        .as("same as")
+        .containsExactlyInAnyOrderElementsOf(expected.collectAsList());
   }
 }
