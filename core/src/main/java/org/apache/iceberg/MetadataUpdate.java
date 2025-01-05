@@ -338,7 +338,11 @@ public interface MetadataUpdate extends Serializable {
 
     @Override
     public void applyTo(TableMetadata.Builder metadataBuilder) {
-      metadataBuilder.removeRef(refName);
+      if (refName.equals(SnapshotRef.MAIN_BRANCH)) {
+        metadataBuilder.resetMainBranch();
+      } else {
+        metadataBuilder.removeRef(refName);
+      }
     }
   }
 
