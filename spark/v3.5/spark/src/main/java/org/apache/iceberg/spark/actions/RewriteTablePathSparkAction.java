@@ -633,7 +633,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
   private static CloseableIterable<Record> positionDeletesReader(
       InputFile inputFile, FileFormat format, PartitionSpec spec) {
-    Schema deleteSchema = DeleteSchemaUtil.posDeleteSchema(spec.schema());
+    Schema deleteSchema = DeleteSchemaUtil.posDeleteReadSchema(spec.schema());
     switch (format) {
       case AVRO:
         return Avro.read(inputFile)
