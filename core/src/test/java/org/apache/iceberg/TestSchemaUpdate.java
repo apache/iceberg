@@ -732,6 +732,17 @@ public class TestSchemaUpdate {
   }
 
   @Test
+  public void testAddStructTypeWithEmptyFields() {
+    assertThatThrownBy(
+            () -> {
+              UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
+              update.addColumn("empty_struct", Types.StructType.of());
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add struct with empty fields: struct<>");
+  }
+
+  @Test
   public void testAddAlreadyExists() {
     assertThatThrownBy(
             () -> {
