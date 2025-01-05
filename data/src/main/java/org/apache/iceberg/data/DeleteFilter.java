@@ -17,8 +17,14 @@
  * under the License.
  */
 package org.apache.iceberg.data;
-
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,6 +50,7 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
+import org.junit.jupiter.api.TestTemplate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,7 +62,7 @@ public abstract class DeleteFilter<T> {
   private final List<DeleteFile> eqDeletes;
   private final Schema requiredSchema;
   private final Accessor<StructLike> posAccessor;
-  private final boolean hasIsDeletedColumn;
+  private final boolean hasIsDeletedClumn;
   private final int isDeletedColumnPosition;
   private final DeleteCounter counter;
 
@@ -63,6 +70,8 @@ public abstract class DeleteFilter<T> {
   private PositionDeleteIndex deleteRowPositions = null;
   private List<Predicate<T>> isInDeleteSets = null;
   private Predicate<T> eqDeleteRows = null;
+  private final int batchSize = 100; // Number of delete files to process per batch
+
 
   protected DeleteFilter(
       String filePath,
@@ -149,7 +158,6 @@ public abstract class DeleteFilter<T> {
     if (deleteLoader == null) {
       synchronized (this) {
         if (deleteLoader == null) {
-          this.deleteLoader = newDeleteLoader();
         }
       }
     }
@@ -161,39 +169,97 @@ public abstract class DeleteFilter<T> {
     return applyEqDeletes(applyPosDeletes(records));
   }
 
-  private List<Predicate<T>> applyEqDeletes() {
+
+  // refer to final int batchsize at the top
+  // this is starter code, need to write a test to explore method further.
+  public List<Predicate<T>> applyEqDeletes() {
     if (isInDeleteSets != null) {
       return isInDeleteSets;
     }
 
-    isInDeleteSets = Lists.newArrayList();
+    isInDeleteSets = new ArrayList<>();
     if (eqDeletes.isEmpty()) {
       return isInDeleteSets;
     }
 
-    Multimap<Set<Integer>, DeleteFile> filesByDeleteIds =
-        Multimaps.newMultimap(Maps.newHashMap(), Lists::newArrayList);
+    List<DeleteFile> currentBatch = new ArrayList<>();
     for (DeleteFile delete : eqDeletes) {
+      currentBatch.add(delete);
+
+      if (currentBatch.size() >= batchSize) {
+        processBatchAndAddPredicates(currentBatch);
+        currentBatch.clear();
+      }
+    }
+
+    if (!currentBatch.isEmpty()) {
+      processBatchAndAddPredicates(currentBatch);
+    }
+
+    return isInDeleteSets;
+  }
+
+  private void processBatchAndAddPredicates(List<DeleteFile> deleteBatch) {
+    Multimap<Set<Integer>, DeleteFile> filesByDeleteIds =
+            Multimaps.newMultimap(Maps.newHashMap(), ArrayList::new);
+
+    for (DeleteFile delete : deleteBatch) {
       filesByDeleteIds.put(Sets.newHashSet(delete.equalityFieldIds()), delete);
     }
 
     for (Map.Entry<Set<Integer>, Collection<DeleteFile>> entry :
-        filesByDeleteIds.asMap().entrySet()) {
+            filesByDeleteIds.asMap().entrySet()) {
       Set<Integer> ids = entry.getKey();
       Iterable<DeleteFile> deletes = entry.getValue();
 
       Schema deleteSchema = TypeUtil.select(requiredSchema, ids);
 
-      // a projection to select and reorder fields of the file schema to match the delete rows
       StructProjection projectRow = StructProjection.create(requiredSchema, deleteSchema);
+      Map<Integer, List<StructLike>> hashBuckets = new HashMap<>();
+      for (DeleteFile delete : deletes) {
+        for (StructLike deleteRecord : deleteLoader().loadEqualityDeletes((Iterable<DeleteFile>) delete, deleteSchema)) {
+          StructLike projectedDeleteRecord = projectRow.wrap(deleteRecord);
 
-      StructLikeSet deleteSet = deleteLoader().loadEqualityDeletes(deletes, deleteSchema);
-      Predicate<T> isInDeleteSet =
-          record -> deleteSet.contains(projectRow.wrap(asStructLike(record)));
+          int hash = computeHash(projectedDeleteRecord);
+
+          hashBuckets.computeIfAbsent(hash, k -> new ArrayList<>()).add(projectedDeleteRecord);
+        }
+      }
+
+      Predicate<T> isInDeleteSet = record -> {
+        StructLike wrappedRecord = projectRow.wrap(asStructLike(record));
+
+        int hash = computeHash(wrappedRecord);
+
+        if (!hashBuckets.containsKey(hash)) {
+          return false;
+        }
+
+        List<StructLike> deleteRecords = hashBuckets.get(hash);
+        for (StructLike deleteRecord : deleteRecords) {
+          if (deleteRecord.equals(wrappedRecord)) {
+            return true;
+          }
+        }
+        return false;
+      };
+
       isInDeleteSets.add(isInDeleteSet);
     }
+  }
 
-    return isInDeleteSets;
+
+  private int computeHash(StructLike record) {
+    try {
+      MessageDigest digest = MessageDigest.getInstance("SHA-1");
+      byte[] bytes = record.toString().getBytes(StandardCharsets.UTF_8);
+      byte[] hashBytes = digest.digest(bytes);
+
+      // Convert the first 4 bytes of the hash into an integer
+      return ByteBuffer.wrap(hashBytes).getInt();
+    } catch (NoSuchAlgorithmException e) {
+      throw new RuntimeException("Error computing hash", e);
+    }
   }
 
   public CloseableIterable<T> findEqualityDeleteRows(CloseableIterable<T> records) {
