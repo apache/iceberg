@@ -157,6 +157,7 @@ public final class HiveSchemaUtil {
       case TIME:
       case STRING:
       case UUID:
+      case NULL:
         return "string";
       case TIMESTAMP:
         Types.TimestampType timestampType = (Types.TimestampType) type;
