@@ -181,25 +181,18 @@ public class TestRewriteTablePathsAction extends TestBase {
             .select("file_path")
             .as(Encoders.STRING())
             .collectAsList();
-    assertThat(validDataFilesAfterRebuilt.size()).isEqualTo(2);
-    for (String item : validDataFilesAfterRebuilt) {
-      assertThat(item).startsWith(targetTableLocation);
-    }
+    assertThat(validDataFilesAfterRebuilt)
+        .hasSize(2)
+        .allMatch(item -> item.startsWith(targetTableLocation));
 
     // verify data rows
-    Dataset<Row> resultDF = spark.read().format("iceberg").load(targetTableLocation);
-    List<ThreeColumnRecord> actualRecords =
-        resultDF.sort("c1", "c2", "c3").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
-
-    List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
-    expectedRecords.add(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
-    expectedRecords.add(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
-
-    assertThat(expectedRecords).isEqualTo(actualRecords);
+    List<Object[]> actual = rows(targetTableLocation);
+    List<Object[]> expected = rows(tableLocation);
+    assertEquals("Rows should match after copy", expected, actual);
   }
 
   @Test
-  public void testSameLocations() throws Exception {
+  public void testSameLocations() {
     assertThatThrownBy(
             () ->
                 actions()
@@ -546,9 +539,8 @@ public class TestRewriteTablePathsAction extends TestBase {
                     .execute())
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageContaining(
-            "Failed to build the manifest files dataframe, "
-                + "the end version you are trying to copy may contain invalid snapshots, "
-                + "please a younger version that doesn't have invalid snapshots");
+            "Unable to build the manifest files dataframe. The end version in use may contain invalid snapshots. "
+                + "Please choose an earlier version without invalid snapshots.");
   }
 
   @Test
@@ -999,5 +991,9 @@ public class TestRewriteTablePathsAction extends TestBase {
 
   private TableMetadata currentMetadata(Table tbl) {
     return ((HasTableOperations) tbl).operations().current();
+  }
+
+  private List<Object[]> rows(String location) {
+    return rowsToJava(spark.read().format("iceberg").load(location).collectAsList());
   }
 }

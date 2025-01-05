@@ -20,12 +20,13 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.apache.iceberg.ContentFile;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
@@ -207,26 +208,22 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   private String validateVersion(TableMetadata tableMetadata, String versionFileName) {
-    String versionFile = versionFile(tableMetadata, versionFileName);
+    String versionFile = null;
+    if (versionInFilePath(tableMetadata.metadataFileLocation(), versionFileName)) {
+      versionFile = tableMetadata.metadataFileLocation();
+    }
+
+    for (MetadataLogEntry log : tableMetadata.previousFiles()) {
+      if (versionInFilePath(log.file(), versionFileName)) {
+        versionFile = log.file();
+      }
+    }
 
     Preconditions.checkNotNull(
         versionFile, "Version file %s does not exist in metadata log.", versionFile);
     Preconditions.checkArgument(
         fileExist(versionFile), "Version file %s does not exist.", versionFile);
     return versionFile;
-  }
-
-  private String versionFile(TableMetadata metadata, String versionFileName) {
-    if (versionInFilePath(metadata.metadataFileLocation(), versionFileName)) {
-      return metadata.metadataFileLocation();
-    }
-
-    for (MetadataLogEntry log : metadata.previousFiles()) {
-      if (versionInFilePath(log.file(), versionFileName)) {
-        return log.file();
-      }
-    }
-    return null;
   }
 
   private boolean versionInFilePath(String path, String version) {
@@ -273,10 +270,9 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
     // rebuild version files
     RewriteResult<Snapshot> rewriteVersionResult = rewriteVersionFiles(endMetadata);
-    Set<Snapshot> diffSnapshots =
-        getDiffSnapshotIds(startMetadata, rewriteVersionResult.toRewrite());
+    Set<Snapshot> deltaSnapshots = deltaSnapshots(startMetadata, rewriteVersionResult.toRewrite());
 
-    Set<String> manifestsToRewrite = manifestsToRewrite(diffSnapshots, startMetadata);
+    Set<String> manifestsToRewrite = manifestsToRewrite(deltaSnapshots, startMetadata);
     Set<Snapshot> validSnapshots =
         Sets.difference(snapshotSet(endMetadata), snapshotSet(startMetadata));
 
@@ -287,11 +283,16 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             .reduce(new RewriteResult<>(), RewriteResult::append);
 
     // rebuild manifest files
-    RewriteResult<DeleteFile> rewriteManifestResult =
+    RewriteContentFileResult rewriteManifestResult =
         rewriteManifests(endMetadata, rewriteManifestListResult.toRewrite());
 
     // rebuild position delete files
-    rewritePositionDeletes(endMetadata, rewriteManifestResult.toRewrite());
+    Set<DeleteFile> deleteFiles =
+        rewriteManifestResult.toRewrite().stream()
+            .filter(e -> e instanceof DeleteFile)
+            .map(e -> (DeleteFile) e)
+            .collect(Collectors.toSet());
+    rewritePositionDeletes(endMetadata, deleteFiles);
 
     Set<Pair<String, String>> copyPlan = Sets.newHashSet();
     copyPlan.addAll(rewriteVersionResult.copyPlan());
@@ -318,8 +319,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     return fileListPath;
   }
 
-  private Set<Snapshot> getDiffSnapshotIds(
-      TableMetadata startMetadata, Set<Snapshot> allSnapshots) {
+  private Set<Snapshot> deltaSnapshots(TableMetadata startMetadata, Set<Snapshot> allSnapshots) {
     if (startMetadata == null) {
       return allSnapshots;
     } else {
@@ -396,33 +396,48 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     return result;
   }
 
-  private Set<String> manifestsToRewrite(Set<Snapshot> diffSnapshots, TableMetadata startMetadata) {
+  private Set<String> manifestsToRewrite(
+      Set<Snapshot> deltaSnapshots, TableMetadata startMetadata) {
     try {
       Table endStaticTable = newStaticTable(endVersionName, table.io());
       Dataset<Row> lastVersionFiles = manifestDS(endStaticTable).select("path");
       if (startMetadata == null) {
         return Sets.newHashSet(lastVersionFiles.distinct().as(Encoders.STRING()).collectAsList());
       } else {
-        Set<Long> diffSnapshotIds =
-            diffSnapshots.stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
+        Set<Long> deltaSnapshotIds =
+            deltaSnapshots.stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
         return Sets.newHashSet(
             lastVersionFiles
                 .distinct()
-                .filter(functions.column("added_snapshot_id").isInCollection(diffSnapshotIds))
+                .filter(
+                    functions
+                        .column(ManifestFile.SNAPSHOT_ID.name())
+                        .isInCollection(deltaSnapshotIds))
                 .as(Encoders.STRING())
                 .collectAsList());
       }
     } catch (Exception e) {
       throw new UnsupportedOperationException(
-          "Failed to build the manifest files dataframe, the end version you are "
-              + "trying to copy may contain invalid snapshots, please a younger version that doesn't have invalid "
-              + "snapshots",
+          "Unable to build the manifest files dataframe. The end version in use may contain invalid snapshots. "
+              + "Please choose an earlier version without invalid snapshots.",
           e);
     }
   }
 
-  public static class RewriteDeleteFileResult extends RewriteResult<DeleteFile> {
-    public RewriteDeleteFileResult append(RewriteDeleteFileResult r1) {
+  public static class RewriteContentFileResult extends RewriteResult<ContentFile<?>> {
+    public RewriteContentFileResult append(RewriteResult<ContentFile<?>> r1) {
+      this.copyPlan().addAll(r1.copyPlan());
+      this.toRewrite().addAll(r1.toRewrite());
+      return this;
+    }
+
+    public RewriteContentFileResult appendDataFile(RewriteResult<DataFile> r1) {
+      this.copyPlan().addAll(r1.copyPlan());
+      this.toRewrite().addAll(r1.toRewrite());
+      return this;
+    }
+
+    public RewriteContentFileResult appendDeleteFile(RewriteResult<DeleteFile> r1) {
       this.copyPlan().addAll(r1.copyPlan());
       this.toRewrite().addAll(r1.toRewrite());
       return this;
@@ -430,10 +445,10 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   /** Rewrite manifest files in a distributed manner and return rewritten data files path pairs. */
-  private RewriteResult<DeleteFile> rewriteManifests(
+  private RewriteContentFileResult rewriteManifests(
       TableMetadata tableMetadata, Set<ManifestFile> toRewrite) {
     if (toRewrite.isEmpty()) {
-      return new RewriteResult<>();
+      return new RewriteContentFileResult();
     }
 
     Encoder<ManifestFile> manifestFileEncoder = Encoders.javaSerialization(ManifestFile.class);
@@ -454,13 +469,13 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
                 specsById,
                 sourcePrefix,
                 targetPrefix),
-            Encoders.bean(RewriteDeleteFileResult.class))
+            Encoders.bean(RewriteContentFileResult.class))
         // duplicates are expected here as the same data file can have different statuses
         // (e.g. added and deleted)
-        .reduce((ReduceFunction<RewriteDeleteFileResult>) RewriteDeleteFileResult::append);
+        .reduce((ReduceFunction<RewriteContentFileResult>) RewriteContentFileResult::append);
   }
 
-  private static MapFunction<ManifestFile, RewriteDeleteFileResult> toManifests(
+  private static MapFunction<ManifestFile, RewriteContentFileResult> toManifests(
       Broadcast<Table> tableBroadcast,
       String stagingLocation,
       int format,
@@ -469,23 +484,21 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       String targetPrefix) {
 
     return manifestFile -> {
-      RewriteDeleteFileResult result = new RewriteDeleteFileResult();
+      RewriteContentFileResult result = new RewriteContentFileResult();
       switch (manifestFile.content()) {
         case DATA:
-          result
-              .copyPlan()
-              .addAll(
-                  writeDataManifest(
-                      manifestFile,
-                      tableBroadcast,
-                      stagingLocation,
-                      format,
-                      specsById,
-                      sourcePrefix,
-                      targetPrefix));
+          result.appendDataFile(
+              writeDataManifest(
+                  manifestFile,
+                  tableBroadcast,
+                  stagingLocation,
+                  format,
+                  specsById,
+                  sourcePrefix,
+                  targetPrefix));
           break;
         case DELETES:
-          result.append(
+          result.appendDeleteFile(
               writeDeleteManifest(
                   manifestFile,
                   tableBroadcast,
@@ -503,7 +516,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     };
   }
 
-  private static List<Pair<String, String>> writeDataManifest(
+  private static RewriteResult<DataFile> writeDataManifest(
       ManifestFile manifestFile,
       Broadcast<Table> tableBroadcast,
       String stagingLocation,
@@ -516,10 +529,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       FileIO io = tableBroadcast.getValue().io();
       OutputFile outputFile = io.newOutputFile(stagingPath);
       Map<Integer, PartitionSpec> specsById = specsByIdBroadcast.getValue();
-
-      return new ArrayList<>(
-          RewriteTablePathUtil.rewriteManifest(
-              manifestFile, outputFile, io, format, specsById, sourcePrefix, targetPrefix));
+      return RewriteTablePathUtil.rewriteDataManifest(
+          manifestFile, outputFile, io, format, specsById, sourcePrefix, targetPrefix);
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }

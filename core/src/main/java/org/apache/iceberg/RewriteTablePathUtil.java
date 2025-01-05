@@ -126,6 +126,7 @@ public class RewriteTablePathUtil {
         metadata.snapshotLog(),
         metadataLogEntries,
         metadata.refs(),
+        // TODO: update statistic file paths
         metadata.statisticsFiles(),
         metadata.partitionStatisticsFiles(),
         metadata.changes());
@@ -276,7 +277,7 @@ public class RewriteTablePathUtil {
    * @param targetPrefix target prefix that will replace it
    * @return a copy plan of content files in the manifest that was rewritten
    */
-  public static List<Pair<String, String>> rewriteManifest(
+  public static RewriteResult<DataFile> rewriteDataManifest(
       ManifestFile manifestFile,
       OutputFile outputFile,
       FileIO io,
@@ -292,7 +293,7 @@ public class RewriteTablePathUtil {
             ManifestFiles.read(manifestFile, io, specsById).select(Arrays.asList("*"))) {
       return StreamSupport.stream(reader.entries().spliterator(), false)
           .map(entry -> writeDataFileEntry(entry, spec, sourcePrefix, targetPrefix, writer))
-          .collect(Collectors.toList());
+          .reduce(new RewriteResult<>(), RewriteResult::append);
     }
   }
 
@@ -335,12 +336,13 @@ public class RewriteTablePathUtil {
     }
   }
 
-  private static Pair<String, String> writeDataFileEntry(
+  private static RewriteResult<DataFile> writeDataFileEntry(
       ManifestEntry<DataFile> entry,
       PartitionSpec spec,
       String sourcePrefix,
       String targetPrefix,
       ManifestWriter<DataFile> writer) {
+    RewriteResult<DataFile> result = new RewriteResult<>();
     DataFile dataFile = entry.file();
     String sourceDataFilePath = dataFile.location();
     Preconditions.checkArgument(
@@ -352,7 +354,8 @@ public class RewriteTablePathUtil {
     DataFile newDataFile =
         DataFiles.builder(spec).copy(entry.file()).withPath(targetDataFilePath).build();
     appendEntryWithFile(entry, writer, newDataFile);
-    return Pair.of(sourceDataFilePath, newDataFile.location());
+    result.copyPlan().add(Pair.of(sourceDataFilePath, newDataFile.location()));
+    return result;
   }
 
   private static RewriteResult<DeleteFile> writeDeleteFileEntry(
@@ -386,7 +389,7 @@ public class RewriteTablePathUtil {
       case EQUALITY_DELETES:
         DeleteFile eqDeleteFile = newEqualityDeleteEntry(file, spec, sourcePrefix, targetPrefix);
         appendEntryWithFile(entry, writer, eqDeleteFile);
-        // we do not need to recursively rewrite the equality delete, just move it
+        // No need to rewrite equality delete files as they do not contain absolute file paths.
         result.copyPlan().add(Pair.of(file.location(), eqDeleteFile.location()));
         return result;
 
@@ -469,10 +472,7 @@ public class RewriteTablePathUtil {
     String path = deleteFile.location();
     if (!path.startsWith(sourcePrefix)) {
       throw new UnsupportedOperationException(
-          "Expected delete file to be under the source prefix: "
-              + sourcePrefix
-              + " but was "
-              + path);
+          String.format("Expected delete file %s to start with prefix: %s", path, sourcePrefix));
     }
     InputFile sourceFile = io.newInputFile(path);
     try (CloseableIterable<Record> reader =
