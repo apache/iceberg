@@ -2618,6 +2618,39 @@ components:
           additionalProperties:
             type: string
 
+    ContentEnum:
+      type: string
+      enum:
+        - data
+        - equality-deletes
+        - position-deletes
+
+    ActionEnum:
+      type: string
+      enum:
+        - add-spec
+        - add-schema
+        - add-snapshot
+        - add-sort-order
+        - add-view-version
+        - assign-uuid
+        - remove-partition-specs
+        - remove-partition-statistics
+        - remove-properties
+        - remove-snapshot-ref
+        - remove-snapshots
+        - remove-statistics
+        - set-current-schema
+        - set-current-view-version
+        - set-default-sort-order
+        - set-default-spec
+        - set-location
+        - set-partition-statistics
+        - set-properties
+        - set-snapshot-ref
+        - set-statistics
+        - upgrade-format-version
+
     BaseUpdate:
       discriminator:
         propertyName: action
@@ -4398,40 +4431,6 @@ components:
             residual or use the original filter.
           allOf:
             - $ref: '#/components/schemas/Expression'
-
-    ContentEnum:
-      type: string
-      enum:
-        - data
-        - equality-deletes
-        - position-deletes
-
-    ActionEnum:
-      type: string
-      enum:
-        - add-spec
-        - add-schema
-        - add-snapshot
-        - add-sort-order
-        - add-view-version
-        - assign-uuid
-        - remove-partition-specs
-        - remove-partition-statistics
-        - remove-properties
-        - remove-snapshot-ref
-        - remove-snapshots
-        - remove-statistics
-        - set-current-schema
-        - set-current-view-version
-        - set-default-sort-order
-        - set-default-spec
-        - set-location
-        - set-partition-statistics
-        - set-properties
-        - set-snapshot-ref
-        - set-statistics
-        - upgrade-format-version
-
   #############################
   # Reusable Response Objects #
   #############################
