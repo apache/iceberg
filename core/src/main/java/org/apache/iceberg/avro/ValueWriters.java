@@ -32,6 +32,7 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
@@ -124,6 +125,10 @@ public class ValueWriters {
 
   public static ValueWriter<IndexedRecord> record(List<ValueWriter<?>> writers) {
     return new RecordWriter(writers);
+  }
+
+  public static ValueWriter<StructLike> struct(List<ValueWriter<?>> writers) {
+    return new StructLikeWriter(writers);
   }
 
   private static class NullWriter implements ValueWriter<Void> {
@@ -482,6 +487,18 @@ public class ValueWriters {
     @Override
     protected Object get(IndexedRecord struct, int pos) {
       return struct.get(pos);
+    }
+  }
+
+  private static class StructLikeWriter extends StructWriter<StructLike> {
+    @SuppressWarnings("unchecked")
+    private StructLikeWriter(List<ValueWriter<?>> writers) {
+      super(writers);
+    }
+
+    @Override
+    protected Object get(StructLike struct, int pos) {
+      return struct.get(pos, Object.class);
     }
   }
 }
