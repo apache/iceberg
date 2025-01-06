@@ -340,7 +340,7 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
     assertThat(catalog.viewExists(identifier)).isFalse();
   }
 
-  private org.apache.hadoop.hive.metastore.api.Table createHiveTableWithType(
+  private Table createHiveTableWithType(
       String hiveTableName, String dbName, String location, TableType type) {
     Map<String, String> parameters = Maps.newHashMap();
     parameters.put(
@@ -365,25 +365,23 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
             Lists.newArrayList(),
             Maps.newHashMap());
 
-    org.apache.hadoop.hive.metastore.api.Table hiveTable =
-        new org.apache.hadoop.hive.metastore.api.Table(
-            hiveTableName,
-            dbName,
-            "test_owner",
-            0,
-            0,
-            0,
-            sd,
-            Lists.newArrayList(),
-            Maps.newHashMap(),
-            "viewOriginalText",
-            "viewExpandedText",
-            type.name());
-    return hiveTable;
+    return new Table(
+        hiveTableName,
+        dbName,
+        "test_owner",
+        0,
+        0,
+        0,
+        sd,
+        Lists.newArrayList(),
+        Maps.newHashMap(),
+        "viewOriginalText",
+        "viewExpandedText",
+        type.name());
   }
 
-  private Table createHiveTable(String hiveViewName, String dbName, String location) {
-    return createHiveTableWithType(hiveViewName, dbName, location, TableType.EXTERNAL_TABLE);
+  private Table createHiveTable(String hiveTableName, String dbName, String location) {
+    return createHiveTableWithType(hiveTableName, dbName, location, TableType.EXTERNAL_TABLE);
   }
 
   private Table createHiveView(String hiveViewName, String dbName, String location) {
