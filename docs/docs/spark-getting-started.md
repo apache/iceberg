@@ -77,21 +77,24 @@ Once your table is created, insert data using [`INSERT INTO`](spark-writes.md#in
 
 ```sql
 INSERT INTO local.db.table VALUES (1, 'a'), (2, 'b'), (3, 'c');
-INSERT INTO local.db.table SELECT id, data FROM source WHERE length(data) = 1;
 ```
 
 Iceberg also adds row-level SQL updates to Spark, [`MERGE INTO`](spark-writes.md#merge-into) and [`DELETE FROM`](spark-writes.md#delete-from):
 
 ```sql
-MERGE INTO local.db.target t USING (SELECT * FROM updates) u ON t.id = u.id
-WHEN MATCHED THEN UPDATE SET t.count = t.count + u.count
+CREATE TABLE local.db.updates (id bigint, data string) USING iceberg;
+INSERT INTO local.db.updates VALUES (1, 'x'), (2, 'y'), (4, 'z');
+
+MERGE INTO local.db.table t
+USING (SELECT * FROM local.db.updates) u ON t.id = u.id
+WHEN MATCHED THEN UPDATE SET t.data = u.data
 WHEN NOT MATCHED THEN INSERT *;
 ```
 
 Iceberg supports writing DataFrames using the new [v2 DataFrame write API](spark-writes.md#writing-with-dataframes):
 
 ```scala
-spark.table("source").select("id", "data")
+spark.table("local.db.updates").select("id", "data")
      .writeTo("local.db.table").append()
 ```
 
@@ -160,7 +163,7 @@ This type conversion table describes how Spark types are converted to the Iceber
 | map             | map                        |       |
 
 !!! info
-    The table is based on representing conversion during creating table. In fact, broader supports are applied on write. Here're some points on write:
+    The table is based on type conversions during table creation. Broader type conversions are applied on write:
 
     * Iceberg numeric types (`integer`, `long`, `float`, `double`, `decimal`) support promotion during writes. e.g. You can write Spark types `short`, `byte`, `integer`, `long` to Iceberg type `long`.
     * You can write to Iceberg `fixed` type using Spark `binary` type. Note that assertion on the length will be performed.
