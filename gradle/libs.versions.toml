@@ -83,7 +83,7 @@ snowflake-jdbc = "3.20.0"
 spark-hive33 = "3.3.4"
 spark-hive34 = "3.4.4"
 spark-hive35 = "3.5.4"
-sqlite-jdbc = "3.47.1.0"
+sqlite-jdbc = "3.47.2.0"
 testcontainers = "1.20.4"
 tez010 = "0.10.4"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
