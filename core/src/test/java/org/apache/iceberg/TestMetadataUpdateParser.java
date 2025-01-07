@@ -912,6 +912,17 @@ public class TestMetadataUpdateParser {
         .isEqualTo(json);
   }
 
+  @Test
+  public void testRemovePartitionSpec() {
+    String action = MetadataUpdateParser.REMOVE_PARTITION_SPECS;
+    String json = "{\"action\":\"remove-partition-specs\",\"spec-ids\":[1,2,3]}";
+    MetadataUpdate expected = new MetadataUpdate.RemovePartitionSpecs(ImmutableSet.of(1, 2, 3));
+    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
+    assertThat(MetadataUpdateParser.toJson(expected))
+        .as("Remove partition specs should convert to the correct JSON value")
+        .isEqualTo(json);
+  }
+
   public void assertEquals(
       String action, MetadataUpdate expectedUpdate, MetadataUpdate actualUpdate) {
     switch (action) {
@@ -1015,6 +1026,11 @@ public class TestMetadataUpdateParser {
         assertEqualsSetCurrentViewVersion(
             (MetadataUpdate.SetCurrentViewVersion) expectedUpdate,
             (MetadataUpdate.SetCurrentViewVersion) actualUpdate);
+        break;
+      case MetadataUpdateParser.REMOVE_PARTITION_SPECS:
+        assertEqualsRemovePartitionSpecs(
+            (MetadataUpdate.RemovePartitionSpecs) expectedUpdate,
+            (MetadataUpdate.RemovePartitionSpecs) actualUpdate);
         break;
       default:
         fail("Unrecognized metadata update action: " + action);
@@ -1235,6 +1251,11 @@ public class TestMetadataUpdateParser {
   private static void assertEqualsSetCurrentViewVersion(
       MetadataUpdate.SetCurrentViewVersion expected, MetadataUpdate.SetCurrentViewVersion actual) {
     assertThat(actual.versionId()).isEqualTo(expected.versionId());
+  }
+
+  private static void assertEqualsRemovePartitionSpecs(
+      MetadataUpdate.RemovePartitionSpecs expected, MetadataUpdate.RemovePartitionSpecs actual) {
+    assertThat(actual.specIds()).containsExactlyInAnyOrderElementsOf(expected.specIds());
   }
 
   private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)
