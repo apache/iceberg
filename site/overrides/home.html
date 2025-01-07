@@ -36,6 +36,15 @@
           <div class="intro-message">
             <h1>Apache Iceberg™</h1>
             <h3>The open table format for analytic datasets.</h3>
+            {% extends "main.html" %}
+
+<div style="background-color: yellow; text-align: center; padding: 10px;">
+  <a href="https://sessionize.com/iceberg-summit-2025" target="_blank" style="text-decoration: none; color: black; font-size: 18px;">
+    ICEBERG SUMMIT 2025: CALL FOR PROPOSALS
+  </a>
+</div>
+
+{% block tabs %}
             <hr class="intro-divider" />
               <ul class="list-inline intro-social-buttons">
                 {% for social in config.extra.social %}
