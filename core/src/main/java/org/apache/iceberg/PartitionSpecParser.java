@@ -125,6 +125,7 @@ public class PartitionSpecParser {
 
     Iterator<JsonNode> elements = json.elements();
     int fieldIdCount = 0;
+    int fieldCount = 0;
     while (elements.hasNext()) {
       JsonNode element = elements.next();
       Preconditions.checkArgument(
@@ -140,7 +141,8 @@ public class PartitionSpecParser {
         builder.addField(transform, sourceId, JsonUtil.getInt(FIELD_ID, element), name);
         fieldIdCount++;
       } else {
-        builder.addField(transform, sourceId, name);
+        builder.addField(
+            transform, sourceId, PartitionSpec.PARTITION_DATA_ID_START + fieldCount++, name);
       }
     }
 
