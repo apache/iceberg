@@ -334,7 +334,7 @@ To show a table's current file manifests:
 SELECT * FROM prod.db.table.manifests;
 ```
 
-| content |  path | length | partition_spec_id | added_snapshot_id | added_data_files_count | existing_data_files_count | deleted_data_files_count | added_delete_files_count | existing_delete_files_count | deleted_delete_files_count | partition_summaries|
+| content |  path | length | partition_spec_id | added_snapshot_id | added_data_files_count | existing_data_files_count | deleted_data_files_count | added_delete_files_count | existing_delete_files_count | deleted_delete_files_count | partition_summaries |
 | -- |  -- | -- | -- | -- | -- | -- | -- | -- | -- | -- | -- |
 | s3://.../table/metadata/45b5290b-ee61-4788-b324-b1e2735c0e10-m0.avro | 4479   | 0                 | 6668963634911763636 | 8                      | 0                         | 0                        | 0 | 0 | 0 | [[false,null,2019-05-13,2019-05-15]] |
 
