@@ -72,7 +72,11 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     this.backendCatalog = new InMemoryCatalog();
     this.backendCatalog.initialize(
         "in-memory",
-        ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath()));
+        ImmutableMap.<String, String>builder()
+            .put(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath())
+            .put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key1", "catalog-default-key1")
+            .put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key2", "catalog-default-key2")
+            .build());
 
     RESTCatalogAdapter adaptor =
         new RESTCatalogAdapter(backendCatalog) {
