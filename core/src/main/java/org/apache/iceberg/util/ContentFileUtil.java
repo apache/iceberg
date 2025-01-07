@@ -89,7 +89,8 @@ public class ContentFileUtil {
   }
 
   /**
-   * Replace file_path reference for a delete file entry
+   * Replace file_path reference for a delete file manifest entry, if file_path field's lower_bound
+   * and upper_bound metrics are equal. Else clear file_path lower and upper bounds.
    *
    * @param deleteFile delete file whose entry will be replaced
    * @param sourcePrefix source prefix which will be replaced
@@ -122,6 +123,9 @@ public class ContentFileUtil {
       ByteBuffer newBytes = Conversions.toByteBuffer(PATH_TYPE, newPath);
       return metricsWithPathBounds(deleteFile, newBytes);
     } else {
+      // The file_path's lower_bound and upper_bound are only used for filtering data files when
+      // both values match
+      // (file-scoped position delete). Hence do not rewrite but set null if they do not match.
       return metricsWithoutPathBounds(deleteFile);
     }
   }

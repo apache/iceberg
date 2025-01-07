@@ -52,6 +52,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
@@ -304,7 +305,7 @@ public class TestRewriteTablePathsAction extends TestBase {
                 table.currentSnapshot().addedDataFiles(table.io()).iterator().next().location(),
                 0L));
 
-    File file = new File(removePrefix(table.location() + "/data/deeply/nested/file.parquet"));
+    File file = new File(removePrefix(table.location() + "/data/deeply/nested/deletes.parquet"));
     DeleteFile positionDeletes =
         FileHelpers.writeDeleteFile(
                 table, table.io().newOutputFile(file.toURI().toString()), deletes)
@@ -327,6 +328,47 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     // copy the metadata files and data files
     copyTableFiles(result);
+
+    // Positional delete affects a single row, so only one row must remain
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).count()).isEqualTo(1);
+  }
+
+  @Test
+  public void testPositionDeleteWithRow() throws Exception {
+    String dataFileLocation =
+        table.currentSnapshot().addedDataFiles(table.io()).iterator().next().location();
+    List<PositionDelete<?>> deletes = Lists.newArrayList();
+    OutputFile deleteFile =
+        table
+            .io()
+            .newOutputFile(
+                new File(removePrefix(table.location() + "/data/deeply/nested/deletes.parquet"))
+                    .toURI()
+                    .toString());
+    deletes.add(positionDelete(SCHEMA, dataFileLocation, 0L, 1, "AAAAAAAAAA", "AAAA"));
+    DeleteFile positionDeletes = FileHelpers.writePosDeleteFile(table, deleteFile, null, deletes);
+    table.newRowDelta().addDeletes(positionDeletes).commit();
+
+    assertThat(spark.read().format("iceberg").load(table.location()).count()).isEqualTo(1);
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(table)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(table.location(), targetTableLocation())
+            .execute();
+
+    // We have one more snapshot, an additional manifest list, and a new (delete) manifest,
+    // and an additional position delete
+    checkFileNum(4, 3, 3, 13, result);
+
+    // copy the metadata files and data files
+    copyTableFiles(result);
+
+    // check copied position delete row
+    Object[] deletedRow = (Object[]) rows(targetTableLocation() + "#position_deletes").get(0)[2];
+    assertEquals(
+        "Position deletes should be equal", new Object[] {1, "AAAAAAAAAA", "AAAA"}, deletedRow);
 
     // Positional delete affects a single row, so only one row must remain
     assertThat(spark.read().format("iceberg").load(targetTableLocation()).count()).isEqualTo(1);
@@ -995,5 +1037,16 @@ public class TestRewriteTablePathsAction extends TestBase {
 
   private List<Object[]> rows(String location) {
     return rowsToJava(spark.read().format("iceberg").load(location).collectAsList());
+  }
+
+  private PositionDelete<GenericRecord> positionDelete(
+      Schema tableSchema, CharSequence path, Long position, Object... values) {
+    PositionDelete<GenericRecord> posDelete = PositionDelete.create();
+    GenericRecord nested = GenericRecord.create(tableSchema);
+    for (int i = 0; i < values.length; i++) {
+      nested.set(i, values[i]);
+    }
+    posDelete.set(path, position, nested);
+    return posDelete;
   }
 }

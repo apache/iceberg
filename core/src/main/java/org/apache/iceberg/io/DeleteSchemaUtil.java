@@ -50,7 +50,7 @@ public class DeleteSchemaUtil {
         MetadataColumns.DELETE_FILE_POS,
         Types.NestedField.optional(
             MetadataColumns.DELETE_FILE_ROW_FIELD_ID,
-            "row",
+            MetadataColumns.DELETE_FILE_ROW_FIELD_NAME,
             rowSchema.asStruct(),
             MetadataColumns.DELETE_FILE_ROW_DOC));
   }
