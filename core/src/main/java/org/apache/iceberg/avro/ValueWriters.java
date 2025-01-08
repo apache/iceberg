@@ -93,6 +93,10 @@ public class ValueWriters {
     return new GenericFixedWriter(length);
   }
 
+  public static ValueWriter<ByteBuffer> fixedBuffers(int length) {
+    return new FixedByteBufferWriter(length);
+  }
+
   public static ValueWriter<byte[]> bytes() {
     return BytesWriter.INSTANCE;
   }
@@ -332,6 +336,24 @@ public class ValueWriters {
     }
   }
 
+  private static class FixedByteBufferWriter implements ValueWriter<ByteBuffer> {
+    private final int length;
+
+    private FixedByteBufferWriter(int length) {
+      this.length = length;
+    }
+
+    @Override
+    public void write(ByteBuffer bytes, Encoder encoder) throws IOException {
+      Preconditions.checkArgument(
+          bytes.remaining() == length,
+          "Cannot write byte buffer of length %s as fixed[%s]",
+          bytes.remaining(),
+          length);
+      encoder.writeBytes(bytes);
+    }
+  }
+
   private static class DecimalWriter implements ValueWriter<BigDecimal> {
     private final int precision;
     private final int scale;
@@ -491,7 +513,6 @@ public class ValueWriters {
   }
 
   private static class StructLikeWriter extends StructWriter<StructLike> {
-    @SuppressWarnings("unchecked")
     private StructLikeWriter(List<ValueWriter<?>> writers) {
       super(writers);
     }

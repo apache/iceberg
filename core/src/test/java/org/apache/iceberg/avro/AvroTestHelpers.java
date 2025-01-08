@@ -27,6 +27,7 @@ import java.util.Map;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData.Record;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -73,6 +74,18 @@ class AvroTestHelpers {
 
       Object expectedValue = expected.get(i);
       Object actualValue = actual.get(i);
+
+      assertEquals(fieldType, expectedValue, actualValue);
+    }
+  }
+
+  static void assertEquals(Types.StructType struct, StructLike expected, StructLike actual) {
+    List<Types.NestedField> fields = struct.fields();
+    for (int i = 0; i < fields.size(); i += 1) {
+      Type fieldType = fields.get(i).type();
+
+      Object expectedValue = expected.get(i, Object.class);
+      Object actualValue = actual.get(i, Object.class);
 
       assertEquals(fieldType, expectedValue, actualValue);
     }
@@ -126,9 +139,18 @@ class AvroTestHelpers {
         assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
         break;
       case STRUCT:
-        assertThat(expected).as("Expected should be a Record").isInstanceOf(Record.class);
-        assertThat(actual).as("Actual should be a Record").isInstanceOf(Record.class);
-        assertEquals(type.asStructType(), (Record) expected, (Record) actual);
+        assertThat(expected)
+            .as("Expected should be a Record or StructLike")
+            .isInstanceOfAny(Record.class, StructLike.class);
+
+        if (expected instanceof Record) {
+          assertThat(actual).as("Actual should be a Record").isInstanceOf(Record.class);
+          assertEquals(type.asStructType(), (Record) expected, (Record) actual);
+        } else {
+          assertThat(actual).as("Actual should be a GenericRecord").isInstanceOf(StructLike.class);
+          assertEquals(type.asStructType(), (StructLike) expected, (StructLike) actual);
+        }
+
         break;
       case LIST:
         assertThat(expected).as("Expected should be a List").isInstanceOf(List.class);

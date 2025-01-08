@@ -24,11 +24,11 @@ import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-abstract class BaseAvroSchemaVisitor extends AvroSchemaVisitor<ValueWriter<?>> {
+abstract class BaseWriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {
 
   protected abstract ValueWriter<?> createRecordWriter(List<ValueWriter<?>> fields);
 
-  protected abstract ValueWriter<?> fixedWriter(int size);
+  protected abstract ValueWriter<?> fixedWriter(int length);
 
   @Override
   public ValueWriter<?> record(Schema record, List<String> names, List<ValueWriter<?>> fields) {
@@ -38,15 +38,14 @@ abstract class BaseAvroSchemaVisitor extends AvroSchemaVisitor<ValueWriter<?>> {
   @Override
   public ValueWriter<?> union(Schema union, List<ValueWriter<?>> options) {
     Preconditions.checkArgument(
-        options.contains(ValueWriters.nulls()),
-        "Cannot create writer for non-option union: %s",
-        union);
-    Preconditions.checkArgument(
         options.size() == 2, "Cannot create writer for non-option union: %s", union);
     if (union.getTypes().get(0).getType() == Schema.Type.NULL) {
       return ValueWriters.option(0, options.get(1));
-    } else {
+    } else if (union.getTypes().get(1).getType() == Schema.Type.NULL) {
       return ValueWriters.option(1, options.get(0));
+    } else {
+      throw new IllegalArgumentException(
+          String.format("Cannot create writer for non-option union: %s", union));
     }
   }
 

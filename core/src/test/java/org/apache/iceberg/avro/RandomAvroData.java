@@ -29,6 +29,8 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -49,6 +51,66 @@ public class RandomAvroData {
     }
 
     return records;
+  }
+
+  public static List<StructLike> generateStructLike(Schema schema, int numRecords, long seed) {
+    RandomInternalDataGenerator generator = new RandomInternalDataGenerator(seed);
+    List<StructLike> records = Lists.newArrayListWithExpectedSize(numRecords);
+    for (int i = 0; i < numRecords; i += 1) {
+      records.add((StructLike) TypeUtil.visit(schema, generator));
+    }
+
+    return records;
+  }
+
+  private static List<Object> generateList(
+      Random random, Types.ListType list, Supplier<Object> elementResult) {
+    int numElements = random.nextInt(20);
+
+    List<Object> result = Lists.newArrayListWithExpectedSize(numElements);
+    for (int i = 0; i < numElements; i += 1) {
+      // return null 5% of the time when the value is optional
+      if (list.isElementOptional() && random.nextInt(20) == 1) {
+        result.add(null);
+      } else {
+        result.add(elementResult.get());
+      }
+    }
+
+    return result;
+  }
+
+  private static Map<Object, Object> generateMap(
+      Random random, Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
+    int numEntries = random.nextInt(20);
+
+    Map<Object, Object> result = Maps.newLinkedHashMap();
+    Supplier<Object> keyFunc;
+    if (map.keyType() == Types.StringType.get()) {
+      keyFunc = () -> keyResult.get().toString();
+    } else {
+      keyFunc = keyResult;
+    }
+
+    Set<Object> keySet = Sets.newHashSet();
+    for (int i = 0; i < numEntries; i += 1) {
+      Object key = keyFunc.get();
+      // ensure no collisions
+      while (keySet.contains(key)) {
+        key = keyFunc.get();
+      }
+
+      keySet.add(key);
+
+      // return null 5% of the time when the value is optional
+      if (map.isValueOptional() && random.nextInt(20) == 1) {
+        result.put(key, null);
+      } else {
+        result.put(key, valueResult.get());
+      }
+    }
+
+    return result;
   }
 
   private static class RandomDataGenerator extends TypeUtil.CustomOrderSchemaVisitor<Object> {
@@ -88,52 +150,12 @@ public class RandomAvroData {
 
     @Override
     public Object list(Types.ListType list, Supplier<Object> elementResult) {
-      int numElements = random.nextInt(20);
-
-      List<Object> result = Lists.newArrayListWithExpectedSize(numElements);
-      for (int i = 0; i < numElements; i += 1) {
-        // return null 5% of the time when the value is optional
-        if (list.isElementOptional() && random.nextInt(20) == 1) {
-          result.add(null);
-        } else {
-          result.add(elementResult.get());
-        }
-      }
-
-      return result;
+      return generateList(random, list, elementResult);
     }
 
     @Override
     public Object map(Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
-      int numEntries = random.nextInt(20);
-
-      Map<Object, Object> result = Maps.newLinkedHashMap();
-      Supplier<Object> keyFunc;
-      if (map.keyType() == Types.StringType.get()) {
-        keyFunc = () -> keyResult.get().toString();
-      } else {
-        keyFunc = keyResult;
-      }
-
-      Set<Object> keySet = Sets.newHashSet();
-      for (int i = 0; i < numEntries; i += 1) {
-        Object key = keyFunc.get();
-        // ensure no collisions
-        while (keySet.contains(key)) {
-          key = keyFunc.get();
-        }
-
-        keySet.add(key);
-
-        // return null 5% of the time when the value is optional
-        if (map.isValueOptional() && random.nextInt(20) == 1) {
-          result.put(key, null);
-        } else {
-          result.put(key, valueResult.get());
-        }
-      }
-
-      return result;
+      return generateMap(random, map, keyResult, valueResult);
     }
 
     @Override
@@ -146,6 +168,65 @@ public class RandomAvroData {
           return new Utf8((String) result);
         case FIXED:
           return new GenericData.Fixed(typeToSchema.get(primitive), (byte[]) result);
+        case BINARY:
+          return ByteBuffer.wrap((byte[]) result);
+        case UUID:
+          return UUID.nameUUIDFromBytes((byte[]) result);
+        default:
+          return result;
+      }
+    }
+  }
+
+  private static class RandomInternalDataGenerator
+      extends TypeUtil.CustomOrderSchemaVisitor<Object> {
+    private final Random random;
+
+    private RandomInternalDataGenerator(long seed) {
+      this.random = new Random(seed);
+    }
+
+    @Override
+    public StructLike schema(Schema schema, Supplier<Object> structResult) {
+      return (StructLike) structResult.get();
+    }
+
+    @Override
+    public StructLike struct(Types.StructType struct, Iterable<Object> fieldResults) {
+      StructLike rec = GenericRecord.create(struct);
+      List<Object> values = Lists.newArrayList(fieldResults);
+      for (int i = 0; i < values.size(); i += 1) {
+        rec.set(i, values.get(i));
+      }
+
+      return rec;
+    }
+
+    @Override
+    public Object field(Types.NestedField field, Supplier<Object> fieldResult) {
+      // return null 5% of the time when the value is optional
+      if (field.isOptional() && random.nextInt(20) == 1) {
+        return null;
+      }
+      return fieldResult.get();
+    }
+
+    @Override
+    public Object list(Types.ListType list, Supplier<Object> elementResult) {
+      return generateList(random, list, elementResult);
+    }
+
+    @Override
+    public Object map(Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
+      return generateMap(random, map, keyResult, valueResult);
+    }
+
+    @Override
+    public Object primitive(Type.PrimitiveType primitive) {
+      Object result = RandomUtil.generatePrimitive(primitive, random);
+
+      switch (primitive.typeId()) {
+        case FIXED:
         case BINARY:
           return ByteBuffer.wrap((byte[]) result);
         case UUID:

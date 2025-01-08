@@ -39,7 +39,7 @@ public class GenericAvroWriter<T> implements MetricsAwareDatumWriter<T> {
   @Override
   @SuppressWarnings("unchecked")
   public void setSchema(Schema schema) {
-    this.writer = (ValueWriter<T>) AvroSchemaVisitor.visit(schema, new GenericAvroSchemaVisitor());
+    this.writer = (ValueWriter<T>) AvroSchemaVisitor.visit(schema, new WriteBuilder());
   }
 
   @Override
@@ -52,7 +52,7 @@ public class GenericAvroWriter<T> implements MetricsAwareDatumWriter<T> {
     return writer.metrics();
   }
 
-  private static class GenericAvroSchemaVisitor extends BaseAvroSchemaVisitor {
+  private static class WriteBuilder extends BaseWriteBuilder {
 
     @Override
     protected ValueWriter<?> createRecordWriter(List<ValueWriter<?>> fields) {
@@ -60,8 +60,8 @@ public class GenericAvroWriter<T> implements MetricsAwareDatumWriter<T> {
     }
 
     @Override
-    protected ValueWriter<?> fixedWriter(int size) {
-      return ValueWriters.genericFixed(size);
+    protected ValueWriter<?> fixedWriter(int length) {
+      return ValueWriters.genericFixed(length);
     }
   }
 }
