@@ -69,6 +69,9 @@ public class BinaryUtil {
    * the given input
    */
   public static Literal<ByteBuffer> truncateBinaryMin(Literal<ByteBuffer> input, int length) {
+    if (length == 0) {
+      return null;
+    }
     ByteBuffer inputBuffer = input.value();
     if (length >= inputBuffer.remaining()) {
       return input;
@@ -81,6 +84,9 @@ public class BinaryUtil {
    * than the given input
    */
   public static Literal<ByteBuffer> truncateBinaryMax(Literal<ByteBuffer> input, int length) {
+    if (length == 0) {
+      return null;
+    }
     ByteBuffer inputBuffer = input.value();
     if (length >= inputBuffer.remaining()) {
       return input;
