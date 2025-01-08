@@ -634,11 +634,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       }
 
       // if any of the parent folders is not accepted then return false
-      if (hasHiddenPttParentFolder(path)) {
-        return false;
-      }
-
-      return doAccept(path);
+      return doAccept(path) && !hasHiddenPttParentFolder(path);
     }
 
     private boolean doAccept(Path path) {
