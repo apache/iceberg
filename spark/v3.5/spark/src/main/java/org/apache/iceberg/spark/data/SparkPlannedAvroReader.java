@@ -32,6 +32,7 @@ import org.apache.iceberg.avro.SupportsRowPosition;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
@@ -97,7 +98,8 @@ public class SparkPlannedAvroReader implements DatumReader<InternalRow>, Support
 
       Types.StructType expected = partner.asStructType();
       List<Pair<Integer, ValueReader<?>>> readPlan =
-          ValueReaders.buildReadPlan(expected, record, fieldReaders, idToConstant);
+          ValueReaders.buildReadPlan(
+              expected, record, fieldReaders, idToConstant, SparkUtil::internalToSpark);
 
       // TODO: should this pass expected so that struct.get can reuse containers?
       return SparkValueReaders.struct(readPlan, expected.fields().size());

@@ -32,6 +32,8 @@ import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.regions.Region;
 
 public class AwsClientProperties implements Serializable {
@@ -176,6 +178,26 @@ public class AwsClientProperties implements Serializable {
 
     // Create a new credential provider for each client
     return DefaultCredentialsProvider.builder().build();
+  }
+
+  /**
+   * Configure <a
+   * href="https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/core/retry/RetryMode.html">RetryMode</a>
+   * to ADAPTIVE_V2 for AWS clients
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *   KmsClient.builder().applyMutation(awsClientProperties::applyRetryConfigurations)
+   * </pre>
+   */
+  public <T extends AwsClientBuilder> void applyRetryConfigurations(T builder) {
+    ClientOverrideConfiguration.Builder configBuilder =
+        null != builder.overrideConfiguration()
+            ? builder.overrideConfiguration().toBuilder()
+            : ClientOverrideConfiguration.builder();
+
+    builder.overrideConfiguration(configBuilder.retryStrategy(RetryMode.ADAPTIVE_V2).build());
   }
 
   private AwsCredentialsProvider credentialsProvider(String credentialsProviderClass) {

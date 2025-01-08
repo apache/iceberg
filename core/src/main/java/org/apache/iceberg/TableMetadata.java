@@ -584,8 +584,21 @@ public class TableMetadata implements Serializable {
     return new Builder(this).assignUUID().build();
   }
 
+  /**
+   * Updates the schema
+   *
+   * @deprecated since 1.8.0, will be removed in 1.9.0 or 2.0.0, use updateSchema(schema).
+   */
+  @Deprecated
   public TableMetadata updateSchema(Schema newSchema, int newLastColumnId) {
     return new Builder(this).setCurrentSchema(newSchema, newLastColumnId).build();
+  }
+
+  /** Updates the schema */
+  public TableMetadata updateSchema(Schema newSchema) {
+    return new Builder(this)
+        .setCurrentSchema(newSchema, Math.max(this.lastColumnId, newSchema.highestFieldId()))
+        .build();
   }
 
   // The caller is responsible to pass a newPartitionSpec with correct partition field IDs
@@ -1109,8 +1122,18 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    public Builder addSchema(Schema schema) {
+      addSchemaInternal(schema, Math.max(lastColumnId, schema.highestFieldId()));
+      return this;
+    }
+
+    /**
+     * Add a new schema.
+     *
+     * @deprecated since 1.8.0, will be removed in 1.9.0 or 2.0.0, use AddSchema(schema).
+     */
+    @Deprecated
     public Builder addSchema(Schema schema, int newLastColumnId) {
-      // TODO: remove requirement for newLastColumnId
       addSchemaInternal(schema, newLastColumnId);
       return this;
     }
@@ -1139,6 +1162,19 @@ public class TableMetadata implements Serializable {
         changes.add(new MetadataUpdate.SetDefaultPartitionSpec(specId));
       }
 
+      return this;
+    }
+
+    Builder removeSpecs(Iterable<Integer> specIds) {
+      Set<Integer> specIdsToRemove = Sets.newHashSet(specIds);
+      Preconditions.checkArgument(
+          !specIdsToRemove.contains(defaultSpecId), "Cannot remove the default partition spec");
+
+      this.specs =
+          specs.stream()
+              .filter(s -> !specIdsToRemove.contains(s.specId()))
+              .collect(Collectors.toList());
+      changes.add(new MetadataUpdate.RemovePartitionSpecs(specIdsToRemove));
       return this;
     }
 
@@ -1290,7 +1326,6 @@ public class TableMetadata implements Serializable {
     public Builder removeRef(String name) {
       if (SnapshotRef.MAIN_BRANCH.equals(name)) {
         this.currentSnapshotId = -1;
-        snapshotLog.clear();
       }
 
       SnapshotRef ref = refs.remove(name);

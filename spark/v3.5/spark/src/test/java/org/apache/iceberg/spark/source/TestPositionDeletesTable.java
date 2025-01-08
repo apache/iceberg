@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -1586,9 +1587,9 @@ public class TestPositionDeletesTable extends CatalogTestBase {
     assertThat(addedFiles).hasSize(expectedTargetFiles);
 
     List<String> sortedAddedFiles =
-        addedFiles.stream().map(f -> f.location()).sorted().collect(Collectors.toList());
+        addedFiles.stream().map(ContentFile::location).sorted().collect(Collectors.toList());
     List<String> sortedRewrittenFiles =
-        rewrittenFiles.stream().map(f -> f.location()).sorted().collect(Collectors.toList());
+        rewrittenFiles.stream().map(ContentFile::location).sorted().collect(Collectors.toList());
     assertThat(sortedRewrittenFiles)
         .as("Lists should not be the same")
         .isNotEqualTo(sortedAddedFiles);

@@ -36,6 +36,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
+/**
+ * @deprecated will be removed in 2.0.0; use {@link PlannedDataReader} instead.
+ */
+@Deprecated
 public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
 
   public static <D> DataReader<D> create(

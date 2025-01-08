@@ -39,6 +39,7 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
@@ -647,7 +648,7 @@ public class SparkTableUtil {
       if (checkDuplicateFiles) {
         Dataset<Row> importedFiles =
             spark
-                .createDataset(Lists.transform(files, f -> f.path().toString()), Encoders.STRING())
+                .createDataset(Lists.transform(files, ContentFile::location), Encoders.STRING())
                 .toDF("file_path");
         Dataset<Row> existingFiles =
             loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES).filter("status != 2");
@@ -777,7 +778,7 @@ public class SparkTableUtil {
     if (checkDuplicateFiles) {
       Dataset<Row> importedFiles =
           filesToImport
-              .map((MapFunction<DataFile, String>) f -> f.path().toString(), Encoders.STRING())
+              .map((MapFunction<DataFile, String>) ContentFile::location, Encoders.STRING())
               .toDF("file_path");
       Dataset<Row> existingFiles =
           loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES).filter("status != 2");
@@ -796,7 +797,7 @@ public class SparkTableUtil {
             .repartition(numShufflePartitions)
             .map(
                 (MapFunction<DataFile, Tuple2<String, DataFile>>)
-                    file -> Tuple2.apply(file.path().toString(), file),
+                    file -> Tuple2.apply(file.location(), file),
                 Encoders.tuple(Encoders.STRING(), Encoders.javaSerialization(DataFile.class)))
             .orderBy(col("_1"))
             .mapPartitions(

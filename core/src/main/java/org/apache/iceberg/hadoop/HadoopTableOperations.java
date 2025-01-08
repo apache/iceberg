@@ -107,7 +107,8 @@ public class HadoopTableOperations implements TableOperations {
         // no v0 metadata means the table doesn't exist yet
         return null;
       } else if (metadataFile == null) {
-        throw new ValidationException("Metadata file for version %d is missing", ver);
+        throw new ValidationException(
+            "Metadata file for version %d is missing under %s", ver, metadataRoot());
       }
 
       Path nextMetadataFile = getMetadataFile(ver + 1);
@@ -343,7 +344,7 @@ public class HadoopTableOperations implements TableOperations {
 
         return maxVersion;
       } catch (IOException io) {
-        LOG.warn("Error trying to recover version-hint.txt data for {}", versionHintFile, e);
+        LOG.warn("Error trying to recover the latest version number for {}", versionHintFile, io);
         return 0;
       }
     }

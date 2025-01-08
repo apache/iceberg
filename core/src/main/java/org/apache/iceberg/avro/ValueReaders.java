@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
@@ -44,6 +45,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.UUIDUtil;
@@ -199,6 +201,25 @@ public class ValueReaders {
       Schema record,
       List<ValueReader<?>> fieldReaders,
       Map<Integer, ?> idToConstant) {
+    return buildReadPlan(expected, record, fieldReaders, idToConstant, (type, value) -> value);
+  }
+
+  /**
+   * Builds a read plan for record classes that use planned reads instead of a ResolvingDecoder.
+   *
+   * @param expected expected StructType
+   * @param record Avro record schema
+   * @param fieldReaders list of readers for each field in the Avro record schema
+   * @param idToConstant a map of field ID to constants values
+   * @param convert function to convert from internal classes to the target object model
+   * @return a read plan that is a list of (position, reader) pairs
+   */
+  public static List<Pair<Integer, ValueReader<?>>> buildReadPlan(
+      Types.StructType expected,
+      Schema record,
+      List<ValueReader<?>> fieldReaders,
+      Map<Integer, ?> idToConstant,
+      BiFunction<Type, Object, Object> convert) {
     Map<Integer, Integer> idToPos = idToPos(expected);
 
     List<Pair<Integer, ValueReader<?>>> readPlan = Lists.newArrayList();
@@ -228,7 +249,9 @@ public class ValueReaders {
       if (constant != null) {
         readPlan.add(Pair.of(pos, ValueReaders.constant(constant)));
       } else if (field.initialDefault() != null) {
-        readPlan.add(Pair.of(pos, ValueReaders.constant(field.initialDefault())));
+        readPlan.add(
+            Pair.of(
+                pos, ValueReaders.constant(convert.apply(field.type(), field.initialDefault()))));
       } else if (fieldId == MetadataColumns.IS_DELETED.fieldId()) {
         readPlan.add(Pair.of(pos, ValueReaders.constant(false)));
       } else if (fieldId == MetadataColumns.ROW_POSITION.fieldId()) {

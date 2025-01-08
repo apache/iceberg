@@ -40,6 +40,7 @@ import org.apache.iceberg.avro.ValueReaders;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 
 public class FlinkValueReaders {
 
@@ -84,6 +85,10 @@ public class FlinkValueReaders {
 
   static ValueReader<MapData> map(ValueReader<?> keyReader, ValueReader<?> valueReader) {
     return new MapReader(keyReader, valueReader);
+  }
+
+  static ValueReader<RowData> struct(List<Pair<Integer, ValueReader<?>>> readPlan, int numFields) {
+    return new PlannedStructReader(readPlan, numFields);
   }
 
   static ValueReader<RowData> struct(
@@ -279,6 +284,33 @@ public class FlinkValueReaders {
       }
 
       return kvArrayToMap(reusedKeyList, reusedValueList);
+    }
+  }
+
+  private static class PlannedStructReader extends ValueReaders.PlannedStructReader<RowData> {
+    private final int numFields;
+
+    private PlannedStructReader(List<Pair<Integer, ValueReader<?>>> readPlan, int numFields) {
+      super(readPlan);
+      this.numFields = numFields;
+    }
+
+    @Override
+    protected RowData reuseOrCreate(Object reuse) {
+      if (reuse instanceof GenericRowData && ((GenericRowData) reuse).getArity() == numFields) {
+        return (RowData) reuse;
+      }
+      return new GenericRowData(numFields);
+    }
+
+    @Override
+    protected Object get(RowData struct, int pos) {
+      return null;
+    }
+
+    @Override
+    protected void set(RowData struct, int pos, Object value) {
+      ((GenericRowData) struct).setField(pos, value);
     }
   }
 

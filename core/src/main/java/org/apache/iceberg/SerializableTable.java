@@ -50,6 +50,7 @@ import org.apache.iceberg.util.SerializableSupplier;
  * storage.
  */
 public class SerializableTable implements Table, HasTableOperations, Serializable {
+  private static final int UNKNOWN_FORMAT_VERSION = -1;
 
   private final String name;
   private final String location;
@@ -62,13 +63,14 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   private final FileIO io;
   private final EncryptionManager encryption;
   private final Map<String, SnapshotRef> refs;
+  private final UUID uuid;
+  private final int formatVersion;
 
   private transient volatile LocationProvider lazyLocationProvider = null;
   private transient volatile Table lazyTable = null;
   private transient volatile Schema lazySchema = null;
   private transient volatile Map<Integer, PartitionSpec> lazySpecs = null;
   private transient volatile SortOrder lazySortOrder = null;
-  private final UUID uuid;
 
   protected SerializableTable(Table table) {
     this.name = table.name();
@@ -85,6 +87,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     this.encryption = table.encryption();
     this.refs = SerializableMap.copyOf(table.refs());
     this.uuid = table.uuid();
+    this.formatVersion = formatVersion(table);
   }
 
   /**
@@ -156,6 +159,23 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   @Override
   public Map<String, String> properties() {
     return properties;
+  }
+
+  public int formatVersion() {
+    if (formatVersion == UNKNOWN_FORMAT_VERSION) {
+      throw new UnsupportedOperationException(
+          this.getClass().getName() + " does not have a format version");
+    }
+    return formatVersion;
+  }
+
+  private int formatVersion(Table table) {
+    if (table instanceof HasTableOperations) {
+      HasTableOperations ops = (HasTableOperations) table;
+      return ops.operations().current().formatVersion();
+    } else {
+      return UNKNOWN_FORMAT_VERSION;
+    }
   }
 
   @Override

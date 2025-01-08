@@ -55,7 +55,7 @@ import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.GenericDeleteFilter;
 import org.apache.iceberg.data.IdentityPartitionConverters;
 import org.apache.iceberg.data.InternalRecordWrapper;
-import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.encryption.EncryptedFiles;
@@ -320,8 +320,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       DataFile file = currentTask.file();
       InputFile inputFile =
           encryptionManager.decrypt(
-              EncryptedFiles.encryptedInput(
-                  io.newInputFile(file.path().toString()), file.keyMetadata()));
+              EncryptedFiles.encryptedInput(io.newInputFile(file.location()), file.keyMetadata()));
 
       CloseableIterable<T> iterable;
       switch (file.format()) {
@@ -336,7 +335,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           break;
         default:
           throw new UnsupportedOperationException(
-              String.format("Cannot read %s file: %s", file.format().name(), file.path()));
+              String.format("Cannot read %s file: %s", file.format().name(), file.location()));
       }
 
       return iterable;
@@ -390,12 +389,10 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           throw new UnsupportedOperationException(
               "Avro support not yet supported for Pig and Hive");
         case GENERIC:
-          avroReadBuilder.createReaderFunc(
-              (expIcebergSchema, expAvroSchema) ->
-                  DataReader.create(
-                      expIcebergSchema,
-                      expAvroSchema,
-                      constantsMap(task, IdentityPartitionConverters::convertConstant)));
+          avroReadBuilder.createResolvingReader(
+              schema ->
+                  PlannedDataReader.create(
+                      schema, constantsMap(task, IdentityPartitionConverters::convertConstant)));
       }
       return applyResidualFiltering(avroReadBuilder.build(), task.residual(), readSchema);
     }

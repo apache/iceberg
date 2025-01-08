@@ -38,6 +38,7 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.SessionConfigSupport;
 import org.apache.spark.sql.connector.catalog.SupportsCatalogOptions;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -61,7 +62,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * <p>The above list is in order of priority. For example: a matching catalog will take priority
  * over any namespace resolution.
  */
-public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions {
+public class IcebergSource
+    implements DataSourceRegister, SupportsCatalogOptions, SessionConfigSupport {
   private static final String DEFAULT_CATALOG_NAME = "default_iceberg";
   private static final String DEFAULT_CACHE_CATALOG_NAME = "default_cache_iceberg";
   private static final String DEFAULT_CATALOG = "spark.sql.catalog." + DEFAULT_CATALOG_NAME;
@@ -78,6 +80,11 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
   @Override
   public String shortName() {
     return "iceberg";
+  }
+
+  @Override
+  public String keyPrefix() {
+    return shortName();
   }
 
   @Override

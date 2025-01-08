@@ -70,6 +70,29 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testFilterCaseSensitivity() {
+    createTable();
+    insertData(10);
+    sql("set %s = false", SQLConf.CASE_SENSITIVE().key());
+    List<Object[]> expectedRecords = currentData();
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.rewrite_data_files(table=>'%s', where=>'C1 > 0')",
+            catalogName, tableIdent);
+    assertEquals(
+        "Action should rewrite 10 data files and add 1 data files",
+        row(10, 1),
+        Arrays.copyOf(output.get(0), 2));
+    // verify rewritten bytes separately
+    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)[2])
+        .isInstanceOf(Long.class)
+        .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+  }
+
+  @TestTemplate
   public void testZOrderSortExpression() {
     List<ExtendedParser.RawOrderField> order =
         ExtendedParser.parseSortOrder(spark, "c1, zorder(c2, c3)");
