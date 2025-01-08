@@ -21,8 +21,8 @@ package org.apache.iceberg.actions;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -70,7 +70,8 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
 
   @Override
   protected Iterable<FileScanTask> filterFiles(Iterable<FileScanTask> tasks) {
-    return Iterables.filter(tasks, task -> wronglySized(task) || tooManyDeletes(task));
+    return Iterables.filter(
+        tasks, task -> wronglySized(task) || tooManyDeletes(task) || tooHighDeleteRatio(task));
   }
 
   private boolean tooManyDeletes(FileScanTask task) {
@@ -99,11 +100,15 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
   }
 
   private boolean tooHighDeleteRatio(FileScanTask task) {
-    if (ContentFileUtil.containsSingleDV(task.deletes())) {
-      DeleteFile file = Iterables.getOnlyElement(task.deletes());
-      double deletedRecords = (double) Math.min(file.recordCount(), task.file().recordCount());
+    if (null == task.deletes() || task.deletes().isEmpty()) {
+      return false;
+    }
+
+    if (ContentFileUtil.containsSingleDV(task.deletes())
+        || task.deletes().stream().allMatch(ContentFileUtil::isFileScoped)) {
+      long sum = task.deletes().stream().mapToLong(ContentFile::recordCount).sum();
+      double deletedRecords = (double) Math.min(sum, task.file().recordCount());
       double deleteRatio = deletedRecords / task.file().recordCount();
-      // TODO: make this configurable
       return deleteRatio >= 0.3;
     }
 
