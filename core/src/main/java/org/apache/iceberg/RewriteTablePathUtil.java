@@ -126,8 +126,7 @@ public class RewriteTablePathUtil {
         metadata.snapshotLog(),
         metadataLogEntries,
         metadata.refs(),
-        // TODO: update statistic file paths
-        metadata.statisticsFiles(),
+        updatePathInStatisticsFiles(metadata.statisticsFiles(), sourcePrefix, targetPrefix),
         metadata.partitionStatisticsFiles(),
         metadata.changes());
   }
@@ -155,6 +154,20 @@ public class RewriteTablePathUtil {
       properties.put(
           propertyName, newPath(properties.get(propertyName), sourcePrefix, targetPrefix));
     }
+  }
+
+  private static List<StatisticsFile> updatePathInStatisticsFiles(
+      List<StatisticsFile> statisticsFiles, String sourcePrefix, String targetPrefix) {
+    return statisticsFiles.stream()
+        .map(
+            existing ->
+                new GenericStatisticsFile(
+                    existing.snapshotId(),
+                    newPath(existing.path(), sourcePrefix, targetPrefix),
+                    existing.fileSizeInBytes(),
+                    existing.fileFooterSizeInBytes(),
+                    existing.blobMetadata()))
+        .collect(Collectors.toList());
   }
 
   private static List<TableMetadata.MetadataLogEntry> updatePathInMetadataLogs(
