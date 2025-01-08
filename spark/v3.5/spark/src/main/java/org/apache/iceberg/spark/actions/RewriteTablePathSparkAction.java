@@ -265,6 +265,11 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     TableMetadata endMetadata =
         ((HasTableOperations) newStaticTable(endVersionName, table.io())).operations().current();
 
+    Preconditions.checkArgument(
+        endMetadata.partitionStatisticsFiles() == null
+            || endMetadata.partitionStatisticsFiles().isEmpty(),
+        "Partition statistics files are not supported yet.");
+
     // rebuild version files
     RewriteResult<Snapshot> rewriteVersionResult = rewriteVersionFiles(endMetadata);
     Set<Snapshot> deltaSnapshots = deltaSnapshots(startMetadata, rewriteVersionResult.toRewrite());

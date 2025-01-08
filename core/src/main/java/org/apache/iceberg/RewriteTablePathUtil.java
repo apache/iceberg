@@ -127,6 +127,7 @@ public class RewriteTablePathUtil {
         metadataLogEntries,
         metadata.refs(),
         updatePathInStatisticsFiles(metadata.statisticsFiles(), sourcePrefix, targetPrefix),
+        // TODO: update partition statistics file paths
         metadata.partitionStatisticsFiles(),
         metadata.changes());
   }

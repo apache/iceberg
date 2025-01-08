@@ -37,11 +37,13 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.ImmutableGenericPartitionStatisticsFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.actions.ActionsProvider;
@@ -726,6 +728,39 @@ public class TestRewriteTablePathsAction extends TestBase {
     assertThatThrownBy(() -> actions.endVersion(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("End version('null') cannot be empty");
+  }
+
+  @Test
+  public void testPartitionStatisticFile() throws IOException {
+    String sourceTableLocation = newTableLocation();
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("format-version", "2");
+    String tableName = "v2tblwithPartStats";
+    Table sourceTable =
+        createMetastoreTable(sourceTableLocation, properties, "default", tableName, 0);
+
+    TableMetadata metadata = currentMetadata(sourceTable);
+    TableMetadata withPartStatistics =
+        TableMetadata.buildFrom(metadata)
+            .setPartitionStatistics(
+                ImmutableGenericPartitionStatisticsFile.builder()
+                    .snapshotId(11L)
+                    .path("/some/partition/stats/file.parquet")
+                    .fileSizeInBytes(42L)
+                    .build())
+            .build();
+
+    OutputFile file = sourceTable.io().newOutputFile(metadata.metadataFileLocation());
+    TableMetadataParser.overwrite(withPartStatistics, file);
+
+    assertThatThrownBy(
+            () ->
+                actions()
+                    .rewriteTablePath(sourceTable)
+                    .rewriteLocationPrefix(sourceTableLocation, targetTableLocation())
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Partition statistics files are not supported yet");
   }
 
   @Test
