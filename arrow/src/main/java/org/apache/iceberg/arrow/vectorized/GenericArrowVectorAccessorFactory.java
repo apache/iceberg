@@ -48,7 +48,7 @@ import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
-import org.apache.parquet.schema.OriginalType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
 
 /**
@@ -225,7 +225,9 @@ public class GenericArrowVectorAccessorFactory<
   }
 
   private static boolean isDecimal(PrimitiveType primitive) {
-    return primitive != null && OriginalType.DECIMAL.equals(primitive.getOriginalType());
+    return primitive != null
+        && primitive.getLogicalTypeAnnotation()
+            instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
   }
 
   private static class BooleanAccessor<
