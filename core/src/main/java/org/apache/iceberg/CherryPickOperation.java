@@ -134,20 +134,18 @@ class CherryPickOperation extends MergingSnapshotProducer<CherryPickOperation> {
   }
 
   @Override
-  public Object updateEvent() {
+  public Object updateEvent(Snapshot committedSnapshot) {
     if (cherrypickSnapshot == null) {
       // NOOP operation, no snapshot created
       return null;
     }
 
-    TableMetadata tableMetadata = refresh();
-    long snapshotId = tableMetadata.currentSnapshot().snapshotId();
-    if (cherrypickSnapshot.snapshotId() == snapshotId) {
+    if (cherrypickSnapshot.snapshotId() == committedSnapshot.snapshotId()) {
       // No new snapshot is created for fast-forward
       return null;
     } else {
       // New snapshot created, we rely on super class to fire a CreateSnapshotEvent
-      return super.updateEvent();
+      return super.updateEvent(committedSnapshot);
     }
   }
 
