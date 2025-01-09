@@ -129,7 +129,9 @@ public class RewriteTablePathUtil {
         // TODO: update statistic file paths
         metadata.statisticsFiles(),
         metadata.partitionStatisticsFiles(),
-        metadata.changes());
+        metadata.changes(),
+        metadata.rowLineage(),
+        metadata.lastRowId());
   }
 
   private static Map<String, String> updateProperties(
