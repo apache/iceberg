@@ -28,11 +28,14 @@ import org.apache.spark.sql.vectorized.ColumnarMap;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class DeletedColumnVector extends ColumnVector {
-  private final boolean[] isDeleted;
+  private boolean[] isDeleted;
 
   public DeletedColumnVector(Type type, boolean[] isDeleted) {
     super(SparkSchemaUtil.convert(type));
-    Preconditions.checkArgument(isDeleted != null, "Boolean array isDeleted cannot be null");
+    this.isDeleted = isDeleted;
+  }
+
+  public void setIsDeleted(boolean[] isDeleted) {
     this.isDeleted = isDeleted;
   }
 
