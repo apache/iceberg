@@ -1,31 +1,26 @@
 /*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *  * Licensed to the Apache Software Foundation (ASF) under one
- *  * or more contributor license agreements.  See the NOTICE file
- *  * distributed with this work for additional information
- *  * regarding copyright ownership.  The ASF licenses this file
- *  * to you under the Apache License, Version 2.0 (the
- *  * "License"); you may not use this file except in compliance
- *  * with the License.  You may obtain a copy of the License at
- *  *
- *  *   http://www.apache.org/licenses/LICENSE-2.0
- *  *
- *  * Unless required by applicable law or agreed to in writing,
- *  * software distributed under the License is distributed on an
- *  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- *  * KIND, either express or implied.  See the License for the
- *  * specific language governing permissions and limitations
- *  * under the License.
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package org.apache.iceberg.connect.transforms;
 
-import org.debezium.connector.mongodb.transforms.ArrayEncoding;
-import org.debezium.connector.mongodb.transforms.MongoDataConverter;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.connector.ConnectRecord;
@@ -38,13 +33,14 @@ import org.apache.kafka.connect.transforms.Transformation;
 import org.apache.kafka.connect.transforms.util.Requirements;
 import org.bson.BsonDocument;
 import org.bson.BsonValue;
+import org.debezium.connector.mongodb.transforms.ArrayEncoding;
+import org.debezium.connector.mongodb.transforms.MongoDataConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Debezium Mongo Connector generates the CDC before/after fields as BSON strings. This SMT converts
  * those strings into typed SinkRecord Structs by inferring the schema from the BSON node types.
- *
  */
 public class MongoDebeziumTransform implements Transformation<SinkRecord> {
 
@@ -92,7 +88,9 @@ public class MongoDebeziumTransform implements Transformation<SinkRecord> {
 
     // if they don't contain key/envelope convert to tombstone
     if (!isValidKey(record) || !isValidValue(record)) {
-      LOG.debug("Expected Key Schema/Envelope for transformation, converting to tombstone. Message key: \"{}\"", record.key());
+      LOG.debug(
+          "Expected Key Schema/Envelope for transformation, converting to tombstone. Message key: \"{}\"",
+          record.key());
       return record.newRecord(
           record.topic(),
           record.kafkaPartition(),
@@ -113,7 +111,9 @@ public class MongoDebeziumTransform implements Transformation<SinkRecord> {
         && afterRecord.value() == null
         && updateDescriptionRecord.value() == null) {
       throw new IllegalArgumentException(
-          String.format("malformed record topic: %s, partition: %s, offset: %s",record.topic(), record.kafkaPartition(), record.kafkaOffset()));
+          String.format(
+              "malformed record topic: %s, partition: %s, offset: %s",
+              record.topic(), record.kafkaPartition(), record.kafkaOffset()));
     }
 
     BsonDocument afterBson = null;
@@ -124,7 +124,11 @@ public class MongoDebeziumTransform implements Transformation<SinkRecord> {
       beforeBson = BsonDocument.parse(beforeRecord.value().toString());
     }
     if (afterRecord.value() == null && updateDescriptionRecord.value() != null) {
-      afterBson = buildAfterBsonFromPartials(updateDescriptionRecord,  (beforeBson == null) ? new BsonDocument() : beforeBson.clone(), keyBson);
+      afterBson =
+          buildAfterBsonFromPartials(
+              updateDescriptionRecord,
+              (beforeBson == null) ? new BsonDocument() : beforeBson.clone(),
+              keyBson);
     } else if (afterRecord.value() != null) {
       afterBson = BsonDocument.parse(afterRecord.value().toString());
     }
@@ -148,9 +152,9 @@ public class MongoDebeziumTransform implements Transformation<SinkRecord> {
   }
 
   /**
-   * Debezium can produce partial updates in three different configurations. It may contain a
-   * before value if `capture.mode` is set to one of the `*_with_pre_image` options. It may contain
-   * an after value if `capture.mode` is set to change_streams_update_full
+   * Debezium can produce partial updates in three different configurations. It may contain a before
+   * value if `capture.mode` is set to one of the `*_with_pre_image` options. It may contain an
+   * after value if `capture.mode` is set to change_streams_update_full
    *
    * <p>Enter this method when there is no after value but updateDescription is present.
    *
@@ -191,7 +195,10 @@ public class MongoDebeziumTransform implements Transformation<SinkRecord> {
   }
 
   private SinkRecord newRecord(
-      SinkRecord record, BsonDocument keyDocument, BsonDocument beforeBson, BsonDocument afterBson) {
+      SinkRecord record,
+      BsonDocument keyDocument,
+      BsonDocument beforeBson,
+      BsonDocument afterBson) {
     SchemaBuilder keySchemaBuilder = SchemaBuilder.struct();
     Set<Map.Entry<String, BsonValue>> keyPairs = keyDocument.entrySet();
     for (Map.Entry<String, BsonValue> keyPairsForSchema : keyPairs) {
@@ -258,8 +265,7 @@ public class MongoDebeziumTransform implements Transformation<SinkRecord> {
         record.headers());
   }
 
-  private void mutateBuilderFromBson(
-      SchemaBuilder builder, BsonDocument bson, String fieldName) {
+  private void mutateBuilderFromBson(SchemaBuilder builder, BsonDocument bson, String fieldName) {
     SchemaBuilder innerBuilder = SchemaBuilder.struct();
     Set<Map.Entry<String, BsonValue>> pairs = bson.entrySet();
     for (Map.Entry<String, BsonValue> pairsForSchema : pairs) {
@@ -279,13 +285,14 @@ public class MongoDebeziumTransform implements Transformation<SinkRecord> {
 
   private boolean isValidKey(final SinkRecord record) {
     return record.keySchema() != null
-            && record.keySchema().name() != null
-            && record.keySchema().name().endsWith(RECORD_ENVELOPE_KEY_SCHEMA_NAME_SUFFIX);
+        && record.keySchema().name() != null
+        && record.keySchema().name().endsWith(RECORD_ENVELOPE_KEY_SCHEMA_NAME_SUFFIX);
   }
+
   private boolean isValidValue(final SinkRecord record) {
     return record.valueSchema() != null
-            && record.valueSchema().name() != null
-            && record.valueSchema().name().endsWith(SCHEMA_NAME_SUFFIX);
+        && record.valueSchema().name() != null
+        && record.valueSchema().name().endsWith(SCHEMA_NAME_SUFFIX);
   }
 
   private static <R extends ConnectRecord<R>> ExtractField<R> extractorValueField(String field) {
