@@ -49,7 +49,7 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
 
   @TestTemplate
   public void testRewriteTablePathWithPositionalArgument() {
-    String targetLocation = targetTableDir.toFile().toURI().toString();
+    String location = targetTableDir.toFile().toURI().toString();
     Table table = validationCatalog.loadTable(tableIdent);
     String metadataJson =
         (((HasTableOperations) table).operations()).current().metadataFileLocation();
@@ -57,7 +57,7 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
     List<Object[]> result =
         sql(
             "CALL %s.system.rewrite_table_path('%s', '%s', '%s')",
-            catalogName, tableIdent, table.location(), targetLocation);
+            catalogName, tableIdent, table.location(), location);
     assumeThat(result).hasSize(1);
     assumeThat(result.get(0)[0])
         .as("Should return correct latest version")
@@ -89,17 +89,17 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
         sql(
             "CALL %s.system.rewrite_table_path("
                 + "table => '%s', "
-                + "source_location_prefix => '%s', "
                 + "target_location_prefix => '%s', "
-                + "start_version => '%s', "
+                + "source_location_prefix => '%s', "
                 + "end_version => '%s', "
+                + "start_version => '%s', "
                 + "staging_location => '%s')",
             catalogName,
             tableIdent,
-            table.location(),
             targetLocation,
-            v0Metadata,
+            table.location(),
             v1Metadata,
+            v0Metadata,
             stagingLocation);
     assumeThat(result).hasSize(1);
     assumeThat(result.get(0)[0]).as("Should return correct latest version").isEqualTo(v1Metadata);
@@ -132,6 +132,39 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
                     catalogName, "notExists", targetLocation, targetLocation))
         .isInstanceOf(RuntimeException.class)
         .hasMessageContaining("Couldn't load table");
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    String v0Metadata =
+        RewriteTablePathUtil.fileName(
+            (((HasTableOperations) table).operations()).current().metadataFileLocation());
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_table_path("
+                        + "table => '%s', "
+                        + "source_location_prefix => '%s', "
+                        + "target_location_prefix => '%s', "
+                        + "start_version => '%s')",
+                    catalogName, tableIdent, table.location(), targetLocation, "v20.metadata.json"))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("Version file null does not exist in metadata log");
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_table_path("
+                        + "table => '%s', "
+                        + "source_location_prefix => '%s', "
+                        + "target_location_prefix => '%s', "
+                        + "start_version => '%s',"
+                        + "end_version => '%s')",
+                    catalogName,
+                    tableIdent,
+                    table.location(),
+                    targetLocation,
+                    v0Metadata,
+                    "v11.metadata.json"))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("Version file null does not exist in metadata log");
   }
 
   private void checkFileListLocationCount(String fileListLocation, long expectedFileCount) {
