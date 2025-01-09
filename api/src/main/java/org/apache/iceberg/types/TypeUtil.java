@@ -709,6 +709,10 @@ public class TypeUtil {
       return null;
     }
 
+    public T variant() {
+      return null;
+    }
+
     public T primitive(Type.PrimitiveType primitive) {
       return null;
     }
@@ -784,6 +788,9 @@ public class TypeUtil {
             map,
             new VisitFuture<>(map.keyType(), visitor),
             new VisitFuture<>(map.valueType(), visitor));
+
+      case VARIANT:
+        return visitor.variant();
 
       default:
         return visitor.primitive(type.asPrimitiveType());

@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg.avro;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -33,6 +35,8 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantBuilder;
 
 public class RandomAvroData {
 
@@ -91,6 +95,29 @@ public class RandomAvroData {
     @Override
     public Object map(Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
       return RandomUtil.generateMap(random, map, keyResult, valueResult);
+    }
+
+    @Override
+    public Object variant() {
+      Record rec = new Record(typeToSchema.get(Types.VariantType.get()));
+
+      int numFields = random.nextInt(10);
+      try {
+        String json = RandomUtil.generateRandomJsonString(numFields, random);
+        Variant variant = VariantBuilder.parseJson(json);
+        ByteBuffer buffer =
+            ByteBuffer.allocate(variant.value().sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
+        variant.value().writeTo(buffer, 0);
+
+        // put metadata field
+        rec.put(0, variant.metadata().buffer());
+        // put value field
+        rec.put(1, buffer);
+
+        return rec;
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
     }
 
     @Override

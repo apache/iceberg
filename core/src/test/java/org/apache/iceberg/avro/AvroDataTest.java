@@ -191,4 +191,13 @@ public abstract class AvroDataTest {
 
     writeAndValidate(schema);
   }
+
+  @Test
+  public void testVariant() throws IOException {
+    Schema schema =
+        new Schema(
+            required(0, "id", Types.LongType.get()), optional(1, "data", Types.VariantType.get()));
+
+    writeAndValidate(schema);
+  }
 }
