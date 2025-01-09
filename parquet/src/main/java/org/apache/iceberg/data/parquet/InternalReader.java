@@ -20,7 +20,6 @@ package org.apache.iceberg.data.parquet;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.GenericRecord;
@@ -31,7 +30,6 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 public class InternalReader extends BaseParquetReaders<StructLike> {
@@ -53,16 +51,7 @@ public class InternalReader extends BaseParquetReaders<StructLike> {
   @Override
   protected ParquetValueReader<StructLike> createStructReader(
       List<Type> types, List<ParquetValueReader<?>> fieldReaders, StructType structType) {
-    return new ParquetStructReader(types, fieldReaders, structType);
-  }
-
-  @Override
-  protected LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<ParquetValueReader<?>>
-      logicalTypeReaderVisitor(
-          ColumnDescriptor desc,
-          org.apache.iceberg.types.Type.PrimitiveType expected,
-          PrimitiveType primitive) {
-    return new LogicalTypeAnnotationParquetValueReaderVisitor(desc, expected, primitive);
+    return new StructLikeReader(types, fieldReaders, structType);
   }
 
   @Override
@@ -72,14 +61,42 @@ public class InternalReader extends BaseParquetReaders<StructLike> {
 
   @Override
   protected ParquetValueReaders.PrimitiveReader<?> int96Reader(ColumnDescriptor desc) {
-    // normal handling as int96
+    return new ParquetValueReaders.TimestampInt96Reader(desc);
+  }
+
+  @Override
+  protected ParquetValueReaders.PrimitiveReader<?> dateReader(ColumnDescriptor desc) {
     return new ParquetValueReaders.UnboxedReader<>(desc);
   }
 
-  private static class ParquetStructReader extends StructReader<StructLike, StructLike> {
+  @Override
+  protected ParquetValueReaders.PrimitiveReader<?> timeReader(
+      ColumnDescriptor desc, LogicalTypeAnnotation.TimeUnit unit) {
+    if (unit == LogicalTypeAnnotation.TimeUnit.MILLIS) {
+      return new ParquetValueReaders.TimestampMillisReader(desc);
+    }
+    return new ParquetValueReaders.UnboxedReader<>(desc);
+  }
+
+  @Override
+  protected ParquetValueReaders.PrimitiveReader<?> timestampReader(
+      ColumnDescriptor desc, LogicalTypeAnnotation.TimeUnit unit, boolean isAdjustedToUTC) {
+    if (unit == LogicalTypeAnnotation.TimeUnit.MILLIS) {
+      return new ParquetValueReaders.TimestampMillisReader(desc);
+    }
+
+    return new ParquetValueReaders.UnboxedReader<>(desc);
+  }
+
+  @Override
+  protected ParquetValueReaders.PrimitiveReader<?> uuidReader(ColumnDescriptor desc) {
+    return new ParquetValueReaders.UUIDReader(desc);
+  }
+
+  private static class StructLikeReader extends StructReader<StructLike, StructLike> {
     private final GenericRecord template;
 
-    ParquetStructReader(List<Type> types, List<ParquetValueReader<?>> readers, StructType struct) {
+    StructLikeReader(List<Type> types, List<ParquetValueReader<?>> readers, StructType struct) {
       super(types, readers);
       this.template = struct != null ? GenericRecord.create(struct) : null;
     }
@@ -106,102 +123,6 @@ public class InternalReader extends BaseParquetReaders<StructLike> {
     @Override
     protected void set(StructLike struct, int pos, Object value) {
       struct.set(pos, value);
-    }
-  }
-
-  private static class LogicalTypeAnnotationParquetValueReaderVisitor
-      implements LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<ParquetValueReader<?>> {
-
-    private final ColumnDescriptor desc;
-    private final org.apache.iceberg.types.Type.PrimitiveType expected;
-    private final PrimitiveType primitive;
-
-    LogicalTypeAnnotationParquetValueReaderVisitor(
-        ColumnDescriptor desc,
-        org.apache.iceberg.types.Type.PrimitiveType expected,
-        PrimitiveType primitive) {
-      this.desc = desc;
-      this.expected = expected;
-      this.primitive = primitive;
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.StringLogicalTypeAnnotation stringLogicalType) {
-      return Optional.of(new ParquetValueReaders.StringReader(desc));
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.EnumLogicalTypeAnnotation enumLogicalType) {
-      return Optional.of(new ParquetValueReaders.StringReader(desc));
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
-      return Optional.of(new ParquetValueReaders.UUIDReader(desc));
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.DecimalLogicalTypeAnnotation decimalLogicalType) {
-      switch (primitive.getPrimitiveTypeName()) {
-        case BINARY:
-        case FIXED_LEN_BYTE_ARRAY:
-          return Optional.of(
-              new ParquetValueReaders.BinaryAsDecimalReader(desc, decimalLogicalType.getScale()));
-        case INT64:
-          return Optional.of(
-              new ParquetValueReaders.LongAsDecimalReader(desc, decimalLogicalType.getScale()));
-        case INT32:
-          return Optional.of(
-              new ParquetValueReaders.IntegerAsDecimalReader(desc, decimalLogicalType.getScale()));
-        default:
-          throw new UnsupportedOperationException(
-              "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
-      }
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.DateLogicalTypeAnnotation dateLogicalType) {
-      return Optional.of(new ParquetValueReaders.UnboxedReader<>(desc));
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.TimeLogicalTypeAnnotation timeLogicalType) {
-      return Optional.of(new ParquetValueReaders.UnboxedReader<>(desc));
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampLogicalType) {
-      return Optional.of(new ParquetValueReaders.UnboxedReader<>(desc));
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogicalType) {
-      if (intLogicalType.getBitWidth() == 64) {
-        return Optional.of(new ParquetValueReaders.UnboxedReader<>(desc));
-      }
-      return (expected.typeId() == org.apache.iceberg.types.Type.TypeID.LONG)
-          ? Optional.of(new ParquetValueReaders.IntAsLongReader(desc))
-          : Optional.of(new ParquetValueReaders.UnboxedReader<>(desc));
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.JsonLogicalTypeAnnotation jsonLogicalType) {
-      return Optional.of(new ParquetValueReaders.StringReader(desc));
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonLogicalType) {
-      return Optional.of(new ParquetValueReaders.BytesReader(desc));
     }
   }
 }

@@ -112,6 +112,10 @@ public class ParquetValueWriters {
     return new BytesWriter(desc);
   }
 
+  public static PrimitiveWriter<ByteBuffer> fixedBuffer(ColumnDescriptor desc) {
+    return new FixedBufferWriter(desc);
+  }
+
   public static PrimitiveWriter<byte[]> fixed(ColumnDescriptor desc) {
     return new FixedWriter(desc);
   }
@@ -323,13 +327,40 @@ public class ParquetValueWriters {
     }
   }
 
+  private static class FixedBufferWriter extends PrimitiveWriter<ByteBuffer> {
+    private final int length;
+
+    private FixedBufferWriter(ColumnDescriptor desc) {
+      super(desc);
+      this.length = desc.getPrimitiveType().getTypeLength();
+    }
+
+    @Override
+    public void write(int repetitionLevel, ByteBuffer buffer) {
+      Preconditions.checkArgument(
+          buffer.remaining() == length,
+          "Cannot write byte buffer of length %s as fixed[%s]",
+          buffer.remaining(),
+          length);
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteBuffer(buffer));
+    }
+  }
+
   private static class FixedWriter extends PrimitiveWriter<byte[]> {
+    private final int length;
+
     private FixedWriter(ColumnDescriptor desc) {
       super(desc);
+      this.length = desc.getPrimitiveType().getTypeLength();
     }
 
     @Override
     public void write(int repetitionLevel, byte[] value) {
+      Preconditions.checkArgument(
+          value.length == length,
+          "Cannot write byte buffer of length %s as fixed[%s]",
+          value.length,
+          length);
       column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(value));
     }
   }
