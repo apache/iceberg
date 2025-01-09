@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.data.vectorized;
 
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.spark.sql.types.Decimal;
