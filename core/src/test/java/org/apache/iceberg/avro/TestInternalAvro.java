@@ -20,7 +20,9 @@ package org.apache.iceberg.avro;
 
 import java.io.IOException;
 import java.util.List;
+import org.apache.iceberg.InternalTestHelpers;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RandomInternalData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
@@ -31,7 +33,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 public class TestInternalAvro extends AvroDataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    List<StructLike> expected = RandomAvroData.generateStructLike(schema, 100, 0L);
+    List<StructLike> expected =
+        RandomInternalData.generate(schema, 100, System.currentTimeMillis());
 
     OutputFile outputFile = new InMemoryOutputFile();
 
@@ -57,7 +60,7 @@ public class TestInternalAvro extends AvroDataTest {
     }
 
     for (int i = 0; i < expected.size(); i += 1) {
-      AvroTestHelpers.assertEquals(schema.asStruct(), expected.get(i), rows.get(i));
+      InternalTestHelpers.assertEquals(schema.asStruct(), expected.get(i), rows.get(i));
     }
   }
 }

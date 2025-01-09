@@ -16,59 +16,52 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.avro;
+package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.function.Supplier;
-import org.apache.avro.generic.GenericData;
-import org.apache.avro.generic.GenericData.Record;
-import org.apache.avro.util.Utf8;
-import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
 
-public class RandomAvroData {
+public class RandomInternalData {
 
-  private RandomAvroData() {}
+  private RandomInternalData() {}
 
-  public static List<Record> generate(Schema schema, int numRecords, long seed) {
-    RandomDataGenerator generator = new RandomDataGenerator(schema, seed);
-    List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
+  public static List<StructLike> generate(Schema schema, int numRecords, long seed) {
+    RandomDataGenerator generator = new RandomDataGenerator(seed);
+    List<StructLike> records = Lists.newArrayListWithExpectedSize(numRecords);
     for (int i = 0; i < numRecords; i += 1) {
-      records.add((Record) TypeUtil.visit(schema, generator));
+      records.add((StructLike) TypeUtil.visit(schema, generator));
     }
 
     return records;
   }
 
   private static class RandomDataGenerator extends TypeUtil.CustomOrderSchemaVisitor<Object> {
-    private final Map<Type, org.apache.avro.Schema> typeToSchema;
     private final Random random;
 
-    private RandomDataGenerator(Schema schema, long seed) {
-      this.typeToSchema = AvroSchemaUtil.convertTypes(schema.asStruct(), "test");
+    private RandomDataGenerator(long seed) {
       this.random = new Random(seed);
     }
 
     @Override
-    public Record schema(Schema schema, Supplier<Object> structResult) {
-      return (Record) structResult.get();
+    public StructLike schema(Schema schema, Supplier<Object> structResult) {
+      return (StructLike) structResult.get();
     }
 
     @Override
-    public Record struct(Types.StructType struct, Iterable<Object> fieldResults) {
-      Record rec = new Record(typeToSchema.get(struct));
-
+    public StructLike struct(Types.StructType struct, Iterable<Object> fieldResults) {
+      StructLike rec = GenericRecord.create(struct);
       List<Object> values = Lists.newArrayList(fieldResults);
       for (int i = 0; i < values.size(); i += 1) {
-        rec.put(i, values.get(i));
+        rec.set(i, values.get(i));
       }
 
       return rec;
@@ -96,13 +89,9 @@ public class RandomAvroData {
     @Override
     public Object primitive(Type.PrimitiveType primitive) {
       Object result = RandomUtil.generatePrimitive(primitive, random);
-      // For the primitives that Avro needs a different type than Spark, fix
-      // them here.
+
       switch (primitive.typeId()) {
-        case STRING:
-          return new Utf8((String) result);
         case FIXED:
-          return new GenericData.Fixed(typeToSchema.get(primitive), (byte[]) result);
         case BINARY:
           return ByteBuffer.wrap((byte[]) result);
         case UUID:

@@ -16,69 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.avro;
+package org.apache.iceberg;
 
-import static org.apache.iceberg.avro.AvroSchemaUtil.toOption;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import org.apache.avro.JsonProperties;
-import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-class AvroTestHelpers {
+public class InternalTestHelpers {
 
-  private AvroTestHelpers() {}
+  private InternalTestHelpers() {}
 
-  static Schema.Field optionalField(int id, String name, Schema schema) {
-    return addId(id, new Schema.Field(name, toOption(schema), null, JsonProperties.NULL_VALUE));
-  }
-
-  static Schema.Field requiredField(int id, String name, Schema schema) {
-    return addId(id, new Schema.Field(name, schema, null, null));
-  }
-
-  static Schema record(String name, Schema.Field... fields) {
-    return Schema.createRecord(name, null, null, false, Arrays.asList(fields));
-  }
-
-  static Schema.Field addId(int id, Schema.Field field) {
-    field.addProp(AvroSchemaUtil.FIELD_ID_PROP, id);
-    return field;
-  }
-
-  static Schema addElementId(int id, Schema schema) {
-    schema.addProp(AvroSchemaUtil.ELEMENT_ID_PROP, id);
-    return schema;
-  }
-
-  static Schema addKeyId(int id, Schema schema) {
-    schema.addProp(AvroSchemaUtil.KEY_ID_PROP, id);
-    return schema;
-  }
-
-  static Schema addValueId(int id, Schema schema) {
-    schema.addProp(AvroSchemaUtil.VALUE_ID_PROP, id);
-    return schema;
-  }
-
-  static void assertEquals(Types.StructType struct, Record expected, Record actual) {
+  public static void assertEquals(Types.StructType struct, StructLike expected, StructLike actual) {
     List<Types.NestedField> fields = struct.fields();
     for (int i = 0; i < fields.size(); i += 1) {
       Type fieldType = fields.get(i).type();
 
-      Object expectedValue = expected.get(i);
-      Object actualValue = actual.get(i);
+      Object expectedValue = expected.get(i, fieldType.typeId().javaClass());
+      Object actualValue = actual.get(i, fieldType.typeId().javaClass());
 
       assertEquals(fieldType, expectedValue, actualValue);
     }
   }
 
-  static void assertEquals(Types.ListType list, List<?> expected, List<?> actual) {
+  public static void assertEquals(Types.ListType list, List<?> expected, List<?> actual) {
     Type elementType = list.elementType();
 
     assertThat(actual).as("List size should match").hasSameSizeAs(expected);
@@ -91,7 +54,7 @@ class AvroTestHelpers {
     }
   }
 
-  static void assertEquals(Types.MapType map, Map<?, ?> expected, Map<?, ?> actual) {
+  public static void assertEquals(Types.MapType map, Map<?, ?> expected, Map<?, ?> actual) {
     Type valueType = map.valueType();
 
     assertThat(actual).as("Map keys should match").hasSameSizeAs(expected);
@@ -126,14 +89,14 @@ class AvroTestHelpers {
         assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
         break;
       case STRUCT:
-        assertThat(expected).as("Expected should be a Record").isInstanceOf(Record.class);
-        assertThat(actual).as("Actual should be a Record").isInstanceOf(Record.class);
-        assertEquals(type.asStructType(), (Record) expected, (Record) actual);
+        assertThat(expected).as("Expected should be a StructLike").isInstanceOf(StructLike.class);
+        assertThat(actual).as("Actual should be a StructLike").isInstanceOf(StructLike.class);
+        assertEquals(type.asStructType(), (StructLike) expected, (StructLike) actual);
         break;
       case LIST:
         assertThat(expected).as("Expected should be a List").isInstanceOf(List.class);
         assertThat(actual).as("Actual should be a List").isInstanceOf(List.class);
-        assertEquals(type.asListType(), (List) expected, (List) actual);
+        assertEquals(type.asListType(), (List<?>) expected, (List<?>) actual);
         break;
       case MAP:
         assertThat(expected).as("Expected should be a Map").isInstanceOf(Map.class);
