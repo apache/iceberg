@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg.connect.transforms;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigException;
@@ -61,13 +63,13 @@ public class KafkaMetadataTransform implements Transformation<SinkRecord> {
     if (field == null) {
       return new NoOpRecordAppender();
     }
-    String[] parts = field.split(",");
-    if (parts.length != 2) {
+    List<String> parts = Splitter.on(',').splitToList(field);
+    if (parts.size() != 2) {
       throw new ConfigException(
           String.format("Could not parse %s for %s", field, EXTERNAL_KAFKA_METADATA));
     }
-    String fieldName = fieldNamer.apply(parts[0]);
-    String fieldValue = parts[1];
+    String fieldName = fieldNamer.apply(parts.get(0));
+    String fieldValue = parts.get(1);
     return new RecordAppender() {
 
       @Override

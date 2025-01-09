@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.common.config.ConfigDef;
@@ -135,7 +136,8 @@ public class JsonToMapTransform<R extends ConnectRecord<R>> implements Transform
           "topic %s partition %s offset %s",
           sinkRecord.topic(), sinkRecord.kafkaPartition(), sinkRecord.kafkaOffset());
     } else {
-      return String.format("topic %s partition %S", record.topic(), record.kafkaPartition());
+      return String.format(
+          Locale.ROOT, "topic %s partition %S", record.topic(), record.kafkaPartition());
     }
   }
 

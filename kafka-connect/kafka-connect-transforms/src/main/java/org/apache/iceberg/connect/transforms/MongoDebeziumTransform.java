@@ -311,6 +311,7 @@ public class MongoDebeziumTransform implements Transformation<SinkRecord> {
     return extractField;
   }
 
+  @SuppressWarnings("unused")
   private String kafkaMetadataForException(SinkRecord record) {
     return String.format(
         "topic: %s, partition: %s, offset: %s",

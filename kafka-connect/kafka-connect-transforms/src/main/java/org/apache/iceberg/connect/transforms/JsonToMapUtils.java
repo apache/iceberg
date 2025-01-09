@@ -204,15 +204,22 @@ class JsonToMapUtils {
             field -> {
               JsonNode element = node.get(field.name());
               Schema.Type targetType = field.schema().type();
-              if (targetType == Schema.Type.ARRAY) {
-                struct.put(
-                    field.name(),
-                    populateArray(
-                        element, field.schema().valueSchema(), field.name(), Lists.newArrayList()));
-              } else if (targetType == Schema.Type.MAP) {
-                struct.put(field.name(), populateMap(element, Maps.newHashMap()));
-              } else {
-                struct.put(field.name(), extractValue(element, targetType, field.name()));
+              switch (targetType) {
+                case ARRAY:
+                  struct.put(
+                      field.name(),
+                      populateArray(
+                          element,
+                          field.schema().valueSchema(),
+                          field.name(),
+                          Lists.newArrayList()));
+                  break;
+                case MAP:
+                  struct.put(field.name(), populateMap(element, Maps.newHashMap()));
+                  break;
+                default:
+                  struct.put(field.name(), extractValue(element, targetType, field.name()));
+                  break;
               }
             });
     return struct;
