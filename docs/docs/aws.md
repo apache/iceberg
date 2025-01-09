@@ -450,12 +450,11 @@ For applications reading Parquet data, including Iceberg manifests, specific set
 
 | Property                           | Recommended value | Description                                                                            |
 |------------------------------------|-------------------|----------------------------------------------------------------------------------------|
-| fs.s3a.experimental.input.fadvise  | parquet, random   | Optimizes file reading for random IO, or, if explicitly supported, parquet files       |
-| fs.s3a.vectored.read.min.seek.size | 128M              | Threshold below which "nearby" Vector IO ranges are coalesced into single GET requests |
+| iceberg.hadoop.bulk.delete.enabled | true              | Iceberg to use Hadoop bulk delete API, where available                          |
 | parquet.hadoop.vectored.io.enabled | true              | Flag to enable Vector IO in parquet                                                    |
-| iceberg.hadoop.bulk.delete.enabled | true              | Iceberg to use Hadoop 3.4.1+ bulk delete API, where available                          |
-
-Optional properties
+| fs.s3a.vectored.read.min.seek.size | 128K              | Threshold below which "nearby" Vector IO ranges are coalesced into single GET requests |
+| fs.s3a.experimental.input.fadvise      | parquet,vector,random,adaptive              | Preferred read policy when opening files.                                   |
+| fs.iostatistics.logging.level      | info              | Print IO statistics summary when closing filesystems                                   |
 
 
 ```shell
@@ -463,11 +462,23 @@ spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCata
     --conf spark.sql.catalog.my_catalog.warehouse=s3a://my-bucket/my/key/prefix \
     --conf spark.sql.catalog.my_catalog.type=glue \
     --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.hadoop.HadoopFileIO \
-    --conf "spark.sql.catalog.my_catalog.fs.s3a.experimental.input.fadvise=parquet, random" \
-    --conf spark.sql.catalog.my_catalog.fs.s3a.vectored.read.min.seek.size=128M \
-    --conf spark.sql.catalog.my_catalog.parquet.hadoop.vectored.io.enabled=true
-    --conf spark.sql.catalog.my_catalog.iceberg.hadoop.bulk.delete.enabled=true
+    --conf spark.sql.catalog.my_catalog.parquet.hadoop.vectored.io.enabled=true \
+    --conf spark.sql.catalog.my_catalog.iceberg.hadoop.bulk.delete.enabled=true \
+    --conf spark.hadoop.fs.s3a.vectored.read.min.seek.size=128M \
+    --conf spark.hadoop.fs.s3a.experimental.input.fadvise=parquet,vector,random,adaptive 
 ```
+Notes
+
+The property `fs.s3a.vectored.read.min.seek.size` sets the threshold below which adjacent requests are coalesced into single GET requests.
+This can compensate for S3 request latency by combining requests and discarding the data between them.
+The recommended value is based on the [Facebook Velox paper](https://research.facebook.com/publications/velox-metas-unified-execution-engine/)
+
+> IO reads for nearby columns are typically coalesced (merged) if the gap between them is small enough
+> (currently about 20K for SSD and 500K for disaggregated storage),
+> aiming to serve neighboring reads in as few IO reads as possible.   
+
+
+The `fs.iostatistics.logging.level` is entirely optional; all it does is print filesystem-level statistics when a process is shut down. Iceberg does not collect statistics across a single job.
 
 ### S3 Write Checksum Verification
 
