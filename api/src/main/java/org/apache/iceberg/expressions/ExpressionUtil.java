@@ -510,6 +510,10 @@ public class ExpressionUtil {
     }
     return sanitizedValues;
   }
+  
+  private String value(BoundLiteralPredicate<?> pred) {
+    return sanitize(pred.term().type(), pred.literal(), nowMicros, today);
+  }
 
   private static String sanitize(Type type, Object value, long now, int today) {
     switch (type.typeId()) {
