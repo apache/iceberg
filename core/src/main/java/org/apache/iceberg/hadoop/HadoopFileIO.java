@@ -63,6 +63,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   private static final Logger LOG = LoggerFactory.getLogger(HadoopFileIO.class);
   private static final String DELETE_FILE_PARALLELISM = "iceberg.hadoop.delete-file-parallelism";
+
   /** Is bulk delete enabled on hadoop runtimes with API support: {@value}. */
   public static final String BULK_DELETE_ENABLED = "iceberg.hadoop.bulk.delete.enabled";
 

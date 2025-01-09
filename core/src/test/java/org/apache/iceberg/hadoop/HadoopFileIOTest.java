@@ -112,9 +112,7 @@ public class HadoopFileIOTest {
    * the {@code WrappedIO} class.
    */
   private void assumeHadoopBulkDeleteAvailable() {
-    assumeThat(bulkDeleteAvailable)
-        .describedAs("Bulk Delete methods available")
-        .isTrue();
+    assumeThat(bulkDeleteAvailable).describedAs("Bulk Delete methods available").isTrue();
   }
 
   /**
