@@ -19,7 +19,7 @@
 package org.debezium.connector.mongodb.transforms;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
 import java.util.Map.Entry;
@@ -98,7 +98,7 @@ public class MongoArrayConverterTest {
   private SchemaBuilder builder;
 
   @BeforeEach
-  public void setup() throws Exception {
+  public void setUpBeforeEach() throws Exception {
     builder = SchemaBuilder.struct().name("array");
   }
 
@@ -107,13 +107,13 @@ public class MongoArrayConverterTest {
     final MongoDataConverter converter = new MongoDataConverter(ArrayEncoding.ARRAY);
     final BsonDocument val = BsonDocument.parse(HETEROGENOUS_ARRAY);
 
-    assertThrows(
-        RuntimeException.class,
-        () -> {
-          for (Entry<String, BsonValue> entry : val.entrySet()) {
-            converter.addFieldSchema(entry, builder);
-          }
-        });
+    assertThatThrownBy(
+            () -> {
+              for (Entry<String, BsonValue> entry : val.entrySet()) {
+                converter.addFieldSchema(entry, builder);
+              }
+            })
+        .isInstanceOf(RuntimeException.class);
   }
 
   @Test
@@ -121,13 +121,13 @@ public class MongoArrayConverterTest {
     final MongoDataConverter converter = new MongoDataConverter(ArrayEncoding.ARRAY);
     final BsonDocument val = BsonDocument.parse(HETEROGENOUS_DOCUMENT_IN_ARRAY);
 
-    assertThrows(
-        RuntimeException.class,
-        () -> {
-          for (Entry<String, BsonValue> entry : val.entrySet()) {
-            converter.addFieldSchema(entry, builder);
-          }
-        });
+    assertThatThrownBy(
+            () -> {
+              for (Entry<String, BsonValue> entry : val.entrySet()) {
+                converter.addFieldSchema(entry, builder);
+              }
+            })
+        .isInstanceOf(RuntimeException.class);
   }
 
   @Test
@@ -177,13 +177,13 @@ public class MongoArrayConverterTest {
   public void shouldCreateStructForHomogenousArray() {
     final MongoDataConverter converter = new MongoDataConverter(ArrayEncoding.ARRAY);
     final BsonDocument val = BsonDocument.parse(HOMOGENOUS_ARRAYS);
-    final SchemaBuilder builder = SchemaBuilder.struct().name("array");
+    final SchemaBuilder schemaBuilder = SchemaBuilder.struct().name("array");
 
     for (Entry<String, BsonValue> entry : val.entrySet()) {
-      converter.addFieldSchema(entry, builder);
+      converter.addFieldSchema(entry, schemaBuilder);
     }
 
-    final Schema finalSchema = builder.build();
+    final Schema finalSchema = schemaBuilder.build();
     final Struct struct = new Struct(finalSchema);
 
     for (Entry<String, BsonValue> entry : val.entrySet()) {

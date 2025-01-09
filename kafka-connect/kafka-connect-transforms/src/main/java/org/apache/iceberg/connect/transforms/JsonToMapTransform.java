@@ -38,7 +38,7 @@ public class JsonToMapTransform<R extends ConnectRecord<R>> implements Transform
 
   public static final String JSON_LEVEL = "json.root";
 
-  private static final ObjectReader mapper = new ObjectMapper().reader();
+  private static final ObjectReader MAPPER = new ObjectMapper().reader();
 
   private boolean startAtRoot = false;
 
@@ -77,7 +77,7 @@ public class JsonToMapTransform<R extends ConnectRecord<R>> implements Transform
     JsonNode obj;
 
     try {
-      obj = mapper.readTree(json);
+      obj = MAPPER.readTree(json);
     } catch (Exception e) {
       throw new JsonToMapException(
           String.format(

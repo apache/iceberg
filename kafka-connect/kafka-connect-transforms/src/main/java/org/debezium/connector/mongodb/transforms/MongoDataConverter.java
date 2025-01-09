@@ -18,14 +18,14 @@
  */
 package org.debezium.connector.mongodb.transforms;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -156,7 +156,7 @@ public class MongoDataConverter {
         if (keyvalueforStruct.getValue().asArray().isEmpty()) {
           switch (arrayEncoding) {
             case ARRAY:
-              colValue = new ArrayList<>();
+              colValue = Lists.newArrayList();
               break;
             case DOCUMENT:
               final Schema fieldSchema = schema.field(key).schema();
@@ -168,7 +168,7 @@ public class MongoDataConverter {
             case ARRAY:
               BsonType valueType = keyvalueforStruct.getValue().asArray().get(0).getBsonType();
               List<BsonValue> arrValues = keyvalueforStruct.getValue().asArray().getValues();
-              ArrayList<Object> list = new ArrayList<>();
+              List<Object> list = Lists.newArrayList();
 
               arrValues.forEach(
                   arrValue -> {
@@ -184,7 +184,7 @@ public class MongoDataConverter {
               break;
             case DOCUMENT:
               final BsonArray array = keyvalueforStruct.getValue().asArray();
-              final Map<String, BsonValue> convertedArray = new HashMap<>();
+              final Map<String, BsonValue> convertedArray = Maps.newHashMap();
               final Schema arraySchema = schema.field(key).schema();
               final Struct arrayStruct = new Struct(arraySchema);
               for (int i = 0; i < array.size(); i++) {
@@ -209,8 +209,10 @@ public class MongoDataConverter {
     struct.put(key, keyvalueforStruct.getValue().isNull() ? null : colValue);
   }
 
+  // TODO FIX Cyclomatic Complexity is 30 (max allowed is 12). [CyclomaticComplexity]
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private void convertFieldValue(
-      Schema valueSchema, BsonType valueType, BsonValue arrValue, ArrayList<Object> list) {
+      Schema valueSchema, BsonType valueType, BsonValue arrValue, List<Object> list) {
     if (arrValue.getBsonType() == BsonType.STRING && valueType == BsonType.STRING) {
       String temp = arrValue.asString().getValue();
       list.add(temp);
@@ -251,7 +253,7 @@ public class MongoDataConverter {
       }
       list.add(struct1);
     } else if (arrValue.getBsonType() == BsonType.ARRAY && valueType == BsonType.ARRAY) {
-      ArrayList<Object> subList = new ArrayList<>();
+      List<Object> subList = Lists.newArrayList();
       final Schema subValueSchema;
       if (Arrays.asList(BsonType.ARRAY, BsonType.DOCUMENT)
           .contains(arrValue.asArray().get(0).getBsonType())) {
@@ -266,8 +268,8 @@ public class MongoDataConverter {
     }
   }
 
-  protected String arrayElementStructName(int i) {
-    return "_" + i;
+  protected String arrayElementStructName(int index) {
+    return "_" + index;
   }
 
   public void addFieldSchema(Entry<String, BsonValue> keyValuesforSchema, SchemaBuilder builder) {
@@ -370,7 +372,7 @@ public class MongoDataConverter {
               final BsonArray array = keyValuesforSchema.getValue().asArray();
               final SchemaBuilder arrayStructBuilder =
                   SchemaBuilder.struct().name(builder.name() + "." + key).optional();
-              final Map<String, BsonValue> convertedArray = new HashMap<>();
+              final Map<String, BsonValue> convertedArray = Maps.newHashMap();
               for (int i = 0; i < array.size(); i++) {
                 convertedArray.put(arrayElementStructName(i), array.get(i));
               }
@@ -409,12 +411,12 @@ public class MongoDataConverter {
       case DOCUMENT:
         final SchemaBuilder documentSchemaBuilder =
             SchemaBuilder.struct().name(builder.name() + "." + key).optional();
-        final Map<String, BsonType> union = new HashMap<>();
+        final Map<String, BsonType> union = Maps.newHashMap();
         if (value.isArray()) {
           value
               .asArray()
               .forEach(f -> subSchema(documentSchemaBuilder, union, f.asDocument(), true));
-          if (documentSchemaBuilder.fields().size() == 0) {
+          if (documentSchemaBuilder.fields().isEmpty()) {
             value
                 .asArray()
                 .forEach(f -> subSchema(documentSchemaBuilder, union, f.asDocument(), false));
@@ -443,9 +445,9 @@ public class MongoDataConverter {
       final String key = arrayDoc.getKey();
       if (emptyChecker
           && ((arrayDoc.getValue() instanceof BsonDocument
-                  && ((BsonDocument) arrayDoc.getValue()).size() == 0)
+                  && ((BsonDocument) arrayDoc.getValue()).isEmpty())
               || (arrayDoc.getValue() instanceof BsonArray
-                  && ((BsonArray) arrayDoc.getValue()).size() == 0))) {
+                  && ((BsonArray) arrayDoc.getValue()).isEmpty()))) {
         continue;
       }
       final BsonType prevType = union.putIfAbsent(key, arrayDoc.getValue().getBsonType());
@@ -459,7 +461,7 @@ public class MongoDataConverter {
 
   private void testType(SchemaBuilder builder, String key, BsonValue value, BsonType valueType) {
     if (valueType == BsonType.DOCUMENT) {
-      final Map<String, BsonType> union = new HashMap<>();
+      final Map<String, BsonType> union = Maps.newHashMap();
       for (BsonValue element : value.asArray()) {
         final BsonDocument arrayDocs = element.asDocument();
         for (Entry<String, BsonValue> arrayDoc : arrayDocs.entrySet()) {

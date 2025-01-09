@@ -50,7 +50,7 @@ public class MongoDataConverterTest {
   private MongoDataConverter converter;
 
   @BeforeEach
-  public void setup() throws Exception {
+  public void setUpBeforeEach() throws Exception {
     record = getFile("restaurants5.json");
     val = BsonDocument.parse(record);
     builder = SchemaBuilder.struct().name("pub");

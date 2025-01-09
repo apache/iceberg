@@ -19,8 +19,7 @@
 package org.apache.iceberg.connect.transforms;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -85,7 +84,7 @@ public class JsonToMapTransformTest extends FileLoads {
               offset,
               timestamp,
               TimestampType.CREATE_TIME);
-      assertThrows(JsonToMapException.class, () -> smt.apply(record));
+      assertThatThrownBy(() -> smt.apply(record)).isInstanceOf(JsonToMapException.class);
     }
   }
 
@@ -104,7 +103,7 @@ public class JsonToMapTransformTest extends FileLoads {
               offset,
               timestamp,
               TimestampType.CREATE_TIME);
-      assertThrows(JsonToMapException.class, () -> smt.apply(record));
+      assertThatThrownBy(() -> smt.apply(record)).isInstanceOf(JsonToMapException.class);
     }
   }
 
@@ -132,7 +131,7 @@ public class JsonToMapTransformTest extends FileLoads {
                   "payload",
                   SchemaBuilder.map(Schema.STRING_SCHEMA, Schema.STRING_SCHEMA).optional().build())
               .build();
-      assertInstanceOf(Struct.class, result.value());
+      assertThat(result.value()).isInstanceOf(Struct.class);
       Struct resultStruct = (Struct) result.value();
 
       Map<String, String> expectedValue = Maps.newHashMap();
@@ -159,7 +158,7 @@ public class JsonToMapTransformTest extends FileLoads {
               timestamp,
               TimestampType.CREATE_TIME);
       SinkRecord result = smt.apply(record);
-      assertInstanceOf(Struct.class, result.value());
+      assertThat(result.value()).isInstanceOf(Struct.class);
       Struct resultStruct = (Struct) result.value();
       assertThat(resultStruct.schema().fields().size()).isEqualTo(19);
       assertThat(resultStruct.get("string")).isEqualTo("string");

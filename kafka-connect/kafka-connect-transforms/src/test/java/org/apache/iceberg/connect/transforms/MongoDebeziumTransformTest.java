@@ -19,7 +19,7 @@
 package org.apache.iceberg.connect.transforms;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -563,6 +563,6 @@ public class MongoDebeziumTransformTest {
             TimestampType.CREATE_TIME);
 
     MongoDebeziumTransform smt = getTransformer("array");
-    assertThrows(IllegalArgumentException.class, () -> smt.apply(record));
+    assertThatThrownBy(() -> smt.apply(record)).isInstanceOf(IllegalArgumentException.class);
   }
 }

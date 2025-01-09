@@ -42,9 +42,8 @@ public enum ArrayEncoding {
     if (value == null) {
       return null;
     }
-    value = value.trim();
     for (ArrayEncoding option : ArrayEncoding.values()) {
-      if (option.getValue().equalsIgnoreCase(value)) {
+      if (option.getValue().equalsIgnoreCase(value.trim())) {
         return option;
       }
     }

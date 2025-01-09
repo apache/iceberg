@@ -19,9 +19,7 @@
 package org.apache.iceberg.connect.transforms;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -95,23 +93,23 @@ class JsonToMapUtilsTest extends FileLoads {
         .isEqualTo(3.0);
     assertThat(JsonToMapUtils.extractValue(doubleNode, Schema.Type.FLOAT64, "")).isEqualTo(0.3);
     byte[] byteResult = (byte[]) JsonToMapUtils.extractValue(bytesNode, Schema.Type.BYTES, "");
-    assertArrayEquals(byteResult, Base64.getDecoder().decode("SGVsbG8="));
+    assertThat(byteResult).isEqualTo(Base64.getDecoder().decode("SGVsbG8="));
   }
 
   @Test
   @DisplayName("extractValue converts complex nodes to strings if schema is string")
   public void exactStringsFromComplexNodes() {
     JsonNode arrayObjects = objNode.get("array_objects");
-    assertInstanceOf(ArrayNode.class, arrayObjects);
+    assertThat(arrayObjects).isInstanceOf(ArrayNode.class);
 
     JsonNode nestedObjNode = objNode.get("nested_obj");
-    assertInstanceOf(ObjectNode.class, nestedObjNode);
+    assertThat(nestedObjNode).isInstanceOf(ObjectNode.class);
 
     JsonNode arrayDifferentTypes = objNode.get("array_different_types");
-    assertInstanceOf(ArrayNode.class, arrayDifferentTypes);
+    assertThat(arrayDifferentTypes).isInstanceOf(ArrayNode.class);
 
     JsonNode bigInt = objNode.get("bigInt");
-    assertInstanceOf(BigIntegerNode.class, bigInt);
+    assertThat(bigInt).isInstanceOf(BigIntegerNode.class);
 
     assertThat(JsonToMapUtils.extractValue(arrayObjects, Schema.Type.STRING, ""))
         .isEqualTo("[{\"key\":1}]");
@@ -124,9 +122,9 @@ class JsonToMapUtilsTest extends FileLoads {
   @Test
   @DisplayName("extractSimpleValue throws for non-primitive schema types")
   public void primitiveBasedOnSchemaThrows() {
-    assertThrows(
-        RuntimeException.class,
-        () -> JsonToMapUtils.extractValue(objNode.get("string"), Schema.Type.STRUCT, ""));
+    assertThatThrownBy(
+            () -> JsonToMapUtils.extractValue(objNode.get("string"), Schema.Type.STRUCT, ""))
+        .isInstanceOf(RuntimeException.class);
   }
 
   @Test
@@ -158,7 +156,7 @@ class JsonToMapUtilsTest extends FileLoads {
   @DisplayName("schemaFromNode returns null for empty ObjectNodes")
   public void schemaFromNodeNullEmptyObjectNodes() {
     JsonNode node = objNode.get("empty_obj");
-    assertInstanceOf(ObjectNode.class, node);
+    assertThat(node).isInstanceOf(ObjectNode.class);
     assertThat(JsonToMapUtils.schemaFromNode(node)).isNull();
   }
 
@@ -167,7 +165,7 @@ class JsonToMapUtilsTest extends FileLoads {
       "schemaFromNode returns bytes with logical name decimal with scale 0 for BigInteger nodes")
   public void schemaFromNodeStringForBigInteger() {
     JsonNode node = objNode.get("bigInt");
-    assertInstanceOf(BigIntegerNode.class, node);
+    assertThat(node).isInstanceOf(BigIntegerNode.class);
     assertThat(JsonToMapUtils.schemaFromNode(node)).isEqualTo(JsonToMapUtils.decimalSchema(0));
   }
 
@@ -176,8 +174,8 @@ class JsonToMapUtilsTest extends FileLoads {
   public void schemaFromNodePrimitiveSchemasFromPrimitiveNodes() {
     JsonNode intNode = objNode.get("int");
     JsonNode doubleNode = objNode.get("double");
-    assertInstanceOf(IntNode.class, intNode);
-    assertInstanceOf(DoubleNode.class, doubleNode);
+    assertThat(intNode).isInstanceOf(IntNode.class);
+    assertThat(doubleNode).isInstanceOf(DoubleNode.class);
     assertThat(JsonToMapUtils.schemaFromNode(intNode)).isEqualTo(Schema.OPTIONAL_INT32_SCHEMA);
     assertThat(JsonToMapUtils.schemaFromNode(doubleNode)).isEqualTo(Schema.OPTIONAL_FLOAT64_SCHEMA);
   }
@@ -186,7 +184,7 @@ class JsonToMapUtilsTest extends FileLoads {
   @DisplayName("schemaFromNode returns Map<String, String> for ObjectNodes")
   public void schmefromNodeObjectNodesAsMaps() {
     JsonNode node = objNode.get("nested_obj");
-    assertInstanceOf(ObjectNode.class, node);
+    assertThat(node).isInstanceOf(ObjectNode.class);
     assertThat(JsonToMapUtils.schemaFromNode(node))
         .isEqualTo(
             SchemaBuilder.map(Schema.STRING_SCHEMA, Schema.STRING_SCHEMA).optional().build());
@@ -196,7 +194,7 @@ class JsonToMapUtilsTest extends FileLoads {
   @DisplayName("schemaFromNode returns Array String schema for ArrayNodes with ObjectNode elements")
   public void schemaFromNodeArrayStringFromArrayObjects() {
     JsonNode arrayObjects = objNode.get("array_objects");
-    assertInstanceOf(ArrayNode.class, arrayObjects);
+    assertThat(arrayObjects).isInstanceOf(ArrayNode.class);
     assertThat(JsonToMapUtils.schemaFromNode(arrayObjects))
         .isEqualTo(JsonToMapUtils.ARRAY_MAP_OPTIONAL_STRING);
   }
@@ -205,7 +203,7 @@ class JsonToMapUtilsTest extends FileLoads {
   @DisplayName("schemaFromNode returns Array String schema for ArrayNodes with inconsistent types")
   public void schemaFromNodeArrayStringFromInconsistentArrayNodes() {
     JsonNode inconsistent = objNode.get("array_different_types");
-    assertInstanceOf(ArrayNode.class, inconsistent);
+    assertThat(inconsistent).isInstanceOf(ArrayNode.class);
     assertThat(JsonToMapUtils.schemaFromNode(inconsistent))
         .isEqualTo(SchemaBuilder.array(Schema.OPTIONAL_STRING_SCHEMA).optional().build());
   }
@@ -215,7 +213,7 @@ class JsonToMapUtilsTest extends FileLoads {
       "schemaFromNode returns Array[Array[String]] for ArrayNodes of ArrayNodes with inconsistent types")
   public void schemaFromNodeArraysArrays() {
     JsonNode node = objNode.get("array_array_inconsistent");
-    assertInstanceOf(ArrayNode.class, node);
+    assertThat(node).isInstanceOf(ArrayNode.class);
 
     Schema expected =
         SchemaBuilder.array(SchemaBuilder.array(Schema.OPTIONAL_STRING_SCHEMA).optional().build())
@@ -230,7 +228,7 @@ class JsonToMapUtilsTest extends FileLoads {
       "schemaFromNode returns Array[Array[Map<String, String>]] for ArrayNodes of ArrayNodes of objects")
   public void schemaFromNodeArrayArrayObjects() {
     JsonNode node = objNode.get("array_array_objects");
-    assertInstanceOf(ArrayNode.class, node);
+    assertThat(node).isInstanceOf(ArrayNode.class);
     Schema expected =
         SchemaBuilder.array(JsonToMapUtils.ARRAY_MAP_OPTIONAL_STRING).optional().build();
     Schema result = JsonToMapUtils.schemaFromNode(node);
@@ -241,7 +239,7 @@ class JsonToMapUtilsTest extends FileLoads {
   @DisplayName("schemaFromNode returns Array[Array[Int]] for ArrayNodes of ArrayNodes of IntNode")
   public void schemaFromNodeArrayArrayOfArrayArrayInt() {
     JsonNode node = objNode.get("array_array_int");
-    assertInstanceOf(ArrayNode.class, node);
+    assertThat(node).isInstanceOf(ArrayNode.class);
     Schema expected =
         SchemaBuilder.array(SchemaBuilder.array(Schema.OPTIONAL_INT32_SCHEMA).optional().build())
             .optional()
@@ -254,7 +252,7 @@ class JsonToMapUtilsTest extends FileLoads {
   @DisplayName("schemaFromNode returns null for empty ArrayNodes")
   public void schemaFromNodeNullFromEmptyArray() {
     JsonNode node = objNode.get("empty_arr");
-    assertInstanceOf(ArrayNode.class, node);
+    assertThat(node).isInstanceOf(ArrayNode.class);
     assertThat(JsonToMapUtils.schemaFromNode(node)).isNull();
   }
 
@@ -262,7 +260,7 @@ class JsonToMapUtilsTest extends FileLoads {
   @DisplayName("schemaFromNode returns null for empty Array of Array nodes")
   public void schemaFromNodeEmptyArrayOfEmptyArrays() {
     JsonNode node = objNode.get("empty_arr_arr");
-    assertInstanceOf(ArrayNode.class, node);
+    assertThat(node).isInstanceOf(ArrayNode.class);
     assertThat(JsonToMapUtils.schemaFromNode(node)).isNull();
   }
 
@@ -271,7 +269,7 @@ class JsonToMapUtilsTest extends FileLoads {
       "schemaFromNode returns optional map of optional <string, string> for array of empty object")
   public void schemaFromNodeNullArrayEmptyObject() {
     JsonNode node = objNode.get("array_empty_object");
-    assertInstanceOf(ArrayNode.class, node);
+    assertThat(node).isInstanceOf(ArrayNode.class);
     assertThat(JsonToMapUtils.schemaFromNode(node))
         .isEqualTo(JsonToMapUtils.ARRAY_MAP_OPTIONAL_STRING);
   }
@@ -281,7 +279,7 @@ class JsonToMapUtilsTest extends FileLoads {
       "schemaFromNode returns Array[Map<String, String>] for array of objects if one object is empty")
   public void schemaFromNodeMixedObjectsOneEmpty() {
     JsonNode node = objNode.get("nested_object_contains_empty");
-    assertInstanceOf(ArrayNode.class, node);
+    assertThat(node).isInstanceOf(ArrayNode.class);
     assertThat(JsonToMapUtils.schemaFromNode(node))
         .isEqualTo(JsonToMapUtils.ARRAY_MAP_OPTIONAL_STRING);
   }
@@ -329,9 +327,9 @@ class JsonToMapUtilsTest extends FileLoads {
     assertThat(result.get("empty_string")).isEqualTo("");
 
     // assert empty fields don't show up on the struct
-    assertThrows(RuntimeException.class, () -> result.get("null"));
-    assertThrows(RuntimeException.class, () -> result.get("empty_obj"));
-    assertThrows(RuntimeException.class, () -> result.get("empty_arr"));
-    assertThrows(RuntimeException.class, () -> result.get("empty_arr_arr"));
+    assertThatThrownBy(() -> result.get("null")).isInstanceOf(RuntimeException.class);
+    assertThatThrownBy(() -> result.get("empty_obj")).isInstanceOf(RuntimeException.class);
+    assertThatThrownBy(() -> result.get("empty_arr")).isInstanceOf(RuntimeException.class);
+    assertThatThrownBy(() -> result.get("empty_arr_arr")).isInstanceOf(RuntimeException.class);
   }
 }

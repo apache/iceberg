@@ -19,7 +19,7 @@
 package org.apache.iceberg.connect.transforms;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -83,8 +83,8 @@ public class KafkaMetadataTransformTest {
             TimestampType.CREATE_TIME);
     try (KafkaMetadataTransform smt = new KafkaMetadataTransform()) {
       smt.configure(ImmutableMap.of());
-      assertThrows(RuntimeException.class, () -> smt.apply(recordNotMap));
-      assertThrows(RuntimeException.class, () -> smt.apply(recordNotStruct));
+      assertThatThrownBy(() -> smt.apply(recordNotMap)).isInstanceOf(RuntimeException.class);
+      assertThatThrownBy(() -> smt.apply(recordNotStruct)).isInstanceOf(RuntimeException.class);
     }
   }
 
@@ -181,9 +181,12 @@ public class KafkaMetadataTransformTest {
   @DisplayName("throw if external field cannot be parsed")
   public void testAppendsToStuctsExternalShouldThrowIfInvalid() {
     try (KafkaMetadataTransform smt = new KafkaMetadataTransform()) {
-      assertThrows(
-          RuntimeException.class,
-          () -> smt.configure(ImmutableMap.of("external_field", "external,*,,,value")));
+
+      assertThatThrownBy(
+              () -> {
+                smt.configure(ImmutableMap.of("external_field", "external,*,,,value"));
+              })
+          .isInstanceOf(RuntimeException.class);
     }
   }
 
