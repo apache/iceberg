@@ -24,8 +24,8 @@ import java.util.Map;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.util.PropertyUtil;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,8 +45,8 @@ public class RESTCompatibilityKitCatalogTests extends CatalogTests<RESTCatalog> 
         .doesNotContainAnyElementsOf(RCKUtils.TEST_NAMESPACES);
   }
 
-  @BeforeEach
-  void before() {
+  @AfterEach
+  void after() {
     try {
       RCKUtils.purgeCatalogTestEntries(restCatalog);
     } catch (Exception e) {
