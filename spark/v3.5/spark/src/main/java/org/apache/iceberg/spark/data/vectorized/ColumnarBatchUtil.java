@@ -124,7 +124,7 @@ public class ColumnarBatchUtil {
       return true;
     }
 
-    if (!eqDeleteFilter.test(row)) {
+    if (eqDeleteFilter != null && !eqDeleteFilter.test(row)) {
       return true;
     }
 
