@@ -151,14 +151,14 @@ public class TableProperties {
       "write.delete.parquet.compression-level";
   public static final String PARQUET_COMPRESSION_LEVEL_DEFAULT = null;
 
-  public static final String PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT =
-      "write.parquet.row-group-check-min-record-count";
+  public static final String PARQUET_PAGE_SIZE_CHECK_MIN_RECORD_COUNT =
+      "write.parquet.page-size-check-min-record-count";
   public static final String DELETE_PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT =
       "write.delete.parquet.row-group-check-min-record-count";
   public static final int PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT_DEFAULT = 100;
 
-  public static final String PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT =
-      "write.parquet.row-group-check-max-record-count";
+  public static final String PARQUET_PAGE_SIZE_CHECK_MAX_RECORD_COUNT =
+      "write.parquet.page-size-check-max-record-count";
   public static final String DELETE_PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT =
       "write.delete.parquet.row-group-check-max-record-count";
   public static final int PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT_DEFAULT = 10000;
