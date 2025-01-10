@@ -110,6 +110,8 @@ public class TableMetadataParser {
   static final String METADATA_LOG = "metadata-log";
   static final String STATISTICS = "statistics";
   static final String PARTITION_STATISTICS = "partition-statistics";
+  static final String ROW_LINEAGE = "row-lineage";
+  static final String LAST_ROW_ID = "last-row-id";
 
   public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
     internalWrite(metadata, outputFile, true);
@@ -218,6 +220,11 @@ public class TableMetadataParser {
       generator.writeNumberField(CURRENT_SNAPSHOT_ID, metadata.currentSnapshot().snapshotId());
     } else {
       generator.writeNullField(CURRENT_SNAPSHOT_ID);
+    }
+
+    if (metadata.rowLineage() != null && metadata.rowLineage()) {
+      generator.writeBooleanField(ROW_LINEAGE, metadata.rowLineage());
+      generator.writeNumberField(LAST_ROW_ID, metadata.lastRowId());
     }
 
     toJson(metadata.refs(), generator);
@@ -454,6 +461,12 @@ public class TableMetadataParser {
       currentSnapshotId = -1L;
     }
 
+    Boolean rowLineage = JsonUtil.getBoolOrNull(ROW_LINEAGE, node);
+    Long lastRowId = null;
+    if (rowLineage != null && rowLineage) {
+      lastRowId = JsonUtil.getLongOrNull(LAST_ROW_ID, node);
+    }
+
     long lastUpdatedMillis = JsonUtil.getLong(LAST_UPDATED_MILLIS, node);
 
     Map<String, SnapshotRef> refs;
@@ -545,7 +558,9 @@ public class TableMetadataParser {
         refs,
         statisticsFiles,
         partitionStatisticsFiles,
-        ImmutableList.of() /* no changes from the file */);
+        ImmutableList.of() /* no changes from the file */,
+        rowLineage,
+        lastRowId);
   }
 
   private static Map<String, SnapshotRef> refsFromJson(JsonNode refMap) {

@@ -209,7 +209,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         deletedFiles,
         deletedRows,
         stats.summaries(),
-        keyMetadataBuffer);
+        keyMetadataBuffer,
+        null);
   }
 
   @Override

@@ -48,7 +48,8 @@ class V3Metadata {
           ManifestFile.EXISTING_ROWS_COUNT.asRequired(),
           ManifestFile.DELETED_ROWS_COUNT.asRequired(),
           ManifestFile.PARTITION_SUMMARIES,
-          ManifestFile.KEY_METADATA);
+          ManifestFile.KEY_METADATA,
+          ManifestFile.FIRST_ROW_ID);
 
   /**
    * A wrapper class to write any ManifestFile implementation to Avro using the v3 write schema.
@@ -141,6 +142,8 @@ class V3Metadata {
           return wrapped.partitions();
         case 14:
           return wrapped.keyMetadata();
+        case 15:
+          return wrapped.firstRowId();
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
@@ -277,7 +280,8 @@ class V3Metadata {
         DataFile.SORT_ORDER_ID,
         DataFile.REFERENCED_DATA_FILE,
         DataFile.CONTENT_OFFSET,
-        DataFile.CONTENT_SIZE);
+        DataFile.CONTENT_SIZE,
+        DataFile.FIRST_ROW_ID);
   }
 
   static class IndexedManifestEntry<F extends ContentFile<F>>
@@ -469,6 +473,8 @@ class V3Metadata {
           } else {
             return null;
           }
+        case 19:
+          return wrapped.firstRowId();
       }
       throw new IllegalArgumentException("Unknown field ordinal: " + pos);
     }

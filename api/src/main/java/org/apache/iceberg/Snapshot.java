@@ -171,4 +171,18 @@ public interface Snapshot extends Serializable {
   default Integer schemaId() {
     return null;
   }
+
+  /**
+   * For row lineage. The first row identifier for the first newly added row within this snapshot.
+   * All rows created during this snapshot will be assigned an id larger than this value. This
+   * snapshot can contain rows added in previous snapshots with an id less than this value.
+   *
+   * <p>A null value indicates that row-lineage was not enabled when this snapshot was created.
+   *
+   * @return the first row-lineage row-id to be used in this snapshot or null if row-lineage was not
+   *     enabled
+   */
+  default Long firstRowId() {
+    return null;
+  }
 }

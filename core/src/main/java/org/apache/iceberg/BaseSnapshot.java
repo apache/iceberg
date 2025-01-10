@@ -43,6 +43,7 @@ class BaseSnapshot implements Snapshot {
   private final Map<String, String> summary;
   private final Integer schemaId;
   private final String[] v1ManifestLocations;
+  private final Long firstRowId;
 
   // lazily initialized
   private transient List<ManifestFile> allManifests = null;
@@ -61,7 +62,8 @@ class BaseSnapshot implements Snapshot {
       String operation,
       Map<String, String> summary,
       Integer schemaId,
-      String manifestList) {
+      String manifestList,
+      Long firstRowId) {
     this.sequenceNumber = sequenceNumber;
     this.snapshotId = snapshotId;
     this.parentId = parentId;
@@ -71,6 +73,7 @@ class BaseSnapshot implements Snapshot {
     this.schemaId = schemaId;
     this.manifestListLocation = manifestList;
     this.v1ManifestLocations = null;
+    this.firstRowId = firstRowId;
   }
 
   BaseSnapshot(
@@ -81,7 +84,8 @@ class BaseSnapshot implements Snapshot {
       String operation,
       Map<String, String> summary,
       Integer schemaId,
-      String[] v1ManifestLocations) {
+      String[] v1ManifestLocations,
+      Long firstRowId) {
     this.sequenceNumber = sequenceNumber;
     this.snapshotId = snapshotId;
     this.parentId = parentId;
@@ -91,6 +95,7 @@ class BaseSnapshot implements Snapshot {
     this.schemaId = schemaId;
     this.manifestListLocation = null;
     this.v1ManifestLocations = v1ManifestLocations;
+    this.firstRowId = firstRowId;
   }
 
   @Override
@@ -218,6 +223,11 @@ class BaseSnapshot implements Snapshot {
   @Override
   public String manifestListLocation() {
     return manifestListLocation;
+  }
+
+  @Override
+  public Long firstRowId() {
+    return firstRowId;
   }
 
   private void cacheDeleteFileChanges(FileIO fileIO) {

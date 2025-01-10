@@ -133,6 +133,11 @@ public interface ContentFile<F> {
     return null;
   }
 
+  /** Returns `_row_id` for the first row in the data file */
+  default Long firstRowId() {
+    return null;
+  }
+
   /**
    * Returns the data sequence number of the file.
    *
