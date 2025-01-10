@@ -33,8 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 public class TestInternalAvro extends AvroDataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    List<StructLike> expected =
-        RandomInternalData.generate(schema, 100, System.currentTimeMillis());
+    List<StructLike> expected = RandomInternalData.generate(schema, 100, 42L);
 
     OutputFile outputFile = new InMemoryOutputFile();
 
