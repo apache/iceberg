@@ -195,7 +195,7 @@ public class TestBloomRowGroupFilter {
 
     // build struct field schema
     org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(UNDERSCORE_STRUCT_FIELD_TYPE);
-    String compatibleFieldName = AvroSchemaUtil.makeCompatibleName("_incompatible-name");
+    String compatibleFieldName = "_incompatible_x2Dname";
 
     OutputFile outFile = Files.localOutput(temp);
     try (FileAppender<Record> appender =
