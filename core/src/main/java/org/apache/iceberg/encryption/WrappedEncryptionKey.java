@@ -18,23 +18,33 @@
  */
 package org.apache.iceberg.encryption;
 
-import java.util.Map;
-import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import java.io.Serializable;
+import java.nio.ByteBuffer;
 
-public class EncryptionTestHelpers {
+/**
+ * This class keeps a wrapped (KMS-encrypted) version of the keys used to encrypt manifest list key
+ * metadata. These keys have an ID and a creation timestamp.
+ */
+public class WrappedEncryptionKey implements Serializable {
+  private final String keyID;
+  private final ByteBuffer wrappedKey;
+  private final long timestamp;
 
-  private EncryptionTestHelpers() {}
+  public WrappedEncryptionKey(String keyID, ByteBuffer wrappedKey, long timestamp) {
+    this.keyID = keyID;
+    this.wrappedKey = wrappedKey;
+    this.timestamp = timestamp;
+  }
 
-  public static EncryptionManager createEncryptionManager() {
-    Map<String, String> catalogProperties = Maps.newHashMap();
-    catalogProperties.put(
-        CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getCanonicalName());
+  public String id() {
+    return keyID;
+  }
 
-    return EncryptionUtil.createEncryptionManager(
-        UnitestKMS.MASTER_KEY_NAME1,
-        TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT,
-        EncryptionUtil.createKmsClient(catalogProperties));
+  public ByteBuffer wrappedKey() {
+    return wrappedKey;
+  }
+
+  public long timestamp() {
+    return timestamp;
   }
 }
