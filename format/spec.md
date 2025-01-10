@@ -205,20 +205,40 @@ Supported primitive types are defined in the table below. Primitive types added 
 |                  | **`uuid`**         | Universally unique identifiers                                           | Should use 16-byte fixed                         |
 |                  | **`fixed(L)`**     | Fixed-length byte array of length L                                      |                                                  |
 |                  | **`binary`**       | Arbitrary-length byte array                                              |                                                  |
-| [v3](#version-3) | **`geometry(C)`**  | Geometry features from [OGC – Simple feature access](https://portal.ogc.org/files/?artifact_id=25355). Edges interpolation is always linear/planar. See [Appendix G](#appendix-g-geospatial-notes). Parameterized by crs C [4]. If not specified, C is `OGC:CRS84`. |                                                        |
-| [v3](#version-3) | **`geography(C, A)`**  | Geometry features from [OGC – Simple feature access](https://portal.ogc.org/files/?artifact_id=25355). See [Appendix G](#appendix-g-geospatial-notes). Parameterized by crs C[5] and edge-interpolation algoritm A [6]. If not specified, C is `OGC:CRS84`. |                                                        |
-
+| [v3](#version-3) | **`geometry(C)`**  | Geometry features from [OGC – Simple feature access][1001]. Edge-interpolation is always linear/planar. See [Appendix G](#appendix-g-geospatial-notes). Parameterized by CRS C. If not specified, C is `OGC:CRS84`. |                                                        |
+| [v3](#version-3) | **`geography(C, A)`**  | Geometry features from [OGC – Simple feature access][1001]. See [Appendix G](#appendix-g-geospatial-notes). Parameterized by CRS C and edge-interpolation algoritm A. If not specified, C is `OGC:CRS84`. |                                                        |
 
 Notes:
 
 1. Timestamp values _without time zone_ represent a date and time of day regardless of zone: the time value is independent of zone adjustments (`2017-11-16 17:10:34` is always retrieved as `2017-11-16 17:10:34`).
 2. Timestamp values _with time zone_ represent a point in time: values are stored as UTC and do not retain a source time zone (`2017-11-16 17:10:34 PST` is stored/retrieved as `2017-11-17 01:10:34 UTC` and these values are considered identical).
 3. Character strings must be stored as UTF-8 encoded byte arrays.
-4. CRS (coordinate reference system) is a mapping of how coordinates refer to locations on Earth. See [Appendix G](#appendix-g-geospatial-notes) for specifying custom CRS. If this field is null (no custom crs provided), CRS defaults to `OGC:CRS84`, which means the data must be stored in longitude, latitude based on the WGS84 datum. Fixed and cannot be changed by schema evolution.
-5. See [4]. This must be a geographic CRS, where longitudes are bound by [-180, 180] and latitudes are bound by [-90, 90].
-6. Edge-interpolation algorithm. This is a mandatory field and cannot be changed by schema evolution. See [Appendix G](#appendix-g-geospatial-notes).
 For details on how to serialize a schema to JSON, see Appendix C.
 
+[1001]: <https://portal.ogc.org/files/?artifact_id=25355> "OGC Simple feature access"
+
+##### CRS
+
+For `geometry` and `geography` types, the parameter C refers to the CRS (coordinate reference system), a mapping of how coordinates refer to locations on Earth.
+
+The default CRS value `OGC:CRS84` means that the objects must be stored in longitude, latitude based on the WGS84 datum.
+
+Custom CRS values can be specified by a string of the format `$type:$content`, where `type` is one of the following values:
+
+* `srid`: [Spatial reference identifier](https://en.wikipedia.org/wiki/Spatial_reference_system#Identifier), `content` is the identifier itself.
+* `projjson`: [PROJJSON](https://proj.org/en/stable/specifications/projjson.html), `content` is the name of a table property where the projjson string is stored.
+
+For `geography` types, the custom CRS must be geographic, with longitudes bound by [-180, 180] and latitudes bound by [-90, 90].
+
+##### Edge-Interpolation Algorithm
+
+For `geography` types, an additional parameter A specifies an algorithm for interpolating edges, and is one of the following values:
+
+* `spherical`: edges are interpolated as geodesics on a sphere.
+* `vincenty`: [https://en.wikipedia.org/wiki/Vincenty%27s_formulae](https://en.wikipedia.org/wiki/Vincenty%27s_formulae)
+* `thomas`: Thomas, Paul D. Spheroidal geodesics, reference systems, & local geometry. US Naval Oceanographic Office, 1970.
+* `andoyer`: Thomas, Paul D. Mathematical models for navigation systems. US Naval Oceanographic Office, 1965.
+* `karney`: [Karney, Charles FF. "Algorithms for geodesics." Journal of Geodesy 87 (2013): 43-55](https://link.springer.com/content/pdf/10.1007/s00190-012-0578-z.pdf), and [GeographicLib](https://geographiclib.sourceforge.io/)
 
 #### Default values
 
@@ -589,8 +609,8 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 | _optional_ | _optional_ | _optional_ | **`110  null_value_counts`**      | `map<121: int, 122: long>`                                                  | Map from column id to number of null values in the column                                                                                                                                                          |
 | _optional_ | _optional_ | _optional_ | **`137  nan_value_counts`**       | `map<138: int, 139: long>`                                                  | Map from column id to number of NaN values in the column                                                                                                                                                           |
 | _optional_ | _optional_ | _optional_ | **`111  distinct_counts`**        | `map<123: int, 124: long>`                                                  | Map from column id to number of distinct values in the column; distinct counts must be derived using values in the file by counting or using sketches, but not using methods like merging existing distinct counts |
-| _optional_ | _optional_ | _optional_ | **`125  lower_bounds`**           | `map<126: int, 127: binary>`                                                | Map from column id to lower bound in the column serialized as binary [1]. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2]. See [7][8] for`geometry` and `geography`. |
-| _optional_ | _optional_ | _optional_ | **`128  upper_bounds`**           | `map<129: int, 130: binary>`                                                | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file [2]. See [7][8] for `geometry` and `geography`. |
+| _optional_ | _optional_ | _optional_ | **`125  lower_bounds`**           | `map<126: int, 127: binary>`                                                | Map from column id to lower bound in the column serialized as binary [1]. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2]                                     |
+| _optional_ | _optional_ | _optional_ | **`128  upper_bounds`**           | `map<129: int, 130: binary>`                                                | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file [2]                                  |
 | _optional_ | _optional_ | _optional_ | **`131  key_metadata`**           | `binary`                                                                    | Implementation-specific key metadata for encryption                                                                                                                                                                |
 | _optional_ | _optional_ | _optional_ | **`132  split_offsets`**          | `list<133: long>`                                                           | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending                                                                                                    |
 |            | _optional_ | _optional_ | **`135  equality_ids`**           | `list<136: int>`                                                            | Field ids used to determine row equality in equality delete files. Required when `content=2` and should be null otherwise. Fields with ids listed in this column must be present in the delete file                |
@@ -608,9 +628,10 @@ Notes:
 4. Position delete metadata can use `referenced_data_file` when all deletes tracked by the entry are in a single data file. Setting the referenced file is required for deletion vectors.
 5. The `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. For deletion vectors, these values are required and must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
 6. The following field ids are reserved on `data_file`: 141.
-7. `geometry` and `geography`: this is a point: X, Y, Z, and M are the lower / upper bound of all objects in the file. For the X and Y values only, the lower_bound's values (xmin/ymin) may be greater than the upper_bound's value (xmax/ymax). In this X case, an object in the file may match if it contains an X such that `x >= xmin` OR `x <= xmax`, and in this Y case if `y >= ymin` OR `y <= ymax`. In geographic terminology, the concepts of `xmin`, `xmax`, `ymin`, and `ymax` are also known as `westernmost`, `easternmost`, `northernmost` and `southernmost`.
-8. `geography` further restricts these points to the canonical ranges of [-180 180] for X and [-90 90] for Y.
-9. The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
+
+For `geometry` and `geography` types, `lower_bounds` and `upper_bounds` is a point: X, Y, Z, and M which are the lower / upper bound of all objects in the file. For the X and Y values only, the lower_bound's values (xmin/ymin) may be greater than the upper_bound's value (xmax/ymax). In this X case, an object in the file may match if it contains an X such that `x >= xmin` OR `x <= xmax`, and in this Y case if `y >= ymin` OR `y <= ymax`. In geographic terminology, the concepts of `xmin`, `xmax`, `ymin`, and `ymax` are also known as `westernmost`, `easternmost`, `northernmost` and `southernmost`. For `geography` types, these points are restricted to the canonical ranges of [-180 180] for X and [-90 90] for Y.
+
+The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
 
 The column metrics maps are used when filtering to select both data and delete files. For delete files, the metrics must store bounds and counts for all deleted rows, or must be omitted. Storing metrics for deleted rows ensures that the values can be used during job planning to find delete files that must be merged during a scan.
 
@@ -946,7 +967,9 @@ Note that partition data tuple's schema is based on the partition spec output us
 The unified partition type is a struct containing all fields that have ever been a part of any spec in the table 
 and sorted by the field ids in ascending order.  
 In other words, the struct fields represent a union of all known partition fields sorted in ascending order by the field ids.
+
 For example,
+
 1. `spec#0` has two fields `{field#1, field#2}`
 and then the table has evolved into `spec#1` which has three fields `{field#1, field#2, field#3}`.
 The unified partition type looks like `Struct<field#1, field#2, field#3>`.
@@ -1158,8 +1181,8 @@ Maps with non-string keys must use an array representation with the `map` logica
 |**`struct`**|`record`||
 |**`list`**|`array`||
 |**`map`**|`array` of key-value records, or `map` when keys are strings (optional).|Array storage must use logical type name `map` and must store elements that are 2-field records. The first field is a non-null key and the second field is the value.|
-|**`geometry`**|`bytes`| WKB format, see [Appendix G](#appendix-g-geospatial-notes)                                                                                                                             |
-|**`geography`**|`bytes`| WKB format, see [Appendix G](#appendix-g-geospatial-notes)                                                                                                                             |
+|**`geometry`**|`bytes`|WKB format, see [Appendix G](#appendix-g-geospatial-notes)|
+|**`geography`**|`bytes`|WKB format, see [Appendix G](#appendix-g-geospatial-notes)|
 
 Notes:
 
@@ -1247,8 +1270,8 @@ When reading an `unknown` column, any corresponding column must be ignored and r
 | **`struct`**       | `struct`            |                                                      |                                                                                         |
 | **`list`**         | `array`             |                                                      |                                                                                         |
 | **`map`**          | `map`               |                                                      |                                                                                         |
-| **`geometry`**     | `binary`            |                                                      | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                                                      |
-| **`geography`**    | `binary`            |                                                      | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                                                      |
+| **`geometry`**     | `binary`            | `iceberg.binary-type`=`GEOMETRY`                     | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                                                      |
+| **`geography`**    | `binary`            | `iceberg.binary-type`=`GEOMETRY`                     | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                                                      |
 
 
 Notes:
@@ -1470,7 +1493,7 @@ Example
 
 ### Binary single-value serialization
 
-This serialization scheme is for storing single values as individual binary values in the lower and upper bounds maps of manifest files.
+This serialization scheme is for storing single values as individual binary values.
 
 | Type                         | Binary serialization                                                                                         |
 |------------------------------|--------------------------------------------------------------------------------------------------------------|
@@ -1494,9 +1517,17 @@ This serialization scheme is for storing single values as individual binary valu
 | **`struct`**                 | Not supported                                                                                                |
 | **`list`**                   | Not supported                                                                                                |
 | **`map`**                    | Not supported                                                                                                |
+| **`geometry`**               | WKB format, see [Appendix G](#appendix-g-geospatial-notes)  |
+| **`geography`**              | WKB format, see [Appendix G](#appendix-g-geospatial-notes)  |
+
+### Bound serialization
+
+The binary single-value serialization can be used to store the lower and upper bounds maps of manifest files, except as specified by the following table.
+
+| Type                         | Binary serialization                                                                                                                                                                     |
+|------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **`geometry`**               | A single point, encoded as a {x, y, optional z, optional m} concatenation of its 8-byte little-endian IEEE 754 coordinate values, with the optional coordinates encoded as NaN if unset. |
 | **`geography`**              | A single point, encoded as a {x, y, optional z, optional m} concatenation of its 8-byte little-endian IEEE 754 coordinate values, with the optional coordinates encoded as NaN if unset. |
-
 
 ### JSON single-value serialization
 
@@ -1657,22 +1688,3 @@ When processing point in time queries implementations should use "snapshot-log" 
 The Geometry and Geography class hierarchy and its WKT and WKB serializations (ISO supporting XY, XYZ, XYM, XYZM) are defined by [OpenGIS Implementation Specification for Geographic information – Simple feature access – Part 1: Common architecture](https://portal.ogc.org/files/?artifact_id=25355), from [OGC (Open Geospatial Consortium)](https://www.ogc.org/standard/sfa/).
 
 The version of the OGC standard first used here is 1.2.1, but future versions may also used if the WKB representation remains wire-compatible.
-
-Coordinate axis order is always (x, y) where x is easting or longitude, and y is northing or latitude. This ordering explicitly overrides the axis order specified in the CRS.
-
-### Supported CRS Customizations
-A custom crs is represented by a string of the format `$type:$content`.
-
-Supported values for `type` are:
-* `srid`: [Spatial reference identifier](https://en.wikipedia.org/wiki/Spatial_reference_system#Identifier), `content` is the identifier itself.
-* `projjson`: [PROJJSON](https://proj.org/en/stable/specifications/projjson.html), `content` is the name of a table property where the projjson string is stored.
-
-### Supported Edge-Interpolation Algorithms
-The edge-interpolation algorithm is specified as a parameter (A) for `geography` types.
-
-Supported values are:
-* `spherical`: edges are interpolated as geodesics on a sphere. The radius of the underlying sphere is the mean radius of the spheroid defined by the CRS, defined as (2 * major_axis_length + minor_axis_length / 3).
-* `vincenty`: [https://en.wikipedia.org/wiki/Vincenty%27s_formulae](https://en.wikipedia.org/wiki/Vincenty%27s_formulae)
-* `thomas`: Thomas, Paul D. Spheroidal geodesics, reference systems, & local geometry. US Naval Oceanographic Office, 1970.
-* `andoyer`: Thomas, Paul D. Mathematical models for navigation systems. US Naval Oceanographic Office, 1965.
-* `karney`: [Karney, Charles FF. "Algorithms for geodesics." Journal of Geodesy 87 (2013): 43-55](https://link.springer.com/content/pdf/10.1007/s00190-012-0578-z.pdf), and [GeographicLib](https://geographiclib.sourceforge.io/)
