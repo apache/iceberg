@@ -21,7 +21,14 @@ package org.apache.iceberg.util;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.Set;
+import java.util.function.Supplier;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -227,5 +234,55 @@ public class RandomUtil {
     }
 
     return new BigInteger(sb.toString());
+  }
+
+  public static List<Object> generateList(
+      Random random, Types.ListType list, Supplier<Object> elementResult) {
+    int numElements = random.nextInt(20);
+
+    List<Object> result = Lists.newArrayListWithExpectedSize(numElements);
+    for (int i = 0; i < numElements; i += 1) {
+      // return null 5% of the time when the value is optional
+      if (list.isElementOptional() && random.nextInt(20) == 1) {
+        result.add(null);
+      } else {
+        result.add(elementResult.get());
+      }
+    }
+
+    return result;
+  }
+
+  public static Map<Object, Object> generateMap(
+      Random random, Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
+    int numEntries = random.nextInt(20);
+
+    Map<Object, Object> result = Maps.newLinkedHashMap();
+    Supplier<Object> keyFunc;
+    if (map.keyType() == Types.StringType.get()) {
+      keyFunc = () -> keyResult.get().toString();
+    } else {
+      keyFunc = keyResult;
+    }
+
+    Set<Object> keySet = Sets.newHashSet();
+    for (int i = 0; i < numEntries; i += 1) {
+      Object key = keyFunc.get();
+      // ensure no collisions
+      while (keySet.contains(key)) {
+        key = keyFunc.get();
+      }
+
+      keySet.add(key);
+
+      // return null 5% of the time when the value is optional
+      if (map.isValueOptional() && random.nextInt(20) == 1) {
+        result.put(key, null);
+      } else {
+        result.put(key, valueResult.get());
+      }
+    }
+
+    return result;
   }
 }
