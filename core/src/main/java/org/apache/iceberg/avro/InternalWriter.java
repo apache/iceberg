@@ -24,15 +24,22 @@ import java.util.stream.Stream;
 import org.apache.avro.Schema;
 import org.apache.avro.io.Encoder;
 import org.apache.iceberg.FieldMetrics;
+import org.apache.iceberg.types.Type;
 
-public class GenericAvroWriter<T> implements MetricsAwareDatumWriter<T> {
+/**
+ * A Writer that consumes Iceberg's internal in-memory object model.
+ *
+ * <p>Iceberg's internal in-memory object model produces the types defined in {@link
+ * Type.TypeID#javaClass()}.
+ */
+public class InternalWriter<T> implements MetricsAwareDatumWriter<T> {
   private ValueWriter<T> writer = null;
 
-  public static <D> GenericAvroWriter<D> create(Schema schema) {
-    return new GenericAvroWriter<>(schema);
+  public static <D> InternalWriter<D> create(Schema schema) {
+    return new InternalWriter<>(schema);
   }
 
-  GenericAvroWriter(Schema schema) {
+  InternalWriter(Schema schema) {
     setSchema(schema);
   }
 
@@ -56,12 +63,12 @@ public class GenericAvroWriter<T> implements MetricsAwareDatumWriter<T> {
 
     @Override
     protected ValueWriter<?> createRecordWriter(List<ValueWriter<?>> fields) {
-      return ValueWriters.record(fields);
+      return ValueWriters.struct(fields);
     }
 
     @Override
     protected ValueWriter<?> fixedWriter(int length) {
-      return ValueWriters.genericFixed(length);
+      return ValueWriters.fixedBuffers(length);
     }
   }
 }
