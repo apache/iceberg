@@ -360,6 +360,8 @@ public class TestMetadataUpdateParser {
     long parentId = 1;
     long snapshotId = 2;
     int schemaId = 3;
+    Long firstRowId = 4L;
+    Long addedRows = 10L;
 
     String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
 
@@ -372,7 +374,9 @@ public class TestMetadataUpdateParser {
             DataOperations.REPLACE,
             ImmutableMap.of("files-added", "4", "files-deleted", "100"),
             schemaId,
-            manifestList);
+            manifestList,
+            firstRowId,
+            addedRows);
     String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
     String expected = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate update = new MetadataUpdate.AddSnapshot(snapshot);
@@ -388,6 +392,8 @@ public class TestMetadataUpdateParser {
     long parentId = 1;
     long snapshotId = 2;
     int schemaId = 3;
+    Long lastRowId = 4L;
+    Long addedRows = 5L;
     Map<String, String> summary = ImmutableMap.of("files-added", "4", "files-deleted", "100");
 
     String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
@@ -400,7 +406,9 @@ public class TestMetadataUpdateParser {
             DataOperations.REPLACE,
             summary,
             schemaId,
-            manifestList);
+            manifestList,
+            lastRowId,
+            addedRows);
     String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
     String json = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate expected = new MetadataUpdate.AddSnapshot(snapshot);

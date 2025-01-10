@@ -41,6 +41,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
@@ -282,6 +283,16 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       throw new RuntimeIOException(e, "Failed to write manifest list file");
     }
 
+    Long addedRows =
+        manifests.stream()
+            .filter(
+                manifest ->
+                    manifest.snapshotId() == null
+                        || Objects.equals(manifest.snapshotId(), this.snapshotId))
+            .mapToLong(ManifestFile::addedRowsCount)
+            .sum();
+    Long lastRowId = base.rowLineage() ? base.lastRowId() : null;
+
     return new BaseSnapshot(
         sequenceNumber,
         snapshotId(),
@@ -290,7 +301,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         operation(),
         summary(base),
         base.currentSchemaId(),
-        manifestList.location());
+        manifestList.location(),
+        lastRowId,
+        addedRows);
   }
 
   protected abstract Map<String, String> summary();

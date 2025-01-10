@@ -129,7 +129,9 @@ public class RewriteTablePathUtil {
         // TODO: update statistic file paths
         metadata.statisticsFiles(),
         metadata.partitionStatisticsFiles(),
-        metadata.changes());
+        metadata.changes(),
+        metadata.rowLineage(),
+        metadata.lastRowId());
   }
 
   private static Map<String, String> updateProperties(
@@ -186,7 +188,9 @@ public class RewriteTablePathUtil {
               snapshot.operation(),
               snapshot.summary(),
               snapshot.schemaId(),
-              newManifestListLocation);
+              newManifestListLocation,
+              snapshot.firstRowId(),
+              snapshot.addedRows());
       newSnapshots.add(newSnapshot);
     }
     return newSnapshots;

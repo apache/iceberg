@@ -56,6 +56,9 @@ public class TableMetadata implements Serializable {
   static final int INITIAL_SPEC_ID = 0;
   static final int INITIAL_SORT_ORDER_ID = 1;
   static final int INITIAL_SCHEMA_ID = 0;
+  static final int INITIAL_ROW_ID = 0;
+  static final boolean DEFAULT_ROW_LINEAGE = false;
+  static final int MIN_FORMAT_VERSION_ROW_LINEAGE = 3;
 
   private static final long ONE_MINUTE = TimeUnit.MINUTES.toMillis(1);
 
@@ -262,6 +265,8 @@ public class TableMetadata implements Serializable {
   private volatile Map<Long, Snapshot> snapshotsById;
   private volatile Map<String, SnapshotRef> refs;
   private volatile boolean snapshotsLoaded;
+  private final Boolean rowLineage;
+  private final long lastRowId;
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   TableMetadata(
@@ -288,7 +293,9 @@ public class TableMetadata implements Serializable {
       Map<String, SnapshotRef> refs,
       List<StatisticsFile> statisticsFiles,
       List<PartitionStatisticsFile> partitionStatisticsFiles,
-      List<MetadataUpdate> changes) {
+      List<MetadataUpdate> changes,
+      boolean rowLineage,
+      long lastRowId) {
     Preconditions.checkArgument(
         specs != null && !specs.isEmpty(), "Partition specs cannot be null or empty");
     Preconditions.checkArgument(
@@ -307,6 +314,10 @@ public class TableMetadata implements Serializable {
     Preconditions.checkArgument(
         metadataFileLocation == null || changes.isEmpty(),
         "Cannot create TableMetadata with a metadata location and changes");
+    Preconditions.checkArgument(
+        formatVersion >= MIN_FORMAT_VERSION_ROW_LINEAGE || !rowLineage,
+        "Cannot enable row lineage when Table Version is less than V3. Table Version is %d",
+        formatVersion);
 
     this.metadataFileLocation = metadataFileLocation;
     this.formatVersion = formatVersion;
@@ -340,6 +351,10 @@ public class TableMetadata implements Serializable {
     this.refs = validateRefs(currentSnapshotId, refs, snapshotsById);
     this.statisticsFiles = ImmutableList.copyOf(statisticsFiles);
     this.partitionStatisticsFiles = ImmutableList.copyOf(partitionStatisticsFiles);
+
+    // row lineage
+    this.rowLineage = rowLineage;
+    this.lastRowId = lastRowId;
 
     HistoryEntry last = null;
     for (HistoryEntry logEntry : snapshotLog) {
@@ -561,6 +576,14 @@ public class TableMetadata implements Serializable {
 
   public TableMetadata withUUID() {
     return new Builder(this).assignUUID().build();
+  }
+
+  public boolean rowLineage() {
+    return rowLineage;
+  }
+
+  public long lastRowId() {
+    return lastRowId;
   }
 
   /**
@@ -903,6 +926,8 @@ public class TableMetadata implements Serializable {
     private final Map<Long, List<StatisticsFile>> statisticsFiles;
     private final Map<Long, List<PartitionStatisticsFile>> partitionStatisticsFiles;
     private boolean suppressHistoricalSnapshots = false;
+    private boolean rowLineage;
+    private long lastRowId;
 
     // change tracking
     private final List<MetadataUpdate> changes;
@@ -949,6 +974,8 @@ public class TableMetadata implements Serializable {
       this.schemasById = Maps.newHashMap();
       this.specsById = Maps.newHashMap();
       this.sortOrdersById = Maps.newHashMap();
+      this.rowLineage = DEFAULT_ROW_LINEAGE;
+      this.lastRowId = INITIAL_ROW_ID;
     }
 
     private Builder(TableMetadata base) {
@@ -982,6 +1009,9 @@ public class TableMetadata implements Serializable {
       this.schemasById = Maps.newHashMap(base.schemasById);
       this.specsById = Maps.newHashMap(base.specsById);
       this.sortOrdersById = Maps.newHashMap(base.sortOrdersById);
+
+      this.rowLineage = base.rowLineage;
+      this.lastRowId = base.lastRowId;
     }
 
     public Builder withMetadataLocation(String newMetadataLocation) {
@@ -1230,6 +1260,18 @@ public class TableMetadata implements Serializable {
       snapshotsById.put(snapshot.snapshotId(), snapshot);
       changes.add(new MetadataUpdate.AddSnapshot(snapshot));
 
+      if (rowLineage) {
+        ValidationException.check(
+            snapshot.firstRowId() >= lastRowId,
+            "Cannot add a snapshot whose first-row-id (%s) is less than the metadata `last-used-id` (%s) because this will end up generating duplicate row_ids.",
+            snapshot.firstRowId(),
+            lastRowId);
+        ValidationException.check(
+            snapshot.addedRows() != null,
+            "Cannot add a snapshot with a null `addedRows` field when row lineage is enabled");
+        this.incrementLastRowId(snapshot.addedRows());
+      }
+
       return this;
     }
 
@@ -1468,6 +1510,28 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    public Builder enableRowLineage() {
+      Preconditions.checkArgument(
+          formatVersion >= 3,
+          "Cannot use row lineage with format version %s. Only format version 3 or higher support row lineage",
+          formatVersion);
+      this.rowLineage = true;
+      changes.add(new MetadataUpdate.EnableRowLineage());
+      return this;
+    }
+
+    Builder incrementLastRowId(long delta) {
+      Preconditions.checkArgument(
+          this.rowLineage, "Cannot set last-row-id if row lineage is not enabled");
+      Preconditions.checkArgument(
+          delta >= 0,
+          "Cannot decrease last-row-id, last-row-id must increase monotonically. Delta was %s",
+          delta);
+
+      this.lastRowId += delta;
+      return this;
+    }
+
     private boolean hasChanges() {
       return changes.size() != startingChangeCount
           || (discardChanges && !changes.isEmpty())
@@ -1535,7 +1599,9 @@ public class TableMetadata implements Serializable {
           partitionStatisticsFiles.values().stream()
               .flatMap(List::stream)
               .collect(Collectors.toList()),
-          discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes));
+          discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes),
+          rowLineage,
+          lastRowId);
     }
 
     private int addSchemaInternal(Schema schema, int newLastColumnId) {
