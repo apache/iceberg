@@ -454,6 +454,19 @@ public class S3FileIOProperties implements Serializable {
 
   public static final boolean S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY_DEFAULT = true;
 
+  /**
+   * Determines if requester acknowledges transfer of billing cost to them, default to false.
+   *
+   * <p>For more details, see
+   * https://docs.aws.amazon.com/AmazonS3/latest/userguide/RequesterPaysBuckets.html
+   */
+  public static final String REQUESTER_PAYS_ENABLED = "s3.requester-pays-enabled";
+
+  public static final boolean REQUESTER_PAYS_ENABLED_DEFAULT = false;
+
+  private static final String REQUESTER_PAYS_HEADER = "x-amz-request-payer";
+  private static final String REQUESTER_PAYS_HEADER_VALUE = "requester";
+
   private String sseType;
   private String sseKey;
   private String sseMd5;
@@ -488,7 +501,7 @@ public class S3FileIOProperties implements Serializable {
   private int s3RetryNumRetries;
   private long s3RetryMinWaitMs;
   private long s3RetryMaxWaitMs;
-
+  private final boolean isRequesterPaysEnabled;
   private boolean s3DirectoryBucketListPrefixAsDirectory;
   private final Map<String, String> allProperties;
 
@@ -523,6 +536,7 @@ public class S3FileIOProperties implements Serializable {
     this.isRemoteSigningEnabled = REMOTE_SIGNING_ENABLED_DEFAULT;
     this.isS3AccessGrantsEnabled = S3_ACCESS_GRANTS_ENABLED_DEFAULT;
     this.isS3AccessGrantsFallbackToIamEnabled = S3_ACCESS_GRANTS_FALLBACK_TO_IAM_ENABLED_DEFAULT;
+    this.isRequesterPaysEnabled = REQUESTER_PAYS_ENABLED_DEFAULT;
     this.s3RetryNumRetries = S3_RETRY_NUM_RETRIES_DEFAULT;
     this.s3RetryMinWaitMs = S3_RETRY_MIN_WAIT_MS_DEFAULT;
     this.s3RetryMaxWaitMs = S3_RETRY_MAX_WAIT_MS_DEFAULT;
@@ -566,6 +580,9 @@ public class S3FileIOProperties implements Serializable {
     this.isCrossRegionAccessEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, CROSS_REGION_ACCESS_ENABLED, CROSS_REGION_ACCESS_ENABLED_DEFAULT);
+    this.isRequesterPaysEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, REQUESTER_PAYS_ENABLED, REQUESTER_PAYS_ENABLED_DEFAULT);
     try {
       this.multiPartSize =
           PropertyUtil.propertyAsInt(properties, MULTIPART_SIZE, MULTIPART_SIZE_DEFAULT);
@@ -1065,6 +1082,21 @@ public class S3FileIOProperties implements Serializable {
           String.format(
               "Cannot create %s to generate and configure the client SDK Plugin builder", impl),
           e);
+    }
+  }
+
+  public boolean isRequesterPaysEnabled() {
+    return isRequesterPaysEnabled;
+  }
+
+  public <T extends S3ClientBuilder> void applyRequesterPaysConfiguration(T builder) {
+    if (isRequesterPaysEnabled) {
+      ClientOverrideConfiguration.Builder configBuilder =
+          null != builder.overrideConfiguration()
+              ? builder.overrideConfiguration().toBuilder()
+              : ClientOverrideConfiguration.builder();
+      builder.overrideConfiguration(
+          configBuilder.putHeader(REQUESTER_PAYS_HEADER, REQUESTER_PAYS_HEADER_VALUE).build());
     }
   }
 }
