@@ -179,7 +179,7 @@ Each entry in `version-log` is a struct with the following fields:
 | _required_  | `timestamp-ms` | Timestamp when the view's `current-version-id` was updated (ms from epoch) |
 | _required_  | `version-id`   | ID that `current-version-id` was set to |
 
-#### Full identifier
+#### Table Identifier
 
 The full identifier holds a reference, containing a namespace and a name, of a table or view in the catalog.
 
