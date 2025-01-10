@@ -171,4 +171,27 @@ public interface Snapshot extends Serializable {
   default Integer schemaId() {
     return null;
   }
+
+  /**
+   * The row-id of the first newly added row in this snapshot. The all rows added in this snapshot
+   * will have a row-id value of greater than or equal to this value. Rows with a smaller value were
+   * not added in this snapshot.
+   *
+   * @return the first row-id to be used in this snapshot or null if row lineage was not enabled
+   *     when the table was created.
+   */
+  default Long firstRowId() {
+    return null;
+  }
+
+  /**
+   * The total number of newly added rows in this snapshot. It should be the summation of {@link
+   * ManifestFile#ADDED_ROWS_COUNT} for every manifest added in this snapshot. This is optionally
+   * present but required if row lineage is enabled.
+   *
+   * @return the total number of new rows in this snapshot or null if it was not stored.
+   */
+  default Long addedRows() {
+    return null;
+  }
 }
