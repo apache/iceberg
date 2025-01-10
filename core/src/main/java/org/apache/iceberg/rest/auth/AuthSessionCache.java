@@ -60,7 +60,7 @@ public class AuthSessionCache implements AutoCloseable {
    * @param nanoTimeSupplier the supplier for nano time; if null, the cache will use {@link
    *     System#nanoTime()}.
    */
-  public AuthSessionCache(
+  AuthSessionCache(
       Duration sessionTimeout,
       @Nullable Executor executor,
       @Nullable LongSupplier nanoTimeSupplier) {
@@ -102,6 +102,7 @@ public class AuthSessionCache implements AutoCloseable {
         }
       }
     }
+
     return sessionCache;
   }
 
@@ -119,9 +120,11 @@ public class AuthSessionCache implements AutoCloseable {
     if (executor != null) {
       builder.executor(executor);
     }
+
     if (nanoTimeSupplier != null) {
       builder.ticker(nanoTimeSupplier::getAsLong);
     }
+
     return builder.build();
   }
 }

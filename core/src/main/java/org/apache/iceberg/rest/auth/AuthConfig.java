@@ -95,15 +95,13 @@ public interface AuthConfig {
       expiresAtMillis = OAuth2Util.expiresAtMillis(props.get(OAuth2Properties.TOKEN));
     }
 
-    if (expiresAtMillis == null) {
-      if (props.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
-        long millis =
-            PropertyUtil.propertyAsLong(
-                props,
-                OAuth2Properties.TOKEN_EXPIRES_IN_MS,
-                OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT);
-        expiresAtMillis = System.currentTimeMillis() + millis;
-      }
+    if (expiresAtMillis == null && props.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
+      long millis =
+          PropertyUtil.propertyAsLong(
+              props,
+              OAuth2Properties.TOKEN_EXPIRES_IN_MS,
+              OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT);
+      expiresAtMillis = System.currentTimeMillis() + millis;
     }
 
     return expiresAtMillis;

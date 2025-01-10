@@ -76,6 +76,7 @@ public abstract class RefreshingAuthManager implements AuthManager {
     if (!keepRefreshed) {
       return null;
     }
+
     if (refreshExecutor == null) {
       synchronized (this) {
         if (refreshExecutor == null) {
@@ -83,6 +84,7 @@ public abstract class RefreshingAuthManager implements AuthManager {
         }
       }
     }
+
     return refreshExecutor;
   }
 }

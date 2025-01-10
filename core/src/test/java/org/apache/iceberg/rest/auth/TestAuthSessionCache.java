@@ -67,12 +67,12 @@ class TestAuthSessionCache {
   }
 
   @Test
+  @SuppressWarnings("unchecked")
   void cacheEviction() {
     AtomicLong ticker = new AtomicLong(0);
     AuthSessionCache cache = new AuthSessionCache(Duration.ofHours(1), Runnable::run, ticker::get);
     AuthSession session1 = Mockito.mock(AuthSession.class);
 
-    @SuppressWarnings("unchecked")
     Function<String, AuthSession> loader = Mockito.mock(Function.class);
     Mockito.when(loader.apply("key1")).thenReturn(session1);
 
