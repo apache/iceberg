@@ -64,7 +64,7 @@ abstract class Channel {
     this.connectGroupId = config.connectGroupId();
     this.context = context;
 
-    String transactionalId = name + config.transactionalSuffix();
+    String transactionalId = config.transactionalPrefix() + name + config.transactionalSuffix();
     this.producer = clientFactory.createProducer(transactionalId);
     this.consumer = clientFactory.createConsumer(consumerGroupId);
     this.admin = clientFactory.createAdmin();
