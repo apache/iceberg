@@ -1516,10 +1516,11 @@ public class TableMetadata implements Serializable {
           "Cannot use row lineage with format version %s. Only format version 3 or higher support row lineage",
           formatVersion);
       this.rowLineage = true;
+      changes.add(new MetadataUpdate.EnableRowLineage());
       return this;
     }
 
-    public Builder incrementLastRowId(long delta) {
+    Builder incrementLastRowId(long delta) {
       Preconditions.checkArgument(
           this.rowLineage, "Cannot set last-row-id if row lineage is not enabled");
       Preconditions.checkArgument(

@@ -22,14 +22,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assume.assumeTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.io.File;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 
 public class TestRowLineageMetadata {
 
   private static final String TEST_LOCATION = "s3://bucket/test/location";
+
+  @TempDir
+  protected File tableDir = null;
 
   private static final Schema TEST_SCHEMA =
       new Schema(
@@ -51,6 +58,11 @@ public class TestRowLineageMetadata {
         .addPartitionSpec(PartitionSpec.unpartitioned())
         .addSortOrder(SortOrder.unsorted())
         .build();
+  }
+
+  @AfterEach
+  public void cleanup() {
+    TestTables.clearTables();
   }
 
   @ParameterizedTest
@@ -136,4 +148,66 @@ public class TestRowLineageMetadata {
         .contains(
             "Cannot add a snapshot with a null `addedRows` field when row lineage is enabled");
   }
+
+  AtomicInteger fileNum = new AtomicInteger(0);
+  private DataFile fileWithRows(int numRows) {
+    return DataFiles.builder(PartitionSpec.unpartitioned())
+      .withRecordCount(numRows)
+      .withFileSizeInBytes(numRows * 100)
+      .withPath("file://file_" + fileNum.incrementAndGet() + ".parquet")
+      .build();
+  }
+
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testFastAppend(int formatVersion) {
+    assumeTrue(formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+    TestTables.TestTable table = TestTables.create(tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
+    TableMetadata base = table.ops().current();
+    table.ops().commit(base, TableMetadata.buildFrom(base).enableRowLineage().build());
+
+    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().lastRowId()).isEqualTo(0L);
+
+
+    table.newFastAppend().appendFile(fileWithRows(30)).commit();
+
+    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.currentSnapshot().firstRowId()).isEqualTo(0);
+    assertThat(table.ops().current().lastRowId()).isEqualTo(30);
+
+    table.newFastAppend().appendFile(fileWithRows(17)).appendFile(fileWithRows(11)).commit();
+
+    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.currentSnapshot().firstRowId()).isEqualTo(30);
+    assertThat(table.ops().current().lastRowId()).isEqualTo(30 + 17 + 11);
+  }
+
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testAppend(int formatVersion) {
+    assumeTrue(formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+    TestTables.TestTable table = TestTables.create(tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
+    TableMetadata base = table.ops().current();
+    table.ops().commit(base, TableMetadata.buildFrom(base).enableRowLineage().build());
+
+    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().lastRowId()).isEqualTo(0L);
+
+
+    table.newAppend().appendFile(fileWithRows(30)).commit();
+
+    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.currentSnapshot().firstRowId()).isEqualTo(0);
+    assertThat(table.ops().current().lastRowId()).isEqualTo(30);
+
+    table.newAppend().appendFile(fileWithRows(17)).appendFile(fileWithRows(11)).commit();
+
+    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.currentSnapshot().firstRowId()).isEqualTo(30);
+    assertThat(table.ops().current().lastRowId()).isEqualTo(30 + 17 + 11);
+  }
+
+
+
 }
