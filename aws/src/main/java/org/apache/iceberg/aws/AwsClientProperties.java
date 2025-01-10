@@ -20,12 +20,17 @@ package org.apache.iceberg.aws;
 
 import java.io.Serializable;
 import java.util.Map;
+import java.util.Optional;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.s3.VendedCredentialsProvider;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
+import org.apache.iceberg.rest.RESTUtil;
+import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SerializableMap;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -81,6 +86,7 @@ public class AwsClientProperties implements Serializable {
   private final Map<String, String> clientCredentialsProviderProperties;
   private final String refreshCredentialsEndpoint;
   private final boolean refreshCredentialsEnabled;
+  private final Map<String, String> allProperties;
 
   public AwsClientProperties() {
     this.clientRegion = null;
@@ -88,14 +94,18 @@ public class AwsClientProperties implements Serializable {
     this.clientCredentialsProviderProperties = null;
     this.refreshCredentialsEndpoint = null;
     this.refreshCredentialsEnabled = true;
+    this.allProperties = null;
   }
 
   public AwsClientProperties(Map<String, String> properties) {
+    this.allProperties = SerializableMap.copyOf(properties);
     this.clientRegion = properties.get(CLIENT_REGION);
     this.clientCredentialsProvider = properties.get(CLIENT_CREDENTIALS_PROVIDER);
     this.clientCredentialsProviderProperties =
         PropertyUtil.propertiesWithPrefix(properties, CLIENT_CREDENTIAL_PROVIDER_PREFIX);
-    this.refreshCredentialsEndpoint = properties.get(REFRESH_CREDENTIALS_ENDPOINT);
+    this.refreshCredentialsEndpoint =
+        RESTUtil.resolveEndpoint(
+            properties.get(CatalogProperties.URI), properties.get(REFRESH_CREDENTIALS_ENDPOINT));
     this.refreshCredentialsEnabled =
         PropertyUtil.propertyAsBoolean(properties, REFRESH_CREDENTIALS_ENABLED, true);
   }
@@ -157,6 +167,10 @@ public class AwsClientProperties implements Serializable {
     if (refreshCredentialsEnabled && !Strings.isNullOrEmpty(refreshCredentialsEndpoint)) {
       clientCredentialsProviderProperties.put(
           VendedCredentialsProvider.URI, refreshCredentialsEndpoint);
+      Optional.ofNullable(allProperties.get(OAuth2Properties.TOKEN))
+          .ifPresent(
+              token ->
+                  clientCredentialsProviderProperties.putIfAbsent(OAuth2Properties.TOKEN, token));
       return credentialsProvider(VendedCredentialsProvider.class.getName());
     }
 
