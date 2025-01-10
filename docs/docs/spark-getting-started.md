@@ -83,12 +83,16 @@ Iceberg also adds row-level SQL updates to Spark, [`MERGE INTO`](spark-writes.md
 
 ```sql
 CREATE TABLE local.db.updates (id bigint, data string) USING iceberg;
+
 INSERT INTO local.db.updates VALUES (1, 'x'), (2, 'y'), (4, 'z');
 
 MERGE INTO local.db.table t
 USING (SELECT * FROM local.db.updates) u ON t.id = u.id
 WHEN MATCHED THEN UPDATE SET t.data = u.data
 WHEN NOT MATCHED THEN INSERT *;
+
+-- ((1, 'x'), (2, 'y'), (3, 'c'), (4, 'z'))
+SELECT * FROM local.db.table;
 ```
 
 Iceberg supports writing DataFrames using the new [v2 DataFrame write API](spark-writes.md#writing-with-dataframes):
@@ -163,7 +167,7 @@ This type conversion table describes how Spark types are converted to the Iceber
 | map             | map                        |       |
 
 !!! info
-    The table is based on type conversions during table creation. Broader type conversions are applied on write:
+    Broader type conversions are applied on write:
 
     * Iceberg numeric types (`integer`, `long`, `float`, `double`, `decimal`) support promotion during writes. e.g. You can write Spark types `short`, `byte`, `integer`, `long` to Iceberg type `long`.
     * You can write to Iceberg `fixed` type using Spark `binary` type. Note that assertion on the length will be performed.
