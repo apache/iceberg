@@ -106,7 +106,16 @@ public class TestTableMetadata {
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+            0,
+            previousSnapshotId,
+            null,
+            previousSnapshotId,
+            null,
+            null,
+            null,
+            manifestList,
+            null,
+            null);
 
     long currentSnapshotId = System.currentTimeMillis();
     manifestList =
@@ -121,7 +130,9 @@ public class TestTableMetadata {
             null,
             null,
             7,
-            manifestList);
+            manifestList,
+            null,
+            null);
 
     List<HistoryEntry> snapshotLog =
         ImmutableList.<HistoryEntry>builder()
@@ -236,7 +247,16 @@ public class TestTableMetadata {
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+            0,
+            previousSnapshotId,
+            null,
+            previousSnapshotId,
+            null,
+            null,
+            null,
+            manifestList,
+            null,
+            null);
 
     long currentSnapshotId = System.currentTimeMillis();
     manifestList =
@@ -251,7 +271,9 @@ public class TestTableMetadata {
             null,
             null,
             null,
-            manifestList);
+            manifestList,
+            null,
+            null);
 
     TableMetadata expected =
         new TableMetadata(
@@ -331,7 +353,16 @@ public class TestTableMetadata {
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+            0,
+            previousSnapshotId,
+            null,
+            previousSnapshotId,
+            null,
+            null,
+            null,
+            manifestList,
+            null,
+            null);
 
     long currentSnapshotId = System.currentTimeMillis();
     manifestList =
@@ -347,7 +378,9 @@ public class TestTableMetadata {
             null,
             null,
             7,
-            manifestList);
+            manifestList,
+            null,
+            null);
 
     List<HistoryEntry> snapshotLog =
         ImmutableList.<HistoryEntry>builder()
@@ -404,7 +437,8 @@ public class TestTableMetadata {
     String manifestList =
         createManifestListWithManifestFile(snapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot snapshot =
-        new BaseSnapshot(0, snapshotId, null, snapshotId, null, null, null, manifestList);
+        new BaseSnapshot(
+            0, snapshotId, null, snapshotId, null, null, null, manifestList, null, null);
 
     Schema schema = new Schema(6, Types.NestedField.required(10, "x", Types.StringType.get()));
 
@@ -536,7 +570,16 @@ public class TestTableMetadata {
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+            0,
+            previousSnapshotId,
+            null,
+            previousSnapshotId,
+            null,
+            null,
+            null,
+            manifestList,
+            null,
+            null);
 
     long currentSnapshotId = System.currentTimeMillis();
     manifestList =
@@ -551,7 +594,9 @@ public class TestTableMetadata {
             null,
             null,
             null,
-            manifestList);
+            manifestList,
+            null,
+            null);
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     long currentTimestamp = System.currentTimeMillis();
@@ -603,7 +648,16 @@ public class TestTableMetadata {
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+            0,
+            previousSnapshotId,
+            null,
+            previousSnapshotId,
+            null,
+            null,
+            null,
+            manifestList,
+            null,
+            null);
     long currentSnapshotId = System.currentTimeMillis();
 
     manifestList =
@@ -618,7 +672,9 @@ public class TestTableMetadata {
             null,
             null,
             null,
-            manifestList);
+            manifestList,
+            null,
+            null);
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     reversedSnapshotLog.add(
@@ -687,7 +743,16 @@ public class TestTableMetadata {
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+            0,
+            previousSnapshotId,
+            null,
+            previousSnapshotId,
+            null,
+            null,
+            null,
+            manifestList,
+            null,
+            null);
 
     long currentSnapshotId = System.currentTimeMillis();
     manifestList =
@@ -702,7 +767,9 @@ public class TestTableMetadata {
             null,
             null,
             null,
-            manifestList);
+            manifestList,
+            null,
+            null);
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     reversedSnapshotLog.add(
@@ -784,7 +851,16 @@ public class TestTableMetadata {
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
         new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+            0,
+            previousSnapshotId,
+            null,
+            previousSnapshotId,
+            null,
+            null,
+            null,
+            manifestList,
+            null,
+            null);
 
     long currentSnapshotId = System.currentTimeMillis();
     manifestList =
@@ -799,7 +875,9 @@ public class TestTableMetadata {
             null,
             null,
             null,
-            manifestList);
+            manifestList,
+            null,
+            null);
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     reversedSnapshotLog.add(

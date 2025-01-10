@@ -1260,6 +1260,18 @@ public class TableMetadata implements Serializable {
       snapshotsById.put(snapshot.snapshotId(), snapshot);
       changes.add(new MetadataUpdate.AddSnapshot(snapshot));
 
+      if (rowLineage) {
+        ValidationException.check(
+            snapshot.firstRowId() >= lastRowId,
+            "Cannot add a snapshot whose first-row-id (%s) is less than the metadata `last-used-id` (%s) because this will end up generating duplicate row_ids.",
+            snapshot.firstRowId(),
+            lastRowId);
+        ValidationException.check(
+            snapshot.addedRows() != null,
+            "Cannot add a snapshot with a null `addedRows` field when row lineage is enabled");
+        this.incrementLastRowId(snapshot.addedRows());
+      }
+
       return this;
     }
 
@@ -1507,17 +1519,15 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    public Builder withLastRowId(long lastRowId) {
+    public Builder incrementLastRowId(long delta) {
       Preconditions.checkArgument(
           this.rowLineage, "Cannot set last-row-id if row lineage is not enabled");
       Preconditions.checkArgument(
-          this.lastRowId <= lastRowId,
-          "Cannot decrease last-row-id, last-row-id must increase monotonically."
-              + " Current last-row-id (%s) is greater that the new last-row-id (%s)",
-          this.lastRowId,
-          lastRowId);
+          delta >= 0,
+          "Cannot decrease last-row-id, last-row-id must increase monotonically. Delta was %s",
+          delta);
 
-      this.lastRowId = lastRowId;
+      this.lastRowId += delta;
       return this;
     }
 

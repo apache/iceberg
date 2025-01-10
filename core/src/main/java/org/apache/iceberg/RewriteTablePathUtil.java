@@ -188,7 +188,9 @@ public class RewriteTablePathUtil {
               snapshot.operation(),
               snapshot.summary(),
               snapshot.schemaId(),
-              newManifestListLocation);
+              newManifestListLocation,
+              snapshot.firstRowId(),
+              snapshot.addedRows());
       newSnapshots.add(newSnapshot);
     }
     return newSnapshots;
