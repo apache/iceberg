@@ -38,8 +38,6 @@ public class SmokeTest extends ExtensionsTestBase {
   }
 
   // Run through our Doc's Getting Started Example
-  // TODO Update doc example so that it can actually be run, modifications were required for this
-  // test suite to run
   @TestTemplate
   public void testGettingStarted() throws IOException {
     // Creating a table
@@ -66,26 +64,24 @@ public class SmokeTest extends ExtensionsTestBase {
     sql(
         "CREATE TABLE updates (id bigint, data string) USING parquet LOCATION '%s'",
         Files.createTempDirectory(temp, "junit"));
-    sql("INSERT INTO updates VALUES (1, 'x'), (2, 'x'), (4, 'z')");
+    sql("INSERT INTO updates VALUES (1, 'x'), (2, 'y'), (4, 'z')");
 
     sql(
         "MERGE INTO %s t USING (SELECT * FROM updates) u ON t.id = u.id\n"
             + "WHEN MATCHED THEN UPDATE SET t.data = u.data\n"
             + "WHEN NOT MATCHED THEN INSERT *",
         tableName);
+
+    // Reading
     assertThat(scalarSql("SELECT COUNT(*) FROM %s", tableName))
         .as("Table should now have 5 rows")
         .isEqualTo(5L);
     assertThat(scalarSql("SELECT data FROM %s WHERE id = 1", tableName))
         .as("Record 1 should now have data x")
         .isEqualTo("x");
-
-    // Reading
-    assertThat(
-            scalarSql(
-                "SELECT count(1) as count FROM %s WHERE data = 'x' GROUP BY data ", tableName))
-        .as("There should be 2 records with data x")
-        .isEqualTo(2L);
+    assertThat(scalarSql("SELECT data FROM %s WHERE id = 2", tableName))
+            .as("Record 2 should now have data y")
+            .isEqualTo("y");
 
     // Not supported because of Spark limitation
     if (!catalogName.equals("spark_catalog")) {

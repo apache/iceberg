@@ -42,8 +42,6 @@ public class SmokeTest extends SparkExtensionsTestBase {
   }
 
   // Run through our Doc's Getting Started Example
-  // TODO Update doc example so that it can actually be run, modifications were required for this
-  // test suite to run
   @Test
   public void testGettingStarted() throws IOException {
     // Creating a table
@@ -68,25 +66,25 @@ public class SmokeTest extends SparkExtensionsTestBase {
     sql(
         "CREATE TABLE updates (id bigint, data string) USING parquet LOCATION '%s'",
         temp.newFolder());
-    sql("INSERT INTO updates VALUES (1, 'x'), (2, 'x'), (4, 'z')");
+    sql("INSERT INTO updates VALUES (1, 'x'), (2, 'y'), (4, 'z')");
 
     sql(
         "MERGE INTO %s t USING (SELECT * FROM updates) u ON t.id = u.id\n"
             + "WHEN MATCHED THEN UPDATE SET t.data = u.data\n"
             + "WHEN NOT MATCHED THEN INSERT *",
         tableName);
+
+    // Reading
     Assert.assertEquals(
         "Table should now have 5 rows", 5L, scalarSql("SELECT COUNT(*) FROM %s", tableName));
     Assert.assertEquals(
         "Record 1 should now have data x",
         "x",
         scalarSql("SELECT data FROM %s WHERE id = 1", tableName));
-
-    // Reading
     Assert.assertEquals(
-        "There should be 2 records with data x",
-        2L,
-        scalarSql("SELECT count(1) as count FROM %s WHERE data = 'x' GROUP BY data ", tableName));
+            "Record 2 should now have data y",
+            "y",
+            scalarSql("SELECT data FROM %s WHERE id = 2", tableName));
 
     // Not supported because of Spark limitation
     if (!catalogName.equals("spark_catalog")) {
