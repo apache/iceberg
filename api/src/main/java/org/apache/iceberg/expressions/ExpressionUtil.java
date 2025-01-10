@@ -511,6 +511,10 @@ public class ExpressionUtil {
     return sanitizedValues;
   }
 
+  private static String sanitize(Type type, Literal<?> lit, long now, int today) {
+    return sanitize(type, lit.value(), now, today);
+  }
+
   private static String sanitize(Type type, Object value, long now, int today) {
     switch (type.typeId()) {
       case INTEGER:
