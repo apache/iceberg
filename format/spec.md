@@ -1634,53 +1634,39 @@ might indicate different snapshot IDs for a specific timestamp. The discrepancie
 When processing point in time queries implementations should use "snapshot-log" metadata to lookup the table state at the given point in time. This ensures time-travel queries reflect the state of the table at the provided timestamp. For example a SQL query like `SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00Z';` would find the snapshot of the Iceberg table just prior to '1986-10-26 01:21:00 UTC' in the snapshot logs and use the metadata from that snapshot to perform the scan of the table. If no  snapshot exists prior to the timestamp given or "snapshot-log" is not populated (it is an optional field), then systems should raise an informative error message about the missing metadata.
 
 ## Appendix G: Optional Snapshot Summary Fields
-Snapshot summary can include metrics fields to track numeric stats of the snapshot, see [Metrics](#metrics).
-Metrics must be accurate if written, as engines may rely on them for optimization.
-The value of these fields should be of string type (e.g., `"120"`).
+Snapshot summary can include metrics fields to track numeric stats of the snapshot (see [Metrics](#metrics)) and operational details (see [Other Fields](#other-fields)). The value of these fields should be of string type (e.g., `"120"`).
 
 ### Metrics
-Snapshot summary can include metrics fields to track numeric stats of the snapshot. The value of these fields should be numeric strings (e.g., `"120"`).
-Some of them are also used to represent partition-level metrics, in [Partition-Level Summary](#partition-level-summary).
 Metrics must be accurate if written, as engines may rely on them for optimization.
 
-| Field                               | Description                                                                                      | Used in Partition-Level Summary |
-|-------------------------------------|--------------------------------------------------------------------------------------------------|---------------------------------|
-| **`added-data-files`**              | Number of data files added in the snapshot                                                       | Yes                             |
-| **`deleted-data-files`**            | Number of data files deleted in the snapshot                                                     | Yes                             |
-| **`total-data-files`**              | Total number of live data files in the snapshot                                                  | No                              |
-| **`added-delete-files`**            | Number of positional/equality delete files and deletion vectors added in the snapshot            | Yes                             |
-| **`added-equality-delete-files`**   | Number of equality delete files added in the snapshot                                            | Yes                             |
-| **`removed-equality-delete-files`** | Number of equality delete files removed in the snapshot                                          | Yes                             |
-| **`added-position-delete-files`**   | Number of position delete files added in the snapshot                                            | Yes                             |
-| **`removed-position-delete-files`** | Number of position delete files removed in the snapshot                                          | Yes                             |
-| **`added-dvs`**                     | Number of deletion vectors added in the snapshot                                                 | Yes                             |
-| **`removed-dvs`**                   | Number of deletion vectors removed in the snapshot                                               | Yes                             |
-| **`removed-delete-files`**          | Number of positional/equality delete files and deletion vectors removed in the snapshot          | Yes                             |
-| **`total-delete-files`**            | Total number of live positional/equality delete files and deletion vectors in the snapshot       | No                              |
-| **`added-records`**                 | Number of records added in the snapshot                                                          | Yes                             |
-| **`deleted-records`**               | Number of records deleted in the snapshot                                                        | Yes                             |
-| **`total-records`**                 | Total number of records in the snapshot                                                          | No                              |
-| **`added-files-size`**              | The size of files added in the snapshot                                                          | Yes                             |
-| **`removed-files-size`**            | The size of files removed in the snapshot                                                        | Yes                             |
-| **`total-files-size`**              | Total size of live files in the snapshot                                                         | No                              |
-| **`added-position-deletes`**        | Number of position delete records added in the snapshot                                          | Yes                             |
-| **`removed-position-deletes`**      | Number of position delete records removed in the snapshot                                        | Yes                             |
-| **`total-position-deletes`**        | Total number of position delete records in the snapshot                                          | No                              |
-| **`added-equality-deletes`**        | Number of equality delete records added in the snapshot                                          | Yes                             |
-| **`removed-equality-deletes`**      | Number of equality delete records removed in the snapshot                                        | Yes                             |
-| **`total-equality-deletes`**        | Total number of equality delete records in the snapshot                                          | No                              |
-| **`deleted-duplicate-files`**       | Number of duplicate files deleted (duplicates are files recorded more than once in the manifest) | No                              |
-| **`changed-partition-count`**       | Number of partitions with files added or removed in the snapshot                                 | No                              |
-
-### Partition-Level Summary
-Snapshot summary can include partition-level summary statistics. These fields provide metrics for individual partitions. If included, the following fields should be used
-
-*   `partition-summaries-included`: A string field with values `"true"` or `"false"`. It should be set to `"true"` if the number of changed partitions is below the limit defined by the `write.summary.partition-limit` configuration.
-*   `partitions.<partition path>`: A prefix for partition-level metrics, appended with the string representation of the partition path[1]. The values are string maps containing partition metrics, which include some fields from [Metrics](#metrics).
-
-Notes:
-
-1. Partition paths are written as Hive partition paths in the format `<partition field name>=<partition value>`. For multiple partitions, they are separated by `/` (e.g. `year=2023/month=12/day=19`).
+| Field                               | Description                                                                                      |
+|-------------------------------------|--------------------------------------------------------------------------------------------------|
+| **`added-data-files`**              | Number of data files added in the snapshot                                                       |
+| **`deleted-data-files`**            | Number of data files deleted in the snapshot                                                     |
+| **`total-data-files`**              | Total number of live data files in the snapshot                                                  |
+| **`added-delete-files`**            | Number of positional/equality delete files and deletion vectors added in the snapshot            |
+| **`added-equality-delete-files`**   | Number of equality delete files added in the snapshot                                            |
+| **`removed-equality-delete-files`** | Number of equality delete files removed in the snapshot                                          |
+| **`added-position-delete-files`**   | Number of position delete files added in the snapshot                                            |
+| **`removed-position-delete-files`** | Number of position delete files removed in the snapshot                                          |
+| **`added-dvs`**                     | Number of deletion vectors added in the snapshot                                                 |
+| **`removed-dvs`**                   | Number of deletion vectors removed in the snapshot                                               |
+| **`removed-delete-files`**          | Number of positional/equality delete files and deletion vectors removed in the snapshot          |
+| **`total-delete-files`**            | Total number of live positional/equality delete files and deletion vectors in the snapshot       |
+| **`added-records`**                 | Number of records added in the snapshot                                                          |
+| **`deleted-records`**               | Number of records deleted in the snapshot                                                        |
+| **`total-records`**                 | Total number of records in the snapshot                                                          |
+| **`added-files-size`**              | The size of files added in the snapshot                                                          |
+| **`removed-files-size`**            | The size of files removed in the snapshot                                                        |
+| **`total-files-size`**              | Total size of live files in the snapshot                                                         |
+| **`added-position-deletes`**        | Number of position delete records added in the snapshot                                          |
+| **`removed-position-deletes`**      | Number of position delete records removed in the snapshot                                        |
+| **`total-position-deletes`**        | Total number of position delete records in the snapshot                                          |
+| **`added-equality-deletes`**        | Number of equality delete records added in the snapshot                                          |
+| **`removed-equality-deletes`**      | Number of equality delete records removed in the snapshot                                        |
+| **`total-equality-deletes`**        | Total number of equality delete records in the snapshot                                          |
+| **`deleted-duplicate-files`**       | Number of duplicate files deleted (duplicates are files recorded more than once in the manifest) |
+| **`changed-partition-count`**       | Number of partitions with files added or removed in the snapshot                                 |
 
 ### Other Fields
 
@@ -1693,4 +1679,4 @@ Notes:
 
 Notes:
 
-1. `ReplacePartitions` accumulates file additions and produces a new snapshot of the table by replacing all files in partitions with new data with the new additions
+1. `ReplacePartitions` accumulates file additions and produces a new snapshot of the table by replacing all files in partitions with new data with the new additions.
