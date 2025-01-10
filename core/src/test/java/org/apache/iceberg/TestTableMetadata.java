@@ -192,8 +192,6 @@ public class TestTableMetadata {
             refs,
             statisticsFiles,
             partitionStatisticsFiles,
-            false,
-            0L,
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
@@ -283,8 +281,6 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of(),
-            false,
-            -1L,
             ImmutableList.of());
 
     String asJson = toJsonWithoutSpecAndSchemaList(expected);
@@ -396,8 +392,6 @@ public class TestTableMetadata {
                     refs,
                     ImmutableList.of(),
                     ImmutableList.of(),
-                    false,
-                    -1L,
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot ID does not match main branch");
@@ -446,8 +440,6 @@ public class TestTableMetadata {
                     refs,
                     ImmutableList.of(),
                     ImmutableList.of(),
-                    false,
-                    -1L,
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot is not set, but main branch exists");
@@ -491,8 +483,6 @@ public class TestTableMetadata {
                     refs,
                     ImmutableList.of(),
                     ImmutableList.of(),
-                    false,
-                    -1L,
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageEndingWith("does not exist in the existing snapshots list");
@@ -598,8 +588,6 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of(),
-            false,
-            -1L,
             ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(base);
@@ -677,8 +665,6 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of(),
-            false,
-            -1L,
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -771,8 +757,6 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of(),
-            false,
-            -1L,
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -869,8 +853,6 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of(),
-            false,
-            -1L,
             ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
@@ -920,8 +902,6 @@ public class TestTableMetadata {
                     ImmutableMap.of(),
                     ImmutableList.of(),
                     ImmutableList.of(),
-                    false,
-                    -1L,
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(String.format("UUID is required in format v%s", formatVersion));
@@ -957,8 +937,6 @@ public class TestTableMetadata {
                     ImmutableMap.of(),
                     ImmutableList.of(),
                     ImmutableList.of(),
-                    false,
-                    -1L,
                     ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
@@ -1005,8 +983,6 @@ public class TestTableMetadata {
                 ImmutableMap.of(),
                 ImmutableList.of(),
                 ImmutableList.of(),
-                false,
-                -1L,
                 ImmutableList.of()))
         .isNotNull();
 
@@ -1914,143 +1890,5 @@ public class TestTableMetadata {
     assertThat(updatedMetadata.lastUpdatedMillis()).isEqualTo(newMetadata.lastUpdatedMillis());
     assertThat(updatedMetadata.metadataFileLocation()).isEqualTo("updated-metadata-location");
     assertThat(updatedMetadata.previousFiles()).isEmpty();
-  }
-
-  @Test
-  public void testRowLineageEnabledInV3() {
-
-    TableMetadata meta =
-        new TableMetadata(
-            null,
-            3,
-            UUID.randomUUID().toString(),
-            TEST_LOCATION,
-            SEQ_NO,
-            System.currentTimeMillis(),
-            3,
-            7,
-            ImmutableList.of(TEST_SCHEMA),
-            5,
-            ImmutableList.of(SPEC_5),
-            SPEC_5.lastAssignedFieldId(),
-            3,
-            ImmutableList.of(SORT_ORDER_3),
-            ImmutableMap.of("property", "value"),
-            -1,
-            ImmutableList.of(),
-            null,
-            ImmutableList.of(),
-            ImmutableList.of(),
-            ImmutableMap.of(),
-            ImmutableList.of(),
-            ImmutableList.of(),
-            true,
-            0L,
-            ImmutableList.of());
-
-    assertThat(meta.rowLinageEnabled()).isTrue();
-    assertThat(meta.nextRowId()).isEqualTo(0);
-  }
-
-  @Test
-  public void testRowLineageEnabledAndMissingNextRowId() {
-    assertThatThrownBy(
-            () ->
-                new TableMetadata(
-                    null,
-                    3,
-                    UUID.randomUUID().toString(),
-                    TEST_LOCATION,
-                    SEQ_NO,
-                    System.currentTimeMillis(),
-                    3,
-                    7,
-                    ImmutableList.of(TEST_SCHEMA),
-                    5,
-                    ImmutableList.of(SPEC_5),
-                    SPEC_5.lastAssignedFieldId(),
-                    3,
-                    ImmutableList.of(SORT_ORDER_3),
-                    ImmutableMap.of("property", "value"),
-                    -1,
-                    ImmutableList.of(),
-                    null,
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    ImmutableMap.of(),
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    true,
-                    -1L,
-                    ImmutableList.of()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Next row id is required when row lineage is enabled");
-  }
-
-  @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
-  public void testRowLineageUnsupportedInV1AndV2(int formatVersion) {
-    assumeThat(formatVersion).isLessThanOrEqualTo(2);
-
-    assertThatThrownBy(
-            () ->
-                new TableMetadata(
-                    null,
-                    formatVersion,
-                    UUID.randomUUID().toString(),
-                    TEST_LOCATION,
-                    0,
-                    System.currentTimeMillis(),
-                    3,
-                    7,
-                    ImmutableList.of(TEST_SCHEMA),
-                    5,
-                    ImmutableList.of(SPEC_5),
-                    SPEC_5.lastAssignedFieldId(),
-                    3,
-                    ImmutableList.of(SORT_ORDER_3),
-                    ImmutableMap.of("property", "value"),
-                    -1,
-                    ImmutableList.of(),
-                    null,
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    ImmutableMap.of(),
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    true,
-                    0L,
-                    ImmutableList.of()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            String.format(
-                "Row lineage is only supported in v3 (current version v%s)", formatVersion));
-  }
-
-  @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
-  public void testParseV3RowLineageEnabled(int formatVersion) throws Exception {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
-
-    String data =
-        readTableMetadataInputFile(
-            String.format("TableMetadataV%sRowLineageEnabled.json", formatVersion));
-    TableMetadata parsed = TableMetadataParser.fromJson(data);
-
-    assertThat(parsed.rowLinageEnabled()).isTrue();
-    assertThat(parsed.nextRowId()).isEqualTo(0);
-  }
-
-  @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
-  public void testParseV3RowLineageEnabledAndMissingNextRowId(int formatVersion) throws Exception {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
-
-    String data =
-        readTableMetadataInputFile(
-            String.format("TableMetadataV%sMissingNextRowId.json", formatVersion));
-    assertThatThrownBy(() -> TableMetadataParser.fromJson(data))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Next row must be set when row lineage is enabled");
   }
 }

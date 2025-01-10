@@ -242,13 +242,6 @@ public class TableMetadataParser {
     }
     generator.writeEndArray();
 
-    if (metadata.formatVersion() == 3) {
-      generator.writeBooleanField(ROW_LINEAGE, metadata.rowLinageEnabled());
-      if (metadata.nextRowId() > -1L) {
-        generator.writeNumberField(NEXT_ROW_ID, metadata.nextRowId());
-      }
-    }
-
     generator.writeArrayFieldStart(SNAPSHOT_LOG);
     for (HistoryEntry logEntry : metadata.snapshotLog()) {
       generator.writeStartObject();
@@ -532,18 +525,6 @@ public class TableMetadataParser {
       }
     }
 
-    boolean rowLineageEnabled = false;
-    if (formatVersion == 3 && node.hasNonNull(ROW_LINEAGE)) {
-      rowLineageEnabled = JsonUtil.getBool(ROW_LINEAGE, node);
-    }
-    Long nextRowId = JsonUtil.getLongOrNull(NEXT_ROW_ID, node);
-    Preconditions.checkArgument(
-        !rowLineageEnabled || nextRowId != null,
-        "Next row must be set when row lineage is enabled");
-    if (nextRowId == null) {
-      nextRowId = -1L;
-    }
-
     return new TableMetadata(
         metadataLocation,
         formatVersion,
@@ -568,8 +549,6 @@ public class TableMetadataParser {
         refs,
         statisticsFiles,
         partitionStatisticsFiles,
-        rowLineageEnabled,
-        nextRowId,
         ImmutableList.of() /* no changes from the file */);
   }
 
