@@ -22,11 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assume.assumeTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import java.nio.file.Path;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.types.Types;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 
@@ -41,24 +38,9 @@ public class TestRowLineageMetadata {
           Types.NestedField.required(2, "y", Types.LongType.get(), "comment"),
           Types.NestedField.required(3, "z", Types.LongType.get()));
 
-  private static final long SEQ_NO = 34;
-  private static final int LAST_ASSIGNED_COLUMN_ID = 3;
-
-  private static final PartitionSpec SPEC_5 =
-      PartitionSpec.builderFor(TEST_SCHEMA).withSpecId(5).build();
-  private static final SortOrder SORT_ORDER_3 =
-      SortOrder.builderFor(TEST_SCHEMA)
-          .withOrderId(3)
-          .asc("y", NullOrder.NULLS_FIRST)
-          .desc(Expressions.bucket("z", 4), NullOrder.NULLS_LAST)
-          .build();
-
-  @TempDir private Path temp;
-
-  public TableOperations ops = new LocalTableOperations(temp);
 
   private TableMetadata.Builder builderFor(int formatVersion) {
-    return TableMetadata.buildFromEmpty(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE)
+    return TableMetadata.buildFromEmpty(formatVersion)
         .enableRowLineage();
   }
 
