@@ -61,8 +61,8 @@ class SerializedArray extends Variants.SerializedValue implements VariantArray {
     this.array = new VariantValue[numElements];
   }
 
-  @VisibleForTesting
-  int numElements() {
+  @Override
+  public int numElements() {
     return array.length;
   }
 
