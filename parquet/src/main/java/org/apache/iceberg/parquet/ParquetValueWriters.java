@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -38,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.io.api.Binary;
@@ -87,6 +89,10 @@ public class ParquetValueWriters {
     return new StringWriter(desc);
   }
 
+  public static PrimitiveWriter<UUID> uuids(ColumnDescriptor desc) {
+    return new UUIDWriter(desc);
+  }
+
   public static PrimitiveWriter<BigDecimal> decimalAsInteger(
       ColumnDescriptor desc, int precision, int scale) {
     return new IntegerDecimalWriter(desc, precision, scale);
@@ -104,6 +110,14 @@ public class ParquetValueWriters {
 
   public static PrimitiveWriter<ByteBuffer> byteBuffers(ColumnDescriptor desc) {
     return new BytesWriter(desc);
+  }
+
+  public static PrimitiveWriter<ByteBuffer> fixedBuffer(ColumnDescriptor desc) {
+    return new FixedBufferWriter(desc);
+  }
+
+  public static PrimitiveWriter<byte[]> fixed(ColumnDescriptor desc) {
+    return new FixedWriter(desc);
   }
 
   public static <E> CollectionWriter<E> collections(int dl, int rl, ParquetValueWriter<E> writer) {
@@ -313,6 +327,44 @@ public class ParquetValueWriters {
     }
   }
 
+  private static class FixedBufferWriter extends PrimitiveWriter<ByteBuffer> {
+    private final int length;
+
+    private FixedBufferWriter(ColumnDescriptor desc) {
+      super(desc);
+      this.length = desc.getPrimitiveType().getTypeLength();
+    }
+
+    @Override
+    public void write(int repetitionLevel, ByteBuffer buffer) {
+      Preconditions.checkArgument(
+          buffer.remaining() == length,
+          "Cannot write byte buffer of length %s as fixed[%s]",
+          buffer.remaining(),
+          length);
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteBuffer(buffer));
+    }
+  }
+
+  private static class FixedWriter extends PrimitiveWriter<byte[]> {
+    private final int length;
+
+    private FixedWriter(ColumnDescriptor desc) {
+      super(desc);
+      this.length = desc.getPrimitiveType().getTypeLength();
+    }
+
+    @Override
+    public void write(int repetitionLevel, byte[] value) {
+      Preconditions.checkArgument(
+          value.length == length,
+          "Cannot write byte buffer of length %s as fixed[%s]",
+          value.length,
+          length);
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(value));
+    }
+  }
+
   private static class StringWriter extends PrimitiveWriter<CharSequence> {
     private StringWriter(ColumnDescriptor desc) {
       super(desc);
@@ -327,6 +379,17 @@ public class ParquetValueWriters {
       } else {
         column.writeBinary(repetitionLevel, Binary.fromString(value.toString()));
       }
+    }
+  }
+
+  private static class UUIDWriter extends PrimitiveWriter<UUID> {
+    private UUIDWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, UUID value) {
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(UUIDUtil.convert(value)));
     }
   }
 

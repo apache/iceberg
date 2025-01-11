@@ -24,12 +24,15 @@ import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.io.api.Binary;
@@ -401,6 +404,17 @@ public class ParquetValueReaders {
     }
   }
 
+  public static class UUIDReader extends PrimitiveReader<UUID> {
+    public UUIDReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public UUID read(UUID reuse) {
+      return UUIDUtil.convert(column.nextBinary().toByteBuffer());
+    }
+  }
+
   public static class ByteArrayReader extends ParquetValueReaders.PrimitiveReader<byte[]> {
     public ByteArrayReader(ColumnDescriptor desc) {
       super(desc);
@@ -409,6 +423,41 @@ public class ParquetValueReaders {
     @Override
     public byte[] read(byte[] ignored) {
       return column.nextBinary().getBytes();
+    }
+  }
+
+  public static class TimestampInt96Reader extends UnboxedReader<Long> {
+
+    public TimestampInt96Reader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Long read(Long ignored) {
+      return readLong();
+    }
+
+    @Override
+    public long readLong() {
+      final ByteBuffer byteBuffer =
+          column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+      return ParquetUtil.extractTimestampInt96(byteBuffer);
+    }
+  }
+
+  public static class TimestampMillisReader extends UnboxedReader<Long> {
+    public TimestampMillisReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Long read(Long ignored) {
+      return readLong();
+    }
+
+    @Override
+    public long readLong() {
+      return 1000L * column.nextInteger();
     }
   }
 

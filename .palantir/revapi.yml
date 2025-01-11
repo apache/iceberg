@@ -1171,6 +1171,58 @@ acceptedBreaks:
         \ java.util.function.Function<T, java.lang.Long>, org.apache.iceberg.io.CloseableIterable<java.lang.Long>,\
         \ java.util.function.Consumer<T>)"
       justification: "Removing deprecated code"
+    org.apache.iceberg:iceberg-parquet:
+    - code: "java.method.abstractMethodAdded"
+      new: "method org.apache.iceberg.parquet.ParquetValueReaders.PrimitiveReader<?>\
+        \ org.apache.iceberg.data.parquet.BaseParquetReaders<T>::dateReader(org.apache.parquet.column.ColumnDescriptor)"
+      justification: "Refactor Parquet reader and writer"
+    - code: "java.method.abstractMethodAdded"
+      new: "method org.apache.iceberg.parquet.ParquetValueReaders.PrimitiveReader<?>\
+        \ org.apache.iceberg.data.parquet.BaseParquetReaders<T>::fixedReader(org.apache.parquet.column.ColumnDescriptor)"
+      justification: "Refactor Parquet reader and writer"
+    - code: "java.method.abstractMethodAdded"
+      new: "method org.apache.iceberg.parquet.ParquetValueReaders.PrimitiveReader<?>\
+        \ org.apache.iceberg.data.parquet.BaseParquetReaders<T>::int96Reader(org.apache.parquet.column.ColumnDescriptor)"
+      justification: "Refactor Parquet reader and writer"
+    - code: "java.method.abstractMethodAdded"
+      new: "method org.apache.iceberg.parquet.ParquetValueReaders.PrimitiveReader<?>\
+        \ org.apache.iceberg.data.parquet.BaseParquetReaders<T>::timeReader(org.apache.parquet.column.ColumnDescriptor,\
+        \ org.apache.parquet.schema.LogicalTypeAnnotation.TimeUnit)"
+      justification: "Refactor Parquet reader and writer"
+    - code: "java.method.abstractMethodAdded"
+      new: "method org.apache.iceberg.parquet.ParquetValueReaders.PrimitiveReader<?>\
+        \ org.apache.iceberg.data.parquet.BaseParquetReaders<T>::timestampReader(org.apache.parquet.column.ColumnDescriptor,\
+        \ org.apache.parquet.schema.LogicalTypeAnnotation.TimeUnit, boolean)"
+      justification: "Refactor Parquet reader and writer"
+    - code: "java.method.abstractMethodAdded"
+      new: "method org.apache.iceberg.parquet.ParquetValueReaders.PrimitiveReader<?>\
+        \ org.apache.iceberg.data.parquet.BaseParquetReaders<T>::uuidReader(org.apache.parquet.column.ColumnDescriptor)"
+      justification: "Refactor Parquet reader and writer"
+    - code: "java.method.abstractMethodAdded"
+      new: "method org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter<?>\
+        \ org.apache.iceberg.data.parquet.BaseParquetWriter<T>::dateWriter(org.apache.parquet.column.ColumnDescriptor)"
+      justification: "Refactor Parquet reader and writer"
+    - code: "java.method.abstractMethodAdded"
+      new: "method org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter<?>\
+        \ org.apache.iceberg.data.parquet.BaseParquetWriter<T>::fixedWriter(org.apache.parquet.column.ColumnDescriptor)"
+      justification: "Refactor Parquet reader and writer"
+    - code: "java.method.abstractMethodAdded"
+      new: "method org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter<?>\
+        \ org.apache.iceberg.data.parquet.BaseParquetWriter<T>::timeWriter(org.apache.parquet.column.ColumnDescriptor)"
+      justification: "Refactor Parquet reader and writer"
+    - code: "java.method.abstractMethodAdded"
+      new: "method org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter<?>\
+        \ org.apache.iceberg.data.parquet.BaseParquetWriter<T>::timestampWriter(org.apache.parquet.column.ColumnDescriptor,\
+        \ boolean)"
+      justification: "Refactor Parquet reader and writer"
+    - code: "java.method.abstractMethodAdded"
+      new: "method org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter<?>\
+        \ org.apache.iceberg.data.parquet.BaseParquetWriter<T>::uuidWriter(org.apache.parquet.column.ColumnDescriptor)"
+      justification: "Refactor Parquet reader and writer"
+    - code: "java.method.abstractMethodAdded"
+      new: "method org.apache.parquet.schema.LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter<?>>\
+        \ org.apache.iceberg.data.parquet.BaseParquetWriter<T>::logicalTypeWriterVisitor(org.apache.parquet.column.ColumnDescriptor)"
+      justification: "Refactor Parquet reader and writer"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"
