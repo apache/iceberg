@@ -110,8 +110,6 @@ public class TableMetadataParser {
   static final String METADATA_LOG = "metadata-log";
   static final String STATISTICS = "statistics";
   static final String PARTITION_STATISTICS = "partition-statistics";
-  static final String ROW_LINEAGE = "row-lineage";
-  static final String NEXT_ROW_ID = "next-row-id";
 
   public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
     internalWrite(metadata, outputFile, true);
