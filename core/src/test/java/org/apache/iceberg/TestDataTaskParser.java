@@ -193,10 +193,26 @@ public class TestDataTaskParser {
 
     List<Snapshot> snapshots =
         Arrays.asList(
-            new BaseSnapshot(
-                1L, 1L, null, 1234567890000L, "append", summary1, 1, "file:/tmp/manifest1.avro"),
-            new BaseSnapshot(
-                2L, 2L, 1L, 9876543210000L, "append", summary2, 1, "file:/tmp/manifest2.avro"));
+            MetadataTestUtils.buildTestSnapshot()
+                .setSequenceNumber(1L)
+                .setSnapshotId(1L)
+                .setParentId(null)
+                .setTimestampMillis(1234567890000L)
+                .setOperation("append")
+                .setSummary(summary1)
+                .setSchemaId(1)
+                .setManifestListLocation("file:/tmp/manifest1.avro")
+                .build(),
+            MetadataTestUtils.buildTestSnapshot()
+                .setSequenceNumber(2L)
+                .setSnapshotId(2L)
+                .setParentId(1L)
+                .setTimestampMillis(9876543210000L)
+                .setOperation("append")
+                .setSummary(summary2)
+                .setSchemaId(1)
+                .setManifestListLocation("file:/tmp/manifest2.avro")
+                .build());
 
     return StaticDataTask.of(
         Files.localInput("file:/tmp/metadata2.json"),

@@ -42,8 +42,15 @@ public class TestSnapshotJson {
     String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
 
     Snapshot expected =
-        new BaseSnapshot(
-            0, snapshotId, parentId, System.currentTimeMillis(), null, null, 1, manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(snapshotId)
+            .setParentId(parentId)
+            .setOperation(null)
+            .setSummary(null)
+            .setSchemaId(1)
+            .setManifestListLocation(manifestList)
+            .build();
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
 
@@ -61,8 +68,15 @@ public class TestSnapshotJson {
     String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
 
     Snapshot expected =
-        new BaseSnapshot(
-            0, snapshotId, parentId, System.currentTimeMillis(), null, null, null, manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(snapshotId)
+            .setParentId(parentId)
+            .setOperation(null)
+            .setSummary(null)
+            .setSchemaId(null)
+            .setManifestListLocation(manifestList)
+            .build();
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
 
@@ -81,15 +95,15 @@ public class TestSnapshotJson {
     String manifestList = createManifestListWithManifestFiles(id, parentId);
 
     Snapshot expected =
-        new BaseSnapshot(
-            0,
-            id,
-            parentId,
-            System.currentTimeMillis(),
-            DataOperations.REPLACE,
-            ImmutableMap.of("files-added", "4", "files-deleted", "100"),
-            3,
-            manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(id)
+            .setParentId(parentId)
+            .setOperation(DataOperations.REPLACE)
+            .setSummary(ImmutableMap.of("files-added", "4", "files-deleted", "100"))
+            .setSchemaId(3)
+            .setManifestListLocation(manifestList)
+            .build();
 
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
@@ -115,15 +129,16 @@ public class TestSnapshotJson {
     // this creates a V1 snapshot with manifests
     long timestampMillis = System.currentTimeMillis();
     Snapshot expected =
-        new BaseSnapshot(
-            0,
-            id,
-            parentId,
-            timestampMillis,
-            DataOperations.REPLACE,
-            ImmutableMap.of("files-added", "4", "files-deleted", "100"),
-            3,
-            new String[] {"/tmp/manifest1.avro", "/tmp/manifest2.avro"});
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0)
+            .setSnapshotId(id)
+            .setParentId(parentId)
+            .setTimestampMillis(timestampMillis)
+            .setOperation(DataOperations.REPLACE)
+            .setSummary(ImmutableMap.of("files-added", "4", "files-deleted", "100"))
+            .setSchemaId(3)
+            .setV1ManifestLocations(new String[] {"/tmp/manifest1.avro", "/tmp/manifest2.avro"})
+            .build();
 
     String expectedJson =
         String.format(
