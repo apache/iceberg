@@ -26,11 +26,20 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.GlueTable;
 import org.apache.iceberg.LockManager;
+import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.MetadataTableUtils;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.Transaction;
+import org.apache.iceberg.Transactions;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
@@ -41,7 +50,9 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
+import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
@@ -79,6 +90,12 @@ import software.amazon.awssdk.services.glue.model.InvalidInputException;
 import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateDatabaseRequest;
+import software.amazon.glue.GlueCatalogExtensions;
+import software.amazon.glue.GlueCatalogSessionExtensions;
+import software.amazon.glue.GlueExtensionsEndpoint;
+import software.amazon.glue.GlueExtensionsPaths;
+import software.amazon.glue.GlueExtensionsProperties;
+import software.amazon.glue.GlueUtil;
 
 public class GlueCatalog extends BaseMetastoreCatalog
     implements SupportsNamespaces, Configurable<Configuration> {
@@ -95,6 +112,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
   private CloseableGroup closeableGroup;
   private Map<String, String> catalogProperties;
   private FileIOTracker fileIOTracker;
+  private GlueCatalogExtensions extensions;
+  private boolean extensionsEnabled;
 
   // Attempt to set versionId if available on the path
   private static final DynMethods.UnboundMethod SET_VERSION_ID =
@@ -189,6 +208,20 @@ public class GlueCatalog extends BaseMetastoreCatalog
     this.warehousePath = Strings.isNullOrEmpty(path) ? null : LocationUtil.stripTrailingSlash(path);
     this.glue = client;
     this.lockManager = lock;
+    this.extensionsEnabled =
+        PropertyUtil.propertyAsBoolean(
+            catalogProperties, GlueExtensionsProperties.GLUE_EXTENSIONS_ENABLED, true);
+    if (extensionsEnabled) {
+      this.extensions =
+          new GlueCatalogExtensions(
+              new GlueCatalogSessionExtensions(
+                  name,
+                  catalogProperties,
+                  new GlueExtensionsProperties(catalogProperties),
+                  GlueExtensionsEndpoint.from(catalogProperties),
+                  GlueExtensionsPaths.from(awsProperties.glueCatalogId()),
+                  this));
+    }
 
     this.closeableGroup = new CloseableGroup();
     this.fileIOTracker = new FileIOTracker();
@@ -334,7 +367,12 @@ public class GlueCatalog extends BaseMetastoreCatalog
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
     try {
-      TableOperations ops = newTableOps(identifier);
+      GlueTableOperations ops = (GlueTableOperations) newTableOps(identifier);
+      Table glueTable = ops.getGlueTable();
+      if (extensionsEnabled && extensions.useExtensionsForGlueTable(glueTable)) {
+        return extensions.dropTable(identifier, purge);
+      }
+
       TableMetadata lastMetadata = null;
       if (purge) {
         try {
@@ -408,6 +446,11 @@ public class GlueCatalog extends BaseMetastoreCatalog
           e, "Cannot rename %s because the table does not exist in Glue", from);
     }
 
+    if (extensionsEnabled && extensions.useExtensionsForGlueTable(fromTable)) {
+      extensions.renameTable(from, to);
+      return;
+    }
+
     // use the same Glue info to create the new table, pointing to the old metadata
     TableInput.Builder tableInputBuilder =
         TableInput.builder()
@@ -447,6 +490,10 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
+    if (extensionsEnabled && GlueUtil.useExtensionsForIcebergNamespace(metadata)) {
+      extensions.namespaces().createNamespace(namespace, metadata);
+    }
+
     try {
       glue.createDatabase(
           CreateDatabaseRequest.builder()
@@ -536,7 +583,29 @@ public class GlueCatalog extends BaseMetastoreCatalog
 
   @Override
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
-    namespaceExists(namespace);
+    String databaseName =
+        IcebergToGlueConverter.toDatabaseName(
+            namespace, awsProperties.glueCatalogSkipNameValidation());
+    try {
+      Database database =
+          glue.getDatabase(
+                  GetDatabaseRequest.builder()
+                      .catalogId(awsProperties.glueCatalogId())
+                      .name(databaseName)
+                      .build())
+              .database();
+
+      if (extensionsEnabled && extensions.useExtensionsForGlueDatabase(database)) {
+        return extensions.dropNamespace(namespace);
+      }
+    } catch (InvalidInputException e) {
+      throw new NoSuchNamespaceException(
+          "invalid input for namespace %s, error message: %s", namespace, e.getMessage());
+    } catch (EntityNotFoundException e) {
+      throw new NoSuchNamespaceException(
+          "fail to find Glue database for namespace %s, error message: %s",
+          databaseName, e.getMessage());
+    }
 
     GetTablesResponse response =
         glue.getTables(
@@ -642,5 +711,278 @@ public class GlueCatalog extends BaseMetastoreCatalog
   @Override
   protected Map<String, String> properties() {
     return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
+  }
+
+  @Override
+  public org.apache.iceberg.Table loadTable(TableIdentifier identifier) {
+    org.apache.iceberg.Table result;
+    if (isValidIdentifier(identifier)) {
+      GlueTableOperations ops = (GlueTableOperations) newTableOps(identifier);
+      Table table = ops.getGlueTable();
+      if (extensionsEnabled && extensions.useExtensionsForGlueTable(table)) {
+        GlueTable glueTable = (GlueTable) extensions.loadTable(identifier);
+        glueTable.setGlueColumnTypeMappingFromGlueServiceTable(table);
+        glueTable.setOriginalOps(ops);
+        return glueTable;
+      }
+
+      if (table != null) {
+        if (!isGlueIcebergTable(table)) {
+          throw new NoSuchIcebergTableException(
+              "Glue table %s is not an Iceberg table", table.name());
+        }
+      }
+
+      if (ops.current() == null) {
+        // the identifier may be valid for both tables and metadata tables
+        if (isValidMetadataIdentifier(identifier)) {
+          result = loadMetadataTable(identifier);
+
+        } else {
+          throw new NoSuchTableException("Table does not exist: %s", identifier);
+        }
+
+      } else {
+        result = new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
+      }
+
+    } else if (isValidMetadataIdentifier(identifier)) {
+      result = loadMetadataTable(identifier);
+
+    } else {
+      throw new NoSuchTableException("Invalid table identifier: %s", identifier);
+    }
+
+    LOG.info("Table loaded by catalog: {}", result);
+    return result;
+  }
+
+  private boolean isValidMetadataIdentifier(TableIdentifier identifier) {
+    return MetadataTableType.from(identifier.name()) != null
+        && isValidIdentifier(TableIdentifier.of(identifier.namespace().levels()));
+  }
+
+  private org.apache.iceberg.Table loadMetadataTable(TableIdentifier identifier) {
+    String tableName = identifier.name();
+    MetadataTableType type = MetadataTableType.from(tableName);
+    if (type != null) {
+      TableIdentifier baseTableIdentifier = TableIdentifier.of(identifier.namespace().levels());
+      GlueTableOperations ops = (GlueTableOperations) newTableOps(baseTableIdentifier);
+      Table glueTable = ops.getGlueTable();
+      if (extensionsEnabled && extensions.useExtensionsForGlueTable(glueTable)) {
+        return extensions.loadTable(identifier);
+      }
+
+      if (glueTable != null) {
+        if (!isGlueIcebergTable(glueTable)) {
+          throw new NoSuchIcebergTableException(
+              "Glue table %s is not an Iceberg table", glueTable.name());
+        }
+      }
+
+      if (ops.current() == null) {
+        throw new NoSuchTableException("Table does not exist: %s", baseTableIdentifier);
+      }
+
+      return MetadataTableUtils.createMetadataTableInstance(
+          ops, name(), baseTableIdentifier, identifier, type);
+    } else {
+      throw new NoSuchTableException("Table does not exist: %s", identifier);
+    }
+  }
+
+  @Override
+  public TableBuilder buildTable(TableIdentifier identifier, Schema schema) {
+    return new GlueCatalogTableBuilder(identifier, schema);
+  }
+
+  @VisibleForTesting
+  void setExtensions(GlueCatalogExtensions extensions) {
+    this.extensions = extensions;
+  }
+
+  private class GlueCatalogTableBuilder implements TableBuilder {
+    private final TableIdentifier identifier;
+    private final Schema schema;
+    private final Map<String, String> tableProperties = Maps.newHashMap();
+    private PartitionSpec spec = PartitionSpec.unpartitioned();
+    private SortOrder sortOrder = SortOrder.unsorted();
+    private String location = null;
+
+    GlueCatalogTableBuilder(TableIdentifier identifier, Schema schema) {
+      Preconditions.checkArgument(
+          isValidIdentifier(identifier), "Invalid table identifier: %s", identifier);
+
+      this.identifier = identifier;
+      this.schema = schema;
+      this.tableProperties.putAll(tableDefaultProperties());
+    }
+
+    @Override
+    public TableBuilder withPartitionSpec(PartitionSpec newSpec) {
+      this.spec = newSpec != null ? newSpec : PartitionSpec.unpartitioned();
+      return this;
+    }
+
+    @Override
+    public TableBuilder withSortOrder(SortOrder newSortOrder) {
+      this.sortOrder = newSortOrder != null ? newSortOrder : SortOrder.unsorted();
+      return this;
+    }
+
+    @Override
+    public TableBuilder withLocation(String newLocation) {
+      this.location = newLocation;
+      return this;
+    }
+
+    @Override
+    public TableBuilder withProperties(Map<String, String> properties) {
+      if (properties != null) {
+        tableProperties.putAll(properties);
+      }
+      return this;
+    }
+
+    @Override
+    public TableBuilder withProperty(String key, String value) {
+      tableProperties.put(key, value);
+      return this;
+    }
+
+    @Override
+    public org.apache.iceberg.Table create() {
+      if (extensionsEnabled && GlueUtil.useExtensionsForIcebergTable(tableProperties)) {
+        GlueTable glueTable =
+            (GlueTable)
+                extensions
+                    .buildTable(identifier, schema)
+                    .withLocation(location)
+                    .withSortOrder(sortOrder)
+                    .withPartitionSpec(spec)
+                    .withProperties(tableProperties)
+                    .create();
+        GlueTableOperations ops = (GlueTableOperations) newTableOps(identifier);
+        Table glueServiceTable = ops.getGlueTable();
+        glueTable.setGlueColumnTypeMappingFromGlueServiceTable(glueServiceTable);
+        glueTable.setOriginalOps(ops);
+        return glueTable;
+      }
+
+      TableOperations ops = newTableOps(identifier);
+      if (ops.current() != null) {
+        throw new AlreadyExistsException("Table already exists: %s", identifier);
+      }
+
+      String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
+      tableProperties.putAll(tableOverrideProperties());
+      TableMetadata metadata =
+          TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
+
+      try {
+        ops.commit(null, metadata);
+      } catch (CommitFailedException ignored) {
+        throw new AlreadyExistsException("Table was created concurrently: %s", identifier);
+      }
+
+      return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
+    }
+
+    @Override
+    public Transaction createTransaction() {
+      if (extensionsEnabled && GlueUtil.useExtensionsForIcebergTable(tableProperties)) {
+        return extensions
+            .buildTable(identifier, schema)
+            .withLocation(location)
+            .withSortOrder(sortOrder)
+            .withPartitionSpec(spec)
+            .withProperties(tableProperties)
+            .createTransaction();
+      }
+
+      TableOperations ops = newTableOps(identifier);
+      if (ops.current() != null) {
+        throw new AlreadyExistsException("Table already exists: %s", identifier);
+      }
+
+      String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
+      tableProperties.putAll(tableOverrideProperties());
+      TableMetadata metadata =
+          TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
+      return Transactions.createTableTransaction(identifier.toString(), ops, metadata);
+    }
+
+    @Override
+    public Transaction replaceTransaction() {
+      if (extensionsEnabled && GlueUtil.useExtensionsForIcebergTable(tableProperties)) {
+        return extensions
+            .buildTable(identifier, schema)
+            .withLocation(location)
+            .withSortOrder(sortOrder)
+            .withPartitionSpec(spec)
+            .withProperties(tableProperties)
+            .replaceTransaction();
+      }
+
+      return newReplaceTableTransaction(false);
+    }
+
+    @Override
+    public Transaction createOrReplaceTransaction() {
+      if (extensionsEnabled && GlueUtil.useExtensionsForIcebergTable(tableProperties)) {
+        return extensions
+            .buildTable(identifier, schema)
+            .withLocation(location)
+            .withSortOrder(sortOrder)
+            .withPartitionSpec(spec)
+            .withProperties(tableProperties)
+            .createOrReplaceTransaction();
+      }
+
+      return newReplaceTableTransaction(true);
+    }
+
+    private Transaction newReplaceTableTransaction(boolean orCreate) {
+      TableOperations ops = newTableOps(identifier);
+      if (!orCreate && ops.current() == null) {
+        throw new NoSuchTableException("Table does not exist: %s", identifier);
+      }
+
+      TableMetadata metadata;
+      tableProperties.putAll(tableOverrideProperties());
+      if (ops.current() != null) {
+        String baseLocation = location != null ? location : ops.current().location();
+        metadata =
+            ops.current().buildReplacement(schema, spec, sortOrder, baseLocation, tableProperties);
+      } else {
+        String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
+        metadata =
+            TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, tableProperties);
+      }
+
+      if (orCreate) {
+        return Transactions.createOrReplaceTableTransaction(identifier.toString(), ops, metadata);
+      } else {
+        return Transactions.replaceTableTransaction(identifier.toString(), ops, metadata);
+      }
+    }
+
+    private Map<String, String> tableDefaultProperties() {
+      Map<String, String> tableDefaultProperties =
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_DEFAULT_PREFIX);
+      LOG.info(
+          "Table properties set at catalog level through catalog properties: {}",
+          tableDefaultProperties);
+      return tableDefaultProperties;
+    }
+
+    private Map<String, String> tableOverrideProperties() {
+      Map<String, String> tableOverrideProperties =
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_OVERRIDE_PREFIX);
+      LOG.info(
+          "Table properties enforced at catalog level through catalog properties: {}",
+          tableOverrideProperties);
+      return tableOverrideProperties;
+    }
   }
 }
