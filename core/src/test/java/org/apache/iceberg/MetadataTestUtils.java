@@ -23,6 +23,7 @@ import static org.apache.iceberg.TableMetadata.INITIAL_SEQUENCE_NUMBER;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -33,7 +34,7 @@ public class MetadataTestUtils {
 
   private MetadataTestUtils() {}
 
-  public static TableMetadataBuilder buildTestTableMetadataFromEmpty(int formatVersion) {
+  public static TableMetadataBuilder buildTestTableMetadata(int formatVersion) {
     return new TableMetadataBuilder(formatVersion);
   }
 
@@ -236,6 +237,100 @@ public class MetadataTestUtils {
           ImmutableList.copyOf(statisticsFiles),
           ImmutableList.copyOf(partitionStatisticsFiles),
           ImmutableList.copyOf(changes));
+    }
+  }
+
+  public static BaseSnapshotBuilder buildTestSnapshot() {
+    return new BaseSnapshotBuilder();
+  }
+
+  public static class BaseSnapshotBuilder {
+    private long snapshotId;
+    private Long parentId;
+    private long sequenceNumber;
+    private long timestampMillis;
+    private String manifestListLocation;
+    private String operation;
+    private Map<String, String> summary;
+    private Integer schemaId;
+    private String[] v1ManifestLocations;
+
+    private BaseSnapshotBuilder() {
+      this.snapshotId = -1L;
+      this.sequenceNumber = -1L;
+      this.timestampMillis = System.currentTimeMillis();
+      this.summary = ImmutableMap.of();
+    }
+
+    public BaseSnapshotBuilder setSnapshotId(long snapshotId) {
+      this.snapshotId = snapshotId;
+      return this;
+    }
+
+    public BaseSnapshotBuilder setParentId(Long parentId) {
+      this.parentId = parentId;
+      return this;
+    }
+
+    public BaseSnapshotBuilder setSequenceNumber(long sequenceNumber) {
+      this.sequenceNumber = sequenceNumber;
+      return this;
+    }
+
+    public BaseSnapshotBuilder setTimestampMillis(long timestampMillis) {
+      this.timestampMillis = timestampMillis;
+      return this;
+    }
+
+    public BaseSnapshotBuilder setManifestListLocation(String manifestListLocation) {
+      this.manifestListLocation = manifestListLocation;
+      return this;
+    }
+
+    public BaseSnapshotBuilder setOperation(String operation) {
+      this.operation = operation;
+      return this;
+    }
+
+    public BaseSnapshotBuilder setSummary(Map<String, String> summary) {
+      this.summary = summary;
+      return this;
+    }
+
+    public BaseSnapshotBuilder setSchemaId(Integer schemaId) {
+      this.schemaId = schemaId;
+      return this;
+    }
+
+    public BaseSnapshotBuilder setV1ManifestLocations(String[] v1ManifestLocations) {
+      this.v1ManifestLocations = v1ManifestLocations;
+      return this;
+    }
+
+    public Snapshot build() {
+      Preconditions.checkArgument(
+          manifestListLocation != null || v1ManifestLocations != null,
+          "Cannot set both ManifestListLocation and V1ManifestLocations");
+      if (v1ManifestLocations != null) {
+        return new BaseSnapshot(
+            sequenceNumber,
+            snapshotId,
+            parentId,
+            timestampMillis,
+            operation,
+            summary,
+            schemaId,
+            v1ManifestLocations);
+      }
+      return new BaseSnapshot(
+          sequenceNumber,
+          snapshotId,
+          parentId,
+          timestampMillis,
+          operation,
+          summary,
+          schemaId,
+          manifestListLocation);
     }
   }
 }

@@ -112,23 +112,32 @@ public class TestTableMetadata {
     String manifestList =
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
-        new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(previousSnapshotId)
+            .setParentId(null)
+            .setTimestampMillis(previousSnapshotId)
+            .setOperation(null)
+            .setSummary(null)
+            .setSchemaId(null)
+            .setManifestListLocation(manifestList)
+            .build();
 
     long currentSnapshotId = System.currentTimeMillis();
     manifestList =
         createManifestListWithManifestFile(
             currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
     Snapshot currentSnapshot =
-        new BaseSnapshot(
-            0,
-            currentSnapshotId,
-            previousSnapshotId,
-            currentSnapshotId,
-            null,
-            null,
-            7,
-            manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(currentSnapshotId)
+            .setParentId(previousSnapshotId)
+            .setTimestampMillis(currentSnapshotId)
+            .setOperation(null)
+            .setSummary(null)
+            .setSchemaId(7)
+            .setManifestListLocation(manifestList)
+            .build();
 
     List<HistoryEntry> snapshotLog =
         ImmutableList.<HistoryEntry>builder()
@@ -168,7 +177,7 @@ public class TestTableMetadata {
                 .build());
 
     TableMetadata expected =
-        MetadataTestUtils.buildTestTableMetadataFromEmpty(formatVersion)
+        MetadataTestUtils.buildTestTableMetadata(formatVersion)
             .setFormatVersion(formatVersion)
             .setLocation(TEST_LOCATION)
             .setLastSequenceNumber(SEQ_NO)
@@ -233,26 +242,35 @@ public class TestTableMetadata {
     String manifestList =
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
-        new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(previousSnapshotId)
+            .setParentId(null)
+            .setTimestampMillis(previousSnapshotId)
+            .setOperation(null)
+            .setSummary(null)
+            .setSchemaId(null)
+            .setManifestListLocation(manifestList)
+            .build();
 
     long currentSnapshotId = System.currentTimeMillis();
     manifestList =
         createManifestListWithManifestFile(
             currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
     Snapshot currentSnapshot =
-        new BaseSnapshot(
-            0,
-            currentSnapshotId,
-            previousSnapshotId,
-            currentSnapshotId,
-            null,
-            null,
-            null,
-            manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(currentSnapshotId)
+            .setParentId(previousSnapshotId)
+            .setTimestampMillis(currentSnapshotId)
+            .setOperation(null)
+            .setSummary(null)
+            .setSchemaId(null)
+            .setManifestListLocation(manifestList)
+            .build();
 
     TableMetadata expected =
-        MetadataTestUtils.buildTestTableMetadataFromEmpty(1)
+        MetadataTestUtils.buildTestTableMetadata(1)
             .setFormatVersion(1)
             .setUuid(null)
             .setLocation(TEST_LOCATION)
@@ -320,8 +338,16 @@ public class TestTableMetadata {
     String manifestList =
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
-        new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(previousSnapshotId)
+            .setParentId(null)
+            .setTimestampMillis(previousSnapshotId)
+            .setOperation(null)
+            .setSummary(null)
+            .setSchemaId(null)
+            .setManifestListLocation(manifestList)
+            .build();
 
     long currentSnapshotId = System.currentTimeMillis();
     manifestList =
@@ -329,15 +355,16 @@ public class TestTableMetadata {
             currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
 
     Snapshot currentSnapshot =
-        new BaseSnapshot(
-            0,
-            currentSnapshotId,
-            previousSnapshotId,
-            currentSnapshotId,
-            null,
-            null,
-            7,
-            manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(currentSnapshotId)
+            .setParentId(previousSnapshotId)
+            .setTimestampMillis(currentSnapshotId)
+            .setOperation(null)
+            .setSummary(null)
+            .setSchemaId(7)
+            .setManifestListLocation(manifestList)
+            .build();
 
     List<HistoryEntry> snapshotLog =
         ImmutableList.<HistoryEntry>builder()
@@ -356,7 +383,7 @@ public class TestTableMetadata {
 
     assertThatThrownBy(
             () ->
-                MetadataTestUtils.buildTestTableMetadataFromEmpty(formatVersion)
+                MetadataTestUtils.buildTestTableMetadata(formatVersion)
                     .setFormatVersion(formatVersion)
                     .setLocation(TEST_LOCATION)
                     .setLastSequenceNumber(SEQ_NO)
@@ -388,7 +415,16 @@ public class TestTableMetadata {
     String manifestList =
         createManifestListWithManifestFile(snapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot snapshot =
-        new BaseSnapshot(0, snapshotId, null, snapshotId, null, null, null, manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(snapshotId)
+            .setParentId(null)
+            .setTimestampMillis(snapshotId)
+            .setOperation(null)
+            .setSummary(null)
+            .setSchemaId(null)
+            .setManifestListLocation(manifestList)
+            .build();
 
     Schema schema = new Schema(6, Types.NestedField.required(10, "x", Types.StringType.get()));
 
@@ -397,7 +433,7 @@ public class TestTableMetadata {
 
     assertThatThrownBy(
             () ->
-                MetadataTestUtils.buildTestTableMetadataFromEmpty(formatVersion)
+                MetadataTestUtils.buildTestTableMetadata(formatVersion)
                     .setFormatVersion(formatVersion)
                     .setLocation(TEST_LOCATION)
                     .setLastSequenceNumber(SEQ_NO)
@@ -432,7 +468,7 @@ public class TestTableMetadata {
 
     assertThatThrownBy(
             () ->
-                MetadataTestUtils.buildTestTableMetadataFromEmpty(formatVersion)
+                MetadataTestUtils.buildTestTableMetadata(formatVersion)
                     .setFormatVersion(formatVersion)
                     .setLocation(TEST_LOCATION)
                     .setLastSequenceNumber(SEQ_NO)
@@ -501,23 +537,32 @@ public class TestTableMetadata {
     String manifestList =
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
-        new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(previousSnapshotId)
+            .setParentId(null)
+            .setTimestampMillis(previousSnapshotId)
+            .setOperation(null)
+            .setSummary(null)
+            .setSchemaId(null)
+            .setManifestListLocation(manifestList)
+            .build();
 
     long currentSnapshotId = System.currentTimeMillis();
     manifestList =
         createManifestListWithManifestFile(
             currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
     Snapshot currentSnapshot =
-        new BaseSnapshot(
-            0,
-            currentSnapshotId,
-            previousSnapshotId,
-            currentSnapshotId,
-            null,
-            null,
-            null,
-            manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(currentSnapshotId)
+            .setParentId(previousSnapshotId)
+            .setTimestampMillis(currentSnapshotId)
+            .setOperation(null)
+            .setSummary(null)
+            .setSchemaId(null)
+            .setManifestListLocation(manifestList)
+            .build();
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     long currentTimestamp = System.currentTimeMillis();
@@ -527,7 +572,7 @@ public class TestTableMetadata {
             currentTimestamp, "/tmp/000001-" + UUID.randomUUID() + ".metadata.json"));
 
     TableMetadata base =
-        MetadataTestUtils.buildTestTableMetadataFromEmpty(formatVersion)
+        MetadataTestUtils.buildTestTableMetadata(formatVersion)
             .setFormatVersion(formatVersion)
             .setUuid(UUID.randomUUID().toString())
             .setLocation(TEST_LOCATION)
@@ -563,23 +608,33 @@ public class TestTableMetadata {
     String manifestList =
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
-        new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(previousSnapshotId)
+            .setParentId(null)
+            .setTimestampMillis(previousSnapshotId)
+            .setOperation(null)
+            .setSummary(null)
+            .setSchemaId(null)
+            .setManifestListLocation(manifestList)
+            .build();
+
     long currentSnapshotId = System.currentTimeMillis();
 
     manifestList =
         createManifestListWithManifestFile(
             currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
     Snapshot currentSnapshot =
-        new BaseSnapshot(
-            0,
-            currentSnapshotId,
-            previousSnapshotId,
-            currentSnapshotId,
-            null,
-            null,
-            null,
-            manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(currentSnapshotId)
+            .setParentId(previousSnapshotId)
+            .setTimestampMillis(currentSnapshotId)
+            .setOperation(null)
+            .setSummary(null)
+            .setSchemaId(null)
+            .setManifestListLocation(manifestList)
+            .build();
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     reversedSnapshotLog.add(
@@ -600,7 +655,7 @@ public class TestTableMetadata {
             currentTimestamp - 80, "/tmp/000003-" + UUID.randomUUID() + ".metadata.json");
 
     TableMetadata base =
-        MetadataTestUtils.buildTestTableMetadataFromEmpty(formatVersion)
+        MetadataTestUtils.buildTestTableMetadata(formatVersion)
             .setMetadataLocation(latestPreviousMetadata.file())
             .setFormatVersion(formatVersion)
             .setLocation(TEST_LOCATION)
@@ -641,23 +696,32 @@ public class TestTableMetadata {
     String manifestList =
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
-        new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(previousSnapshotId)
+            .setParentId(null)
+            .setTimestampMillis(previousSnapshotId)
+            .setOperation(null)
+            .setSummary(null)
+            .setSchemaId(null)
+            .setManifestListLocation(manifestList)
+            .build();
 
     long currentSnapshotId = System.currentTimeMillis();
     manifestList =
         createManifestListWithManifestFile(
             currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
     Snapshot currentSnapshot =
-        new BaseSnapshot(
-            0,
-            currentSnapshotId,
-            previousSnapshotId,
-            currentSnapshotId,
-            null,
-            null,
-            null,
-            manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(currentSnapshotId)
+            .setParentId(previousSnapshotId)
+            .setTimestampMillis(currentSnapshotId)
+            .setOperation(null)
+            .setSummary(null)
+            .setSchemaId(null)
+            .setManifestListLocation(manifestList)
+            .build();
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     reversedSnapshotLog.add(
@@ -687,7 +751,7 @@ public class TestTableMetadata {
             currentTimestamp - 50, "/tmp/000006-" + UUID.randomUUID() + ".metadata.json");
 
     TableMetadata base =
-        MetadataTestUtils.buildTestTableMetadataFromEmpty(formatVersion)
+        MetadataTestUtils.buildTestTableMetadata(formatVersion)
             .setMetadataLocation(latestPreviousMetadata.file())
             .setFormatVersion(formatVersion)
             .setLocation(TEST_LOCATION)
@@ -732,23 +796,32 @@ public class TestTableMetadata {
     String manifestList =
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
-        new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(previousSnapshotId)
+            .setParentId(null)
+            .setTimestampMillis(previousSnapshotId)
+            .setOperation(null)
+            .setSummary(null)
+            .setSchemaId(null)
+            .setManifestListLocation(manifestList)
+            .build();
 
     long currentSnapshotId = System.currentTimeMillis();
     manifestList =
         createManifestListWithManifestFile(
             currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
     Snapshot currentSnapshot =
-        new BaseSnapshot(
-            0,
-            currentSnapshotId,
-            previousSnapshotId,
-            currentSnapshotId,
-            null,
-            null,
-            null,
-            manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(currentSnapshotId)
+            .setParentId(previousSnapshotId)
+            .setTimestampMillis(currentSnapshotId)
+            .setOperation(null)
+            .setSummary(null)
+            .setSchemaId(null)
+            .setManifestListLocation(manifestList)
+            .build();
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     reversedSnapshotLog.add(
@@ -778,7 +851,7 @@ public class TestTableMetadata {
             currentTimestamp - 50, "/tmp/000006-" + UUID.randomUUID() + ".metadata.json");
 
     TableMetadata base =
-        MetadataTestUtils.buildTestTableMetadataFromEmpty(formatVersion)
+        MetadataTestUtils.buildTestTableMetadata(formatVersion)
             .setMetadataLocation(latestPreviousMetadata.file())
             .setFormatVersion(formatVersion)
             .setLocation(TEST_LOCATION)
@@ -822,7 +895,7 @@ public class TestTableMetadata {
 
     assertThatThrownBy(
             () ->
-                MetadataTestUtils.buildTestTableMetadataFromEmpty(formatVersion)
+                MetadataTestUtils.buildTestTableMetadata(formatVersion)
                     .setFormatVersion(formatVersion)
                     .setUuid(null)
                     .setLocation(TEST_LOCATION)
@@ -847,7 +920,7 @@ public class TestTableMetadata {
     int unsupportedVersion = supportedVersion + 1;
     assertThatThrownBy(
             () ->
-                MetadataTestUtils.buildTestTableMetadataFromEmpty(unsupportedVersion)
+                MetadataTestUtils.buildTestTableMetadata(unsupportedVersion)
                     .setFormatVersion(unsupportedVersion)
                     .setUuid(null)
                     .setLocation(TEST_LOCATION)
@@ -883,7 +956,7 @@ public class TestTableMetadata {
 
     // should be allowed in the supported version
     assertThat(
-            MetadataTestUtils.buildTestTableMetadataFromEmpty(supportedVersion)
+            MetadataTestUtils.buildTestTableMetadata(supportedVersion)
                 .setFormatVersion(supportedVersion)
                 .setLocation(TEST_LOCATION)
                 .setLastSequenceNumber(SEQ_NO)

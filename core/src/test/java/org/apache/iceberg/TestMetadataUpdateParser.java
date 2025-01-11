@@ -364,15 +364,15 @@ public class TestMetadataUpdateParser {
     String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
 
     Snapshot snapshot =
-        new BaseSnapshot(
-            0,
-            snapshotId,
-            parentId,
-            System.currentTimeMillis(),
-            DataOperations.REPLACE,
-            ImmutableMap.of("files-added", "4", "files-deleted", "100"),
-            schemaId,
-            manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(snapshotId)
+            .setParentId(parentId)
+            .setOperation(DataOperations.REPLACE)
+            .setSummary(ImmutableMap.of("files-added", "4", "files-deleted", "100"))
+            .setSchemaId(schemaId)
+            .setManifestListLocation(manifestList)
+            .build();
     String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
     String expected = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate update = new MetadataUpdate.AddSnapshot(snapshot);
@@ -392,15 +392,15 @@ public class TestMetadataUpdateParser {
 
     String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
     Snapshot snapshot =
-        new BaseSnapshot(
-            0,
-            snapshotId,
-            parentId,
-            System.currentTimeMillis(),
-            DataOperations.REPLACE,
-            summary,
-            schemaId,
-            manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(snapshotId)
+            .setParentId(parentId)
+            .setOperation(DataOperations.REPLACE)
+            .setSummary(summary)
+            .setSchemaId(schemaId)
+            .setManifestListLocation(manifestList)
+            .build();
     String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
     String json = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate expected = new MetadataUpdate.AddSnapshot(snapshot);
