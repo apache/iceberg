@@ -168,31 +168,32 @@ public class TestTableMetadata {
                 .build());
 
     TableMetadata expected =
-        new TableMetadata(
-            null,
-            formatVersion,
-            UUID.randomUUID().toString(),
-            TEST_LOCATION,
-            SEQ_NO,
-            System.currentTimeMillis(),
-            3,
-            7,
-            ImmutableList.of(TEST_SCHEMA, schema),
-            5,
-            ImmutableList.of(SPEC_5),
-            SPEC_5.lastAssignedFieldId(),
-            3,
-            ImmutableList.of(SORT_ORDER_3),
-            ImmutableMap.of("property", "value"),
-            currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot),
-            null,
-            snapshotLog,
-            ImmutableList.of(),
-            refs,
-            statisticsFiles,
-            partitionStatisticsFiles,
-            ImmutableList.of());
+        MetadataTestUtils.buildTestTableMetadataFromEmpty(formatVersion)
+            .withMetadataFileLocation(null)
+            .withFormatVersion(formatVersion)
+            .withUUID(UUID.randomUUID().toString())
+            .withLocation(TEST_LOCATION)
+            .withLastSequenceNumber(SEQ_NO)
+            .withLastUpdatedMillis(System.currentTimeMillis())
+            .withLastColumnId(3)
+            .withCurrentSchemaId(7)
+            .withSchemas(ImmutableList.of(TEST_SCHEMA, schema))
+            .withDefaultSpecId(5)
+            .withSpecs(ImmutableList.of(SPEC_5))
+            .withLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
+            .withDefaultSortOrderId(3)
+            .withSortOrders(ImmutableList.of(SORT_ORDER_3))
+            .withProperties(ImmutableMap.of("property", "value"))
+            .withCurrentSnapshotId(currentSnapshotId)
+            .withSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+            .withSnapshotsSupplier(null)
+            .withSnapshotLog(snapshotLog)
+            .withMetadataHistory(ImmutableList.of())
+            .withRefs(refs)
+            .withStatisticsFiles(statisticsFiles)
+            .withPartitionStatisticsFiles(partitionStatisticsFiles)
+            .withChanges(ImmutableList.of())
+            .build();
 
     String asJson = TableMetadataParser.toJson(expected);
     TableMetadata metadata = TableMetadataParser.fromJson(asJson);
@@ -257,31 +258,32 @@ public class TestTableMetadata {
             manifestList);
 
     TableMetadata expected =
-        new TableMetadata(
-            null,
-            1,
-            null,
-            TEST_LOCATION,
-            0,
-            System.currentTimeMillis(),
-            3,
-            TableMetadata.INITIAL_SCHEMA_ID,
-            ImmutableList.of(schema),
-            6,
-            ImmutableList.of(spec),
-            spec.lastAssignedFieldId(),
-            TableMetadata.INITIAL_SORT_ORDER_ID,
-            ImmutableList.of(sortOrder),
-            ImmutableMap.of("property", "value"),
-            currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot),
-            null,
-            ImmutableList.of(),
-            ImmutableList.of(),
-            ImmutableMap.of(),
-            ImmutableList.of(),
-            ImmutableList.of(),
-            ImmutableList.of());
+        MetadataTestUtils.buildTestTableMetadataFromEmpty(1)
+            .withMetadataFileLocation(null)
+            .withFormatVersion(1)
+            .withUUID(null)
+            .withLocation(TEST_LOCATION)
+            .withLastSequenceNumber(0)
+            .withLastUpdatedMillis(System.currentTimeMillis())
+            .withLastColumnId(3)
+            .withCurrentSchemaId(TableMetadata.INITIAL_SCHEMA_ID)
+            .withSchemas(ImmutableList.of(schema))
+            .withDefaultSpecId(6)
+            .withSpecs(ImmutableList.of(spec))
+            .withLastAssignedPartitionId(spec.lastAssignedFieldId())
+            .withDefaultSortOrderId(TableMetadata.INITIAL_SORT_ORDER_ID)
+            .withSortOrders(ImmutableList.of(sortOrder))
+            .withProperties(ImmutableMap.of("property", "value"))
+            .withCurrentSnapshotId(currentSnapshotId)
+            .withSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+            .withSnapshotsSupplier(null)
+            .withSnapshotLog(ImmutableList.of())
+            .withMetadataHistory(ImmutableList.of())
+            .withRefs(ImmutableMap.of())
+            .withStatisticsFiles(ImmutableList.of())
+            .withPartitionStatisticsFiles(ImmutableList.of())
+            .withChanges(ImmutableList.of())
+            .build();
 
     String asJson = toJsonWithoutSpecAndSchemaList(expected);
     TableMetadata metadata = TableMetadataParser.fromJson(asJson);
@@ -368,31 +370,32 @@ public class TestTableMetadata {
 
     assertThatThrownBy(
             () ->
-                new TableMetadata(
-                    null,
-                    formatVersion,
-                    UUID.randomUUID().toString(),
-                    TEST_LOCATION,
-                    SEQ_NO,
-                    System.currentTimeMillis(),
-                    3,
-                    7,
-                    ImmutableList.of(TEST_SCHEMA, schema),
-                    5,
-                    ImmutableList.of(SPEC_5),
-                    SPEC_5.lastAssignedFieldId(),
-                    3,
-                    ImmutableList.of(SORT_ORDER_3),
-                    ImmutableMap.of("property", "value"),
-                    currentSnapshotId,
-                    Arrays.asList(previousSnapshot, currentSnapshot),
-                    null,
-                    snapshotLog,
-                    ImmutableList.of(),
-                    refs,
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    ImmutableList.of()))
+                MetadataTestUtils.buildTestTableMetadataFromEmpty(formatVersion)
+                    .withMetadataFileLocation(null)
+                    .withFormatVersion(formatVersion)
+                    .withUUID(UUID.randomUUID().toString())
+                    .withLocation(TEST_LOCATION)
+                    .withLastSequenceNumber(SEQ_NO)
+                    .withLastUpdatedMillis(System.currentTimeMillis())
+                    .withLastColumnId(3)
+                    .withCurrentSchemaId(7)
+                    .withSchemas(ImmutableList.of(TEST_SCHEMA, schema))
+                    .withDefaultSpecId(5)
+                    .withSpecs(ImmutableList.of(SPEC_5))
+                    .withLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
+                    .withDefaultSortOrderId(3)
+                    .withSortOrders(ImmutableList.of(SORT_ORDER_3))
+                    .withProperties(ImmutableMap.of("property", "value"))
+                    .withCurrentSnapshotId(currentSnapshotId)
+                    .withSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+                    .withSnapshotsSupplier(null)
+                    .withSnapshotLog(snapshotLog)
+                    .withMetadataHistory(ImmutableList.of())
+                    .withRefs(refs)
+                    .withStatisticsFiles(ImmutableList.of())
+                    .withPartitionStatisticsFiles(ImmutableList.of())
+                    .withChanges(ImmutableList.of())
+                    .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot ID does not match main branch");
   }
@@ -416,31 +419,31 @@ public class TestTableMetadata {
 
     assertThatThrownBy(
             () ->
-                new TableMetadata(
-                    null,
-                    formatVersion,
-                    UUID.randomUUID().toString(),
-                    TEST_LOCATION,
-                    SEQ_NO,
-                    System.currentTimeMillis(),
-                    3,
-                    7,
-                    ImmutableList.of(TEST_SCHEMA, schema),
-                    5,
-                    ImmutableList.of(SPEC_5),
-                    SPEC_5.lastAssignedFieldId(),
-                    3,
-                    ImmutableList.of(SORT_ORDER_3),
-                    ImmutableMap.of("property", "value"),
-                    -1,
-                    ImmutableList.of(snapshot),
-                    null,
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    refs,
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    ImmutableList.of()))
+                MetadataTestUtils.buildTestTableMetadataFromEmpty(formatVersion)
+                    .withMetadataFileLocation(null)
+                    .withFormatVersion(formatVersion)
+                    .withUUID(UUID.randomUUID().toString())
+                    .withLocation(TEST_LOCATION)
+                    .withLastSequenceNumber(SEQ_NO)
+                    .withLastUpdatedMillis(System.currentTimeMillis())
+                    .withLastColumnId(3)
+                    .withCurrentSchemaId(7)
+                    .withSchemas(ImmutableList.of(TEST_SCHEMA, schema))
+                    .withDefaultSpecId(5)
+                    .withSpecs(ImmutableList.of(SPEC_5))
+                    .withLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
+                    .withDefaultSortOrderId(3)
+                    .withSortOrders(ImmutableList.of(SORT_ORDER_3))
+                    .withProperties(ImmutableMap.of("property", "value"))
+                    .withCurrentSnapshotId(-1)
+                    .withSnapshots(ImmutableList.of(snapshot))
+                    .withSnapshotsSupplier(null)
+                    .withMetadataHistory(ImmutableList.of())
+                    .withRefs(refs)
+                    .withStatisticsFiles(ImmutableList.of())
+                    .withPartitionStatisticsFiles(ImmutableList.of())
+                    .withChanges(ImmutableList.of())
+                    .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot is not set, but main branch exists");
   }
@@ -459,31 +462,31 @@ public class TestTableMetadata {
 
     assertThatThrownBy(
             () ->
-                new TableMetadata(
-                    null,
-                    formatVersion,
-                    UUID.randomUUID().toString(),
-                    TEST_LOCATION,
-                    SEQ_NO,
-                    System.currentTimeMillis(),
-                    3,
-                    7,
-                    ImmutableList.of(TEST_SCHEMA, schema),
-                    5,
-                    ImmutableList.of(SPEC_5),
-                    SPEC_5.lastAssignedFieldId(),
-                    3,
-                    ImmutableList.of(SORT_ORDER_3),
-                    ImmutableMap.of("property", "value"),
-                    -1,
-                    ImmutableList.of(),
-                    null,
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    refs,
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    ImmutableList.of()))
+                MetadataTestUtils.buildTestTableMetadataFromEmpty(formatVersion)
+                    .withMetadataFileLocation(null)
+                    .withFormatVersion(formatVersion)
+                    .withUUID(UUID.randomUUID().toString())
+                    .withLocation(TEST_LOCATION)
+                    .withLastSequenceNumber(SEQ_NO)
+                    .withLastUpdatedMillis(System.currentTimeMillis())
+                    .withLastColumnId(3)
+                    .withCurrentSchemaId(7)
+                    .withSchemas(ImmutableList.of(TEST_SCHEMA, schema))
+                    .withDefaultSpecId(5)
+                    .withSpecs(ImmutableList.of(SPEC_5))
+                    .withLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
+                    .withDefaultSortOrderId(3)
+                    .withSortOrders(ImmutableList.of(SORT_ORDER_3))
+                    .withProperties(ImmutableMap.of("property", "value"))
+                    .withCurrentSnapshotId(-1)
+                    .withSnapshots(ImmutableList.of())
+                    .withSnapshotsSupplier(null)
+                    .withMetadataHistory(ImmutableList.of())
+                    .withRefs(refs)
+                    .withStatisticsFiles(ImmutableList.of())
+                    .withPartitionStatisticsFiles(ImmutableList.of())
+                    .withChanges(ImmutableList.of())
+                    .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageEndingWith("does not exist in the existing snapshots list");
   }
@@ -564,31 +567,32 @@ public class TestTableMetadata {
             currentTimestamp, "/tmp/000001-" + UUID.randomUUID() + ".metadata.json"));
 
     TableMetadata base =
-        new TableMetadata(
-            null,
-            formatVersion,
-            UUID.randomUUID().toString(),
-            TEST_LOCATION,
-            0,
-            System.currentTimeMillis(),
-            3,
-            7,
-            ImmutableList.of(TEST_SCHEMA),
-            5,
-            ImmutableList.of(SPEC_5),
-            SPEC_5.lastAssignedFieldId(),
-            3,
-            ImmutableList.of(SORT_ORDER_3),
-            ImmutableMap.of("property", "value"),
-            currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot),
-            null,
-            reversedSnapshotLog,
-            ImmutableList.copyOf(previousMetadataLog),
-            ImmutableMap.of(),
-            ImmutableList.of(),
-            ImmutableList.of(),
-            ImmutableList.of());
+        MetadataTestUtils.buildTestTableMetadataFromEmpty(formatVersion)
+            .withMetadataFileLocation(null)
+            .withFormatVersion(formatVersion)
+            .withUUID(UUID.randomUUID().toString())
+            .withLocation(TEST_LOCATION)
+            .withLastSequenceNumber(0)
+            .withLastUpdatedMillis(System.currentTimeMillis())
+            .withLastColumnId(3)
+            .withCurrentSchemaId(7)
+            .withSchemas(ImmutableList.of(TEST_SCHEMA))
+            .withDefaultSpecId(5)
+            .withSpecs(ImmutableList.of(SPEC_5))
+            .withLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
+            .withDefaultSortOrderId(3)
+            .withSortOrders(ImmutableList.of(SORT_ORDER_3))
+            .withProperties(ImmutableMap.of("property", "value"))
+            .withCurrentSnapshotId(currentSnapshotId)
+            .withSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+            .withSnapshotsSupplier(null)
+            .withSnapshotLog(reversedSnapshotLog)
+            .withMetadataHistory(ImmutableList.copyOf(previousMetadataLog))
+            .withRefs(ImmutableMap.of())
+            .withStatisticsFiles(ImmutableList.of())
+            .withPartitionStatisticsFiles(ImmutableList.of())
+            .withChanges(ImmutableList.of())
+            .build();
 
     String asJson = TableMetadataParser.toJson(base);
     TableMetadata metadataFromJson = TableMetadataParser.fromJson(asJson);
@@ -641,31 +645,32 @@ public class TestTableMetadata {
             currentTimestamp - 80, "/tmp/000003-" + UUID.randomUUID() + ".metadata.json");
 
     TableMetadata base =
-        new TableMetadata(
-            latestPreviousMetadata.file(),
-            formatVersion,
-            UUID.randomUUID().toString(),
-            TEST_LOCATION,
-            0,
-            currentTimestamp - 80,
-            3,
-            7,
-            ImmutableList.of(TEST_SCHEMA),
-            5,
-            ImmutableList.of(SPEC_5),
-            SPEC_5.lastAssignedFieldId(),
-            3,
-            ImmutableList.of(SORT_ORDER_3),
-            ImmutableMap.of("property", "value"),
-            currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot),
-            null,
-            reversedSnapshotLog,
-            ImmutableList.copyOf(previousMetadataLog),
-            ImmutableMap.of(),
-            ImmutableList.of(),
-            ImmutableList.of(),
-            ImmutableList.of());
+        MetadataTestUtils.buildTestTableMetadataFromEmpty(formatVersion)
+            .withMetadataFileLocation(latestPreviousMetadata.file())
+            .withFormatVersion(formatVersion)
+            .withUUID(UUID.randomUUID().toString())
+            .withLocation(TEST_LOCATION)
+            .withLastSequenceNumber(0)
+            .withLastUpdatedMillis(currentTimestamp - 80)
+            .withLastColumnId(3)
+            .withCurrentSchemaId(7)
+            .withSchemas(ImmutableList.of(TEST_SCHEMA))
+            .withDefaultSpecId(5)
+            .withSpecs(ImmutableList.of(SPEC_5))
+            .withLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
+            .withDefaultSortOrderId(3)
+            .withSortOrders(ImmutableList.of(SORT_ORDER_3))
+            .withProperties(ImmutableMap.of("property", "value"))
+            .withCurrentSnapshotId(currentSnapshotId)
+            .withSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+            .withSnapshotsSupplier(null)
+            .withSnapshotLog(reversedSnapshotLog)
+            .withMetadataHistory(ImmutableList.copyOf(previousMetadataLog))
+            .withRefs(ImmutableMap.of())
+            .withStatisticsFiles(ImmutableList.of())
+            .withPartitionStatisticsFiles(ImmutableList.of())
+            .withChanges(ImmutableList.of())
+            .build();
 
     previousMetadataLog.add(latestPreviousMetadata);
 
@@ -733,31 +738,32 @@ public class TestTableMetadata {
             currentTimestamp - 50, "/tmp/000006-" + UUID.randomUUID() + ".metadata.json");
 
     TableMetadata base =
-        new TableMetadata(
-            latestPreviousMetadata.file(),
-            formatVersion,
-            UUID.randomUUID().toString(),
-            TEST_LOCATION,
-            0,
-            currentTimestamp - 50,
-            3,
-            7,
-            ImmutableList.of(TEST_SCHEMA),
-            5,
-            ImmutableList.of(SPEC_5),
-            SPEC_5.lastAssignedFieldId(),
-            3,
-            ImmutableList.of(SORT_ORDER_3),
-            ImmutableMap.of("property", "value"),
-            currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot),
-            null,
-            reversedSnapshotLog,
-            ImmutableList.copyOf(previousMetadataLog),
-            ImmutableMap.of(),
-            ImmutableList.of(),
-            ImmutableList.of(),
-            ImmutableList.of());
+        MetadataTestUtils.buildTestTableMetadataFromEmpty(formatVersion)
+            .withMetadataFileLocation(latestPreviousMetadata.file())
+            .withFormatVersion(formatVersion)
+            .withUUID(UUID.randomUUID().toString())
+            .withLocation(TEST_LOCATION)
+            .withLastSequenceNumber(0)
+            .withLastUpdatedMillis(currentTimestamp - 50)
+            .withLastColumnId(3)
+            .withCurrentSchemaId(7)
+            .withSchemas(ImmutableList.of(TEST_SCHEMA))
+            .withDefaultSpecId(5)
+            .withSpecs(ImmutableList.of(SPEC_5))
+            .withLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
+            .withDefaultSortOrderId(3)
+            .withSortOrders(ImmutableList.of(SORT_ORDER_3))
+            .withProperties(ImmutableMap.of("property", "value"))
+            .withCurrentSnapshotId(currentSnapshotId)
+            .withSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+            .withSnapshotsSupplier(null)
+            .withSnapshotLog(reversedSnapshotLog)
+            .withMetadataHistory(ImmutableList.copyOf(previousMetadataLog))
+            .withRefs(ImmutableMap.of())
+            .withStatisticsFiles(ImmutableList.of())
+            .withPartitionStatisticsFiles(ImmutableList.of())
+            .withChanges(ImmutableList.of())
+            .build();
 
     previousMetadataLog.add(latestPreviousMetadata);
 
@@ -829,31 +835,32 @@ public class TestTableMetadata {
             currentTimestamp - 50, "/tmp/000006-" + UUID.randomUUID() + ".metadata.json");
 
     TableMetadata base =
-        new TableMetadata(
-            latestPreviousMetadata.file(),
-            formatVersion,
-            UUID.randomUUID().toString(),
-            TEST_LOCATION,
-            0,
-            currentTimestamp - 50,
-            3,
-            7,
-            ImmutableList.of(TEST_SCHEMA),
-            SPEC_5.specId(),
-            ImmutableList.of(SPEC_5),
-            SPEC_5.lastAssignedFieldId(),
-            SortOrder.unsorted().orderId(),
-            ImmutableList.of(SortOrder.unsorted()),
-            ImmutableMap.of("property", "value"),
-            currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot),
-            null,
-            reversedSnapshotLog,
-            ImmutableList.copyOf(previousMetadataLog),
-            ImmutableMap.of(),
-            ImmutableList.of(),
-            ImmutableList.of(),
-            ImmutableList.of());
+        MetadataTestUtils.buildTestTableMetadataFromEmpty(formatVersion)
+            .withMetadataFileLocation(latestPreviousMetadata.file())
+            .withFormatVersion(formatVersion)
+            .withUUID(UUID.randomUUID().toString())
+            .withLocation(TEST_LOCATION)
+            .withLastSequenceNumber(0)
+            .withLastUpdatedMillis(currentTimestamp - 50)
+            .withLastColumnId(3)
+            .withCurrentSchemaId(7)
+            .withSchemas(ImmutableList.of(TEST_SCHEMA))
+            .withDefaultSpecId(SPEC_5.specId())
+            .withSpecs(ImmutableList.of(SPEC_5))
+            .withLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
+            .withDefaultSortOrderId(SortOrder.unsorted().orderId())
+            .withSortOrders(ImmutableList.of(SortOrder.unsorted()))
+            .withProperties(ImmutableMap.of("property", "value"))
+            .withCurrentSnapshotId(currentSnapshotId)
+            .withSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+            .withSnapshotsSupplier(null)
+            .withSnapshotLog(reversedSnapshotLog)
+            .withMetadataHistory(ImmutableList.copyOf(previousMetadataLog))
+            .withRefs(ImmutableMap.of())
+            .withStatisticsFiles(ImmutableList.of())
+            .withPartitionStatisticsFiles(ImmutableList.of())
+            .withChanges(ImmutableList.of())
+            .build();
 
     previousMetadataLog.add(latestPreviousMetadata);
 
@@ -878,31 +885,32 @@ public class TestTableMetadata {
 
     assertThatThrownBy(
             () ->
-                new TableMetadata(
-                    null,
-                    formatVersion,
-                    null,
-                    TEST_LOCATION,
-                    SEQ_NO,
-                    System.currentTimeMillis(),
-                    LAST_ASSIGNED_COLUMN_ID,
-                    7,
-                    ImmutableList.of(TEST_SCHEMA),
-                    SPEC_5.specId(),
-                    ImmutableList.of(SPEC_5),
-                    SPEC_5.lastAssignedFieldId(),
-                    3,
-                    ImmutableList.of(SORT_ORDER_3),
-                    ImmutableMap.of(),
-                    -1L,
-                    ImmutableList.of(),
-                    null,
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    ImmutableMap.of(),
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    ImmutableList.of()))
+                MetadataTestUtils.buildTestTableMetadataFromEmpty(formatVersion)
+                    .withMetadataFileLocation(null)
+                    .withFormatVersion(formatVersion)
+                    .withUUID(null)
+                    .withLocation(TEST_LOCATION)
+                    .withLastSequenceNumber(SEQ_NO)
+                    .withLastUpdatedMillis(System.currentTimeMillis())
+                    .withLastColumnId(LAST_ASSIGNED_COLUMN_ID)
+                    .withCurrentSchemaId(7)
+                    .withSchemas(ImmutableList.of(TEST_SCHEMA))
+                    .withDefaultSpecId(SPEC_5.specId())
+                    .withSpecs(ImmutableList.of(SPEC_5))
+                    .withLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
+                    .withDefaultSortOrderId(3)
+                    .withSortOrders(ImmutableList.of(SORT_ORDER_3))
+                    .withProperties(ImmutableMap.of())
+                    .withCurrentSnapshotId(-1L)
+                    .withSnapshots(ImmutableList.of())
+                    .withSnapshotsSupplier(null)
+                    .withSnapshotLog(ImmutableList.of())
+                    .withMetadataHistory(ImmutableList.of())
+                    .withRefs(ImmutableMap.of())
+                    .withStatisticsFiles(ImmutableList.of())
+                    .withPartitionStatisticsFiles(ImmutableList.of())
+                    .withChanges(ImmutableList.of())
+                    .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(String.format("UUID is required in format v%s", formatVersion));
   }
@@ -913,31 +921,32 @@ public class TestTableMetadata {
     int unsupportedVersion = supportedVersion + 1;
     assertThatThrownBy(
             () ->
-                new TableMetadata(
-                    null,
-                    unsupportedVersion,
-                    null,
-                    TEST_LOCATION,
-                    SEQ_NO,
-                    System.currentTimeMillis(),
-                    LAST_ASSIGNED_COLUMN_ID,
-                    7,
-                    ImmutableList.of(TEST_SCHEMA),
-                    SPEC_5.specId(),
-                    ImmutableList.of(SPEC_5),
-                    SPEC_5.lastAssignedFieldId(),
-                    3,
-                    ImmutableList.of(SORT_ORDER_3),
-                    ImmutableMap.of(),
-                    -1L,
-                    ImmutableList.of(),
-                    null,
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    ImmutableMap.of(),
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    ImmutableList.of()))
+                MetadataTestUtils.buildTestTableMetadataFromEmpty(unsupportedVersion)
+                    .withMetadataFileLocation(null)
+                    .withFormatVersion(unsupportedVersion)
+                    .withUUID(null)
+                    .withLocation(TEST_LOCATION)
+                    .withLastSequenceNumber(SEQ_NO)
+                    .withLastUpdatedMillis(System.currentTimeMillis())
+                    .withLastColumnId(LAST_ASSIGNED_COLUMN_ID)
+                    .withCurrentSchemaId(7)
+                    .withSchemas(ImmutableList.of(TEST_SCHEMA))
+                    .withDefaultSpecId(SPEC_5.specId())
+                    .withSpecs(ImmutableList.of(SPEC_5))
+                    .withLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
+                    .withDefaultSortOrderId(3)
+                    .withSortOrders(ImmutableList.of(SORT_ORDER_3))
+                    .withProperties(ImmutableMap.of())
+                    .withCurrentSnapshotId(-1L)
+                    .withSnapshots(ImmutableList.of())
+                    .withSnapshotsSupplier(null)
+                    .withSnapshotLog(ImmutableList.of())
+                    .withMetadataHistory(ImmutableList.of())
+                    .withRefs(ImmutableMap.of())
+                    .withStatisticsFiles(ImmutableList.of())
+                    .withPartitionStatisticsFiles(ImmutableList.of())
+                    .withChanges(ImmutableList.of())
+                    .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Unsupported format version: v%s (supported: v%s)",
@@ -959,31 +968,32 @@ public class TestTableMetadata {
 
     // should be allowed in the supported version
     assertThat(
-            new TableMetadata(
-                null,
-                supportedVersion,
-                UUID.randomUUID().toString(),
-                TEST_LOCATION,
-                SEQ_NO,
-                System.currentTimeMillis(),
-                LAST_ASSIGNED_COLUMN_ID,
-                7,
-                ImmutableList.of(TEST_SCHEMA),
-                SPEC_5.specId(),
-                ImmutableList.of(SPEC_5),
-                SPEC_5.lastAssignedFieldId(),
-                3,
-                ImmutableList.of(SORT_ORDER_3),
-                ImmutableMap.of(),
-                -1L,
-                ImmutableList.of(),
-                null,
-                ImmutableList.of(),
-                ImmutableList.of(),
-                ImmutableMap.of(),
-                ImmutableList.of(),
-                ImmutableList.of(),
-                ImmutableList.of()))
+            MetadataTestUtils.buildTestTableMetadataFromEmpty(supportedVersion)
+                .withMetadataFileLocation(null)
+                .withFormatVersion(supportedVersion)
+                .withUUID(UUID.randomUUID().toString())
+                .withLocation(TEST_LOCATION)
+                .withLastSequenceNumber(SEQ_NO)
+                .withLastUpdatedMillis(System.currentTimeMillis())
+                .withLastColumnId(LAST_ASSIGNED_COLUMN_ID)
+                .withCurrentSchemaId(7)
+                .withSchemas(ImmutableList.of(TEST_SCHEMA))
+                .withDefaultSpecId(SPEC_5.specId())
+                .withSpecs(ImmutableList.of(SPEC_5))
+                .withLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
+                .withDefaultSortOrderId(3)
+                .withSortOrders(ImmutableList.of(SORT_ORDER_3))
+                .withProperties(ImmutableMap.of())
+                .withCurrentSnapshotId(-1L)
+                .withSnapshots(ImmutableList.of())
+                .withSnapshotsSupplier(null)
+                .withSnapshotLog(ImmutableList.of())
+                .withMetadataHistory(ImmutableList.of())
+                .withRefs(ImmutableMap.of())
+                .withStatisticsFiles(ImmutableList.of())
+                .withPartitionStatisticsFiles(ImmutableList.of())
+                .withChanges(ImmutableList.of())
+                .build())
         .isNotNull();
 
     assertThat(
