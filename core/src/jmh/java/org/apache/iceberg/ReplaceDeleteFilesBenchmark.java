@@ -20,10 +20,13 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -70,14 +73,17 @@ public class ReplaceDeleteFilesBenchmark {
   private static final HadoopTables TABLES = new HadoopTables();
 
   private Table table;
-  private List<DeleteFile> deleteFiles;
+  private List<DeleteFile> deleteFilesToReplace;
   private List<DeleteFile> pendingDeleteFiles;
 
-  @Param({"50000", "100000", "500000", "1000000", "2500000"})
+  @Param({"50000", "100000", "500000", "1000000", "2000000"})
   private int numFiles;
 
+  @Param({"5", "25", "50", "100"})
+  private int percentDeleteFilesReplaced;
+
   @Setup
-  public void setupBenchmark() {
+  public void setupBenchmark() throws IOException {
     initTable();
     initFiles();
   }
@@ -90,10 +96,13 @@ public class ReplaceDeleteFilesBenchmark {
   @Benchmark
   @Threads(1)
   public void replaceDeleteFiles() {
+    Snapshot currentSnapshot = table.currentSnapshot();
     RowDelta rowDelta = table.newRowDelta();
-    deleteFiles.forEach(rowDelta::removeDeletes);
+    rowDelta.validateFromSnapshot(currentSnapshot.snapshotId());
+    deleteFilesToReplace.forEach(rowDelta::removeDeletes);
     pendingDeleteFiles.forEach(rowDelta::addDeletes);
     rowDelta.commit();
+    table.manageSnapshots().rollbackTo(currentSnapshot.snapshotId()).commit();
   }
 
   private void initTable() {
@@ -104,27 +113,44 @@ public class ReplaceDeleteFilesBenchmark {
     TABLES.dropTable(TABLE_IDENT);
   }
 
-  private void initFiles() {
-    List<DeleteFile> generatedDeleteFiles = Lists.newArrayListWithExpectedSize(numFiles);
+  private void initFiles() throws IOException {
     List<DeleteFile> generatedPendingDeleteFiles = Lists.newArrayListWithExpectedSize(numFiles);
-
+    int numDeleteFilesToReplace = (int) Math.ceil(numFiles * (percentDeleteFilesReplaced / 100.0));
+    Map<String, DeleteFile> filesToReplace =
+        Maps.newHashMapWithExpectedSize(numDeleteFilesToReplace);
     RowDelta rowDelta = table.newRowDelta();
-
     for (int ordinal = 0; ordinal < numFiles; ordinal++) {
       DataFile dataFile = FileGenerationUtil.generateDataFile(table, null);
       rowDelta.addRows(dataFile);
-
       DeleteFile deleteFile = FileGenerationUtil.generatePositionDeleteFile(table, dataFile);
       rowDelta.addDeletes(deleteFile);
-      generatedDeleteFiles.add(deleteFile);
-
-      DeleteFile pendingDeleteFile = FileGenerationUtil.generatePositionDeleteFile(table, dataFile);
-      generatedPendingDeleteFiles.add(pendingDeleteFile);
+      if (numDeleteFilesToReplace > 0) {
+        filesToReplace.put(deleteFile.location(), deleteFile);
+        DeleteFile pendingDeleteFile =
+            FileGenerationUtil.generatePositionDeleteFile(table, dataFile);
+        generatedPendingDeleteFiles.add(pendingDeleteFile);
+        numDeleteFilesToReplace--;
+      }
     }
 
     rowDelta.commit();
 
-    this.deleteFiles = generatedDeleteFiles;
+    List<DeleteFile> deleteFilesReadFromManifests = Lists.newArrayList();
+    for (ManifestFile deleteManifest : table.currentSnapshot().deleteManifests(table.io())) {
+      try (ManifestReader<DeleteFile> manifestReader =
+          ManifestFiles.readDeleteManifest(deleteManifest, table.io(), table.specs())) {
+        manifestReader
+            .iterator()
+            .forEachRemaining(
+                file -> {
+                  if (filesToReplace.containsKey(file.location())) {
+                    deleteFilesReadFromManifests.add(file);
+                  }
+                });
+      }
+    }
+
     this.pendingDeleteFiles = generatedPendingDeleteFiles;
+    this.deleteFilesToReplace = deleteFilesReadFromManifests;
   }
 }

@@ -40,6 +40,8 @@ public class Endpoint {
       Endpoint.create("GET", ResourcePaths.V1_NAMESPACES);
   public static final Endpoint V1_LOAD_NAMESPACE =
       Endpoint.create("GET", ResourcePaths.V1_NAMESPACE);
+  public static final Endpoint V1_NAMESPACE_EXISTS =
+      Endpoint.create("HEAD", ResourcePaths.V1_NAMESPACE);
   public static final Endpoint V1_CREATE_NAMESPACE =
       Endpoint.create("POST", ResourcePaths.V1_NAMESPACES);
   public static final Endpoint V1_UPDATE_NAMESPACE =
@@ -52,6 +54,7 @@ public class Endpoint {
   // table endpoints
   public static final Endpoint V1_LIST_TABLES = Endpoint.create("GET", ResourcePaths.V1_TABLES);
   public static final Endpoint V1_LOAD_TABLE = Endpoint.create("GET", ResourcePaths.V1_TABLE);
+  public static final Endpoint V1_TABLE_EXISTS = Endpoint.create("HEAD", ResourcePaths.V1_TABLE);
   public static final Endpoint V1_CREATE_TABLE = Endpoint.create("POST", ResourcePaths.V1_TABLES);
   public static final Endpoint V1_UPDATE_TABLE = Endpoint.create("POST", ResourcePaths.V1_TABLE);
   public static final Endpoint V1_DELETE_TABLE = Endpoint.create("DELETE", ResourcePaths.V1_TABLE);
@@ -61,10 +64,23 @@ public class Endpoint {
       Endpoint.create("POST", ResourcePaths.V1_TABLE_REGISTER);
   public static final Endpoint V1_REPORT_METRICS =
       Endpoint.create("POST", ResourcePaths.V1_TABLE_METRICS);
+  public static final Endpoint V1_TABLE_CREDENTIALS =
+      Endpoint.create("GET", ResourcePaths.V1_TABLE_CREDENTIALS);
+
+  // table scan plan endpoints
+  public static final Endpoint V1_SUBMIT_TABLE_SCAN_PLAN =
+      Endpoint.create("POST", ResourcePaths.V1_TABLE_SCAN_PLAN_SUBMIT);
+  public static final Endpoint V1_FETCH_TABLE_SCAN_PLAN =
+      Endpoint.create("GET", ResourcePaths.V1_TABLE_SCAN_PLAN);
+  public static final Endpoint V1_CANCEL_TABLE_SCAN_PLAN =
+      Endpoint.create("DELETE", ResourcePaths.V1_TABLE_SCAN_PLAN);
+  public static final Endpoint V1_FETCH_TABLE_SCAN_PLAN_TASKS =
+      Endpoint.create("POST", ResourcePaths.V1_TABLE_SCAN_PLAN_TASKS);
 
   // view endpoints
   public static final Endpoint V1_LIST_VIEWS = Endpoint.create("GET", ResourcePaths.V1_VIEWS);
   public static final Endpoint V1_LOAD_VIEW = Endpoint.create("GET", ResourcePaths.V1_VIEW);
+  public static final Endpoint V1_VIEW_EXISTS = Endpoint.create("HEAD", ResourcePaths.V1_VIEW);
   public static final Endpoint V1_CREATE_VIEW = Endpoint.create("POST", ResourcePaths.V1_VIEWS);
   public static final Endpoint V1_UPDATE_VIEW = Endpoint.create("POST", ResourcePaths.V1_VIEW);
   public static final Endpoint V1_DELETE_VIEW = Endpoint.create("DELETE", ResourcePaths.V1_VIEW);

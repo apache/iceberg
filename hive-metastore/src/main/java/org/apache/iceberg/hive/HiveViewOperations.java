@@ -33,6 +33,7 @@ import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.iceberg.BaseMetastoreOperations;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ClientPool;
@@ -226,6 +227,7 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
             database,
             viewName,
             e);
+        commitStatus = BaseMetastoreOperations.CommitStatus.UNKNOWN;
         commitStatus =
             checkCommitStatus(
                 viewName,

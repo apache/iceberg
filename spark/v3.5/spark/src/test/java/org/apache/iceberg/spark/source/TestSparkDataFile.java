@@ -279,7 +279,7 @@ public class TestSparkDataFile {
 
   private void checkContentFile(ContentFile<?> expected, ContentFile<?> actual) {
     assertThat(actual.content()).isEqualTo(expected.content());
-    assertThat(actual.path()).isEqualTo(expected.path());
+    assertThat(actual.location()).isEqualTo(expected.location());
     assertThat(actual.format()).isEqualTo(expected.format());
     assertThat(actual.recordCount()).isEqualTo(expected.recordCount());
     assertThat(actual.fileSizeInBytes()).isEqualTo(expected.fileSizeInBytes());
@@ -317,10 +317,10 @@ public class TestSparkDataFile {
                 null, // no NaN counts
                 ImmutableMap.of(
                     MetadataColumns.DELETE_FILE_PATH.fieldId(),
-                    Conversions.toByteBuffer(Types.StringType.get(), dataFile.path())),
+                    Conversions.toByteBuffer(Types.StringType.get(), dataFile.location())),
                 ImmutableMap.of(
                     MetadataColumns.DELETE_FILE_PATH.fieldId(),
-                    Conversions.toByteBuffer(Types.StringType.get(), dataFile.path()))))
+                    Conversions.toByteBuffer(Types.StringType.get(), dataFile.location()))))
         .withEncryptionKeyMetadata(ByteBuffer.allocate(4).putInt(35))
         .build();
   }

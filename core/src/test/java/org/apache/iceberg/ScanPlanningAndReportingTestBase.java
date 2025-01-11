@@ -282,7 +282,7 @@ public abstract class ScanPlanningAndReportingTestBase<
     }
     assertThat(fileTasks)
         .singleElement()
-        .satisfies(task -> assertThat(task.file().path()).isEqualTo(FILE_D.path()));
+        .satisfies(task -> assertThat(task.file().location()).isEqualTo(FILE_D.location()));
 
     ScanReport scanReport = reporter.lastReport();
     assertThat(scanReport).isNotNull();

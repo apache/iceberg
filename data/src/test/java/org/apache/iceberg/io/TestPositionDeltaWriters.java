@@ -164,8 +164,9 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     PositionDeltaWriter<T> deltaWriter =
         new BasePositionDeltaWriter<>(insertWriter, updateWriter, deleteWriter);
 
-    deltaWriter.delete(dataFile1.path(), 2L, unpartitionedSpec, null);
-    deltaWriter.delete(dataFile2.path(), 1L, partitionedSpec, partitionKey(partitionedSpec, "bbb"));
+    deltaWriter.delete(dataFile1.location(), 2L, unpartitionedSpec, null);
+    deltaWriter.delete(
+        dataFile2.location(), 1L, partitionedSpec, partitionKey(partitionedSpec, "bbb"));
 
     deltaWriter.close();
 
@@ -219,8 +220,9 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     PositionDeltaWriter<T> deltaWriter =
         new BasePositionDeltaWriter<>(insertWriter, updateWriter, deleteWriter);
 
-    deltaWriter.delete(dataFile1.path(), 2L, unpartitionedSpec, null);
-    deltaWriter.delete(dataFile2.path(), 1L, partitionedSpec, partitionKey(partitionedSpec, "bbb"));
+    deltaWriter.delete(dataFile1.location(), 2L, unpartitionedSpec, null);
+    deltaWriter.delete(
+        dataFile2.location(), 1L, partitionedSpec, partitionKey(partitionedSpec, "bbb"));
     deltaWriter.insert(toRow(10, "ccc"), partitionedSpec, partitionKey(partitionedSpec, "ccc"));
 
     deltaWriter.close();

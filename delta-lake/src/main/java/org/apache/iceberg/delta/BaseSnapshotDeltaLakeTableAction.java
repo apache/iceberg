@@ -252,7 +252,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         for (AddFile addFile : initDataFiles) {
           DataFile dataFile = buildDataFileFromAction(addFile, transaction.table());
           filesToAdd.add(dataFile);
-          migratedDataFilesBuilder.add(dataFile.path().toString());
+          migratedDataFilesBuilder.add(dataFile.location());
         }
 
         // AppendFiles case
@@ -309,7 +309,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
         throw new ValidationException(
             "The action %s's is unsupported", action.getClass().getSimpleName());
       }
-      migratedDataFilesBuilder.add(dataFile.path().toString());
+      migratedDataFilesBuilder.add(dataFile.location());
     }
 
     if (!filesToAdd.isEmpty() && !filesToRemove.isEmpty()) {

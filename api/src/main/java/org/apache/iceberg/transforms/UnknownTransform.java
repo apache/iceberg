@@ -33,6 +33,15 @@ public class UnknownTransform<S, T> implements Transform<S, T> {
     this.transform = transform;
   }
 
+  /**
+   * Transforms a value to its corresponding partition value.
+   *
+   * @param value a source value
+   * @return ∅
+   * @throws UnsupportedOperationException Implementation is unknown
+   * @deprecated will be removed in 2.0.0; use {@link #bind(Type)} instead
+   */
+  @Deprecated
   @Override
   public T apply(S value) {
     throw new UnsupportedOperationException(

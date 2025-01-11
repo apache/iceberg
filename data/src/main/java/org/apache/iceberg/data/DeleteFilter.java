@@ -54,6 +54,7 @@ public abstract class DeleteFilter<T> {
   private final List<DeleteFile> posDeletes;
   private final List<DeleteFile> eqDeletes;
   private final Schema requiredSchema;
+  private final Schema expectedSchema;
   private final Accessor<StructLike> posAccessor;
   private final boolean hasIsDeletedColumn;
   private final int isDeletedColumnPosition;
@@ -68,22 +69,23 @@ public abstract class DeleteFilter<T> {
       String filePath,
       List<DeleteFile> deletes,
       Schema tableSchema,
-      Schema requestedSchema,
+      Schema expectedSchema,
       DeleteCounter counter,
       boolean needRowPosCol) {
     this.filePath = filePath;
     this.counter = counter;
+    this.expectedSchema = expectedSchema;
 
     ImmutableList.Builder<DeleteFile> posDeleteBuilder = ImmutableList.builder();
     ImmutableList.Builder<DeleteFile> eqDeleteBuilder = ImmutableList.builder();
     for (DeleteFile delete : deletes) {
       switch (delete.content()) {
         case POSITION_DELETES:
-          LOG.debug("Adding position delete file {} to filter", delete.path());
+          LOG.debug("Adding position delete file {} to filter", delete.location());
           posDeleteBuilder.add(delete);
           break;
         case EQUALITY_DELETES:
-          LOG.debug("Adding equality delete file {} to filter", delete.path());
+          LOG.debug("Adding equality delete file {} to filter", delete.location());
           eqDeleteBuilder.add(delete);
           break;
         default:
@@ -95,7 +97,7 @@ public abstract class DeleteFilter<T> {
     this.posDeletes = posDeleteBuilder.build();
     this.eqDeletes = eqDeleteBuilder.build();
     this.requiredSchema =
-        fileProjection(tableSchema, requestedSchema, posDeletes, eqDeletes, needRowPosCol);
+        fileProjection(tableSchema, expectedSchema, posDeletes, eqDeletes, needRowPosCol);
     this.posAccessor = requiredSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
     this.hasIsDeletedColumn =
         requiredSchema.findField(MetadataColumns.IS_DELETED.fieldId()) != null;
@@ -124,6 +126,10 @@ public abstract class DeleteFilter<T> {
     return requiredSchema;
   }
 
+  public Schema expectedSchema() {
+    return expectedSchema;
+  }
+
   public boolean hasPosDeletes() {
     return !posDeletes.isEmpty();
   }
@@ -145,7 +151,7 @@ public abstract class DeleteFilter<T> {
   protected abstract InputFile getInputFile(String location);
 
   protected InputFile loadInputFile(DeleteFile deleteFile) {
-    return getInputFile(deleteFile.path().toString());
+    return getInputFile(deleteFile.location());
   }
 
   protected long pos(T record) {

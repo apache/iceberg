@@ -76,7 +76,9 @@ Iceberg has four mailing lists:
 
 The Apache Iceberg community is built on the principles described in the [Apache Way](https://www.apache.org/theapacheway/index.html) 
 and all who engage with the community are expected to be respectful, open, come with the best interests of the community in mind, 
-and abide by the Apache Foundation [Code of Conduct](https://www.apache.org/foundation/policies/conduct.html). 
+and abide by the Apache Software Foundation [Code of Conduct](https://www.apache.org/foundation/policies/conduct.html).
+
+More information specific to the Apache Iceberg community is in the next section, [the Path from Contributor to Committer](#the-path-from-contributor-to-committer).
 
 ### Participants with Corporate Interests
 
@@ -100,3 +102,56 @@ Recruitment of community members should not be conducted through direct messages
 related to contributing to or using Iceberg can be posted to the `#jobs` channel. 
 
 For questions regarding any of the guidelines above, please contact a PMC member
+
+## The Path from Contributor to Committer
+
+Many contributors have questions about how to become a committer. This section outlines what committers do and how they are invited.
+
+### What are the responsibilities of a committer?
+
+In the Iceberg project, committers are community members that can review and commit changes to Iceberg repositories. Reviewing is the primary responsibility of committers.
+
+### How are new committers added?
+
+Starting from the foundation guidelines, committers are nominated and discussed by the PMC, which uses a consensus vote to confirm a new committer. This vote is the only formal requirement in the Iceberg community — there are no other requirements, such as a minimum period of time or a minimum number of contributions. Similarly, there is no length of time or number of commits that automatically qualify someone to be a committer.
+
+Committers are added when someone has built trust with PMC members that they have good judgment and are a reliable reviewer.
+
+### What does the PMC look for?
+
+PMC members typically look for candidates to have demonstrated a few qualities:
+
+* **Conduct** — Committers are representatives of the project and are expected to follow the [ASF Code of Conduct](https://www.apache.org/foundation/policies/conduct.html).
+* **Judgment** — Committers should know the areas where they are qualified to evaluate a change and when to bring in other opinions.
+* **Quality** — Personal contributions are a strong signal. Contributions that don’t require major help demonstrate the context and understanding needed to reliably review changes from others. If a contributor often needs guidance, they are probably not ready to guide others.
+* **Consistency** — Reviewing is the primary responsibility of a committer. A committer should demonstrate they will consistently apply their context and understanding to help contributors get changes in and ensure those changes are high quality.
+
+### How do I demonstrate those qualities?
+
+To be a committer, a candidate should act like a committer so that PMC members can evaluate the qualities above. PMC members will ask questions like these:
+
+* Has the candidate been a good representative of the project in mailing lists, Slack, github, and other discussion forums?
+* Has the candidate followed the ASF Code of Conduct when working with others?
+* Has the candidate made independent material contributions to the community that show expertise?
+* Have the candidate’s contributions been stable and maintainable?
+* Has the candidate’s work required extensive review or significant refactoring due to misunderstandings of the project’s objectives?
+* Does the candidate apply the standards and conventions of the project by following existing patterns and using already included libraries?
+* Has the candidate participated in design discussions for new features?
+* Has the candidate asked for help when reviewing changes outside their area of expertise?
+* How diverse are the contributors that the candidate reviewed?
+* Does the candidate raise potentially problematic changes to the dev list?
+
+### How can I be a committer?
+
+You can always reach out to PMC members for feedback and guidance if you have questions.
+
+There is no single path to becoming a committer. For example, people contributing to Python are often implicitly trusted not to start reviewing changes to other languages. Similarly, some areas of a project require more context than others.
+
+Keep in mind that it’s best not to compare your contributions to others. Instead, focus on demonstrating quality and judgment.
+
+### How many contributions does it take to become a committer?
+
+The number of contributions is not what matters — the quality of those contributions (including reviews!) is what demonstrates that a contributor is ready to be a committer.
+
+You can always reach out to PMC members directly or using private@iceberg.apache.org for feedback and guidance if you have questions.
+

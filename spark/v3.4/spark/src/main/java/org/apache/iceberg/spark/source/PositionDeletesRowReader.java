@@ -74,13 +74,13 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
 
   @Override
   protected CloseableIterator<InternalRow> open(PositionDeletesScanTask task) {
-    String filePath = task.file().path().toString();
+    String filePath = task.file().location();
     LOG.debug("Opening position delete file {}", filePath);
 
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(filePath, task.start(), task.length());
 
-    InputFile inputFile = getInputFile(task.file().path().toString());
+    InputFile inputFile = getInputFile(task.file().location());
     Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with %s", task);
 
     // select out constant fields when pushing down filter to row reader

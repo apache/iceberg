@@ -20,6 +20,7 @@ package org.apache.iceberg.arrow.vectorized;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import org.apache.arrow.memory.BufferAllocator;
@@ -47,6 +48,7 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
   private final Map<Integer, ?> idToConstant;
   private final boolean setArrowValidityVector;
   private final Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory;
+  private final BiFunction<org.apache.iceberg.types.Type, Object, Object> convert;
 
   public VectorizedReaderBuilder(
       Schema expectedSchema,
@@ -54,6 +56,22 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
       boolean setArrowValidityVector,
       Map<Integer, ?> idToConstant,
       Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory) {
+    this(
+        expectedSchema,
+        parquetSchema,
+        setArrowValidityVector,
+        idToConstant,
+        readerFactory,
+        (type, value) -> value);
+  }
+
+  protected VectorizedReaderBuilder(
+      Schema expectedSchema,
+      MessageType parquetSchema,
+      boolean setArrowValidityVector,
+      Map<Integer, ?> idToConstant,
+      Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory,
+      BiFunction<org.apache.iceberg.types.Type, Object, Object> convert) {
     this.parquetSchema = parquetSchema;
     this.icebergSchema = expectedSchema;
     this.rootAllocator =
@@ -62,6 +80,7 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
     this.setArrowValidityVector = setArrowValidityVector;
     this.idToConstant = idToConstant;
     this.readerFactory = readerFactory;
+    this.convert = convert;
   }
 
   @Override
@@ -85,7 +104,7 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
       int id = field.fieldId();
       VectorizedReader<?> reader = readersById.get(id);
       if (idToConstant.containsKey(id)) {
-        reorderedFields.add(new ConstantVectorReader<>(field, idToConstant.get(id)));
+        reorderedFields.add(constantReader(field, idToConstant.get(id)));
       } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
         if (setArrowValidityVector) {
           reorderedFields.add(VectorizedArrowReader.positionsWithSetArrowValidityVector());
@@ -96,11 +115,21 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
         reorderedFields.add(new DeletedVectorReader());
       } else if (reader != null) {
         reorderedFields.add(reader);
-      } else {
+      } else if (field.initialDefault() != null) {
+        reorderedFields.add(
+            constantReader(field, convert.apply(field.type(), field.initialDefault())));
+      } else if (field.isOptional()) {
         reorderedFields.add(VectorizedArrowReader.nulls());
+      } else {
+        throw new IllegalArgumentException(
+            String.format("Missing required field: %s", field.name()));
       }
     }
     return vectorizedReader(reorderedFields);
+  }
+
+  private <T> ConstantVectorReader<T> constantReader(Types.NestedField field, T constant) {
+    return new ConstantVectorReader<>(field, constant);
   }
 
   protected VectorizedReader<?> vectorizedReader(List<VectorizedReader<?>> reorderedFields) {

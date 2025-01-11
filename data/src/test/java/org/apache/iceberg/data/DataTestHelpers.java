@@ -29,14 +29,18 @@ public class DataTestHelpers {
   private DataTestHelpers() {}
 
   public static void assertEquals(Types.StructType struct, Record expected, Record actual) {
-    List<Types.NestedField> fields = struct.fields();
-    for (int i = 0; i < fields.size(); i += 1) {
-      Type fieldType = fields.get(i).type();
-
-      Object expectedValue = expected.get(i);
-      Object actualValue = actual.get(i);
-
-      assertEquals(fieldType, expectedValue, actualValue);
+    Types.StructType expectedType = expected.struct();
+    for (Types.NestedField field : struct.fields()) {
+      Types.NestedField expectedField = expectedType.field(field.fieldId());
+      if (expectedField != null) {
+        assertEquals(
+            field.type(), expected.getField(expectedField.name()), actual.getField(field.name()));
+      } else {
+        assertEquals(
+            field.type(),
+            GenericDataUtil.internalToGeneric(field.type(), field.initialDefault()),
+            actual.getField(field.name()));
+      }
     }
   }
 

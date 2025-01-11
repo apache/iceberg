@@ -218,13 +218,13 @@ public class TestBranchDDL extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE BRANCH %s RETAIN", tableName, branchName))
         .isInstanceOf(IcebergParseException.class)
-        .hasMessageContaining("mismatched input");
+        .hasMessageContaining("no viable alternative at input");
 
     assertThatThrownBy(
             () ->
                 sql("ALTER TABLE %s CREATE BRANCH %s RETAIN %s DAYS", tableName, branchName, "abc"))
         .isInstanceOf(IcebergParseException.class)
-        .hasMessageContaining("mismatched input");
+        .hasMessageContaining("no viable alternative at input");
 
     assertThatThrownBy(
             () ->
@@ -274,7 +274,7 @@ public class TestBranchDDL extends ExtensionsTestBase {
   public void testDropBranchNonConformingName() {
     assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "123"))
         .isInstanceOf(IcebergParseException.class)
-        .hasMessageContaining("mismatched input '123'");
+        .hasMessageContaining("no viable alternative at input '123'");
   }
 
   @TestTemplate

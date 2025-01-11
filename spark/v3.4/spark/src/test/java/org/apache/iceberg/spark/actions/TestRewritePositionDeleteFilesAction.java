@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.spark.sql.functions.expr;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -72,6 +73,7 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeMap;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
 import org.junit.After;
 import org.junit.Assert;
@@ -265,7 +267,8 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
     Expression filter =
         Expressions.and(
             Expressions.greaterThan("c3", "0"), // should have no effect
-            Expressions.or(Expressions.equal("c1", 1), Expressions.equal("c1", 2)));
+            // "C1" should work because Spark defaults case sensitivity to false.
+            Expressions.or(Expressions.equal("C1", 1), Expressions.equal("C1", 2)));
 
     Result result =
         SparkActions.get(spark)
@@ -287,6 +290,19 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
     List<Object[]> actualDeletes = deleteRecords(table);
     assertEquals("Rows must match", expectedRecords, actualRecords);
     assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
+
+    withSQLConf(
+        ImmutableMap.of(SQLConf.CASE_SENSITIVE().key(), "true"),
+        () -> {
+          assertThatThrownBy(
+                  () ->
+                      SparkActions.get(spark)
+                          .rewritePositionDeletes(table)
+                          .filter(filter)
+                          .execute())
+              .isInstanceOf(ValidationException.class)
+              .hasMessageContaining("Cannot find field 'C1' in struct");
+        });
   }
 
   @Test
@@ -851,7 +867,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
       List<Pair<CharSequence, Long>> deletes = Lists.newArrayList();
       for (DataFile partitionFile : partitionFiles) {
         for (int deletePos = 0; deletePos < deletesPerDataFile; deletePos++) {
-          deletes.add(Pair.of(partitionFile.path(), (long) deletePos));
+          deletes.add(Pair.of(partitionFile.location(), (long) deletePos));
           counter++;
           if (counter == deleteFileSize) {
             // Dump to file and reset variables
@@ -888,17 +904,17 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
 
   private <T extends ContentFile<?>> List<T> except(List<T> first, List<T> second) {
     Set<String> secondPaths =
-        second.stream().map(f -> f.path().toString()).collect(Collectors.toSet());
+        second.stream().map(ContentFile::location).collect(Collectors.toSet());
     return first.stream()
-        .filter(f -> !secondPaths.contains(f.path().toString()))
+        .filter(f -> !secondPaths.contains(f.location()))
         .collect(Collectors.toList());
   }
 
   private void assertNotContains(List<DeleteFile> original, List<DeleteFile> rewritten) {
     Set<String> originalPaths =
-        original.stream().map(f -> f.path().toString()).collect(Collectors.toSet());
+        original.stream().map(ContentFile::location).collect(Collectors.toSet());
     Set<String> rewrittenPaths =
-        rewritten.stream().map(f -> f.path().toString()).collect(Collectors.toSet());
+        rewritten.stream().map(ContentFile::location).collect(Collectors.toSet());
     rewrittenPaths.retainAll(originalPaths);
     Assert.assertEquals(0, rewrittenPaths.size());
   }
@@ -907,7 +923,7 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
     for (DeleteFile deleteFile : deleteFiles) {
       Dataset<Row> deletes =
           spark.read().format("iceberg").load("default." + TABLE_NAME + ".position_deletes");
-      deletes.filter(deletes.col("delete_file_path").equalTo(deleteFile.path().toString()));
+      deletes.filter(deletes.col("delete_file_path").equalTo(deleteFile.location()));
       List<Row> rows = deletes.collectAsList();
       Assert.assertFalse("Empty delete file found", rows.isEmpty());
       int lastPos = 0;

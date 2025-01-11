@@ -163,6 +163,12 @@ public class CatalogHandlers {
         .build();
   }
 
+  public static void namespaceExists(SupportsNamespaces catalog, Namespace namespace) {
+    if (!catalog.namespaceExists(namespace)) {
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+    }
+  }
+
   public static GetNamespaceResponse loadNamespace(
       SupportsNamespaces catalog, Namespace namespace) {
     Map<String, String> properties = catalog.loadNamespaceMetadata(namespace);
@@ -307,6 +313,13 @@ public class CatalogHandlers {
   public static void purgeTable(Catalog catalog, TableIdentifier ident) {
     boolean dropped = catalog.dropTable(ident, true);
     if (!dropped) {
+      throw new NoSuchTableException("Table does not exist: %s", ident);
+    }
+  }
+
+  public static void tableExists(Catalog catalog, TableIdentifier ident) {
+    boolean exists = catalog.tableExists(ident);
+    if (!exists) {
       throw new NoSuchTableException("Table does not exist: %s", ident);
     }
   }
@@ -498,6 +511,12 @@ public class CatalogHandlers {
         .metadata(metadata)
         .metadataLocation(metadata.metadataFileLocation())
         .build();
+  }
+
+  public static void viewExists(ViewCatalog catalog, TableIdentifier viewIdentifier) {
+    if (!catalog.viewExists(viewIdentifier)) {
+      throw new NoSuchViewException("View does not exist: %s", viewIdentifier);
+    }
   }
 
   public static LoadViewResponse loadView(ViewCatalog catalog, TableIdentifier viewIdentifier) {

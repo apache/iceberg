@@ -53,7 +53,7 @@ public abstract class PartitionedWritesTestBase extends CatalogTestBase {
   @TestTemplate
   public void testInsertAppend() {
     assertThat(scalarSql("SELECT count(*) FROM %s", selectTarget()))
-        .as("Should have 5 rows after insert")
+        .as("Rows before insert")
         .isEqualTo(3L);
 
     sql("INSERT INTO %s VALUES (4, 'd'), (5, 'e')", commitTarget());
@@ -74,7 +74,7 @@ public abstract class PartitionedWritesTestBase extends CatalogTestBase {
   @TestTemplate
   public void testInsertOverwrite() {
     assertThat(scalarSql("SELECT count(*) FROM %s", selectTarget()))
-        .as("Should have 5 rows after insert")
+        .as("Rows before overwrite")
         .isEqualTo(3L);
 
     // 4 and 5 replace 3 in the partition (id - (id % 3)) = 3
