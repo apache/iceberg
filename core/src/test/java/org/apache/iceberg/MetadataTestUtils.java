@@ -20,16 +20,18 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.TableMetadata.INITIAL_SEQUENCE_NUMBER;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializableSupplier;
 
 public class MetadataTestUtils {
+
+  private MetadataTestUtils() {}
 
   public static TableMetadataBuilder buildTestTableMetadataFromEmpty(int formatVersion) {
     return new TableMetadataBuilder(formatVersion);
@@ -85,124 +87,124 @@ public class MetadataTestUtils {
       this.partitionStatisticsFiles = Lists.newArrayList();
     }
 
-    public TableMetadataBuilder withMetadataFileLocation(String metadataFileLocation) {
+    public TableMetadataBuilder setMetadataLocation(String metadataFileLocation) {
       this.metadataLocation = metadataFileLocation;
       return this;
     }
 
-    public TableMetadataBuilder withFormatVersion(int formatVersion) {
+    public TableMetadataBuilder setFormatVersion(int formatVersion) {
       this.formatVersion = formatVersion;
       return this;
     }
 
-    public TableMetadataBuilder withUUID(String uuid) {
+    public TableMetadataBuilder setUuid(String uuid) {
       this.uuid = uuid;
       return this;
     }
 
-    public TableMetadataBuilder withLocation(String location) {
+    public TableMetadataBuilder setLocation(String location) {
       this.location = location;
       return this;
     }
 
-    public TableMetadataBuilder withLastSequenceNumber(long lastSequenceNumber) {
+    public TableMetadataBuilder setLastSequenceNumber(long lastSequenceNumber) {
       this.lastSequenceNumber = lastSequenceNumber;
       return this;
     }
 
-    public TableMetadataBuilder withLastUpdatedMillis(long lastUpdatedMillis) {
+    public TableMetadataBuilder setLastUpdatedMillis(long lastUpdatedMillis) {
       this.lastUpdatedMillis = lastUpdatedMillis;
       return this;
     }
 
-    public TableMetadataBuilder withLastColumnId(int lastColumnId) {
+    public TableMetadataBuilder setLastColumnId(int lastColumnId) {
       this.lastColumnId = lastColumnId;
       return this;
     }
 
-    public TableMetadataBuilder withCurrentSchemaId(int currentSchemaId) {
+    public TableMetadataBuilder setCurrentSchemaId(int currentSchemaId) {
       this.currentSchemaId = currentSchemaId;
       return this;
     }
 
-    public TableMetadataBuilder withSchemas(List<Schema> schemas) {
+    public TableMetadataBuilder setSchemas(List<Schema> schemas) {
       this.schemas = schemas;
       return this;
     }
 
-    public TableMetadataBuilder withDefaultSpecId(int defaultSpecId) {
+    public TableMetadataBuilder setDefaultSpecId(int defaultSpecId) {
       this.defaultSpecId = defaultSpecId;
       return this;
     }
 
-    public TableMetadataBuilder withSpecs(List<PartitionSpec> specs) {
+    public TableMetadataBuilder setSpecs(List<PartitionSpec> specs) {
       this.specs = specs;
       return this;
     }
 
-    public TableMetadataBuilder withLastAssignedPartitionId(int lastAssignedPartitionId) {
+    public TableMetadataBuilder setLastAssignedPartitionId(int lastAssignedPartitionId) {
       this.lastAssignedPartitionId = lastAssignedPartitionId;
       return this;
     }
 
-    public TableMetadataBuilder withDefaultSortOrderId(int defaultSortOrderId) {
+    public TableMetadataBuilder setDefaultSortOrderId(int defaultSortOrderId) {
       this.defaultSortOrderId = defaultSortOrderId;
       return this;
     }
 
-    public TableMetadataBuilder withSortOrders(List<SortOrder> sortOrders) {
+    public TableMetadataBuilder setSortOrders(List<SortOrder> sortOrders) {
       this.sortOrders = sortOrders;
       return this;
     }
 
-    public TableMetadataBuilder withProperties(Map<String, String> properties) {
+    public TableMetadataBuilder setProperties(Map<String, String> properties) {
       this.properties = properties;
       return this;
     }
 
-    public TableMetadataBuilder withCurrentSnapshotId(long snapshotId) {
+    public TableMetadataBuilder setCurrentSnapshotId(long snapshotId) {
       this.currentSnapshotId = snapshotId;
       return this;
     }
 
-    public TableMetadataBuilder withSnapshotsSupplier(
+    public TableMetadataBuilder setSnapshotsSupplier(
         SerializableSupplier<List<Snapshot>> snapshotsSupplier) {
       this.snapshotsSupplier = snapshotsSupplier;
       return this;
     }
 
-    public TableMetadataBuilder withSnapshots(List<Snapshot> snapshots) {
+    public TableMetadataBuilder setSnapshots(List<Snapshot> snapshots) {
       this.snapshots = snapshots;
       return this;
     }
 
-    public TableMetadataBuilder withSnapshotLog(List<HistoryEntry> snapshotLog) {
+    public TableMetadataBuilder setSnapshotLog(List<HistoryEntry> snapshotLog) {
       this.snapshotLog = snapshotLog;
       return this;
     }
 
-    public TableMetadataBuilder withMetadataHistory(
-        List<TableMetadata.MetadataLogEntry> previousFiles) {
-      this.previousFiles = previousFiles;
+    public TableMetadataBuilder setMetadataHistory(
+        List<TableMetadata.MetadataLogEntry> metadataHistory) {
+      this.previousFiles = metadataHistory;
       return this;
     }
 
-    public TableMetadataBuilder withRefs(Map<String, SnapshotRef> refs) {
+    public TableMetadataBuilder setRefs(Map<String, SnapshotRef> refs) {
       this.refs = refs;
       return this;
     }
 
-    public TableMetadataBuilder withChanges(List<MetadataUpdate> changes) {
+    public TableMetadataBuilder setChanges(List<MetadataUpdate> changes) {
       this.changes = changes;
       return this;
     }
 
-    public TableMetadataBuilder withStatisticsFiles(List<StatisticsFile> statisticsFiles) {
+    public TableMetadataBuilder setStatisticsFiles(List<StatisticsFile> statisticsFiles) {
       this.statisticsFiles = statisticsFiles;
       return this;
     }
 
-    public TableMetadataBuilder withPartitionStatisticsFiles(
+    public TableMetadataBuilder setPartitionStatisticsFiles(
         List<PartitionStatisticsFile> partitionStatisticsFiles) {
       this.partitionStatisticsFiles = partitionStatisticsFiles;
       return this;
