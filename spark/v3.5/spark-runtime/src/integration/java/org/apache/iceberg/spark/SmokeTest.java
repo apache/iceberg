@@ -80,8 +80,8 @@ public class SmokeTest extends ExtensionsTestBase {
         .as("Record 1 should now have data x")
         .isEqualTo("x");
     assertThat(scalarSql("SELECT data FROM %s WHERE id = 2", tableName))
-            .as("Record 2 should now have data y")
-            .isEqualTo("y");
+        .as("Record 2 should now have data y")
+        .isEqualTo("y");
 
     // Not supported because of Spark limitation
     if (!catalogName.equals("spark_catalog")) {
