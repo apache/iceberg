@@ -187,10 +187,9 @@ public interface Snapshot extends Serializable {
 
   /**
    * The total number of newly added rows in this snapshot. It should be the summation of {@link
-   * ManifestFile#ADDED_ROWS_COUNT} for every manifest added in this snapshot. From the definition
-   * of ADDED_ROWS_COUNT this is the total number of rows in every added {@link DataFile}
+   * ManifestFile#ADDED_ROWS_COUNT} for every manifest added in this snapshot.
    *
-   * <p>This is optionally present but is required if row lineage is enabled.
+   * <p>This field is optional but is required when row lineage is enabled.
    *
    * @return the total number of new rows in this snapshot or null if the value was not stored.
    */

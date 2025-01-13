@@ -19,8 +19,8 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assume.assumeTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.File;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -149,6 +149,7 @@ public class TestRowLineageMetadata {
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testFastAppend(int formatVersion) {
     assumeTrue(formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+
     TestTables.TestTable table =
         TestTables.create(
             tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
@@ -175,6 +176,7 @@ public class TestRowLineageMetadata {
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testAppend(int formatVersion) {
     assumeTrue(formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+
     TestTables.TestTable table =
         TestTables.create(
             tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
@@ -195,5 +197,116 @@ public class TestRowLineageMetadata {
     assertThat(table.ops().current().rowLineage()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(30);
     assertThat(table.ops().current().lastRowId()).isEqualTo(30 + 17 + 11);
+  }
+
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testAppendBranch(int formatVersion) {
+    assumeTrue(formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+    // Appends to a branch should still change last-row-id even if not on main, these changes
+    // should also affect commits to main
+
+    String branch = "some_branch";
+
+    TestTables.TestTable table =
+        TestTables.create(
+            tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
+
+    TableMetadata base = table.ops().current();
+    table.ops().commit(base, TableMetadata.buildFrom(base).enableRowLineage().build());
+
+    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().lastRowId()).isEqualTo(0L);
+
+    // Write to Branch
+    table.newAppend().appendFile(fileWithRows(30)).toBranch(branch).commit();
+
+    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.currentSnapshot()).isNull();
+    assertThat(table.snapshot(branch).firstRowId()).isEqualTo(0L);
+    assertThat(table.ops().current().lastRowId()).isEqualTo(30);
+
+    // Write to Main
+    table.newAppend().appendFile(fileWithRows(17)).appendFile(fileWithRows(11)).commit();
+
+    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.currentSnapshot().firstRowId()).isEqualTo(30);
+    assertThat(table.ops().current().lastRowId()).isEqualTo(30 + 17 + 11);
+
+    // Write again to branch
+    table.newAppend().appendFile(fileWithRows(21)).toBranch(branch).commit();
+    assertThat(table.snapshot(branch).firstRowId()).isEqualTo(30 + 17 + 11);
+    assertThat(table.ops().current().lastRowId()).isEqualTo(30 + 17 + 11 + 21);
+  }
+
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testDeletes(int formatVersion) {
+    assumeTrue(formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+
+    TestTables.TestTable table =
+        TestTables.create(
+            tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
+    TableMetadata base = table.ops().current();
+    table.ops().commit(base, TableMetadata.buildFrom(base).enableRowLineage().build());
+
+    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().lastRowId()).isEqualTo(0L);
+
+    DataFile file = fileWithRows(30);
+
+    table.newAppend().appendFile(file).commit();
+
+    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.currentSnapshot().firstRowId()).isEqualTo(0);
+    assertThat(table.ops().current().lastRowId()).isEqualTo(30);
+
+    table.newDelete().deleteFile(file).commit();
+
+    // Deleting a file should create a new snapshot which should inherit last-row-id from the
+    // previous metadata and not
+    // change last-row-id for this metadata.
+    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.currentSnapshot().firstRowId()).isEqualTo(30);
+    assertThat(table.currentSnapshot().addedRows()).isEqualTo(0);
+    assertThat(table.ops().current().lastRowId()).isEqualTo(30);
+  }
+
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testReplace(int formatVersion) {
+    assumeTrue(formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+
+    TestTables.TestTable table =
+        TestTables.create(
+            tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
+    TableMetadata base = table.ops().current();
+
+    table.ops().commit(base, TableMetadata.buildFrom(base).enableRowLineage().build());
+
+    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().lastRowId()).isEqualTo(0L);
+
+    DataFile file_part1 = fileWithRows(30);
+    DataFile file_part2 = fileWithRows(30);
+    DataFile file_compacted = fileWithRows(60);
+
+    table.newAppend().appendFile(file_part1).appendFile(file_part2).commit();
+
+    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.currentSnapshot().firstRowId()).isEqualTo(0);
+    assertThat(table.ops().current().lastRowId()).isEqualTo(60);
+
+    table
+        .newRewrite()
+        .deleteFile(file_part1)
+        .deleteFile(file_part2)
+        .addFile(file_compacted)
+        .commit();
+
+    // Rewrites are currently just treated as appends. In the future we could treat these as no-ops
+    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.currentSnapshot().firstRowId()).isEqualTo(60);
+    assertThat(table.ops().current().lastRowId()).isEqualTo(120);
   }
 }
