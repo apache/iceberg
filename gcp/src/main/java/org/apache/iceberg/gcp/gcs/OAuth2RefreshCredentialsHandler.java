@@ -46,6 +46,7 @@ public class OAuth2RefreshCredentialsHandler
     this.properties = properties;
   }
 
+  @SuppressWarnings("JavaUtilDate") // GCP API uses java.util.Date
   @Override
   public AccessToken refreshAccessToken() {
     LoadCredentialsResponse response;

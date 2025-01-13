@@ -23,16 +23,23 @@ import static org.apache.spark.sql.functions.col;
 import java.io.IOException;
 import java.io.Serializable;
 import java.net.URI;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
@@ -92,6 +99,8 @@ import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import scala.Function2;
 import scala.Option;
 import scala.Some;
@@ -487,7 +496,7 @@ public class SparkTableUtil {
         stagingDir,
         partitionFilter,
         checkDuplicateFiles,
-        TableMigrationUtil.migrationService(parallelism));
+        migrationService(parallelism));
   }
 
   /**
@@ -639,7 +648,7 @@ public class SparkTableUtil {
       if (checkDuplicateFiles) {
         Dataset<Row> importedFiles =
             spark
-                .createDataset(Lists.transform(files, f -> f.path().toString()), Encoders.STRING())
+                .createDataset(Lists.transform(files, ContentFile::location), Encoders.STRING())
                 .toDF("file_path");
         Dataset<Row> existingFiles =
             loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES).filter("status != 2");
@@ -711,7 +720,7 @@ public class SparkTableUtil {
         spec,
         stagingDir,
         checkDuplicateFiles,
-        TableMigrationUtil.migrationService(parallelism));
+        migrationService(parallelism));
   }
 
   /**
@@ -769,7 +778,7 @@ public class SparkTableUtil {
     if (checkDuplicateFiles) {
       Dataset<Row> importedFiles =
           filesToImport
-              .map((MapFunction<DataFile, String>) f -> f.path().toString(), Encoders.STRING())
+              .map((MapFunction<DataFile, String>) ContentFile::location, Encoders.STRING())
               .toDF("file_path");
       Dataset<Row> existingFiles =
           loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES).filter("status != 2");
@@ -788,7 +797,7 @@ public class SparkTableUtil {
             .repartition(numShufflePartitions)
             .map(
                 (MapFunction<DataFile, Tuple2<String, DataFile>>)
-                    file -> Tuple2.apply(file.path().toString(), file),
+                    file -> Tuple2.apply(file.location(), file),
                 Encoders.tuple(Encoders.STRING(), Encoders.javaSerialization(DataFile.class)))
             .orderBy(col("_1"))
             .mapPartitions(
@@ -969,6 +978,111 @@ public class SparkTableUtil {
     @Override
     public int hashCode() {
       return Objects.hashCode(values, uri, format);
+    }
+  }
+
+  @Nullable
+  public static ExecutorService migrationService(int parallelism) {
+    return parallelism == 1 ? null : new LazyExecutorService(parallelism);
+  }
+
+  private static class LazyExecutorService implements ExecutorService, Serializable {
+
+    private final int parallelism;
+    private volatile ExecutorService service;
+
+    LazyExecutorService(int parallelism) {
+      this.parallelism = parallelism;
+    }
+
+    @Override
+    public void shutdown() {
+      getService().shutdown();
+    }
+
+    @NotNull
+    @Override
+    public List<Runnable> shutdownNow() {
+      return getService().shutdownNow();
+    }
+
+    @Override
+    public boolean isShutdown() {
+      return getService().isShutdown();
+    }
+
+    @Override
+    public boolean isTerminated() {
+      return getService().isTerminated();
+    }
+
+    @Override
+    public boolean awaitTermination(long timeout, @NotNull TimeUnit unit)
+        throws InterruptedException {
+      return getService().awaitTermination(timeout, unit);
+    }
+
+    @NotNull
+    @Override
+    public <T> Future<T> submit(@NotNull Callable<T> task) {
+      return getService().submit(task);
+    }
+
+    @NotNull
+    @Override
+    public <T> Future<T> submit(@NotNull Runnable task, T result) {
+      return getService().submit(task, result);
+    }
+
+    @NotNull
+    @Override
+    public Future<?> submit(@NotNull Runnable task) {
+      return getService().submit(task);
+    }
+
+    @NotNull
+    @Override
+    public <T> List<Future<T>> invokeAll(@NotNull Collection<? extends Callable<T>> tasks)
+        throws InterruptedException {
+      return getService().invokeAll(tasks);
+    }
+
+    @NotNull
+    @Override
+    public <T> List<Future<T>> invokeAll(
+        @NotNull Collection<? extends Callable<T>> tasks, long timeout, @NotNull TimeUnit unit)
+        throws InterruptedException {
+      return getService().invokeAll(tasks, timeout, unit);
+    }
+
+    @NotNull
+    @Override
+    public <T> T invokeAny(@NotNull Collection<? extends Callable<T>> tasks)
+        throws InterruptedException, ExecutionException {
+      return getService().invokeAny(tasks);
+    }
+
+    @Override
+    public <T> T invokeAny(
+        @NotNull Collection<? extends Callable<T>> tasks, long timeout, @NotNull TimeUnit unit)
+        throws InterruptedException, ExecutionException, TimeoutException {
+      return getService().invokeAny(tasks, timeout, unit);
+    }
+
+    @Override
+    public void execute(@NotNull Runnable command) {
+      getService().execute(command);
+    }
+
+    private ExecutorService getService() {
+      if (service == null) {
+        synchronized (this) {
+          if (service == null) {
+            service = TableMigrationUtil.migrationService(parallelism);
+          }
+        }
+      }
+      return service;
     }
   }
 }

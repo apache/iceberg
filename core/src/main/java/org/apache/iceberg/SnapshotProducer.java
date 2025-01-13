@@ -159,6 +159,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return self();
   }
 
+  protected TableOperations ops() {
+    return ops;
+  }
+
   protected CommitMetrics commitMetrics() {
     if (commitMetrics == null) {
       this.commitMetrics = CommitMetrics.of(new DefaultMetricsContext());
@@ -846,7 +850,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     @Override
     public CharSequence path() {
-      return deleteFile.path();
+      return deleteFile.location();
     }
 
     @Override

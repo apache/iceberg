@@ -154,7 +154,7 @@ public class TestManifestReaderStats extends TestBase {
             .project(new Schema(ImmutableList.of(DataFile.FILE_PATH, DataFile.VALUE_COUNTS)))) {
       DataFile entry = reader.iterator().next();
 
-      assertThat(entry.path()).isEqualTo(FILE_PATH);
+      assertThat(entry.location()).isEqualTo(FILE_PATH);
       assertThat(entry.valueCounts()).isEqualTo(VALUE_COUNT);
       assertThat(entry.columnSizes()).isNull();
       assertThat(entry.nullValueCounts()).isNull();
@@ -175,7 +175,7 @@ public class TestManifestReaderStats extends TestBase {
       DataFile dataFile = entry.file();
 
       // selected field is populated
-      assertThat(dataFile.path()).isEqualTo(FILE_PATH);
+      assertThat(dataFile.location()).isEqualTo(FILE_PATH);
 
       // not selected fields are all null and not projected
       assertThat(dataFile.columnSizes()).isNull();
@@ -197,7 +197,7 @@ public class TestManifestReaderStats extends TestBase {
       DataFile dataFile = reader.iterator().next();
 
       // selected fields are populated
-      assertThat(dataFile.path()).isEqualTo(FILE_PATH);
+      assertThat(dataFile.location()).isEqualTo(FILE_PATH);
       assertThat(dataFile.valueCounts()).isEqualTo(VALUE_COUNT);
 
       // not selected fields are all null and not projected
@@ -249,7 +249,8 @@ public class TestManifestReaderStats extends TestBase {
           .isInstanceOf(UnsupportedOperationException.class);
     }
 
-    assertThat(dataFile.path()).isEqualTo(FILE_PATH); // always select file path in all test cases
+    assertThat(dataFile.location())
+        .isEqualTo(FILE_PATH); // always select file path in all test cases
   }
 
   private void assertStatsDropped(DataFile dataFile) {
@@ -262,7 +263,8 @@ public class TestManifestReaderStats extends TestBase {
     assertThat(dataFile.lowerBounds()).isNull();
     assertThat(dataFile.upperBounds()).isNull();
 
-    assertThat(dataFile.path()).isEqualTo(FILE_PATH); // always select file path in all test cases
+    assertThat(dataFile.location())
+        .isEqualTo(FILE_PATH); // always select file path in all test cases
   }
 
   private void assertNullRecordCount(DataFile dataFile) {

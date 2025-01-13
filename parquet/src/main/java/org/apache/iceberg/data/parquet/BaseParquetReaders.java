@@ -76,6 +76,10 @@ public abstract class BaseParquetReaders<T> {
   protected abstract ParquetValueReader<T> createStructReader(
       List<Type> types, List<ParquetValueReader<?>> fieldReaders, Types.StructType structType);
 
+  protected Object convertConstant(org.apache.iceberg.types.Type type, Object value) {
+    return value;
+  }
+
   private class FallbackReadBuilder extends ReadBuilder {
     private FallbackReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
       super(type, idToConstant);
@@ -263,6 +267,7 @@ public abstract class BaseParquetReaders<T> {
       int defaultMaxDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
+        ParquetValueReader<?> reader = readersById.get(id);
         if (idToConstant.containsKey(id)) {
           // containsKey is used because the constant may be null
           int fieldMaxDefinitionLevel =
@@ -276,15 +281,21 @@ public abstract class BaseParquetReaders<T> {
         } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
           reorderedFields.add(ParquetValueReaders.constant(false));
           types.add(null);
+        } else if (reader != null) {
+          reorderedFields.add(reader);
+          types.add(typesById.get(id));
+        } else if (field.initialDefault() != null) {
+          reorderedFields.add(
+              ParquetValueReaders.constant(
+                  convertConstant(field.type(), field.initialDefault()),
+                  maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel)));
+          types.add(typesById.get(id));
+        } else if (field.isOptional()) {
+          reorderedFields.add(ParquetValueReaders.nulls());
+          types.add(null);
         } else {
-          ParquetValueReader<?> reader = readersById.get(id);
-          if (reader != null) {
-            reorderedFields.add(reader);
-            types.add(typesById.get(id));
-          } else {
-            reorderedFields.add(ParquetValueReaders.nulls());
-            types.add(null);
-          }
+          throw new IllegalArgumentException(
+              String.format("Missing required field: %s", field.name()));
         }
       }
 

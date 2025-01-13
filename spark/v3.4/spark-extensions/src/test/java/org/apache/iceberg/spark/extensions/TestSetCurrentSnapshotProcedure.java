@@ -29,8 +29,9 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.spark.sql.AnalysisException;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
 
@@ -206,8 +207,13 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
         .hasMessage("Named and positional arguments cannot be mixed");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.set_current_snapshot('n', 't', 1L)", catalogName))
-        .isInstanceOf(NoSuchProcedureException.class)
-        .hasMessage("Procedure custom.set_current_snapshot not found");
+        .isInstanceOf(ParseException.class)
+        .satisfies(
+            exception -> {
+              ParseException parseException = (ParseException) exception;
+              Assert.assertEquals("PARSE_SYNTAX_ERROR", parseException.getErrorClass());
+              Assert.assertEquals("'CALL'", parseException.getMessageParameters().get("error"));
+            });
 
     assertThatThrownBy(() -> sql("CALL %s.system.set_current_snapshot('t')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)

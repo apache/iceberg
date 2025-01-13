@@ -238,7 +238,7 @@ public class TestIcebergToGlueConverter {
 
     Schema newSchema =
         new Schema(Types.NestedField.required(1, "x", Types.StringType.get(), "comment1"));
-    tableMetadata = tableMetadata.updateSchema(newSchema, 3);
+    tableMetadata = tableMetadata.updateSchema(newSchema);
     IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableMetadata);
     TableInput actualTableInput = actualTableInputBuilder.build();
 

@@ -83,7 +83,7 @@ class ContentFileParser {
 
     generator.writeNumberField(SPEC_ID, contentFile.specId());
     generator.writeStringField(CONTENT, contentFile.content().name());
-    generator.writeStringField(FILE_PATH, contentFile.path().toString());
+    generator.writeStringField(FILE_PATH, contentFile.location());
     generator.writeStringField(FILE_FORMAT, contentFile.format().name());
 
     if (contentFile.partition() != null) {

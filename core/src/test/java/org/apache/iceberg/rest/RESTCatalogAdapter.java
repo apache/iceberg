@@ -124,6 +124,7 @@ public class RESTCatalogAdapter implements RESTClient {
         ResourcePaths.V1_NAMESPACES,
         CreateNamespaceRequest.class,
         CreateNamespaceResponse.class),
+    NAMESPACE_EXISTS(HTTPMethod.HEAD, ResourcePaths.V1_NAMESPACE),
     LOAD_NAMESPACE(HTTPMethod.GET, ResourcePaths.V1_NAMESPACE, null, GetNamespaceResponse.class),
     DROP_NAMESPACE(HTTPMethod.DELETE, ResourcePaths.V1_NAMESPACE),
     UPDATE_NAMESPACE(
@@ -137,6 +138,7 @@ public class RESTCatalogAdapter implements RESTClient {
         ResourcePaths.V1_TABLES,
         CreateTableRequest.class,
         LoadTableResponse.class),
+    TABLE_EXISTS(HTTPMethod.HEAD, ResourcePaths.V1_TABLE),
     LOAD_TABLE(HTTPMethod.GET, ResourcePaths.V1_TABLE, null, LoadTableResponse.class),
     REGISTER_TABLE(
         HTTPMethod.POST,
@@ -155,6 +157,7 @@ public class RESTCatalogAdapter implements RESTClient {
         CommitTransactionRequest.class,
         null),
     LIST_VIEWS(HTTPMethod.GET, ResourcePaths.V1_VIEWS, null, ListTablesResponse.class),
+    VIEW_EXISTS(HTTPMethod.HEAD, ResourcePaths.V1_VIEW),
     LOAD_VIEW(HTTPMethod.GET, ResourcePaths.V1_VIEW, null, LoadViewResponse.class),
     CREATE_VIEW(
         HTTPMethod.POST, ResourcePaths.V1_VIEWS, CreateViewRequest.class, LoadViewResponse.class),
@@ -298,7 +301,11 @@ public class RESTCatalogAdapter implements RESTClient {
         if (asNamespaceCatalog != null) {
           Namespace ns;
           if (vars.containsKey("parent")) {
-            ns = RESTUtil.decodeNamespace(vars.get("parent"));
+            ns =
+                Namespace.of(
+                    RESTUtil.NAMESPACE_SPLITTER
+                        .splitToStream(vars.get("parent"))
+                        .toArray(String[]::new));
           } else {
             ns = Namespace.empty();
           }
@@ -322,6 +329,13 @@ public class RESTCatalogAdapter implements RESTClient {
           CreateNamespaceRequest request = castRequest(CreateNamespaceRequest.class, body);
           return castResponse(
               responseType, CatalogHandlers.createNamespace(asNamespaceCatalog, request));
+        }
+        break;
+
+      case NAMESPACE_EXISTS:
+        if (asNamespaceCatalog != null) {
+          CatalogHandlers.namespaceExists(asNamespaceCatalog, namespaceFromPathVars(vars));
+          return null;
         }
         break;
 
@@ -385,6 +399,13 @@ public class RESTCatalogAdapter implements RESTClient {
           } else {
             CatalogHandlers.dropTable(catalog, tableIdentFromPathVars(vars));
           }
+          return null;
+        }
+
+      case TABLE_EXISTS:
+        {
+          TableIdentifier ident = tableIdentFromPathVars(vars);
+          CatalogHandlers.tableExists(catalog, ident);
           return null;
         }
 
@@ -455,6 +476,15 @@ public class RESTCatalogAdapter implements RESTClient {
             CreateViewRequest request = castRequest(CreateViewRequest.class, body);
             return castResponse(
                 responseType, CatalogHandlers.createView(asViewCatalog, namespace, request));
+          }
+          break;
+        }
+
+      case VIEW_EXISTS:
+        {
+          if (null != asViewCatalog) {
+            CatalogHandlers.viewExists(asViewCatalog, viewIdentFromPathVars(vars));
+            return null;
           }
           break;
         }

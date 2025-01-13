@@ -31,7 +31,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.Deletes;
@@ -119,7 +119,7 @@ public class BaseDeleteLoader implements DeleteLoader {
   private Iterable<StructLike> getOrReadEqDeletes(DeleteFile deleteFile, Schema projection) {
     long estimatedSize = estimateEqDeletesSize(deleteFile, projection);
     if (canCache(estimatedSize)) {
-      String cacheKey = deleteFile.path().toString();
+      String cacheKey = deleteFile.location();
       return getOrLoad(cacheKey, () -> readEqDeletes(deleteFile, projection), estimatedSize);
     } else {
       return readEqDeletes(deleteFile, projection);
@@ -199,7 +199,7 @@ public class BaseDeleteLoader implements DeleteLoader {
   private PositionDeleteIndex getOrReadPosDeletes(DeleteFile deleteFile, CharSequence filePath) {
     long estimatedSize = estimatePosDeletesSize(deleteFile);
     if (canCache(estimatedSize)) {
-      String cacheKey = deleteFile.path().toString();
+      String cacheKey = deleteFile.location();
       CharSequenceMap<PositionDeleteIndex> indexes =
           getOrLoad(cacheKey, () -> readPosDeletes(deleteFile), estimatedSize);
       return indexes.getOrDefault(filePath, PositionDeleteIndex.empty());
@@ -227,7 +227,7 @@ public class BaseDeleteLoader implements DeleteLoader {
       DeleteFile deleteFile, Schema projection, Expression filter) {
 
     FileFormat format = deleteFile.format();
-    LOG.trace("Opening delete file {}", deleteFile.path());
+    LOG.trace("Opening delete file {}", deleteFile.location());
     InputFile inputFile = loadInputFile.apply(deleteFile);
 
     switch (format) {
@@ -235,7 +235,7 @@ public class BaseDeleteLoader implements DeleteLoader {
         return Avro.read(inputFile)
             .project(projection)
             .reuseContainers()
-            .createReaderFunc(DataReader::create)
+            .createResolvingReader(PlannedDataReader::create)
             .build();
 
       case PARQUET:

@@ -32,7 +32,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -103,7 +103,7 @@ public class TestAvroDataWriter {
     try (AvroIterable<Record> reader =
         Avro.read(file.toInputFile())
             .project(SCHEMA)
-            .createReaderFunc(DataReader::create)
+            .createResolvingReader(PlannedDataReader::create)
             .build()) {
       writtenRecords = Lists.newArrayList(reader);
     }

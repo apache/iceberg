@@ -109,7 +109,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       tasks.forEach(
           task -> {
-            FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
+            FileFormat fileFormat = FileFormat.fromFileName(task.file().location());
             assertThat(fileFormat).isEqualTo(FileFormat.PARQUET);
           });
     }
@@ -134,7 +134,7 @@ public class TestDataSourceOptions extends TestBaseWithCatalog {
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       tasks.forEach(
           task -> {
-            FileFormat fileFormat = FileFormat.fromFileName(task.file().path());
+            FileFormat fileFormat = FileFormat.fromFileName(task.file().location());
             assertThat(fileFormat).isEqualTo(FileFormat.AVRO);
           });
     }

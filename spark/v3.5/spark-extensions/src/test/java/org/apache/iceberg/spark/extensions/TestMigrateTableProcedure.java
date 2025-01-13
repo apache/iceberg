@@ -273,4 +273,22 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Parallelism should be larger than 0");
   }
+
+  @TestTemplate
+  public void testMigratePartitionedWithParallelism() throws IOException {
+    assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
+
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet PARTITIONED BY (id) LOCATION '%s'",
+        tableName, location);
+    sql("INSERT INTO TABLE %s (id, data) VALUES (1, 'a'), (2, 'b')", tableName);
+    List<Object[]> result =
+        sql("CALL %s.system.migrate(table => '%s', parallelism => %d)", catalogName, tableName, 2);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L)), result);
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row("a", 1L), row("b", 2L)),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
 }

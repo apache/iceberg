@@ -40,7 +40,7 @@ class V2Metadata {
           ManifestFile.MANIFEST_CONTENT.asRequired(),
           ManifestFile.SEQUENCE_NUMBER.asRequired(),
           ManifestFile.MIN_SEQUENCE_NUMBER.asRequired(),
-          ManifestFile.SNAPSHOT_ID.asRequired(),
+          ManifestFile.SNAPSHOT_ID,
           ManifestFile.ADDED_FILES_COUNT.asRequired(),
           ManifestFile.EXISTING_FILES_COUNT.asRequired(),
           ManifestFile.DELETED_FILES_COUNT.asRequired(),
@@ -420,7 +420,7 @@ class V2Metadata {
         case 0:
           return wrapped.content().id();
         case 1:
-          return wrapped.path().toString();
+          return wrapped.location();
         case 2:
           return wrapped.format() != null ? wrapped.format().toString() : null;
         case 3:
@@ -486,7 +486,7 @@ class V2Metadata {
 
     @Override
     public CharSequence path() {
-      return wrapped.path();
+      return wrapped.location();
     }
 
     @Override

@@ -45,6 +45,7 @@ import org.apache.iceberg.view.SQLViewRepresentation;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewHistoryEntry;
 import org.apache.iceberg.view.ViewProperties;
+import org.apache.iceberg.view.ViewUtil;
 import org.apache.iceberg.view.ViewVersion;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -531,6 +532,40 @@ public class TestViews extends SparkExtensionsTestBase {
         .create();
 
     assertThat(sql("SELECT * FROM %s", viewName)).hasSize(1).containsExactly(row(10, 1L));
+  }
+
+  @Test
+  public void readFromViewWithGroupByOrdinal() throws NoSuchTableException {
+    insertRows(3);
+    insertRows(2);
+    String viewName = viewName("viewWithGroupByOrdinal");
+    String sql = String.format("SELECT id, count(1) FROM %s GROUP BY 1", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1, 2L), row(2, 2L), row(3, 1L));
+  }
+
+  @Test
+  public void createViewWithGroupByOrdinal() throws NoSuchTableException {
+    insertRows(3);
+    insertRows(2);
+    String viewName = viewName("createViewWithGroupByOrdinal");
+    sql("CREATE VIEW %s AS SELECT id, count(1) FROM %s GROUP BY 1", viewName, tableName);
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1, 2L), row(2, 2L), row(3, 1L));
   }
 
   @Test
@@ -1385,6 +1420,68 @@ public class TestViews extends SparkExtensionsTestBase {
                 String.format(
                     "['format-version' = '1', 'location' = '/%s/%s', 'provider' = 'iceberg']",
                     NAMESPACE, viewName),
+                ""));
+  }
+
+  @Test
+  public void createAndDescribeViewInDefaultNamespace() {
+    String viewName = viewName("createViewInDefaultNamespace");
+    String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
+
+    sql("CREATE VIEW %s (id, data) AS %s", viewName, sql);
+    TableIdentifier identifier = TableIdentifier.of(NAMESPACE, viewName);
+    View view = viewCatalog().loadView(identifier);
+    assertThat(view.currentVersion().defaultCatalog()).isNull();
+    assertThat(view.name()).isEqualTo(ViewUtil.fullViewName(catalogName, identifier));
+    assertThat(view.currentVersion().defaultNamespace()).isEqualTo(NAMESPACE);
+
+    String location = viewCatalog().loadView(identifier).location();
+    assertThat(sql("DESCRIBE EXTENDED %s.%s", NAMESPACE, viewName))
+        .contains(
+            row("id", "int", ""),
+            row("data", "string", ""),
+            row("", "", ""),
+            row("# Detailed View Information", "", ""),
+            row("Comment", "", ""),
+            row("View Catalog and Namespace", String.format("%s.%s", catalogName, NAMESPACE), ""),
+            row("View Query Output Columns", "[id, data]", ""),
+            row(
+                "View Properties",
+                String.format(
+                    "['format-version' = '1', 'location' = '%s', 'provider' = 'iceberg']",
+                    location),
+                ""));
+  }
+
+  @Test
+  public void createAndDescribeViewWithoutCurrentNamespace() {
+    String viewName = viewName("createViewWithoutCurrentNamespace");
+    Namespace namespace = Namespace.of("test_namespace");
+    String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
+
+    sql("CREATE NAMESPACE IF NOT EXISTS %s", namespace);
+    sql("CREATE VIEW %s.%s (id, data) AS %s", namespace, viewName, sql);
+    TableIdentifier identifier = TableIdentifier.of(namespace, viewName);
+    View view = viewCatalog().loadView(identifier);
+    assertThat(view.currentVersion().defaultCatalog()).isNull();
+    assertThat(view.name()).isEqualTo(ViewUtil.fullViewName(catalogName, identifier));
+    assertThat(view.currentVersion().defaultNamespace()).isEqualTo(NAMESPACE);
+
+    String location = viewCatalog().loadView(identifier).location();
+    assertThat(sql("DESCRIBE EXTENDED %s.%s", namespace, viewName))
+        .contains(
+            row("id", "int", ""),
+            row("data", "string", ""),
+            row("", "", ""),
+            row("# Detailed View Information", "", ""),
+            row("Comment", "", ""),
+            row("View Catalog and Namespace", String.format("%s.%s", catalogName, namespace), ""),
+            row("View Query Output Columns", "[id, data]", ""),
+            row(
+                "View Properties",
+                String.format(
+                    "['format-version' = '1', 'location' = '%s', 'provider' = 'iceberg']",
+                    location),
                 ""));
   }
 

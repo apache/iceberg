@@ -211,11 +211,10 @@ public class TestFindFiles extends TestBase {
   }
 
   private Set<String> pathSet(DataFile... files) {
-    return Sets.newHashSet(
-        Iterables.transform(Arrays.asList(files), file -> file.path().toString()));
+    return Sets.newHashSet(Iterables.transform(Arrays.asList(files), ContentFile::location));
   }
 
   private Set<String> pathSet(Iterable<DataFile> files) {
-    return Sets.newHashSet(Iterables.transform(files, file -> file.path().toString()));
+    return Sets.newHashSet(Iterables.transform(files, ContentFile::location));
   }
 }

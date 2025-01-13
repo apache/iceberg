@@ -203,12 +203,12 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     assertThat((Map<Integer, Integer>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct partition spec id on constant column")
         .containsEntry(MetadataColumns.SPEC_ID.fieldId(), table.ops().current().spec().specId());
-    assertThat(posDeleteTask.file().path())
+    assertThat(posDeleteTask.file().location())
         .as("Expected correct delete file on task")
-        .isEqualTo(deleteFile.path());
+        .isEqualTo(deleteFile.location());
     assertThat((Map<Integer, String>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct delete file on constant column")
-        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), deleteFile.path().toString());
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), deleteFile.location());
   }
 
   @TestTemplate

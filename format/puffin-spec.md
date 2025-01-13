@@ -145,6 +145,7 @@ sub-position) are tested for inclusion in the bitmap. If a bitmap is not found
 for the key, then it is not set.
 
 The serialized blob contains:
+
 * Combined length of the vector and magic bytes stored as 4 bytes, big-endian
 * A 4-byte magic sequence, `D1 D3 39 64`
 * The vector, serialized as described below

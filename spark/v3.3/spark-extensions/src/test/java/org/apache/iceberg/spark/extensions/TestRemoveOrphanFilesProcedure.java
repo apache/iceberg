@@ -63,7 +63,6 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.After;
@@ -266,8 +265,12 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.custom.remove_orphan_files('n', 't')", catalogName))
         .as("Should not resolve procedures in arbitrary namespaces")
-        .isInstanceOf(NoSuchProcedureException.class)
-        .hasMessageContaining("not found");
+        .satisfies(
+            exception -> {
+              ParseException parseException = (ParseException) exception;
+              Assert.assertEquals("PARSE_SYNTAX_ERROR", parseException.getErrorClass());
+              Assert.assertEquals("Syntax error at or near 'CALL'", parseException.message());
+            });
 
     assertThatThrownBy(() -> sql("CALL %s.system.remove_orphan_files()", catalogName))
         .as("Should reject calls without all required args")
@@ -430,8 +433,7 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
         "Should have 1 delete manifest", 1, TestHelpers.deleteManifests(table).size());
     Assert.assertEquals("Should have 1 delete file", 1, TestHelpers.deleteFiles(table).size());
     Path deleteManifestPath = new Path(TestHelpers.deleteManifests(table).iterator().next().path());
-    Path deleteFilePath =
-        new Path(String.valueOf(TestHelpers.deleteFiles(table).iterator().next().path()));
+    Path deleteFilePath = new Path(TestHelpers.deleteFiles(table).iterator().next().location());
 
     // wait to ensure files are old enough
     waitUntilAfter(System.currentTimeMillis());

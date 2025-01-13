@@ -31,8 +31,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.JsonUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SnapshotParser {
+  private static final Logger LOG = LoggerFactory.getLogger(SnapshotParser.class);
 
   private SnapshotParser() {}
 
@@ -129,17 +132,28 @@ public class SnapshotParser {
           "Cannot parse summary from non-object value: %s",
           sNode);
 
-      ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-      Iterator<String> fields = sNode.fieldNames();
-      while (fields.hasNext()) {
-        String field = fields.next();
-        if (field.equals(OPERATION)) {
-          operation = JsonUtil.getString(OPERATION, sNode);
-        } else {
-          builder.put(field, JsonUtil.getString(field, sNode));
+      if (sNode.size() > 0) {
+        ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+        Iterator<String> fields = sNode.fieldNames();
+        while (fields.hasNext()) {
+          String field = fields.next();
+          if (field.equals(OPERATION)) {
+            operation = JsonUtil.getString(OPERATION, sNode);
+          } else {
+            builder.put(field, JsonUtil.getString(field, sNode));
+          }
+        }
+        summary = builder.build();
+
+        // When the operation is not found, default to overwrite
+        // to ensure that we can read the summary without raising an exception
+        if (operation == null) {
+          LOG.warn(
+              "Encountered invalid summary for snapshot {}: the field 'operation' is required but missing, setting 'operation' to overwrite",
+              snapshotId);
+          operation = DataOperations.OVERWRITE;
         }
       }
-      summary = builder.build();
     }
 
     Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, node);

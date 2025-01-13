@@ -351,7 +351,7 @@ class V1Metadata {
     public Object get(int pos) {
       switch (pos) {
         case 0:
-          return wrapped.path().toString();
+          return wrapped.location();
         case 1:
           return wrapped.format() != null ? wrapped.format().toString() : null;
         case 2:
@@ -416,7 +416,7 @@ class V1Metadata {
 
     @Override
     public CharSequence path() {
-      return wrapped.path();
+      return wrapped.location();
     }
 
     @Override

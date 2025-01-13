@@ -649,7 +649,7 @@ public class TestHelpers {
 
     @Override
     public FileFormat format() {
-      return FileFormat.fromFileName(path());
+      return FileFormat.fromFileName(location());
     }
 
     @Override

@@ -59,10 +59,19 @@ public class Util {
     }
   }
 
+  /**
+   * @deprecated since 1.8.0, will be removed in 1.9.0; use {@link
+   *     Util#blockLocations(ScanTaskGroup, Configuration)} instead.
+   */
+  @Deprecated
   public static String[] blockLocations(CombinedScanTask task, Configuration conf) {
+    return blockLocations((ScanTaskGroup<FileScanTask>) task, conf);
+  }
+
+  public static String[] blockLocations(ScanTaskGroup<FileScanTask> taskGroup, Configuration conf) {
     Set<String> locationSets = Sets.newHashSet();
-    for (FileScanTask f : task.files()) {
-      Path path = new Path(f.file().path().toString());
+    for (FileScanTask f : taskGroup.tasks()) {
+      Path path = new Path(f.file().location());
       try {
         FileSystem fs = path.getFileSystem(conf);
         for (BlockLocation b : fs.getFileBlockLocations(path, f.start(), f.length())) {
@@ -104,7 +113,7 @@ public class Util {
   }
 
   private static String[] blockLocations(FileIO io, ContentScanTask<?> task) {
-    String location = task.file().path().toString();
+    String location = task.file().location();
     if (usesHadoopFileIO(io, location)) {
       InputFile inputFile = io.newInputFile(location);
       if (inputFile instanceof HadoopInputFile) {

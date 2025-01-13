@@ -205,7 +205,6 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition {
         case STRING:
           return ValueReaders.strings();
         case FIXED:
-          return ValueReaders.fixed(primitive);
         case BYTES:
           return ValueReaders.byteBuffers();
         case ENUM:

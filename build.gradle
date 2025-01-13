@@ -347,7 +347,6 @@ project(':iceberg-core') {
     implementation libs.jackson.core
     implementation libs.jackson.databind
     implementation libs.caffeine
-    implementation libs.failsafe
     implementation libs.roaringbitmap
     compileOnly(libs.hadoop2.client) {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -838,39 +837,6 @@ project(':iceberg-arrow') {
   }
 }
 
-project(':iceberg-pig') {
-  test {
-    useJUnitPlatform()
-  }
-
-  dependencies {
-    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    api project(':iceberg-api')
-    implementation project(':iceberg-common')
-    implementation project(':iceberg-core')
-    implementation project(':iceberg-parquet')
-
-    implementation(libs.parquet.avro) {
-      exclude group: 'org.apache.avro', module: 'avro'
-      // already shaded by Parquet
-      exclude group: 'it.unimi.dsi'
-      exclude group: 'org.codehaus.jackson'
-    }
-
-    compileOnly(libs.pig) {
-      exclude group: "junit", module: "junit"
-    }
-    compileOnly(libs.hadoop2.mapreduce.client.core)
-    compileOnly(libs.hadoop2.client) {
-      exclude group: 'org.apache.avro', module: 'avro'
-    }
-
-    testImplementation(libs.hadoop2.minicluster) {
-      exclude group: 'org.apache.avro', module: 'avro'
-    }
-  }
-}
-
 project(':iceberg-nessie') {
   test {
     useJUnitPlatform()
@@ -981,19 +947,33 @@ project(':iceberg-open-api') {
       exclude group: 'org.apache.curator'
       exclude group: 'org.apache.zookeeper'
       exclude group: 'org.apache.kerby'
-      exclude group: 'org.apache.hadoop', module: 'hadoop-auth'
-      exclude group: 'org.apache.commons', module: 'commons-configuration2'
       exclude group: 'org.apache.hadoop.thirdparty', module: 'hadoop-shaded-protobuf_3_7'
       exclude group: 'org.eclipse.jetty'
+      exclude group: 'com.google.re2j', module: 're2j'
+      exclude group: 'com.google.code.gson', module: 'gson'
+      exclude group: 'com.jcraft', module: 'jsch'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'io.dropwizard.metrics', module: 'metrics-core'
+      exclude group: 'dnsjava', module: 'dnsjava'
+      exclude group: 'org.xerial.snappy', module: 'snappy-java'
+      exclude group: 'commons-cli', module: 'commons-cli'
+      exclude group: 'com.github.pjfanning', module: 'jersey-json'
     }
     testFixturesImplementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     testFixturesImplementation libs.junit.jupiter
+
+    testFixturesImplementation libs.slf4j.api
+    testFixturesImplementation libs.slf4j.simple
 
     testFixturesImplementation libs.jetty.servlet
     testFixturesImplementation libs.jetty.server
     testFixturesImplementation libs.sqlite.jdbc
 
     testFixturesCompileOnly libs.apiguardian
+
+    testFixturesRuntimeOnly project(':iceberg-aws-bundle')
+    testFixturesRuntimeOnly project(':iceberg-azure-bundle')
+    testFixturesRuntimeOnly project(':iceberg-gcp-bundle')
   }
 
   test {
