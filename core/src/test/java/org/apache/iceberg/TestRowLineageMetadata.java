@@ -35,8 +35,7 @@ public class TestRowLineageMetadata {
 
   private static final String TEST_LOCATION = "s3://bucket/test/location";
 
-  @TempDir
-  protected File tableDir = null;
+  @TempDir protected File tableDir = null;
 
   private static final Schema TEST_SCHEMA =
       new Schema(
@@ -45,10 +44,8 @@ public class TestRowLineageMetadata {
           Types.NestedField.required(2, "y", Types.LongType.get(), "comment"),
           Types.NestedField.required(3, "z", Types.LongType.get()));
 
-
   private TableMetadata.Builder builderFor(int formatVersion) {
-    return TableMetadata.buildFromEmpty(formatVersion)
-        .enableRowLineage();
+    return TableMetadata.buildFromEmpty(formatVersion).enableRowLineage();
   }
 
   private TableMetadata baseMetadata(int formatVersion) {
@@ -77,17 +74,6 @@ public class TestRowLineageMetadata {
               () -> TableMetadata.buildFromEmpty(formatVersion).enableRowLineage());
       assertThat(notSupported.getMessage()).contains("Cannot use row lineage");
     }
-  }
-
-  @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
-  public void testLastRowIdMustIncrease(int formatVersion) {
-    assumeTrue(formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-    assertThat(builderFor(formatVersion).incrementLastRowId(5)).isNotNull();
-    IllegalArgumentException noDecrease =
-        assertThrows(
-            IllegalArgumentException.class, () -> builderFor(formatVersion).incrementLastRowId(-5));
-    assertThat(noDecrease.getMessage()).contains("Cannot decrease last-row-id");
   }
 
   @ParameterizedTest
@@ -149,26 +135,28 @@ public class TestRowLineageMetadata {
             "Cannot add a snapshot with a null `addedRows` field when row lineage is enabled");
   }
 
-  AtomicInteger fileNum = new AtomicInteger(0);
+  private AtomicInteger fileNum = new AtomicInteger(0);
+
   private DataFile fileWithRows(int numRows) {
     return DataFiles.builder(PartitionSpec.unpartitioned())
-      .withRecordCount(numRows)
-      .withFileSizeInBytes(numRows * 100)
-      .withPath("file://file_" + fileNum.incrementAndGet() + ".parquet")
-      .build();
+        .withRecordCount(numRows)
+        .withFileSizeInBytes(numRows * 100)
+        .withPath("file://file_" + fileNum.incrementAndGet() + ".parquet")
+        .build();
   }
 
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testFastAppend(int formatVersion) {
     assumeTrue(formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-    TestTables.TestTable table = TestTables.create(tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
+    TestTables.TestTable table =
+        TestTables.create(
+            tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
     TableMetadata base = table.ops().current();
     table.ops().commit(base, TableMetadata.buildFrom(base).enableRowLineage().build());
 
     assertThat(table.ops().current().rowLineage()).isTrue();
     assertThat(table.ops().current().lastRowId()).isEqualTo(0L);
-
 
     table.newFastAppend().appendFile(fileWithRows(30)).commit();
 
@@ -187,13 +175,14 @@ public class TestRowLineageMetadata {
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testAppend(int formatVersion) {
     assumeTrue(formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
-    TestTables.TestTable table = TestTables.create(tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
+    TestTables.TestTable table =
+        TestTables.create(
+            tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
     TableMetadata base = table.ops().current();
     table.ops().commit(base, TableMetadata.buildFrom(base).enableRowLineage().build());
 
     assertThat(table.ops().current().rowLineage()).isTrue();
     assertThat(table.ops().current().lastRowId()).isEqualTo(0L);
-
 
     table.newAppend().appendFile(fileWithRows(30)).commit();
 
@@ -207,7 +196,4 @@ public class TestRowLineageMetadata {
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(30);
     assertThat(table.ops().current().lastRowId()).isEqualTo(30 + 17 + 11);
   }
-
-
-
 }

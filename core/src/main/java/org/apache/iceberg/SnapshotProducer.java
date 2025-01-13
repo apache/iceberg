@@ -283,15 +283,28 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       throw new RuntimeIOException(e, "Failed to write manifest list file");
     }
 
-    Long addedRows =
-        manifests.stream()
-            .filter(
-                manifest ->
-                    manifest.snapshotId() == null
-                        || Objects.equals(manifest.snapshotId(), this.snapshotId))
-            .mapToLong(ManifestFile::addedRowsCount)
-            .sum();
-    Long lastRowId = base.rowLineage() ? base.lastRowId() : null;
+    Long addedRows = null;
+    Long lastRowId = null;
+    if (base.rowLineage()) {
+      addedRows =
+          manifests.stream()
+              .filter(
+                  manifest ->
+                      manifest.snapshotId() == null
+                          || Objects.equals(manifest.snapshotId(), this.snapshotId))
+              .mapToLong(
+                  manifest -> {
+                    Preconditions.checkArgument(
+                        manifest.addedRowsCount() != null,
+                        "Cannot determine number of added rows in snapshot because"
+                            + " the entry for manifest %s is missing the field `added-rows-count`",
+                        manifest.path());
+                    return manifest.addedRowsCount();
+                  })
+              .sum();
+
+      lastRowId = base.lastRowId();
+    }
 
     return new BaseSnapshot(
         sequenceNumber,

@@ -1269,7 +1269,7 @@ public class TableMetadata implements Serializable {
         ValidationException.check(
             snapshot.addedRows() != null,
             "Cannot add a snapshot with a null `addedRows` field when row lineage is enabled");
-        this.incrementLastRowId(snapshot.addedRows());
+        incrementLastRowId(snapshot.addedRows());
       }
 
       return this;
@@ -1512,24 +1512,24 @@ public class TableMetadata implements Serializable {
 
     public Builder enableRowLineage() {
       Preconditions.checkArgument(
-          formatVersion >= 3,
-          "Cannot use row lineage with format version %s. Only format version 3 or higher support row lineage",
-          formatVersion);
+          formatVersion >= MIN_FORMAT_VERSION_ROW_LINEAGE,
+          "Cannot use row lineage with format version %s. Only format version %s or higher support row lineage",
+          formatVersion,
+          MIN_FORMAT_VERSION_ROW_LINEAGE);
       this.rowLineage = true;
       changes.add(new MetadataUpdate.EnableRowLineage());
       return this;
     }
 
-    Builder incrementLastRowId(long delta) {
+    private void incrementLastRowId(long delta) {
       Preconditions.checkArgument(
-          this.rowLineage, "Cannot set last-row-id if row lineage is not enabled");
+          rowLineage, "Cannot set last-row-id if row lineage is not enabled");
       Preconditions.checkArgument(
           delta >= 0,
           "Cannot decrease last-row-id, last-row-id must increase monotonically. Delta was %s",
           delta);
 
       this.lastRowId += delta;
-      return this;
     }
 
     private boolean hasChanges() {

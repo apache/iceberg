@@ -173,9 +173,10 @@ public interface Snapshot extends Serializable {
   }
 
   /**
-   * The row-id of the first newly added row in this snapshot. The all rows added in this snapshot
-   * will have a row-id value of greater than or equal to this value. Rows with a smaller value were
-   * not added in this snapshot.
+   * The row-id of the first newly added row in this snapshot. All rows added in this snapshot will
+   * have a row-id assigned to them greater than this value. All rows with a row-id less than this
+   * value were created in a snapshot that was added to the table (but not necessarily commited to
+   * this branch) in the past.
    *
    * @return the first row-id to be used in this snapshot or null if row lineage was not enabled
    *     when the table was created.
@@ -186,10 +187,12 @@ public interface Snapshot extends Serializable {
 
   /**
    * The total number of newly added rows in this snapshot. It should be the summation of {@link
-   * ManifestFile#ADDED_ROWS_COUNT} for every manifest added in this snapshot. This is optionally
-   * present but required if row lineage is enabled.
+   * ManifestFile#ADDED_ROWS_COUNT} for every manifest added in this snapshot. From the definition
+   * of ADDED_ROWS_COUNT this is the total number of rows in every added {@link DataFile}
    *
-   * @return the total number of new rows in this snapshot or null if it was not stored.
+   * <p>This is optionally present but is required if row lineage is enabled.
+   *
+   * @return the total number of new rows in this snapshot or null if the value was not stored.
    */
   default Long addedRows() {
     return null;
