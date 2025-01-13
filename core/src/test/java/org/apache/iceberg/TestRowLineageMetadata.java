@@ -19,7 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.Assert.assertThrows;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.File;
@@ -287,11 +287,11 @@ public class TestRowLineageMetadata {
     assertThat(table.ops().current().rowLineage()).isTrue();
     assertThat(table.ops().current().lastRowId()).isEqualTo(0L);
 
-    DataFile file_part1 = fileWithRows(30);
-    DataFile file_part2 = fileWithRows(30);
-    DataFile file_compacted = fileWithRows(60);
+    DataFile filePart1 = fileWithRows(30);
+    DataFile filePart2 = fileWithRows(30);
+    DataFile fileCompacted = fileWithRows(60);
 
-    table.newAppend().appendFile(file_part1).appendFile(file_part2).commit();
+    table.newAppend().appendFile(filePart1).appendFile(filePart2).commit();
 
     assertThat(table.ops().current().rowLineage()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(0);
@@ -299,9 +299,9 @@ public class TestRowLineageMetadata {
 
     table
         .newRewrite()
-        .deleteFile(file_part1)
-        .deleteFile(file_part2)
-        .addFile(file_compacted)
+        .deleteFile(filePart1)
+        .deleteFile(filePart2)
+        .addFile(fileCompacted)
         .commit();
 
     // Rewrites are currently just treated as appends. In the future we could treat these as no-ops

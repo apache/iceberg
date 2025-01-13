@@ -316,7 +316,7 @@ public class TableMetadata implements Serializable {
         "Cannot create TableMetadata with a metadata location and changes");
     Preconditions.checkArgument(
         formatVersion >= MIN_FORMAT_VERSION_ROW_LINEAGE || !rowLineage,
-        "Cannot enable row lineage when Table Version is less than V3. Table Version is %d",
+        "Cannot enable row lineage when Table Version is less than V3. Table Version is %s",
         formatVersion);
 
     this.metadataFileLocation = metadataFileLocation;
