@@ -418,8 +418,8 @@ public class TestExpressionUtil {
         ExpressionUtil.sanitize(Expressions.equal("test", "2022-04-29")));
 
     assertEquals(
-            Expressions.equal("date", "(date)"),
-            ExpressionUtil.sanitize(Expressions.equal("date", "2022-04-29").bind(STRUCT, true)));
+        Expressions.equal("date", "(date)"),
+        ExpressionUtil.sanitize(Expressions.equal("date", "2022-04-29").bind(STRUCT, true)));
 
     assertEquals(
         Expressions.equal("date", "(date)"),
