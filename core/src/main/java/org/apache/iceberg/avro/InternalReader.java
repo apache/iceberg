@@ -107,11 +107,15 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition {
         return ValueReaders.skipStruct(fieldResults);
       }
 
-      Types.StructType expected = partner.second().asStructType();
-      List<Pair<Integer, ValueReader<?>>> readPlan =
-          ValueReaders.buildReadPlan(expected, record, fieldResults, idToConstant);
+      if (partner.second().isVariantType()) {
+        return ValueReaders.record(fieldResults, record);
+      } else {
+        Types.StructType expected = partner.second().asStructType();
+        List<Pair<Integer, ValueReader<?>>> readPlan =
+            ValueReaders.buildReadPlan(expected, record, fieldResults, idToConstant);
 
-      return structReader(readPlan, partner.first(), expected);
+        return structReader(readPlan, partner.first(), expected);
+      }
     }
 
     private ValueReader<?> structReader(
