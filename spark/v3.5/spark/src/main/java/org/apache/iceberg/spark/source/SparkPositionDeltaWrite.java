@@ -33,6 +33,7 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionKey;
@@ -221,7 +222,13 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
         }
 
         for (DeleteFile deleteFile : taskCommit.deleteFiles()) {
-          rowDelta.addDeletes(deleteFile);
+          String manifestLocation =
+              scan.deleteFileToManifest().get(deleteFile.location());
+          rowDelta.addDeletes(
+              FileMetadata.deleteFileBuilder(table.specs().get(deleteFile.specId()))
+                  .copy(deleteFile)
+                  .withReferencedManifestLocation(manifestLocation)
+                  .build());
           addedDeleteFilesCount += 1;
         }
 

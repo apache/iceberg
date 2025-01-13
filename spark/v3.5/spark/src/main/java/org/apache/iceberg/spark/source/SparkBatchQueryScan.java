@@ -26,6 +26,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionScanTask;
@@ -73,6 +74,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   private final Long asOfTimestamp;
   private final String tag;
   private final List<Expression> runtimeFilterExpressions;
+  private Map<String, String> deleteFileToManifest;
 
   SparkBatchQueryScan(
       SparkSession spark,
@@ -90,6 +92,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     this.asOfTimestamp = readConf.asOfTimestamp();
     this.tag = readConf.tag();
     this.runtimeFilterExpressions = Lists.newArrayList();
+    this.deleteFileToManifest = Maps.newHashMap();
   }
 
   Long snapshotId() {
@@ -172,12 +175,21 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
         if (shouldRewrite(deleteFile, forDVs)) {
           rewritableDeletes
               .computeIfAbsent(fileScanTask.file().location(), ignored -> DeleteFileSet.create())
-              .add(deleteFile);
+              .add(
+                  FileMetadata.deleteFileBuilder(fileScanTask.spec())
+                      .copy(deleteFile)
+                      .withReferencedManifestLocation(null)
+                      .build());
+          deleteFileToManifest.put(deleteFile.location(), deleteFile.manifestLocation());
         }
       }
     }
 
     return rewritableDeletes;
+  }
+
+  protected Map<String, String> deleteFileToManifest() {
+    return deleteFileToManifest;
   }
 
   // for DVs all position deletes must be rewritten

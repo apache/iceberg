@@ -62,6 +62,7 @@ public class FileMetadata {
     private String referencedDataFile = null;
     private Long contentOffset = null;
     private Long contentSizeInBytes = null;
+    private String manifestLocation = null;
 
     Builder(PartitionSpec spec) {
       this.spec = spec;
@@ -107,6 +108,7 @@ public class FileMetadata {
       this.keyMetadata =
           toCopy.keyMetadata() == null ? null : ByteBuffers.copy(toCopy.keyMetadata());
       this.sortOrderId = toCopy.sortOrderId();
+      this.manifestLocation = toCopy.manifestLocation();
       return this;
     }
 
@@ -242,6 +244,11 @@ public class FileMetadata {
       return this;
     }
 
+    public Builder withReferencedManifestLocation(String referencedManifestLocation) {
+      this.manifestLocation = referencedManifestLocation;
+      return this;
+    }
+
     public DeleteFile build() {
       Preconditions.checkArgument(filePath != null, "File path is required");
       if (format == null) {
@@ -275,28 +282,32 @@ public class FileMetadata {
           throw new IllegalStateException("Unknown content type " + content);
       }
 
-      return new GenericDeleteFile(
-          specId,
-          content,
-          filePath,
-          format,
-          isPartitioned ? DataFiles.copy(spec, partitionData) : null,
-          fileSizeInBytes,
-          new Metrics(
-              recordCount,
-              columnSizes,
-              valueCounts,
-              nullValueCounts,
-              nanValueCounts,
-              lowerBounds,
-              upperBounds),
-          equalityFieldIds,
-          sortOrderId,
-          splitOffsets,
-          keyMetadata,
-          referencedDataFile,
-          contentOffset,
-          contentSizeInBytes);
+      GenericDeleteFile deleteFile =
+          new GenericDeleteFile(
+              specId,
+              content,
+              filePath,
+              format,
+              isPartitioned ? DataFiles.copy(spec, partitionData) : null,
+              fileSizeInBytes,
+              new Metrics(
+                  recordCount,
+                  columnSizes,
+                  valueCounts,
+                  nullValueCounts,
+                  nanValueCounts,
+                  lowerBounds,
+                  upperBounds),
+              equalityFieldIds,
+              sortOrderId,
+              splitOffsets,
+              keyMetadata,
+              referencedDataFile,
+              contentOffset,
+              contentSizeInBytes);
+
+      deleteFile.setManifestLocation(manifestLocation);
+      return deleteFile;
     }
   }
 }
