@@ -309,4 +309,33 @@ public class TestRowLineageMetadata {
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(60);
     assertThat(table.ops().current().lastRowId()).isEqualTo(120);
   }
+
+
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testEnableRowLineageViaProperty(int formatVersion) {
+    assumeTrue(formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+
+    TestTables.TestTable table =
+      TestTables.create(
+        tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
+
+    assertThat(table.ops().current().rowLineage()).isFalse();
+
+    // No-op
+    table.updateProperties().set(TableProperties.ROW_LINEAGE, "false").commit();
+    assertThat(table.ops().current().rowLineage()).isFalse();
+
+    // Enable row lineage
+    table.updateProperties().set(TableProperties.ROW_LINEAGE, "true").commit();
+    assertThat(table.ops().current().rowLineage()).isTrue();
+
+    // Disabling row lineage is not allowed
+    IllegalArgumentException cannotDisable = assertThrows(IllegalArgumentException.class, () -> table.updateProperties().set(TableProperties.ROW_LINEAGE, "false").commit());
+    assertThat(cannotDisable.getMessage()).contains("Cannot disable row lineage once it has been enabled");
+
+    // No-op
+    table.updateProperties().set(TableProperties.ROW_LINEAGE, "true").commit();
+    assertThat(table.ops().current().rowLineage()).isTrue();
+  }
 }
