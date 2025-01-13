@@ -76,11 +76,6 @@ public class InputFormatConfig {
 
   public static final String CATALOG_CONFIG_PREFIX = "iceberg.catalog.";
 
-  public enum InMemoryDataModel {
-    HIVE,
-    GENERIC // Default data model is of Iceberg Generics
-  }
-
   public static class ConfigBuilder {
     private final Configuration conf;
 
@@ -160,11 +155,6 @@ public class InputFormatConfig {
     /** If this API is called. The input splits constructed will have host location information */
     public ConfigBuilder preferLocality() {
       conf.setBoolean(LOCALITY, true);
-      return this;
-    }
-
-    public ConfigBuilder useHiveRows() {
-      conf.set(IN_MEMORY_DATA_MODEL, InMemoryDataModel.HIVE.name());
       return this;
     }
 
