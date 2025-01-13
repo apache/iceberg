@@ -48,4 +48,9 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
   protected boolean requiresNamespaceCreate() {
     return true;
   }
+
+  @Override
+  protected boolean supportsEmptyNamespace() {
+    return true;
+  }
 }

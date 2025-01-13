@@ -146,7 +146,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     }
 
     return tables.keySet().stream()
-        .filter(t -> namespace.isEmpty() || t.namespace().equals(namespace))
+        .filter(t -> t.namespace().equals(namespace))
         .sorted(Comparator.comparing(TableIdentifier::toString))
         .collect(Collectors.toList());
   }
@@ -290,6 +290,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
     List<Namespace> filteredNamespaces =
         namespaces.keySet().stream()
+            .filter(n -> !n.isEmpty())
             .filter(n -> DOT.join(n.levels()).startsWith(searchNamespaceString))
             .collect(Collectors.toList());
 
@@ -323,7 +324,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     }
 
     return views.keySet().stream()
-        .filter(v -> namespace.isEmpty() || v.namespace().equals(namespace))
+        .filter(v -> v.namespace().equals(namespace))
         .sorted(Comparator.comparing(TableIdentifier::toString))
         .collect(Collectors.toList());
   }

@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
@@ -1532,39 +1533,37 @@ public class TestViews extends SparkExtensionsTestBase {
 
     // spark stores temp views case-insensitive by default
     Object[] tempView = row("", tempViewForListing.toLowerCase(Locale.ROOT), true);
-    assertThat(sql("SHOW VIEWS"))
-        .contains(
-            row(NAMESPACE.toString(), prefixV2, false),
-            row(NAMESPACE.toString(), prefixV3, false),
-            row(NAMESPACE.toString(), v1, false),
-            tempView);
+    Object[] v1Row = row(NAMESPACE.toString(), v1, false);
+    Object[] v2Row = row(NAMESPACE.toString(), prefixV2, false);
+    Object[] v3Row = row(NAMESPACE.toString(), prefixV3, false);
+    assertThat(sql("SHOW VIEWS")).contains(v2Row, v3Row, v1Row, tempView);
 
-    assertThat(sql("SHOW VIEWS IN %s", catalogName))
-        .contains(
-            row(NAMESPACE.toString(), prefixV2, false),
-            row(NAMESPACE.toString(), prefixV3, false),
-            row(NAMESPACE.toString(), v1, false),
-            tempView);
+    if (!"rest".equals(catalogConfig.get(CatalogUtil.ICEBERG_CATALOG_TYPE))) {
+      // REST catalog requires a namespace
+      assertThat(sql("SHOW VIEWS IN %s", catalogName))
+          .contains(tempView)
+          .doesNotContain(v1Row, v2Row, v3Row);
+    }
 
     assertThat(sql("SHOW VIEWS IN %s.%s", catalogName, NAMESPACE))
-        .contains(
-            row(NAMESPACE.toString(), prefixV2, false),
-            row(NAMESPACE.toString(), prefixV3, false),
-            row(NAMESPACE.toString(), v1, false),
-            tempView);
+        .contains(v2Row, v3Row, v1Row, tempView);
 
     assertThat(sql("SHOW VIEWS LIKE 'pref*'"))
-        .contains(
-            row(NAMESPACE.toString(), prefixV2, false), row(NAMESPACE.toString(), prefixV3, false));
+        .contains(v2Row, v3Row)
+        .doesNotContain(v1Row, tempView);
 
     assertThat(sql("SHOW VIEWS LIKE 'non-existing'")).isEmpty();
 
-    assertThat(sql("SHOW VIEWS IN spark_catalog.default")).contains(tempView);
+    sql("CREATE NAMESPACE IF NOT EXISTS spark_catalog.%s", NAMESPACE);
+    assertThat(sql("SHOW VIEWS IN spark_catalog.%s", NAMESPACE))
+        .contains(tempView)
+        .doesNotContain(v1Row, v2Row, v3Row);
 
     assertThat(sql("SHOW VIEWS IN global_temp"))
         .contains(
             // spark stores temp views case-insensitive by default
-            row("global_temp", globalViewForListing.toLowerCase(Locale.ROOT), true), tempView);
+            row("global_temp", globalViewForListing.toLowerCase(Locale.ROOT), true), tempView)
+        .doesNotContain(v1Row, v2Row, v3Row);
 
     sql("USE spark_catalog");
     assertThat(sql("SHOW VIEWS")).contains(tempView);

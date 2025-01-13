@@ -80,6 +80,11 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
     return true;
   }
 
+  @Override
+  protected boolean supportsEmptyNamespace() {
+    return true;
+  }
+
   @Test
   public void testCommitExceptionWithoutMessage() {
     TableIdentifier identifier = TableIdentifier.of("namespace1", "view");
