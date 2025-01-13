@@ -22,14 +22,23 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.time.Duration;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import javax.annotation.Nullable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.Uninterruptibles;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** A cache for {@link AuthSession} instances. */
 public class AuthSessionCache implements AutoCloseable {
+
+  private static final Logger LOG = LoggerFactory.getLogger(AuthSessionCache.class);
 
   private final Duration sessionTimeout;
   private final Executor executor;
@@ -41,32 +50,43 @@ public class AuthSessionCache implements AutoCloseable {
    * Creates a new cache with the given session timeout, and with default executor and nano time
    * supplier for eviction tasks.
    *
+   * @param name a distinctive name for the cache.
    * @param sessionTimeout the session timeout. Sessions will become eligible for eviction after
    *     this duration of inactivity.
    */
-  public AuthSessionCache(Duration sessionTimeout) {
-    this(sessionTimeout, null, null);
+  public AuthSessionCache(String name, Duration sessionTimeout) {
+    this(name, sessionTimeout, null, null);
   }
 
   /**
    * Creates a new cache with the given session timeout, executor, and nano time supplier. This
    * method is useful for testing mostly.
    *
+   * @param name a distinctive name for the cache.
    * @param sessionTimeout the session timeout. Sessions will become eligible for eviction after
    *     this duration of inactivity.
-   * @param executor the executor to use for eviction tasks; if null, the cache will use the
-   *     {@linkplain ForkJoinPool#commonPool() common pool}. The executor will not be closed when
-   *     this cache is closed.
+   * @param executor the executor to use for eviction tasks; if null, the cache will create a
+   *     default executor. The executor will be closed when this cache is closed.
    * @param nanoTimeSupplier the supplier for nano time; if null, the cache will use {@link
    *     System#nanoTime()}.
    */
   AuthSessionCache(
+      String name,
       Duration sessionTimeout,
       @Nullable Executor executor,
       @Nullable LongSupplier nanoTimeSupplier) {
     this.sessionTimeout = sessionTimeout;
-    this.executor = executor;
+    this.executor = executor == null ? createExecutor(name) : executor;
     this.nanoTimeSupplier = nanoTimeSupplier;
+  }
+
+  private static Executor createExecutor(String name) {
+    ThreadFactory threadFactory =
+        new ThreadFactoryBuilder()
+            .setNameFormat(name + "-auth-session-evict-%d")
+            .setDaemon(true)
+            .build();
+    return Executors.newCachedThreadPool(threadFactory);
   }
 
   /**
@@ -85,11 +105,22 @@ public class AuthSessionCache implements AutoCloseable {
 
   @Override
   public void close() {
-    Cache<String, AuthSession> cache = sessionCache;
-    this.sessionCache = null;
-    if (cache != null) {
-      cache.invalidateAll();
-      cache.cleanUp();
+    try {
+      Cache<String, AuthSession> cache = sessionCache;
+      this.sessionCache = null;
+      if (cache != null) {
+        cache.invalidateAll();
+        cache.cleanUp();
+      }
+    } finally {
+      if (executor instanceof ExecutorService) {
+        ExecutorService service = (ExecutorService) executor;
+        service.shutdown();
+        if (!Uninterruptibles.awaitTerminationUninterruptibly(service, 10, TimeUnit.SECONDS)) {
+          LOG.warn("Timed out waiting for eviction executor to terminate");
+        }
+        service.shutdownNow();
+      }
     }
   }
 
@@ -98,7 +129,7 @@ public class AuthSessionCache implements AutoCloseable {
     if (sessionCache == null) {
       synchronized (this) {
         if (sessionCache == null) {
-          this.sessionCache = newSessionCache(sessionTimeout, executor, nanoTimeSupplier);
+          this.sessionCache = newSessionCache();
         }
       }
     }
@@ -106,10 +137,10 @@ public class AuthSessionCache implements AutoCloseable {
     return sessionCache;
   }
 
-  private static Cache<String, AuthSession> newSessionCache(
-      Duration sessionTimeout, Executor executor, LongSupplier nanoTimeSupplier) {
+  private Cache<String, AuthSession> newSessionCache() {
     Caffeine<String, AuthSession> builder =
         Caffeine.newBuilder()
+            .executor(executor)
             .expireAfterAccess(sessionTimeout)
             .removalListener(
                 (id, auth, cause) -> {
@@ -117,9 +148,6 @@ public class AuthSessionCache implements AutoCloseable {
                     auth.close();
                   }
                 });
-    if (executor != null) {
-      builder.executor(executor);
-    }
 
     if (nanoTimeSupplier != null) {
       builder.ticker(nanoTimeSupplier::getAsLong);

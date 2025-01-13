@@ -56,6 +56,8 @@ public class OAuth2Manager extends RefreshingAuthManager {
           .addAll(TOKEN_PREFERENCE_ORDER)
           .build();
 
+  private final String name;
+
   private RESTClient client;
   private long startTimeMillis;
   private OAuthTokenResponse authResponse;
@@ -63,6 +65,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
 
   public OAuth2Manager(String name) {
     super(name + "-token-refresh");
+    this.name = name;
   }
 
   @Override
@@ -97,7 +100,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
   public OAuth2Util.AuthSession catalogSession(
       RESTClient sharedClient, Map<String, String> properties) {
     this.client = sharedClient;
-    this.sessionCache = newSessionCache(properties);
+    this.sessionCache = newSessionCache(name, properties);
     AuthConfig config = AuthConfig.fromProperties(properties);
     Map<String, String> headers = OAuth2Util.authHeaders(config.token());
     OAuth2Util.AuthSession session = new OAuth2Util.AuthSession(headers, config);
@@ -158,8 +161,8 @@ public class OAuth2Manager extends RefreshingAuthManager {
     }
   }
 
-  protected AuthSessionCache newSessionCache(Map<String, String> properties) {
-    return new AuthSessionCache(sessionTimeout(properties));
+  protected AuthSessionCache newSessionCache(String name, Map<String, String> properties) {
+    return new AuthSessionCache(name, sessionTimeout(properties));
   }
 
   protected OAuth2Util.AuthSession maybeCreateChildSession(
