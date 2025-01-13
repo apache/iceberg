@@ -321,7 +321,7 @@ The JDBC catalog uses file-based SQLite database as the backend.
     ```
 
 !!! note
-    If your Iceberg catalog is not set as the default catalog, you will have to switch to it by executing `USE local;`
+    If your Iceberg catalog is not set as the default catalog using `spark.sql.defaultCatalog`, you will have to switch to it by executing `USE local;`
 
 #### Configuring REST Catalog
 
@@ -372,7 +372,7 @@ The REST catalog uses the `apache/iceberg-rest-fixture` docker container from th
     ```
 
 !!! note
-    If your Iceberg catalog is not set as the default catalog, you will have to switch to it by executing `USE rest;`
+    If your Iceberg catalog is not set as the default catalog using `spark.sql.defaultCatalog`, you will have to switch to it by executing `USE rest;`
 
 ### Next steps
 

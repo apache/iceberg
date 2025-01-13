@@ -39,10 +39,9 @@ spark-shell --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ iceb
     If you want to include Iceberg in your Spark installation, add the [`iceberg-spark-runtime-3.5_2.12` Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.5_2.12-{{ icebergVersion }}.jar) to Spark's `jars` folder.
 
 
-### Adding catalogs
+### Catalogs
 
-Apache Iceberg provides several [catalog](spark-configuration.md#catalogs) implementations to manage tables and enable SQL operations. 
-Catalogs are configured using properties under `spark.sql.catalog.(catalog_name)`.
+Apache Iceberg uses [catalogs](https://iceberg.apache.org/concepts/catalog/) to track and manage table metadata and enable SQL operations. Iceberg provides several [catalog implementations](spark-configuration.md#catalogs), which can be configured using properties under `spark.sql.catalog.(catalog_name)`.
 
 This command creates a JDBC-based catalog named `local` for tables under `$PWD/warehouse` and adds support for Iceberg tables to Spark's built-in catalog. 
 
