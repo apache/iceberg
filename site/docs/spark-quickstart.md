@@ -26,8 +26,8 @@ highlight some powerful features. You can learn more about Iceberg's Spark runti
 - [Writing Data to a Table](#writing-data-to-a-table)
 - [Reading Data from a Table](#reading-data-from-a-table)
 - [Catalogs](#catalogs)
-    - [Configuring JDBC Catalog](#configuring-jdbc-catalog)
     - [Configuring REST Catalog](#configuring-rest-catalog)
+    - [Configuring JDBC Catalog](#configuring-jdbc-catalog)
 - [Next steps](#next-steps)
     - [Adding Iceberg to Spark](#adding-iceberg-to-spark)
     - [Learn More](#learn-more)
@@ -279,49 +279,10 @@ You can configure different catalog types, such as JDBC, Hive Metastore, Glue, a
 
 This guide covers the configuration of two popular catalog types:
 
-* JDBC Catalog
 * REST Catalog
+* JDBC Catalog
 
 To learn more, check out the [Catalog](docs/latest/spark-configuration.md#catalogs) page in the Spark section.
-
-#### Configuring JDBC Catalog
-
-The JDBC catalog stores Iceberg table metadata in a relational database. 
-
-This configuration creates a JDBC-based catalog named `local` for tables under `$PWD/warehouse` and adds support for Iceberg tables to Spark's built-in catalog.
-
-The JDBC catalog uses file-based SQLite database as the backend.
-
-=== "CLI"
-
-    ```sh
-    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }},org.xerial:sqlite-jdbc:3.46.1.3 \
-        --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
-        --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog \
-        --conf spark.sql.catalog.spark_catalog.type=hive \
-        --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
-        --conf spark.sql.catalog.local.type=jdbc \
-        --conf spark.sql.catalog.local.uri=jdbc:sqlite:$PWD/iceberg_catalog_db.sqlite \
-        --conf spark.sql.catalog.local.warehouse=$PWD/warehouse \
-        --conf spark.sql.defaultCatalog=local
-    ```
-
-=== "spark-defaults.conf"
-
-    ```sh
-    spark.jars.packages                                  org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }},org.xerial:sqlite-jdbc:3.46.1.3
-    spark.sql.extensions                                 org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
-    spark.sql.catalog.spark_catalog                      org.apache.iceberg.spark.SparkSessionCatalog
-    spark.sql.catalog.spark_catalog.type                 hive
-    spark.sql.catalog.local                              org.apache.iceberg.spark.SparkCatalog
-    spark.sql.catalog.local.type                         jdbc
-    spark.sql.catalog.local.uri                          jdbc:sqlite:iceberg_catalog_db.sqlite
-    spark.sql.catalog.local.warehouse                    warehouse
-    spark.sql.defaultCatalog                             local
-    ```
-
-!!! note
-    If your Iceberg catalog is not set as the default catalog using `spark.sql.defaultCatalog`, you will have to switch to it by executing `USE local;`
 
 #### Configuring REST Catalog
 
@@ -373,6 +334,45 @@ The REST catalog uses the `apache/iceberg-rest-fixture` docker container from th
 
 !!! note
     If your Iceberg catalog is not set as the default catalog using `spark.sql.defaultCatalog`, you will have to switch to it by executing `USE rest;`
+
+#### Configuring JDBC Catalog
+
+The JDBC catalog stores Iceberg table metadata in a relational database. 
+
+This configuration creates a JDBC-based catalog named `local` for tables under `$PWD/warehouse` and adds support for Iceberg tables to Spark's built-in catalog.
+
+The JDBC catalog uses file-based SQLite database as the backend.
+
+=== "CLI"
+
+    ```sh
+    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }},org.xerial:sqlite-jdbc:3.46.1.3 \
+        --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
+        --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog \
+        --conf spark.sql.catalog.spark_catalog.type=hive \
+        --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
+        --conf spark.sql.catalog.local.type=jdbc \
+        --conf spark.sql.catalog.local.uri=jdbc:sqlite:$PWD/iceberg_catalog_db.sqlite \
+        --conf spark.sql.catalog.local.warehouse=$PWD/warehouse \
+        --conf spark.sql.defaultCatalog=local
+    ```
+
+=== "spark-defaults.conf"
+
+    ```sh
+    spark.jars.packages                                  org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }},org.xerial:sqlite-jdbc:3.46.1.3
+    spark.sql.extensions                                 org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+    spark.sql.catalog.spark_catalog                      org.apache.iceberg.spark.SparkSessionCatalog
+    spark.sql.catalog.spark_catalog.type                 hive
+    spark.sql.catalog.local                              org.apache.iceberg.spark.SparkCatalog
+    spark.sql.catalog.local.type                         jdbc
+    spark.sql.catalog.local.uri                          jdbc:sqlite:iceberg_catalog_db.sqlite
+    spark.sql.catalog.local.warehouse                    warehouse
+    spark.sql.defaultCatalog                             local
+    ```
+
+!!! note
+    If your Iceberg catalog is not set as the default catalog using `spark.sql.defaultCatalog`, you will have to switch to it by executing `USE local;`
 
 ### Next steps
 
