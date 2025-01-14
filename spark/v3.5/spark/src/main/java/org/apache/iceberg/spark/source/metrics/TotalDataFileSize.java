@@ -24,10 +24,6 @@ public class TotalDataFileSize extends CustomSumMetric {
 
   static final String NAME = "totalDataFileSize";
 
-  public TotalDataFileSize() {
-    super();
-  }
-
   @Override
   public String name() {
     return NAME;
