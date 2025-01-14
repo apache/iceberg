@@ -985,6 +985,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void listNamespacesWithEmptyNamespace() {
+    assumeThat(supportsEmptyNamespace())
+        .as("Only valid for catalogs that support listing empty namespaces")
+        .isTrue();
+
     catalog().createNamespace(NS);
 
     assertThat(catalog().namespaceExists(Namespace.empty())).isFalse();
