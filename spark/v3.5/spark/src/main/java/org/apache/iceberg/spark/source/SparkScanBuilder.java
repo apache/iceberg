@@ -566,9 +566,6 @@ public class SparkScanBuilder
         emptyScan = true;
       }
       startSnapshotId = getStartSnapshotId(startTimestamp);
-      if (startSnapshotId == null && endTimestamp == null) {
-        emptyScan = true;
-      }
     }
 
     if (endTimestamp != null) {
