@@ -18,6 +18,10 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertThrows;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
 import java.io.File;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -26,10 +30,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertThrows;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 public class TestRowLineageMetadata {
 
@@ -297,12 +297,7 @@ public class TestRowLineageMetadata {
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(0);
     assertThat(table.ops().current().lastRowId()).isEqualTo(60);
 
-    table
-        .newRewrite()
-        .deleteFile(filePart1)
-        .deleteFile(filePart2)
-        .addFile(fileCompacted)
-        .commit();
+    table.newRewrite().deleteFile(filePart1).deleteFile(filePart2).addFile(fileCompacted).commit();
 
     // Rewrites are currently just treated as appends. In the future we could treat these as no-ops
     assertThat(table.ops().current().rowLineage()).isTrue();
@@ -310,15 +305,14 @@ public class TestRowLineageMetadata {
     assertThat(table.ops().current().lastRowId()).isEqualTo(120);
   }
 
-
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testEnableRowLineageViaProperty(int formatVersion) {
     assumeTrue(formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     TestTables.TestTable table =
-      TestTables.create(
-        tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
+        TestTables.create(
+            tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
 
     assertThat(table.ops().current().rowLineage()).isFalse();
 
@@ -331,8 +325,12 @@ public class TestRowLineageMetadata {
     assertThat(table.ops().current().rowLineage()).isTrue();
 
     // Disabling row lineage is not allowed
-    IllegalArgumentException cannotDisable = assertThrows(IllegalArgumentException.class, () -> table.updateProperties().set(TableProperties.ROW_LINEAGE, "false").commit());
-    assertThat(cannotDisable.getMessage()).contains("Cannot disable row lineage once it has been enabled");
+    IllegalArgumentException cannotDisable =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> table.updateProperties().set(TableProperties.ROW_LINEAGE, "false").commit());
+    assertThat(cannotDisable.getMessage())
+        .contains("Cannot disable row lineage once it has been enabled");
 
     // No-op
     table.updateProperties().set(TableProperties.ROW_LINEAGE, "true").commit();

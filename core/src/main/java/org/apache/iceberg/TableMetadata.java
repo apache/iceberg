@@ -638,7 +638,8 @@ public class TableMetadata implements Serializable {
     int newFormatVersion =
         PropertyUtil.propertyAsInt(rawProperties, TableProperties.FORMAT_VERSION, formatVersion);
 
-    Boolean newRowLineage = PropertyUtil.propertyAsBoolean(rawProperties, TableProperties.ROW_LINEAGE, rowLineage);
+    Boolean newRowLineage =
+        PropertyUtil.propertyAsBoolean(rawProperties, TableProperties.ROW_LINEAGE, rowLineage);
 
     return new Builder(this)
         .setProperties(updated)
@@ -1520,7 +1521,8 @@ public class TableMetadata implements Serializable {
 
       boolean disablingRowLineage = rowLineage && !newRowLineage;
 
-      Preconditions.checkArgument(!disablingRowLineage, "Cannot disable row lineage once it has been enabled");
+      Preconditions.checkArgument(
+          !disablingRowLineage, "Cannot disable row lineage once it has been enabled");
 
       if (!rowLineage && newRowLineage) {
         return enableRowLineage();
