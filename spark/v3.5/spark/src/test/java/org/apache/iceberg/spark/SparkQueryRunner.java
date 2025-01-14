@@ -31,6 +31,11 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
 
+/**
+ * When you start the main method, it launches a spark-sql> prompt. At the prompt, you can enter a
+ * line of SQL, which will then be executed, and the result will be displayed. If you want to debug
+ * the code, you can set breakpoints in your IDE.
+ */
 public final class SparkQueryRunner {
   private static final Joiner JOIN = Joiner.on("|");
 
