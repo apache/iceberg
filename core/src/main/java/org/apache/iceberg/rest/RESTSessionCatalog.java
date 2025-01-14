@@ -438,9 +438,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public boolean tableExists(SessionContext context, TableIdentifier identifier) {
     Endpoint.check(endpoints, Endpoint.V1_TABLE_EXISTS);
-    checkIdentifierIsValid(identifier);
 
     try {
+      checkIdentifierIsValid(identifier);
       client.head(paths.table(identifier), headers(context), ErrorHandlers.tableErrorHandler());
       return true;
     } catch (NoSuchTableException e) {
@@ -659,9 +659,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public boolean namespaceExists(SessionContext context, Namespace namespace) {
     Endpoint.check(endpoints, Endpoint.V1_NAMESPACE_EXISTS);
-    checkNamespaceIsValid(namespace);
 
     try {
+      checkNamespaceIsValid(namespace);
       client.head(
           paths.namespace(namespace), headers(context), ErrorHandlers.namespaceErrorHandler());
       return true;
@@ -1233,9 +1233,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public boolean viewExists(SessionContext context, TableIdentifier identifier) {
     Endpoint.check(endpoints, Endpoint.V1_VIEW_EXISTS);
-    checkViewIdentifierIsValid(identifier);
 
     try {
+      checkViewIdentifierIsValid(identifier);
       client.head(paths.view(identifier), headers(context), ErrorHandlers.viewErrorHandler());
       return true;
     } catch (NoSuchViewException e) {
