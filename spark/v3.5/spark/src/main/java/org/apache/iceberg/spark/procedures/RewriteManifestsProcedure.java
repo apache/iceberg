@@ -47,7 +47,8 @@ class RewriteManifestsProcedure extends BaseProcedure {
       new ProcedureParameter[] {
         ProcedureParameter.required("table", DataTypes.StringType),
         ProcedureParameter.optional("use_caching", DataTypes.BooleanType),
-        ProcedureParameter.optional("spec_id", DataTypes.IntegerType)
+        ProcedureParameter.optional("spec_id", DataTypes.IntegerType),
+        ProcedureParameter.optional("target_manifest_size_bytes", DataTypes.LongType)
       };
 
   // counts are not nullable since the action result is never null
@@ -87,6 +88,7 @@ class RewriteManifestsProcedure extends BaseProcedure {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     Boolean useCaching = args.isNullAt(1) ? null : args.getBoolean(1);
     Integer specId = args.isNullAt(2) ? null : args.getInt(2);
+    Long targetManifestFileSize = args.isNullAt(3) ? null : args.getLong(3);
 
     return modifyIcebergTable(
         tableIdent,

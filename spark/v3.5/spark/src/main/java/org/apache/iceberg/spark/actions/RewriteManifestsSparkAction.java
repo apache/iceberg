@@ -100,11 +100,11 @@ public class RewriteManifestsSparkAction
 
   private final Table table;
   private final int formatVersion;
-  private final long targetManifestSizeBytes;
   private final boolean shouldStageManifests;
 
   private PartitionSpec spec;
   private Predicate<ManifestFile> predicate = manifest -> true;
+  private long targetManifestSizeBytes;
   private String outputLocation;
 
   RewriteManifestsSparkAction(SparkSession spark, Table table) {
@@ -148,6 +148,12 @@ public class RewriteManifestsSparkAction
   @Override
   public RewriteManifestsSparkAction rewriteIf(Predicate<ManifestFile> newPredicate) {
     this.predicate = newPredicate;
+    return this;
+  }
+
+  @Override
+  public  RewriteManifestsSparkAction targetSizeBytes(long newTargetSizeBytes) {
+    this.targetManifestSizeBytes = newTargetSizeBytes;
     return this;
   }
 

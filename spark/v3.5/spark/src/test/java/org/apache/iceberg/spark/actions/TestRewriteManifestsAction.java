@@ -425,6 +425,86 @@ public class TestRewriteManifestsAction extends TestBase {
   }
 
   @TestTemplate
+  public void testRewriteManifestsPartitionedTableByParameters() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 2).build();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    List<ThreeColumnRecord> records1 =
+            Lists.newArrayList(
+                    new ThreeColumnRecord(1, null, "AAAA"), new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"));
+    writeRecords(records1);
+
+    List<ThreeColumnRecord> records2 =
+            Lists.newArrayList(
+                    new ThreeColumnRecord(2, "CCCCCCCCCC", "CCCC"),
+                    new ThreeColumnRecord(2, "DDDDDDDDDD", "DDDD"));
+    writeRecords(records2);
+
+    List<ThreeColumnRecord> records3 =
+            Lists.newArrayList(
+                    new ThreeColumnRecord(3, "EEEEEEEEEE", "EEEE"),
+                    new ThreeColumnRecord(3, "FFFFFFFFFF", "FFFF"));
+    writeRecords(records3);
+
+    List<ThreeColumnRecord> records4 =
+            Lists.newArrayList(
+                    new ThreeColumnRecord(4, "GGGGGGGGGG", "GGGG"),
+                    new ThreeColumnRecord(4, "HHHHHHHHHG", "HHHH"));
+    writeRecords(records4);
+
+    table.refresh();
+
+    List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
+    assertThat(manifests).as("Should have 4 manifests before rewrite").hasSize(4);
+
+    SparkActions actions = SparkActions.get();
+
+    // we will expect to have 2 manifests with 4 entries in each after rewrite
+    long manifestEntrySizeBytes = computeManifestEntrySizeBytes(manifests);
+    long targetManifestSizeBytes = (long) (1.05 * 4 * manifestEntrySizeBytes);
+
+    // Set target size to generate 2 manifests. See testRewriteSmallManifestsPartitionedTable for details.
+    table
+            .updateProperties()
+            .set(TableProperties.MANIFEST_TARGET_SIZE_BYTES, String.valueOf(targetManifestSizeBytes))
+            .commit();
+
+    // Set target size to create 8 manifests based on targetManifestSizeBytes divided by 4.
+    RewriteManifests.Result result =
+            actions
+                    .rewriteManifests(table)
+                    .rewriteIf(manifest -> true)
+                    .targetSizeBytes(targetManifestSizeBytes / 4)
+                    .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+                    .execute();
+    assertThat(result.rewrittenManifests()).as("Action should rewrite 4 manifests").hasSize(4);
+    assertThat(result.addedManifests()).as("Action should add 8 manifests").hasSize(8);
+    assertManifestsLocation(result.addedManifests());
+    table.refresh();
+
+    List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
+    assertThat(newManifests).as("Should have 8 manifests before rewrite").hasSize(8);
+    assertThat(newManifests.get(0).existingFilesCount()).isEqualTo(1);
+    assertThat(newManifests.get(0).hasAddedFiles()).isFalse();
+    assertThat(newManifests.get(0).hasDeletedFiles()).isFalse();
+
+    List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
+    expectedRecords.addAll(records1);
+    expectedRecords.addAll(records2);
+    expectedRecords.addAll(records3);
+    expectedRecords.addAll(records4);
+
+    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
+    List<ThreeColumnRecord> actualRecords =
+            resultDF.sort("c1", "c2").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
+
+    assertThat(actualRecords).as("Rows must match").isEqualTo(expectedRecords);
+  }
+
+  @TestTemplate
   public void testRewriteImportedManifests() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c3").build();
     Map<String, String> options = Maps.newHashMap();
