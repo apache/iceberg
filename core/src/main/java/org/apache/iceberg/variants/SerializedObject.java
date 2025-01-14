@@ -36,11 +36,11 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
   private static final int FIELD_ID_SIZE_SHIFT = 4;
   private static final int IS_LARGE = 0b1000000;
 
-  static SerializedObject from(SerializedMetadata metadata, byte[] bytes) {
+  static SerializedObject from(VariantMetadata metadata, byte[] bytes) {
     return from(metadata, ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN), bytes[0]);
   }
 
-  static SerializedObject from(SerializedMetadata metadata, ByteBuffer value, int header) {
+  static SerializedObject from(VariantMetadata metadata, ByteBuffer value, int header) {
     Preconditions.checkArgument(
         value.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
     Variants.BasicType basicType = VariantUtil.basicType(header);
@@ -49,7 +49,7 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
     return new SerializedObject(metadata, value, header);
   }
 
-  private final SerializedMetadata metadata;
+  private final VariantMetadata metadata;
   private final ByteBuffer value;
   private final int fieldIdSize;
   private final int fieldIdListOffset;
@@ -61,7 +61,7 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
   private final int dataOffset;
   private final VariantValue[] values;
 
-  private SerializedObject(SerializedMetadata metadata, ByteBuffer value, int header) {
+  private SerializedObject(VariantMetadata metadata, ByteBuffer value, int header) {
     this.metadata = metadata;
     this.value = value;
     this.offsetSize = 1 + ((header & OFFSET_SIZE_MASK) >> OFFSET_SIZE_SHIFT);
@@ -112,12 +112,13 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
     }
   }
 
-  @VisibleForTesting
-  int numElements() {
+  @Override
+  public int numFields() {
     return fieldIds.length;
   }
 
-  SerializedMetadata metadata() {
+  @VisibleForTesting
+  VariantMetadata metadata() {
     return metadata;
   }
 
@@ -140,6 +141,7 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
         };
   }
 
+  @Override
   public Iterable<String> fieldNames() {
     return () ->
         new Iterator<>() {
@@ -180,7 +182,7 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
 
     if (null == values[index]) {
       values[index] =
-          Variants.from(
+          Variants.value(
               metadata, VariantUtil.slice(value, dataOffset + offsets[index], lengths[index]));
     }
 

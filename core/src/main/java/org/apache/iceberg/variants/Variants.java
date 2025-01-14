@@ -172,11 +172,11 @@ public class Variants {
     ARRAY
   }
 
-  public static VariantValue from(ByteBuffer metadata, ByteBuffer value) {
-    return from(SerializedMetadata.from(metadata), value);
+  public static VariantMetadata metadata(ByteBuffer metadata) {
+    return SerializedMetadata.from(metadata);
   }
 
-  static VariantValue from(SerializedMetadata metadata, ByteBuffer value) {
+  public static VariantValue value(VariantMetadata metadata, ByteBuffer value) {
     int header = VariantUtil.readByte(value, 0);
     BasicType basicType = VariantUtil.basicType(header);
     switch (basicType) {
@@ -193,16 +193,24 @@ public class Variants {
     throw new UnsupportedOperationException("Unsupported basic type: " + basicType);
   }
 
-  static VariantPrimitive<Void> ofNull() {
+  public static ShreddedObject object(VariantMetadata metadata, VariantObject object) {
+    return new ShreddedObject(metadata, object);
+  }
+
+  public static ShreddedObject object(VariantMetadata metadata) {
+    return new ShreddedObject(metadata);
+  }
+
+  public static <T> VariantPrimitive<T> of(PhysicalType type, T value) {
+    return new PrimitiveWrapper<>(type, value);
+  }
+
+  public static VariantPrimitive<Void> ofNull() {
     return new PrimitiveWrapper<>(PhysicalType.NULL, null);
   }
 
   static VariantPrimitive<Boolean> of(boolean value) {
-    if (value) {
-      return new PrimitiveWrapper<>(PhysicalType.BOOLEAN_TRUE, true);
-    } else {
-      return new PrimitiveWrapper<>(PhysicalType.BOOLEAN_FALSE, false);
-    }
+    return new PrimitiveWrapper<>(PhysicalType.BOOLEAN_TRUE, value);
   }
 
   static VariantPrimitive<Byte> of(byte value) {
