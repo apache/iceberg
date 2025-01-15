@@ -49,7 +49,6 @@ on:
     - 'dev/**'
     - 'docs/**'
     - 'site/**'
-    - 'open-api/**'
     - 'format/**'
     - '.gitattributes'
     - 'README.md'
@@ -83,7 +82,7 @@ jobs:
         key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
         restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-    - run: ./gradlew check -DsparkVersions= -DhiveVersions= -DflinkVersions= -DkafkaVersions= -Pquick=true -x javadoc
+    - run: ./gradlew check -DsparkVersions= -DflinkVersions= -DkafkaVersions= -Pquick=true -x javadoc
     - uses: actions/upload-artifact@v4
       if: failure()
       with:

@@ -24,6 +24,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -48,6 +50,8 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
+import org.apache.iceberg.util.ContentFileUtil;
+import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.NamedReference;
@@ -156,6 +160,23 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
       // save the evaluated filter for equals/hashCode
       runtimeFilterExpressions.add(runtimeFilterExpr);
     }
+  }
+
+  protected Map<String, DeleteFileSet> rewritableDeletes() {
+    Map<String, DeleteFileSet> rewritableDeletes = Maps.newHashMap();
+
+    for (ScanTask task : tasks()) {
+      FileScanTask fileScanTask = task.asFileScanTask();
+      for (DeleteFile deleteFile : fileScanTask.deletes()) {
+        if (ContentFileUtil.isFileScoped(deleteFile)) {
+          rewritableDeletes
+              .computeIfAbsent(fileScanTask.file().location(), ignored -> DeleteFileSet.create())
+              .add(deleteFile);
+        }
+      }
+    }
+
+    return rewritableDeletes;
   }
 
   // at this moment, Spark can only pass IN filters for a single attribute

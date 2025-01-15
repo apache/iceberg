@@ -21,6 +21,7 @@ package org.apache.iceberg.view;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -70,6 +71,10 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   }
 
   protected boolean supportsServerSideRetry() {
+    return false;
+  }
+
+  protected boolean supportsEmptyNamespace() {
     return false;
   }
 
@@ -812,6 +817,39 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThat(catalog().dropView(view1)).isTrue();
     assertThat(catalog().listViews(ns1)).isEmpty();
     assertThat(catalog().listViews(ns2)).isEmpty();
+  }
+
+  @Test
+  public void listViewsInEmptyNamespace() {
+    assumeThat(supportsEmptyNamespace())
+        .as("Only valid for catalogs that support listing views in empty namespaces")
+        .isTrue();
+
+    Namespace namespace = Namespace.of("ns");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(Namespace.empty());
+      catalog().createNamespace(namespace);
+    }
+
+    TableIdentifier view1 = TableIdentifier.of(Namespace.empty(), "view1");
+    TableIdentifier view2 = TableIdentifier.of(namespace, "view2");
+
+    catalog()
+        .buildView(view1)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(view1.namespace())
+        .withQuery("spark", "select * from ns.tbl")
+        .create();
+
+    catalog()
+        .buildView(view2)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(view2.namespace())
+        .withQuery("spark", "select * from ns.tbl")
+        .create();
+
+    assertThat(catalog().listViews(Namespace.empty())).containsExactly(view1);
   }
 
   @Test

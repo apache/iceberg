@@ -42,6 +42,8 @@ import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.core5.http.EntityDetails;
 import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpHost;
@@ -247,6 +249,39 @@ public class TestHTTPClient {
     assertThat(connectionConfig).isNotNull();
     assertThat(connectionConfig.getConnectTimeout().getDuration()).isEqualTo(connectionTimeoutMs);
     assertThat(connectionConfig.getSocketTimeout().getDuration()).isEqualTo(socketTimeoutMs);
+  }
+
+  @Test
+  public void testMaxConnectionSettingsFromProperties() {
+    int maxConnections = 10;
+    int maxConnectionPerRoute = 5;
+    Map<String, String> properties =
+        ImmutableMap.of(
+            HTTPClient.REST_MAX_CONNECTIONS, String.valueOf(maxConnections),
+            HTTPClient.REST_MAX_CONNECTIONS_PER_ROUTE, String.valueOf(maxConnectionPerRoute));
+
+    HttpClientConnectionManager connectionManager =
+        HTTPClient.configureConnectionManager(properties);
+    assertThat(connectionManager).isInstanceOf(PoolingHttpClientConnectionManager.class);
+    PoolingHttpClientConnectionManager poolingHttpClientConnectionManager =
+        (PoolingHttpClientConnectionManager) connectionManager;
+    assertThat(poolingHttpClientConnectionManager.getMaxTotal()).isEqualTo(maxConnections);
+    assertThat(poolingHttpClientConnectionManager.getDefaultMaxPerRoute())
+        .isEqualTo(maxConnectionPerRoute);
+  }
+
+  @Test
+  public void testMaxConnectionSettingsFromDefaults() {
+    Map<String, String> properties = ImmutableMap.of();
+    HttpClientConnectionManager connectionManager =
+        HTTPClient.configureConnectionManager(properties);
+    assertThat(connectionManager).isInstanceOf(PoolingHttpClientConnectionManager.class);
+    PoolingHttpClientConnectionManager poolingHttpClientConnectionManager =
+        (PoolingHttpClientConnectionManager) connectionManager;
+    assertThat(poolingHttpClientConnectionManager.getMaxTotal())
+        .isEqualTo(HTTPClient.REST_MAX_CONNECTIONS_DEFAULT);
+    assertThat(poolingHttpClientConnectionManager.getDefaultMaxPerRoute())
+        .isEqualTo(HTTPClient.REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT);
   }
 
   @Test
