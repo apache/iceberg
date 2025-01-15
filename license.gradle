@@ -1,0 +1,156 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+apply plugin: "com.github.jk1.dependency-license-report"
+
+import com.github.jk1.license.render.ReportRenderer
+import com.github.jk1.license.ImportedModuleData
+import com.github.jk1.license.License
+import com.github.jk1.license.LicenseFileDetails
+import com.github.jk1.license.LicenseReportExtension
+import com.github.jk1.license.ManifestData
+import com.github.jk1.license.ModuleData
+import com.github.jk1.license.PomData
+import com.github.jk1.license.ProjectData
+import com.github.jk1.license.util.Files
+import java.util.Optional
+
+class IcebergReportRenderer implements ReportRenderer {
+
+  private Project project
+  private LicenseReportExtension config
+  private File licenseFileOut
+  private File noticeFileOut
+  private Map<String, List<ModuleData>> notices = new HashMap<>()
+
+  void render(ProjectData data) {
+    project = data.project
+    config = project.licenseReport
+
+    licenseFileOut = new File(data.project.projectDir, 'LICENSE')
+    licenseFileOut.text = new File(data.project.rootDir, 'LICENSE').text
+    licenseFileOut << '\n\n--------------------------------------------------------------------------------\n\n'
+
+    noticeFileOut = new File(data.project.projectDir, 'NOTICE')
+    noticeFileOut.text = new File(data.project.rootDir, 'NOTICE').text
+    noticeFileOut << '\n\n--------------------------------------------------------------------------------\n\n'
+
+    printDependencies(data)
+
+    notices.forEach { notice, projects ->
+      projects.forEach { project ->
+        if (project.group) noticeFileOut << "Group: $project.group "
+        if (project.name) noticeFileOut << " Name: $project.name "
+        if (project.version) noticeFileOut << " Version: $project.version\n"
+      }
+      noticeFileOut << "\nNotice: $notice\n\n"
+      noticeFileOut << "\n--------------------------------------------------------------------------------\n\n"
+    }
+  }
+
+  private void printDependencies(ProjectData data) {
+    data.allDependencies.sort().each {
+      printDependency(it)
+    }
+    data.importedModules.modules.flatten().sort().each {
+      printImportedModuleDependency(it)
+    }
+  }
+
+  private void printDependency(ModuleData data) {
+    if (data.group) licenseFileOut << "Group: $data.group "
+    if (data.name) licenseFileOut << " Name: $data.name "
+    if (data.version) licenseFileOut << " Version: $data.version\n"
+
+    if (data.poms.isEmpty() && data.manifests.isEmpty()) {
+      licenseFileOut << "No license information found\n"
+      return
+    }
+
+    if (!data.manifests.isEmpty()) {
+      ManifestData manifest = data.manifests.first()
+      if (manifest.url) {
+        licenseFileOut << "Project URL (from manifest): $manifest.url\n"
+      }
+      if (manifest.license) {
+        if (Files.maybeLicenseUrl(manifest.licenseUrl)) {
+          licenseFileOut << "License URL (from manifest): $manifest.licenseUrl\n"
+        } else if (manifest.hasPackagedLicense) {
+          licenseFileOut << "Packaged License File: $manifest.license\n"
+        } else {
+          licenseFileOut << "Manifest License: $manifest.license (Not packaged)\n"
+        }
+      }
+    }
+
+    if (!data.poms.isEmpty()) {
+      PomData pomData = data.poms.first()
+      if (pomData.projectUrl) {
+        licenseFileOut << "Project URL (from POM): $pomData.projectUrl\n"
+      }
+      if (pomData.licenses) {
+        pomData.licenses.each { License license ->
+          licenseFileOut << "License (from POM): $license.name"
+          if (license.url) {
+            if (Files.maybeLicenseUrl(license.url)) {
+              licenseFileOut << " - $license.url\n"
+            } else {
+              licenseFileOut << "License: $license.url\n"
+            }
+          }
+        }
+      }
+    }
+
+    if (!data.licenseFiles.isEmpty() && !data.licenseFiles.first().fileDetails.isEmpty()) {
+      Optional<LicenseFileDetails> noticeDetailsOpt = data.licenseFiles.first().fileDetails.stream().filter(detail -> detail.file.containsIgnoreCase("NOTICE")).findFirst()
+      if (noticeDetailsOpt.isPresent()) {
+        LicenseFileDetails noticeDetails = noticeDetailsOpt.get()
+        String noticeText = new File("$config.absoluteOutputDir/$noticeDetails.file").text.trim()
+        List<ModuleData> projects = notices.getOrDefault(noticeText, new ArrayList<ModuleData>())
+        projects.add(data)
+        notices.put(noticeText, projects)
+      }
+    }
+
+    licenseFileOut << "\n--------------------------------------------------------------------------------\n\n"
+  }
+
+  private void printImportedModuleDependency(ImportedModuleData module) {
+    licenseFileOut << " Name: $module.name "
+    licenseFileOut << " Version: $module.version\n"
+
+    if (Files.maybeLicenseUrl(module.projectUrl)) {
+      licenseFileOut << "Project URL: $module.projectUrl\n"
+    }
+
+    if (Files.maybeLicenseUrl(module.licenseUrl)) {
+      licenseFileOut << "License: $module.license - $module.licenseUrl\n"
+    } else {
+      licenseFileOut << "License: $module.license\n"
+    }
+
+    licenseFileOut << "\n--------------------------------------------------------------------------------\n\n"
+  }
+}
+
+licenseReport {
+  excludeBoms = true
+  renderers = [new IcebergReportRenderer()]
+}
