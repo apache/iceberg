@@ -521,7 +521,7 @@ public interface MetadataUpdate extends Serializable {
   class EnableRowLineage implements MetadataUpdate {
     @Override
     public void applyTo(TableMetadata.Builder metadataBuilder) {
-      MetadataUpdate.super.applyTo(metadataBuilder.enableRowLineage());
+      metadataBuilder.enableRowLineage();
     }
   }
 }

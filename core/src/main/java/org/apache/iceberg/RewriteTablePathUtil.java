@@ -130,7 +130,7 @@ public class RewriteTablePathUtil {
         metadata.statisticsFiles(),
         metadata.partitionStatisticsFiles(),
         metadata.changes(),
-        metadata.rowLineage(),
+        metadata.rowLineageEnabled(),
         metadata.lastRowId());
   }
 

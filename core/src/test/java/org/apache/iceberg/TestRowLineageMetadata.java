@@ -19,8 +19,8 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertThrows;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -33,9 +33,9 @@ import org.junit.jupiter.params.provider.FieldSource;
 
 public class TestRowLineageMetadata {
 
-  private static final String TEST_LOCATION = "s3://bucket/test/location";
+  @TempDir private File tableDir = null;
 
-  @TempDir protected File tableDir = null;
+  private static final String TEST_LOCATION = "s3://bucket/test/location";
 
   private static final Schema TEST_SCHEMA =
       new Schema(
@@ -44,12 +44,8 @@ public class TestRowLineageMetadata {
           Types.NestedField.required(2, "y", Types.LongType.get(), "comment"),
           Types.NestedField.required(3, "z", Types.LongType.get()));
 
-  private TableMetadata.Builder builderFor(int formatVersion) {
-    return TableMetadata.buildFromEmpty(formatVersion).enableRowLineage();
-  }
-
   private TableMetadata baseMetadata(int formatVersion) {
-    return builderFor(formatVersion)
+    return TableMetadata.buildFromEmpty(formatVersion)
         .addSchema(TEST_SCHEMA)
         .setLocation(TEST_LOCATION)
         .addPartitionSpec(PartitionSpec.unpartitioned())
@@ -66,20 +62,18 @@ public class TestRowLineageMetadata {
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testRowLineageSupported(int formatVersion) {
     if (formatVersion == TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE) {
-      assertThat(builderFor(formatVersion)).isNotNull();
+      assertThat(TableMetadata.buildFromEmpty(formatVersion)).isNotNull();
     } else {
-      IllegalArgumentException notSupported =
-          assertThrows(
-              IllegalArgumentException.class,
-              () -> TableMetadata.buildFromEmpty(formatVersion).enableRowLineage());
-      assertThat(notSupported.getMessage()).contains("Cannot use row lineage");
+      assertThatThrownBy(() -> TableMetadata.buildFromEmpty(formatVersion).enableRowLineage())
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Cannot use row lineage");
     }
   }
 
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testSnapshotAddition(int formatVersion) {
-    assumeTrue(formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     Long newRows = 30L;
 
@@ -106,7 +100,7 @@ public class TestRowLineageMetadata {
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testInvalidSnapshotAddition(int formatVersion) {
-    assumeTrue(formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     Long newRows = 30L;
 
@@ -116,39 +110,24 @@ public class TestRowLineageMetadata {
         new BaseSnapshot(
             0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", base.lastRowId() - 3, newRows);
 
-    ValidationException invalidLastRowId =
-        assertThrows(
-            ValidationException.class,
-            () -> TableMetadata.buildFrom(base).addSnapshot(invalidLastRow));
-    assertThat(invalidLastRowId.getMessage()).contains("Cannot add a snapshot whose first-row-id");
+    assertThatThrownBy(() -> TableMetadata.buildFrom(base).addSnapshot(invalidLastRow))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot add a snapshot whose first-row-id");
 
     Snapshot invalidNewRows =
         new BaseSnapshot(
             0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", base.lastRowId(), null);
 
-    ValidationException nullNewRows =
-        assertThrows(
-            ValidationException.class,
-            () -> TableMetadata.buildFrom(base).addSnapshot(invalidNewRows));
-    assertThat(nullNewRows.getMessage())
-        .contains(
+    assertThatThrownBy(() -> TableMetadata.buildFrom(base).addSnapshot(invalidNewRows))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
             "Cannot add a snapshot with a null `addedRows` field when row lineage is enabled");
-  }
-
-  private AtomicInteger fileNum = new AtomicInteger(0);
-
-  private DataFile fileWithRows(int numRows) {
-    return DataFiles.builder(PartitionSpec.unpartitioned())
-        .withRecordCount(numRows)
-        .withFileSizeInBytes(numRows * 100)
-        .withPath("file://file_" + fileNum.incrementAndGet() + ".parquet")
-        .build();
   }
 
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testFastAppend(int formatVersion) {
-    assumeTrue(formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     TestTables.TestTable table =
         TestTables.create(
@@ -156,18 +135,18 @@ public class TestRowLineageMetadata {
     TableMetadata base = table.ops().current();
     table.ops().commit(base, TableMetadata.buildFrom(base).enableRowLineage().build());
 
-    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.ops().current().lastRowId()).isEqualTo(0L);
 
     table.newFastAppend().appendFile(fileWithRows(30)).commit();
 
-    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(0);
     assertThat(table.ops().current().lastRowId()).isEqualTo(30);
 
     table.newFastAppend().appendFile(fileWithRows(17)).appendFile(fileWithRows(11)).commit();
 
-    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(30);
     assertThat(table.ops().current().lastRowId()).isEqualTo(30 + 17 + 11);
   }
@@ -175,7 +154,7 @@ public class TestRowLineageMetadata {
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testAppend(int formatVersion) {
-    assumeTrue(formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     TestTables.TestTable table =
         TestTables.create(
@@ -183,18 +162,18 @@ public class TestRowLineageMetadata {
     TableMetadata base = table.ops().current();
     table.ops().commit(base, TableMetadata.buildFrom(base).enableRowLineage().build());
 
-    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.ops().current().lastRowId()).isEqualTo(0L);
 
     table.newAppend().appendFile(fileWithRows(30)).commit();
 
-    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(0);
     assertThat(table.ops().current().lastRowId()).isEqualTo(30);
 
     table.newAppend().appendFile(fileWithRows(17)).appendFile(fileWithRows(11)).commit();
 
-    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(30);
     assertThat(table.ops().current().lastRowId()).isEqualTo(30 + 17 + 11);
   }
@@ -202,7 +181,7 @@ public class TestRowLineageMetadata {
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testAppendBranch(int formatVersion) {
-    assumeTrue(formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
     // Appends to a branch should still change last-row-id even if not on main, these changes
     // should also affect commits to main
 
@@ -215,13 +194,13 @@ public class TestRowLineageMetadata {
     TableMetadata base = table.ops().current();
     table.ops().commit(base, TableMetadata.buildFrom(base).enableRowLineage().build());
 
-    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.ops().current().lastRowId()).isEqualTo(0L);
 
     // Write to Branch
     table.newAppend().appendFile(fileWithRows(30)).toBranch(branch).commit();
 
-    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot()).isNull();
     assertThat(table.snapshot(branch).firstRowId()).isEqualTo(0L);
     assertThat(table.ops().current().lastRowId()).isEqualTo(30);
@@ -229,7 +208,7 @@ public class TestRowLineageMetadata {
     // Write to Main
     table.newAppend().appendFile(fileWithRows(17)).appendFile(fileWithRows(11)).commit();
 
-    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(30);
     assertThat(table.ops().current().lastRowId()).isEqualTo(30 + 17 + 11);
 
@@ -242,7 +221,7 @@ public class TestRowLineageMetadata {
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testDeletes(int formatVersion) {
-    assumeTrue(formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     TestTables.TestTable table =
         TestTables.create(
@@ -250,14 +229,14 @@ public class TestRowLineageMetadata {
     TableMetadata base = table.ops().current();
     table.ops().commit(base, TableMetadata.buildFrom(base).enableRowLineage().build());
 
-    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.ops().current().lastRowId()).isEqualTo(0L);
 
     DataFile file = fileWithRows(30);
 
     table.newAppend().appendFile(file).commit();
 
-    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(0);
     assertThat(table.ops().current().lastRowId()).isEqualTo(30);
 
@@ -266,7 +245,7 @@ public class TestRowLineageMetadata {
     // Deleting a file should create a new snapshot which should inherit last-row-id from the
     // previous metadata and not
     // change last-row-id for this metadata.
-    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(30);
     assertThat(table.currentSnapshot().addedRows()).isEqualTo(0);
     assertThat(table.ops().current().lastRowId()).isEqualTo(30);
@@ -275,7 +254,7 @@ public class TestRowLineageMetadata {
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testReplace(int formatVersion) {
-    assumeTrue(formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     TestTables.TestTable table =
         TestTables.create(
@@ -284,7 +263,7 @@ public class TestRowLineageMetadata {
 
     table.ops().commit(base, TableMetadata.buildFrom(base).enableRowLineage().build());
 
-    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.ops().current().lastRowId()).isEqualTo(0L);
 
     DataFile filePart1 = fileWithRows(30);
@@ -293,14 +272,14 @@ public class TestRowLineageMetadata {
 
     table.newAppend().appendFile(filePart1).appendFile(filePart2).commit();
 
-    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(0);
     assertThat(table.ops().current().lastRowId()).isEqualTo(60);
 
     table.newRewrite().deleteFile(filePart1).deleteFile(filePart2).addFile(fileCompacted).commit();
 
     // Rewrites are currently just treated as appends. In the future we could treat these as no-ops
-    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(60);
     assertThat(table.ops().current().lastRowId()).isEqualTo(120);
   }
@@ -308,32 +287,40 @@ public class TestRowLineageMetadata {
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testEnableRowLineageViaProperty(int formatVersion) {
-    assumeTrue(formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     TestTables.TestTable table =
         TestTables.create(
             tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
 
-    assertThat(table.ops().current().rowLineage()).isFalse();
+    assertThat(table.ops().current().rowLineageEnabled()).isFalse();
 
     // No-op
     table.updateProperties().set(TableProperties.ROW_LINEAGE, "false").commit();
-    assertThat(table.ops().current().rowLineage()).isFalse();
+    assertThat(table.ops().current().rowLineageEnabled()).isFalse();
 
     // Enable row lineage
     table.updateProperties().set(TableProperties.ROW_LINEAGE, "true").commit();
-    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
 
     // Disabling row lineage is not allowed
-    IllegalArgumentException cannotDisable =
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> table.updateProperties().set(TableProperties.ROW_LINEAGE, "false").commit());
-    assertThat(cannotDisable.getMessage())
-        .contains("Cannot disable row lineage once it has been enabled");
+    assertThatThrownBy(
+            () -> table.updateProperties().set(TableProperties.ROW_LINEAGE, "false").commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot disable row lineage once it has been enabled");
 
     // No-op
     table.updateProperties().set(TableProperties.ROW_LINEAGE, "true").commit();
-    assertThat(table.ops().current().rowLineage()).isTrue();
+    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
+  }
+
+  private final AtomicInteger fileNum = new AtomicInteger(0);
+
+  private DataFile fileWithRows(long numRows) {
+    return DataFiles.builder(PartitionSpec.unpartitioned())
+        .withRecordCount(numRows)
+        .withFileSizeInBytes(numRows * 100)
+        .withPath("file://file_" + fileNum.incrementAndGet() + ".parquet")
+        .build();
   }
 }

@@ -231,7 +231,7 @@ public class TestTableMetadata {
     assertThat(metadata.statisticsFiles()).isEqualTo(statisticsFiles);
     assertThat(metadata.partitionStatisticsFiles()).isEqualTo(partitionStatisticsFiles);
     assertThat(metadata.refs()).isEqualTo(refs);
-    assertThat(metadata.rowLineage()).isEqualTo(expected.rowLineage());
+    assertThat(metadata.rowLineageEnabled()).isEqualTo(expected.rowLineageEnabled());
     assertThat(metadata.lastRowId()).isEqualTo(expected.lastRowId());
   }
 
@@ -341,7 +341,7 @@ public class TestTableMetadata {
         .isEqualTo(previousSnapshot.allManifests(ops.io()));
     assertThat(metadata.previousFiles()).isEqualTo(expected.previousFiles());
     assertThat(metadata.snapshot(previousSnapshotId).schemaId()).isNull();
-    assertThat(metadata.rowLineage()).isEqualTo(expected.rowLineage());
+    assertThat(metadata.rowLineageEnabled()).isEqualTo(expected.rowLineageEnabled());
     assertThat(metadata.lastRowId()).isEqualTo(expected.lastRowId());
   }
 

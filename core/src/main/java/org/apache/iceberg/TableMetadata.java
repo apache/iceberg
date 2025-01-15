@@ -265,7 +265,7 @@ public class TableMetadata implements Serializable {
   private volatile Map<Long, Snapshot> snapshotsById;
   private volatile Map<String, SnapshotRef> refs;
   private volatile boolean snapshotsLoaded;
-  private final Boolean rowLineage;
+  private final Boolean rowLineageEnabled;
   private final long lastRowId;
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -294,7 +294,7 @@ public class TableMetadata implements Serializable {
       List<StatisticsFile> statisticsFiles,
       List<PartitionStatisticsFile> partitionStatisticsFiles,
       List<MetadataUpdate> changes,
-      boolean rowLineage,
+      boolean rowLineageEnabled,
       long lastRowId) {
     Preconditions.checkArgument(
         specs != null && !specs.isEmpty(), "Partition specs cannot be null or empty");
@@ -315,7 +315,7 @@ public class TableMetadata implements Serializable {
         metadataFileLocation == null || changes.isEmpty(),
         "Cannot create TableMetadata with a metadata location and changes");
     Preconditions.checkArgument(
-        formatVersion >= MIN_FORMAT_VERSION_ROW_LINEAGE || !rowLineage,
+        formatVersion >= MIN_FORMAT_VERSION_ROW_LINEAGE || !rowLineageEnabled,
         "Cannot enable row lineage when Table Version is less than V3. Table Version is %s",
         formatVersion);
 
@@ -353,7 +353,7 @@ public class TableMetadata implements Serializable {
     this.partitionStatisticsFiles = ImmutableList.copyOf(partitionStatisticsFiles);
 
     // row lineage
-    this.rowLineage = rowLineage;
+    this.rowLineageEnabled = rowLineageEnabled;
     this.lastRowId = lastRowId;
 
     HistoryEntry last = null;
@@ -578,8 +578,8 @@ public class TableMetadata implements Serializable {
     return new Builder(this).assignUUID().build();
   }
 
-  public boolean rowLineage() {
-    return rowLineage;
+  public boolean rowLineageEnabled() {
+    return rowLineageEnabled;
   }
 
   public long lastRowId() {
@@ -639,7 +639,8 @@ public class TableMetadata implements Serializable {
         PropertyUtil.propertyAsInt(rawProperties, TableProperties.FORMAT_VERSION, formatVersion);
 
     Boolean newRowLineage =
-        PropertyUtil.propertyAsBoolean(rawProperties, TableProperties.ROW_LINEAGE, rowLineage);
+        PropertyUtil.propertyAsBoolean(
+            rawProperties, TableProperties.ROW_LINEAGE, rowLineageEnabled);
 
     return new Builder(this)
         .setProperties(updated)
@@ -1014,7 +1015,7 @@ public class TableMetadata implements Serializable {
       this.specsById = Maps.newHashMap(base.specsById);
       this.sortOrdersById = Maps.newHashMap(base.sortOrdersById);
 
-      this.rowLineage = base.rowLineage;
+      this.rowLineage = base.rowLineageEnabled;
       this.lastRowId = base.lastRowId;
     }
 

@@ -222,8 +222,8 @@ public class TableMetadataParser {
       generator.writeNullField(CURRENT_SNAPSHOT_ID);
     }
 
-    if (metadata.rowLineage()) {
-      generator.writeBooleanField(ROW_LINEAGE, metadata.rowLineage());
+    if (metadata.rowLineageEnabled()) {
+      generator.writeBooleanField(ROW_LINEAGE, metadata.rowLineageEnabled());
       generator.writeNumberField(LAST_ROW_ID, metadata.lastRowId());
     }
 
