@@ -28,11 +28,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableSupplier;
 
 public class MetadataTestUtils {
@@ -43,6 +45,26 @@ public class MetadataTestUtils {
   private static final long EXAMPLE_SEQUENCE_NUMBER = 0;
   private static final int EXAMPLE_SPEC_ID = 5;
 
+  private static final String TEST_LOCATION = "s3://bucket/test/location";
+
+  private static final Schema TEST_SCHEMA =
+      new Schema(
+          7,
+          Types.NestedField.required(1, "x", Types.LongType.get()),
+          Types.NestedField.required(2, "y", Types.LongType.get(), "comment"),
+          Types.NestedField.required(3, "z", Types.LongType.get()));
+
+  private static final long SEQ_NO = 34;
+
+  private static final PartitionSpec SPEC_5 =
+      PartitionSpec.builderFor(TEST_SCHEMA).withSpecId(EXAMPLE_SPEC_ID).build();
+  private static final SortOrder SORT_ORDER_3 =
+      SortOrder.builderFor(TEST_SCHEMA)
+          .withOrderId(3)
+          .asc("y", NullOrder.NULLS_FIRST)
+          .desc(Expressions.bucket("z", 4), NullOrder.NULLS_LAST)
+          .build();
+
   public static final String EXAMPLE_MANIFEST_PATH_1 = "file:/tmp/manifest1.avro";
   public static final String EXAMPLE_MANIFEST_PATH_2 = "file:/tmp/manifest2.avro";
 
@@ -50,6 +72,21 @@ public class MetadataTestUtils {
 
   public static TableMetadataBuilder buildTestTableMetadata(int formatVersion) {
     return new TableMetadataBuilder(formatVersion);
+  }
+
+  public static TableMetadataBuilder buildTestTableMetadataWithExampleValues(int formatVersion) {
+    return new TableMetadataBuilder(formatVersion)
+        .setLocation(TEST_LOCATION)
+        .setLastSequenceNumber(formatVersion >= 2 ? SEQ_NO : 0L)
+        .setLastColumnId(TEST_SCHEMA.highestFieldId())
+        .setCurrentSchemaId(TEST_SCHEMA.schemaId())
+        .setSchemas(ImmutableList.of(TEST_SCHEMA))
+        .setDefaultSpecId(SPEC_5.specId())
+        .setSpecs(ImmutableList.of(SPEC_5))
+        .setLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
+        .setDefaultSortOrderId(SORT_ORDER_3.orderId())
+        .setSortOrders(ImmutableList.of(SORT_ORDER_3))
+        .setProperties(ImmutableMap.of("property", "value"));
   }
 
   public static class TableMetadataBuilder {

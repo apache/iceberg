@@ -80,9 +80,6 @@ public class TestTableMetadata {
           Types.NestedField.required(2, "y", Types.LongType.get(), "comment"),
           Types.NestedField.required(3, "z", Types.LongType.get()));
 
-  private static final long SEQ_NO = 34;
-  private static final int LAST_ASSIGNED_COLUMN_ID = 3;
-
   private static final PartitionSpec SPEC_5 =
       PartitionSpec.builderFor(TEST_SCHEMA).withSpecId(5).build();
   private static final SortOrder SORT_ORDER_3 =
@@ -101,16 +98,11 @@ public class TestTableMetadata {
   @SuppressWarnings("MethodLength")
   public void testJsonConversion(int formatVersion) throws Exception {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
-    long lastSequenceNumber = formatVersion >= 2 ? SEQ_NO : 0L;
 
     Snapshot previousSnapshot =
-        MetadataTestUtils.buildTestSnapshot()
-            .setSequenceNumber(0L)
+        MetadataTestUtils.buildTestSnapshotWithExampleValues()
             .setSnapshotId(previousSnapshotId)
             .setParentId(null)
-            .setTimestampMillis(previousSnapshotId)
-            .setOperation(null)
-            .setSummary(null)
             .setSchemaId(null)
             .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest1.avro"));
 
@@ -120,9 +112,6 @@ public class TestTableMetadata {
             .setSequenceNumber(0L)
             .setSnapshotId(currentSnapshotId)
             .setParentId(previousSnapshotId)
-            .setTimestampMillis(currentSnapshotId)
-            .setOperation(null)
-            .setSummary(null)
             .setSchemaId(7)
             .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest2.avro"));
 
@@ -164,19 +153,9 @@ public class TestTableMetadata {
                 .build());
 
     TableMetadata expected =
-        MetadataTestUtils.buildTestTableMetadata(formatVersion)
-            .setFormatVersion(formatVersion)
-            .setLocation(TEST_LOCATION)
-            .setLastSequenceNumber(lastSequenceNumber)
-            .setLastColumnId(3)
+        MetadataTestUtils.buildTestTableMetadataWithExampleValues(formatVersion)
             .setCurrentSchemaId(7)
             .setSchemas(ImmutableList.of(TEST_SCHEMA, schema))
-            .setDefaultSpecId(5)
-            .setSpecs(ImmutableList.of(SPEC_5))
-            .setLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
-            .setDefaultSortOrderId(3)
-            .setSortOrders(ImmutableList.of(SORT_ORDER_3))
-            .setProperties(ImmutableMap.of("property", "value"))
             .setCurrentSnapshotId(currentSnapshotId)
             .setSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
             .setSnapshotLog(snapshotLog)
@@ -227,13 +206,9 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
     Snapshot previousSnapshot =
-        MetadataTestUtils.buildTestSnapshot()
-            .setSequenceNumber(0L)
+        MetadataTestUtils.buildTestSnapshotWithExampleValues()
             .setSnapshotId(previousSnapshotId)
             .setParentId(null)
-            .setTimestampMillis(previousSnapshotId)
-            .setOperation(null)
-            .setSummary(null)
             .setSchemaId(null)
             .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest1.avro"));
 
@@ -243,20 +218,12 @@ public class TestTableMetadata {
             .setSequenceNumber(0L)
             .setSnapshotId(currentSnapshotId)
             .setParentId(previousSnapshotId)
-            .setTimestampMillis(currentSnapshotId)
-            .setOperation(null)
-            .setSummary(null)
-            .setSchemaId(null)
             .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest1.avro"));
 
     TableMetadata expected =
-        MetadataTestUtils.buildTestTableMetadata(1)
+        MetadataTestUtils.buildTestTableMetadataWithExampleValues(1)
             .setFormatVersion(1)
             .setUuid(null)
-            .setLocation(TEST_LOCATION)
-            .setLastSequenceNumber(0)
-            .setLastUpdatedMillis(System.currentTimeMillis())
-            .setLastColumnId(3)
             .setCurrentSchemaId(TableMetadata.INITIAL_SCHEMA_ID)
             .setSchemas(ImmutableList.of(schema))
             .setDefaultSpecId(6)
@@ -264,7 +231,6 @@ public class TestTableMetadata {
             .setLastAssignedPartitionId(spec.lastAssignedFieldId())
             .setDefaultSortOrderId(TableMetadata.INITIAL_SORT_ORDER_ID)
             .setSortOrders(ImmutableList.of(sortOrder))
-            .setProperties(ImmutableMap.of("property", "value"))
             .setCurrentSnapshotId(currentSnapshotId)
             .setSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
             .build();
@@ -316,27 +282,16 @@ public class TestTableMetadata {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
     Snapshot previousSnapshot =
-        MetadataTestUtils.buildTestSnapshot()
-            .setSequenceNumber(0L)
+        MetadataTestUtils.buildTestSnapshotWithExampleValues()
             .setSnapshotId(previousSnapshotId)
-            .setParentId(null)
-            .setTimestampMillis(previousSnapshotId)
-            .setOperation(null)
-            .setSummary(null)
-            .setSchemaId(null)
             .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest1.avro"));
 
     long currentSnapshotId = System.currentTimeMillis();
 
     Snapshot currentSnapshot =
         MetadataTestUtils.buildTestSnapshot()
-            .setSequenceNumber(0L)
             .setSnapshotId(currentSnapshotId)
             .setParentId(previousSnapshotId)
-            .setTimestampMillis(currentSnapshotId)
-            .setOperation(null)
-            .setSummary(null)
-            .setSchemaId(7)
             .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest2.avro"));
 
     List<HistoryEntry> snapshotLog =
@@ -349,26 +304,12 @@ public class TestTableMetadata {
                     currentSnapshot.timestampMillis(), currentSnapshot.snapshotId()))
             .build();
 
-    Schema schema = new Schema(6, Types.NestedField.required(10, "x", Types.StringType.get()));
-
     Map<String, SnapshotRef> refs =
         ImmutableMap.of("main", SnapshotRef.branchBuilder(previousSnapshotId).build());
 
     assertThatThrownBy(
             () ->
-                MetadataTestUtils.buildTestTableMetadata(formatVersion)
-                    .setFormatVersion(formatVersion)
-                    .setLocation(TEST_LOCATION)
-                    .setLastSequenceNumber(SEQ_NO)
-                    .setLastColumnId(3)
-                    .setCurrentSchemaId(7)
-                    .setSchemas(ImmutableList.of(TEST_SCHEMA, schema))
-                    .setDefaultSpecId(5)
-                    .setSpecs(ImmutableList.of(SPEC_5))
-                    .setLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
-                    .setDefaultSortOrderId(3)
-                    .setSortOrders(ImmutableList.of(SORT_ORDER_3))
-                    .setProperties(ImmutableMap.of("property", "value"))
+                MetadataTestUtils.buildTestTableMetadataWithExampleValues(formatVersion)
                     .setCurrentSnapshotId(currentSnapshotId)
                     .setSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
                     .setSnapshotLog(snapshotLog)
@@ -387,36 +328,17 @@ public class TestTableMetadata {
 
     Snapshot snapshot =
         MetadataTestUtils.buildTestSnapshot()
-            .setSequenceNumber(0L)
             .setSnapshotId(snapshotId)
-            .setParentId(null)
-            .setTimestampMillis(snapshotId)
-            .setOperation(null)
-            .setSummary(null)
-            .setSchemaId(null)
             .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest1.avro"));
-
-    Schema schema = new Schema(6, Types.NestedField.required(10, "x", Types.StringType.get()));
 
     Map<String, SnapshotRef> refs =
         ImmutableMap.of("main", SnapshotRef.branchBuilder(snapshotId).build());
 
     assertThatThrownBy(
             () ->
-                MetadataTestUtils.buildTestTableMetadata(formatVersion)
-                    .setFormatVersion(formatVersion)
-                    .setLocation(TEST_LOCATION)
-                    .setLastSequenceNumber(SEQ_NO)
-                    .setLastColumnId(3)
-                    .setCurrentSchemaId(7)
-                    .setSchemas(ImmutableList.of(TEST_SCHEMA, schema))
-                    .setDefaultSpecId(5)
-                    .setSpecs(ImmutableList.of(SPEC_5))
-                    .setLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
-                    .setDefaultSortOrderId(3)
-                    .setSortOrders(ImmutableList.of(SORT_ORDER_3))
-                    .setProperties(ImmutableMap.of("property", "value"))
+                MetadataTestUtils.buildTestTableMetadataWithExampleValues(formatVersion)
                     .setSnapshots(ImmutableList.of(snapshot))
+                    .setCurrentSnapshotId(-1L)
                     .setSnapshotsSupplier(null)
                     .setRefs(refs)
                     .build())
@@ -430,27 +352,12 @@ public class TestTableMetadata {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
     long snapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
-
-    Schema schema = new Schema(6, Types.NestedField.required(10, "x", Types.StringType.get()));
-
     Map<String, SnapshotRef> refs =
         ImmutableMap.of("main", SnapshotRef.branchBuilder(snapshotId).build());
 
     assertThatThrownBy(
             () ->
-                MetadataTestUtils.buildTestTableMetadata(formatVersion)
-                    .setFormatVersion(formatVersion)
-                    .setLocation(TEST_LOCATION)
-                    .setLastSequenceNumber(SEQ_NO)
-                    .setLastColumnId(3)
-                    .setCurrentSchemaId(7)
-                    .setSchemas(ImmutableList.of(TEST_SCHEMA, schema))
-                    .setDefaultSpecId(5)
-                    .setSpecs(ImmutableList.of(SPEC_5))
-                    .setLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
-                    .setDefaultSortOrderId(3)
-                    .setSortOrders(ImmutableList.of(SORT_ORDER_3))
-                    .setProperties(ImmutableMap.of("property", "value"))
+                MetadataTestUtils.buildTestTableMetadataWithExampleValues(formatVersion)
                     .setRefs(refs)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -506,28 +413,16 @@ public class TestTableMetadata {
 
     Snapshot previousSnapshot =
         MetadataTestUtils.buildTestSnapshot()
-            .setSequenceNumber(0L)
             .setSnapshotId(previousSnapshotId)
-            .setParentId(null)
-            .setTimestampMillis(previousSnapshotId)
-            .setOperation(null)
-            .setSummary(null)
-            .setSchemaId(null)
             .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest1.avro"));
 
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot =
         MetadataTestUtils.buildTestSnapshot()
-            .setSequenceNumber(0L)
             .setSnapshotId(currentSnapshotId)
             .setParentId(previousSnapshotId)
-            .setTimestampMillis(currentSnapshotId)
-            .setOperation(null)
-            .setSummary(null)
-            .setSchemaId(null)
             .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest2.avro"));
 
-    List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     long currentTimestamp = System.currentTimeMillis();
     List<MetadataLogEntry> previousMetadataLog = Lists.newArrayList();
     previousMetadataLog.add(
@@ -535,25 +430,9 @@ public class TestTableMetadata {
             currentTimestamp, "/tmp/000001-" + UUID.randomUUID() + ".metadata.json"));
 
     TableMetadata base =
-        MetadataTestUtils.buildTestTableMetadata(formatVersion)
-            .setFormatVersion(formatVersion)
-            .setUuid(UUID.randomUUID().toString())
-            .setLocation(TEST_LOCATION)
-            .setLastSequenceNumber(0)
-            .setLastUpdatedMillis(System.currentTimeMillis())
-            .setLastColumnId(3)
-            .setCurrentSchemaId(7)
-            .setSchemas(ImmutableList.of(TEST_SCHEMA))
-            .setDefaultSpecId(5)
-            .setSpecs(ImmutableList.of(SPEC_5))
-            .setLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
-            .setDefaultSortOrderId(3)
-            .setSortOrders(ImmutableList.of(SORT_ORDER_3))
-            .setProperties(ImmutableMap.of("property", "value"))
+        MetadataTestUtils.buildTestTableMetadataWithExampleValues(formatVersion)
             .setCurrentSnapshotId(currentSnapshotId)
             .setSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
-            .setSnapshotsSupplier(null)
-            .setSnapshotLog(reversedSnapshotLog)
             .setMetadataHistory(ImmutableList.copyOf(previousMetadataLog))
             .build();
 
@@ -570,26 +449,15 @@ public class TestTableMetadata {
 
     Snapshot previousSnapshot =
         MetadataTestUtils.buildTestSnapshot()
-            .setSequenceNumber(0L)
             .setSnapshotId(previousSnapshotId)
-            .setParentId(null)
-            .setTimestampMillis(previousSnapshotId)
-            .setOperation(null)
-            .setSummary(null)
-            .setSchemaId(null)
             .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest1.avro"));
 
     long currentSnapshotId = System.currentTimeMillis();
 
     Snapshot currentSnapshot =
         MetadataTestUtils.buildTestSnapshot()
-            .setSequenceNumber(0L)
             .setSnapshotId(currentSnapshotId)
             .setParentId(previousSnapshotId)
-            .setTimestampMillis(currentSnapshotId)
-            .setOperation(null)
-            .setSummary(null)
-            .setSchemaId(null)
             .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest2.avro"));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
@@ -611,24 +479,12 @@ public class TestTableMetadata {
             currentTimestamp - 80, "/tmp/000003-" + UUID.randomUUID() + ".metadata.json");
 
     TableMetadata base =
-        MetadataTestUtils.buildTestTableMetadata(formatVersion)
+        MetadataTestUtils.buildTestTableMetadataWithExampleValues(formatVersion)
             .setMetadataLocation(latestPreviousMetadata.file())
-            .setFormatVersion(formatVersion)
-            .setLocation(TEST_LOCATION)
-            .setLastSequenceNumber(0)
-            .setLastUpdatedMillis(currentTimestamp - 80)
-            .setLastColumnId(3)
-            .setCurrentSchemaId(7)
-            .setSchemas(ImmutableList.of(TEST_SCHEMA))
-            .setDefaultSpecId(5)
-            .setSpecs(ImmutableList.of(SPEC_5))
-            .setLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
-            .setDefaultSortOrderId(3)
-            .setSortOrders(ImmutableList.of(SORT_ORDER_3))
-            .setProperties(ImmutableMap.of("property", "value"))
             .setCurrentSnapshotId(currentSnapshotId)
             .setSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
             .setSnapshotLog(reversedSnapshotLog)
+            .setLastUpdatedMillis(currentTimestamp - 80)
             .setMetadataHistory(ImmutableList.copyOf(previousMetadataLog))
             .build();
 
@@ -651,25 +507,14 @@ public class TestTableMetadata {
 
     Snapshot previousSnapshot =
         MetadataTestUtils.buildTestSnapshot()
-            .setSequenceNumber(0L)
             .setSnapshotId(previousSnapshotId)
-            .setParentId(null)
-            .setTimestampMillis(previousSnapshotId)
-            .setOperation(null)
-            .setSummary(null)
-            .setSchemaId(null)
             .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest1.avro"));
 
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot =
         MetadataTestUtils.buildTestSnapshot()
-            .setSequenceNumber(0L)
             .setSnapshotId(currentSnapshotId)
             .setParentId(previousSnapshotId)
-            .setTimestampMillis(currentSnapshotId)
-            .setOperation(null)
-            .setSummary(null)
-            .setSchemaId(null)
             .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest2.avro"));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
@@ -700,21 +545,10 @@ public class TestTableMetadata {
             currentTimestamp - 50, "/tmp/000006-" + UUID.randomUUID() + ".metadata.json");
 
     TableMetadata base =
-        MetadataTestUtils.buildTestTableMetadata(formatVersion)
+        MetadataTestUtils.buildTestTableMetadataWithExampleValues(formatVersion)
             .setMetadataLocation(latestPreviousMetadata.file())
-            .setFormatVersion(formatVersion)
-            .setLocation(TEST_LOCATION)
-            .setLastSequenceNumber(0)
             .setLastUpdatedMillis(currentTimestamp - 50)
             .setLastColumnId(3)
-            .setCurrentSchemaId(7)
-            .setSchemas(ImmutableList.of(TEST_SCHEMA))
-            .setDefaultSpecId(5)
-            .setSpecs(ImmutableList.of(SPEC_5))
-            .setLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
-            .setDefaultSortOrderId(3)
-            .setSortOrders(ImmutableList.of(SORT_ORDER_3))
-            .setProperties(ImmutableMap.of("property", "value"))
             .setCurrentSnapshotId(currentSnapshotId)
             .setSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
             .setSnapshotLog(reversedSnapshotLog)
@@ -744,25 +578,14 @@ public class TestTableMetadata {
 
     Snapshot previousSnapshot =
         MetadataTestUtils.buildTestSnapshot()
-            .setSequenceNumber(0L)
             .setSnapshotId(previousSnapshotId)
-            .setParentId(null)
-            .setTimestampMillis(previousSnapshotId)
-            .setOperation(null)
-            .setSummary(null)
-            .setSchemaId(null)
             .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest1.avro"));
 
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot =
         MetadataTestUtils.buildTestSnapshot()
-            .setSequenceNumber(0L)
             .setSnapshotId(currentSnapshotId)
             .setParentId(previousSnapshotId)
-            .setTimestampMillis(currentSnapshotId)
-            .setOperation(null)
-            .setSummary(null)
-            .setSchemaId(null)
             .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest2.avro"));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
@@ -793,21 +616,9 @@ public class TestTableMetadata {
             currentTimestamp - 50, "/tmp/000006-" + UUID.randomUUID() + ".metadata.json");
 
     TableMetadata base =
-        MetadataTestUtils.buildTestTableMetadata(formatVersion)
+        MetadataTestUtils.buildTestTableMetadataWithExampleValues(formatVersion)
             .setMetadataLocation(latestPreviousMetadata.file())
-            .setFormatVersion(formatVersion)
-            .setLocation(TEST_LOCATION)
-            .setLastSequenceNumber(0)
             .setLastUpdatedMillis(currentTimestamp - 50)
-            .setLastColumnId(3)
-            .setCurrentSchemaId(7)
-            .setSchemas(ImmutableList.of(TEST_SCHEMA))
-            .setDefaultSpecId(SPEC_5.specId())
-            .setSpecs(ImmutableList.of(SPEC_5))
-            .setLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
-            .setDefaultSortOrderId(SortOrder.unsorted().orderId())
-            .setSortOrders(ImmutableList.of(SortOrder.unsorted()))
-            .setProperties(ImmutableMap.of("property", "value"))
             .setCurrentSnapshotId(currentSnapshotId)
             .setSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
             .setSnapshotLog(reversedSnapshotLog)
@@ -837,20 +648,8 @@ public class TestTableMetadata {
 
     assertThatThrownBy(
             () ->
-                MetadataTestUtils.buildTestTableMetadata(formatVersion)
-                    .setFormatVersion(formatVersion)
+                MetadataTestUtils.buildTestTableMetadataWithExampleValues(formatVersion)
                     .setUuid(null)
-                    .setLocation(TEST_LOCATION)
-                    .setLastSequenceNumber(SEQ_NO)
-                    .setLastUpdatedMillis(System.currentTimeMillis())
-                    .setLastColumnId(LAST_ASSIGNED_COLUMN_ID)
-                    .setCurrentSchemaId(7)
-                    .setSchemas(ImmutableList.of(TEST_SCHEMA))
-                    .setDefaultSpecId(SPEC_5.specId())
-                    .setSpecs(ImmutableList.of(SPEC_5))
-                    .setLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
-                    .setDefaultSortOrderId(3)
-                    .setSortOrders(ImmutableList.of(SORT_ORDER_3))
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(String.format("UUID is required in format v%s", formatVersion));
@@ -862,20 +661,7 @@ public class TestTableMetadata {
     int unsupportedVersion = supportedVersion + 1;
     assertThatThrownBy(
             () ->
-                MetadataTestUtils.buildTestTableMetadata(unsupportedVersion)
-                    .setFormatVersion(unsupportedVersion)
-                    .setUuid(null)
-                    .setLocation(TEST_LOCATION)
-                    .setLastSequenceNumber(SEQ_NO)
-                    .setLastUpdatedMillis(System.currentTimeMillis())
-                    .setLastColumnId(LAST_ASSIGNED_COLUMN_ID)
-                    .setCurrentSchemaId(7)
-                    .setSchemas(ImmutableList.of(TEST_SCHEMA))
-                    .setDefaultSpecId(SPEC_5.specId())
-                    .setSpecs(ImmutableList.of(SPEC_5))
-                    .setLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
-                    .setDefaultSortOrderId(3)
-                    .setSortOrders(ImmutableList.of(SORT_ORDER_3))
+                MetadataTestUtils.buildTestTableMetadataWithExampleValues(unsupportedVersion)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
@@ -897,20 +683,7 @@ public class TestTableMetadata {
             unsupportedVersion, supportedVersion);
 
     // should be allowed in the supported version
-    assertThat(
-            MetadataTestUtils.buildTestTableMetadata(supportedVersion)
-                .setFormatVersion(supportedVersion)
-                .setLocation(TEST_LOCATION)
-                .setLastSequenceNumber(SEQ_NO)
-                .setLastColumnId(LAST_ASSIGNED_COLUMN_ID)
-                .setCurrentSchemaId(7)
-                .setSchemas(ImmutableList.of(TEST_SCHEMA))
-                .setDefaultSpecId(SPEC_5.specId())
-                .setSpecs(ImmutableList.of(SPEC_5))
-                .setLastAssignedPartitionId(SPEC_5.lastAssignedFieldId())
-                .setDefaultSortOrderId(3)
-                .setSortOrders(ImmutableList.of(SORT_ORDER_3))
-                .build())
+    assertThat(MetadataTestUtils.buildTestTableMetadataWithExampleValues(supportedVersion).build())
         .isNotNull();
 
     assertThat(
