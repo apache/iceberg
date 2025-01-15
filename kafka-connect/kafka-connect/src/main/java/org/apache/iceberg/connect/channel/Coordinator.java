@@ -16,29 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package io.tabular.iceberg.connect.channel;
-
-import static java.util.stream.Collectors.toList;
+package org.apache.iceberg.connect.channel;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.tabular.iceberg.connect.IcebergSinkConfig;
-import io.tabular.iceberg.connect.events.CommitCompletePayload;
-import io.tabular.iceberg.connect.events.CommitRequestPayload;
-import io.tabular.iceberg.connect.events.CommitResponsePayload;
-import io.tabular.iceberg.connect.events.CommitTablePayload;
-import io.tabular.iceberg.connect.events.Event;
-import io.tabular.iceberg.connect.events.EventType;
-import io.tabular.iceberg.connect.events.TableName;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.RowDelta;
@@ -46,21 +41,31 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.connect.IcebergSinkConfig;
+import org.apache.iceberg.connect.events.CommitComplete;
+import org.apache.iceberg.connect.events.CommitToTable;
+import org.apache.iceberg.connect.events.DataWritten;
+import org.apache.iceberg.connect.events.Event;
+import org.apache.iceberg.connect.events.StartCommit;
+import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
+import org.apache.kafka.clients.admin.MemberDescription;
+import org.apache.kafka.connect.errors.ConnectException;
+import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class Coordinator extends Channel {
+class Coordinator extends Channel {
 
   private static final Logger LOG = LoggerFactory.getLogger(Coordinator.class);
   private static final ObjectMapper MAPPER = new ObjectMapper();
-  private static final String OFFSETS_SNAPSHOT_PROP_FMT = "kafka.connect.offsets.%s.%s";
   private static final String COMMIT_ID_SNAPSHOT_PROP = "kafka.connect.commit-id";
-  private static final String VTTS_SNAPSHOT_PROP = "kafka.connect.vtts";
-  private static final Duration POLL_DURATION = Duration.ofMillis(1000);
+  private static final String VALID_THROUGH_TS_SNAPSHOT_PROP = "kafka.connect.valid-through-ts";
+  private static final Duration POLL_DURATION = Duration.ofSeconds(1);
 
   private final Catalog catalog;
   private final IcebergSinkConfig config;
@@ -68,30 +73,36 @@ public class Coordinator extends Channel {
   private final String snapshotOffsetsProp;
   private final ExecutorService exec;
   private final CommitState commitState;
+  private volatile boolean terminated;
 
-  public Coordinator(Catalog catalog, IcebergSinkConfig config, KafkaClientFactory clientFactory) {
+  Coordinator(
+      Catalog catalog,
+      IcebergSinkConfig config,
+      Collection<MemberDescription> members,
+      KafkaClientFactory clientFactory,
+      SinkTaskContext context) {
     // pass consumer group ID to which we commit low watermark offsets
-    super("coordinator", config.controlGroupId() + "-coord", config, clientFactory);
+    super("coordinator", config.connectGroupId() + "-coord", config, clientFactory, context);
 
     this.catalog = catalog;
     this.config = config;
-    this.totalPartitionCount = totalPartitionCount();
+    this.totalPartitionCount =
+        members.stream().mapToInt(desc -> desc.assignment().topicPartitions().size()).sum();
     this.snapshotOffsetsProp =
-        String.format(OFFSETS_SNAPSHOT_PROP_FMT, config.controlTopic(), config.controlGroupId());
-    this.exec = ThreadPools.newWorkerPool("iceberg-committer", config.commitThreads());
+        String.format(
+            "kafka.connect.offsets.%s.%s", config.controlTopic(), config.connectGroupId());
+    this.exec = ThreadPools.newFixedThreadPool("iceberg-committer", config.commitThreads());
     this.commitState = new CommitState(config);
   }
 
-  public void process() {
+  void process() {
     if (commitState.isCommitIntervalReached()) {
       // send out begin commit
       commitState.startNewCommit();
       Event event =
-          new Event(
-              config.controlGroupId(),
-              EventType.COMMIT_REQUEST,
-              new CommitRequestPayload(commitState.currentCommitId()));
+          new Event(config.connectGroupId(), new StartCommit(commitState.currentCommitId()));
       send(event);
+      LOG.info("Commit {} initiated", commitState.currentCommitId());
     }
 
     consumeAvailable(POLL_DURATION);
@@ -103,11 +114,11 @@ public class Coordinator extends Channel {
 
   @Override
   protected boolean receive(Envelope envelope) {
-    switch (envelope.event().type()) {
-      case COMMIT_RESPONSE:
+    switch (envelope.event().payload().type()) {
+      case DATA_WRITTEN:
         commitState.addResponse(envelope);
         return true;
-      case COMMIT_READY:
+      case DATA_COMPLETE:
         commitState.addReady(envelope);
         if (commitState.isCommitReady(totalPartitionCount)) {
           commit(false);
@@ -115,21 +126,6 @@ public class Coordinator extends Channel {
         return true;
     }
     return false;
-  }
-
-  @SuppressWarnings("deprecation")
-  private int totalPartitionCount() {
-    // use deprecated values() for backwards compatibility
-    return admin().describeTopics(config.topics()).values().values().stream()
-        .mapToInt(
-            value -> {
-              try {
-                return value.get().partitions().size();
-              } catch (InterruptedException | ExecutionException e) {
-                throw new RuntimeException(e);
-              }
-            })
-        .sum();
   }
 
   private void commit(boolean partialCommit) {
@@ -143,17 +139,17 @@ public class Coordinator extends Channel {
   }
 
   private void doCommit(boolean partialCommit) {
-    Map<TableIdentifier, List<Envelope>> commitMap = commitState.tableCommitMap();
+    Map<TableReference, List<Envelope>> commitMap = commitState.tableCommitMap();
 
     String offsetsJson = offsetsJson();
-    Long vtts = commitState.vtts(partialCommit);
+    OffsetDateTime validThroughTs = commitState.validThroughTs(partialCommit);
 
     Tasks.foreach(commitMap.entrySet())
         .executeWith(exec)
         .stopOnFailure()
         .run(
             entry -> {
-              commitToTable(entry.getKey(), entry.getValue(), offsetsJson, vtts);
+              commitToTable(entry.getKey(), entry.getValue(), offsetsJson, validThroughTs);
             });
 
     // we should only get here if all tables committed successfully...
@@ -162,16 +158,15 @@ public class Coordinator extends Channel {
 
     Event event =
         new Event(
-            config.controlGroupId(),
-            EventType.COMMIT_COMPLETE,
-            new CommitCompletePayload(commitState.currentCommitId(), vtts));
+            config.connectGroupId(),
+            new CommitComplete(commitState.currentCommitId(), validThroughTs));
     send(event);
 
     LOG.info(
-        "Commit {} complete, committed to {} table(s), vtts {}",
+        "Commit {} complete, committed to {} table(s), valid-through {}",
         commitState.currentCommitId(),
         commitMap.size(),
-        vtts);
+        validThroughTs);
   }
 
   private String offsetsJson() {
@@ -183,85 +178,103 @@ public class Coordinator extends Channel {
   }
 
   private void commitToTable(
-      TableIdentifier tableIdentifier, List<Envelope> envelopeList, String offsetsJson, Long vtts) {
+      TableReference tableReference,
+      List<Envelope> envelopeList,
+      String offsetsJson,
+      OffsetDateTime validThroughTs) {
+    TableIdentifier tableIdentifier = tableReference.identifier();
     Table table;
     try {
       table = catalog.loadTable(tableIdentifier);
     } catch (NoSuchTableException e) {
-      LOG.warn("Table not found, skipping commit: {}", tableIdentifier);
+      LOG.warn("Table not found, skipping commit: {}", tableIdentifier, e);
       return;
     }
 
-    Optional<String> branch = config.tableConfig(tableIdentifier.toString()).commitBranch();
+    String branch = config.tableConfig(tableIdentifier.toString()).commitBranch();
 
-    Map<Integer, Long> committedOffsets = lastCommittedOffsetsForTable(table, branch.orElse(null));
+    Map<Integer, Long> committedOffsets = lastCommittedOffsetsForTable(table, branch);
 
-    List<CommitResponsePayload> payloads =
+    List<DataWritten> payloads =
         envelopeList.stream()
             .filter(
                 envelope -> {
                   Long minOffset = committedOffsets.get(envelope.partition());
                   return minOffset == null || envelope.offset() >= minOffset;
                 })
-            .map(envelope -> (CommitResponsePayload) envelope.event().payload())
-            .collect(toList());
+            .map(envelope -> (DataWritten) envelope.event().payload())
+            .collect(Collectors.toList());
 
     List<DataFile> dataFiles =
         payloads.stream()
             .filter(payload -> payload.dataFiles() != null)
             .flatMap(payload -> payload.dataFiles().stream())
             .filter(dataFile -> dataFile.recordCount() > 0)
-            .collect(toList());
+            .filter(distinctByKey(ContentFile::location))
+            .collect(Collectors.toList());
 
     List<DeleteFile> deleteFiles =
         payloads.stream()
             .filter(payload -> payload.deleteFiles() != null)
             .flatMap(payload -> payload.deleteFiles().stream())
             .filter(deleteFile -> deleteFile.recordCount() > 0)
-            .collect(toList());
+            .filter(distinctByKey(ContentFile::location))
+            .collect(Collectors.toList());
+
+    if (terminated) {
+      throw new ConnectException("Coordinator is terminated, commit aborted");
+    }
 
     if (dataFiles.isEmpty() && deleteFiles.isEmpty()) {
       LOG.info("Nothing to commit to table {}, skipping", tableIdentifier);
     } else {
       if (deleteFiles.isEmpty()) {
         AppendFiles appendOp = table.newAppend();
-        branch.ifPresent(appendOp::toBranch);
+        if (branch != null) {
+          appendOp.toBranch(branch);
+        }
         appendOp.set(snapshotOffsetsProp, offsetsJson);
         appendOp.set(COMMIT_ID_SNAPSHOT_PROP, commitState.currentCommitId().toString());
-        if (vtts != null) {
-          appendOp.set(VTTS_SNAPSHOT_PROP, Long.toString(vtts));
+        if (validThroughTs != null) {
+          appendOp.set(VALID_THROUGH_TS_SNAPSHOT_PROP, validThroughTs.toString());
         }
         dataFiles.forEach(appendOp::appendFile);
         appendOp.commit();
       } else {
         RowDelta deltaOp = table.newRowDelta();
-        branch.ifPresent(deltaOp::toBranch);
+        if (branch != null) {
+          deltaOp.toBranch(branch);
+        }
         deltaOp.set(snapshotOffsetsProp, offsetsJson);
         deltaOp.set(COMMIT_ID_SNAPSHOT_PROP, commitState.currentCommitId().toString());
-        if (vtts != null) {
-          deltaOp.set(VTTS_SNAPSHOT_PROP, Long.toString(vtts));
+        if (validThroughTs != null) {
+          deltaOp.set(VALID_THROUGH_TS_SNAPSHOT_PROP, validThroughTs.toString());
         }
         dataFiles.forEach(deltaOp::addRows);
         deleteFiles.forEach(deltaOp::addDeletes);
         deltaOp.commit();
       }
 
-      Long snapshotId = latestSnapshot(table, branch.orElse(null)).snapshotId();
+      Long snapshotId = latestSnapshot(table, branch).snapshotId();
       Event event =
           new Event(
-              config.controlGroupId(),
-              EventType.COMMIT_TABLE,
-              new CommitTablePayload(
-                  commitState.currentCommitId(), TableName.of(tableIdentifier), snapshotId, vtts));
+              config.connectGroupId(),
+              new CommitToTable(
+                  commitState.currentCommitId(), tableReference, snapshotId, validThroughTs));
       send(event);
 
       LOG.info(
-          "Commit complete to table {}, snapshot {}, commit ID {}, vtts {}",
+          "Commit complete to table {}, snapshot {}, commit ID {}, valid-through {}",
           tableIdentifier,
           snapshotId,
           commitState.currentCommitId(),
-          vtts);
+          validThroughTs);
     }
+  }
+
+  private <T> Predicate<T> distinctByKey(Function<? super T, ?> keyExtractor) {
+    Map<Object, Boolean> seen = Maps.newConcurrentMap();
+    return t -> seen.putIfAbsent(keyExtractor.apply(t), Boolean.TRUE) == null;
   }
 
   private Snapshot latestSnapshot(Table table, String branch) {
@@ -288,5 +301,20 @@ public class Coordinator extends Channel {
       snapshot = parentSnapshotId != null ? table.snapshot(parentSnapshotId) : null;
     }
     return ImmutableMap.of();
+  }
+
+  void terminate() {
+    this.terminated = true;
+
+    exec.shutdownNow();
+
+    // wait for coordinator termination, else cause the sink task to fail
+    try {
+      if (!exec.awaitTermination(1, TimeUnit.MINUTES)) {
+        throw new ConnectException("Timed out waiting for coordinator shutdown");
+      }
+    } catch (InterruptedException e) {
+      throw new ConnectException("Interrupted while waiting for coordinator shutdown", e);
+    }
   }
 }

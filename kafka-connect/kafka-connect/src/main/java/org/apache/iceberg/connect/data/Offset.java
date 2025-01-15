@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package io.tabular.iceberg.connect.data;
+package org.apache.iceberg.connect.data;
 
+import java.time.OffsetDateTime;
 import java.util.Objects;
 
 public class Offset implements Comparable<Offset> {
@@ -25,9 +26,9 @@ public class Offset implements Comparable<Offset> {
   public static final Offset NULL_OFFSET = new Offset(null, null);
 
   private final Long offset;
-  private final Long timestamp;
+  private final OffsetDateTime timestamp;
 
-  public Offset(Long offset, Long timestamp) {
+  public Offset(Long offset, OffsetDateTime timestamp) {
     this.offset = offset;
     this.timestamp = timestamp;
   }
@@ -36,7 +37,7 @@ public class Offset implements Comparable<Offset> {
     return offset;
   }
 
-  public Long timestamp() {
+  public OffsetDateTime timestamp() {
     return timestamp;
   }
 

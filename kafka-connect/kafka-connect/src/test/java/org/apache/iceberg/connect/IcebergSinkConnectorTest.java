@@ -16,9 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package io.tabular.iceberg.connect;
+package org.apache.iceberg.connect;
 
-import static io.tabular.iceberg.connect.IcebergSinkConfig.INTERNAL_TRANSACTIONAL_SUFFIX_PROP;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
@@ -35,6 +34,7 @@ public class IcebergSinkConnectorTest {
     connector.start(ImmutableMap.of());
     List<Map<String, String>> configs = connector.taskConfigs(3);
     assertThat(configs).hasSize(3);
-    configs.forEach(map -> assertThat(map).containsKey(INTERNAL_TRANSACTIONAL_SUFFIX_PROP));
+    configs.forEach(
+        map -> assertThat(map).containsKey(IcebergSinkConfig.INTERNAL_TRANSACTIONAL_SUFFIX_PROP));
   }
 }

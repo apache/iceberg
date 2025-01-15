@@ -16,52 +16,53 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package io.tabular.iceberg.connect.channel;
+package org.apache.iceberg.connect.channel;
 
-import static java.util.stream.Collectors.toList;
-
-import io.tabular.iceberg.connect.IcebergSinkConfig;
-import io.tabular.iceberg.connect.data.Offset;
-import io.tabular.iceberg.connect.events.Event;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import org.apache.iceberg.connect.IcebergSinkConfig;
+import org.apache.iceberg.connect.data.Offset;
+import org.apache.iceberg.connect.events.AvroUtil;
+import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.Consumer;
-import org.apache.kafka.clients.consumer.ConsumerGroupMetadata;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class Channel {
+abstract class Channel {
 
   private static final Logger LOG = LoggerFactory.getLogger(Channel.class);
 
   private final String controlTopic;
-  private final String controlGroupId;
-  private final String groupId;
+  private final String connectGroupId;
   private final Producer<String, byte[]> producer;
   private final Consumer<String, byte[]> consumer;
+  private final SinkTaskContext context;
   private final Admin admin;
   private final Map<Integer, Long> controlTopicOffsets = Maps.newHashMap();
   private final String producerId;
 
-  public Channel(
+  Channel(
       String name,
       String consumerGroupId,
       IcebergSinkConfig config,
-      KafkaClientFactory clientFactory) {
+      KafkaClientFactory clientFactory,
+      SinkTaskContext context) {
     this.controlTopic = config.controlTopic();
-    this.controlGroupId = config.controlGroupId();
-    this.groupId = config.controlGroupId();
+    this.connectGroupId = config.connectGroupId();
+    this.context = context;
 
     String transactionalId = name + config.transactionalSuffix();
     this.producer = clientFactory.createProducer(transactionalId);
@@ -75,6 +76,7 @@ public abstract class Channel {
     send(ImmutableList.of(event), ImmutableMap.of());
   }
 
+  @SuppressWarnings("FutureReturnValueIgnored")
   protected void send(List<Event> events, Map<TopicPartition, Offset> sourceOffsets) {
     Map<TopicPartition, OffsetAndMetadata> offsetsToCommit = Maps.newHashMap();
     sourceOffsets.forEach((k, v) -> offsetsToCommit.put(k, new OffsetAndMetadata(v.offset())));
@@ -84,20 +86,21 @@ public abstract class Channel {
             .map(
                 event -> {
                   LOG.info("Sending event of type: {}", event.type().name());
-                  byte[] data = Event.encode(event);
+                  byte[] data = AvroUtil.encode(event);
                   // key by producer ID to keep event order
                   return new ProducerRecord<>(controlTopic, producerId, data);
                 })
-            .collect(toList());
+            .collect(Collectors.toList());
 
     synchronized (producer) {
       producer.beginTransaction();
       try {
+        // NOTE: we shouldn't call get() on the future in a transactional context,
+        // see docs for org.apache.kafka.clients.producer.KafkaProducer
         recordList.forEach(producer::send);
         if (!sourceOffsets.isEmpty()) {
-          // TODO: this doesn't fence zombies
           producer.sendOffsetsToTransaction(
-              offsetsToCommit, new ConsumerGroupMetadata(controlGroupId));
+              offsetsToCommit, KafkaUtils.consumerGroupMetadata(context));
         }
         producer.commitTransaction();
       } catch (Exception e) {
@@ -122,9 +125,9 @@ public abstract class Channel {
             // so increment the record offset by one
             controlTopicOffsets.put(record.partition(), record.offset() + 1);
 
-            Event event = Event.decode(record.value());
+            Event event = AvroUtil.decode(record.value());
 
-            if (event.groupId().equals(groupId)) {
+            if (event.groupId().equals(connectGroupId)) {
               LOG.debug("Received event of type: {}", event.type().name());
               if (receive(new Envelope(event, record.partition(), record.offset()))) {
                 LOG.info("Handled event of type: {}", event.type().name());
@@ -148,18 +151,14 @@ public abstract class Channel {
     consumer.commitSync(offsetsToCommit);
   }
 
-  protected Admin admin() {
-    return admin;
-  }
-
-  public void start() {
+  void start() {
     consumer.subscribe(ImmutableList.of(controlTopic));
 
     // initial poll with longer duration so the consumer will initialize...
-    consumeAvailable(Duration.ofMillis(1000));
+    consumeAvailable(Duration.ofSeconds(1));
   }
 
-  public void stop() {
+  void stop() {
     LOG.info("Channel stopping");
     producer.close();
     consumer.close();

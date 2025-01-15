@@ -16,16 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package io.tabular.iceberg.connect.data;
+package org.apache.iceberg.connect.data;
 
-import io.tabular.iceberg.connect.IcebergSinkConfig;
-import io.tabular.iceberg.connect.data.SchemaUpdate.AddColumn;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
@@ -33,16 +33,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 
-public class IcebergWriter implements RecordWriter {
+class IcebergWriter implements RecordWriter {
   private final Table table;
   private final String tableName;
   private final IcebergSinkConfig config;
-  private final List<WriterResult> writerResults;
+  private final List<IcebergWriterResult> writerResults;
 
   private RecordConverter recordConverter;
   private TaskWriter<Record> writer;
 
-  public IcebergWriter(Table table, String tableName, IcebergSinkConfig config) {
+  IcebergWriter(Table table, String tableName, IcebergSinkConfig config) {
     this.table = table;
     this.tableName = tableName;
     this.config = config;
@@ -51,29 +51,26 @@ public class IcebergWriter implements RecordWriter {
   }
 
   private void initNewWriter() {
-    this.writer = Utilities.createTableWriter(table, tableName, config);
-    this.recordConverter = new RecordConverter(table, config.jsonConverter());
+    this.writer = RecordUtils.createTableWriter(table, tableName, config);
+    this.recordConverter = new RecordConverter(table, config);
   }
 
   @Override
   public void write(SinkRecord record) {
     try {
-      // TODO: config to handle tombstones instead of always ignoring?
+      // ignore tombstones...
       if (record.value() != null) {
         Record row = convertToRow(record);
-        String cdcField = config.tablesCdcField();
-        if (cdcField == null) {
-          writer.write(row);
-        } else {
-          Operation op = extractCdcOperation(record.value(), cdcField);
-          writer.write(new RecordWrapper(row, op));
-        }
+        writer.write(row);
       }
     } catch (Exception e) {
       throw new DataException(
           String.format(
+              Locale.ROOT,
               "An error occurred converting record, topic: %s, partition, %d, offset: %d",
-              record.topic(), record.kafkaPartition(), record.kafkaOffset()),
+              record.topic(),
+              record.kafkaPartition(),
+              record.kafkaOffset()),
           e);
     }
   }
@@ -83,10 +80,10 @@ public class IcebergWriter implements RecordWriter {
       return recordConverter.convert(record.value());
     }
 
-    List<AddColumn> updates = Lists.newArrayList();
-    Record row = recordConverter.convert(record.value(), updates::add);
+    SchemaUpdate.Consumer updates = new SchemaUpdate.Consumer();
+    Record row = recordConverter.convert(record.value(), updates);
 
-    if (updates.size() > 0) {
+    if (!updates.empty()) {
       // complete the current file
       flush();
       // apply the schema updates, this will refresh the table
@@ -94,34 +91,10 @@ public class IcebergWriter implements RecordWriter {
       // initialize a new writer with the new schema
       initNewWriter();
       // convert the row again, this time using the new table schema
-      row = recordConverter.convert(record.value(), updates::add);
+      row = recordConverter.convert(record.value(), null);
     }
 
     return row;
-  }
-
-  private Operation extractCdcOperation(Object recordValue, String cdcField) {
-    Object opValue = Utilities.extractFromRecordValue(recordValue, cdcField);
-
-    if (opValue == null) {
-      return Operation.INSERT;
-    }
-
-    String opStr = opValue.toString().trim().toUpperCase();
-    if (opStr.isEmpty()) {
-      return Operation.INSERT;
-    }
-
-    // TODO: define value mapping in config?
-
-    switch (opStr.charAt(0)) {
-      case 'U':
-        return Operation.UPDATE;
-      case 'D':
-        return Operation.DELETE;
-      default:
-        return Operation.INSERT;
-    }
   }
 
   private void flush() {
@@ -133,7 +106,7 @@ public class IcebergWriter implements RecordWriter {
     }
 
     writerResults.add(
-        new WriterResult(
+        new IcebergWriterResult(
             TableIdentifier.parse(tableName),
             Arrays.asList(writeResult.dataFiles()),
             Arrays.asList(writeResult.deleteFiles()),
@@ -141,10 +114,10 @@ public class IcebergWriter implements RecordWriter {
   }
 
   @Override
-  public List<WriterResult> complete() {
+  public List<IcebergWriterResult> complete() {
     flush();
 
-    List<WriterResult> result = Lists.newArrayList(writerResults);
+    List<IcebergWriterResult> result = Lists.newArrayList(writerResults);
     writerResults.clear();
 
     return result;

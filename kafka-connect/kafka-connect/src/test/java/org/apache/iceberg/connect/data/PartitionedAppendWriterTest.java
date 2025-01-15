@@ -16,27 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package io.tabular.iceberg.connect.data;
+package org.apache.iceberg.connect.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import io.tabular.iceberg.connect.IcebergSinkConfig;
-import io.tabular.iceberg.connect.TableSinkConfig;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.connect.IcebergSinkConfig;
+import org.apache.iceberg.connect.TableSinkConfig;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.junit.jupiter.api.Test;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class PartitionedAppendWriterTest extends BaseWriterTest {
 
-  @Test
-  public void testPartitionedAppendWriter() {
+  @ParameterizedTest
+  @ValueSource(strings = {"parquet", "orc"})
+  public void testPartitionedAppendWriter(String format) {
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.writeProps()).thenReturn(ImmutableMap.of("write.format.default", format));
 
     when(table.spec()).thenReturn(SPEC);
 
@@ -55,6 +60,7 @@ public class PartitionedAppendWriterTest extends BaseWriterTest {
 
     // 1 data file for each partition (2 total)
     assertThat(result.dataFiles()).hasSize(2);
+    assertThat(result.dataFiles()).allMatch(file -> file.format() == FileFormat.fromString(format));
     assertThat(result.deleteFiles()).hasSize(0);
   }
 }

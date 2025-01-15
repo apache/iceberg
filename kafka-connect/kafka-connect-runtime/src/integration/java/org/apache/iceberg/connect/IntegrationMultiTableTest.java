@@ -16,13 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package io.tabular.iceberg.connect;
+package org.apache.iceberg.connect;
 
-import static io.tabular.iceberg.connect.TestEvent.TEST_SCHEMA;
-import static io.tabular.iceberg.connect.TestEvent.TEST_SPEC;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
@@ -36,7 +35,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public abstract class AbstractIntegrationMultiTableTest extends IntegrationTestBase {
+public class IntegrationMultiTableTest extends IntegrationTestBase {
 
   private static final String TEST_DB = "test";
   private static final String TEST_TABLE1 = "foobar1";
@@ -46,17 +45,17 @@ public abstract class AbstractIntegrationMultiTableTest extends IntegrationTestB
 
   @BeforeEach
   public void before() {
-    createTopic(testTopic, TEST_TOPIC_PARTITIONS);
-    ((SupportsNamespaces) catalog).createNamespace(Namespace.of(TEST_DB));
+    createTopic(testTopic(), TEST_TOPIC_PARTITIONS);
+    ((SupportsNamespaces) catalog()).createNamespace(Namespace.of(TEST_DB));
   }
 
   @AfterEach
   public void after() {
-    context.stopKafkaConnector(connectorName);
-    deleteTopic(testTopic);
-    catalog.dropTable(TableIdentifier.of(TEST_DB, TEST_TABLE1));
-    catalog.dropTable(TableIdentifier.of(TEST_DB, TEST_TABLE2));
-    ((SupportsNamespaces) catalog).dropNamespace(Namespace.of(TEST_DB));
+    context().stopConnector(connectorName());
+    deleteTopic(testTopic());
+    catalog().dropTable(TableIdentifier.of(TEST_DB, TEST_TABLE1));
+    catalog().dropTable(TableIdentifier.of(TEST_DB, TEST_TABLE2));
+    ((SupportsNamespaces) catalog()).dropNamespace(Namespace.of(TEST_DB));
   }
 
   @ParameterizedTest
@@ -64,11 +63,12 @@ public abstract class AbstractIntegrationMultiTableTest extends IntegrationTestB
   @ValueSource(strings = "test_branch")
   public void testIcebergSink(String branch) {
     // partitioned table
-    catalog.createTable(TABLE_IDENTIFIER1, TEST_SCHEMA, TEST_SPEC);
+    catalog().createTable(TABLE_IDENTIFIER1, TestEvent.TEST_SCHEMA, TestEvent.TEST_SPEC);
     // unpartitioned table
-    catalog.createTable(TABLE_IDENTIFIER2, TEST_SCHEMA);
+    catalog().createTable(TABLE_IDENTIFIER2, TestEvent.TEST_SCHEMA);
 
-    runTest(branch);
+    boolean useSchema = branch == null; // use a schema for one of the tests
+    runTest(branch, useSchema);
 
     List<DataFile> files = dataFiles(TABLE_IDENTIFIER1, branch);
     assertThat(files).hasSize(1);
@@ -81,18 +81,18 @@ public abstract class AbstractIntegrationMultiTableTest extends IntegrationTestB
     assertSnapshotProps(TABLE_IDENTIFIER2, branch);
   }
 
-  private void runTest(String branch) {
+  private void runTest(String branch, boolean useSchema) {
     // set offset reset to earliest so we don't miss any test messages
-    KafkaConnectContainer.Config connectorConfig =
-        new KafkaConnectContainer.Config(connectorName)
-            .config("topics", testTopic)
+    KafkaConnectUtils.Config connectorConfig =
+        new KafkaConnectUtils.Config(connectorName())
+            .config("topics", testTopic())
             .config("connector.class", IcebergSinkConnector.class.getName())
             .config("tasks.max", 2)
             .config("consumer.override.auto.offset.reset", "earliest")
             .config("key.converter", "org.apache.kafka.connect.json.JsonConverter")
             .config("key.converter.schemas.enable", false)
             .config("value.converter", "org.apache.kafka.connect.json.JsonConverter")
-            .config("value.converter.schemas.enable", false)
+            .config("value.converter.schemas.enable", useSchema)
             .config(
                 "iceberg.tables",
                 String.format("%s.%s, %s.%s", TEST_DB, TEST_TABLE1, TEST_DB, TEST_TABLE2))
@@ -102,21 +102,27 @@ public abstract class AbstractIntegrationMultiTableTest extends IntegrationTestB
             .config("iceberg.control.commit.interval-ms", 1000)
             .config("iceberg.control.commit.timeout-ms", Integer.MAX_VALUE)
             .config("iceberg.kafka.auto.offset.reset", "earliest");
-    connectorCatalogProperties().forEach(connectorConfig::config);
+
+    context().connectorCatalogProperties().forEach(connectorConfig::config);
 
     if (branch != null) {
       connectorConfig.config("iceberg.tables.default-commit-branch", branch);
     }
 
-    context.startKafkaConnector(connectorConfig);
+    // use a schema for one of the cases
+    if (!useSchema) {
+      connectorConfig.config("value.converter.schemas.enable", false);
+    }
 
-    TestEvent event1 = new TestEvent(1, "type1", System.currentTimeMillis(), "hello world!");
-    TestEvent event2 = new TestEvent(2, "type2", System.currentTimeMillis(), "having fun?");
-    TestEvent event3 = new TestEvent(3, "type3", System.currentTimeMillis(), "ignore me");
+    context().startConnector(connectorConfig);
 
-    send(testTopic, event1);
-    send(testTopic, event2);
-    send(testTopic, event3);
+    TestEvent event1 = new TestEvent(1, "type1", Instant.now(), "hello world!");
+    TestEvent event2 = new TestEvent(2, "type2", Instant.now(), "having fun?");
+    TestEvent event3 = new TestEvent(3, "type3", Instant.now(), "ignore me");
+
+    send(testTopic(), event1, useSchema);
+    send(testTopic(), event2, useSchema);
+    send(testTopic(), event3, useSchema);
     flush();
 
     Awaitility.await()
@@ -126,9 +132,9 @@ public abstract class AbstractIntegrationMultiTableTest extends IntegrationTestB
   }
 
   private void assertSnapshotAdded() {
-    Table table = catalog.loadTable(TABLE_IDENTIFIER1);
+    Table table = catalog().loadTable(TABLE_IDENTIFIER1);
     assertThat(table.snapshots()).hasSize(1);
-    table = catalog.loadTable(TABLE_IDENTIFIER2);
+    table = catalog().loadTable(TABLE_IDENTIFIER2);
     assertThat(table.snapshots()).hasSize(1);
   }
 }
