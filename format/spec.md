@@ -184,7 +184,7 @@ A **`map`** is a collection of key-value pairs with a key type and a value type.
 
 #### Semi-structured Types
 
-A **`variant`** is a value that stores semi-structured data. The structure and data types in a variant are not necessarily consistent across rows in a table or data file. The variant type and binary encoding are defined in the [Parquet project](https://github.com/apache/parquet-format/blob/4f208158dba80ff4bff4afaa4441d7270103dff6/VariantEncoding.md). Support for Variant is added in Iceberg v3.
+A **`variant`** is a value that stores semi-structured data. The structure and data types in a variant are not necessarily consistent across rows in a table or data file. The variant type and binary encoding are defined in the [Parquet project](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md). Support for Variant is added in Iceberg v3.
 
 Variants are similar to JSON with a wider set of primitive values including date, timestamp, timestamptz, binary, and decimals.
 
@@ -195,7 +195,6 @@ Variant values may contain nested types:
 As a semi-structured type, there are important differences between variant and Iceberg's other types:
 1. Variant arrays are similar to lists, but may contain any variant value rather than a fixed element type.
 2. Variant objects are similar to structs, but may contain variable fields identified by name and field values may be any variant value rather than a fixed field type.
-3. Variant primitives are narrower than Iceberg's primitive types: time, timestamp_ns, timestamptz_ns, uuid, and fixed(L) are not supported.
 
 #### Primitive Types
 
