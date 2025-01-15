@@ -18,7 +18,7 @@
 #
 
 ---
-openapi: 3.1.1
+openapi: 3.0.3
 info:
   title: Apache Iceberg REST Catalog API
   license:
@@ -2057,7 +2057,7 @@ components:
       properties:
         type:
           type: string
-          const: "struct"
+          enum: ["struct"]
         fields:
           type: array
           items:
@@ -2073,7 +2073,7 @@ components:
       properties:
         type:
           type: string
-          const: "list"
+          enum: ["list"]
         element-id:
           type: integer
         element:
@@ -2093,7 +2093,7 @@ components:
       properties:
         type:
           type: string
-          const: "map"
+          enum: ["map"]
         key-id:
           type: integer
         key:
@@ -2165,7 +2165,7 @@ components:
       properties:
         type:
           $ref: '#/components/schemas/ExpressionType'
-          const: "true"
+          enum: ["true"]
 
     FalseExpression:
       type: object
@@ -2174,7 +2174,7 @@ components:
       properties:
         type:
           $ref: '#/components/schemas/ExpressionType'
-          const: "false"
+          enum: ["false"]
 
     AndOrExpression:
       type: object
@@ -2199,7 +2199,7 @@ components:
       properties:
         type:
           $ref: '#/components/schemas/ExpressionType'
-          const: "not"
+          enum: ["not"]
         child:
           $ref: '#/components/schemas/Expression'
 
@@ -2269,7 +2269,7 @@ components:
       properties:
         type:
           type: string
-          const: "transform"
+          enum: ["transform"]
         transform:
           $ref: '#/components/schemas/Transform'
         term:
@@ -2656,11 +2656,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - uuid
       properties:
         action:
           type: string
-          const: "assign-uuid"
+          enum: ["assign-uuid"]
         uuid:
           type: string
 
@@ -2668,11 +2669,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - format-version
       properties:
         action:
           type: string
-          const: "upgrade-format-version"
+          enum: ["upgrade-format-version"]
         format-version:
           type: integer
 
@@ -2680,11 +2682,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - schema
       properties:
         action:
           type: string
-          const: "add-schema"
+          enum: ["add-schema"]
         schema:
           $ref: '#/components/schemas/Schema'
         last-column-id:
@@ -2701,11 +2704,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - schema-id
       properties:
         action:
           type: string
-          const: "set-current-schema"
+          enum: ["set-current-schema"]
         schema-id:
           type: integer
           description: Schema ID to set as current, or -1 to set last added schema
@@ -2714,11 +2718,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - spec
       properties:
         action:
           type: string
-          const: "add-spec"
+          enum: ["add-spec"]
         spec:
           $ref: '#/components/schemas/PartitionSpec'
 
@@ -2726,11 +2731,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - spec-id
       properties:
         action:
           type: string
-          const: "set-default-spec"
+          enum: [ "set-default-spec" ]
         spec-id:
           type: integer
           description: Partition spec ID to set as the default, or -1 to set last added spec
@@ -2739,11 +2745,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - sort-order
       properties:
         action:
           type: string
-          const: "add-sort-order"
+          enum: [ "add-sort-order" ]
         sort-order:
           $ref: '#/components/schemas/SortOrder'
 
@@ -2751,11 +2758,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - sort-order-id
       properties:
         action:
           type: string
-          const: "set-default-sort-order"
+          enum: [ "set-default-sort-order" ]
         sort-order-id:
           type: integer
           description: Sort order ID to set as the default, or -1 to set last added sort order
@@ -2764,11 +2772,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - snapshot
       properties:
         action:
           type: string
-          const: "add-snapshot"
+          enum: [ "add-snapshot" ]
         snapshot:
           $ref: '#/components/schemas/Snapshot'
 
@@ -2777,11 +2786,12 @@ components:
         - $ref: '#/components/schemas/BaseUpdate'
         - $ref: '#/components/schemas/SnapshotReference'
       required:
+        - action
         - ref-name
       properties:
         action:
           type: string
-          const: "set-snapshot-ref"
+          enum: [ "set-snapshot-ref" ]
         ref-name:
           type: string
 
@@ -2789,11 +2799,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - snapshot-ids
       properties:
         action:
           type: string
-          const: "remove-snapshots"
+          enum: [ "remove-snapshots" ]
         snapshot-ids:
           type: array
           items:
@@ -2804,11 +2815,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - ref-name
       properties:
         action:
           type: string
-          const: "remove-snapshot-ref"
+          enum: [ "remove-snapshot-ref" ]
         ref-name:
           type: string
 
@@ -2816,11 +2828,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - location
       properties:
         action:
           type: string
-          const: "set-location"
+          enum: [ "set-location" ]
         location:
           type: string
 
@@ -2828,11 +2841,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - updates
       properties:
         action:
           type: string
-          const: "set-properties"
+          enum: [ "set-properties" ]
         updates:
           type: object
           additionalProperties:
@@ -2842,11 +2856,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - removals
       properties:
         action:
           type: string
-          const: "remove-properties"
+          enum: [ "remove-properties" ]
         removals:
           type: array
           items:
@@ -2856,11 +2871,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - view-version
       properties:
         action:
           type: string
-          const: "add-view-version"
+          enum: [ "add-view-version" ]
         view-version:
           $ref: '#/components/schemas/ViewVersion'
 
@@ -2868,11 +2884,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - view-version-id
       properties:
         action:
           type: string
-          const: "set-current-view-version"
+          enum: [ "set-current-view-version" ]
         view-version-id:
           type: integer
           description: The view version id to set as current, or -1 to set last added view version id
@@ -2881,12 +2898,13 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - snapshot-id
         - statistics
       properties:
         action:
           type: string
-          const: "set-statistics"
+          enum: [ "set-statistics" ]
         snapshot-id:
           type: integer
           format: int64
@@ -2897,11 +2915,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - snapshot-id
       properties:
         action:
           type: string
-          const: "remove-statistics"
+          enum: [ "remove-statistics" ]
         snapshot-id:
           type: integer
           format: int64
@@ -2910,11 +2929,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - partition-statistics
       properties:
         action:
           type: string
-          const: "set-partition-statistics"
+          enum: [ "set-partition-statistics" ]
         partition-statistics:
           $ref: '#/components/schemas/PartitionStatisticsFile'
 
@@ -2922,11 +2942,12 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - snapshot-id
       properties:
         action:
           type: string
-          const: "remove-partition-statistics"
+          enum: [ "remove-partition-statistics" ]
         snapshot-id:
           type: integer
           format: int64
@@ -2939,7 +2960,7 @@ components:
       properties:
         action:
           type: string
-          const: "remove-partition-specs"
+          enum: [ "remove-partition-specs" ]
         spec-ids:
           type: array
           items:
@@ -2990,35 +3011,35 @@ components:
           assert-last-assigned-partition-id: '#/components/schemas/AssertLastAssignedPartitionId'
           assert-default-spec-id: '#/components/schemas/AssertDefaultSpecId'
           assert-default-sort-order-id: '#/components/schemas/AssertDefaultSortOrderId'
-      properties:
-        type:
-          type: string
-      required:
-        - type
+      oneOf:
+        - $ref: '#/components/schemas/AssertCreate'
+        - $ref: '#/components/schemas/AssertTableUUID'
+        - $ref: '#/components/schemas/AssertRefSnapshotId'
+        - $ref: '#/components/schemas/AssertLastAssignedFieldId'
+        - $ref: '#/components/schemas/AssertCurrentSchemaId'
+        - $ref: '#/components/schemas/AssertLastAssignedPartitionId'
+        - $ref: '#/components/schemas/AssertDefaultSpecId'
+        - $ref: '#/components/schemas/AssertDefaultSortOrderId'
 
     AssertCreate:
       type: object
       description: The table must not already exist; used for create transactions
-      allOf:
-        - $ref: '#/components/schemas/TableRequirement'
       required:
         - type
       properties:
         type:
           type: string
-          const: "assert-create"
+          enum: ["assert-create"]
 
     AssertTableUUID:
       description: The table UUID must match the requirement's `uuid`
-      allOf:
-        - $ref: '#/components/schemas/TableRequirement'
       required:
         - type
         - uuid
       properties:
         type:
           type: string
-          const: "assert-table-uuid"
+          enum: ["assert-table-uuid"]
         uuid:
           type: string
 
@@ -3026,15 +3047,14 @@ components:
       description:
         The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; 
         if `snapshot-id` is `null` or missing, the ref must not already exist
-      allOf:
-        - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - ref
         - snapshot-id
       properties:
         type:
           type: string
-          const: "assert-ref-snapshot-id"
+          enum: [ "assert-ref-snapshot-id" ]
         ref:
           type: string
         snapshot-id:
@@ -3044,70 +3064,65 @@ components:
     AssertLastAssignedFieldId:
       description:
         The table's last assigned column id must match the requirement's `last-assigned-field-id`
-      allOf:
-        - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - last-assigned-field-id
       properties:
         type:
           type: string
-          const: "assert-last-assigned-field-id"
+          enum: [ "assert-last-assigned-field-id" ]
         last-assigned-field-id:
           type: integer
 
     AssertCurrentSchemaId:
       description:
         The table's current schema id must match the requirement's `current-schema-id`
-      allOf:
-        - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - current-schema-id
       properties:
         type:
           type: string
-          const: "assert-current-schema-id"
+          enum: [ "assert-current-schema-id" ]
         current-schema-id:
           type: integer
 
     AssertLastAssignedPartitionId:
       description:
         The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
-      allOf:
-        - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - last-assigned-partition-id
       properties:
         type:
           type: string
-          const: "assert-last-assigned-partition-id"
+          enum: [ "assert-last-assigned-partition-id" ]
         last-assigned-partition-id:
           type: integer
 
     AssertDefaultSpecId:
       description:
         The table's default spec id must match the requirement's `default-spec-id`
-      allOf:
-        - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - default-spec-id
       properties:
         type:
           type: string
-          const: "assert-default-spec-id"
+          enum: [ "assert-default-spec-id" ]
         default-spec-id:
           type: integer
 
     AssertDefaultSortOrderId:
       description:
         The table's default sort order id must match the requirement's `default-sort-order-id`
-      allOf:
-        - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - default-sort-order-id
       properties:
         type:
           type: string
-          const: "assert-default-sort-order-id"
+          enum: [ "assert-default-sort-order-id" ]
         default-sort-order-id:
           type: integer
 
@@ -3128,7 +3143,7 @@ components:
       properties:
         type:
           type: string
-          const: "assert-view-uuid"
+          enum: [ "assert-view-uuid" ]
         uuid:
           type: string
 
@@ -3252,7 +3267,7 @@ components:
           properties:
             status:
               $ref: '#/components/schemas/PlanStatus'
-              const: "completed"
+              enum: ["completed"]
 
     CompletedPlanningWithIDResult:
       type: object
@@ -3275,7 +3290,7 @@ components:
           properties:
             status:
               $ref: '#/components/schemas/PlanStatus'
-              const: "failed"
+              enum: ["failed"]
 
     AsyncPlanningResult:
       type: object
@@ -3284,7 +3299,7 @@ components:
       properties:
         status:
           $ref: '#/components/schemas/PlanStatus'
-          const: "submitted"
+          enum: ["submitted"]
         plan-id:
           description: ID used to track a planning request
           type: string
@@ -4189,7 +4204,7 @@ components:
       properties:
         content:
           type: string
-          const: "data"
+          enum: [ "data" ]
         column-sizes:
           allOf:
             - $ref: '#/components/schemas/CountMap'
@@ -4233,7 +4248,7 @@ components:
       properties:
         content:
           type: string
-          const: "position-deletes"
+          enum: [ "position-deletes" ]
         content-offset:
           type: integer
           format: int64
@@ -4251,7 +4266,7 @@ components:
       properties:
         content:
           type: string
-          const: "equality-deletes"
+          enum: [ "equality-deletes" ]
         equality-ids:
           type: array
           items:
