@@ -406,6 +406,8 @@ The `first_row_id` of the EXISTING file `data1` was already assigned, so the fil
 
 Files `data2` and `data3` are written with `null` for `first_row_id` and are assigned `first_row_id` at read time based on the manifest's `first_row_id` and the `record_count` of previously listed ADDED files in this manifest: (1,000 + 0) and (1,000 + 50).
 
+The snapshot then populates the total number of `added-rows` based on the sum of all added rows in the manifests: 100 (50 + 50)
+
 When the new snapshot is committed, the table's `next-row-id` must also be updated (even if the new snapshot is not in the main branch). Because 225 rows were added (`added1`: 100 + `added2`: 0 + `added3`: 125), the new value is 1,000 + 225 = 1,225:
 
 
@@ -654,6 +656,7 @@ A snapshot consists of the following fields:
 | _optional_ | _required_ | _required_ | **`summary`**                | A string map that summarizes the snapshot changes, including `operation` (see below)                                               |
 | _optional_ | _optional_ | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created                                                                     |
 |            |            | _optional_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage) |
+|            |            | _optional  | **`added-rows`**         | The number of newly added rows in this snapshot. Required if [Row Lineage](#row-lineage) is enabled | 
 
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
 
@@ -680,6 +683,8 @@ When row lineage is not enabled, `first-row-id` must be omitted. The rest of thi
 A snapshot's `first-row-id` is assigned to the table's current `next-row-id` on each commit attempt. If a commit is retried, the `first-row-id` must be reassigned. If a commit contains no new rows, `first-row-id` should be omitted.
 
 The snapshot's `first-row-id` is the starting `first_row_id` assigned to manifests in the snapshot's manifest list.
+
+The snapshot's `added-rows` is the sum of all the `added_rows_count` in all added manifests.
 
 
 ### Manifest Lists
