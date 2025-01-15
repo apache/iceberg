@@ -46,6 +46,7 @@ public class TestRowLineageMetadata {
 
   private TableMetadata baseMetadata(int formatVersion) {
     return TableMetadata.buildFromEmpty(formatVersion)
+        .enableRowLineage()
         .addSchema(TEST_SCHEMA)
         .setLocation(TEST_LOCATION)
         .addPartitionSpec(PartitionSpec.unpartitioned())
