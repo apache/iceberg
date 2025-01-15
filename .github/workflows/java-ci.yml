@@ -49,7 +49,6 @@ on:
     - 'dev/**'
     - 'docs/**'
     - 'site/**'
-    - 'open-api/**'
     - 'format/**'
     - '.gitattributes'
     - 'README.md'
