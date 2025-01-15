@@ -63,9 +63,9 @@ public class OAuth2Manager extends RefreshingAuthManager {
   private OAuthTokenResponse authResponse;
   private AuthSessionCache sessionCache;
 
-  public OAuth2Manager(String name) {
-    super(name + "-token-refresh");
-    this.name = name;
+  public OAuth2Manager(String managerName) {
+    super(managerName + "-token-refresh");
+    this.name = managerName;
   }
 
   @Override
