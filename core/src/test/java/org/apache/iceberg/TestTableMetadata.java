@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TableMetadata.BRANCHING_MIN_SUPPORT_VERSION;
+import static org.apache.iceberg.TableMetadata.UUID_REQUIRED_MIN_VERSION;
 import static org.apache.iceberg.TableMetadataParser.CURRENT_SNAPSHOT_ID;
 import static org.apache.iceberg.TableMetadataParser.FORMAT_VERSION;
 import static org.apache.iceberg.TableMetadataParser.LAST_COLUMN_ID;
@@ -277,7 +279,7 @@ public class TestTableMetadata {
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testInvalidMainBranch(int formatVersion) throws IOException {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(BRANCHING_MIN_SUPPORT_VERSION);
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
@@ -322,7 +324,7 @@ public class TestTableMetadata {
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testMainWithoutCurrent(int formatVersion) throws IOException {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(BRANCHING_MIN_SUPPORT_VERSION);
 
     long snapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
@@ -643,8 +645,8 @@ public class TestTableMetadata {
 
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
-  public void testV2UUIDValidation(int formatVersion) {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+  public void testUUIDValidation(int formatVersion) {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(UUID_REQUIRED_MIN_VERSION);
 
     assertThatThrownBy(
             () ->
