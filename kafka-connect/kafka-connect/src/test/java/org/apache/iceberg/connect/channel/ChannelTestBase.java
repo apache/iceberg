@@ -16,22 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package io.tabular.iceberg.connect.channel;
+package org.apache.iceberg.connect.channel;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import io.tabular.iceberg.connect.IcebergSinkConfig;
-import io.tabular.iceberg.connect.TableSinkConfig;
-import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.RowDelta;
-import org.apache.iceberg.Snapshot;
+import java.io.IOException;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.connect.IcebergSinkConfig;
+import org.apache.iceberg.connect.TableSinkConfig;
+import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Types;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.DescribeTopicsResult;
 import org.apache.kafka.clients.admin.TopicDescription;
@@ -43,44 +47,53 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.TopicPartitionInfo;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 
 public class ChannelTestBase {
   protected static final String SRC_TOPIC_NAME = "src-topic";
   protected static final String CTL_TOPIC_NAME = "ctl-topic";
-
-  protected Catalog catalog;
+  protected static final String CONNECT_CONSUMER_GROUP_ID = "cg-connect";
+  protected InMemoryCatalog catalog;
   protected Table table;
-  protected AppendFiles appendOp;
-  protected RowDelta deltaOp;
   protected IcebergSinkConfig config;
   protected KafkaClientFactory clientFactory;
   protected MockProducer<String, byte[]> producer;
   protected MockConsumer<String, byte[]> consumer;
   protected Admin admin;
 
+  private InMemoryCatalog initInMemoryCatalog() {
+    InMemoryCatalog inMemoryCatalog = new InMemoryCatalog();
+    inMemoryCatalog.initialize(null, ImmutableMap.of());
+    return inMemoryCatalog;
+  }
+
+  protected static final Namespace NAMESPACE = Namespace.of("db");
+  protected static final String TABLE_NAME = "tbl";
+  protected static final TableIdentifier TABLE_IDENTIFIER =
+      TableIdentifier.of(NAMESPACE, TABLE_NAME);
+  protected static final Schema SCHEMA =
+      new Schema(
+          required(1, "id", Types.LongType.get()),
+          optional(2, "data", Types.StringType.get()),
+          required(3, "date", Types.StringType.get()));
+
+  protected static final String COMMIT_ID_SNAPSHOT_PROP = "kafka.connect.commit-id";
+  protected static final String OFFSETS_SNAPSHOT_PROP =
+      String.format("kafka.connect.offsets.%s.%s", CTL_TOPIC_NAME, CONNECT_CONSUMER_GROUP_ID);
+  protected static final String VALID_THROUGH_TS_SNAPSHOT_PROP = "kafka.connect.valid-through-ts";
+
   @BeforeEach
   @SuppressWarnings("deprecation")
   public void before() {
-    Snapshot snapshot = mock(Snapshot.class);
-    when(snapshot.snapshotId()).thenReturn(1L);
-
-    appendOp = mock(AppendFiles.class);
-    deltaOp = mock(RowDelta.class);
-
-    table = mock(Table.class);
-    when(table.currentSnapshot()).thenReturn(snapshot);
-    when(table.newAppend()).thenReturn(appendOp);
-    when(table.newRowDelta()).thenReturn(deltaOp);
-
-    catalog = mock(Catalog.class);
-    when(catalog.loadTable(any())).thenReturn(table);
+    catalog = initInMemoryCatalog();
+    catalog.createNamespace(NAMESPACE);
+    table = catalog.createTable(TABLE_IDENTIFIER, SCHEMA);
 
     config = mock(IcebergSinkConfig.class);
     when(config.controlTopic()).thenReturn(CTL_TOPIC_NAME);
-    when(config.controlGroupId()).thenReturn("group");
     when(config.commitThreads()).thenReturn(1);
-    when(config.controlGroupId()).thenReturn("cg-connector");
+    when(config.connectGroupId()).thenReturn(CONNECT_CONSUMER_GROUP_ID);
     when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
 
     TopicPartitionInfo partitionInfo = mock(TopicPartitionInfo.class);
@@ -103,6 +116,11 @@ public class ChannelTestBase {
     when(clientFactory.createProducer(any())).thenReturn(producer);
     when(clientFactory.createConsumer(any())).thenReturn(consumer);
     when(clientFactory.createAdmin()).thenReturn(admin);
+  }
+
+  @AfterEach
+  public void after() throws IOException {
+    catalog.close();
   }
 
   protected void initConsumer() {

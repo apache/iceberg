@@ -16,51 +16,53 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package io.tabular.iceberg.connect.events;
+package org.apache.iceberg.connect.events;
 
 import java.util.UUID;
 import org.apache.avro.Schema;
-import org.apache.avro.SchemaBuilder;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.types.Types.UUIDType;
 
-public class CommitCompletePayload implements Payload {
+/**
+ * A control event payload for events sent by a coordinator to request workers to send back the
+ * table data that has been written and is ready to commit.
+ */
+public class StartCommit implements Payload {
 
   private UUID commitId;
-  private Long vtts;
   private final Schema avroSchema;
 
-  private static final Schema AVRO_SCHEMA =
-      SchemaBuilder.builder()
-          .record(CommitCompletePayload.class.getName())
-          .fields()
-          .name("commitId")
-          .prop(FIELD_ID_PROP, DUMMY_FIELD_ID)
-          .type(UUID_SCHEMA)
-          .noDefault()
-          .name("vtts")
-          .prop(FIELD_ID_PROP, DUMMY_FIELD_ID)
-          .type()
-          .nullable()
-          .longType()
-          .noDefault()
-          .endRecord();
+  static final int COMMIT_ID = 10_200;
+
+  private static final StructType ICEBERG_SCHEMA =
+      StructType.of(NestedField.required(COMMIT_ID, "commit_id", UUIDType.get()));
+  private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA, StartCommit.class);
 
   // Used by Avro reflection to instantiate this class when reading events
-  public CommitCompletePayload(Schema avroSchema) {
+  public StartCommit(Schema avroSchema) {
     this.avroSchema = avroSchema;
   }
 
-  public CommitCompletePayload(UUID commitId, Long vtts) {
+  public StartCommit(UUID commitId) {
+    Preconditions.checkNotNull(commitId, "Commit ID cannot be null");
     this.commitId = commitId;
-    this.vtts = vtts;
     this.avroSchema = AVRO_SCHEMA;
+  }
+
+  @Override
+  public PayloadType type() {
+    return PayloadType.START_COMMIT;
   }
 
   public UUID commitId() {
     return commitId;
   }
 
-  public Long vtts() {
-    return vtts;
+  @Override
+  public StructType writeSchema() {
+    return ICEBERG_SCHEMA;
   }
 
   @Override
@@ -69,14 +71,10 @@ public class CommitCompletePayload implements Payload {
   }
 
   @Override
-  @SuppressWarnings("unchecked")
   public void put(int i, Object v) {
-    switch (i) {
-      case 0:
+    switch (AvroUtil.positionToId(i, avroSchema)) {
+      case COMMIT_ID:
         this.commitId = (UUID) v;
-        return;
-      case 1:
-        this.vtts = (Long) v;
         return;
       default:
         // ignore the object, it must be from a newer version of the format
@@ -85,11 +83,9 @@ public class CommitCompletePayload implements Payload {
 
   @Override
   public Object get(int i) {
-    switch (i) {
-      case 0:
+    switch (AvroUtil.positionToId(i, avroSchema)) {
+      case COMMIT_ID:
         return commitId;
-      case 1:
-        return vtts;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);
     }

@@ -16,13 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package io.tabular.iceberg.connect.data;
+package org.apache.iceberg.connect.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import io.tabular.iceberg.connect.IcebergSinkConfig;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
@@ -30,6 +29,7 @@ import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
@@ -67,13 +67,13 @@ public class BaseWriterTest {
     when(table.io()).thenReturn(fileIO);
     when(table.locationProvider())
         .thenReturn(LocationProviders.locationsFor("file", ImmutableMap.of()));
-    when(table.encryption()).thenReturn(new PlaintextEncryptionManager());
+    when(table.encryption()).thenReturn(PlaintextEncryptionManager.instance());
     when(table.properties()).thenReturn(ImmutableMap.of());
   }
 
   protected WriteResult writeTest(
       List<Record> rows, IcebergSinkConfig config, Class<?> expectedWriterClass) {
-    try (TaskWriter<Record> writer = Utilities.createTableWriter(table, "name", config)) {
+    try (TaskWriter<Record> writer = RecordUtils.createTableWriter(table, "name", config)) {
       assertThat(writer.getClass()).isEqualTo(expectedWriterClass);
 
       rows.forEach(

@@ -32,6 +32,7 @@ awaitility = "4.2.2"
 awssdk-bom = "2.30.21"
 azuresdk-bom = "1.2.31"
 awssdk-s3accessgrants = "2.3.0"
+bson-ver = "4.11.0"
 caffeine = "2.9.3"
 calcite = "1.10.0"
 datasketches = "6.2.0"
@@ -97,6 +98,7 @@ avro-avro = { module = "org.apache.avro:avro", version.ref = "avro" }
 awssdk-bom = { module = "software.amazon.awssdk:bom", version.ref = "awssdk-bom" }
 awssdk-s3accessgrants = { module = "software.amazon.s3.accessgrants:aws-s3-accessgrants-java-plugin", version.ref = "awssdk-s3accessgrants" }
 azuresdk-bom = { module = "com.azure:azure-sdk-bom", version.ref = "azuresdk-bom" }
+bson = { module = "org.mongodb:bson", version.ref = "bson-ver"}
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
 calcite-core = { module = "org.apache.calcite:calcite-core", version.ref = "calcite" }
 calcite-druid = { module = "org.apache.calcite:calcite-druid", version.ref = "calcite" }
@@ -151,6 +153,7 @@ jaxb-runtime = { module = "org.glassfish.jaxb:jaxb-runtime", version.ref = "jaxb
 kafka-clients = { module = "org.apache.kafka:kafka-clients", version.ref = "kafka" }
 kafka-connect-api = { module = "org.apache.kafka:connect-api", version.ref = "kafka" }
 kafka-connect-json = { module = "org.apache.kafka:connect-json", version.ref = "kafka" }
+kafka-connect-transforms = { module = "org.apache.kafka:connect-transforms", version.ref = "kafka" }
 microprofile-openapi-api = { module = "org.eclipse.microprofile.openapi:microprofile-openapi-api", version.ref = "microprofile-openapi-api" }
 nessie-client = { module = "org.projectnessie.nessie:nessie-client", version.ref = "nessie" }
 netty-buffer = { module = "io.netty:netty-buffer", version.ref = "netty-buffer" }

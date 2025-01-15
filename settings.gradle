@@ -188,4 +188,8 @@ if (kafkaVersions.contains("3")) {
   include ":iceberg-kafka-connect:kafka-connect-runtime"
   project(":iceberg-kafka-connect:kafka-connect-runtime").projectDir = file('kafka-connect/kafka-connect-runtime')
   project(":iceberg-kafka-connect:kafka-connect-runtime").name = "iceberg-kafka-connect-runtime"
+
+  include ":iceberg-kafka-connect:kafka-connect-transforms"
+  project(":iceberg-kafka-connect:kafka-connect-transforms").projectDir = file('kafka-connect/kafka-connect-transforms')
+  project(":iceberg-kafka-connect:kafka-connect-transforms").name = "iceberg-kafka-connect-transforms"
 }
