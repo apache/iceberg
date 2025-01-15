@@ -135,8 +135,13 @@ abstract class BaseSparkAction<ThisT> {
   }
 
   protected Table newStaticTable(TableMetadata metadata, FileIO io) {
+    String metadataFileLocation = metadata.metadataFileLocation();
+    ValidationException.check(
+        metadataFileLocation != null,
+        "Table metadata file location is null. This may indicate an invalid table metadata "
+            + "response, such as a missing metadata-location field from a REST catalog.");
     StaticTableOperations ops = new StaticTableOperations(metadata, io);
-    return new BaseTable(ops, metadata.metadataFileLocation());
+    return new BaseTable(ops, metadataFileLocation);
   }
 
   protected Table newStaticTable(String metadataFileLocation, FileIO io) {
