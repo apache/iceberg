@@ -673,7 +673,7 @@ The snapshot summary's `operation` field is used by some operations, like snapsh
 *   `overwrite` -- Data and delete files were added and removed in a logical overwrite operation.
 *   `delete` -- Data files were removed and their contents logically deleted and/or delete files were added to delete rows.
 
-For other optional snapshot summary fields, see [Appendix G](#appendix-g-optional-snapshot-summary-fields).
+For other optional snapshot summary fields, see [Appendix F](#optional-snapshot-summary-fields).
 
 Data and delete files for a snapshot can be stored in more than one manifest. This enables:
 
@@ -1633,11 +1633,11 @@ might indicate different snapshot IDs for a specific timestamp. The discrepancie
 
 When processing point in time queries implementations should use "snapshot-log" metadata to lookup the table state at the given point in time. This ensures time-travel queries reflect the state of the table at the provided timestamp. For example a SQL query like `SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00Z';` would find the snapshot of the Iceberg table just prior to '1986-10-26 01:21:00 UTC' in the snapshot logs and use the metadata from that snapshot to perform the scan of the table. If no  snapshot exists prior to the timestamp given or "snapshot-log" is not populated (it is an optional field), then systems should raise an informative error message about the missing metadata.
 
-## Appendix G: Optional Snapshot Summary Fields
+### Optional Snapshot Summary Fields
+
 Snapshot summary can include metrics fields to track numeric stats of the snapshot (see [Metrics](#metrics)) and operational details (see [Other Fields](#other-fields)). The value of these fields should be of string type (e.g., `"120"`).
 
-### Metrics
-Metrics must be accurate if written, as engines may rely on them for optimization.
+#### Metrics
 
 | Field                               | Description                                                                                      |
 |-------------------------------------|--------------------------------------------------------------------------------------------------|
@@ -1668,14 +1668,16 @@ Metrics must be accurate if written, as engines may rely on them for optimizatio
 | **`deleted-duplicate-files`**       | Number of duplicate files deleted (duplicates are files recorded more than once in the manifest) |
 | **`changed-partition-count`**       | Number of partitions with files added or removed in the snapshot                                 |
 
-### Other Fields
+#### Other Fields
 
 | Field                    | Example    | Description                                                     |
 |--------------------------|------------|-----------------------------------------------------------------|
 | **`wap.id`**             | "12345678" | The Write-Audit-Publish id of a staged snapshot                 |
 | **`published-wap-id`**   | "12345678" | The Write-Audit-Publish id of a snapshot already been published |
 | **`source-snapshot-id`** | "12345678" | The id of the snapshot picked to be cherry-picked               |
-| **`replace-partitions`** | `true`     | Whether the operation is a `ReplacePartitions`[1]               |
+| **`replace-partitions`** | "true"     | Whether the operation is a `ReplacePartitions`[1]               |
+| **`engine-name`**        | "spark"    | Name of the engine that created the snapshot                    |
+| **`engine-version`**     | "3.5.4"    | Version of the engine that created the snapshot                 |
 
 Notes:
 
