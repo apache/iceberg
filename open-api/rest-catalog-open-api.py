@@ -132,11 +132,15 @@ class ExpressionType(BaseModel):
 
 
 class TrueExpression(BaseModel):
-    type: ExpressionType
+    type: ExpressionType = Field(
+        default_factory=lambda: ExpressionType.parse_obj('true'), const=True
+    )
 
 
 class FalseExpression(BaseModel):
-    type: ExpressionType
+    type: ExpressionType = Field(
+        default_factory=lambda: ExpressionType.parse_obj('false'), const=True
+    )
 
 
 class Reference(BaseModel):
@@ -276,17 +280,17 @@ class AssignUUIDUpdate(BaseUpdate):
     Assigning a UUID to a table/view should only be done when creating the table/view. It is not safe to re-assign the UUID if a table/view already has a UUID assigned
     """
 
-    action: Literal['assign-uuid']
+    action: str = Field('assign-uuid', const=True)
     uuid: str
 
 
 class UpgradeFormatVersionUpdate(BaseUpdate):
-    action: Literal['upgrade-format-version']
+    action: str = Field('upgrade-format-version', const=True)
     format_version: int = Field(..., alias='format-version')
 
 
 class SetCurrentSchemaUpdate(BaseUpdate):
-    action: Literal['set-current-schema']
+    action: str = Field('set-current-schema', const=True)
     schema_id: int = Field(
         ...,
         alias='schema-id',
@@ -295,12 +299,12 @@ class SetCurrentSchemaUpdate(BaseUpdate):
 
 
 class AddPartitionSpecUpdate(BaseUpdate):
-    action: Literal['add-spec']
+    action: str = Field('add-spec', const=True)
     spec: PartitionSpec
 
 
 class SetDefaultSpecUpdate(BaseUpdate):
-    action: Literal['set-default-spec']
+    action: str = Field('set-default-spec', const=True)
     spec_id: int = Field(
         ...,
         alias='spec-id',
@@ -309,12 +313,12 @@ class SetDefaultSpecUpdate(BaseUpdate):
 
 
 class AddSortOrderUpdate(BaseUpdate):
-    action: Literal['add-sort-order']
+    action: str = Field('add-sort-order', const=True)
     sort_order: SortOrder = Field(..., alias='sort-order')
 
 
 class SetDefaultSortOrderUpdate(BaseUpdate):
-    action: Literal['set-default-sort-order']
+    action: str = Field('set-default-sort-order', const=True)
     sort_order_id: int = Field(
         ...,
         alias='sort-order-id',
@@ -323,47 +327,47 @@ class SetDefaultSortOrderUpdate(BaseUpdate):
 
 
 class AddSnapshotUpdate(BaseUpdate):
-    action: Literal['add-snapshot']
+    action: str = Field('add-snapshot', const=True)
     snapshot: Snapshot
 
 
 class SetSnapshotRefUpdate(BaseUpdate, SnapshotReference):
-    action: Literal['set-snapshot-ref']
+    action: str = Field('set-snapshot-ref', const=True)
     ref_name: str = Field(..., alias='ref-name')
 
 
 class RemoveSnapshotsUpdate(BaseUpdate):
-    action: Literal['remove-snapshots']
+    action: str = Field('remove-snapshots', const=True)
     snapshot_ids: List[int] = Field(..., alias='snapshot-ids')
 
 
 class RemoveSnapshotRefUpdate(BaseUpdate):
-    action: Literal['remove-snapshot-ref']
+    action: str = Field('remove-snapshot-ref', const=True)
     ref_name: str = Field(..., alias='ref-name')
 
 
 class SetLocationUpdate(BaseUpdate):
-    action: Literal['set-location']
+    action: str = Field('set-location', const=True)
     location: str
 
 
 class SetPropertiesUpdate(BaseUpdate):
-    action: Literal['set-properties']
+    action: str = Field('set-properties', const=True)
     updates: Dict[str, str]
 
 
 class RemovePropertiesUpdate(BaseUpdate):
-    action: Literal['remove-properties']
+    action: str = Field('remove-properties', const=True)
     removals: List[str]
 
 
 class AddViewVersionUpdate(BaseUpdate):
-    action: Literal['add-view-version']
+    action: str = Field('add-view-version', const=True)
     view_version: ViewVersion = Field(..., alias='view-version')
 
 
 class SetCurrentViewVersionUpdate(BaseUpdate):
-    action: Literal['set-current-view-version']
+    action: str = Field('set-current-view-version', const=True)
     view_version_id: int = Field(
         ...,
         alias='view-version-id',
@@ -372,89 +376,93 @@ class SetCurrentViewVersionUpdate(BaseUpdate):
 
 
 class RemoveStatisticsUpdate(BaseUpdate):
-    action: Literal['remove-statistics']
+    action: str = Field('remove-statistics', const=True)
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
 class RemovePartitionStatisticsUpdate(BaseUpdate):
-    action: Literal['remove-partition-statistics']
+    action: str = Field('remove-partition-statistics', const=True)
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
 class RemovePartitionSpecsUpdate(BaseUpdate):
-    action: Optional[Literal['remove-partition-specs']] = None
+    action: str = Field('remove-partition-specs', const=True)
     spec_ids: List[int] = Field(..., alias='spec-ids')
 
 
-class AssertCreate(BaseModel):
+class TableRequirement(BaseModel):
+    type: str
+
+
+class AssertCreate(TableRequirement):
     """
     The table must not already exist; used for create transactions
     """
 
-    type: Literal['assert-create']
+    type: str = Field(..., const=True)
 
 
-class AssertTableUUID(BaseModel):
+class AssertTableUUID(TableRequirement):
     """
     The table UUID must match the requirement's `uuid`
     """
 
-    type: Literal['assert-table-uuid']
+    type: str = Field(..., const=True)
     uuid: str
 
 
-class AssertRefSnapshotId(BaseModel):
+class AssertRefSnapshotId(TableRequirement):
     """
     The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
     """
 
-    type: Literal['assert-ref-snapshot-id']
+    type: str = Field('assert-ref-snapshot-id', const=True)
     ref: str
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
-class AssertLastAssignedFieldId(BaseModel):
+class AssertLastAssignedFieldId(TableRequirement):
     """
     The table's last assigned column id must match the requirement's `last-assigned-field-id`
     """
 
-    type: Literal['assert-last-assigned-field-id']
+    type: str = Field('assert-last-assigned-field-id', const=True)
     last_assigned_field_id: int = Field(..., alias='last-assigned-field-id')
 
 
-class AssertCurrentSchemaId(BaseModel):
+class AssertCurrentSchemaId(TableRequirement):
     """
     The table's current schema id must match the requirement's `current-schema-id`
     """
 
-    type: Literal['assert-current-schema-id']
+    type: str = Field('assert-current-schema-id', const=True)
     current_schema_id: int = Field(..., alias='current-schema-id')
 
 
-class AssertLastAssignedPartitionId(BaseModel):
+class AssertLastAssignedPartitionId(TableRequirement):
     """
     The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
     """
 
-    type: Literal['assert-last-assigned-partition-id']
+    type: str = Field('assert-last-assigned-partition-id', const=True)
     last_assigned_partition_id: int = Field(..., alias='last-assigned-partition-id')
 
 
-class AssertDefaultSpecId(BaseModel):
+class AssertDefaultSpecId(TableRequirement):
     """
     The table's default spec id must match the requirement's `default-spec-id`
     """
 
-    type: Literal['assert-default-spec-id']
+    type: str = Field('assert-default-spec-id', const=True)
     default_spec_id: int = Field(..., alias='default-spec-id')
 
 
-class AssertDefaultSortOrderId(BaseModel):
+class AssertDefaultSortOrderId(TableRequirement):
     """
     The table's default sort order id must match the requirement's `default-sort-order-id`
     """
 
-    type: Literal['assert-default-sort-order-id']
+    type: str = Field('assert-default-sort-order-id', const=True)
     default_sort_order_id: int = Field(..., alias='default-sort-order-id')
 
 
@@ -463,7 +471,7 @@ class AssertViewUUID(BaseModel):
     The view UUID must match the requirement's `uuid`
     """
 
-    type: Literal['assert-view-uuid']
+    type: str = Field('assert-view-uuid', const=True)
     uuid: str
 
 
@@ -859,7 +867,7 @@ class ContentFile(BaseModel):
 
 
 class PositionDeleteFile(ContentFile):
-    content: Literal['position-deletes']
+    content: Literal['position-deletes'] = Field(..., const=True)
     content_offset: Optional[int] = Field(
         None,
         alias='content-offset',
@@ -873,7 +881,7 @@ class PositionDeleteFile(ContentFile):
 
 
 class EqualityDeleteFile(ContentFile):
-    content: Literal['equality-deletes']
+    content: Literal['equality-deletes'] = Field(..., const=True)
     equality_ids: Optional[List[int]] = Field(
         None, alias='equality-ids', description='List of equality field IDs'
     )
@@ -908,29 +916,16 @@ class RenameTableRequest(BaseModel):
 
 
 class TransformTerm(BaseModel):
-    type: Literal['transform']
+    type: str = Field('transform', const=True)
     transform: Transform
     term: Reference
 
 
 class SetPartitionStatisticsUpdate(BaseUpdate):
-    action: Literal['set-partition-statistics']
+    action: str = Field('set-partition-statistics', const=True)
     partition_statistics: PartitionStatisticsFile = Field(
         ..., alias='partition-statistics'
     )
-
-
-class TableRequirement(BaseModel):
-    __root__: Union[
-        AssertCreate,
-        AssertTableUUID,
-        AssertRefSnapshotId,
-        AssertLastAssignedFieldId,
-        AssertCurrentSchemaId,
-        AssertLastAssignedPartitionId,
-        AssertDefaultSpecId,
-        AssertDefaultSortOrderId,
-    ] = Field(..., discriminator='type')
 
 
 class ViewRequirement(BaseModel):
@@ -942,11 +937,11 @@ class FailedPlanningResult(IcebergErrorResponse):
     Failed server-side planning result
     """
 
-    status: Literal['failed']
+    status: Literal['failed'] = Field(..., const=True)
 
 
 class AsyncPlanningResult(BaseModel):
-    status: Literal['submitted']
+    status: Literal['submitted'] = Field(..., const=True)
     plan_id: Optional[str] = Field(
         None, alias='plan-id', description='ID used to track a planning request'
     )
@@ -982,7 +977,7 @@ class ValueMap(BaseModel):
 
 
 class DataFile(ContentFile):
-    content: Literal['data']
+    content: str = Field(..., const=True)
     column_sizes: Optional[CountMap] = Field(
         None,
         alias='column-sizes',
@@ -1028,7 +1023,7 @@ class Term(BaseModel):
 
 
 class SetStatisticsUpdate(BaseUpdate):
-    action: Literal['set-statistics']
+    action: str = Field('set-statistics', const=True)
     snapshot_id: int = Field(..., alias='snapshot-id')
     statistics: StatisticsFile
 
@@ -1060,19 +1055,19 @@ class StructField(BaseModel):
 
 
 class StructType(BaseModel):
-    type: Literal['struct']
+    type: str = Field('struct', const=True)
     fields: List[StructField]
 
 
 class ListType(BaseModel):
-    type: Literal['list']
+    type: str = Field('list', const=True)
     element_id: int = Field(..., alias='element-id')
     element: Type
     element_required: bool = Field(..., alias='element-required')
 
 
 class MapType(BaseModel):
-    type: Literal['map']
+    type: str = Field('map', const=True)
     key_id: int = Field(..., alias='key-id')
     key: Type
     value_id: int = Field(..., alias='value-id')
@@ -1103,7 +1098,9 @@ class AndOrExpression(BaseModel):
 
 
 class NotExpression(BaseModel):
-    type: ExpressionType
+    type: ExpressionType = Field(
+        default_factory=lambda: ExpressionType.parse_obj('not'), const=True
+    )
     child: Expression
 
 
@@ -1147,7 +1144,7 @@ class ViewMetadata(BaseModel):
 
 
 class AddSchemaUpdate(BaseUpdate):
-    action: Literal['add-schema']
+    action: str = Field('add-schema', const=True)
     schema_: Schema = Field(..., alias='schema')
     last_column_id: Optional[int] = Field(
         None,
@@ -1436,7 +1433,7 @@ class CompletedPlanningResult(ScanTasks):
     Completed server-side planning result
     """
 
-    status: Literal['completed']
+    status: Literal['completed'] = Field(..., const=True)
 
 
 class FetchScanTasksResult(ScanTasks):
