@@ -215,4 +215,31 @@ public class RESTUtil {
 
     return Namespace.of(levels);
   }
+
+  /**
+   * Returns the catalog URI suffixed by the relative endpoint path. If the endpoint path is an
+   * absolute path, then the absolute endpoint path is returned without using the catalog URI.
+   *
+   * @param catalogUri The catalog URI that is typically passed through {@link
+   *     org.apache.iceberg.CatalogProperties#URI}
+   * @param endpointPath Either an absolute or relative endpoint path
+   * @return The actual endpoint path if it's an absolute path or the catalog uri suffixed by the
+   *     endpoint path if the path is relative.
+   */
+  public static String resolveEndpoint(String catalogUri, String endpointPath) {
+    if (null == endpointPath) {
+      return null;
+    }
+
+    if (null == catalogUri
+        || endpointPath.startsWith("http://")
+        || endpointPath.startsWith("https://")) {
+      return endpointPath;
+    }
+
+    return String.format(
+        "%s%s",
+        RESTUtil.stripTrailingSlash(catalogUri),
+        endpointPath.startsWith("/") ? endpointPath : "/" + endpointPath);
+  }
 }
