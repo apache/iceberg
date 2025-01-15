@@ -18,12 +18,10 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.Files.localInput;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -357,22 +355,14 @@ public class TestMetadataUpdateParser {
   @Test
   public void testAddSnapshotToJson() throws IOException {
     String action = MetadataUpdateParser.ADD_SNAPSHOT;
-    long parentId = 1;
-    long snapshotId = 2;
-    int schemaId = 3;
-
-    String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
 
     Snapshot snapshot =
-        MetadataTestUtils.buildTestSnapshot()
-            .setSequenceNumber(0L)
-            .setSnapshotId(snapshotId)
-            .setParentId(parentId)
-            .setOperation(DataOperations.REPLACE)
-            .setSummary(ImmutableMap.of("files-added", "4", "files-deleted", "100"))
-            .setSchemaId(schemaId)
-            .setManifestListLocation(manifestList)
-            .build();
+        MetadataTestUtils.buildTestSnapshotWithExampleValues()
+            .buildWithExampleManifestList(
+                temp,
+                ImmutableList.of(
+                    MetadataTestUtils.EXAMPLE_MANIFEST_PATH_1,
+                    MetadataTestUtils.EXAMPLE_MANIFEST_PATH_2));
     String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
     String expected = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate update = new MetadataUpdate.AddSnapshot(snapshot);
@@ -385,22 +375,13 @@ public class TestMetadataUpdateParser {
   @Test
   public void testAddSnapshotFromJson() throws IOException {
     String action = MetadataUpdateParser.ADD_SNAPSHOT;
-    long parentId = 1;
-    long snapshotId = 2;
-    int schemaId = 3;
-    Map<String, String> summary = ImmutableMap.of("files-added", "4", "files-deleted", "100");
-
-    String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
     Snapshot snapshot =
-        MetadataTestUtils.buildTestSnapshot()
-            .setSequenceNumber(0L)
-            .setSnapshotId(snapshotId)
-            .setParentId(parentId)
-            .setOperation(DataOperations.REPLACE)
-            .setSummary(summary)
-            .setSchemaId(schemaId)
-            .setManifestListLocation(manifestList)
-            .build();
+        MetadataTestUtils.buildTestSnapshotWithExampleValues()
+            .buildWithExampleManifestList(
+                temp,
+                ImmutableList.of(
+                    MetadataTestUtils.EXAMPLE_MANIFEST_PATH_1,
+                    MetadataTestUtils.EXAMPLE_MANIFEST_PATH_2));
     String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
     String json = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate expected = new MetadataUpdate.AddSnapshot(snapshot);
@@ -1256,23 +1237,5 @@ public class TestMetadataUpdateParser {
   private static void assertEqualsRemovePartitionSpecs(
       MetadataUpdate.RemovePartitionSpecs expected, MetadataUpdate.RemovePartitionSpecs actual) {
     assertThat(actual.specIds()).containsExactlyInAnyOrderElementsOf(expected.specIds());
-  }
-
-  private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)
-      throws IOException {
-    File manifestList = File.createTempFile("manifests", null, temp.toFile());
-    manifestList.deleteOnExit();
-
-    List<ManifestFile> manifests =
-        ImmutableList.of(
-            new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0, snapshotId),
-            new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0, snapshotId));
-
-    try (ManifestListWriter writer =
-        ManifestLists.write(1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0)) {
-      writer.addAll(manifests);
-    }
-
-    return localInput(manifestList).location();
   }
 }

@@ -18,11 +18,16 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.TableMetadata.INITIAL_SEQUENCE_NUMBER;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -31,6 +36,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializableSupplier;
 
 public class MetadataTestUtils {
+
+  private static final long EXAMPLE_SNAPSHOT_ID = 3;
+  private static final long EXAMPLE_PARENT_ID = 1;
+  private static final Integer EXAMPLE_SCHEMA_ID = 2;
+  private static final long EXAMPLE_SEQUENCE_NUMBER = 0;
+  private static final int EXAMPLE_SPEC_ID = 5;
+
+  public static final String EXAMPLE_MANIFEST_PATH_1 = "file:/tmp/manifest1.avro";
+  public static final String EXAMPLE_MANIFEST_PATH_2 = "file:/tmp/manifest2.avro";
 
   private MetadataTestUtils() {}
 
@@ -244,6 +258,17 @@ public class MetadataTestUtils {
     return new BaseSnapshotBuilder();
   }
 
+  public static BaseSnapshotBuilder buildTestSnapshotWithExampleValues() {
+    return new BaseSnapshotBuilder()
+        .setSequenceNumber(EXAMPLE_SEQUENCE_NUMBER)
+        .setSnapshotId(EXAMPLE_SNAPSHOT_ID)
+        .setParentId(EXAMPLE_PARENT_ID)
+        .setOperation(DataOperations.REPLACE)
+        .setSummary(ImmutableMap.of("files-added", "4", "files-deleted", "100"))
+        .setSchemaId(EXAMPLE_SCHEMA_ID)
+        .setTimestampMillis(System.currentTimeMillis());
+  }
+
   public static class BaseSnapshotBuilder {
     private long snapshotId;
     private Long parentId;
@@ -332,5 +357,35 @@ public class MetadataTestUtils {
           schemaId,
           manifestListLocation);
     }
+
+    public Snapshot buildWithExampleManifestList(Path temp, List<String> manifestFiles)
+        throws IOException {
+      Preconditions.checkArgument(
+          manifestListLocation == null && v1ManifestLocations == null,
+          "An example manifest list with manifest files will be created");
+
+      this.manifestListLocation =
+          createManifestListWithManifestFiles(snapshotId, parentId, temp, manifestFiles);
+      return build();
+    }
+  }
+
+  private static String createManifestListWithManifestFiles(
+      long snapshotId, Long parentSnapshotId, Path temp, List<String> manifestFiles)
+      throws IOException {
+    File manifestList = File.createTempFile("manifests", null, temp.toFile());
+    manifestList.deleteOnExit();
+
+    List<ManifestFile> manifests =
+        manifestFiles.stream()
+            .map(name -> new GenericManifestFile(localInput(name), EXAMPLE_SPEC_ID, snapshotId))
+            .collect(Collectors.toList());
+
+    try (ManifestListWriter writer =
+        ManifestLists.write(1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0)) {
+      writer.addAll(manifests);
+    }
+
+    return localInput(manifestList).location();
   }
 }
