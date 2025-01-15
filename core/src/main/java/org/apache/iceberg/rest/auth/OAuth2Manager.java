@@ -161,8 +161,8 @@ public class OAuth2Manager extends RefreshingAuthManager {
     }
   }
 
-  protected AuthSessionCache newSessionCache(String name, Map<String, String> properties) {
-    return new AuthSessionCache(name, sessionTimeout(properties));
+  protected AuthSessionCache newSessionCache(String managerName, Map<String, String> properties) {
+    return new AuthSessionCache(managerName, sessionTimeout(properties));
   }
 
   protected OAuth2Util.AuthSession maybeCreateChildSession(
