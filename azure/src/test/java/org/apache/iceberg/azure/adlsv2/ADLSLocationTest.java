@@ -112,6 +112,6 @@ public class ADLSLocationTest {
   })
   void testHost(String path, String expectedHost) {
     ADLSLocation location = new ADLSLocation(path);
-    assertThat(location.host()).contains(expectedHost);
+    assertThat(location.host()).isEqualTo(expectedHost);
   }
 }
