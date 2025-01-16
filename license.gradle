@@ -19,7 +19,37 @@
 
 apply plugin: "com.github.jk1.dependency-license-report"
 
-check.dependsOn generateLicenseReport
+tasks.register('compareLicenseReport') {
+  doLast {
+    File licenseFile = new File("${projectDir}/build/reports/dependency-license/LICENSE")
+    File currentLicenseFile = new File("${projectDir}/LICENSE")
+    if (licenseFile.text != currentLicenseFile.text) {
+      throw new RuntimeException("License file has changed");
+    }
+
+    File noticeFile = new File("${projectDir}/build/reports/dependency-license/NOTICE")
+    File currentNoticeFile = new File("${projectDir}/NOTICE")
+    if (noticeFile.text != currentNoticeFile.text) {
+      throw new RuntimeException("Notice file has changed");
+    }
+  }
+}
+
+tasks.register('updateLicenseReport') {
+  doLast {
+    File licenseFile = new File("${projectDir}/build/reports/dependency-license/LICENSE")
+    File currentLicenseFile = new File("${projectDir}/LICENSE")
+    currentLicenseFile.text = licenseFile.text
+
+    File noticeFile = new File("${projectDir}/build/reports/dependency-license/NOTICE")
+    File currentNoticeFile = new File("${projectDir}/NOTICE")
+    currentNoticeFile.text = noticeFile.text
+  }
+}
+
+updateLicenseReport.dependsOn generateLicenseReport
+compareLicenseReport.dependsOn generateLicenseReport
+check.dependsOn compareLicenseReport
 
 import com.github.jk1.license.render.ReportRenderer
 import com.github.jk1.license.ImportedModuleData
@@ -63,16 +93,6 @@ class IcebergReportRenderer implements ReportRenderer {
       }
       noticeFile << "\nNotice: $notice\n\n"
       noticeFile << "\n--------------------------------------------------------------------------------\n\n"
-    }
-
-    File currentLicenseFile = new File(data.project.projectDir, 'LICENSE')
-    if (licenseFile.text != currentLicenseFile.text) {
-      throw new RuntimeException("License file has changed");
-    }
-
-    File currentNoticeFile = new File(data.project.projectDir, 'NOTICE')
-    if (noticeFile.text != currentNoticeFile.text) {
-      throw new RuntimeException("Notice file has changed");
     }
   }
 
