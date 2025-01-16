@@ -108,7 +108,9 @@ public class ADLSLocationTest {
     "abfs://container@account.dfs.core.usgovcloudapi.net/file.txt, account.dfs.core.usgovcloudapi.net",
     "wasb://container@account.blob.core.windows.net/file.txt, account.blob.core.windows.net",
     "abfs://account.dfs.core.windows.net/path, account.dfs.core.windows.net",
-    "wasb://account.blob.core.windows.net/path, account.blob.core.windows.net"
+    "abfss://account.dfs.core.windows.net/path, account.dfs.core.windows.net",
+    "wasb://account.blob.core.windows.net/path, account.blob.core.windows.net",
+    "wasbs://account.blob.core.windows.net/path, account.blob.core.windows.net"
   })
   void testHost(String path, String expectedHost) {
     ADLSLocation location = new ADLSLocation(path);
