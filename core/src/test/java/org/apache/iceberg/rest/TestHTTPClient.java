@@ -261,7 +261,7 @@ public class TestHTTPClient {
             HTTPClient.REST_MAX_CONNECTIONS_PER_ROUTE, String.valueOf(maxConnectionPerRoute));
 
     HttpClientConnectionManager connectionManager =
-        HTTPClient.configureConnectionManager(properties);
+        HTTPClient.configureConnectionManager(properties, null);
     assertThat(connectionManager).isInstanceOf(PoolingHttpClientConnectionManager.class);
     PoolingHttpClientConnectionManager poolingHttpClientConnectionManager =
         (PoolingHttpClientConnectionManager) connectionManager;
@@ -274,7 +274,7 @@ public class TestHTTPClient {
   public void testMaxConnectionSettingsFromDefaults() {
     Map<String, String> properties = ImmutableMap.of();
     HttpClientConnectionManager connectionManager =
-        HTTPClient.configureConnectionManager(properties);
+        HTTPClient.configureConnectionManager(properties, null);
     assertThat(connectionManager).isInstanceOf(PoolingHttpClientConnectionManager.class);
     PoolingHttpClientConnectionManager poolingHttpClientConnectionManager =
         (PoolingHttpClientConnectionManager) connectionManager;
