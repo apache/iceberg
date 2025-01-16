@@ -498,7 +498,7 @@ class TestOAuth2Manager {
               @Override
               protected AuthSessionCache newSessionCache(
                   String name, Map<String, String> properties) {
-                return new AuthSessionCache(name, Duration.ofHours(1), Runnable::run, null);
+                return new AuthSessionCache(Duration.ofHours(1), Runnable::run, null);
               }
 
               @Override
