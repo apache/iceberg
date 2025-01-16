@@ -44,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
@@ -165,6 +166,7 @@ public class SparkParquetReaders {
       int defaultMaxDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
+        ParquetValueReader<?> reader = readersById.get(id);
         if (idToConstant.containsKey(id)) {
           // containsKey is used because the constant may be null
           int fieldMaxDefinitionLevel =
@@ -178,15 +180,21 @@ public class SparkParquetReaders {
         } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
           reorderedFields.add(ParquetValueReaders.constant(false));
           types.add(null);
+        } else if (reader != null) {
+          reorderedFields.add(reader);
+          types.add(typesById.get(id));
+        } else if (field.initialDefault() != null) {
+          reorderedFields.add(
+              ParquetValueReaders.constant(
+                  SparkUtil.convertConstant(field.type(), field.initialDefault()),
+                  maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel)));
+          types.add(typesById.get(id));
+        } else if (field.isOptional()) {
+          reorderedFields.add(ParquetValueReaders.nulls());
+          types.add(null);
         } else {
-          ParquetValueReader<?> reader = readersById.get(id);
-          if (reader != null) {
-            reorderedFields.add(reader);
-            types.add(typesById.get(id));
-          } else {
-            reorderedFields.add(ParquetValueReaders.nulls());
-            types.add(null);
-          }
+          throw new IllegalArgumentException(
+              String.format("Missing required field: %s", field.name()));
         }
       }
 
@@ -250,7 +258,7 @@ public class SparkParquetReaders {
             if (expected != null && expected.typeId() == Types.LongType.get().typeId()) {
               return new IntAsLongReader(desc);
             } else {
-              return new UnboxedReader(desc);
+              return new UnboxedReader<>(desc);
             }
           case DATE:
           case INT_64:
