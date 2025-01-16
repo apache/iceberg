@@ -27,6 +27,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
+import com.github.benmanes.caffeine.cache.Ticker;
 import java.time.Duration;
 import java.util.Map;
 import org.apache.iceberg.catalog.SessionCatalog;
@@ -498,7 +499,8 @@ class TestOAuth2Manager {
               @Override
               protected AuthSessionCache newSessionCache(
                   String name, Map<String, String> properties) {
-                return new AuthSessionCache(Duration.ofHours(1), Runnable::run, null);
+                return new AuthSessionCache(
+                    Duration.ofHours(1), Runnable::run, Ticker.systemTicker());
               }
 
               @Override
