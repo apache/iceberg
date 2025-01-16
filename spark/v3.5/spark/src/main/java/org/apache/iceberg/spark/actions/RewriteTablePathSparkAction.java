@@ -36,7 +36,6 @@ import org.apache.iceberg.RewriteTablePathUtil;
 import org.apache.iceberg.RewriteTablePathUtil.PositionDeleteReaderWriter;
 import org.apache.iceberg.RewriteTablePathUtil.RewriteResult;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.StructLike;
@@ -63,11 +62,14 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
+import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.SerializableMap;
 import org.apache.spark.api.java.function.ForeachFunction;
 import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.api.java.function.ReduceFunction;
@@ -96,6 +98,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   private String stagingDir;
 
   private final Table table;
+  private Broadcast<Table> tblBroadcast = null;
+  private Broadcast<Map<Integer, PartitionSpec>> specsBroadcast = null;
 
   RewriteTablePathSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -455,18 +459,14 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     Dataset<ManifestFile> manifestDS =
         spark().createDataset(Lists.newArrayList(toRewrite), manifestFileEncoder);
 
-    Broadcast<Table> serializableTable = sparkContext().broadcast(SerializableTable.copyOf(table));
-    Broadcast<Map<Integer, PartitionSpec>> specsById =
-        sparkContext().broadcast(tableMetadata.specsById());
-
     return manifestDS
         .repartition(toRewrite.size())
         .map(
             toManifests(
-                serializableTable,
+                tableBroadcast(),
                 stagingDir,
                 tableMetadata.formatVersion(),
-                specsById,
+                specsBroadcast(tableMetadata.specsById()),
                 sourcePrefix,
                 targetPrefix),
             Encoders.bean(RewriteContentFileResult.class))
@@ -572,17 +572,13 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     Dataset<DeleteFile> deleteFileDs =
         spark().createDataset(Lists.newArrayList(toRewrite), deleteFileEncoder);
 
-    Broadcast<Table> serializableTable = sparkContext().broadcast(SerializableTable.copyOf(table));
-    Broadcast<Map<Integer, PartitionSpec>> specsById =
-        sparkContext().broadcast(metadata.specsById());
-
     PositionDeleteReaderWriter posDeleteReaderWriter = new SparkPositionDeleteReaderWriter();
     deleteFileDs
         .repartition(toRewrite.size())
         .foreach(
             rewritePositionDelete(
-                serializableTable,
-                specsById,
+                tableBroadcast(),
+                specsBroadcast(metadata.specsById()),
                 sourcePrefix,
                 targetPrefix,
                 stagingDir,
@@ -727,5 +723,23 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     Preconditions.checkArgument(
         !metadataDir.isEmpty(), "Failed to get the metadata file root directory");
     return metadataDir;
+  }
+
+  @VisibleForTesting
+  Broadcast<Table> tableBroadcast() {
+    if (tblBroadcast == null) {
+      this.tblBroadcast = sparkContext().broadcast(SerializableTableWithSize.copyOf(table));
+    }
+
+    return tblBroadcast;
+  }
+
+  @VisibleForTesting
+  Broadcast<Map<Integer, PartitionSpec>> specsBroadcast(Map<Integer, PartitionSpec> specsById) {
+    if (specsBroadcast == null) {
+      this.specsBroadcast = sparkContext().broadcast(SerializableMap.copyOf(specsById));
+    }
+
+    return specsBroadcast;
   }
 }

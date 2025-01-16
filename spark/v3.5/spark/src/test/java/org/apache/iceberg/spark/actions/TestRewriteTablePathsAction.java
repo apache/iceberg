@@ -64,10 +64,16 @@ import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
+import org.apache.spark.SparkEnv;
+import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.storage.BlockId;
+import org.apache.spark.storage.BlockInfoManager;
+import org.apache.spark.storage.BlockManager;
+import org.apache.spark.storage.BroadcastBlockId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -910,6 +916,23 @@ public class TestRewriteTablePathsAction extends TestBase {
     assertEquals("Rows must match", originalData, copiedData);
   }
 
+  @Test
+  public void testKryoDeserializeBroadcastValues() {
+    sparkContext.getConf().set("spark.serializer", "org.apache.spark.serializer.KryoSerializer");
+    RewriteTablePathSparkAction action =
+        (RewriteTablePathSparkAction) actions().rewriteTablePath(table);
+    Broadcast<Table> tableBroadcast = action.tableBroadcast();
+    // force deserializing broadcast values
+    removeBroadcastValuesFromLocalBlockManager(tableBroadcast.id());
+    assertThat(tableBroadcast.getValue().uuid()).isEqualTo(table.uuid());
+
+    Map<Integer, PartitionSpec> specs = table.specs();
+    Broadcast<Map<Integer, PartitionSpec>> specsBroadcast = action.specsBroadcast(specs);
+    // force deserializing broadcast values
+    removeBroadcastValuesFromLocalBlockManager(specsBroadcast.id());
+    assertThat(specsBroadcast.getValue()).isEqualTo(specs);
+  }
+
   protected void checkFileNum(
       int versionFileCount,
       int manifestListCount,
@@ -1048,5 +1071,16 @@ public class TestRewriteTablePathsAction extends TestBase {
     }
     posDelete.set(path, position, nested);
     return posDelete;
+  }
+
+  private void removeBroadcastValuesFromLocalBlockManager(long id) {
+    BlockId blockId = new BroadcastBlockId(id, "");
+    SparkEnv env = SparkEnv.get();
+    env.broadcastManager().cachedValues().clear();
+    BlockManager blockManager = env.blockManager();
+    BlockInfoManager blockInfoManager = blockManager.blockInfoManager();
+    blockInfoManager.lockForWriting(blockId, true);
+    blockInfoManager.removeBlock(blockId);
+    blockManager.memoryStore().remove(blockId);
   }
 }
