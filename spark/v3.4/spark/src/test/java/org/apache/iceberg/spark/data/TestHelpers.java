@@ -42,6 +42,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.DataFile;
@@ -228,7 +229,7 @@ public class TestHelpers {
         assertThat(expected).as("Should expect a Collection").isInstanceOf(Collection.class);
         assertThat(actual).as("Should be a Seq").isInstanceOf(Seq.class);
         List<?> asList = seqAsJavaListConverter((Seq<?>) actual).asJava();
-        assertEqualsSafe(type.asNestedType().asListType(), (Collection) expected, asList);
+        assertEqualsSafe(type.asNestedType().asListType(), (Collection<?>) expected, asList);
         break;
       case MAP:
         assertThat(expected).as("Should expect a Collection").isInstanceOf(Map.class);
@@ -245,11 +246,20 @@ public class TestHelpers {
 
   public static void assertEqualsUnsafe(Types.StructType struct, Record rec, InternalRow row) {
     List<Types.NestedField> fields = struct.fields();
-    for (int i = 0; i < fields.size(); i += 1) {
-      Type fieldType = fields.get(i).type();
+    for (int readPos = 0; readPos < fields.size(); readPos += 1) {
+      Types.NestedField field = fields.get(readPos);
+      Field writeField = rec.getSchema().getField(field.name());
 
-      Object expectedValue = rec.get(i);
-      Object actualValue = row.isNullAt(i) ? null : row.get(i, convert(fieldType));
+      Type fieldType = field.type();
+      Object actualValue = row.isNullAt(readPos) ? null : row.get(readPos, convert(fieldType));
+
+      Object expectedValue;
+      if (writeField != null) {
+        int writePos = writeField.pos();
+        expectedValue = rec.get(writePos);
+      } else {
+        expectedValue = field.initialDefault();
+      }
 
       assertEqualsUnsafe(fieldType, expectedValue, actualValue);
     }
