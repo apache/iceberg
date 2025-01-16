@@ -65,6 +65,10 @@ public abstract class AvroDataTest {
     return false;
   }
 
+  protected boolean supportsNestedTypes() {
+    return true;
+  }
+
   protected static final StructType SUPPORTED_PRIMITIVES =
       StructType.of(
           required(100, "id", LongType.get()),
@@ -111,12 +115,16 @@ public abstract class AvroDataTest {
 
   @Test
   public void testNestedStruct() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     writeAndValidate(
         TypeUtil.assignIncreasingFreshIds(new Schema(required(1, "struct", SUPPORTED_PRIMITIVES))));
   }
 
   @Test
   public void testArray() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     Schema schema =
         new Schema(
             required(0, "id", LongType.get()),
@@ -127,6 +135,8 @@ public abstract class AvroDataTest {
 
   @Test
   public void testArrayOfStructs() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     Schema schema =
         TypeUtil.assignIncreasingFreshIds(
             new Schema(
@@ -138,6 +148,8 @@ public abstract class AvroDataTest {
 
   @Test
   public void testMap() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     Schema schema =
         new Schema(
             required(0, "id", LongType.get()),
@@ -151,6 +163,8 @@ public abstract class AvroDataTest {
 
   @Test
   public void testNumericMapKey() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     Schema schema =
         new Schema(
             required(0, "id", LongType.get()),
@@ -162,6 +176,8 @@ public abstract class AvroDataTest {
 
   @Test
   public void testComplexMapKey() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     Schema schema =
         new Schema(
             required(0, "id", LongType.get()),
@@ -181,6 +197,8 @@ public abstract class AvroDataTest {
 
   @Test
   public void testMapOfStructs() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     Schema schema =
         TypeUtil.assignIncreasingFreshIds(
             new Schema(
@@ -195,6 +213,8 @@ public abstract class AvroDataTest {
 
   @Test
   public void testMixedTypes() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     StructType structType =
         StructType.of(
             required(0, "id", LongType.get()),
@@ -354,6 +374,7 @@ public abstract class AvroDataTest {
   @Test
   public void testNestedDefaultValue() throws IOException {
     Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
 
     Schema writeSchema =
         new Schema(
@@ -397,6 +418,7 @@ public abstract class AvroDataTest {
   @Test
   public void testMapNestedDefaultValue() throws IOException {
     Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
 
     Schema writeSchema =
         new Schema(
@@ -449,6 +471,7 @@ public abstract class AvroDataTest {
   @Test
   public void testListNestedDefaultValue() throws IOException {
     Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
 
     Schema writeSchema =
         new Schema(
