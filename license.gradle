@@ -19,6 +19,8 @@
 
 apply plugin: "com.github.jk1.dependency-license-report"
 
+check.dependsOn generateLicenseReport
+
 import com.github.jk1.license.render.ReportRenderer
 import com.github.jk1.license.ImportedModuleData
 import com.github.jk1.license.License
@@ -35,32 +37,42 @@ class IcebergReportRenderer implements ReportRenderer {
 
   private Project project
   private LicenseReportExtension config
-  private File licenseFileOut
-  private File noticeFileOut
+  private File licenseFile
+  private File noticeFile
   private Map<String, List<ModuleData>> notices = new HashMap<>()
 
   void render(ProjectData data) {
     project = data.project
     config = project.licenseReport
 
-    licenseFileOut = new File(data.project.projectDir, 'LICENSE')
-    licenseFileOut.text = new File(data.project.rootDir, 'LICENSE').text
-    licenseFileOut << '\n\n--------------------------------------------------------------------------------\n\n'
+    licenseFile = new File(config.absoluteOutputDir, 'LICENSE')
+    licenseFile.text = new File(data.project.rootDir, 'LICENSE').text
+    licenseFile << '\n\n--------------------------------------------------------------------------------\n\n'
 
-    noticeFileOut = new File(data.project.projectDir, 'NOTICE')
-    noticeFileOut.text = new File(data.project.rootDir, 'NOTICE').text
-    noticeFileOut << '\n\n--------------------------------------------------------------------------------\n\n'
+    noticeFile = new File(config.absoluteOutputDir, 'NOTICE')
+    noticeFile.text = new File(data.project.rootDir, 'NOTICE').text
+    noticeFile << '\n\n--------------------------------------------------------------------------------\n\n'
 
     printDependencies(data)
 
     notices.forEach { notice, projects ->
       projects.forEach { project ->
-        if (project.group) noticeFileOut << "Group: $project.group "
-        if (project.name) noticeFileOut << " Name: $project.name "
-        if (project.version) noticeFileOut << " Version: $project.version\n"
+        if (project.group) noticeFile << "Group: $project.group "
+        if (project.name) noticeFile << " Name: $project.name "
+        if (project.version) noticeFile << " Version: $project.version\n"
       }
-      noticeFileOut << "\nNotice: $notice\n\n"
-      noticeFileOut << "\n--------------------------------------------------------------------------------\n\n"
+      noticeFile << "\nNotice: $notice\n\n"
+      noticeFile << "\n--------------------------------------------------------------------------------\n\n"
+    }
+
+    File currentLicenseFile = new File(data.project.projectDir, 'LICENSE')
+    if (licenseFile.text != currentLicenseFile.text) {
+      throw new RuntimeException("License file has changed");
+    }
+
+    File currentNoticeFile = new File(data.project.projectDir, 'NOTICE')
+    if (noticeFile.text != currentNoticeFile.text) {
+      throw new RuntimeException("Notice file has changed");
     }
   }
 
@@ -74,27 +86,27 @@ class IcebergReportRenderer implements ReportRenderer {
   }
 
   private void printDependency(ModuleData data) {
-    if (data.group) licenseFileOut << "Group: $data.group "
-    if (data.name) licenseFileOut << " Name: $data.name "
-    if (data.version) licenseFileOut << " Version: $data.version\n"
+    if (data.group) licenseFile << "Group: $data.group "
+    if (data.name) licenseFile << " Name: $data.name "
+    if (data.version) licenseFile << " Version: $data.version\n"
 
     if (data.poms.isEmpty() && data.manifests.isEmpty()) {
-      licenseFileOut << "No license information found\n"
+      licenseFile << "No license information found\n"
       return
     }
 
     if (!data.manifests.isEmpty()) {
       ManifestData manifest = data.manifests.first()
       if (manifest.url) {
-        licenseFileOut << "Project URL (from manifest): $manifest.url\n"
+        licenseFile << "Project URL (from manifest): $manifest.url\n"
       }
       if (manifest.license) {
         if (Files.maybeLicenseUrl(manifest.licenseUrl)) {
-          licenseFileOut << "License URL (from manifest): $manifest.licenseUrl\n"
+          licenseFile << "License URL (from manifest): $manifest.licenseUrl\n"
         } else if (manifest.hasPackagedLicense) {
-          licenseFileOut << "Packaged License File: $manifest.license\n"
+          licenseFile << "Packaged License File: $manifest.license\n"
         } else {
-          licenseFileOut << "Manifest License: $manifest.license (Not packaged)\n"
+          licenseFile << "Manifest License: $manifest.license (Not packaged)\n"
         }
       }
     }
@@ -102,16 +114,16 @@ class IcebergReportRenderer implements ReportRenderer {
     if (!data.poms.isEmpty()) {
       PomData pomData = data.poms.first()
       if (pomData.projectUrl) {
-        licenseFileOut << "Project URL (from POM): $pomData.projectUrl\n"
+        licenseFile << "Project URL (from POM): $pomData.projectUrl\n"
       }
       if (pomData.licenses) {
         pomData.licenses.each { License license ->
-          licenseFileOut << "License (from POM): $license.name"
+          licenseFile << "License (from POM): $license.name"
           if (license.url) {
             if (Files.maybeLicenseUrl(license.url)) {
-              licenseFileOut << " - $license.url\n"
+              licenseFile << " - $license.url\n"
             } else {
-              licenseFileOut << "License: $license.url\n"
+              licenseFile << "License: $license.url\n"
             }
           }
         }
@@ -129,24 +141,24 @@ class IcebergReportRenderer implements ReportRenderer {
       }
     }
 
-    licenseFileOut << "\n--------------------------------------------------------------------------------\n\n"
+    licenseFile << "\n--------------------------------------------------------------------------------\n\n"
   }
 
   private void printImportedModuleDependency(ImportedModuleData module) {
-    licenseFileOut << " Name: $module.name "
-    licenseFileOut << " Version: $module.version\n"
+    licenseFile << " Name: $module.name "
+    licenseFile << " Version: $module.version\n"
 
     if (Files.maybeLicenseUrl(module.projectUrl)) {
-      licenseFileOut << "Project URL: $module.projectUrl\n"
+      licenseFile << "Project URL: $module.projectUrl\n"
     }
 
     if (Files.maybeLicenseUrl(module.licenseUrl)) {
-      licenseFileOut << "License: $module.license - $module.licenseUrl\n"
+      licenseFile << "License: $module.license - $module.licenseUrl\n"
     } else {
-      licenseFileOut << "License: $module.license\n"
+      licenseFile << "License: $module.license\n"
     }
 
-    licenseFileOut << "\n--------------------------------------------------------------------------------\n\n"
+    licenseFile << "\n--------------------------------------------------------------------------------\n\n"
   }
 }
 
