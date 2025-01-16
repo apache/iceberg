@@ -1674,11 +1674,6 @@ Snapshot summary can include metrics fields to track numeric stats of the snapsh
 |--------------------------|------------|-----------------------------------------------------------------|
 | **`wap.id`**             | "12345678" | The Write-Audit-Publish id of a staged snapshot                 |
 | **`published-wap-id`**   | "12345678" | The Write-Audit-Publish id of a snapshot already been published |
-| **`source-snapshot-id`** | "12345678" | The id of the snapshot picked to be cherry-picked               |
-| **`replace-partitions`** | "true"     | Whether the operation is a `ReplacePartitions`[1]               |
+| **`source-snapshot-id`** | "12345678" | The original id of a cherry-picked snapshot                     |
 | **`engine-name`**        | "spark"    | Name of the engine that created the snapshot                    |
 | **`engine-version`**     | "3.5.4"    | Version of the engine that created the snapshot                 |
-
-Notes:
-
-1. `ReplacePartitions` accumulates file additions and produces a new snapshot of the table by replacing all files in partitions with new data with the new additions.
