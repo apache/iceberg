@@ -23,6 +23,7 @@ import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DE
 import java.io.File;
 import java.io.IOException;
 import org.apache.avro.generic.GenericData;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
@@ -64,7 +65,7 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
         RandomData.generateDictionaryEncodableData(
             schema, 10000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE);
     try (FileAppender<GenericData.Record> writer =
-        getParquetWriter(schema, dictionaryEncodedFile)) {
+        getParquetWriter(schema, Files.localOutput(dictionaryEncodedFile))) {
       writer.addAll(dictionaryEncodableData);
     }
 
@@ -72,7 +73,8 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
     Assert.assertTrue("Delete should succeed", plainEncodingFile.delete());
     Iterable<GenericData.Record> nonDictionaryData =
         RandomData.generate(schema, 10000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE);
-    try (FileAppender<GenericData.Record> writer = getParquetWriter(schema, plainEncodingFile)) {
+    try (FileAppender<GenericData.Record> writer =
+        getParquetWriter(schema, Files.localOutput(plainEncodingFile))) {
       writer.addAll(nonDictionaryData);
     }
 
@@ -89,7 +91,7 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
         schema,
         30000,
         FluentIterable.concat(dictionaryEncodableData, nonDictionaryData, dictionaryEncodableData),
-        mixedFile,
+        Files.localInput(mixedFile),
         true,
         BATCH_SIZE);
   }
