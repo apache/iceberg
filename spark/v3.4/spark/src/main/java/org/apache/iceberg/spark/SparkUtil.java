@@ -323,7 +323,7 @@ public class SparkUtil {
    * @param value a value that is an instance of {@link Type.TypeID#javaClass()}
    * @return the value converted for Spark
    */
-  public static Object convertConstant(Type type, Object value) {
+  public static Object internalToSpark(Type type, Object value) {
     if (value == null) {
       return null;
     }
@@ -331,6 +331,7 @@ public class SparkUtil {
     switch (type.typeId()) {
       case DECIMAL:
         return Decimal.apply((BigDecimal) value);
+      case UUID:
       case STRING:
         if (value instanceof Utf8) {
           Utf8 utf8 = (Utf8) value;
@@ -361,7 +362,7 @@ public class SparkUtil {
           Types.NestedField field = fields.get(index);
           Type fieldType = field.type();
           values[index] =
-              convertConstant(fieldType, struct.get(index, fieldType.typeId().javaClass()));
+              internalToSpark(fieldType, struct.get(index, fieldType.typeId().javaClass()));
         }
 
         return new GenericInternalRow(values);

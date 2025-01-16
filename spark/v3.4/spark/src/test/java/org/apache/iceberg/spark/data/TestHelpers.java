@@ -60,6 +60,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.orc.storage.serde2.io.DateWritable;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
@@ -338,10 +339,21 @@ public class TestHelpers {
             "UUID string representation should match", expected.toString(), actual.toString());
         break;
       case FIXED:
-        assertThat(expected).as("Should expect a Fixed").isInstanceOf(GenericData.Fixed.class);
+        // generated data is written using Avro or Parquet/Avro so generated rows use
+        // GenericData.Fixed, but default values are converted from Iceberg's internal
+        // representation so the expected value may be either class.
+        byte[] expectedBytes;
+        if (expected instanceof ByteBuffer) {
+          expectedBytes = ByteBuffers.toByteArray((ByteBuffer) expected);
+        } else if (expected instanceof GenericData.Fixed) {
+          expectedBytes = ((GenericData.Fixed) expected).bytes();
+        } else {
+          throw new IllegalStateException(
+              "Invalid expected value, not byte[] or Fixed: " + expected);
+        }
+
         assertThat(actual).as("Should be a byte[]").isInstanceOf(byte[].class);
-        Assert.assertArrayEquals(
-            "Bytes should match", ((GenericData.Fixed) expected).bytes(), (byte[]) actual);
+        assertThat(actual).as("Bytes should match").isEqualTo(expectedBytes);
         break;
       case BINARY:
         assertThat(expected).as("Should expect a ByteBuffer").isInstanceOf(ByteBuffer.class);
@@ -365,12 +377,12 @@ public class TestHelpers {
         assertThat(expected).as("Should expect a Collection").isInstanceOf(Collection.class);
         assertThat(actual).as("Should be an ArrayData").isInstanceOf(ArrayData.class);
         assertEqualsUnsafe(
-            type.asNestedType().asListType(), (Collection) expected, (ArrayData) actual);
+            type.asNestedType().asListType(), (Collection<?>) expected, (ArrayData) actual);
         break;
       case MAP:
         assertThat(expected).as("Should expect a Map").isInstanceOf(Map.class);
         assertThat(actual).as("Should be an ArrayBasedMapData").isInstanceOf(MapData.class);
-        assertEqualsUnsafe(type.asNestedType().asMapType(), (Map) expected, (MapData) actual);
+        assertEqualsUnsafe(type.asNestedType().asMapType(), (Map<?, ?>) expected, (MapData) actual);
         break;
       case TIME:
       default:
