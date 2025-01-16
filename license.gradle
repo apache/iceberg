@@ -47,6 +47,7 @@ tasks.register('updateLicenseReport') {
   }
 }
 
+generateLicenseReport.outputs.upToDateWhen { false }
 updateLicenseReport.dependsOn generateLicenseReport
 compareLicenseReport.dependsOn generateLicenseReport
 check.dependsOn compareLicenseReport
