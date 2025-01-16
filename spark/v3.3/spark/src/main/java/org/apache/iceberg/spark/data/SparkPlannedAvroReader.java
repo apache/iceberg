@@ -27,55 +27,52 @@ import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
-import org.apache.iceberg.avro.AvroSchemaWithTypeVisitor;
+import org.apache.iceberg.avro.AvroWithPartnerVisitor;
 import org.apache.iceberg.avro.SupportsRowPosition;
 import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
-import org.apache.iceberg.data.avro.DecoderResolver;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.catalyst.InternalRow;
 
-/**
- * @deprecated will be removed in 1.8.0; use SparkPlannedAvroReader instead.
- */
-@Deprecated
-public class SparkAvroReader implements DatumReader<InternalRow>, SupportsRowPosition {
+public class SparkPlannedAvroReader implements DatumReader<InternalRow>, SupportsRowPosition {
 
-  private final Schema readSchema;
-  private final ValueReader<InternalRow> reader;
-  private Schema fileSchema = null;
+  private final Types.StructType expectedType;
+  private final Map<Integer, ?> idToConstant;
+  private ValueReader<InternalRow> reader;
 
-  /**
-   * @deprecated will be removed in 1.8.0; use SparkPlannedAvroReader instead.
-   */
-  @Deprecated
-  public SparkAvroReader(org.apache.iceberg.Schema expectedSchema, Schema readSchema) {
-    this(expectedSchema, readSchema, ImmutableMap.of());
+  public static SparkPlannedAvroReader create(org.apache.iceberg.Schema schema) {
+    return create(schema, ImmutableMap.of());
   }
 
-  /**
-   * @deprecated will be removed in 1.8.0; use SparkPlannedAvroReader instead.
-   */
-  @Deprecated
-  @SuppressWarnings("unchecked")
-  public SparkAvroReader(
-      org.apache.iceberg.Schema expectedSchema, Schema readSchema, Map<Integer, ?> constants) {
-    this.readSchema = readSchema;
-    this.reader =
-        (ValueReader<InternalRow>)
-            AvroSchemaWithTypeVisitor.visit(expectedSchema, readSchema, new ReadBuilder(constants));
+  public static SparkPlannedAvroReader create(
+      org.apache.iceberg.Schema schema, Map<Integer, ?> constants) {
+    return new SparkPlannedAvroReader(schema, constants);
+  }
+
+  private SparkPlannedAvroReader(
+      org.apache.iceberg.Schema expectedSchema, Map<Integer, ?> constants) {
+    this.expectedType = expectedSchema.asStruct();
+    this.idToConstant = constants;
   }
 
   @Override
-  public void setSchema(Schema newFileSchema) {
-    this.fileSchema = Schema.applyAliases(newFileSchema, readSchema);
+  @SuppressWarnings("unchecked")
+  public void setSchema(Schema fileSchema) {
+    this.reader =
+        (ValueReader<InternalRow>)
+            AvroWithPartnerVisitor.visit(
+                expectedType,
+                fileSchema,
+                new ReadBuilder(idToConstant),
+                AvroWithPartnerVisitor.FieldIDAccessors.get());
   }
 
   @Override
   public InternalRow read(InternalRow reuse, Decoder decoder) throws IOException {
-    return DecoderResolver.resolveAndRead(decoder, readSchema, fileSchema, reader, reuse);
+    return reader.read(decoder, reuse);
   }
 
   @Override
@@ -85,7 +82,7 @@ public class SparkAvroReader implements DatumReader<InternalRow>, SupportsRowPos
     }
   }
 
-  private static class ReadBuilder extends AvroSchemaWithTypeVisitor<ValueReader<?>> {
+  private static class ReadBuilder extends AvroWithPartnerVisitor<Type, ValueReader<?>> {
     private final Map<Integer, ?> idToConstant;
 
     private ReadBuilder(Map<Integer, ?> idToConstant) {
@@ -93,35 +90,42 @@ public class SparkAvroReader implements DatumReader<InternalRow>, SupportsRowPos
     }
 
     @Override
-    public ValueReader<?> record(
-        Types.StructType expected, Schema record, List<String> names, List<ValueReader<?>> fields) {
-      return SparkValueReaders.struct(fields, expected, idToConstant);
+    public ValueReader<?> record(Type partner, Schema record, List<ValueReader<?>> fieldReaders) {
+      if (partner == null) {
+        return ValueReaders.skipStruct(fieldReaders);
+      }
+
+      Types.StructType expected = partner.asStructType();
+      List<Pair<Integer, ValueReader<?>>> readPlan =
+          ValueReaders.buildReadPlan(expected, record, fieldReaders, idToConstant);
+
+      // TODO: should this pass expected so that struct.get can reuse containers?
+      return SparkValueReaders.struct(readPlan, expected.fields().size());
     }
 
     @Override
-    public ValueReader<?> union(Type expected, Schema union, List<ValueReader<?>> options) {
+    public ValueReader<?> union(Type partner, Schema union, List<ValueReader<?>> options) {
       return ValueReaders.union(options);
     }
 
     @Override
-    public ValueReader<?> array(
-        Types.ListType expected, Schema array, ValueReader<?> elementReader) {
+    public ValueReader<?> array(Type partner, Schema array, ValueReader<?> elementReader) {
       return SparkValueReaders.array(elementReader);
     }
 
     @Override
-    public ValueReader<?> map(
-        Types.MapType expected, Schema map, ValueReader<?> keyReader, ValueReader<?> valueReader) {
+    public ValueReader<?> arrayMap(
+        Type partner, Schema map, ValueReader<?> keyReader, ValueReader<?> valueReader) {
       return SparkValueReaders.arrayMap(keyReader, valueReader);
     }
 
     @Override
-    public ValueReader<?> map(Types.MapType expected, Schema map, ValueReader<?> valueReader) {
+    public ValueReader<?> map(Type partner, Schema map, ValueReader<?> valueReader) {
       return SparkValueReaders.map(SparkValueReaders.strings(), valueReader);
     }
 
     @Override
-    public ValueReader<?> primitive(Type.PrimitiveType expected, Schema primitive) {
+    public ValueReader<?> primitive(Type partner, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
         switch (logicalType.getName()) {
@@ -157,10 +161,16 @@ public class SparkAvroReader implements DatumReader<InternalRow>, SupportsRowPos
         case BOOLEAN:
           return ValueReaders.booleans();
         case INT:
+          if (partner != null && partner.typeId() == Type.TypeID.LONG) {
+            return ValueReaders.intsAsLongs();
+          }
           return ValueReaders.ints();
         case LONG:
           return ValueReaders.longs();
         case FLOAT:
+          if (partner != null && partner.typeId() == Type.TypeID.DOUBLE) {
+            return ValueReaders.floatsAsDoubles();
+          }
           return ValueReaders.floats();
         case DOUBLE:
           return ValueReaders.doubles();
