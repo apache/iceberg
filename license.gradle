@@ -72,17 +72,19 @@ class IcebergReportRenderer implements ReportRenderer {
   private File noticeFile
   private Map<String, List<ModuleData>> notices = new HashMap<>()
 
+  private static final String SEP = "--------------------------------------------------------------------------------"
+
   void render(ProjectData data) {
     project = data.project
     config = project.licenseReport
 
     licenseFile = new File(config.absoluteOutputDir, 'LICENSE')
-    licenseFile.text = new File(data.project.rootDir, 'LICENSE').text
-    licenseFile << '\n\n--------------------------------------------------------------------------------\n\n'
+    licenseFile.text = rootPrefix(new File(data.project.rootDir, 'LICENSE'))
+    licenseFile << "\n${SEP}\n\n"
 
     noticeFile = new File(config.absoluteOutputDir, 'NOTICE')
-    noticeFile.text = new File(data.project.rootDir, 'NOTICE').text
-    noticeFile << '\n\n--------------------------------------------------------------------------------\n\n'
+    noticeFile.text = rootPrefix(new File(data.project.rootDir, 'NOTICE'))
+    noticeFile << "\n${SEP}\n\n"
 
     printDependencies(data)
 
@@ -93,8 +95,13 @@ class IcebergReportRenderer implements ReportRenderer {
         if (project.version) noticeFile << " Version: $project.version\n"
       }
       noticeFile << "\nNotice: $notice\n\n"
-      noticeFile << "\n--------------------------------------------------------------------------------\n\n"
+      noticeFile << "\n${SEP}\n\n"
     }
+  }
+
+  private String rootPrefix(File rootFile) {
+    String text = rootFile.text
+    return text.substring(0, text.indexOf(SEP))
   }
 
   private void printDependencies(ProjectData data) {
