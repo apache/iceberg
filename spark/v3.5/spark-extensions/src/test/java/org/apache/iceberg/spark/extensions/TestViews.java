@@ -213,10 +213,13 @@ public class TestViews extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(
-            String.format(
-                "The table or view `%s`.`%s`.`non_existing` cannot be found",
-                catalogName, NAMESPACE));
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass()).isEqualTo("TABLE_OR_VIEW_NOT_FOUND");
+              assertThat(analysisException.getMessageParameters().get("relationName"))
+                  .isEqualTo(String.format("`%s`.`%s`.`non_existing`", catalogName, NAMESPACE));
+            });
   }
 
   @TestTemplate
@@ -237,8 +240,14 @@ public class TestViews extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(
-            "A column or function parameter with name `non_existing` cannot be resolved");
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass())
+                  .isEqualTo("UNRESOLVED_COLUMN.WITH_SUGGESTION");
+              assertThat(analysisException.getMessageParameters().get("objectName"))
+                  .isEqualTo("`non_existing`");
+            });
   }
 
   @TestTemplate
@@ -259,8 +268,13 @@ public class TestViews extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(
-            String.format("The view `%s` cannot be displayed due to invalid view text", viewName));
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass()).isEqualTo("INVALID_VIEW_TEXT");
+              assertThat(analysisException.getMessageParameters().get("viewName"))
+                  .contains(viewName);
+            });
   }
 
   @TestTemplate
@@ -286,7 +300,14 @@ public class TestViews extends ExtensionsTestBase {
     // reading from the view should now fail
     assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("A column or function parameter with name `data` cannot be resolved");
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass())
+                  .isEqualTo("UNRESOLVED_COLUMN.WITH_SUGGESTION");
+              assertThat(analysisException.getMessageParameters().get("objectName"))
+                  .isEqualTo("`data`");
+            });
   }
 
   @TestTemplate
@@ -408,9 +429,13 @@ public class TestViews extends ExtensionsTestBase {
     // reading from a view that references a TEMP VIEW shouldn't be possible
     assertThatThrownBy(() -> sql("SELECT * FROM %s", viewReferencingTempView))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("The table or view")
-        .hasMessageContaining(tempView)
-        .hasMessageContaining("cannot be found");
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass()).isEqualTo("TABLE_OR_VIEW_NOT_FOUND");
+              assertThat(analysisException.getMessageParameters().get("relationName"))
+                  .contains(tempView);
+            });
   }
 
   @TestTemplate
@@ -494,9 +519,13 @@ public class TestViews extends ExtensionsTestBase {
     // reading from a view that references a GLOBAL TEMP VIEW shouldn't be possible
     assertThatThrownBy(() -> sql("SELECT * FROM %s", viewReferencingTempView))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("The table or view")
-        .hasMessageContaining(globalTempView)
-        .hasMessageContaining("cannot be found");
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass()).isEqualTo("TABLE_OR_VIEW_NOT_FOUND");
+              assertThat(analysisException.getMessageParameters().get("relationName"))
+                  .contains(globalTempView);
+            });
   }
 
   @TestTemplate
@@ -607,8 +636,13 @@ public class TestViews extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql(sql))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Cannot resolve function")
-        .hasMessageContaining("iceberg_version");
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass()).isEqualTo("UNRESOLVED_ROUTINE");
+              assertThat(analysisException.getMessageParameters().get("routineName"))
+                  .isEqualTo("`iceberg_version`");
+            });
 
     ViewCatalog viewCatalog = viewCatalog();
     Schema schema = new Schema(Types.NestedField.required(1, "version", Types.StringType.get()));
@@ -667,7 +701,13 @@ public class TestViews extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql(sql))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Cannot resolve function `system`.`bucket`");
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass()).isEqualTo("UNRESOLVED_ROUTINE");
+              assertThat(analysisException.getMessageParameters().get("routineName"))
+                  .isEqualTo("`system`.`bucket`");
+            });
 
     assertThat(sql("SELECT * FROM %s.%s.%s", catalogName, NAMESPACE, viewName))
         .hasSize(1)
@@ -729,7 +769,13 @@ public class TestViews extends ExtensionsTestBase {
     // verify the v1 error message
     assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("The function `system`.`bucket` cannot be found");
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass()).isEqualTo("ROUTINE_NOT_FOUND");
+              assertThat(analysisException.getMessageParameters().get("routineName"))
+                  .isEqualTo("`system`.`bucket`");
+            });
   }
 
   private Schema schema(String sql) {
@@ -846,7 +892,13 @@ public class TestViews extends ExtensionsTestBase {
   public void renameNonExistingView() {
     assertThatThrownBy(() -> sql("ALTER VIEW non_existing RENAME TO target"))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("The table or view `non_existing` cannot be found");
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass()).isEqualTo("TABLE_OR_VIEW_NOT_FOUND");
+              assertThat(analysisException.getMessageParameters().get("relationName"))
+                  .isEqualTo("`non_existing`");
+            });
   }
 
   @TestTemplate
@@ -875,8 +927,13 @@ public class TestViews extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("ALTER VIEW %s RENAME TO %s", viewName, target))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(
-            String.format("Cannot create view default.%s because it already exists", target));
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass()).isEqualTo("VIEW_ALREADY_EXISTS");
+              assertThat(analysisException.getMessageParameters().get("relationName"))
+                  .isEqualTo("default." + target);
+            });
   }
 
   @TestTemplate
@@ -900,8 +957,13 @@ public class TestViews extends ExtensionsTestBase {
         catalogName, NAMESPACE, target, catalogName.equals(SPARK_CATALOG) ? " USING iceberg" : "");
     assertThatThrownBy(() -> sql("ALTER VIEW %s RENAME TO %s", viewName, target))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(
-            String.format("Cannot create view default.%s because it already exists", target));
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass()).isEqualTo("VIEW_ALREADY_EXISTS");
+              assertThat(analysisException.getMessageParameters().get("relationName"))
+                  .isEqualTo("default." + target);
+            });
   }
 
   @TestTemplate
@@ -930,7 +992,13 @@ public class TestViews extends ExtensionsTestBase {
   public void dropNonExistingView() {
     assertThatThrownBy(() -> sql("DROP VIEW non_existing"))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("The view %s.%s cannot be found", NAMESPACE, "non_existing");
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass()).isEqualTo("VIEW_NOT_FOUND");
+              assertThat(analysisException.getMessageParameters().get("relationName"))
+                  .isEqualTo(String.format("`%s`.`non_existing`", NAMESPACE));
+            });
   }
 
   @TestTemplate
@@ -994,9 +1062,13 @@ public class TestViews extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CREATE VIEW %s AS SELECT id FROM %s", viewName, tableName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(
-            String.format(
-                "Cannot create view %s.%s because it already exists", NAMESPACE, viewName));
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass()).isEqualTo("VIEW_ALREADY_EXISTS");
+              assertThat(analysisException.getMessageParameters().get("relationName"))
+                  .isEqualTo(String.format("%s.%s", NAMESPACE, viewName));
+            });
 
     // using IF NOT EXISTS should work
     assertThatNoException()
@@ -1024,7 +1096,11 @@ public class TestViews extends ExtensionsTestBase {
   public void createViewWithInvalidSQL() {
     assertThatThrownBy(() -> sql("CREATE VIEW simpleViewWithInvalidSQL AS invalid SQL"))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Syntax error");
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
+            });
   }
 
   @TestTemplate
@@ -1116,8 +1192,13 @@ public class TestViews extends ExtensionsTestBase {
                     "CREATE VIEW %s AS SELECT %s.%s(id) FROM %s",
                     viewName, NAMESPACE, functionName, tableName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Cannot resolve function")
-        .hasMessageContaining(String.format("`%s`.`%s`", NAMESPACE, functionName));
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass()).isEqualTo("UNRESOLVED_ROUTINE");
+              assertThat(analysisException.getMessageParameters().get("routineName"))
+                  .isEqualTo(String.format("`%s`.`%s`", NAMESPACE, functionName));
+            });
   }
 
   @TestTemplate
@@ -1125,7 +1206,13 @@ public class TestViews extends ExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CREATE VIEW viewWithNonExistingTable AS SELECT id FROM non_existing"))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("The table or view `non_existing` cannot be found");
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass()).isEqualTo("TABLE_OR_VIEW_NOT_FOUND");
+              assertThat(analysisException.getMessageParameters().get("relationName"))
+                  .isEqualTo("`non_existing`");
+            });
   }
 
   @TestTemplate
@@ -1144,11 +1231,16 @@ public class TestViews extends ExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CREATE VIEW %s (id) AS SELECT id, data FROM %s", viewName, tableName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(
-            String.format("Cannot create view %s.%s.%s", catalogName, NAMESPACE, viewName))
-        .hasMessageContaining("too many data columns")
-        .hasMessageContaining("View columns: id")
-        .hasMessageContaining("Data columns: id, data");
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass())
+                  .isEqualTo("CREATE_VIEW_COLUMN_ARITY_MISMATCH.TOO_MANY_DATA_COLUMNS");
+              assertThat(analysisException.getMessageParameters().get("viewColumns"))
+                  .isEqualTo("id");
+              assertThat(analysisException.getMessageParameters().get("dataColumns"))
+                  .isEqualTo("id, data");
+            });
   }
 
   @TestTemplate
@@ -1195,7 +1287,13 @@ public class TestViews extends ExtensionsTestBase {
                     "CREATE VIEW viewWithDuplicateColumnNames (new_id, new_id) AS SELECT id, id FROM %s WHERE id <= 3",
                     tableName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("The column `new_id` already exists");
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass()).isEqualTo("COLUMN_ALREADY_EXISTS");
+              assertThat(analysisException.getMessageParameters().get("columnName"))
+                  .isEqualTo("`new_id`");
+            });
   }
 
   @TestTemplate
@@ -1207,7 +1305,13 @@ public class TestViews extends ExtensionsTestBase {
     // not specifying column aliases in the view should fail
     assertThatThrownBy(() -> sql("CREATE VIEW %s AS %s", viewName, sql))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("The column `id` already exists");
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass()).isEqualTo("COLUMN_ALREADY_EXISTS");
+              assertThat(analysisException.getMessageParameters().get("columnName"))
+                  .isEqualTo("`id`");
+            });
 
     sql("CREATE VIEW %s (id_one, id_two) AS %s", viewName, sql);
 
@@ -1300,8 +1404,14 @@ public class TestViews extends ExtensionsTestBase {
                     "CREATE VIEW viewWithNonExistingQueryColumn AS SELECT non_existing FROM %s WHERE id <= 3",
                     tableName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(
-            "A column or function parameter with name `non_existing` cannot be resolved");
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass())
+                  .isEqualTo("UNRESOLVED_COLUMN.WITH_SUGGESTION");
+              assertThat(analysisException.getMessageParameters().get("objectName"))
+                  .isEqualTo("`non_existing`");
+            });
   }
 
   @TestTemplate
@@ -1381,7 +1491,13 @@ public class TestViews extends ExtensionsTestBase {
 
       assertThatThrownBy(() -> sql(sql))
           .isInstanceOf(AnalysisException.class)
-          .hasMessageContaining(String.format("The table or view `%s` cannot be found", tableName));
+          .satisfies(
+              exception -> {
+                AnalysisException analysisException = (AnalysisException) exception;
+                assertThat(analysisException.getErrorClass()).isEqualTo("TABLE_OR_VIEW_NOT_FOUND");
+                assertThat(analysisException.getMessageParameters().get("relationName"))
+                    .isEqualTo("`" + tableName + "`");
+              });
     }
 
     // the underlying SQL in the View should be rewritten to have catalog & namespace
@@ -1408,7 +1524,13 @@ public class TestViews extends ExtensionsTestBase {
 
       assertThatThrownBy(() -> sql(sql))
           .isInstanceOf(AnalysisException.class)
-          .hasMessageContaining(String.format("The table or view `%s` cannot be found", tableName));
+          .satisfies(
+              exception -> {
+                AnalysisException analysisException = (AnalysisException) exception;
+                assertThat(analysisException.getErrorClass()).isEqualTo("TABLE_OR_VIEW_NOT_FOUND");
+                assertThat(analysisException.getMessageParameters().get("relationName"))
+                    .isEqualTo("`" + tableName + "`");
+              });
     }
 
     // the underlying SQL in the View should be rewritten to have catalog & namespace
@@ -1718,14 +1840,26 @@ public class TestViews extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("ALTER VIEW %s SET TBLPROPERTIES ('provider' = 'val1')", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(
-            "The feature is not supported: provider is a reserved table property");
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass())
+                  .isEqualTo("UNSUPPORTED_FEATURE.SET_TABLE_PROPERTY");
+              assertThat(analysisException.getMessageParameters().get("property"))
+                  .isEqualTo("provider");
+            });
 
     assertThatThrownBy(
             () -> sql("ALTER VIEW %s SET TBLPROPERTIES ('location' = 'random_location')", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(
-            "The feature is not supported: location is a reserved table property");
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass())
+                  .isEqualTo("UNSUPPORTED_FEATURE.SET_TABLE_PROPERTY");
+              assertThat(analysisException.getMessageParameters().get("property"))
+                  .isEqualTo("location");
+            });
 
     assertThatThrownBy(
             () -> sql("ALTER VIEW %s SET TBLPROPERTIES ('format-version' = '99')", viewName))
@@ -1784,13 +1918,25 @@ public class TestViews extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("ALTER VIEW %s UNSET TBLPROPERTIES ('provider')", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(
-            "The feature is not supported: provider is a reserved table property");
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass())
+                  .isEqualTo("UNSUPPORTED_FEATURE.SET_TABLE_PROPERTY");
+              assertThat(analysisException.getMessageParameters().get("property"))
+                  .isEqualTo("provider");
+            });
 
     assertThatThrownBy(() -> sql("ALTER VIEW %s UNSET TBLPROPERTIES ('location')", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(
-            "The feature is not supported: location is a reserved table property");
+        .satisfies(
+            exception -> {
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getErrorClass())
+                  .isEqualTo("UNSUPPORTED_FEATURE.SET_TABLE_PROPERTY");
+              assertThat(analysisException.getMessageParameters().get("property"))
+                  .isEqualTo("location");
+            });
 
     assertThatThrownBy(() -> sql("ALTER VIEW %s UNSET TBLPROPERTIES ('format-version')", viewName))
         .isInstanceOf(UnsupportedOperationException.class)
