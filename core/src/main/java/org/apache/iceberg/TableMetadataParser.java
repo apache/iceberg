@@ -111,7 +111,7 @@ public class TableMetadataParser {
   static final String STATISTICS = "statistics";
   static final String PARTITION_STATISTICS = "partition-statistics";
   static final String ROW_LINEAGE = "row-lineage";
-  static final String LAST_ROW_ID = "last-row-id";
+  static final String NEXT_ROW_ID = "next-row-id";
 
   public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
     internalWrite(metadata, outputFile, true);
@@ -224,7 +224,7 @@ public class TableMetadataParser {
 
     if (metadata.rowLineageEnabled()) {
       generator.writeBooleanField(ROW_LINEAGE, metadata.rowLineageEnabled());
-      generator.writeNumberField(LAST_ROW_ID, metadata.lastRowId());
+      generator.writeNumberField(NEXT_ROW_ID, metadata.nextRowId());
     }
 
     toJson(metadata.refs(), generator);
@@ -464,7 +464,7 @@ public class TableMetadataParser {
     Boolean rowLineage = JsonUtil.getBoolOrNull(ROW_LINEAGE, node);
     long lastRowId;
     if (rowLineage != null && rowLineage) {
-      lastRowId = JsonUtil.getLong(LAST_ROW_ID, node);
+      lastRowId = JsonUtil.getLong(NEXT_ROW_ID, node);
     } else {
       rowLineage = TableMetadata.DEFAULT_ROW_LINEAGE;
       lastRowId = TableMetadata.INITIAL_ROW_ID;

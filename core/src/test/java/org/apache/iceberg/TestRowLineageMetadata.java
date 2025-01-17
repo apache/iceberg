@@ -33,8 +33,6 @@ import org.junit.jupiter.params.provider.FieldSource;
 
 public class TestRowLineageMetadata {
 
-  @TempDir private File tableDir = null;
-
   private static final String TEST_LOCATION = "s3://bucket/test/location";
 
   private static final Schema TEST_SCHEMA =
@@ -54,6 +52,8 @@ public class TestRowLineageMetadata {
         .build();
   }
 
+  @TempDir private File tableDir = null;
+
   @AfterEach
   public void cleanup() {
     TestTables.clearTables();
@@ -62,8 +62,8 @@ public class TestRowLineageMetadata {
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testRowLineageSupported(int formatVersion) {
-    if (formatVersion == TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE) {
-      assertThat(TableMetadata.buildFromEmpty(formatVersion)).isNotNull();
+    if (formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE) {
+      assertThat(TableMetadata.buildFromEmpty(formatVersion).enableRowLineage()).isNotNull();
     } else {
       assertThatThrownBy(() -> TableMetadata.buildFromEmpty(formatVersion).enableRowLineage())
           .isInstanceOf(IllegalArgumentException.class)
@@ -76,26 +76,26 @@ public class TestRowLineageMetadata {
   public void testSnapshotAddition(int formatVersion) {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
-    Long newRows = 30L;
+    long newRows = 30L;
 
     TableMetadata base = baseMetadata(formatVersion);
 
     Snapshot addRows =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", base.lastRowId(), newRows);
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", base.nextRowId(), newRows);
 
     TableMetadata firstAddition = TableMetadata.buildFrom(base).addSnapshot(addRows).build();
 
-    assertThat(firstAddition.lastRowId()).isEqualTo(newRows);
+    assertThat(firstAddition.nextRowId()).isEqualTo(newRows);
 
     Snapshot addMoreRows =
         new BaseSnapshot(
-            1, 2, 1L, 0, DataOperations.APPEND, null, 1, "foo", firstAddition.lastRowId(), newRows);
+            1, 2, 1L, 0, DataOperations.APPEND, null, 1, "foo", firstAddition.nextRowId(), newRows);
 
     TableMetadata secondAddition =
         TableMetadata.buildFrom(firstAddition).addSnapshot(addMoreRows).build();
 
-    assertThat(secondAddition.lastRowId()).isEqualTo(newRows * 2);
+    assertThat(secondAddition.nextRowId()).isEqualTo(newRows * 2);
   }
 
   @ParameterizedTest
@@ -109,7 +109,7 @@ public class TestRowLineageMetadata {
 
     Snapshot invalidLastRow =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", base.lastRowId() - 3, newRows);
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", base.nextRowId() - 3, newRows);
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(base).addSnapshot(invalidLastRow))
         .isInstanceOf(ValidationException.class)
@@ -117,7 +117,7 @@ public class TestRowLineageMetadata {
 
     Snapshot invalidNewRows =
         new BaseSnapshot(
-            0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", base.lastRowId(), null);
+            0, 1, null, 0, DataOperations.APPEND, null, 1, "foo", base.nextRowId(), null);
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(base).addSnapshot(invalidNewRows))
         .isInstanceOf(ValidationException.class)
@@ -137,19 +137,19 @@ public class TestRowLineageMetadata {
     table.ops().commit(base, TableMetadata.buildFrom(base).enableRowLineage().build());
 
     assertThat(table.ops().current().rowLineageEnabled()).isTrue();
-    assertThat(table.ops().current().lastRowId()).isEqualTo(0L);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(0L);
 
     table.newFastAppend().appendFile(fileWithRows(30)).commit();
 
     assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(0);
-    assertThat(table.ops().current().lastRowId()).isEqualTo(30);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(30);
 
     table.newFastAppend().appendFile(fileWithRows(17)).appendFile(fileWithRows(11)).commit();
 
     assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(30);
-    assertThat(table.ops().current().lastRowId()).isEqualTo(30 + 17 + 11);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(30 + 17 + 11);
   }
 
   @ParameterizedTest
@@ -164,19 +164,19 @@ public class TestRowLineageMetadata {
     table.ops().commit(base, TableMetadata.buildFrom(base).enableRowLineage().build());
 
     assertThat(table.ops().current().rowLineageEnabled()).isTrue();
-    assertThat(table.ops().current().lastRowId()).isEqualTo(0L);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(0L);
 
     table.newAppend().appendFile(fileWithRows(30)).commit();
 
     assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(0);
-    assertThat(table.ops().current().lastRowId()).isEqualTo(30);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(30);
 
     table.newAppend().appendFile(fileWithRows(17)).appendFile(fileWithRows(11)).commit();
 
     assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(30);
-    assertThat(table.ops().current().lastRowId()).isEqualTo(30 + 17 + 11);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(30 + 17 + 11);
   }
 
   @ParameterizedTest
@@ -196,7 +196,7 @@ public class TestRowLineageMetadata {
     table.ops().commit(base, TableMetadata.buildFrom(base).enableRowLineage().build());
 
     assertThat(table.ops().current().rowLineageEnabled()).isTrue();
-    assertThat(table.ops().current().lastRowId()).isEqualTo(0L);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(0L);
 
     // Write to Branch
     table.newAppend().appendFile(fileWithRows(30)).toBranch(branch).commit();
@@ -204,19 +204,19 @@ public class TestRowLineageMetadata {
     assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot()).isNull();
     assertThat(table.snapshot(branch).firstRowId()).isEqualTo(0L);
-    assertThat(table.ops().current().lastRowId()).isEqualTo(30);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(30);
 
     // Write to Main
     table.newAppend().appendFile(fileWithRows(17)).appendFile(fileWithRows(11)).commit();
 
     assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(30);
-    assertThat(table.ops().current().lastRowId()).isEqualTo(30 + 17 + 11);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(30 + 17 + 11);
 
     // Write again to branch
     table.newAppend().appendFile(fileWithRows(21)).toBranch(branch).commit();
     assertThat(table.snapshot(branch).firstRowId()).isEqualTo(30 + 17 + 11);
-    assertThat(table.ops().current().lastRowId()).isEqualTo(30 + 17 + 11 + 21);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(30 + 17 + 11 + 21);
   }
 
   @ParameterizedTest
@@ -231,7 +231,7 @@ public class TestRowLineageMetadata {
     table.ops().commit(base, TableMetadata.buildFrom(base).enableRowLineage().build());
 
     assertThat(table.ops().current().rowLineageEnabled()).isTrue();
-    assertThat(table.ops().current().lastRowId()).isEqualTo(0L);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(0L);
 
     DataFile file = fileWithRows(30);
 
@@ -239,7 +239,7 @@ public class TestRowLineageMetadata {
 
     assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(0);
-    assertThat(table.ops().current().lastRowId()).isEqualTo(30);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(30);
 
     table.newDelete().deleteFile(file).commit();
 
@@ -249,7 +249,7 @@ public class TestRowLineageMetadata {
     assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(30);
     assertThat(table.currentSnapshot().addedRows()).isEqualTo(0);
-    assertThat(table.ops().current().lastRowId()).isEqualTo(30);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(30);
   }
 
   @ParameterizedTest
@@ -265,7 +265,7 @@ public class TestRowLineageMetadata {
     table.ops().commit(base, TableMetadata.buildFrom(base).enableRowLineage().build());
 
     assertThat(table.ops().current().rowLineageEnabled()).isTrue();
-    assertThat(table.ops().current().lastRowId()).isEqualTo(0L);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(0L);
 
     DataFile filePart1 = fileWithRows(30);
     DataFile filePart2 = fileWithRows(30);
@@ -275,14 +275,14 @@ public class TestRowLineageMetadata {
 
     assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(0);
-    assertThat(table.ops().current().lastRowId()).isEqualTo(60);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(60);
 
     table.newRewrite().deleteFile(filePart1).deleteFile(filePart2).addFile(fileCompacted).commit();
 
     // Rewrites are currently just treated as appends. In the future we could treat these as no-ops
     assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(60);
-    assertThat(table.ops().current().lastRowId()).isEqualTo(120);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(120);
   }
 
   @ParameterizedTest

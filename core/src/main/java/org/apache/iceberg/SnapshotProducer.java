@@ -286,24 +286,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     Long addedRows = null;
     Long lastRowId = null;
     if (base.rowLineageEnabled()) {
-      addedRows =
-          manifests.stream()
-              .filter(
-                  manifest ->
-                      manifest.snapshotId() == null
-                          || Objects.equals(manifest.snapshotId(), this.snapshotId))
-              .mapToLong(
-                  manifest -> {
-                    Preconditions.checkArgument(
-                        manifest.addedRowsCount() != null,
-                        "Cannot determine number of added rows in snapshot because"
-                            + " the entry for manifest %s is missing the field `added-rows-count`",
-                        manifest.path());
-                    return manifest.addedRowsCount();
-                  })
-              .sum();
-
-      lastRowId = base.lastRowId();
+      addedRows = calculateAddedRows(manifests);
+      lastRowId = base.nextRowId();
     }
 
     return new BaseSnapshot(
@@ -317,6 +301,24 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         manifestList.location(),
         lastRowId,
         addedRows);
+  }
+
+  private Long calculateAddedRows(List<ManifestFile> manifests) {
+    return manifests.stream()
+      .filter(
+        manifest ->
+          manifest.snapshotId() == null
+            || Objects.equals(manifest.snapshotId(), this.snapshotId))
+      .mapToLong(
+        manifest -> {
+          Preconditions.checkArgument(
+            manifest.addedRowsCount() != null,
+            "Cannot determine number of added rows in snapshot because"
+              + " the entry for manifest %s is missing the field `added-rows-count`",
+            manifest.path());
+          return manifest.addedRowsCount();
+        })
+      .sum();
   }
 
   protected abstract Map<String, String> summary();

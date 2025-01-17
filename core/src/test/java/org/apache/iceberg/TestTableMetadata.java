@@ -232,7 +232,7 @@ public class TestTableMetadata {
     assertThat(metadata.partitionStatisticsFiles()).isEqualTo(partitionStatisticsFiles);
     assertThat(metadata.refs()).isEqualTo(refs);
     assertThat(metadata.rowLineageEnabled()).isEqualTo(expected.rowLineageEnabled());
-    assertThat(metadata.lastRowId()).isEqualTo(expected.lastRowId());
+    assertThat(metadata.nextRowId()).isEqualTo(expected.nextRowId());
   }
 
   @Test
@@ -342,7 +342,7 @@ public class TestTableMetadata {
     assertThat(metadata.previousFiles()).isEqualTo(expected.previousFiles());
     assertThat(metadata.snapshot(previousSnapshotId).schemaId()).isNull();
     assertThat(metadata.rowLineageEnabled()).isEqualTo(expected.rowLineageEnabled());
-    assertThat(metadata.lastRowId()).isEqualTo(expected.lastRowId());
+    assertThat(metadata.nextRowId()).isEqualTo(expected.nextRowId());
   }
 
   @Test

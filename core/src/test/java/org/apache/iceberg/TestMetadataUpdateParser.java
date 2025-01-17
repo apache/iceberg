@@ -931,6 +931,17 @@ public class TestMetadataUpdateParser {
         .isEqualTo(json);
   }
 
+  @Test
+  public void testEnableRowLineage() {
+    String action = MetadataUpdateParser.ENABLE_ROW_LINEAGE;
+    String json = "{\"action\":\"enable-row-lineage\"}";
+    MetadataUpdate expected = new MetadataUpdate.EnableRowLineage();
+    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
+    assertThat(MetadataUpdateParser.toJson(expected))
+      .as("Enable row lineage should convert to the correct JSON value")
+      .isEqualTo(json);
+  }
+
   public void assertEquals(
       String action, MetadataUpdate expectedUpdate, MetadataUpdate actualUpdate) {
     switch (action) {
@@ -1039,6 +1050,9 @@ public class TestMetadataUpdateParser {
         assertEqualsRemovePartitionSpecs(
             (MetadataUpdate.RemovePartitionSpecs) expectedUpdate,
             (MetadataUpdate.RemovePartitionSpecs) actualUpdate);
+        break;
+      case MetadataUpdateParser.ENABLE_ROW_LINEAGE:
+        assertThat(actualUpdate).isInstanceOf(MetadataUpdate.EnableRowLineage.class);
         break;
       default:
         fail("Unrecognized metadata update action: " + action);

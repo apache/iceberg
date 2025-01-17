@@ -266,7 +266,7 @@ public class TableMetadata implements Serializable {
   private volatile Map<String, SnapshotRef> refs;
   private volatile boolean snapshotsLoaded;
   private final Boolean rowLineageEnabled;
-  private final long lastRowId;
+  private final long nextRowId;
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   TableMetadata(
@@ -295,7 +295,7 @@ public class TableMetadata implements Serializable {
       List<PartitionStatisticsFile> partitionStatisticsFiles,
       List<MetadataUpdate> changes,
       boolean rowLineageEnabled,
-      long lastRowId) {
+      long nextRowId) {
     Preconditions.checkArgument(
         specs != null && !specs.isEmpty(), "Partition specs cannot be null or empty");
     Preconditions.checkArgument(
@@ -354,7 +354,7 @@ public class TableMetadata implements Serializable {
 
     // row lineage
     this.rowLineageEnabled = rowLineageEnabled;
-    this.lastRowId = lastRowId;
+    this.nextRowId = nextRowId;
 
     HistoryEntry last = null;
     for (HistoryEntry logEntry : snapshotLog) {
@@ -582,8 +582,8 @@ public class TableMetadata implements Serializable {
     return rowLineageEnabled;
   }
 
-  public long lastRowId() {
-    return lastRowId;
+  public long nextRowId() {
+    return nextRowId;
   }
 
   /**
@@ -932,7 +932,7 @@ public class TableMetadata implements Serializable {
     private final Map<Long, List<PartitionStatisticsFile>> partitionStatisticsFiles;
     private boolean suppressHistoricalSnapshots = false;
     private boolean rowLineage;
-    private long lastRowId;
+    private long nextRowId;
 
     // change tracking
     private final List<MetadataUpdate> changes;
@@ -980,7 +980,7 @@ public class TableMetadata implements Serializable {
       this.specsById = Maps.newHashMap();
       this.sortOrdersById = Maps.newHashMap();
       this.rowLineage = DEFAULT_ROW_LINEAGE;
-      this.lastRowId = INITIAL_ROW_ID;
+      this.nextRowId = INITIAL_ROW_ID;
     }
 
     private Builder(TableMetadata base) {
@@ -1016,7 +1016,7 @@ public class TableMetadata implements Serializable {
       this.sortOrdersById = Maps.newHashMap(base.sortOrdersById);
 
       this.rowLineage = base.rowLineageEnabled;
-      this.lastRowId = base.lastRowId;
+      this.nextRowId = base.nextRowId;
     }
 
     public Builder withMetadataLocation(String newMetadataLocation) {
@@ -1267,14 +1267,18 @@ public class TableMetadata implements Serializable {
 
       if (rowLineage) {
         ValidationException.check(
-            snapshot.firstRowId() >= lastRowId,
+            snapshot.firstRowId() >= nextRowId,
             "Cannot add a snapshot whose first-row-id (%s) is less than the metadata `last-used-id` (%s) because this will end up generating duplicate row_ids.",
             snapshot.firstRowId(),
-            lastRowId);
+          nextRowId);
         ValidationException.check(
             snapshot.addedRows() != null,
-            "Cannot add a snapshot with a null `addedRows` field when row lineage is enabled");
-        incrementLastRowId(snapshot.addedRows());
+            "Cannot add a snapshot with a null `added-rows` field when row lineage is enabled");
+        Preconditions.checkArgument(
+          snapshot.addedRows() >= 0,
+          "Cannot decrease last-row-id, last-row-id must increase monotonically. Snapshot reports %s added rows");
+
+        this.nextRowId += snapshot.addedRows();
       }
 
       return this;
@@ -1543,17 +1547,6 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    private void incrementLastRowId(long delta) {
-      Preconditions.checkArgument(
-          rowLineage, "Cannot set last-row-id if row lineage is not enabled");
-      Preconditions.checkArgument(
-          delta >= 0,
-          "Cannot decrease last-row-id, last-row-id must increase monotonically. Delta was %s",
-          delta);
-
-      this.lastRowId += delta;
-    }
-
     private boolean hasChanges() {
       return changes.size() != startingChangeCount
           || (discardChanges && !changes.isEmpty())
@@ -1623,7 +1616,7 @@ public class TableMetadata implements Serializable {
               .collect(Collectors.toList()),
           discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes),
           rowLineage,
-          lastRowId);
+        nextRowId);
     }
 
     private int addSchemaInternal(Schema schema, int newLastColumnId) {

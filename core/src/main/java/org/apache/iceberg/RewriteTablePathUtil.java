@@ -131,7 +131,7 @@ public class RewriteTablePathUtil {
         metadata.partitionStatisticsFiles(),
         metadata.changes(),
         metadata.rowLineageEnabled(),
-        metadata.lastRowId());
+        metadata.nextRowId());
   }
 
   private static Map<String, String> updateProperties(
