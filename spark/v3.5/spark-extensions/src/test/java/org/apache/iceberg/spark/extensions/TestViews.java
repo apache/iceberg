@@ -997,7 +997,7 @@ public class TestViews extends ExtensionsTestBase {
               AnalysisException analysisException = (AnalysisException) exception;
               assertThat(analysisException.getErrorClass()).isEqualTo("VIEW_NOT_FOUND");
               assertThat(analysisException.getMessageParameters().get("relationName"))
-                  .isEqualTo(String.format("`%s`.`non_existing`", NAMESPACE));
+                  .isEqualTo(String.format("%s.non_existing", NAMESPACE));
             });
   }
 
