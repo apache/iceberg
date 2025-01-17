@@ -656,7 +656,8 @@ A snapshot consists of the following fields:
 | _optional_ | _required_ | _required_ | **`summary`**                | A string map that summarizes the snapshot changes, including `operation` (see below)                                               |
 | _optional_ | _optional_ | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created                                                                     |
 |            |            | _optional_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage)        |
-|            |            | _optional_ | **`added-rows`**             | The number of newly added rows in this snapshot. Required if [Row Lineage](#row-lineage) is enabled                                | 
+|            |            | _optional_ | **`added-rows`**             | Sum of the [`added_rows_count`](#manifest-lists) from all manifests added in this snapshot. Required if [Row Lineage](#row-lineage) is enabled | 
+
 
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
 
@@ -684,7 +685,7 @@ A snapshot's `first-row-id` is assigned to the table's current `next-row-id` on 
 
 The snapshot's `first-row-id` is the starting `first_row_id` assigned to manifests in the snapshot's manifest list.
 
-The snapshot's `added-rows` is the sum of all the `added_rows_count` in all added manifests.
+The snapshot's `added-rows` is the sum of all the  [`added_rows_count`](#manifest-lists) in all added manifests.
 
 
 ### Manifest Lists
