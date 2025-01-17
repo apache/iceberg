@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
@@ -209,6 +210,7 @@ public class TestMergeOnReadUpdate extends TestUpdate {
         deleteFiles.stream().filter(ContentFileUtil::isDV).collect(Collectors.toList());
     assertThat(dvs).hasSize(1);
     assertThat(dvs.get(0).recordCount()).isEqualTo(3);
+    assertThat(dvs).allMatch(dv -> FileFormat.fromFileName(dv.location()) == FileFormat.PUFFIN);
   }
 
   private void initTable(String partitionedBy, DeleteGranularity deleteGranularity) {
