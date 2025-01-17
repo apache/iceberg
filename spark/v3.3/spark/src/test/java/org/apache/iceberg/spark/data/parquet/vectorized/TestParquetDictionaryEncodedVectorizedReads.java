@@ -33,9 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.data.RandomData;
-import org.junit.Assert;
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVectorizedReads {
 
@@ -53,14 +51,14 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
 
   @Test
   @Override
-  @Ignore // Ignored since this code path is already tested in TestParquetVectorizedReads
-  public void testVectorizedReadsWithNewContainers() throws IOException {}
+  public void testVectorizedReadsWithNewContainers() throws IOException {
+    // Disabled since this code path is already tested in TestParquetVectorizedReads
+  }
 
   @Test
   public void testMixedDictionaryNonDictionaryReads() throws IOException {
     Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
-    File dictionaryEncodedFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", dictionaryEncodedFile.delete());
+    File dictionaryEncodedFile = temp.resolve("dictionary.parquet").toFile();
     Iterable<GenericData.Record> dictionaryEncodableData =
         RandomData.generateDictionaryEncodableData(
             schema, 10000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE);
@@ -69,8 +67,7 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
       writer.addAll(dictionaryEncodableData);
     }
 
-    File plainEncodingFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", plainEncodingFile.delete());
+    File plainEncodingFile = temp.resolve("plain.parquet").toFile();
     Iterable<GenericData.Record> nonDictionaryData =
         RandomData.generate(schema, 10000, 0L, RandomData.DEFAULT_NULL_PERCENTAGE);
     try (FileAppender<GenericData.Record> writer =
@@ -79,8 +76,7 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
     }
 
     int rowGroupSize = PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
-    File mixedFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", mixedFile.delete());
+    File mixedFile = temp.resolve("mixed.parquet").toFile();
     Parquet.concat(
         ImmutableList.of(dictionaryEncodedFile, plainEncodingFile, dictionaryEncodedFile),
         mixedFile,
