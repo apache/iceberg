@@ -18,6 +18,13 @@
  */
 package org.apache.iceberg.data.parquet;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import org.apache.iceberg.parquet.ParquetTypeVisitor;
@@ -26,12 +33,17 @@ import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
+/**
+ * @deprecated since 1.8.0, will be made package-private in 1.9.0
+ */
+@Deprecated
 public abstract class BaseParquetWriter<T> {
 
   @SuppressWarnings("unchecked")
@@ -42,25 +54,30 @@ public abstract class BaseParquetWriter<T> {
   protected abstract ParquetValueWriters.StructWriter<T> createStructWriter(
       List<ParquetValueWriter<?>> writers);
 
-  protected ParquetValueWriters.PrimitiveWriter<?> fixedWriter(ColumnDescriptor desc) {
-    return ParquetValueWriters.fixed(desc);
+  protected ParquetValueWriter<?> fixedWriter(ColumnDescriptor desc) {
+    return new FixedWriter(desc);
   }
 
-  protected Optional<ParquetValueWriters.PrimitiveWriter<?>> dateWriter(ColumnDescriptor desc) {
-    return Optional.empty();
+  protected ParquetValueWriters.PrimitiveWriter<?> dateWriter(ColumnDescriptor desc) {
+    return new DateWriter(desc);
   }
 
-  protected Optional<ParquetValueWriters.PrimitiveWriter<?>> timeWriter(ColumnDescriptor desc) {
-    return Optional.empty();
+  protected ParquetValueWriters.PrimitiveWriter<?> timeWriter(ColumnDescriptor desc) {
+    return new TimeWriter(desc);
   }
 
-  protected Optional<ParquetValueWriters.PrimitiveWriter<?>> timestampWriter(
+  protected ParquetValueWriters.PrimitiveWriter<?> timestampWriter(
       ColumnDescriptor desc, boolean isAdjustedToUTC) {
-    return Optional.empty();
+    if (isAdjustedToUTC) {
+      return new TimestamptzWriter(desc);
+    } else {
+      return new TimestampWriter(desc);
+    }
   }
 
-  protected Optional<ParquetValueWriters.PrimitiveWriter<?>> uuidWriter(ColumnDescriptor desc) {
-    return Optional.empty();
+  protected ParquetValueWriters.PrimitiveWriter<?> uuidWriter(ColumnDescriptor desc) {
+    // Use primitive-type writer; no special writer needed.
+    return null;
   }
 
   private class WriteBuilder extends ParquetTypeVisitor<ParquetValueWriter<?>> {
@@ -205,7 +222,7 @@ public abstract class BaseParquetWriter<T> {
     @Override
     public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
         LogicalTypeAnnotation.DateLogicalTypeAnnotation dateType) {
-      return dateWriter(desc);
+      return Optional.ofNullable(dateWriter(desc));
     }
 
     @Override
@@ -215,7 +232,7 @@ public abstract class BaseParquetWriter<T> {
           LogicalTypeAnnotation.TimeUnit.MICROS.equals(timeType.getUnit()),
           "Cannot write time in %s, only MICROS is supported",
           timeType.getUnit());
-      return timeWriter(desc);
+      return Optional.ofNullable(timeWriter(desc));
     }
 
     @Override
@@ -225,7 +242,7 @@ public abstract class BaseParquetWriter<T> {
           LogicalTypeAnnotation.TimeUnit.MICROS.equals(timestampType.getUnit()),
           "Cannot write timestamp in %s, only MICROS is supported",
           timestampType.getUnit());
-      return timestampWriter(desc, timestampType.isAdjustedToUTC());
+      return Optional.ofNullable(timestampWriter(desc, timestampType.isAdjustedToUTC()));
     }
 
     @Override
@@ -256,7 +273,75 @@ public abstract class BaseParquetWriter<T> {
     @Override
     public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
         LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
-      return uuidWriter(desc);
+      return Optional.ofNullable(uuidWriter(desc));
+    }
+  }
+
+  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
+
+  private static class DateWriter extends ParquetValueWriters.PrimitiveWriter<LocalDate> {
+    private DateWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, LocalDate value) {
+      column.writeInteger(repetitionLevel, (int) ChronoUnit.DAYS.between(EPOCH_DAY, value));
+    }
+  }
+
+  private static class TimeWriter extends ParquetValueWriters.PrimitiveWriter<LocalTime> {
+    private TimeWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, LocalTime value) {
+      column.writeLong(repetitionLevel, value.toNanoOfDay() / 1000);
+    }
+  }
+
+  private static class TimestampWriter extends ParquetValueWriters.PrimitiveWriter<LocalDateTime> {
+    private TimestampWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, LocalDateTime value) {
+      column.writeLong(
+          repetitionLevel, ChronoUnit.MICROS.between(EPOCH, value.atOffset(ZoneOffset.UTC)));
+    }
+  }
+
+  private static class TimestamptzWriter
+      extends ParquetValueWriters.PrimitiveWriter<OffsetDateTime> {
+    private TimestamptzWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, OffsetDateTime value) {
+      column.writeLong(repetitionLevel, ChronoUnit.MICROS.between(EPOCH, value));
+    }
+  }
+
+  private static class FixedWriter extends ParquetValueWriters.PrimitiveWriter<byte[]> {
+    private final int length;
+
+    private FixedWriter(ColumnDescriptor desc) {
+      super(desc);
+      this.length = desc.getPrimitiveType().getTypeLength();
+    }
+
+    @Override
+    public void write(int repetitionLevel, byte[] value) {
+      Preconditions.checkArgument(
+          value.length == length,
+          "Cannot write byte buffer of length %s as fixed[%s]",
+          value.length,
+          length);
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(value));
     }
   }
 }

@@ -16,45 +16,35 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.data.parquet;
+package org.apache.iceberg.parquet;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import org.apache.iceberg.Files;
 import org.apache.iceberg.InternalTestHelpers;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RandomInternalData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.data.DataTest;
+import org.apache.iceberg.avro.AvroDataTest;
+import org.apache.iceberg.data.parquet.InternalReader;
+import org.apache.iceberg.data.parquet.InternalWriter;
+import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-public class TestInternalData extends DataTest {
+public class TestInternalParquet extends AvroDataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    writeAndValidate(schema, schema);
-  }
+    List<StructLike> expected = RandomInternalData.generate(schema, 100, 1376L);
 
-  @Override
-  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
-    List<StructLike> expected = RandomInternalData.generate(writeSchema, 100, 42L);
-
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(testFile.delete()).isTrue();
-
-    OutputFile outputFile = Files.localOutput(testFile);
+    OutputFile outputFile = new InMemoryOutputFile();
 
     try (DataWriter<StructLike> dataWriter =
         Parquet.writeData(outputFile)
-            .schema(writeSchema)
-            .createWriterFunc(InternalWriter::buildWriter)
+            .schema(schema)
+            .createWriterFunc(InternalWriter::create)
             .overwrite()
             .withSpec(PartitionSpec.unpartitioned())
             .build()) {
@@ -65,28 +55,27 @@ public class TestInternalData extends DataTest {
 
     List<StructLike> rows;
     try (CloseableIterable<StructLike> reader =
-        Parquet.read(Files.localInput(testFile))
-            .project(expectedSchema)
-            .createReaderFunc(fileSchema -> InternalReader.buildReader(expectedSchema, fileSchema))
+        Parquet.read(outputFile.toInputFile())
+            .project(schema)
+            .createReaderFunc(fileSchema -> InternalReader.create(schema, fileSchema))
             .build()) {
       rows = Lists.newArrayList(reader);
     }
 
     for (int i = 0; i < expected.size(); i += 1) {
-      InternalTestHelpers.assertEquals(expectedSchema.asStruct(), expected.get(i), rows.get(i));
+      InternalTestHelpers.assertEquals(schema.asStruct(), expected.get(i), rows.get(i));
     }
 
     // test reuseContainers
     try (CloseableIterable<StructLike> reader =
-        Parquet.read(Files.localInput(testFile))
-            .project(expectedSchema)
+        Parquet.read(outputFile.toInputFile())
+            .project(schema)
             .reuseContainers()
-            .createReaderFunc(fileSchema -> InternalReader.buildReader(expectedSchema, fileSchema))
+            .createReaderFunc(fileSchema -> InternalReader.create(schema, fileSchema))
             .build()) {
       int index = 0;
       for (StructLike actualRecord : reader) {
-        InternalTestHelpers.assertEquals(
-            expectedSchema.asStruct(), expected.get(index), actualRecord);
+        InternalTestHelpers.assertEquals(schema.asStruct(), expected.get(index), actualRecord);
         index += 1;
       }
     }

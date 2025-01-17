@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
@@ -34,6 +35,7 @@ import org.apache.avro.util.Utf8;
 import org.apache.iceberg.DoubleFieldMetrics;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FloatFieldMetrics;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -114,10 +116,6 @@ public class ParquetValueWriters {
 
   public static PrimitiveWriter<ByteBuffer> fixedBuffer(ColumnDescriptor desc) {
     return new FixedBufferWriter(desc);
-  }
-
-  public static PrimitiveWriter<byte[]> fixed(ColumnDescriptor desc) {
-    return new FixedWriter(desc);
   }
 
   public static <E> CollectionWriter<E> collections(int dl, int rl, ParquetValueWriter<E> writer) {
@@ -346,25 +344,6 @@ public class ParquetValueWriters {
     }
   }
 
-  private static class FixedWriter extends PrimitiveWriter<byte[]> {
-    private final int length;
-
-    private FixedWriter(ColumnDescriptor desc) {
-      super(desc);
-      this.length = desc.getPrimitiveType().getTypeLength();
-    }
-
-    @Override
-    public void write(int repetitionLevel, byte[] value) {
-      Preconditions.checkArgument(
-          value.length == length,
-          "Cannot write byte buffer of length %s as fixed[%s]",
-          value.length,
-          length);
-      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(value));
-    }
-  }
-
   private static class StringWriter extends PrimitiveWriter<CharSequence> {
     private StringWriter(ColumnDescriptor desc) {
       super(desc);
@@ -383,13 +362,33 @@ public class ParquetValueWriters {
   }
 
   private static class UUIDWriter extends PrimitiveWriter<UUID> {
+    private static final ThreadLocal<ByteBuffer> BUFFER =
+        ThreadLocal.withInitial(
+            () -> {
+              ByteBuffer buffer = ByteBuffer.allocate(16);
+              buffer.order(ByteOrder.BIG_ENDIAN);
+              return buffer;
+            });
+
     private UUIDWriter(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
     public void write(int repetitionLevel, UUID value) {
-      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(UUIDUtil.convert(value)));
+      ByteBuffer buffer = UUIDUtil.convertToByteBuffer(value, BUFFER.get());
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteBuffer(buffer));
+    }
+  }
+
+  public static class RecordWriter<T extends StructLike> extends StructWriter<T> {
+    public RecordWriter(List<ParquetValueWriter<?>> writers) {
+      super(writers);
+    }
+
+    @Override
+    protected Object get(T struct, int index) {
+      return struct.get(index, Object.class);
     }
   }
 

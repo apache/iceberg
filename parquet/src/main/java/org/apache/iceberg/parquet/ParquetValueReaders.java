@@ -29,9 +29,12 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.PageReadStore;
@@ -64,6 +67,18 @@ public class ParquetValueReaders {
 
   public static ParquetValueReader<Long> position() {
     return new PositionReader();
+  }
+
+  public static ParquetValueReader<UUID> uuids(ColumnDescriptor desc) {
+    return new ParquetValueReaders.UUIDReader(desc);
+  }
+
+  public static ParquetValueReader<Long> timestampInt96Reader(ColumnDescriptor desc) {
+    return new ParquetValueReaders.TimestampInt96Reader(desc);
+  }
+
+  public static ParquetValueReader<Long> timestampMillisReader(ColumnDescriptor desc) {
+    return new ParquetValueReaders.TimestampMillisReader(desc);
   }
 
   private static class NullReader<T> implements ParquetValueReader<T> {
@@ -404,8 +419,8 @@ public class ParquetValueReaders {
     }
   }
 
-  public static class UUIDReader extends PrimitiveReader<UUID> {
-    public UUIDReader(ColumnDescriptor desc) {
+  private static class UUIDReader extends PrimitiveReader<UUID> {
+    private UUIDReader(ColumnDescriptor desc) {
       super(desc);
     }
 
@@ -426,9 +441,9 @@ public class ParquetValueReaders {
     }
   }
 
-  public static class TimestampInt96Reader extends UnboxedReader<Long> {
+  private static class TimestampInt96Reader extends UnboxedReader<Long> {
 
-    public TimestampInt96Reader(ColumnDescriptor desc) {
+    private TimestampInt96Reader(ColumnDescriptor desc) {
       super(desc);
     }
 
@@ -445,8 +460,8 @@ public class ParquetValueReaders {
     }
   }
 
-  public static class TimestampMillisReader extends UnboxedReader<Long> {
-    public TimestampMillisReader(ColumnDescriptor desc) {
+  private static class TimestampMillisReader extends UnboxedReader<Long> {
+    private TimestampMillisReader(ColumnDescriptor desc) {
       super(desc);
     }
 
@@ -897,6 +912,44 @@ public class ParquetValueReaders {
         }
       }
       return NullReader.NULL_COLUMN;
+    }
+  }
+
+  public static class RecordReader<T extends StructLike> extends StructReader<T, T> {
+    private final GenericRecord template;
+
+    public RecordReader(
+        List<Type> types, List<ParquetValueReader<?>> readers, Types.StructType struct) {
+      super(types, readers);
+      this.template = struct != null ? GenericRecord.create(struct) : null;
+    }
+
+    @Override
+    protected T newStructData(T reuse) {
+      if (reuse != null) {
+        return reuse;
+      } else {
+        // GenericRecord.copy() is more performant then GenericRecord.create(StructType) since
+        // NAME_MAP_CACHE access
+        // is eliminated. Using copy here to gain performance.
+        return (T) template.copy();
+      }
+    }
+
+    @Override
+    protected Object getField(T intermediate, int pos) {
+      // Use StructLike's get method
+      return intermediate.get(pos, Object.class);
+    }
+
+    @Override
+    protected T buildStruct(T struct) {
+      return struct;
+    }
+
+    @Override
+    protected void set(T struct, int pos, Object value) {
+      struct.set(pos, value);
     }
   }
 }
