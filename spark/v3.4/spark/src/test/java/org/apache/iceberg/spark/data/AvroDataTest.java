@@ -26,13 +26,12 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
-import java.util.Map;
+import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -41,14 +40,13 @@ import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.apache.spark.sql.internal.SQLConf;
 import org.assertj.core.api.Assumptions;
-import org.junit.Rule;
-import org.junit.Test;
+import org.assertj.core.api.Condition;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.rules.TemporaryFolder;
 
 public abstract class AvroDataTest {
 
@@ -89,7 +87,7 @@ public abstract class AvroDataTest {
           required(117, "dec_38_10", Types.DecimalType.of(38, 10)) // Spark's maximum precision
           );
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir protected Path temp;
 
   @Test
   public void testSimpleStruct() throws IOException {
@@ -285,8 +283,13 @@ public abstract class AvroDataTest {
                 .build());
 
     assertThatThrownBy(() -> writeAndValidate(writeSchema, expectedSchema))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Missing required field: missing_str");
+        .has(
+            new Condition<>(
+                t ->
+                    IllegalArgumentException.class.isInstance(t)
+                        || IllegalArgumentException.class.isInstance(t.getCause()),
+                "Expecting a throwable or cause that is an instance of IllegalArgumentException"))
+        .hasMessageContaining("Missing required field: missing_str");
   }
 
   @Test
@@ -541,45 +544,5 @@ public abstract class AvroDataTest {
                 .build());
 
     writeAndValidate(writeSchema, readSchema);
-  }
-
-  protected void withSQLConf(Map<String, String> conf, Action action) throws IOException {
-    SQLConf sqlConf = SQLConf.get();
-
-    Map<String, String> currentConfValues = Maps.newHashMap();
-    conf.keySet()
-        .forEach(
-            confKey -> {
-              if (sqlConf.contains(confKey)) {
-                String currentConfValue = sqlConf.getConfString(confKey);
-                currentConfValues.put(confKey, currentConfValue);
-              }
-            });
-
-    conf.forEach(
-        (confKey, confValue) -> {
-          if (SQLConf.isStaticConfigKey(confKey)) {
-            throw new RuntimeException("Cannot modify the value of a static config: " + confKey);
-          }
-          sqlConf.setConfString(confKey, confValue);
-        });
-
-    try {
-      action.invoke();
-    } finally {
-      conf.forEach(
-          (confKey, confValue) -> {
-            if (currentConfValues.containsKey(confKey)) {
-              sqlConf.setConfString(confKey, currentConfValues.get(confKey));
-            } else {
-              sqlConf.unsetConf(confKey);
-            }
-          });
-    }
-  }
-
-  @FunctionalInterface
-  protected interface Action {
-    void invoke() throws IOException;
   }
 }
