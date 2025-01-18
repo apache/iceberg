@@ -1620,12 +1620,12 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
     View view =
-            catalog()
-                    .buildView(identifier)
-                    .withSchema(SCHEMA)
-                    .withDefaultNamespace(identifier.namespace())
-                    .withQuery("trino", "select * from ns.tbl")
-                    .create();
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withQuery("trino", "select * from ns.tbl")
+            .create();
 
     assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
     Table table = tableCatalog().loadTable(TableIdentifier.of("ns", "view", "version"));

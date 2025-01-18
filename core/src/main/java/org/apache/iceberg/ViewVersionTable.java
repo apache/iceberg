@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import org.apache.iceberg.io.CloseableIterable;
@@ -63,11 +62,11 @@ public class ViewVersionTable extends BaseViewMetadataTable {
 
   private DataTask task(BaseTableScan scan) {
     return StaticDataTask.of(
-            io().newInputFile(location()),
-            schema(),
-            scan.schema(),
-            operations().current().versions(),
-            ViewVersionTable::viewVersionToRow);
+        io().newInputFile(location()),
+        schema(),
+        scan.schema(),
+        operations().current().versions(),
+        ViewVersionTable::viewVersionToRow);
   }
 
   private class ViewVersionTableScan extends StaticTableScan {
@@ -77,7 +76,11 @@ public class ViewVersionTable extends BaseViewMetadataTable {
 
     ViewVersionTableScan(Table table, TableScanContext context) {
       super(
-              table, VIEW_VERSION_SCHEMA, MetadataTableType.SNAPSHOTS, ViewVersionTable.this::task, context);
+          table,
+          VIEW_VERSION_SCHEMA,
+          MetadataTableType.SNAPSHOTS,
+          ViewVersionTable.this::task,
+          context);
     }
 
     @Override
@@ -95,12 +98,12 @@ public class ViewVersionTable extends BaseViewMetadataTable {
 
   private static StaticDataTask.Row viewVersionToRow(ViewVersion version) {
     return StaticDataTask.Row.of(
-            version.versionId(),
-            version.schemaId(),
-            version.timestampMillis(),
-            version.summary(),
-            version.representations(),
-            version.defaultCatalog(),
-            version.defaultNamespace());
+        version.versionId(),
+        version.schemaId(),
+        version.timestampMillis(),
+        version.summary(),
+        version.representations(),
+        version.defaultCatalog(),
+        version.defaultNamespace());
   }
 }

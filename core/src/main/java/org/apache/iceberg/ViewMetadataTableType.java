@@ -16,18 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg;
 
 import java.util.Locale;
 
 public enum ViewMetadataTableType {
-    VERSION;
-    public static ViewMetadataTableType from(String name) {
-        try {
-            return ViewMetadataTableType.valueOf(name.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ignored) {
-            return null;
-        }
+  VERSION;
+
+  public static ViewMetadataTableType from(String name) {
+    try {
+      return ViewMetadataTableType.valueOf(name.toUpperCase(Locale.ROOT));
+    } catch (IllegalArgumentException ignored) {
+      return null;
     }
+  }
 }

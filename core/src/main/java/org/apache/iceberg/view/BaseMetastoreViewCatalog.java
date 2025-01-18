@@ -90,7 +90,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
         throw new NoSuchTableException("Table or View does not exist: %s", baseViewIdentifier);
       }
       return MetadataTableUtils.createViewMetadataTableInstance(
-              ops, name(), baseViewIdentifier, identifier, type);
+          ops, name(), baseViewIdentifier, identifier, type);
     } else {
       throw new NoSuchTableException("Table does not exist: %s", identifier);
     }
