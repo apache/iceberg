@@ -23,13 +23,19 @@ import java.util.Map;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.EnvironmentContext;
+import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.ViewMetadataTableType;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -65,6 +71,31 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
     }
 
     throw new NoSuchViewException("Invalid view identifier: %s", identifier);
+  }
+
+  @Override
+  public Table loadTable(TableIdentifier identifier) {
+    try {
+      return super.loadTable(identifier);
+    } catch (NoSuchTableException e) {
+      return loadViewMetadataTable(identifier);
+    }
+  }
+
+  private Table loadViewMetadataTable(TableIdentifier identifier) {
+    String tableName = identifier.name();
+    ViewMetadataTableType type = ViewMetadataTableType.from(tableName);
+    if (type != null) {
+      TableIdentifier baseViewIdentifier = TableIdentifier.of(identifier.namespace().levels());
+      ViewOperations ops = newViewOps(identifier);
+      if (ops.current() == null) {
+        throw new NoSuchTableException("Table or View does not exist: %s", baseViewIdentifier);
+      }
+      return MetadataTableUtils.createViewMetadataTableInstance(
+              ops, name(), baseViewIdentifier, identifier, type);
+    } else {
+      throw new NoSuchTableException("Table does not exist: %s", identifier);
+    }
   }
 
   @Override

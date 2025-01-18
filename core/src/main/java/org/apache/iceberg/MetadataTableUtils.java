@@ -21,6 +21,9 @@ package org.apache.iceberg;
 import java.util.Locale;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.view.BaseView;
+import org.apache.iceberg.view.View;
+import org.apache.iceberg.view.ViewOperations;
 
 public class MetadataTableUtils {
   private MetadataTableUtils() {}
@@ -92,6 +95,34 @@ public class MetadataTableUtils {
         throw new NoSuchTableException(
             "Unknown metadata table type: %s for %s", type, metadataTableName);
     }
+  }
+
+  public static Table createViewMetadataTableInstance(
+          ViewOperations ops,
+          String catalogName,
+          TableIdentifier baseViewIdentifier,
+          TableIdentifier metadataTableIdentifier,
+          ViewMetadataTableType type) {
+    String baseTableName = BaseMetastoreCatalog.fullTableName(catalogName, baseViewIdentifier);
+    String metadataTableName =
+            BaseMetastoreCatalog.fullTableName(catalogName, metadataTableIdentifier);
+    return createViewMetadataTableInstance(ops, baseTableName, metadataTableName, type);
+  }
+
+  public static Table createViewMetadataTableInstance(
+          ViewOperations ops, String baseViewName, String metadataTableName, ViewMetadataTableType type) {
+    View baseView = new BaseView(ops, baseViewName);
+    return createViewMetadataTableInstance(baseView, metadataTableName, type);
+  }
+
+  private static Table createViewMetadataTableInstance(View baseView, String metadataTableName, ViewMetadataTableType type) {
+    switch (type) {
+      case VERSION:
+        return new ViewVersionTable(baseView);
+    default:
+    throw new NoSuchTableException(
+            "Unknown metadata table type: %s for %s", type, metadataTableName);
+  }
   }
 
   public static Table createMetadataTableInstance(
