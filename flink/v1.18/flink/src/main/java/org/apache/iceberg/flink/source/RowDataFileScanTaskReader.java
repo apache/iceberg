@@ -220,7 +220,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
         Schema tableSchema,
         Schema requestedSchema,
         InputFilesDecryptor inputFilesDecryptor) {
-      super(task.file().path().toString(), task.deletes(), tableSchema, requestedSchema);
+      super(task.file().location(), task.deletes(), tableSchema, requestedSchema);
       this.requiredRowType = FlinkSchemaUtil.convert(requiredSchema());
       this.asStructLike = new RowDataWrapper(requiredRowType, requiredSchema().asStruct());
       this.inputFilesDecryptor = inputFilesDecryptor;

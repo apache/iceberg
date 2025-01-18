@@ -425,6 +425,121 @@ public class TestUpdateRequirements {
   }
 
   @Test
+  public void removePartitionSpec() {
+    int defaultSpecId = 3;
+    when(metadata.defaultSpecId()).thenReturn(defaultSpecId);
+
+    List<UpdateRequirement> requirements =
+        UpdateRequirements.forUpdateTable(
+            metadata,
+            ImmutableList.of(new MetadataUpdate.RemovePartitionSpecs(Sets.newHashSet(1, 2))));
+    requirements.forEach(req -> req.validate(metadata));
+
+    assertThat(requirements)
+        .hasSize(2)
+        .hasOnlyElementsOfTypes(
+            UpdateRequirement.AssertTableUUID.class, UpdateRequirement.AssertDefaultSpecID.class);
+
+    assertTableUUID(requirements);
+
+    assertThat(requirements)
+        .element(1)
+        .asInstanceOf(InstanceOfAssertFactories.type(UpdateRequirement.AssertDefaultSpecID.class))
+        .extracting(UpdateRequirement.AssertDefaultSpecID::specId)
+        .isEqualTo(defaultSpecId);
+  }
+
+  @Test
+  public void testRemovePartitionSpecsWithBranch() {
+    int defaultSpecId = 3;
+    long snapshotId = 42L;
+    when(metadata.defaultSpecId()).thenReturn(defaultSpecId);
+
+    String branch = "branch";
+    SnapshotRef snapshotRef = mock(SnapshotRef.class);
+    when(snapshotRef.snapshotId()).thenReturn(snapshotId);
+    when(snapshotRef.isBranch()).thenReturn(true);
+    when(metadata.refs()).thenReturn(ImmutableMap.of(branch, snapshotRef));
+    when(metadata.ref(branch)).thenReturn(snapshotRef);
+
+    List<UpdateRequirement> requirements =
+        UpdateRequirements.forUpdateTable(
+            metadata,
+            ImmutableList.of(new MetadataUpdate.RemovePartitionSpecs(Sets.newHashSet(1, 2))));
+    requirements.forEach(req -> req.validate(metadata));
+
+    assertThat(requirements)
+        .hasSize(3)
+        .hasOnlyElementsOfTypes(
+            UpdateRequirement.AssertTableUUID.class,
+            UpdateRequirement.AssertDefaultSpecID.class,
+            UpdateRequirement.AssertRefSnapshotID.class);
+
+    assertTableUUID(requirements);
+
+    assertThat(requirements)
+        .element(1)
+        .asInstanceOf(InstanceOfAssertFactories.type(UpdateRequirement.AssertDefaultSpecID.class))
+        .extracting(UpdateRequirement.AssertDefaultSpecID::specId)
+        .isEqualTo(defaultSpecId);
+
+    assertThat(requirements)
+        .element(2)
+        .asInstanceOf(InstanceOfAssertFactories.type(UpdateRequirement.AssertRefSnapshotID.class))
+        .extracting(UpdateRequirement.AssertRefSnapshotID::snapshotId)
+        .isEqualTo(snapshotId);
+  }
+
+  @Test
+  public void testRemovePartitionSpecsFailure() {
+    int defaultSpecId = 3;
+    when(metadata.defaultSpecId()).thenReturn(defaultSpecId);
+    when(updated.defaultSpecId()).thenReturn(defaultSpecId + 1);
+
+    List<UpdateRequirement> requirements =
+        UpdateRequirements.forUpdateTable(
+            metadata,
+            ImmutableList.of(new MetadataUpdate.RemovePartitionSpecs(Sets.newHashSet(1, 2))));
+
+    assertThatThrownBy(() -> requirements.forEach(req -> req.validate(updated)))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage(
+            "Requirement failed: default partition spec changed: expected id %s != %s",
+            defaultSpecId, defaultSpecId + 1);
+  }
+
+  @Test
+  public void testRemovePartitionSpecsWithBranchFailure() {
+    int defaultSpecId = 3;
+    long snapshotId = 42L;
+    when(metadata.defaultSpecId()).thenReturn(defaultSpecId);
+    when(updated.defaultSpecId()).thenReturn(defaultSpecId);
+
+    String branch = "test";
+    SnapshotRef snapshotRef = mock(SnapshotRef.class);
+    when(snapshotRef.snapshotId()).thenReturn(snapshotId);
+    when(snapshotRef.isBranch()).thenReturn(true);
+    when(metadata.refs()).thenReturn(ImmutableMap.of(branch, snapshotRef));
+    when(metadata.ref(branch)).thenReturn(snapshotRef);
+
+    SnapshotRef updatedRef = mock(SnapshotRef.class);
+    when(updatedRef.snapshotId()).thenReturn(snapshotId + 1);
+    when(updatedRef.isBranch()).thenReturn(true);
+    when(updated.ref(branch)).thenReturn(updatedRef);
+
+    List<UpdateRequirement> requirements =
+        UpdateRequirements.forUpdateTable(
+            metadata,
+            ImmutableList.of(new MetadataUpdate.RemovePartitionSpecs(Sets.newHashSet(1, 2))));
+
+    assertThatThrownBy(() -> requirements.forEach(req -> req.validate(updated)))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage(
+            "Requirement failed: branch %s has changed: expected id %s != %s",
+            branch, snapshotId, snapshotId + 1);
+  }
+
+  @Test
   public void addSortOrder() {
     List<UpdateRequirement> requirements =
         UpdateRequirements.forUpdateTable(

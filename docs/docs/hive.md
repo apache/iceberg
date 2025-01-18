@@ -300,6 +300,7 @@ The result is:
 | i                                  | BUCKET\[2\]    | NULL
 
 The supported transformations for Hive are the same as for Spark:
+
 * years(ts): partition by year
 * months(ts): partition by month
 * days(ts) or date(ts): equivalent to dateint partitioning
@@ -747,18 +748,20 @@ To reference a metadata table the full name of the table should be used, like:
 
 Currently the following metadata tables are available in Hive:
 
-* all_data_files 
-* all_delete_files 
-* all_entries all_files 
-* all_manifests 
-* data_files 
-* delete_files 
-* entries 
-* files 
-* manifests 
-* metadata_log_entries 
-* partitions 
-* refs 
+* all_data_files
+* all_delete_files
+* all_entries
+* all_files
+* all_manifests
+* data_files
+* delete_files
+* entries
+* files
+* history
+* manifests
+* metadata_log_entries
+* partitions
+* refs
 * snapshots
 
 ```sql
@@ -780,6 +783,15 @@ Each write to an Iceberg table from Hive creates a new snapshot, or version, of 
 Enter a query to expire snapshots having the following timestamp: `2021-12-09 05:39:18.689000000`
 ```sql
 ALTER TABLE test_table EXECUTE expire_snapshots('2021-12-09 05:39:18.689000000');
+```
+
+### `DELETE ORPHAN-FILES`
+
+Used to remove files which are not referenced in any metadata files of an Iceberg table and can thus be considered "orphaned".
+The function is available with the following syntax:
+```sql
+ALTER TABLE table_a EXECUTE DELETE ORPHAN-FILES;
+ALTER TABLE table_a EXECUTE DELETE ORPHAN-FILES OLDER THAN ('2021-12-09 05:39:18.689000000');
 ```
 
 ### Type compatibility
@@ -839,8 +851,6 @@ ALTER TABLE ice_t EXECUTE ROLLBACK(1111);
 ### Compaction
 
 Hive 4 supports full table compaction of Iceberg tables using the following commands:
-* Using the `ALTER TABLE ... COMPACT` syntax
-* Using the `OPTIMIZE TABLE ... REWRITE DATA` syntax
 ```sql
 -- Using the ALTER TABLE ... COMPACT syntax
 ALTER TABLE t COMPACT 'major';

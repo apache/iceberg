@@ -50,6 +50,7 @@ import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -71,7 +72,11 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     this.backendCatalog = new InMemoryCatalog();
     this.backendCatalog.initialize(
         "in-memory",
-        ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath()));
+        ImmutableMap.<String, String>builder()
+            .put(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath())
+            .put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key1", "catalog-default-key1")
+            .put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key2", "catalog-default-key2")
+            .build());
 
     RESTCatalogAdapter adaptor =
         new RESTCatalogAdapter(backendCatalog) {
@@ -224,6 +229,37 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
             eq(ImmutableMap.of("pageToken", "20", "pageSize", "10", "namespace", namespaceName)),
             any(),
             eq(ListTablesResponse.class));
+  }
+
+  @Test
+  public void viewExistsViaHEADRequest() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of());
+
+    catalog.createNamespace(Namespace.of("ns"));
+
+    assertThat(catalog.viewExists(TableIdentifier.of("ns", "view"))).isFalse();
+
+    Mockito.verify(adapter)
+        .execute(
+            eq(HTTPMethod.GET),
+            eq("v1/config"),
+            any(),
+            any(),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+    Mockito.verify(adapter)
+        .execute(
+            eq(HTTPMethod.HEAD),
+            eq("v1/namespaces/ns/views/view"),
+            any(),
+            any(),
+            any(),
+            any(),
+            any());
   }
 
   @Override

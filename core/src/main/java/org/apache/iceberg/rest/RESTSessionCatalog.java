@@ -138,11 +138,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       ImmutableSet.<Endpoint>builder()
           .add(Endpoint.V1_LIST_NAMESPACES)
           .add(Endpoint.V1_LOAD_NAMESPACE)
+          .add(Endpoint.V1_NAMESPACE_EXISTS)
           .add(Endpoint.V1_CREATE_NAMESPACE)
           .add(Endpoint.V1_UPDATE_NAMESPACE)
           .add(Endpoint.V1_DELETE_NAMESPACE)
           .add(Endpoint.V1_LIST_TABLES)
           .add(Endpoint.V1_LOAD_TABLE)
+          .add(Endpoint.V1_TABLE_EXISTS)
           .add(Endpoint.V1_CREATE_TABLE)
           .add(Endpoint.V1_UPDATE_TABLE)
           .add(Endpoint.V1_DELETE_TABLE)
@@ -155,6 +157,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       ImmutableSet.<Endpoint>builder()
           .add(Endpoint.V1_LIST_VIEWS)
           .add(Endpoint.V1_LOAD_VIEW)
+          .add(Endpoint.V1_VIEW_EXISTS)
           .add(Endpoint.V1_CREATE_VIEW)
           .add(Endpoint.V1_UPDATE_VIEW)
           .add(Endpoint.V1_DELETE_VIEW)
@@ -434,9 +437,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public boolean tableExists(SessionContext context, TableIdentifier identifier) {
-    checkIdentifierIsValid(identifier);
+    Endpoint.check(endpoints, Endpoint.V1_TABLE_EXISTS);
 
     try {
+      checkIdentifierIsValid(identifier);
       client.head(paths.table(identifier), headers(context), ErrorHandlers.tableErrorHandler());
       return true;
     } catch (NoSuchTableException e) {
@@ -650,6 +654,20 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     } while (pageToken != null);
 
     return namespaces.build();
+  }
+
+  @Override
+  public boolean namespaceExists(SessionContext context, Namespace namespace) {
+    Endpoint.check(endpoints, Endpoint.V1_NAMESPACE_EXISTS);
+
+    try {
+      checkNamespaceIsValid(namespace);
+      client.head(
+          paths.namespace(namespace), headers(context), ErrorHandlers.namespaceErrorHandler());
+      return true;
+    } catch (NoSuchNamespaceException e) {
+      return false;
+    }
   }
 
   @Override
@@ -1213,6 +1231,19 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   @Override
+  public boolean viewExists(SessionContext context, TableIdentifier identifier) {
+    Endpoint.check(endpoints, Endpoint.V1_VIEW_EXISTS);
+
+    try {
+      checkViewIdentifierIsValid(identifier);
+      client.head(paths.view(identifier), headers(context), ErrorHandlers.viewErrorHandler());
+      return true;
+    } catch (NoSuchViewException e) {
+      return false;
+    }
+  }
+
+  @Override
   public View loadView(SessionContext context, TableIdentifier identifier) {
     Endpoint.check(
         endpoints,
@@ -1287,6 +1318,21 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       checkViewIdentifierIsValid(identifier);
       this.identifier = identifier;
       this.context = context;
+      this.properties.putAll(viewDefaultProperties());
+    }
+
+    /**
+     * Get default view properties set at Catalog level through catalog properties.
+     *
+     * @return default view properties specified in catalog properties
+     */
+    private Map<String, String> viewDefaultProperties() {
+      Map<String, String> viewDefaultProperties =
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.VIEW_DEFAULT_PREFIX);
+      LOG.info(
+          "View properties set at catalog level through catalog properties: {}",
+          viewDefaultProperties);
+      return viewDefaultProperties;
     }
 
     @Override

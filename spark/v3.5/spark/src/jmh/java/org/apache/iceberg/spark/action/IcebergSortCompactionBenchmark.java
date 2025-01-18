@@ -26,6 +26,7 @@ import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -36,7 +37,6 @@ import org.apache.iceberg.SortDirection;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.SizeBasedFileRewriter;
-import org.apache.iceberg.relocated.com.google.common.io.Files;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkSessionCatalog;
@@ -372,8 +372,13 @@ public class IcebergSortCompactionBenchmark {
   }
 
   protected String getCatalogWarehouse() {
-    String location = Files.createTempDir().getAbsolutePath() + "/" + UUID.randomUUID() + "/";
-    return location;
+    try {
+      String location =
+          Files.createTempDirectory("benchmark-").toAbsolutePath() + "/" + UUID.randomUUID() + "/";
+      return location;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   protected void cleanupFiles() throws IOException {

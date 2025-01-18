@@ -22,7 +22,10 @@ FROM azul/zulu-openjdk:17-jre-headless
 # Set up the user and group
 RUN  set -xeu && \
      groupadd iceberg --gid 1000 && \
-     useradd iceberg --uid 1000 --gid 1000 --create-home
+     useradd iceberg --uid 1000 --gid 1000 --create-home && \
+     apt-get update && \
+     apt-get install -y --no-install-recommends curl && \
+     rm -rf /var/lib/apt/lists/*
 
 # Working directory for the application
 WORKDIR /usr/lib/iceberg-rest
@@ -35,6 +38,10 @@ ENV CATALOG_URI=jdbc:sqlite::memory:
 ENV CATALOG_JDBC_USER=user
 ENV CATALOG_JDBC_PASSWORD=password
 ENV REST_PORT=8181
+
+# Healthcheck for the iceberg rest service
+HEALTHCHECK --retries=10 --interval=1s \
+  CMD curl --fail http://localhost:$REST_PORT/v1/config || exit 1
 
 EXPOSE $REST_PORT
 USER iceberg:iceberg

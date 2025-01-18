@@ -23,6 +23,7 @@ nav:
   - Docs: 
     - nightly: '!include docs/docs/nightly/mkdocs.yml'
     - latest: '!include docs/docs/latest/mkdocs.yml'
+    - 1.7.1: '!include docs/docs/1.7.1/mkdocs.yml'
     - 1.7.0: '!include docs/docs/1.7.0/mkdocs.yml'
     - 1.6.1: '!include docs/docs/1.6.1/mkdocs.yml'
     - 1.6.0: '!include docs/docs/1.6.0/mkdocs.yml'
@@ -46,10 +47,11 @@ nav:
     - View spec: view-spec.md
     - Puffin spec: puffin-spec.md
     - AES GCM Stream spec: gcm-stream-spec.md
+    - Implementation status: status.md
     - Multi-engine support: multi-engine-support.md
     - How to release: how-to-release.md
     - Terms: terms.md
-    - ASF: 
+    - ASF:
       - Sponsorship: https://www.apache.org/foundation/thanks.html
       - Events: https://www.apache.org/events/current-event.html
       - Privacy: https://privacy.apache.org/policies/privacy-policy-public.html

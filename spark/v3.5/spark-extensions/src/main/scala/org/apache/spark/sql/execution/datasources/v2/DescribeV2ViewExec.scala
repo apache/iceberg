@@ -55,13 +55,15 @@ case class DescribeV2ViewExec(
   private def describeExtended: Seq[InternalRow] = {
     val outputColumns = view.queryColumnNames.mkString("[", ", ", "]")
     val properties: Map[String, String] = view.properties.asScala.toMap -- ViewCatalog.RESERVED_PROPERTIES.asScala
-    val viewCatalogAndNamespace: Seq[String] = view.currentCatalog +: view.currentNamespace.toSeq
+    val viewCatalogAndNamespace: Seq[String] = view.name.split("\\.").take(2)
     val viewProperties = properties.toSeq.sortBy(_._1).map {
       case (key, value) =>
         s"'${escapeSingleQuotedString(key)}' = '${escapeSingleQuotedString(value)}'"
     }.mkString("[", ", ", "]")
 
 
+    // omitting view text here because it is shown as
+    // part of SHOW CREATE TABLE and can result in weird formatting in the DESCRIBE output
     toCatalystRow("# Detailed View Information", "", "") ::
       toCatalystRow("Comment", view.properties.getOrDefault(ViewCatalog.PROP_COMMENT, ""), "") ::
       toCatalystRow("View Catalog and Namespace", viewCatalogAndNamespace.quoted, "") ::

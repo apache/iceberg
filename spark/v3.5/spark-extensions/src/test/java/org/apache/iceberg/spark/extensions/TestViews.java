@@ -50,6 +50,7 @@ import org.apache.iceberg.view.SQLViewRepresentation;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewHistoryEntry;
 import org.apache.iceberg.view.ViewProperties;
+import org.apache.iceberg.view.ViewUtil;
 import org.apache.iceberg.view.ViewVersion;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -560,6 +561,40 @@ public class TestViews extends ExtensionsTestBase {
         .create();
 
     assertThat(sql("SELECT * FROM %s", viewName)).hasSize(1).containsExactly(row(10, 1L));
+  }
+
+  @TestTemplate
+  public void readFromViewWithGroupByOrdinal() throws NoSuchTableException {
+    insertRows(3);
+    insertRows(2);
+    String viewName = viewName("viewWithGroupByOrdinal");
+    String sql = String.format("SELECT id, count(1) FROM %s GROUP BY 1", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1, 2L), row(2, 2L), row(3, 1L));
+  }
+
+  @TestTemplate
+  public void createViewWithGroupByOrdinal() throws NoSuchTableException {
+    insertRows(3);
+    insertRows(2);
+    String viewName = viewName("createViewWithGroupByOrdinal");
+    sql("CREATE VIEW %s AS SELECT id, count(1) FROM %s GROUP BY 1", viewName, tableName);
+
+    assertThat(sql("SELECT * FROM %s", viewName))
+        .hasSize(3)
+        .containsExactlyInAnyOrder(row(1, 2L), row(2, 2L), row(3, 1L));
   }
 
   @TestTemplate
@@ -1418,6 +1453,68 @@ public class TestViews extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void createAndDescribeViewInDefaultNamespace() {
+    String viewName = viewName("createViewInDefaultNamespace");
+    String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
+
+    sql("CREATE VIEW %s (id, data) AS %s", viewName, sql);
+    TableIdentifier identifier = TableIdentifier.of(NAMESPACE, viewName);
+    View view = viewCatalog().loadView(identifier);
+    assertThat(view.currentVersion().defaultCatalog()).isNull();
+    assertThat(view.name()).isEqualTo(ViewUtil.fullViewName(catalogName, identifier));
+    assertThat(view.currentVersion().defaultNamespace()).isEqualTo(NAMESPACE);
+
+    String location = viewCatalog().loadView(identifier).location();
+    assertThat(sql("DESCRIBE EXTENDED %s.%s", NAMESPACE, viewName))
+        .contains(
+            row("id", "int", ""),
+            row("data", "string", ""),
+            row("", "", ""),
+            row("# Detailed View Information", "", ""),
+            row("Comment", "", ""),
+            row("View Catalog and Namespace", String.format("%s.%s", catalogName, NAMESPACE), ""),
+            row("View Query Output Columns", "[id, data]", ""),
+            row(
+                "View Properties",
+                String.format(
+                    "['format-version' = '1', 'location' = '%s', 'provider' = 'iceberg']",
+                    location),
+                ""));
+  }
+
+  @TestTemplate
+  public void createAndDescribeViewWithoutCurrentNamespace() {
+    String viewName = viewName("createViewWithoutCurrentNamespace");
+    Namespace namespace = Namespace.of("test_namespace");
+    String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
+
+    sql("CREATE NAMESPACE IF NOT EXISTS %s", namespace);
+    sql("CREATE VIEW %s.%s (id, data) AS %s", namespace, viewName, sql);
+    TableIdentifier identifier = TableIdentifier.of(namespace, viewName);
+    View view = viewCatalog().loadView(identifier);
+    assertThat(view.currentVersion().defaultCatalog()).isNull();
+    assertThat(view.name()).isEqualTo(ViewUtil.fullViewName(catalogName, identifier));
+    assertThat(view.currentVersion().defaultNamespace()).isEqualTo(NAMESPACE);
+
+    String location = viewCatalog().loadView(identifier).location();
+    assertThat(sql("DESCRIBE EXTENDED %s.%s", namespace, viewName))
+        .contains(
+            row("id", "int", ""),
+            row("data", "string", ""),
+            row("", "", ""),
+            row("# Detailed View Information", "", ""),
+            row("Comment", "", ""),
+            row("View Catalog and Namespace", String.format("%s.%s", catalogName, namespace), ""),
+            row("View Query Output Columns", "[id, data]", ""),
+            row(
+                "View Properties",
+                String.format(
+                    "['format-version' = '1', 'location' = '%s', 'provider' = 'iceberg']",
+                    location),
+                ""));
+  }
+
+  @TestTemplate
   public void showViewProperties() {
     String viewName = viewName("showViewProps");
 
@@ -1464,45 +1561,39 @@ public class TestViews extends ExtensionsTestBase {
 
     // spark stores temp views case-insensitive by default
     Object[] tempView = row("", tempViewForListing.toLowerCase(Locale.ROOT), true);
-    assertThat(sql("SHOW VIEWS"))
-        .contains(
-            row(NAMESPACE.toString(), prefixV2, false),
-            row(NAMESPACE.toString(), prefixV3, false),
-            row(NAMESPACE.toString(), v1, false),
-            tempView);
+    Object[] v1Row = row(NAMESPACE.toString(), v1, false);
+    Object[] v2Row = row(NAMESPACE.toString(), prefixV2, false);
+    Object[] v3Row = row(NAMESPACE.toString(), prefixV3, false);
+    assertThat(sql("SHOW VIEWS")).contains(v2Row, v3Row, v1Row, tempView);
 
     if (!"rest".equals(catalogConfig.get(CatalogUtil.ICEBERG_CATALOG_TYPE))) {
       // REST catalog requires a namespace
       assertThat(sql("SHOW VIEWS IN %s", catalogName))
-          .contains(
-              row(NAMESPACE.toString(), prefixV2, false),
-              row(NAMESPACE.toString(), prefixV3, false),
-              row(NAMESPACE.toString(), v1, false),
-              tempView);
+          .contains(tempView)
+          .doesNotContain(v1Row, v2Row, v3Row);
     }
 
     assertThat(sql("SHOW VIEWS IN %s.%s", catalogName, NAMESPACE))
-        .contains(
-            row(NAMESPACE.toString(), prefixV2, false),
-            row(NAMESPACE.toString(), prefixV3, false),
-            row(NAMESPACE.toString(), v1, false),
-            tempView);
+        .contains(v2Row, v3Row, v1Row, tempView);
 
     assertThat(sql("SHOW VIEWS LIKE 'pref*'"))
-        .contains(
-            row(NAMESPACE.toString(), prefixV2, false), row(NAMESPACE.toString(), prefixV3, false));
+        .contains(v2Row, v3Row)
+        .doesNotContain(v1Row, tempView);
 
     assertThat(sql("SHOW VIEWS LIKE 'non-existing'")).isEmpty();
 
     if (!catalogName.equals(SPARK_CATALOG)) {
       sql("CREATE NAMESPACE IF NOT EXISTS spark_catalog.%s", NAMESPACE);
-      assertThat(sql("SHOW VIEWS IN spark_catalog.%s", NAMESPACE)).contains(tempView);
+      assertThat(sql("SHOW VIEWS IN spark_catalog.%s", NAMESPACE))
+          .contains(tempView)
+          .doesNotContain(v1Row, v2Row, v3Row);
     }
 
     assertThat(sql("SHOW VIEWS IN global_temp"))
         .contains(
             // spark stores temp views case-insensitive by default
-            row("global_temp", globalViewForListing.toLowerCase(Locale.ROOT), true), tempView);
+            row("global_temp", globalViewForListing.toLowerCase(Locale.ROOT), true), tempView)
+        .doesNotContain(v1Row, v2Row, v3Row);
 
     sql("USE spark_catalog");
     assertThat(sql("SHOW VIEWS")).contains(tempView);

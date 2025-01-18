@@ -78,7 +78,7 @@ Iceberg also has modules for adding Iceberg support to processing engines:
 ---
 **NOTE**
 
-The tests require Docker to execute. On MacOS (with Docker Desktop), you might need to create a symbolic name to the docker socket in order to be detected by the tests:
+The tests require Docker to execute. On macOS (with Docker Desktop), you might need to create a symbolic name to the docker socket in order to be detected by the tests:
 
 ```
 sudo ln -s $HOME/.docker/run/docker.sock /var/run/docker.sock
@@ -97,3 +97,4 @@ This repository contains the Java implementation of Iceberg. Other implementatio
 * **Go**: [iceberg-go](https://github.com/apache/iceberg-go)
 * **PyIceberg** (Python): [iceberg-python](https://github.com/apache/iceberg-python)
 * **Rust**: [iceberg-rust](https://github.com/apache/iceberg-rust)
+* **C++**: [iceberg-cpp](https://github.com/apache/iceberg-cpp)

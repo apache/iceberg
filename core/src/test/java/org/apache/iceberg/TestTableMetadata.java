@@ -1694,6 +1694,24 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void removeRefKeepsSnapshotLog() throws Exception {
+    TableMetadata metadata =
+        TableMetadataParser.fromJson(readTableMetadataInputFile("TableMetadataV2Valid.json"));
+    assertThat(metadata.currentSnapshot()).isNotNull();
+    assertThat(metadata.snapshots()).hasSize(2);
+    assertThat(metadata.snapshotLog()).hasSize(2);
+
+    TableMetadata removeRef =
+        TableMetadata.buildFrom(metadata).removeRef(SnapshotRef.MAIN_BRANCH).build();
+
+    assertThat(removeRef.currentSnapshot()).isNull();
+    assertThat(removeRef.snapshots()).hasSize(2).containsExactlyElementsOf(metadata.snapshots());
+    assertThat(removeRef.snapshotLog())
+        .hasSize(2)
+        .containsExactlyElementsOf(metadata.snapshotLog());
+  }
+
+  @Test
   public void testConstructV3Metadata() {
     TableMetadata.newTableMetadata(
         TEST_SCHEMA,

@@ -193,7 +193,7 @@ public class TestSparkDataFile {
   }
 
   private void checkDataFile(DataFile expected, DataFile actual) {
-    Assert.assertEquals("Path must match", expected.path(), actual.path());
+    Assert.assertEquals("Path must match", expected.location(), actual.location());
     Assert.assertEquals("Format must match", expected.format(), actual.format());
     Assert.assertEquals("Record count must match", expected.recordCount(), actual.recordCount());
     Assert.assertEquals("Size must match", expected.fileSizeInBytes(), actual.fileSizeInBytes());

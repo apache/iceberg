@@ -32,6 +32,7 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
@@ -92,6 +93,10 @@ public class ValueWriters {
     return new GenericFixedWriter(length);
   }
 
+  public static ValueWriter<ByteBuffer> fixedBuffers(int length) {
+    return new FixedByteBufferWriter(length);
+  }
+
   public static ValueWriter<byte[]> bytes() {
     return BytesWriter.INSTANCE;
   }
@@ -124,6 +129,10 @@ public class ValueWriters {
 
   public static ValueWriter<IndexedRecord> record(List<ValueWriter<?>> writers) {
     return new RecordWriter(writers);
+  }
+
+  public static ValueWriter<StructLike> struct(List<ValueWriter<?>> writers) {
+    return new StructLikeWriter(writers);
   }
 
   private static class NullWriter implements ValueWriter<Void> {
@@ -327,6 +336,24 @@ public class ValueWriters {
     }
   }
 
+  private static class FixedByteBufferWriter implements ValueWriter<ByteBuffer> {
+    private final int length;
+
+    private FixedByteBufferWriter(int length) {
+      this.length = length;
+    }
+
+    @Override
+    public void write(ByteBuffer bytes, Encoder encoder) throws IOException {
+      Preconditions.checkArgument(
+          bytes.remaining() == length,
+          "Cannot write byte buffer of length %s as fixed[%s]",
+          bytes.remaining(),
+          length);
+      encoder.writeBytes(bytes);
+    }
+  }
+
   private static class DecimalWriter implements ValueWriter<BigDecimal> {
     private final int precision;
     private final int scale;
@@ -482,6 +509,17 @@ public class ValueWriters {
     @Override
     protected Object get(IndexedRecord struct, int pos) {
       return struct.get(pos);
+    }
+  }
+
+  private static class StructLikeWriter extends StructWriter<StructLike> {
+    private StructLikeWriter(List<ValueWriter<?>> writers) {
+      super(writers);
+    }
+
+    @Override
+    protected Object get(StructLike struct, int pos) {
+      return struct.get(pos, Object.class);
     }
   }
 }

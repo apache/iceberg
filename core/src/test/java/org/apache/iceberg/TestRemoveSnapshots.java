@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.puffin.Blob;
@@ -1618,6 +1619,90 @@ public class TestRemoveSnapshots extends TestBase {
 
     assertThat(table.snapshots()).hasSize(2);
     assertThat(deletedFiles).isEqualTo(expectedDeletes);
+  }
+
+  @TestTemplate
+  public void testRemoveSpecDuringExpiration() {
+    DataFile file =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data-0.parquet")
+            .withPartitionPath("data_bucket=0")
+            .withFileSizeInBytes(10)
+            .withRecordCount(100)
+            .build();
+    table.newAppend().appendFile(file).commit();
+    Snapshot append = table.currentSnapshot();
+    String appendManifest =
+        Iterables.getOnlyElement(
+            table.currentSnapshot().allManifests(table.io()).stream()
+                .map(ManifestFile::path)
+                .collect(Collectors.toList()));
+    table.newDelete().deleteFile(file).commit();
+    Snapshot delete = table.currentSnapshot();
+    String deleteManifest =
+        Iterables.getOnlyElement(
+            table.currentSnapshot().allManifests(table.io()).stream()
+                .map(ManifestFile::path)
+                .collect(Collectors.toList()));
+
+    table.updateSpec().addField("id_bucket", Expressions.bucket("id", 16)).commit();
+    PartitionSpec idAndDataBucketSpec = table.spec();
+    DataFile bucketFile =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data-0-id-0.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(100)
+            .withPartitionPath("data_bucket=0/id_bucket=0")
+            .build();
+    table.newAppend().appendFile(bucketFile).commit();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    // Expiring snapshots should remove the data_bucket partition
+    removeSnapshots(table)
+        .expireOlderThan(System.currentTimeMillis())
+        .cleanExpiredMetadata(true)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles)
+        .containsExactlyInAnyOrder(
+            appendManifest,
+            deleteManifest,
+            file.location(),
+            append.manifestListLocation(),
+            delete.manifestListLocation());
+    assertThat(table.specs().keySet())
+        .as("Only id_bucket + data_bucket transform should exist")
+        .containsExactly(idAndDataBucketSpec.specId());
+  }
+
+  @TestTemplate
+  public void testRemoveSpecsDoesntRemoveDefaultSpec() throws IOException {
+    // The default spec for table is bucketed on data, but write using unpartitioned
+    PartitionSpec dataBucketSpec = table.spec();
+    DataFile file =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath("/path/to/data-0.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(100)
+            .build();
+
+    table.newAppend().appendFile(file).commit();
+    Snapshot append = table.currentSnapshot();
+    table.newDelete().deleteFile(file).commit();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    // Expiring snapshots should remove only the unpartitioned spec
+    removeSnapshots(table)
+        .expireOlderThan(System.currentTimeMillis())
+        .cleanExpiredMetadata(true)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles).containsExactlyInAnyOrder(append.manifestListLocation());
+    assertThat(table.specs().keySet())
+        .as("Only data_bucket transform should exist")
+        .containsExactly(dataBucketSpec.specId());
   }
 
   private Set<String> manifestPaths(Snapshot snapshot, FileIO io) {

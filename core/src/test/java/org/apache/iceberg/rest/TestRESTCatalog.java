@@ -2634,6 +2634,35 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .isTrue();
   }
 
+  @Test
+  public void testNamespaceExistsViaHEADRequest() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of());
+
+    assertThat(catalog.namespaceExists(Namespace.of("non-existing"))).isFalse();
+
+    Mockito.verify(adapter)
+        .execute(
+            eq(HTTPMethod.GET),
+            eq("v1/config"),
+            any(),
+            any(),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+    Mockito.verify(adapter)
+        .execute(
+            eq(HTTPMethod.HEAD),
+            eq("v1/namespaces/non-existing"),
+            any(),
+            any(),
+            any(),
+            any(),
+            any());
+  }
+
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);

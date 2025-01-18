@@ -60,7 +60,8 @@ public final class TaskCheckHelper {
   }
 
   public static void assertEquals(DataFile expected, DataFile actual) {
-    Assert.assertEquals("Should match the serialized record path", expected.path(), actual.path());
+    Assert.assertEquals(
+        "Should match the serialized record path", expected.location(), actual.location());
     Assert.assertEquals(
         "Should match the serialized record format", expected.format(), actual.format());
     Assert.assertEquals(
@@ -105,7 +106,7 @@ public final class TaskCheckHelper {
       ScanTaskGroup<FileScanTask> taskGroup) {
     return taskGroup.tasks().stream()
         // use file path + start position to differentiate the tasks
-        .sorted(Comparator.comparing(o -> o.file().path().toString() + "##" + o.start()))
+        .sorted(Comparator.comparing(o -> o.file().location() + "##" + o.start()))
         .collect(Collectors.toList());
   }
 }
