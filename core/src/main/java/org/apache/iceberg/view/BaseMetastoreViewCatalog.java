@@ -87,7 +87,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
     ViewMetadataTableType type = ViewMetadataTableType.from(tableName);
     if (type != null) {
       TableIdentifier baseViewIdentifier = TableIdentifier.of(identifier.namespace().levels());
-      ViewOperations ops = newViewOps(identifier);
+      ViewOperations ops = newViewOps(baseViewIdentifier);
       if (ops.current() == null) {
         throw new NoSuchTableException("Table or View does not exist: %s", baseViewIdentifier);
       }
