@@ -1626,7 +1626,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
                     .withDefaultNamespace(identifier.namespace())
                     .withQuery("trino", "select * from ns.tbl")
                     .create();
-    
+
     assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
     Table table = tableCatalog().loadTable(TableIdentifier.of("ns", "view", "version"));
     assertThat(table).isInstanceOf(ViewVersionTable.class);
