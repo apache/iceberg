@@ -60,6 +60,7 @@ import org.apache.iceberg.Transaction;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
@@ -515,6 +516,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
   @TestTemplate
   public void testHiddenPartitionPaths() {
+    //
     Schema schema =
         new Schema(
             optional(1, "c1", Types.IntegerType.get()),
@@ -1088,6 +1090,27 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         ImmutableMap.of(),
         ImmutableMap.of(),
         DeleteOrphanFiles.PrefixMismatchMode.DELETE);
+  }
+
+  @TestTemplate
+  public void testLocationProvider() {
+    ImmutableMap<String, String> props =
+        ImmutableMap.of(
+            TableProperties.FORMAT_VERSION,
+            String.valueOf(formatVersion),
+            TableProperties.OBJECT_STORE_ENABLED,
+            "true");
+    System.out.println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).truncate("c2", 2).identity("c3").build();
+    Table table = TABLES.create(SCHEMA, spec, props, tableLocation);
+    System.out.println(">: " + table.location());
+    System.out.println(">: " + table.locationProvider().newDataLocation("test"));
+    GenericRecord record =
+        GenericRecord.create(SCHEMA).copy(Map.of("c1", "54321", "c2", "bbbb", "c3", "cccc"));
+    System.out.println(">: " + table.locationProvider().newDataLocation(spec, record, "test"));
+    System.out.println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
+    assertThat(table.locationProvider().newDataLocation("test")).as("equals").isEqualTo("xxx");
+    assertThat(table.locationProvider().getClass().toString()).as("equals").isEqualTo("xxx");
   }
 
   protected String randomName(String prefix) {

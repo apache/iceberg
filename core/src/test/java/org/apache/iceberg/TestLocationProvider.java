@@ -57,6 +57,11 @@ public class TestLocationProvider extends TestBase {
     public String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename) {
       throw new RuntimeException("Test custom provider does not expect any invocation");
     }
+
+    @Override
+    public String dataLocationRoot() {
+      return tableLocation;
+    }
   }
 
   // publicly visible for testing to be dynamically loaded
@@ -71,6 +76,11 @@ public class TestLocationProvider extends TestBase {
     @Override
     public String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename) {
       throw new RuntimeException("Test custom provider does not expect any invocation");
+    }
+
+    @Override
+    public String dataLocationRoot() {
+      return "";
     }
   }
 
@@ -87,6 +97,11 @@ public class TestLocationProvider extends TestBase {
     @Override
     public String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename) {
       throw new RuntimeException("Invalid provider should have not been instantiated!");
+    }
+
+    @Override
+    public String dataLocationRoot() {
+      return "";
     }
   }
 

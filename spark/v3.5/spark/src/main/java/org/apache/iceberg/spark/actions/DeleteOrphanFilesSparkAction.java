@@ -43,6 +43,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
+import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
@@ -306,25 +307,46 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   }
 
   @VisibleForTesting
-  Dataset<String> listWithPrefix() {
+  List<String> listLocationWithPrefix(String location, PathFilter pathFilter) {
     List<String> matchingFiles = Lists.newArrayList();
-    // listPrefix only returns files. so we additionally need to check parent folders for each file
-    // in following example file itself is not filtered out,
-    // but it should be excluded due to its parent folder: `_c2_trunc`
-    // "/data/_c2_trunc/file.txt"
-    PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(table.specs(), true);
-
     Iterator<org.apache.iceberg.io.FileInfo> iterator =
         ((SupportsPrefixOperations) table.io()).listPrefix(location).iterator();
     while (iterator.hasNext()) {
       org.apache.iceberg.io.FileInfo fileInfo = iterator.next();
-      // NOTE: check the path relative to table location. To avoid checking un necessary root
-      // folders
+      // NOTE: To avoid checking un necessary root folders, check the path relative to table
+      // location.
       Path relativeFilePath = new Path(fileInfo.location().replace(location, ""));
       if (fileInfo.createdAtMillis() < olderThanTimestamp && pathFilter.accept(relativeFilePath)) {
         matchingFiles.add(fileInfo.location());
       }
     }
+    return matchingFiles;
+  }
+
+  @VisibleForTesting
+  Dataset<String> listWithPrefix() {
+    List<String> matchingFiles = Lists.newArrayList();
+    PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(table.specs(), true);
+
+    if (table.locationProvider() instanceof LocationProviders.ObjectStoreLocationProvider) {
+      // ObjectStoreLocationProvider generates hierarchical prefixes in a binary fashion
+      // (0000/, 0001/, 0010/, 0011/, ...).
+      // This allows us to parallelize listing operations across these prefixes.
+      List<String> prefixes =
+          List.of(
+              "/0000", "/0001", "/0010", "/0011", "/0100", "/0101", "/0110", "/0111", "/1000",
+              "/1001", "/1010", "/1011", "/1100", "/1101", "/1110", "/1111");
+
+      String tableDataLocationRoot = table.locationProvider().dataLocationRoot();
+      for (String prefix : prefixes) {
+        List<String> result = listLocationWithPrefix(tableDataLocationRoot + prefix, pathFilter);
+        matchingFiles.addAll(result);
+      }
+
+    } else {
+      matchingFiles.addAll(listLocationWithPrefix(location, pathFilter));
+    }
+
     JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
     return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
   }
