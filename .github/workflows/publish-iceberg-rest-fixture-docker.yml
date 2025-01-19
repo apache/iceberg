@@ -20,9 +20,8 @@
 name: Build and Push 'iceberg-rest-fixture' Docker Image
 
 on:
-  push:
-    tags:
-      - 'apache-iceberg-[0-9]+.[0-9]+.[0-9]+'
+  schedule:
+    - cron: '0 2 * * *' # run at 2 AM UTC
   workflow_dispatch:
 
 env:
