@@ -291,7 +291,7 @@ public class RewriteTablePathUtil {
             ManifestFiles.write(format, spec, outputFile, manifestFile.snapshotId());
         ManifestReader<DataFile> reader =
             ManifestFiles.read(manifestFile, io, specsById).select(Arrays.asList("*"))) {
-      return StreamSupport.stream(reader.entries().spliterator(), false)
+      return StreamSupport.stream(reader.liveEntries().spliterator(), false)
           .map(entry -> writeDataFileEntry(entry, spec, sourcePrefix, targetPrefix, writer))
           .reduce(new RewriteResult<>(), RewriteResult::append);
     }
@@ -327,7 +327,7 @@ public class RewriteTablePathUtil {
         ManifestReader<DeleteFile> reader =
             ManifestFiles.readDeleteManifest(manifestFile, io, specsById)
                 .select(Arrays.asList("*"))) {
-      return StreamSupport.stream(reader.entries().spliterator(), false)
+      return StreamSupport.stream(reader.liveEntries().spliterator(), false)
           .map(
               entry ->
                   writeDeleteFileEntry(
