@@ -49,6 +49,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
+import org.apache.iceberg.ViewMetadataTableType;
 import org.apache.iceberg.catalog.BaseViewSessionCatalog;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -461,6 +462,26 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public Table loadTable(SessionContext context, TableIdentifier identifier) {
+    try {
+      return loadTableInternal(context, identifier);
+    } catch (NoSuchTableException original) {
+      return loadViewMetadataTable(context, identifier);
+    }
+  }
+
+  private Table loadViewMetadataTable(SessionContext context, TableIdentifier identifier) {
+    String tableName = identifier.name();
+    ViewMetadataTableType type = ViewMetadataTableType.from(tableName);
+    if (type != null) {
+      TableIdentifier baseViewIdentifier = TableIdentifier.of(identifier.namespace().levels());
+      View baseView = loadView(context, baseViewIdentifier);
+      return MetadataTableUtils.createViewMetadataTableInstance(baseView, tableName, type);
+    } else {
+      throw new NoSuchTableException("Table does not exist: %s", identifier);
+    }
+  }
+
+  private Table loadTableInternal(SessionContext context, TableIdentifier identifier) {
     Endpoint.check(
         endpoints,
         Endpoint.V1_LOAD_TABLE,

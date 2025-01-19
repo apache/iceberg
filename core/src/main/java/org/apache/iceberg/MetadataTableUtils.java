@@ -118,7 +118,7 @@ public class MetadataTableUtils {
     return createViewMetadataTableInstance(baseView, metadataTableName, type);
   }
 
-  private static Table createViewMetadataTableInstance(
+  public static Table createViewMetadataTableInstance(
       View baseView, String metadataTableName, ViewMetadataTableType type) {
     switch (type) {
       case VERSION:
