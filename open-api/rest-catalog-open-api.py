@@ -1024,7 +1024,11 @@ class Term(BaseModel):
 
 class SetStatisticsUpdate(BaseUpdate):
     action: str = Field('set-statistics', const=True)
-    snapshot_id: Optional[int] = Field(None, alias='snapshot-id')
+    snapshot_id: Optional[int] = Field(
+        None,
+        alias='snapshot-id',
+        description='This optional field is **DEPRECATED for REMOVAL** since it contains redundant information. Clients should use the `statistics.snapshot-id` field instead.',
+    )
     statistics: StatisticsFile
 
 
