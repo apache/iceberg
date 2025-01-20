@@ -173,4 +173,21 @@ public class TestIdentity {
 
     assertThat(Transforms.identity().canTransform(Types.VariantType.get())).isFalse();
   }
+
+  @Test
+  public void testUnknownUnsupported() {
+    assertThatThrownBy(() -> Transforms.identity().bind(Types.UnknownType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot bind to unsupported type: unknown");
+
+    assertThatThrownBy(() -> Transforms.fromString(Types.UnknownType.get(), "identity"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type for identity: unknown");
+
+    assertThatThrownBy(() -> Transforms.identity(Types.UnknownType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type for identity: unknown");
+
+    assertThat(Transforms.identity().canTransform(Types.UnknownType.get())).isFalse();
+  }
 }

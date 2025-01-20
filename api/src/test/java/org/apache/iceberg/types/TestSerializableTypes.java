@@ -137,6 +137,15 @@ public class TestSerializableTypes {
   }
 
   @Test
+  public void testUnknown() throws Exception {
+    Types.UnknownType variant = Types.UnknownType.get();
+    Type copy = TestHelpers.roundTripSerialize(variant);
+    assertThat(copy)
+        .as("Unknown serialization should be equal to starting type")
+        .isEqualTo(variant);
+  }
+
+  @Test
   public void testSchema() throws Exception {
     Schema schema =
         new Schema(

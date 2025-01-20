@@ -539,7 +539,8 @@ public class ExpressionUtil {
       case FIXED:
       case BINARY:
       case VARIANT:
-        // for boolean, uuid, decimal, fixed, variant, and binary, match the string result
+      case UNKNOWN:
+        // for boolean, uuid, decimal, fixed, variant, unknown, and binary, match the string result
         return sanitizeSimpleString(value.toString());
     }
     throw new UnsupportedOperationException(

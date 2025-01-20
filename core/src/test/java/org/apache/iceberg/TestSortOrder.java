@@ -343,6 +343,22 @@ public class TestSortOrder {
   }
 
   @TestTemplate
+  public void testUnknownUnsupported() {
+    Schema v3Schema =
+        new Schema(
+            Types.NestedField.required(3, "id", Types.LongType.get()),
+            Types.NestedField.required(4, "data", Types.StringType.get()),
+            Types.NestedField.required(
+                5,
+                "struct",
+                Types.StructType.of(Types.NestedField.optional(6, "u", Types.UnknownType.get()))));
+
+    assertThatThrownBy(() -> SortOrder.builderFor(v3Schema).withOrderId(10).asc("struct.u").build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type for identity: unknown");
+  }
+
+  @TestTemplate
   public void testPreservingOrderSortedColumnNames() {
     SortOrder order =
         SortOrder.builderFor(SCHEMA)
