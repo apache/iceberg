@@ -45,6 +45,6 @@ public class TestTypes {
 
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("abcdefghij"))
-        .withMessageContaining("Unknown");
+        .withMessage("Cannot parse type string to primitive: abcdefghij");
   }
 }

@@ -95,6 +95,10 @@ class Identity<T> implements Transform<T, T> {
 
   @Override
   public boolean canTransform(Type maybePrimitive) {
+    if (maybePrimitive.typeId() == Type.TypeID.UNKNOWN) {
+      return false;
+    }
+
     return maybePrimitive.isPrimitiveType();
   }
 
