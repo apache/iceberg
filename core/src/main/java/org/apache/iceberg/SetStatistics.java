@@ -35,7 +35,7 @@ public class SetStatistics implements UpdateStatistics {
   /**
    * Set the statistics file for a snapshot.
    *
-   * @deprecated since 1.8.0, will be removed in 1.9.0 or 2.0.0, use setStatistics(statisticsFile).
+   * @deprecated since 1.8.0, will be removed in 1.9.0 or 2.0.0, use {@link #setStatistics(StatisticsFile)}.
    */
   @Deprecated
   @Override
