@@ -783,7 +783,6 @@ public class TestMetadataUpdateParser {
     long snapshotId = 1940541653261589030L;
     MetadataUpdate expected =
         new MetadataUpdate.SetStatistics(
-            snapshotId,
             new GenericStatisticsFile(
                 snapshotId,
                 "s3://bucket/warehouse/stats.puffin",

@@ -1319,6 +1319,12 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    /**
+     * Set a statistics file for a snapshot.
+     *
+     * @deprecated since 1.8.0, will be removed 1.9.0 or 2.0.0, use setStatistics(statisticsFile).
+     */
+    @Deprecated
     public Builder setStatistics(long snapshotId, StatisticsFile statisticsFile) {
       Preconditions.checkNotNull(statisticsFile, "statisticsFile is null");
       Preconditions.checkArgument(
@@ -1327,7 +1333,14 @@ public class TableMetadata implements Serializable {
           snapshotId,
           statisticsFile.snapshotId());
       statisticsFiles.put(statisticsFile.snapshotId(), ImmutableList.of(statisticsFile));
-      changes.add(new MetadataUpdate.SetStatistics(snapshotId, statisticsFile));
+      changes.add(new MetadataUpdate.SetStatistics(statisticsFile));
+      return this;
+    }
+
+    public Builder setStatistics(StatisticsFile statisticsFile) {
+      Preconditions.checkNotNull(statisticsFile, "statisticsFile is null");
+      statisticsFiles.put(statisticsFile.snapshotId(), ImmutableList.of(statisticsFile));
+      changes.add(new MetadataUpdate.SetStatistics(statisticsFile));
       return this;
     }
 

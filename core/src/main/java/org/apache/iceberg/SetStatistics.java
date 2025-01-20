@@ -32,10 +32,22 @@ public class SetStatistics implements UpdateStatistics {
     this.ops = ops;
   }
 
+  /**
+   * Add a new schema.
+   *
+   * @deprecated since 1.8.0, will be removed in 1.9.0 or 2.0.0, use setStatistics(statisticsFile).
+   */
+  @Deprecated
   @Override
   public UpdateStatistics setStatistics(long snapshotId, StatisticsFile statisticsFile) {
     Preconditions.checkArgument(snapshotId == statisticsFile.snapshotId());
-    statisticsToSet.put(snapshotId, Optional.of(statisticsFile));
+    statisticsToSet.put(statisticsFile.snapshotId(), Optional.of(statisticsFile));
+    return this;
+  }
+
+  @Override
+  public UpdateStatistics setStatistics(StatisticsFile statisticsFile) {
+    statisticsToSet.put(statisticsFile.snapshotId(), Optional.of(statisticsFile));
     return this;
   }
 

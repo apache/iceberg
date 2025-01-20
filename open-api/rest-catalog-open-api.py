@@ -1024,7 +1024,7 @@ class Term(BaseModel):
 
 class SetStatisticsUpdate(BaseUpdate):
     action: str = Field('set-statistics', const=True)
-    snapshot_id: int = Field(..., alias='snapshot-id')
+    snapshot_id: Optional[int] = Field(None, alias='snapshot-id')
     statistics: StatisticsFile
 
 
