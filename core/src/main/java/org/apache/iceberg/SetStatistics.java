@@ -33,7 +33,7 @@ public class SetStatistics implements UpdateStatistics {
   }
 
   /**
-   * Add a new schema.
+   * Set the statistics file for a snapshot.
    *
    * @deprecated since 1.8.0, will be removed in 1.9.0 or 2.0.0, use setStatistics(statisticsFile).
    */
