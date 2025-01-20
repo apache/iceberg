@@ -38,7 +38,9 @@ public interface UpdateStatistics extends PendingUpdate<List<StatisticsFile>> {
    *
    * @return this for method chaining
    */
-  UpdateStatistics setStatistics(StatisticsFile statisticsFile);
+  default UpdateStatistics setStatistics(StatisticsFile statisticsFile) {
+    throw new UnsupportedOperationException("Setting statistics is not supported");
+  }
 
   /**
    * Remove the table's statistics file for given snapshot.
