@@ -138,11 +138,11 @@ public class TestSerializableTypes {
 
   @Test
   public void testUnknown() throws Exception {
-    Types.UnknownType variant = Types.UnknownType.get();
-    Type copy = TestHelpers.roundTripSerialize(variant);
+    Types.UnknownType unknown = Types.UnknownType.get();
+    Type copy = TestHelpers.roundTripSerialize(unknown);
     assertThat(copy)
         .as("Unknown serialization should be equal to starting type")
-        .isEqualTo(variant);
+        .isEqualTo(unknown);
   }
 
   @Test
