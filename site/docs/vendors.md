@@ -57,6 +57,10 @@ the same copy of data using Spark and run analytics or AI with our
 [Machine Learning](https://www.cloudera.com/products/machine-learning.html) tools on private
 or any public cloud.
 
+### [Crunchy Data](https://www.crunchydata.com/)
+
+[Crunchy Data Warehouse](https://www.crunchydata.com/products/warehouse) is a modern data warehouse built on Postgres. Crunchy Data warehouse extends unmodified Postgres to provide support for fully transactional Iceberg tables and high performance analytics. Crunchy Data Warehouse is available as a managed service on AWS via [Crunchy Bridge](https://www.crunchydata.com/products/crunchy-bridge), fully managed Postgres as a service. Crunchy Data Warehouse can create Iceberg tables directly from a Postgres database or external URLs and can read, query, and update Iceberg tables using PostgreSQL syntax. Using a hybrid query engine that combines Postgres and DuckDB, Crunchy Data Warehouse enables high performance analytical queries of Iceberg tables.
+
 ### [Dremio](https://www.dremio.com/)
 
 With Dremio, an organization can easily build and manage a data lakehouse in which data is stored in open formats like Apache Iceberg and can be processed with Dremio’s interactive SQL query engine and non-Dremio processing engines. [Dremio Cloud](https://www.dremio.com/get-started/) provides these capabilities in a fully managed offering.
