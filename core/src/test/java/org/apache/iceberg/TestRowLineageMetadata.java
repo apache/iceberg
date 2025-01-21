@@ -36,14 +36,12 @@ import org.junit.jupiter.api.io.TempDir;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestRowLineageMetadata {
 
-
   @Parameters(name = "formatVersion = {0}")
   private static List<Integer> formatVersion() {
     return Ints.asList(TestHelpers.ALL_VERSIONS);
   }
 
-
-    private static final String TEST_LOCATION = "s3://bucket/test/location";
+  private static final String TEST_LOCATION = "s3://bucket/test/location";
 
   private static final Schema TEST_SCHEMA =
       new Schema(
