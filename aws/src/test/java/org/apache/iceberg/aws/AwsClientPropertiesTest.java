@@ -21,9 +21,11 @@ package org.apache.iceberg.aws;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.s3.VendedCredentialsProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -139,5 +141,81 @@ public class AwsClientPropertiesTest {
 
     assertThat(awsClientProperties.credentialsProvider("key", "secret", "token"))
         .isInstanceOf(StaticCredentialsProvider.class);
+  }
+
+  @Test
+  public void refreshCredentialsEndpointWithOAuthToken() {
+    AwsClientProperties awsClientProperties =
+        new AwsClientProperties(
+            ImmutableMap.of(
+                AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
+                "http://localhost:1234/v1/credentials",
+                OAuth2Properties.TOKEN,
+                "oauth-token"));
+
+    AwsCredentialsProvider provider =
+        awsClientProperties.credentialsProvider("key", "secret", "token");
+    assertThat(provider).isInstanceOf(VendedCredentialsProvider.class);
+    VendedCredentialsProvider vendedCredentialsProvider = (VendedCredentialsProvider) provider;
+    assertThat(vendedCredentialsProvider)
+        .extracting("properties")
+        .isEqualTo(
+            ImmutableMap.of(
+                "credentials.uri",
+                "http://localhost:1234/v1/credentials",
+                OAuth2Properties.TOKEN,
+                "oauth-token"));
+  }
+
+  @Test
+  public void refreshCredentialsEndpointWithOverridingOAuthToken() {
+    AwsClientProperties awsClientProperties =
+        new AwsClientProperties(
+            ImmutableMap.of(
+                AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
+                "http://localhost:1234/v1/credentials",
+                OAuth2Properties.TOKEN,
+                "oauth-token",
+                "client.credentials-provider.token",
+                "specific-token"));
+
+    AwsCredentialsProvider provider =
+        awsClientProperties.credentialsProvider("key", "secret", "token");
+    assertThat(provider).isInstanceOf(VendedCredentialsProvider.class);
+    VendedCredentialsProvider vendedCredentialsProvider = (VendedCredentialsProvider) provider;
+    assertThat(vendedCredentialsProvider)
+        .extracting("properties")
+        .isEqualTo(
+            ImmutableMap.of(
+                "credentials.uri",
+                "http://localhost:1234/v1/credentials",
+                OAuth2Properties.TOKEN,
+                "specific-token"));
+  }
+
+  @Test
+  public void refreshCredentialsEndpointWithRelativePath() {
+    AwsClientProperties awsClientProperties =
+        new AwsClientProperties(
+            ImmutableMap.of(
+                CatalogProperties.URI,
+                "http://localhost:1234/v1",
+                AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
+                "/relative/credentials/endpoint",
+                OAuth2Properties.TOKEN,
+                "oauth-token"));
+
+    AwsCredentialsProvider provider =
+        awsClientProperties.credentialsProvider("key", "secret", "token");
+    assertThat(provider).isInstanceOf(VendedCredentialsProvider.class);
+    VendedCredentialsProvider vendedCredentialsProvider = (VendedCredentialsProvider) provider;
+    assertThat(vendedCredentialsProvider)
+        .extracting("properties")
+        .isEqualTo(
+            ImmutableMap.of(
+                "credentials.uri",
+                "http://localhost:1234/v1/relative/credentials/endpoint",
+                OAuth2Properties.TOKEN,
+                "oauth-token"));
   }
 }

@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class ADLSLocationTest {
@@ -33,7 +34,18 @@ public class ADLSLocationTest {
     String p1 = scheme + "://container@account.dfs.core.windows.net/path/to/file";
     ADLSLocation location = new ADLSLocation(p1);
 
-    assertThat(location.storageAccount()).isEqualTo("account.dfs.core.windows.net");
+    assertThat(location.storageAccount()).isEqualTo("account");
+    assertThat(location.container().get()).isEqualTo("container");
+    assertThat(location.path()).isEqualTo("path/to/file");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"wasb", "wasbs"})
+  public void testWasbLocatonParsing(String scheme) {
+    String p1 = scheme + "://container@account.blob.core.windows.net/path/to/file";
+    ADLSLocation location = new ADLSLocation(p1);
+
+    assertThat(location.storageAccount()).isEqualTo("account");
     assertThat(location.container().get()).isEqualTo("container");
     assertThat(location.path()).isEqualTo("path/to/file");
   }
@@ -43,7 +55,7 @@ public class ADLSLocationTest {
     String p1 = "abfs://container@account.dfs.core.windows.net/path%20to%20file";
     ADLSLocation location = new ADLSLocation(p1);
 
-    assertThat(location.storageAccount()).isEqualTo("account.dfs.core.windows.net");
+    assertThat(location.storageAccount()).isEqualTo("account");
     assertThat(location.container().get()).isEqualTo("container");
     assertThat(location.path()).isEqualTo("path%20to%20file");
   }
@@ -67,7 +79,7 @@ public class ADLSLocationTest {
     String p1 = "abfs://account.dfs.core.windows.net/path/to/file";
     ADLSLocation location = new ADLSLocation(p1);
 
-    assertThat(location.storageAccount()).isEqualTo("account.dfs.core.windows.net");
+    assertThat(location.storageAccount()).isEqualTo("account");
     assertThat(location.container().isPresent()).isFalse();
     assertThat(location.path()).isEqualTo("path/to/file");
   }
@@ -77,7 +89,7 @@ public class ADLSLocationTest {
     String p1 = "abfs://container@account.dfs.core.windows.net";
     ADLSLocation location = new ADLSLocation(p1);
 
-    assertThat(location.storageAccount()).isEqualTo("account.dfs.core.windows.net");
+    assertThat(location.storageAccount()).isEqualTo("account");
     assertThat(location.container().get()).isEqualTo("container");
     assertThat(location.path()).isEqualTo("");
   }
@@ -88,5 +100,20 @@ public class ADLSLocationTest {
     String fullPath = String.format("abfs://container@account.dfs.core.windows.net/%s", path);
     ADLSLocation location = new ADLSLocation(fullPath);
     assertThat(location.path()).contains(path);
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "abfs://container@account.dfs.core.windows.net/file.txt, account.dfs.core.windows.net",
+    "abfs://container@account.dfs.core.usgovcloudapi.net/file.txt, account.dfs.core.usgovcloudapi.net",
+    "wasb://container@account.blob.core.windows.net/file.txt, account.blob.core.windows.net",
+    "abfs://account.dfs.core.windows.net/path, account.dfs.core.windows.net",
+    "abfss://account.dfs.core.windows.net/path, account.dfs.core.windows.net",
+    "wasb://account.blob.core.windows.net/path, account.blob.core.windows.net",
+    "wasbs://account.blob.core.windows.net/path, account.blob.core.windows.net"
+  })
+  void testHost(String path, String expectedHost) {
+    ADLSLocation location = new ADLSLocation(path);
+    assertThat(location.host()).isEqualTo(expectedHost);
   }
 }

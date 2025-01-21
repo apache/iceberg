@@ -23,12 +23,15 @@ import static org.apache.iceberg.DataOperations.OVERWRITE;
 import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
 import static org.apache.iceberg.SnapshotSummary.ADDED_DELETE_FILES_PROP;
+import static org.apache.iceberg.SnapshotSummary.ADDED_DVS_PROP;
 import static org.apache.iceberg.SnapshotSummary.ADDED_FILES_PROP;
+import static org.apache.iceberg.SnapshotSummary.ADD_POS_DELETE_FILES_PROP;
 import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_COUNT_PROP;
 import static org.apache.iceberg.SnapshotSummary.DELETED_FILES_PROP;
 import static org.apache.iceberg.TableProperties.DATA_PLANNING_MODE;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DELETE_PLANNING_MODE;
+import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.ORC_VECTORIZATION_ENABLED;
 import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
 import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
@@ -55,8 +58,10 @@ import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
@@ -85,6 +90,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   protected final boolean fanoutEnabled;
   protected final String branch;
   protected final PlanningMode planningMode;
+  protected final int formatVersion;
 
   public SparkRowLevelOperationsTestBase(
       String catalogName,
@@ -95,7 +101,8 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
       String distributionMode,
       boolean fanoutEnabled,
       String branch,
-      PlanningMode planningMode) {
+      PlanningMode planningMode,
+      int formatVersion) {
     super(catalogName, implementation, config);
     this.fileFormat = fileFormat;
     this.vectorized = vectorized;
@@ -103,13 +110,14 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
     this.fanoutEnabled = fanoutEnabled;
     this.branch = branch;
     this.planningMode = planningMode;
+    this.formatVersion = formatVersion;
   }
 
   @Parameters(
       name =
           "catalogName = {0}, implementation = {1}, config = {2},"
               + " format = {3}, vectorized = {4}, distributionMode = {5},"
-              + " fanout = {6}, branch = {7}, planningMode = {8}")
+              + " fanout = {6}, branch = {7}, planningMode = {8}, formatVersion = {9}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
@@ -123,7 +131,8 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         WRITE_DISTRIBUTION_MODE_NONE,
         true,
         SnapshotRef.MAIN_BRANCH,
-        LOCAL
+        LOCAL,
+        2
       },
       {
         "testhive",
@@ -136,7 +145,8 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         WRITE_DISTRIBUTION_MODE_NONE,
         false,
         "test",
-        DISTRIBUTED
+        DISTRIBUTED,
+        2
       },
       {
         "testhadoop",
@@ -147,7 +157,8 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         WRITE_DISTRIBUTION_MODE_HASH,
         true,
         null,
-        LOCAL
+        LOCAL,
+        2
       },
       {
         "spark_catalog",
@@ -165,8 +176,44 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         WRITE_DISTRIBUTION_MODE_RANGE,
         false,
         "test",
-        DISTRIBUTED
-      }
+        DISTRIBUTED,
+        2
+      },
+      {
+        "testhadoop",
+        SparkCatalog.class.getName(),
+        ImmutableMap.of("type", "hadoop"),
+        "parquet",
+        RANDOM.nextBoolean(),
+        WRITE_DISTRIBUTION_MODE_HASH,
+        true,
+        null,
+        LOCAL,
+        3
+      },
+      {
+        "spark_catalog",
+        SparkSessionCatalog.class.getName(),
+        ImmutableMap.of(
+            "type",
+            "hive",
+            "default-namespace",
+            "default",
+            "clients",
+            "1",
+            "parquet-enabled",
+            "false",
+            "cache-enabled",
+            "false" // Spark will delete tables using v1, leaving the cache out of sync
+            ),
+        "avro",
+        false,
+        WRITE_DISTRIBUTION_MODE_RANGE,
+        false,
+        "test",
+        DISTRIBUTED,
+        3
+      },
     };
   }
 
@@ -174,7 +221,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
 
   protected void initTable() {
     sql(
-        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s', '%s' '%s', '%s' '%s', '%s' '%s', '%s' '%s')",
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s', '%s' '%s', '%s' '%s', '%s' '%s', '%s' '%s', '%s' '%s')",
         tableName,
         DEFAULT_FILE_FORMAT,
         fileFormat,
@@ -185,7 +232,9 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         DATA_PLANNING_MODE,
         planningMode.modeName(),
         DELETE_PLANNING_MODE,
-        planningMode.modeName());
+        planningMode.modeName(),
+        FORMAT_VERSION,
+        formatVersion);
 
     switch (fileFormat) {
       case "parquet":
@@ -310,6 +359,10 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
     validateProperty(snapshot, DELETED_FILES_PROP, deletedDataFiles);
     validateProperty(snapshot, ADDED_DELETE_FILES_PROP, addedDeleteFiles);
     validateProperty(snapshot, ADDED_FILES_PROP, addedDataFiles);
+    if (formatVersion >= 3) {
+      validateProperty(snapshot, ADDED_DVS_PROP, addedDeleteFiles);
+      assertThat(snapshot.summary()).doesNotContainKey(ADD_POS_DELETE_FILES_PROP);
+    }
   }
 
   protected void validateProperty(Snapshot snapshot, String property, Set<String> expectedValues) {
@@ -400,5 +453,13 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   protected void assertAllBatchScansVectorized(SparkPlan plan) {
     List<SparkPlan> batchScans = SparkPlanUtil.collectBatchScans(plan);
     assertThat(batchScans).hasSizeGreaterThan(0).allMatch(SparkPlan::supportsColumnar);
+  }
+
+  protected void createTableWithDeleteGranularity(
+      String schema, String partitionedBy, DeleteGranularity deleteGranularity) {
+    createAndInitTable(schema, partitionedBy, null /* empty */);
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' '%s')",
+        tableName, TableProperties.DELETE_GRANULARITY, deleteGranularity);
   }
 }

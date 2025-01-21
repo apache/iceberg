@@ -100,10 +100,7 @@ ORC:
 HIVE:
   - changed-files:
     - any-glob-to-any-file: [
-      'hive3/**/*',
       'hive-metastore/**/*',
-      'hive-runtime/**/*',
-      'hive3-orc-bundle/**/*'
     ]
 
 DATA:
