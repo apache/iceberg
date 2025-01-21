@@ -23,17 +23,27 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.FieldSource;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestRowLineageMetadata {
 
-  private static final String TEST_LOCATION = "s3://bucket/test/location";
+
+  @Parameters(name = "formatVersion = {0}")
+  private static List<Integer> formatVersion() {
+    return Ints.asList(TestHelpers.ALL_VERSIONS);
+  }
+
+
+    private static final String TEST_LOCATION = "s3://bucket/test/location";
 
   private static final Schema TEST_SCHEMA =
       new Schema(
@@ -59,8 +69,7 @@ public class TestRowLineageMetadata {
     TestTables.clearTables();
   }
 
-  @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @TestTemplate
   public void testRowLineageSupported(int formatVersion) {
     if (formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE) {
       assertThat(TableMetadata.buildFromEmpty(formatVersion).enableRowLineage()).isNotNull();
@@ -71,8 +80,7 @@ public class TestRowLineageMetadata {
     }
   }
 
-  @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @TestTemplate
   public void testSnapshotAddition(int formatVersion) {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
@@ -98,8 +106,7 @@ public class TestRowLineageMetadata {
     assertThat(secondAddition.nextRowId()).isEqualTo(newRows * 2);
   }
 
-  @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @TestTemplate
   public void testInvalidSnapshotAddition(int formatVersion) {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
@@ -122,11 +129,10 @@ public class TestRowLineageMetadata {
     assertThatThrownBy(() -> TableMetadata.buildFrom(base).addSnapshot(invalidNewRows))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining(
-            "Cannot add a snapshot with a null `addedRows` field when row lineage is enabled");
+            "Cannot add a snapshot with a null `added-rows` field when row lineage is enabled");
   }
 
-  @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @TestTemplate
   public void testFastAppend(int formatVersion) {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
@@ -152,8 +158,7 @@ public class TestRowLineageMetadata {
     assertThat(table.ops().current().nextRowId()).isEqualTo(30 + 17 + 11);
   }
 
-  @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @TestTemplate
   public void testAppend(int formatVersion) {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
@@ -179,8 +184,7 @@ public class TestRowLineageMetadata {
     assertThat(table.ops().current().nextRowId()).isEqualTo(30 + 17 + 11);
   }
 
-  @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @TestTemplate
   public void testAppendBranch(int formatVersion) {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
     // Appends to a branch should still change last-row-id even if not on main, these changes
@@ -219,8 +223,7 @@ public class TestRowLineageMetadata {
     assertThat(table.ops().current().nextRowId()).isEqualTo(30 + 17 + 11 + 21);
   }
 
-  @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @TestTemplate
   public void testDeletes(int formatVersion) {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
@@ -252,8 +255,7 @@ public class TestRowLineageMetadata {
     assertThat(table.ops().current().nextRowId()).isEqualTo(30);
   }
 
-  @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @TestTemplate
   public void testReplace(int formatVersion) {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
@@ -285,8 +287,7 @@ public class TestRowLineageMetadata {
     assertThat(table.ops().current().nextRowId()).isEqualTo(120);
   }
 
-  @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @TestTemplate
   public void testEnableRowLineageViaProperty(int formatVersion) {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
