@@ -25,6 +25,27 @@ import org.apache.iceberg.view.ViewVersion;
 
 public class ViewVersionTable extends BaseViewMetadataTable {
 
+  //  static final Schema VIEW_VERSION_SCHEMA =
+  //      new Schema(
+  //          Types.NestedField.required(1, "version-id", Types.IntegerType.get()),
+  //          Types.NestedField.required(2, "schema-id", Types.IntegerType.get()),
+  //          Types.NestedField.required(3, "timestamp-ms", Types.TimestampType.withoutZone()),
+  //          Types.NestedField.required(
+  //              4,
+  //              "summary",
+  //              Types.MapType.ofRequired(6, 7, Types.StringType.get(), Types.StringType.get())),
+  //          Types.NestedField.required(
+  //              8,
+  //              "representations",
+  //              Types.ListType.ofRequired(
+  //                  9,
+  //                  Types.StructType.of(
+  //                      Types.NestedField.required(10, "type", Types.StringType.get()),
+  //                      Types.NestedField.required(11, "sql", Types.StringType.get()),
+  //                      Types.NestedField.required(12, "dialect", Types.StringType.get())))),
+  //          Types.NestedField.optional(13, "default-catalog", Types.StringType.get()),
+  //          Types.NestedField.required(14, "default-namespace", Types.StringType.get()));
+
   static final Schema VIEW_VERSION_SCHEMA =
       new Schema(
           Types.NestedField.required(1, "version-id", Types.IntegerType.get()),
@@ -34,17 +55,7 @@ public class ViewVersionTable extends BaseViewMetadataTable {
               4,
               "summary",
               Types.MapType.ofRequired(6, 7, Types.StringType.get(), Types.StringType.get())),
-          Types.NestedField.required(
-              8,
-              "representations",
-              Types.ListType.ofRequired(
-                  9,
-                  Types.StructType.of(
-                      Types.NestedField.required(10, "type", Types.StringType.get()),
-                      Types.NestedField.required(11, "sql", Types.StringType.get()),
-                      Types.NestedField.required(12, "dialect", Types.StringType.get())))),
-          Types.NestedField.optional(13, "default-catalog", Types.StringType.get()),
-          Types.NestedField.required(14, "default-namespace", Types.StringType.get()));
+          Types.NestedField.optional(13, "default-catalog", Types.StringType.get()));
 
   ViewVersionTable(View view) {
     super(view, view.name() + ".version");
@@ -61,31 +72,31 @@ public class ViewVersionTable extends BaseViewMetadataTable {
   }
 
   private DataTask task(BaseTableScan scan) {
-    return StaticDataTask.of(
-        io().newInputFile(location()),
+    return ViewMetadataReadTask.of(
+        location(),
         schema(),
         scan.schema(),
         operations().current().versions(),
         ViewVersionTable::viewVersionToRow);
   }
 
-  private class ViewVersionTableScan extends StaticTableScan {
+  private class ViewVersionTableScan extends BaseViewMetadataTableScan {
     ViewVersionTableScan(Table table) {
-      super(table, VIEW_VERSION_SCHEMA, MetadataTableType.SNAPSHOTS, ViewVersionTable.this::task);
+      super(table, VIEW_VERSION_SCHEMA, ViewMetadataTableType.VERSION);
     }
 
     ViewVersionTableScan(Table table, TableScanContext context) {
-      super(
-          table,
-          VIEW_VERSION_SCHEMA,
-          MetadataTableType.SNAPSHOTS,
-          ViewVersionTable.this::task,
-          context);
+      super(table, VIEW_VERSION_SCHEMA, ViewMetadataTableType.VERSION, context);
     }
 
     @Override
     protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
       return new ViewVersionTableScan(table, context);
+    }
+
+    @Override
+    protected CloseableIterable<FileScanTask> doPlanFiles() {
+      return CloseableIterable.withNoopClose(ViewVersionTable.this.task(this));
     }
 
     @Override
@@ -96,14 +107,12 @@ public class ViewVersionTable extends BaseViewMetadataTable {
     }
   }
 
-  private static StaticDataTask.Row viewVersionToRow(ViewVersion version) {
-    return StaticDataTask.Row.of(
+  private static ViewMetadataReadTask.Row viewVersionToRow(ViewVersion version) {
+    return ViewMetadataReadTask.Row.of(
         version.versionId(),
         version.schemaId(),
         version.timestampMillis(),
         version.summary(),
-        version.representations(),
-        version.defaultCatalog(),
-        version.defaultNamespace());
+        version.defaultCatalog());
   }
 }
