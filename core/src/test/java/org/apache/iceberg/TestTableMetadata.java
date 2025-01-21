@@ -69,6 +69,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.FieldSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestTableMetadata {
@@ -97,17 +98,12 @@ public class TestTableMetadata {
 
   public TableOperations ops = new LocalTableOperations(temp);
 
-  private static Stream<Integer> formatVersionsProvider() {
-    return Stream.of(1, 2, 3);
-  }
-
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   @SuppressWarnings("MethodLength")
   public void testJsonConversion(int formatVersion) throws Exception {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
-
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
+    long lastSequenceNumber = formatVersion >= 2 ? SEQ_NO : 0;
 
     String manifestList =
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
@@ -173,7 +169,7 @@ public class TestTableMetadata {
             formatVersion,
             UUID.randomUUID().toString(),
             TEST_LOCATION,
-            SEQ_NO,
+            lastSequenceNumber,
             System.currentTimeMillis(),
             3,
             7,
@@ -323,7 +319,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testInvalidMainBranch(int formatVersion) throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
@@ -398,7 +394,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testMainWithoutCurrent(int formatVersion) throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
@@ -446,7 +442,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testBranchSnapshotMissing(int formatVersion) {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
@@ -531,7 +527,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testJsonWithPreviousMetadataLog(int formatVersion) throws Exception {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
@@ -597,7 +593,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testAddPreviousMetadataRemoveNone(int formatVersion) throws IOException {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
@@ -680,7 +676,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testAddPreviousMetadataRemoveOne(int formatVersion) throws IOException {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
@@ -776,7 +772,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testAddPreviousMetadataRemoveMultiple(int formatVersion) throws IOException {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
@@ -872,7 +868,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testV2UUIDValidation(int formatVersion) {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
@@ -998,7 +994,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testParserVersionValidation(int formatVersion) throws Exception {
     String supportedVersion =
         readTableMetadataInputFile(String.format("TableMetadataV%sValid.json", formatVersion));
@@ -1015,7 +1011,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testParserV2PartitionSpecsValidation(int formatVersion) throws Exception {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
@@ -1028,7 +1024,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testParserLastAssignedFieldIdValidation(int formatVersion) throws Exception {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
@@ -1041,7 +1037,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testParserSortOrderValidation(int formatVersion) throws Exception {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
@@ -1054,7 +1050,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testParserCurrentSchemaIdValidation(int formatVersion) throws Exception {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
@@ -1067,7 +1063,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testParserV2SchemasValidation(int formatVersion) throws Exception {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
@@ -1085,7 +1081,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testNewTableMetadataReassignmentAllIds(int formatVersion) throws Exception {
     Schema schema =
         new Schema(
@@ -1177,7 +1173,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testBuildReplacementForV2AndV3Table(int formatVersion) {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
@@ -1215,7 +1211,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testSortOrder(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
@@ -1233,7 +1229,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testUpdateSortOrder(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
@@ -1278,7 +1274,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testStatistics(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
@@ -1294,7 +1290,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testSetStatistics(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
@@ -1339,7 +1335,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testRemoveStatistics(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
@@ -1377,7 +1373,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testPartitionStatistics(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
@@ -1395,7 +1391,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testSetPartitionStatistics(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
@@ -1450,7 +1446,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testRemovePartitionStatistics(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
@@ -1496,7 +1492,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testParseSchemaIdentifierFields(int formatVersion) throws Exception {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
@@ -1508,7 +1504,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testParseMinimal(int formatVersion) throws Exception {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
@@ -1523,7 +1519,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testUpdateSchemaIdentifierFields(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
@@ -1546,7 +1542,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testUpdateSchema(int formatVersion) {
     Schema schema =
         new Schema(0, Types.NestedField.required(1, "y", Types.LongType.get(), "comment"));
@@ -1618,7 +1614,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testCreateMetadataThroughTableProperty(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
@@ -1703,7 +1699,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testParseStatisticsFiles(int formatVersion) throws Exception {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
@@ -1727,7 +1723,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testParsePartitionStatisticsFiles(int formatVersion) throws Exception {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
@@ -1747,7 +1743,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testNoReservedPropertyForTableMetadataCreation(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
@@ -1780,7 +1776,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testNoTrailingLocationSlash(int formatVersion) {
     String locationWithSlash = "/with_trailing_slash/";
     String locationWithoutSlash = "/with_trailing_slash";
@@ -1813,7 +1809,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void buildReplacementKeepsSnapshotLog(int formatVersion) throws Exception {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
@@ -1858,7 +1854,7 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("formatVersionsProvider")
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void onlyMetadataLocationIsUpdatedWithoutTimestampAndMetadataLogEntry(int formatVersion) {
     String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
     TableMetadata metadata =
