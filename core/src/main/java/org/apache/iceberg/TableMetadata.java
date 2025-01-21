@@ -61,7 +61,7 @@ public class TableMetadata implements Serializable {
   static final int MIN_FORMAT_VERSION_SEQUENCE_NUMBER = 2;
   static final int MIN_FORMAT_VERSION_PARTITION_SPECS_REQUIRED = 2;
   static final int MIN_FORMAT_VERSION_LAST_PARTITION_ID_REQUIRED = 2;
-  static final int MIN_FORMAT_VERSION_SORT_ORDERS_REQUIRED = 2;
+  static final int MIN_FORMAT_VERSION_SORT_ORDER_REQUIRED = 2;
   static final int MIN_FORMAT_VERSION_SCHEMAS_REQUIRED = 2;
   static final int MIN_FORMAT_VERSION_CURRENT_SCHEMA_ID_REQUIRED = 2;
 

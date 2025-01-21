@@ -1044,7 +1044,7 @@ public class TestTableMetadata {
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testParserSortOrderValidation(int formatVersion) throws Exception {
     assumeThat(formatVersion)
-        .isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_SORT_ORDERS_REQUIRED);
+        .isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_SORT_ORDER_REQUIRED);
 
     String unsupportedVersion =
         readTableMetadataInputFile(
