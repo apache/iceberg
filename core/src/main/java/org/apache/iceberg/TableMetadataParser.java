@@ -354,7 +354,6 @@ public class TableMetadataParser {
       ImmutableList.Builder<Schema> builder = ImmutableList.builder();
       for (JsonNode schemaNode : schemaArray) {
         Schema current = SchemaParser.fromJson(schemaNode);
-        Schema.checkCompatibility(current, formatVersion);
         if (current.schemaId() == currentSchemaId) {
           schema = current;
         }
@@ -375,7 +374,6 @@ public class TableMetadataParser {
           formatVersion == 1, "%s must exist in format v%s", SCHEMAS, formatVersion);
 
       schema = SchemaParser.fromJson(JsonUtil.get(SCHEMA, node));
-      Schema.checkCompatibility(schema, formatVersion);
       currentSchemaId = schema.schemaId();
       schemas = ImmutableList.of(schema);
     }
