@@ -18,33 +18,14 @@
  */
 package org.apache.iceberg;
 
+import java.util.stream.Collectors;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.view.SQLViewRepresentation;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewVersion;
 
 public class ViewVersionTable extends BaseViewMetadataTable {
-
-  //  static final Schema VIEW_VERSION_SCHEMA =
-  //      new Schema(
-  //          Types.NestedField.required(1, "version-id", Types.IntegerType.get()),
-  //          Types.NestedField.required(2, "schema-id", Types.IntegerType.get()),
-  //          Types.NestedField.required(3, "timestamp-ms", Types.TimestampType.withoutZone()),
-  //          Types.NestedField.required(
-  //              4,
-  //              "summary",
-  //              Types.MapType.ofRequired(6, 7, Types.StringType.get(), Types.StringType.get())),
-  //          Types.NestedField.required(
-  //              8,
-  //              "representations",
-  //              Types.ListType.ofRequired(
-  //                  9,
-  //                  Types.StructType.of(
-  //                      Types.NestedField.required(10, "type", Types.StringType.get()),
-  //                      Types.NestedField.required(11, "sql", Types.StringType.get()),
-  //                      Types.NestedField.required(12, "dialect", Types.StringType.get())))),
-  //          Types.NestedField.optional(13, "default-catalog", Types.StringType.get()),
-  //          Types.NestedField.required(14, "default-namespace", Types.StringType.get()));
 
   static final Schema VIEW_VERSION_SCHEMA =
       new Schema(
@@ -55,7 +36,17 @@ public class ViewVersionTable extends BaseViewMetadataTable {
               4,
               "summary",
               Types.MapType.ofRequired(6, 7, Types.StringType.get(), Types.StringType.get())),
-          Types.NestedField.optional(13, "default-catalog", Types.StringType.get()));
+          Types.NestedField.required(
+              8,
+              "representations",
+              Types.ListType.ofRequired(
+                  9,
+                  Types.StructType.of(
+                      Types.NestedField.required(10, "type", Types.StringType.get()),
+                      Types.NestedField.required(11, "sql", Types.StringType.get()),
+                      Types.NestedField.required(12, "dialect", Types.StringType.get())))),
+          Types.NestedField.optional(13, "default-catalog", Types.StringType.get()),
+          Types.NestedField.required(14, "default-namespace", Types.StringType.get()));
 
   ViewVersionTable(View view) {
     super(view, view.name() + ".version");
@@ -111,8 +102,19 @@ public class ViewVersionTable extends BaseViewMetadataTable {
     return ViewMetadataReadTask.Row.of(
         version.versionId(),
         version.schemaId(),
-        version.timestampMillis(),
+        version.timestampMillis() * 1000,
         version.summary(),
-        version.defaultCatalog());
+        version.representations().stream()
+            .map(
+                r -> {
+                  SQLViewRepresentation sqlViewRepresentation = (SQLViewRepresentation) r;
+                  return ViewMetadataReadTask.Row.of(
+                      sqlViewRepresentation.type(),
+                      sqlViewRepresentation.type(),
+                      sqlViewRepresentation.dialect());
+                })
+            .collect(Collectors.toList()),
+        version.defaultCatalog(),
+        version.defaultNamespace().toString());
   }
 }
