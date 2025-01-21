@@ -103,7 +103,8 @@ public class TestTableMetadata {
   @SuppressWarnings("MethodLength")
   public void testJsonConversion(int formatVersion) throws Exception {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
-    long lastSequenceNumber = formatVersion >= 2 ? SEQ_NO : 0;
+    long lastSequenceNumber =
+        formatVersion >= TableMetadata.MIN_FORMAT_VERSION_SEQUENCE_NUMBER ? SEQ_NO : 0;
 
     String manifestList =
         createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
@@ -321,7 +322,7 @@ public class TestTableMetadata {
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testInvalidMainBranch(int formatVersion) throws IOException {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_BRANCHING);
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
@@ -396,7 +397,7 @@ public class TestTableMetadata {
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testMainWithoutCurrent(int formatVersion) throws IOException {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_BRANCHING);
 
     long snapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
@@ -869,8 +870,9 @@ public class TestTableMetadata {
 
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
-  public void testV2UUIDValidation(int formatVersion) {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+  public void testUUIDValidation(int formatVersion) {
+    assumeThat(formatVersion)
+        .isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_UUID_REQUIRED);
 
     assertThatThrownBy(
             () ->
@@ -1012,8 +1014,9 @@ public class TestTableMetadata {
 
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
-  public void testParserV2PartitionSpecsValidation(int formatVersion) throws Exception {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+  public void testParserPartitionSpecsValidation(int formatVersion) throws Exception {
+    assumeThat(formatVersion)
+        .isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_PARTITION_SPECS_REQUIRED);
 
     String unsupportedVersion =
         readTableMetadataInputFile(
@@ -1026,7 +1029,8 @@ public class TestTableMetadata {
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testParserLastAssignedFieldIdValidation(int formatVersion) throws Exception {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    assumeThat(formatVersion)
+        .isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_LAST_PARTITION_ID_REQUIRED);
 
     String unsupportedVersion =
         readTableMetadataInputFile(
@@ -1039,7 +1043,8 @@ public class TestTableMetadata {
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testParserSortOrderValidation(int formatVersion) throws Exception {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    assumeThat(formatVersion)
+        .isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_SORT_ORDERS_REQUIRED);
 
     String unsupportedVersion =
         readTableMetadataInputFile(
@@ -1052,7 +1057,8 @@ public class TestTableMetadata {
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testParserCurrentSchemaIdValidation(int formatVersion) throws Exception {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    assumeThat(formatVersion)
+        .isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_CURRENT_SCHEMA_ID_REQUIRED);
 
     String unsupported =
         readTableMetadataInputFile(
@@ -1064,8 +1070,9 @@ public class TestTableMetadata {
 
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
-  public void testParserV2SchemasValidation(int formatVersion) throws Exception {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+  public void testParserSchemasValidation(int formatVersion) throws Exception {
+    assumeThat(formatVersion)
+        .isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_SCHEMAS_REQUIRED);
 
     String unsupported =
         readTableMetadataInputFile(

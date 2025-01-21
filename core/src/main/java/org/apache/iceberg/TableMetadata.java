@@ -56,6 +56,14 @@ public class TableMetadata implements Serializable {
   static final int INITIAL_SPEC_ID = 0;
   static final int INITIAL_SORT_ORDER_ID = 1;
   static final int INITIAL_SCHEMA_ID = 0;
+  static final int MIN_FORMAT_VERSION_BRANCHING = 2;
+  static final int MIN_FORMAT_VERSION_UUID_REQUIRED = 2;
+  static final int MIN_FORMAT_VERSION_SEQUENCE_NUMBER = 2;
+  static final int MIN_FORMAT_VERSION_PARTITION_SPECS_REQUIRED = 2;
+  static final int MIN_FORMAT_VERSION_LAST_PARTITION_ID_REQUIRED = 2;
+  static final int MIN_FORMAT_VERSION_SORT_ORDERS_REQUIRED = 2;
+  static final int MIN_FORMAT_VERSION_SCHEMAS_REQUIRED = 2;
+  static final int MIN_FORMAT_VERSION_CURRENT_SCHEMA_ID_REQUIRED = 2;
 
   private static final long ONE_MINUTE = TimeUnit.MINUTES.toMillis(1);
 
