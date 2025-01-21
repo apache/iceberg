@@ -110,7 +110,7 @@ public class ViewVersionTable extends BaseViewMetadataTable {
                   SQLViewRepresentation sqlViewRepresentation = (SQLViewRepresentation) r;
                   return ViewMetadataReadTask.Row.of(
                       sqlViewRepresentation.type(),
-                      sqlViewRepresentation.type(),
+                      sqlViewRepresentation.sql(),
                       sqlViewRepresentation.dialect());
                 })
             .collect(Collectors.toList()),

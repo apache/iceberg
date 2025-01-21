@@ -45,6 +45,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
+import org.apache.iceberg.view.TestViews;
+import org.apache.iceberg.view.View;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -1723,6 +1725,16 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     scanTasks.sort(Comparator.comparing(f -> f.file().pos()));
     assertThat(scanTasks.get(0).file().location()).isEqualTo(delete1.location());
     assertThat(scanTasks.get(1).file().location()).isEqualTo(delete2.location());
+  }
+
+  @TestTemplate
+  public void testViewVersionTable() throws Exception {
+    View view = TestViews.createSampleTestView("view");
+    ViewVersionTable viewVersionTable = new ViewVersionTable(view);
+
+    TableScan scan = viewVersionTable.newScan();
+
+    assertThat(scan.schema()).isEqualTo(ViewVersionTable.VIEW_VERSION_SCHEMA);
   }
 
   @TestTemplate

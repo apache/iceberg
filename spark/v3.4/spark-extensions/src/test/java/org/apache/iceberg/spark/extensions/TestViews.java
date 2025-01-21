@@ -2089,6 +2089,33 @@ public class TestViews extends SparkExtensionsTestBase {
             String.format("Recursive cycle in view detected: %s (cycle: %s)", view1, cycle));
   }
 
+  @TestTemplate
+  public void readFromViewVersionTable() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = viewName("simpleView");
+    String sql = String.format("SELECT id FROM %s", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+        .buildView(TableIdentifier.of(NAMESPACE, viewName))
+        .withQuery("spark", sql)
+        // use non-existing column name to make sure only the SQL definition for spark is loaded
+        .withQuery("trino", String.format("SELECT non_existing FROM %s", tableName))
+        .withDefaultNamespace(NAMESPACE)
+        .withDefaultCatalog(catalogName)
+        .withSchema(schema(sql))
+        .create();
+
+    // Similar to table's metadata table, view's metadata table requires fully qualified name.
+    List<Object[]> result = sql("SELECT * FROM %s.%s.%s.version", catalogName, NAMESPACE, viewName);
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).length).isEqualTo(7);
+    // representations
+    assertThat(result.get(0)[4].toString())
+        .isEqualTo("[[sql,SELECT id FROM table,spark], [sql,SELECT non_existing FROM table,trino]]");
+  }
+
   private void insertRows(int numRows) throws NoSuchTableException {
     List<SimpleRecord> records = Lists.newArrayListWithCapacity(numRows);
     for (int i = 1; i <= numRows; i++) {
