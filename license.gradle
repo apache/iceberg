@@ -24,13 +24,15 @@ tasks.register('compareLicenseReport') {
     File licenseFile = new File("${projectDir}/build/reports/dependency-license/LICENSE")
     File currentLicenseFile = new File("${projectDir}/LICENSE")
     if (licenseFile.text != currentLicenseFile.text) {
-      throw new RuntimeException("License file has changed");
+      throw new RuntimeException(
+          "LICENSE file has changed. Run 'gradle updateLicenseReport' to update it.");
     }
 
     File noticeFile = new File("${projectDir}/build/reports/dependency-license/NOTICE")
     File currentNoticeFile = new File("${projectDir}/NOTICE")
     if (noticeFile.text != currentNoticeFile.text) {
-      throw new RuntimeException("Notice file has changed");
+      throw new RuntimeException(
+          "NOTICE file has changed. Run 'gradle updateLicenseReport' to update it.");
     }
   }
 }
