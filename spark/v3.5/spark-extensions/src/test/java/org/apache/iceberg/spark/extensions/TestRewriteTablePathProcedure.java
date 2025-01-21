@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -58,11 +57,11 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
         sql(
             "CALL %s.system.rewrite_table_path('%s', '%s', '%s')",
             catalogName, tableIdent, table.location(), location);
-    assumeThat(result).hasSize(1);
-    assumeThat(result.get(0)[0])
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0)[0])
         .as("Should return correct latest version")
         .isEqualTo(RewriteTablePathUtil.fileName(metadataJson));
-    assumeThat(result.get(0)[1])
+    assertThat(result.get(0)[1])
         .as("Should return files_list_location")
         .asString()
         .startsWith(table.location())
@@ -101,9 +100,9 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
             v1Metadata,
             v0Metadata,
             stagingLocation);
-    assumeThat(result).hasSize(1);
-    assumeThat(result.get(0)[0]).as("Should return correct latest version").isEqualTo(v1Metadata);
-    assumeThat(result.get(0)[1])
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0)[0]).as("Should return correct latest version").isEqualTo(v1Metadata);
+    assertThat(result.get(0)[1])
         .as("Should return correct files_list_location")
         .isEqualTo(expectedFileListLocation);
     checkFileListLocationCount((String) result.get(0)[1], 4);
@@ -146,8 +145,9 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
                         + "target_location_prefix => '%s', "
                         + "start_version => '%s')",
                     catalogName, tableIdent, table.location(), targetLocation, "v20.metadata.json"))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Version file null does not exist in metadata log");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot find provided version file %s in metadata log.", "v20.metadata.json");
     assertThatThrownBy(
             () ->
                 sql(
@@ -163,8 +163,9 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
                     targetLocation,
                     v0Metadata,
                     "v11.metadata.json"))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("Version file null does not exist in metadata log");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot find provided version file %s in metadata log.", "v11.metadata.json");
   }
 
   private void checkFileListLocationCount(String fileListLocation, long expectedFileCount) {

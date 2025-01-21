@@ -219,8 +219,10 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       }
     }
 
-    Preconditions.checkNotNull(
-        versionFile, "Version file %s does not exist in metadata log.", versionFile);
+    Preconditions.checkArgument(
+        versionFile != null,
+        "Cannot find provided version file %s in metadata log.",
+        versionFileName);
     Preconditions.checkArgument(
         fileExist(versionFile), "Version file %s does not exist.", versionFile);
     return versionFile;
