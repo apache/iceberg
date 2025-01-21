@@ -114,7 +114,7 @@ public class TestTaskWriters {
 
       FileSystem fs = FileSystem.get(CONF);
       for (DataFile dataFile : dataFiles) {
-        assertThat(fs.exists(new Path(dataFile.path().toString()))).isTrue();
+        assertThat(fs.exists(new Path(dataFile.location()))).isTrue();
       }
     }
   }
@@ -133,7 +133,7 @@ public class TestTaskWriters {
 
       FileSystem fs = FileSystem.get(CONF);
       for (DataFile dataFile : dataFiles) {
-        assertThat(fs.exists(new Path(dataFile.path().toString()))).isFalse();
+        assertThat(fs.exists(new Path(dataFile.location()))).isFalse();
       }
     }
   }
@@ -155,7 +155,7 @@ public class TestTaskWriters {
 
       FileSystem fs = FileSystem.get(CONF);
       for (DataFile dataFile : dataFiles) {
-        assertThat(fs.exists(new Path(dataFile.path().toString()))).isTrue();
+        assertThat(fs.exists(new Path(dataFile.location()))).isTrue();
       }
 
       AppendFiles appendFiles = table.newAppend();

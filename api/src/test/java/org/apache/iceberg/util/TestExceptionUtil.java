@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.Arrays;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 
 public class TestExceptionUtil {
@@ -53,7 +54,7 @@ public class TestExceptionUtil {
         .isInstanceOf(CustomCheckedException.class)
         .isEqualTo(exc)
         .extracting(e -> Arrays.asList(e.getSuppressed()))
-        .asList()
+        .asInstanceOf(InstanceOfAssertFactories.LIST)
         .hasSize(2)
         .containsExactly(suppressedOne, suppressedTwo);
   }
@@ -82,7 +83,7 @@ public class TestExceptionUtil {
         .isInstanceOf(CustomCheckedException.class)
         .isEqualTo(exc)
         .extracting(e -> Arrays.asList(e.getSuppressed()))
-        .asList()
+        .asInstanceOf(InstanceOfAssertFactories.LIST)
         .hasSize(2)
         .containsExactly(suppressedOne, suppressedTwo);
   }
@@ -112,7 +113,7 @@ public class TestExceptionUtil {
         .isInstanceOf(CustomCheckedException.class)
         .isEqualTo(exc)
         .extracting(e -> Arrays.asList(e.getSuppressed()))
-        .asList()
+        .asInstanceOf(InstanceOfAssertFactories.LIST)
         .hasSize(2)
         .containsExactly(suppressedOne, suppressedTwo);
   }
@@ -137,7 +138,7 @@ public class TestExceptionUtil {
         .isInstanceOf(RuntimeException.class)
         .isEqualTo(exc)
         .extracting(e -> Arrays.asList(e.getSuppressed()))
-        .asList()
+        .asInstanceOf(InstanceOfAssertFactories.LIST)
         .hasSize(2)
         .containsExactly(suppressedOne, suppressedTwo);
   }

@@ -37,14 +37,19 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 public class TestGenericData extends DataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    List<Record> expected = RandomGenericData.generate(schema, 100, 0L);
+    writeAndValidate(schema, schema);
+  }
+
+  @Override
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
+    List<Record> expected = RandomGenericData.generate(writeSchema, 100, 0L);
 
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).isTrue();
 
     try (FileAppender<Record> writer =
         Avro.write(Files.localOutput(testFile))
-            .schema(schema)
+            .schema(writeSchema)
             .createWriterFunc(DataWriter::create)
             .named("test")
             .build()) {
@@ -56,14 +61,19 @@ public class TestGenericData extends DataTest {
     List<Record> rows;
     try (AvroIterable<Record> reader =
         Avro.read(Files.localInput(testFile))
-            .project(schema)
-            .createReaderFunc(DataReader::create)
+            .project(expectedSchema)
+            .createResolvingReader(PlannedDataReader::create)
             .build()) {
       rows = Lists.newArrayList(reader);
     }
 
     for (int i = 0; i < expected.size(); i += 1) {
-      DataTestHelpers.assertEquals(schema.asStruct(), expected.get(i), rows.get(i));
+      DataTestHelpers.assertEquals(expectedSchema.asStruct(), expected.get(i), rows.get(i));
     }
+  }
+
+  @Override
+  protected boolean supportsDefaultValues() {
+    return true;
   }
 }

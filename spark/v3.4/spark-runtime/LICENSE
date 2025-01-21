@@ -637,3 +637,11 @@ This product includes code from Apache HttpComponents Client.
 Copyright: 1999-2022 The Apache Software Foundation.
 Home page: https://hc.apache.org/
 License: https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains failsafe.
+
+Copyright: Jonathan Halterman and friends
+Home page: https://failsafe.dev/
+License: https://www.apache.org/licenses/LICENSE-2.0.html

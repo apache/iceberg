@@ -561,10 +561,11 @@ public class SparkScanBuilder
 
     boolean emptyScan = false;
     if (startTimestamp != null) {
-      startSnapshotId = getStartSnapshotId(startTimestamp);
-      if (startSnapshotId == null && endTimestamp == null) {
+      if (table.currentSnapshot() == null
+          || startTimestamp > table.currentSnapshot().timestampMillis()) {
         emptyScan = true;
       }
+      startSnapshotId = getStartSnapshotId(startTimestamp);
     }
 
     if (endTimestamp != null) {

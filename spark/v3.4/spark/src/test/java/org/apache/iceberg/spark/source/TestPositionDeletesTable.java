@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -140,8 +141,8 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
     tab.newAppend().appendFile(dFile).commit();
 
     List<Pair<CharSequence, Long>> deletes = Lists.newArrayList();
-    deletes.add(Pair.of(dFile.path(), 0L));
-    deletes.add(Pair.of(dFile.path(), 1L));
+    deletes.add(Pair.of(dFile.location(), 0L));
+    deletes.add(Pair.of(dFile.location(), 1L));
     Pair<DeleteFile, CharSequenceSet> posDeletes =
         FileHelpers.writeDeleteFile(
             tab, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
@@ -150,9 +151,9 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
     StructLikeSet actual = actual(tableName, tab);
 
     List<PositionDelete<?>> expectedDeletes =
-        Lists.newArrayList(positionDelete(dFile.path(), 0L), positionDelete(dFile.path(), 1L));
-    StructLikeSet expected =
-        expected(tab, expectedDeletes, null, posDeletes.first().path().toString());
+        Lists.newArrayList(
+            positionDelete(dFile.location(), 0L), positionDelete(dFile.location(), 1L));
+    StructLikeSet expected = expected(tab, expectedDeletes, null, posDeletes.first().location());
 
     Assert.assertEquals("Position Delete table should contain expected rows", expected, actual);
     dropTable(tableName);
@@ -181,7 +182,7 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
     GenericRecord partitionB = GenericRecord.create(tab.spec().partitionType());
     partitionB.setField("data", "b");
     StructLikeSet expected =
-        expected(tab, deletesB.first(), partitionB, deletesB.second().path().toString());
+        expected(tab, deletesB.first(), partitionB, deletesB.second().location());
 
     Assert.assertEquals("Position Delete table should contain expected rows", expected, actual);
     dropTable(tableName);
@@ -221,7 +222,7 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
         (delete, file) -> {
           int rowData = delete.get(2, GenericRecord.class).get(0, Integer.class);
           long pos = delete.get(1, Long.class);
-          return row(rowData, pos, file.path().toString(), file.path().toString());
+          return row(rowData, pos, file.location(), file.location());
         };
     expected.addAll(
         deletesA.first().stream()
@@ -270,7 +271,7 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
 
     List<PositionDelete<?>> deletes = Lists.newArrayList();
     for (long i = 0; i < records; i++) {
-      deletes.add(positionDelete(tab.schema(), dFile.path(), i, (int) i, String.valueOf(i)));
+      deletes.add(positionDelete(tab.schema(), dFile.location(), i, (int) i, String.valueOf(i)));
     }
     DeleteFile posDeletes =
         FileHelpers.writePosDeleteFile(
@@ -292,7 +293,7 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
     }
 
     StructLikeSet actual = actual(tableName, tab);
-    StructLikeSet expected = expected(tab, deletes, null, posDeletes.path().toString());
+    StructLikeSet expected = expected(tab, deletes, null, posDeletes.location());
 
     Assert.assertEquals("Position Delete table should contain expected rows", expected, actual);
     dropTable(tableName);
@@ -322,9 +323,9 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
     Record partitionA = partitionRecordTemplate.copy("data", "a");
     Record partitionB = partitionRecordTemplate.copy("data", "b");
     StructLikeSet expectedA =
-        expected(tab, deletesA.first(), partitionA, deletesA.second().path().toString());
+        expected(tab, deletesA.first(), partitionA, deletesA.second().location());
     StructLikeSet expectedB =
-        expected(tab, deletesB.first(), partitionB, deletesB.second().path().toString());
+        expected(tab, deletesB.first(), partitionB, deletesB.second().location());
     StructLikeSet allExpected = StructLikeSet.create(deletesTab.schema().asStruct());
     allExpected.addAll(expectedA);
     allExpected.addAll(expectedB);
@@ -365,9 +366,9 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
     Record partitionA = partitionRecordTemplate.copy("data_trunc", "a");
     Record partitionB = partitionRecordTemplate.copy("data_trunc", "b");
     StructLikeSet expectedA =
-        expected(tab, deletesA.first(), partitionA, deletesA.second().path().toString());
+        expected(tab, deletesA.first(), partitionA, deletesA.second().location());
     StructLikeSet expectedB =
-        expected(tab, deletesB.first(), partitionB, deletesB.second().path().toString());
+        expected(tab, deletesB.first(), partitionB, deletesB.second().location());
     StructLikeSet allExpected = StructLikeSet.create(deletesTable.schema().asStruct());
     allExpected.addAll(expectedA);
     allExpected.addAll(expectedB);
@@ -415,7 +416,7 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
     GenericRecord partitionRecordTemplate = GenericRecord.create(Partitioning.partitionType(tab));
     Record partitionA = partitionRecordTemplate.copy("data", "a");
     StructLikeSet expectedA =
-        expected(tab, deletesA.first(), partitionA, dataSpec, deletesA.second().path().toString());
+        expected(tab, deletesA.first(), partitionA, dataSpec, deletesA.second().location());
     StructLikeSet actualA = actual(tableName, tab, "partition.data = 'a' AND pos >= 0");
     Assert.assertEquals("Position Delete table should contain expected rows", expectedA, actualA);
 
@@ -427,7 +428,7 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
             deletes10.first(),
             partition10,
             tab.spec().specId(),
-            deletes10.second().path().toString());
+            deletes10.second().location());
     StructLikeSet actual10 = actual(tableName, tab, "partition.id = 10 AND pos >= 0");
 
     Assert.assertEquals("Position Delete table should contain expected rows", expected10, actual10);
@@ -465,7 +466,7 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
     GenericRecord partitionRecordTemplate = GenericRecord.create(Partitioning.partitionType(tab));
     Record partitionA = partitionRecordTemplate.copy("data", "a");
     StructLikeSet expectedA =
-        expected(tab, deletesA.first(), partitionA, specId1, deletesA.second().path().toString());
+        expected(tab, deletesA.first(), partitionA, specId1, deletesA.second().location());
     StructLikeSet actualA = actual(tableName, tab, "partition.data = 'a' AND pos >= 0");
     Assert.assertEquals("Position Delete table should contain expected rows", expectedA, actualA);
 
@@ -477,7 +478,7 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
             deletesUnpartitioned.first(),
             unpartitionedRecord,
             specId0,
-            deletesUnpartitioned.second().path().toString());
+            deletesUnpartitioned.second().location());
     StructLikeSet actualUnpartitioned =
         actual(tableName, tab, "partition.data IS NULL and pos >= 0");
 
@@ -520,7 +521,7 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
     GenericRecord partitionRecordTemplate = GenericRecord.create(Partitioning.partitionType(tab));
     Record partitionA = partitionRecordTemplate.copy("data", "a");
     StructLikeSet expectedA =
-        expected(tab, deletesA.first(), partitionA, specId0, deletesA.second().path().toString());
+        expected(tab, deletesA.first(), partitionA, specId0, deletesA.second().location());
     StructLikeSet actualA = actual(tableName, tab, "partition.data = 'a' AND pos >= 0");
     Assert.assertEquals("Position Delete table should contain expected rows", expectedA, actualA);
 
@@ -532,7 +533,7 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
             deletesUnpartitioned.first(),
             unpartitionedRecord,
             specId1,
-            deletesUnpartitioned.second().path().toString());
+            deletesUnpartitioned.second().location());
     StructLikeSet actualUnpartitioned =
         actual(tableName, tab, "partition.data IS NULL and pos >= 0");
 
@@ -577,7 +578,7 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
             deletesUnpartitioned.first(),
             partitionRecordTemplate,
             unpartitionedSpec,
-            deletesUnpartitioned.second().path().toString());
+            deletesUnpartitioned.second().location());
     StructLikeSet actualUnpartitioned =
         actual(tableName, tab, String.format("spec_id = %d", unpartitionedSpec));
     Assert.assertEquals(
@@ -589,9 +590,9 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
     StructLike partitionA = partitionRecordTemplate.copy("data", "a");
     StructLike partitionB = partitionRecordTemplate.copy("data", "b");
     StructLikeSet expected =
-        expected(tab, deletesA.first(), partitionA, dataSpec, deletesA.second().path().toString());
+        expected(tab, deletesA.first(), partitionA, dataSpec, deletesA.second().location());
     expected.addAll(
-        expected(tab, deletesB.first(), partitionB, dataSpec, deletesB.second().path().toString()));
+        expected(tab, deletesB.first(), partitionB, dataSpec, deletesB.second().location()));
 
     StructLikeSet actual = actual(tableName, tab, String.format("spec_id = %d", dataSpec));
     Assert.assertEquals("Position Delete table should contain expected rows", expected, actual);
@@ -645,14 +646,14 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
           d.set(2, padded);
         });
     StructLikeSet expectedA =
-        expected(tab, expectedDeletesA, partitionA, deletesA.second().path().toString());
+        expected(tab, expectedDeletesA, partitionA, deletesA.second().location());
     StructLikeSet actualA = actual(tableName, tab, "partition.data = 'a' AND pos >= 0");
     Assert.assertEquals("Position Delete table should contain expected rows", expectedA, actualA);
 
     // Select deletes from new schema
     Record partitionC = partitionRecordTemplate.copy("data", "c");
     StructLikeSet expectedC =
-        expected(tab, deletesC.first(), partitionC, deletesC.second().path().toString());
+        expected(tab, deletesC.first(), partitionC, deletesC.second().location());
     StructLikeSet actualC = actual(tableName, tab, "partition.data = 'c' and pos >= 0");
 
     Assert.assertEquals("Position Delete table should contain expected rows", expectedC, actualC);
@@ -707,14 +708,14 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
           d.set(2, padded);
         });
     StructLikeSet expectedA =
-        expected(tab, expectedDeletesA, partitionA, deletesA.second().path().toString());
+        expected(tab, expectedDeletesA, partitionA, deletesA.second().location());
     StructLikeSet actualA = actual(tableName, tab, "partition.data = 'a' AND pos >= 0");
     Assert.assertEquals("Position Delete table should contain expected rows", expectedA, actualA);
 
     // Select deletes from new schema
     Record partitionC = partitionRecordTemplate.copy("data", "c");
     StructLikeSet expectedC =
-        expected(tab, deletesC.first(), partitionC, deletesC.second().path().toString());
+        expected(tab, deletesC.first(), partitionC, deletesC.second().location());
     StructLikeSet actualC = actual(tableName, tab, "partition.data = 'c' and pos >= 0");
 
     Assert.assertEquals("Position Delete table should contain expected rows", expectedC, actualC);
@@ -792,8 +793,8 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
     tab.newAppend().appendFile(dFile).commit();
 
     List<Pair<CharSequence, Long>> deletes = Lists.newArrayList();
-    deletes.add(Pair.of(dFile.path(), 0L));
-    deletes.add(Pair.of(dFile.path(), 1L));
+    deletes.add(Pair.of(dFile.location(), 0L));
+    deletes.add(Pair.of(dFile.location(), 1L));
     Pair<DeleteFile, CharSequenceSet> posDeletes =
         FileHelpers.writeDeleteFile(
             tab, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
@@ -827,7 +828,8 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
         actual(tableName, tab, null, ImmutableList.of("file_path", "pos", "row", "spec_id"));
 
     List<PositionDelete<?>> expectedDeletes =
-        Lists.newArrayList(positionDelete(dFile.path(), 0L), positionDelete(dFile.path(), 1L));
+        Lists.newArrayList(
+            positionDelete(dFile.location(), 0L), positionDelete(dFile.location(), 1L));
     StructLikeSet expected = expected(tab, expectedDeletes, null, null);
 
     Assert.assertEquals("Position Delete table should contain expected rows", expected, actual);
@@ -846,8 +848,8 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
 
     // Add a delete file with row and without row
     List<Pair<CharSequence, Long>> deletes = Lists.newArrayList();
-    deletes.add(Pair.of(dataFileA.path(), 0L));
-    deletes.add(Pair.of(dataFileA.path(), 1L));
+    deletes.add(Pair.of(dataFileA.location(), 0L));
+    deletes.add(Pair.of(dataFileA.location(), 1L));
     Pair<DeleteFile, CharSequenceSet> deletesWithoutRow =
         FileHelpers.writeDeleteFile(
             tab, Files.localOutput(temp.newFile()), TestHelpers.Row.of("a"), deletes);
@@ -905,7 +907,7 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
         expected(
             tab,
             Lists.newArrayList(
-                positionDelete(dataFileA.path(), 0L), positionDelete(dataFileA.path(), 1L)),
+                positionDelete(dataFileA.location(), 0L), positionDelete(dataFileA.location(), 1L)),
             partitionA,
             null));
     allExpected.addAll(expected(tab, deletesWithRow.first(), partitionB, null));
@@ -1481,13 +1483,13 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
         Lists.newArrayList(
             positionDelete(
                 tab.schema(),
-                dataFile.path(),
+                dataFile.location(),
                 0L,
                 idPartition != null ? idPartition : 29,
                 dataPartition != null ? dataPartition : "c"),
             positionDelete(
                 tab.schema(),
-                dataFile.path(),
+                dataFile.location(),
                 1L,
                 idPartition != null ? idPartition : 61,
                 dataPartition != null ? dataPartition : "r"));
@@ -1533,9 +1535,9 @@ public class TestPositionDeletesTable extends SparkCatalogTestBase {
     Assert.assertEquals(expectedTargetFiles, addedFiles.size());
 
     List<String> sortedAddedFiles =
-        addedFiles.stream().map(f -> f.path().toString()).sorted().collect(Collectors.toList());
+        addedFiles.stream().map(ContentFile::location).sorted().collect(Collectors.toList());
     List<String> sortedRewrittenFiles =
-        rewrittenFiles.stream().map(f -> f.path().toString()).sorted().collect(Collectors.toList());
+        rewrittenFiles.stream().map(ContentFile::location).sorted().collect(Collectors.toList());
     Assert.assertNotEquals("Lists should not be the same", sortedAddedFiles, sortedRewrittenFiles);
 
     baseTab

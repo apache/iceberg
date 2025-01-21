@@ -722,6 +722,12 @@ License (from POM): The Apache Software License, Version 2.0 - http://www.apache
 
 --------------------------------------------------------------------------------
 
+Group: dev.failsafe  Name: failsafe  Version: 3.3.2
+Project URL (from POM): https://github.com/failsafe-lib/failsafe
+License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
 Group: dnsjava  Name: dnsjava  Version: 2.1.7
 Project URL (from POM): http://www.dnsjava.org
 License (from POM): BSD 2-Clause license - http://opensource.org/licenses/BSD-2-Clause

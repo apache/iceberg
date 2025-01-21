@@ -38,7 +38,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.junit.After;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -135,10 +134,6 @@ public class TestSelect extends SparkCatalogTestBase {
 
   @Test
   public void testMetadataTables() {
-    Assume.assumeFalse(
-        "Spark session catalog does not support metadata tables",
-        "spark_catalog".equals(catalogName));
-
     assertEquals(
         "Snapshot metadata table",
         ImmutableList.of(row(ANY, ANY, null, "append", ANY, ANY)),
@@ -147,10 +142,6 @@ public class TestSelect extends SparkCatalogTestBase {
 
   @Test
   public void testSnapshotInTableName() {
-    Assume.assumeFalse(
-        "Spark session catalog does not support extended table names",
-        "spark_catalog".equals(catalogName));
-
     // get the snapshot ID of the last write and get the current row set as expected
     long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
     List<Object[]> expected = sql("SELECT * FROM %s", tableName);
@@ -176,10 +167,6 @@ public class TestSelect extends SparkCatalogTestBase {
 
   @Test
   public void testTimestampInTableName() {
-    Assume.assumeFalse(
-        "Spark session catalog does not support extended table names",
-        "spark_catalog".equals(catalogName));
-
     // get a timestamp just after the last write and get the current row set as expected
     long snapshotTs = validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis();
     long timestamp = waitUntilAfter(snapshotTs + 2);

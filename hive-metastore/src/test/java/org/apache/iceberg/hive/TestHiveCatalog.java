@@ -110,18 +110,28 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
   @BeforeEach
   public void before() throws TException {
-    catalog =
-        (HiveCatalog)
-            CatalogUtil.loadCatalog(
-                HiveCatalog.class.getName(),
-                CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
-                ImmutableMap.of(
-                    CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
-                    String.valueOf(TimeUnit.SECONDS.toMillis(10))),
-                HIVE_METASTORE_EXTENSION.hiveConf());
+    catalog = initCatalog("hive", ImmutableMap.of());
     String dbPath = HIVE_METASTORE_EXTENSION.metastore().getDatabasePath(DB_NAME);
     Database db = new Database(DB_NAME, "description", dbPath, Maps.newHashMap());
     HIVE_METASTORE_EXTENSION.metastoreClient().createDatabase(db);
+  }
+
+  @Override
+  protected HiveCatalog initCatalog(String catalogName, Map<String, String> additionalProperties) {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
+            String.valueOf(TimeUnit.SECONDS.toMillis(10)));
+
+    return (HiveCatalog)
+        CatalogUtil.loadCatalog(
+            HiveCatalog.class.getName(),
+            catalogName,
+            ImmutableMap.<String, String>builder()
+                .putAll(properties)
+                .putAll(additionalProperties)
+                .build(),
+            HIVE_METASTORE_EXTENSION.hiveConf());
   }
 
   @AfterEach

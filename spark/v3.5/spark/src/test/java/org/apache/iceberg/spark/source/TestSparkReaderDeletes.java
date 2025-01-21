@@ -21,11 +21,13 @@ package org.apache.iceberg.spark.source;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 import static org.apache.iceberg.spark.source.SparkSQLExecutionHelper.lastExecutedMetricValue;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.apache.spark.sql.types.DataTypes.IntegerType;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
@@ -86,6 +88,7 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -95,7 +98,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkReaderDeletes extends DeleteReadTests {
-
   private static TestHiveMetastore metastore = null;
   protected static SparkSession spark = null;
   protected static HiveCatalog catalog = null;
@@ -630,6 +632,51 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         .commit();
 
     assertThat(rowSet(tblName, tbl, "*")).hasSize(193);
+  }
+
+  @TestTemplate
+  public void testEqualityDeleteWithDifferentScanAndDeleteColumns() throws IOException {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+    initDateTable();
+
+    Schema deleteRowSchema = dateTable.schema().select("dt");
+    Record dataDelete = GenericRecord.create(deleteRowSchema);
+    List<Record> dataDeletes =
+        Lists.newArrayList(
+            dataDelete.copy("dt", LocalDate.parse("2021-09-01")),
+            dataDelete.copy("dt", LocalDate.parse("2021-09-02")),
+            dataDelete.copy("dt", LocalDate.parse("2021-09-03")));
+
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            dateTable,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            TestHelpers.Row.of(0),
+            dataDeletes.subList(0, 3),
+            deleteRowSchema);
+
+    dateTable.newRowDelta().addDeletes(eqDeletes).commit();
+
+    CloseableIterable<CombinedScanTask> tasks =
+        TableScanUtil.planTasks(
+            dateTable.newScan().planFiles(),
+            TableProperties.METADATA_SPLIT_SIZE_DEFAULT,
+            TableProperties.SPLIT_LOOKBACK_DEFAULT,
+            TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+
+    for (CombinedScanTask task : tasks) {
+      try (BatchDataReader reader =
+          new BatchDataReader(
+              // expected column is id, while the equality filter column is dt
+              dateTable, task, dateTable.schema(), dateTable.schema().select("id"), false, 7)) {
+        while (reader.next()) {
+          ColumnarBatch columnarBatch = reader.get();
+          int numOfCols = columnarBatch.numCols();
+          assertThat(numOfCols).as("Number of columns").isEqualTo(1);
+          assertThat(columnarBatch.column(0).dataType()).as("Column type").isEqualTo(IntegerType);
+        }
+      }
+    }
   }
 
   private static final Schema PROJECTION_SCHEMA =

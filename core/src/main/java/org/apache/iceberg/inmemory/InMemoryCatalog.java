@@ -70,6 +70,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   private String catalogName;
   private String warehouseLocation;
   private CloseableGroup closeableGroup;
+  private Map<String, String> catalogProperties;
 
   public InMemoryCatalog() {
     this.namespaces = Maps.newConcurrentMap();
@@ -85,6 +86,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   @Override
   public void initialize(String name, Map<String, String> properties) {
     this.catalogName = name != null ? name : InMemoryCatalog.class.getSimpleName();
+    this.catalogProperties = ImmutableMap.copyOf(properties);
 
     String warehouse = properties.getOrDefault(CatalogProperties.WAREHOUSE_LOCATION, "");
     this.warehouseLocation = warehouse.replaceAll("/*$", "");
@@ -144,7 +146,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     }
 
     return tables.keySet().stream()
-        .filter(t -> namespace.isEmpty() || t.namespace().equals(namespace))
+        .filter(t -> t.namespace().equals(namespace))
         .sorted(Comparator.comparing(TableIdentifier::toString))
         .collect(Collectors.toList());
   }
@@ -288,6 +290,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
     List<Namespace> filteredNamespaces =
         namespaces.keySet().stream()
+            .filter(n -> !n.isEmpty())
             .filter(n -> DOT.join(n.levels()).startsWith(searchNamespaceString))
             .collect(Collectors.toList());
 
@@ -321,7 +324,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     }
 
     return views.keySet().stream()
-        .filter(v -> namespace.isEmpty() || v.namespace().equals(namespace))
+        .filter(v -> v.namespace().equals(namespace))
         .sorted(Comparator.comparing(TableIdentifier::toString))
         .collect(Collectors.toList());
   }
@@ -366,6 +369,11 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
       views.put(to, fromViewLocation);
       views.remove(from);
     }
+  }
+
+  @Override
+  protected Map<String, String> properties() {
+    return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
   }
 
   private class InMemoryTableOperations extends BaseMetastoreTableOperations {

@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.sql;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -158,10 +157,6 @@ public class TestSelect extends CatalogTestBase {
 
   @TestTemplate
   public void testMetadataTables() {
-    assumeThat(catalogName)
-        .as("Spark session catalog does not support metadata tables")
-        .isNotEqualTo("spark_catalog");
-
     assertEquals(
         "Snapshot metadata table",
         ImmutableList.of(row(ANY, ANY, null, "append", ANY, ANY)),
@@ -170,10 +165,6 @@ public class TestSelect extends CatalogTestBase {
 
   @TestTemplate
   public void testSnapshotInTableName() {
-    assumeThat(catalogName)
-        .as("Spark session catalog does not support extended table names")
-        .isNotEqualTo("spark_catalog");
-
     // get the snapshot ID of the last write and get the current row set as expected
     long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
     List<Object[]> expected = sql("SELECT * FROM %s", tableName);
@@ -199,10 +190,6 @@ public class TestSelect extends CatalogTestBase {
 
   @TestTemplate
   public void testTimestampInTableName() {
-    assumeThat(catalogName)
-        .as("Spark session catalog does not support extended table names")
-        .isNotEqualTo("spark_catalog");
-
     // get a timestamp just after the last write and get the current row set as expected
     long snapshotTs = validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis();
     long timestamp = waitUntilAfter(snapshotTs + 2);

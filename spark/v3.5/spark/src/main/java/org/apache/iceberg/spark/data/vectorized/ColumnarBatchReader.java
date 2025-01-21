@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.data.vectorized;
 
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -114,6 +115,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
 
       if (hasEqDeletes()) {
         applyEqDelete(newColumnarBatch);
+        newColumnarBatch = removeExtraColumns(arrowColumnVectors, newColumnarBatch);
       }
 
       if (hasIsDeletedColumn && rowIdMapping != null) {
@@ -256,6 +258,35 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
       }
 
       columnarBatch.setNumRows(currentRowId);
+    }
+
+    /**
+     * Removes extra columns added for processing equality delete filters that are not part of the
+     * final query output.
+     *
+     * <p>During query execution, additional columns may be included in the schema to evaluate
+     * equality delete filters. For example, if the table schema contains columns C1, C2, C3, C4,
+     * and C5, and the query is 'SELECT C5 FROM table' while equality delete filters are applied on
+     * C3 and C4, the processing schema includes C5, C3, and C4. These extra columns (C3 and C4) are
+     * needed to identify rows to delete but are not included in the final result.
+     *
+     * <p>This method removes these extra columns from the end of {@code arrowColumnVectors},
+     * ensuring only the expected columns remain.
+     *
+     * @param arrowColumnVectors the array of column vectors representing query result data
+     * @param columnarBatch the original {@code ColumnarBatch} containing query results
+     * @return a new {@code ColumnarBatch} with extra columns removed, or the original batch if no
+     *     extra columns were found
+     */
+    ColumnarBatch removeExtraColumns(
+        ColumnVector[] arrowColumnVectors, ColumnarBatch columnarBatch) {
+      int expectedColumnSize = deletes.expectedSchema().columns().size();
+      if (arrowColumnVectors.length > expectedColumnSize) {
+        ColumnVector[] newColumns = Arrays.copyOf(arrowColumnVectors, expectedColumnSize);
+        return new ColumnarBatch(newColumns, columnarBatch.numRows());
+      } else {
+        return columnarBatch;
+      }
     }
   }
 }
