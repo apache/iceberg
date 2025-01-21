@@ -390,6 +390,11 @@ class RemovePartitionSpecsUpdate(BaseUpdate):
     spec_ids: List[int] = Field(..., alias='spec-ids')
 
 
+class RemoveSchemasUpdate(BaseUpdate):
+    action: str = Field('remove-schemas', const=True)
+    schema_ids: List[int] = Field(..., alias='schema-ids')
+
+
 class EnableRowLineageUpdate(BaseUpdate):
     action: str = Field('enable-row-lineage', const=True)
 
@@ -1183,6 +1188,7 @@ class TableUpdate(BaseModel):
         SetStatisticsUpdate,
         RemoveStatisticsUpdate,
         RemovePartitionSpecsUpdate,
+        RemoveSchemasUpdate,
         EnableRowLineageUpdate,
     ]
 
