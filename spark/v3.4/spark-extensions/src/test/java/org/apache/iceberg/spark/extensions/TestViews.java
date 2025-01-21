@@ -2089,7 +2089,7 @@ public class TestViews extends SparkExtensionsTestBase {
             String.format("Recursive cycle in view detected: %s (cycle: %s)", view1, cycle));
   }
 
-  @TestTemplate
+  @Test
   public void readFromViewVersionTable() throws NoSuchTableException {
     insertRows(10);
     String viewName = viewName("simpleView");
