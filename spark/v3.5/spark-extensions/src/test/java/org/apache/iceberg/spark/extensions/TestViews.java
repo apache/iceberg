@@ -2117,7 +2117,8 @@ public class TestViews extends ExtensionsTestBase {
     assertThat(result.get(0).length).isEqualTo(7);
     // representations
     assertThat(result.get(0)[4].toString())
-        .isEqualTo("[[sql,SELECT id FROM table,spark], [sql,SELECT non_existing FROM table,trino]]");
+        .isEqualTo(
+            "[[sql,SELECT id FROM table,spark], [sql,SELECT non_existing FROM table,trino]]");
   }
 
   private void insertRows(int numRows) throws NoSuchTableException {
