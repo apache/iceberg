@@ -376,25 +376,25 @@ License (from POM): Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api  Name: api-common  Version: 2.42.0
+Group: com.google.api  Name: api-common  Version: 2.42.1
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): BSD-3-Clause - https://github.com/googleapis/api-common-java/blob/main/LICENSE
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api  Name: gax  Version: 2.59.0
+Group: com.google.api  Name: gax  Version: 2.59.1
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): BSD-3-Clause - https://github.com/googleapis/gax-java/blob/master/LICENSE
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api  Name: gax-grpc  Version: 2.59.0
+Group: com.google.api  Name: gax-grpc  Version: 2.59.1
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): BSD-3-Clause - https://github.com/googleapis/gax-java/blob/master/LICENSE
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api  Name: gax-httpjson  Version: 2.59.0
+Group: com.google.api  Name: gax-httpjson  Version: 2.59.1
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): BSD-3-Clause - https://github.com/googleapis/gax-java/blob/master/LICENSE
 
@@ -406,34 +406,34 @@ License (from POM): The Apache Software License, Version 2.0 - http://www.apache
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: gapic-google-cloud-storage-v2  Version: 2.46.0-beta
+Group: com.google.api.grpc  Name: gapic-google-cloud-storage-v2  Version: 2.47.0
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: grpc-google-cloud-storage-v2  Version: 2.46.0-beta
+Group: com.google.api.grpc  Name: grpc-google-cloud-storage-v2  Version: 2.47.0
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-cloud-monitoring-v3  Version: 3.56.0
+Group: com.google.api.grpc  Name: proto-google-cloud-monitoring-v3  Version: 3.57.0
 Project URL (from POM): https://github.com/googleapis/google-cloud-java
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-cloud-storage-v2  Version: 2.46.0-beta
+Group: com.google.api.grpc  Name: proto-google-cloud-storage-v2  Version: 2.47.0
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-common-protos  Version: 2.50.0
+Group: com.google.api.grpc  Name: proto-google-common-protos  Version: 2.50.1
 Project URL (from POM): https://github.com/googleapis/sdk-platform-java
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-iam-v1  Version: 1.45.0
+Group: com.google.api.grpc  Name: proto-google-iam-v1  Version: 1.45.1
 Project URL (from POM): https://github.com/googleapis/sdk-platform-java
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
@@ -462,28 +462,28 @@ License (from POM): Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-core  Version: 2.49.0
+Group: com.google.cloud  Name: google-cloud-core  Version: 2.49.1
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-core-grpc  Version: 2.49.0
+Group: com.google.cloud  Name: google-cloud-core-grpc  Version: 2.49.1
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-core-http  Version: 2.49.0
+Group: com.google.cloud  Name: google-cloud-core-http  Version: 2.49.1
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-monitoring  Version: 3.56.0
+Group: com.google.cloud  Name: google-cloud-monitoring  Version: 3.57.0
 Project URL (from POM): https://github.com/googleapis/google-cloud-java
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-storage  Version: 2.46.0
+Group: com.google.cloud  Name: google-cloud-storage  Version: 2.47.0
 Project URL (from POM): https://github.com/googleapis/java-storage
 License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
@@ -533,7 +533,7 @@ License (from POM): The Apache Software License, Version 2.0 - http://www.apache
 
 --------------------------------------------------------------------------------
 
-Group: com.google.guava  Name: guava  Version: 33.3.1-jre
+Group: com.google.guava  Name: guava  Version: 33.4.0-jre
 Project URL (from manifest): https://github.com/google/guava/
 Project URL (from POM): https://github.com/google/guava
 License (from POM): Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
@@ -589,19 +589,19 @@ License (from POM): Apache License, Version 2.0 - http://www.apache.org/licenses
 
 --------------------------------------------------------------------------------
 
-Group: com.google.oauth-client  Name: google-oauth-client  Version: 1.36.0
+Group: com.google.oauth-client  Name: google-oauth-client  Version: 1.37.0
 Project URL (from manifest): https://www.google.com/
 License (from POM): The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.protobuf  Name: protobuf-java  Version: 4.28.3
+Group: com.google.protobuf  Name: protobuf-java  Version: 4.29.0
 Project URL (from manifest): https://developers.google.com/protocol-buffers/
 License (from POM): BSD-3-Clause - https://opensource.org/licenses/BSD-3-Clause
 
 --------------------------------------------------------------------------------
 
-Group: com.google.protobuf  Name: protobuf-java-util  Version: 4.28.3
+Group: com.google.protobuf  Name: protobuf-java-util  Version: 4.29.0
 Project URL (from manifest): https://developers.google.com/protocol-buffers/
 License (from POM): BSD-3-Clause - https://opensource.org/licenses/BSD-3-Clause
 
