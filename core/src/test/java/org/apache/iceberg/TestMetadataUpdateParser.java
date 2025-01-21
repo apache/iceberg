@@ -938,8 +938,8 @@ public class TestMetadataUpdateParser {
     MetadataUpdate expected = new MetadataUpdate.EnableRowLineage();
     assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
     assertThat(MetadataUpdateParser.toJson(expected))
-      .as("Enable row lineage should convert to the correct JSON value")
-      .isEqualTo(json);
+        .as("Enable row lineage should convert to the correct JSON value")
+        .isEqualTo(json);
   }
 
   public void assertEquals(

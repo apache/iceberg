@@ -305,20 +305,20 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   private Long calculateAddedRows(List<ManifestFile> manifests) {
     return manifests.stream()
-      .filter(
-        manifest ->
-          manifest.snapshotId() == null
-            || Objects.equals(manifest.snapshotId(), this.snapshotId))
-      .mapToLong(
-        manifest -> {
-          Preconditions.checkArgument(
-            manifest.addedRowsCount() != null,
-            "Cannot determine number of added rows in snapshot because"
-              + " the entry for manifest %s is missing the field `added-rows-count`",
-            manifest.path());
-          return manifest.addedRowsCount();
-        })
-      .sum();
+        .filter(
+            manifest ->
+                manifest.snapshotId() == null
+                    || Objects.equals(manifest.snapshotId(), this.snapshotId))
+        .mapToLong(
+            manifest -> {
+              Preconditions.checkArgument(
+                  manifest.addedRowsCount() != null,
+                  "Cannot determine number of added rows in snapshot because"
+                      + " the entry for manifest %s is missing the field `added-rows-count`",
+                  manifest.path());
+              return manifest.addedRowsCount();
+            })
+        .sum();
   }
 
   protected abstract Map<String, String> summary();

@@ -1270,13 +1270,13 @@ public class TableMetadata implements Serializable {
             snapshot.firstRowId() >= nextRowId,
             "Cannot add a snapshot whose first-row-id (%s) is less than the metadata `last-used-id` (%s) because this will end up generating duplicate row_ids.",
             snapshot.firstRowId(),
-          nextRowId);
+            nextRowId);
         ValidationException.check(
             snapshot.addedRows() != null,
             "Cannot add a snapshot with a null `added-rows` field when row lineage is enabled");
         Preconditions.checkArgument(
-          snapshot.addedRows() >= 0,
-          "Cannot decrease last-row-id, last-row-id must increase monotonically. Snapshot reports %s added rows");
+            snapshot.addedRows() >= 0,
+            "Cannot decrease last-row-id, last-row-id must increase monotonically. Snapshot reports %s added rows");
 
         this.nextRowId += snapshot.addedRows();
       }
@@ -1616,7 +1616,7 @@ public class TableMetadata implements Serializable {
               .collect(Collectors.toList()),
           discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes),
           rowLineage,
-        nextRowId);
+          nextRowId);
     }
 
     private int addSchemaInternal(Schema schema, int newLastColumnId) {
