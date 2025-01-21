@@ -80,7 +80,7 @@ markdown_extensions:
 extra:
   icebergVersion: '1.7.1'
   nessieVersion: '0.92.1'
-  flinkVersion: '1.19.0'
+  flinkVersion: '1.19.1'
   flinkVersionMajor: '1.19'
   social:
     - icon: fontawesome/regular/comments
