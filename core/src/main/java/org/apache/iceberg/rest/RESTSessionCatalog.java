@@ -267,7 +267,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     if (config.endpoints().isEmpty()) {
       this.endpoints =
-          PropertyUtil.propertyAsBoolean(mergedProps, VIEW_ENDPOINTS_SUPPORTED, true)
+          PropertyUtil.propertyAsBoolean(mergedProps, VIEW_ENDPOINTS_SUPPORTED, false)
               ? ImmutableSet.<Endpoint>builder()
                   .addAll(DEFAULT_ENDPOINTS)
                   .addAll(VIEW_ENDPOINTS)
