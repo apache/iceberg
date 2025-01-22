@@ -297,12 +297,6 @@ License: CC0 - http://creativecommons.org/publicdomain/zero/1.0/
 
 --------------------------------------------------------------------------------
 
-Group: org.slf4j  Name: slf4j-api  Version: 1.7.36
-Project URL: http://www.slf4j.org
-License: MIT License - http://www.opensource.org/licenses/mit-license.php
-
---------------------------------------------------------------------------------
-
 Group: software.amazon.awssdk  Name: annotations  Version: 2.28.5
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
