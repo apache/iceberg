@@ -41,6 +41,9 @@ public class TestRowLineageMetadata {
     return Ints.asList(TestHelpers.ALL_VERSIONS);
   }
 
+  @Parameter
+  private int formatVersion;
+
   private static final String TEST_LOCATION = "s3://bucket/test/location";
 
   private static final Schema TEST_SCHEMA =
@@ -50,7 +53,7 @@ public class TestRowLineageMetadata {
           Types.NestedField.required(2, "y", Types.LongType.get(), "comment"),
           Types.NestedField.required(3, "z", Types.LongType.get()));
 
-  private TableMetadata baseMetadata(int formatVersion) {
+  private TableMetadata baseMetadata() {
     return TableMetadata.buildFromEmpty(formatVersion)
         .enableRowLineage()
         .addSchema(TEST_SCHEMA)
@@ -68,7 +71,7 @@ public class TestRowLineageMetadata {
   }
 
   @TestTemplate
-  public void testRowLineageSupported(int formatVersion) {
+  public void testRowLineageSupported() {
     if (formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE) {
       assertThat(TableMetadata.buildFromEmpty(formatVersion).enableRowLineage()).isNotNull();
     } else {
@@ -79,12 +82,12 @@ public class TestRowLineageMetadata {
   }
 
   @TestTemplate
-  public void testSnapshotAddition(int formatVersion) {
+  public void testSnapshotAddition() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     long newRows = 30L;
 
-    TableMetadata base = baseMetadata(formatVersion);
+    TableMetadata base = baseMetadata();
 
     Snapshot addRows =
         new BaseSnapshot(
@@ -105,12 +108,12 @@ public class TestRowLineageMetadata {
   }
 
   @TestTemplate
-  public void testInvalidSnapshotAddition(int formatVersion) {
+  public void testInvalidSnapshotAddition() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     Long newRows = 30L;
 
-    TableMetadata base = baseMetadata(formatVersion);
+    TableMetadata base = baseMetadata();
 
     Snapshot invalidLastRow =
         new BaseSnapshot(
@@ -131,7 +134,7 @@ public class TestRowLineageMetadata {
   }
 
   @TestTemplate
-  public void testFastAppend(int formatVersion) {
+  public void testFastAppend() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     TestTables.TestTable table =
@@ -157,7 +160,7 @@ public class TestRowLineageMetadata {
   }
 
   @TestTemplate
-  public void testAppend(int formatVersion) {
+  public void testAppend() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     TestTables.TestTable table =
@@ -183,7 +186,7 @@ public class TestRowLineageMetadata {
   }
 
   @TestTemplate
-  public void testAppendBranch(int formatVersion) {
+  public void testAppendBranch() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
     // Appends to a branch should still change last-row-id even if not on main, these changes
     // should also affect commits to main
@@ -222,7 +225,7 @@ public class TestRowLineageMetadata {
   }
 
   @TestTemplate
-  public void testDeletes(int formatVersion) {
+  public void testDeletes() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     TestTables.TestTable table =
@@ -254,7 +257,7 @@ public class TestRowLineageMetadata {
   }
 
   @TestTemplate
-  public void testReplace(int formatVersion) {
+  public void testReplace() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     TestTables.TestTable table =
@@ -286,7 +289,7 @@ public class TestRowLineageMetadata {
   }
 
   @TestTemplate
-  public void testEnableRowLineageViaProperty(int formatVersion) {
+  public void testEnableRowLineageViaProperty() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     TestTables.TestTable table =
