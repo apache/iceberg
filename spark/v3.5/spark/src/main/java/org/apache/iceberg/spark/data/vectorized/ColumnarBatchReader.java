@@ -127,9 +127,9 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
       if (deletes != null && deletes.hasEqDeletes()) {
         arrowColumnVectors = ColumnarBatchUtil.removeExtraColumns(deletes, arrowColumnVectors);
       }
+
       ColumnarBatch newColumnarBatch = new ColumnarBatch(arrowColumnVectors);
       newColumnarBatch.setNumRows(numLiveRows);
-
       return newColumnarBatch;
     }
 
