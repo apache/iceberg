@@ -59,7 +59,7 @@ or any public cloud.
 
 ### [Crunchy Data](https://www.crunchydata.com/)
 
-[Crunchy Data Warehouse](https://www.crunchydata.com/products/warehouse) is a modern data warehouse built on Postgres. Crunchy Data warehouse extends unmodified Postgres to provide support for fully transactional Iceberg tables and high performance analytics. Crunchy Data Warehouse is available as a managed service on AWS via [Crunchy Bridge](https://www.crunchydata.com/products/crunchy-bridge), fully managed Postgres as a service. Crunchy Data Warehouse can create Iceberg tables directly from a Postgres database or external URLs and can read, query, and update Iceberg tables using PostgreSQL syntax. Using a hybrid query engine that combines Postgres and DuckDB, Crunchy Data Warehouse enables high performance analytical queries of Iceberg tables.
+[Crunchy Data Warehouse](https://www.crunchydata.com/products/warehouse) is a modern data warehouse built on PostgreSQL. Crunchy Data Warehouse extends unmodified PostgreSQL to provide support for fully transactional Iceberg tables and high performance analytics. Crunchy Data Warehouse is available as a managed service on AWS via [Crunchy Bridge](https://www.crunchydata.com/products/crunchy-bridge), fully managed PostgreSQL as a service. Crunchy Data Warehouse can create Iceberg tables directly from a PostgreSQL database or external URLs and can read, query, and update Iceberg tables using PostgreSQL syntax. Using a hybrid query engine that combines PostgreSQL and DuckDB, Crunchy Data Warehouse enables high performance analytical queries of Iceberg tables.
 
 ### [Dremio](https://www.dremio.com/)
 
