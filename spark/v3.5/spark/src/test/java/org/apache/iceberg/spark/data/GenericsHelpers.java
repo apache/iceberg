@@ -40,13 +40,17 @@ import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
+import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.types.TimestampNTZType;
+import org.apache.spark.sql.types.TimestampType$;
 import org.apache.spark.unsafe.types.UTF8String;
 import scala.collection.Seq;
 
@@ -207,12 +211,24 @@ public class GenericsHelpers {
       Types.StructType struct, Record expected, InternalRow actual) {
     List<Types.NestedField> fields = struct.fields();
     for (int i = 0; i < fields.size(); i += 1) {
-      Type fieldType = fields.get(i).type();
+      Types.NestedField field = fields.get(i);
+      Types.NestedField expectedField = expected.struct().field(field.fieldId());
 
-      Object expectedValue = expected.get(i);
-      Object actualValue = actual.get(i, convert(fieldType));
+      DataType type = convert(field.type());
+      if (type instanceof TimestampNTZType) {
+        type = TimestampType$.MODULE$;
+      }
 
-      assertEqualsUnsafe(fieldType, expectedValue, actualValue);
+      Object actualValue = actual.isNullAt(i) ? null : actual.get(i, type);
+      if (expectedField != null) {
+        Object expectedValue = expected.getField(expectedField.name());
+        assertEqualsUnsafe(field.type(), expectedValue, actualValue);
+      } else {
+        assertEqualsUnsafe(
+            field.type(),
+            SparkUtil.internalToSpark(field.type(), field.initialDefault()),
+            actualValue);
+      }
     }
   }
 
@@ -239,7 +255,7 @@ public class GenericsHelpers {
     for (int i = 0; i < expectedElements.size(); i += 1) {
       Map.Entry<?, ?> expectedPair = expectedElements.get(i);
       Object actualKey = actualKeys.get(i, convert(keyType));
-      Object actualValue = actualValues.get(i, convert(keyType));
+      Object actualValue = actualValues.get(i, convert(valueType));
 
       assertEqualsUnsafe(keyType, expectedPair.getKey(), actualKey);
       assertEqualsUnsafe(valueType, expectedPair.getValue(), actualValue);
@@ -247,7 +263,8 @@ public class GenericsHelpers {
   }
 
   private static void assertEqualsUnsafe(Type type, Object expected, Object actual) {
-    if (expected == null && actual == null) {
+    if (expected == null) {
+      assertThat(actual).as("Expecting a null value").isNull();
       return;
     }
 

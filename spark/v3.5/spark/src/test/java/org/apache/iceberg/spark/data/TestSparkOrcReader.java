@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.spark.data;
 
-import static org.apache.iceberg.spark.data.TestHelpers.assertEquals;
+import static org.apache.iceberg.spark.data.GenericsHelpers.assertEqualsUnsafe;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -29,6 +29,9 @@ import java.util.Iterator;
 import java.util.List;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.RandomGenericData;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
@@ -41,11 +44,23 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.jupiter.api.Test;
 
 public class TestSparkOrcReader extends AvroDataTest {
+//  @Override
+//  protected boolean supportsDefaultValues() {
+//    return true;
+//  }
+
+  @Override
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
+    List<Record> records = RandomGenericData.generate(writeSchema, 100, 0L);
+
+    writeAndValidateRecords(writeSchema, expectedSchema, records);
+  }
+
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    final Iterable<InternalRow> expected = RandomData.generateSpark(schema, 100, 0L);
+    List<Record> records = RandomGenericData.generate(schema, 100, 0L);
 
-    writeAndValidateRecords(schema, expected);
+    writeAndValidateRecords(schema, schema, records);
   }
 
   @Test
@@ -54,52 +69,54 @@ public class TestSparkOrcReader extends AvroDataTest {
         new Schema(
             required(100, "id", Types.LongType.get()),
             required(101, "data", Types.StringType.get()));
-    List<InternalRow> expectedRepeating =
-        Collections.nCopies(100, RandomData.generateSpark(structSchema, 1, 0L).iterator().next());
+    List<Record> repeatingRows =
+        Collections.nCopies(100, RandomGenericData.generate(structSchema, 1, 0L).iterator().next());
 
-    writeAndValidateRecords(structSchema, expectedRepeating);
+    writeAndValidateRecords(structSchema, structSchema, repeatingRows);
   }
 
-  private void writeAndValidateRecords(Schema schema, Iterable<InternalRow> expected)
+  private void writeAndValidateRecords(
+      Schema writeSchema, Schema expectedSchema, List<Record> records)
       throws IOException {
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
-    try (FileAppender<InternalRow> writer =
+    try (FileAppender<Record> writer =
         ORC.write(Files.localOutput(testFile))
-            .createWriterFunc(SparkOrcWriter::new)
-            .schema(schema)
+            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .schema(writeSchema)
             .build()) {
-      writer.addAll(expected);
+      writer.addAll(records);
     }
 
     try (CloseableIterable<InternalRow> reader =
         ORC.read(Files.localInput(testFile))
-            .project(schema)
-            .createReaderFunc(readOrcSchema -> new SparkOrcReader(schema, readOrcSchema))
+            .project(expectedSchema)
+            .createReaderFunc(readOrcSchema -> new SparkOrcReader(expectedSchema, readOrcSchema))
             .build()) {
-      final Iterator<InternalRow> actualRows = reader.iterator();
-      final Iterator<InternalRow> expectedRows = expected.iterator();
-      while (expectedRows.hasNext()) {
+      Iterator<InternalRow> actualRows = reader.iterator();
+      for (Record expected : records) {
         assertThat(actualRows).as("Should have expected number of rows").hasNext();
-        assertEquals(schema, expectedRows.next(), actualRows.next());
+        assertEqualsUnsafe(expectedSchema.asStruct(), expected, actualRows.next());
       }
+
       assertThat(actualRows).as("Should not have extra rows").isExhausted();
     }
 
     try (CloseableIterable<ColumnarBatch> reader =
         ORC.read(Files.localInput(testFile))
-            .project(schema)
+            .project(expectedSchema)
             .createBatchedReaderFunc(
                 readOrcSchema ->
-                    VectorizedSparkOrcReaders.buildReader(schema, readOrcSchema, ImmutableMap.of()))
+                    VectorizedSparkOrcReaders.buildReader(
+                        expectedSchema, readOrcSchema, ImmutableMap.of()))
             .build()) {
-      final Iterator<InternalRow> actualRows = batchesToRows(reader.iterator());
-      final Iterator<InternalRow> expectedRows = expected.iterator();
-      while (expectedRows.hasNext()) {
+      Iterator<InternalRow> actualRows = batchesToRows(reader.iterator());
+      for (Record expected : records) {
         assertThat(actualRows).as("Should have expected number of rows").hasNext();
-        assertEquals(schema, expectedRows.next(), actualRows.next());
+        assertEqualsUnsafe(expectedSchema.asStruct(), expected, actualRows.next());
       }
+
       assertThat(actualRows).as("Should not have extra rows").isExhausted();
     }
   }

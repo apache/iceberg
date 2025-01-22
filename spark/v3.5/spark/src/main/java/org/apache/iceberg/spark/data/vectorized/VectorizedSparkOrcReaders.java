@@ -394,8 +394,12 @@ public class VectorizedSparkOrcReaders {
         @Override
         public ColumnarArray getArray(int rowId) {
           int index = getRowIndex(rowId);
-          return new ColumnarArray(
-              elementVector, (int) listVector.offsets[index], (int) listVector.lengths[index]);
+          if (listVector.noNulls || !listVector.isNull[index]) {
+            return new ColumnarArray(
+                elementVector, (int) listVector.offsets[index], (int) listVector.lengths[index]);
+          }
+
+          return null;
         }
       };
     }
@@ -429,11 +433,15 @@ public class VectorizedSparkOrcReaders {
         @Override
         public ColumnarMap getMap(int rowId) {
           int index = getRowIndex(rowId);
-          return new ColumnarMap(
-              keyVector,
-              valueVector,
-              (int) mapVector.offsets[index],
-              (int) mapVector.lengths[index]);
+          if (mapVector.noNulls || !mapVector.isNull[index]) {
+            return new ColumnarMap(
+                keyVector,
+                valueVector,
+                (int) mapVector.offsets[index],
+                (int) mapVector.lengths[index]);
+          }
+
+          return null;
         }
       };
     }
