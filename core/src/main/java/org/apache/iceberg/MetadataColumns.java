@@ -56,6 +56,8 @@ public class MetadataColumns {
   public static final int PARTITION_COLUMN_ID = Integer.MAX_VALUE - 5;
   public static final String PARTITION_COLUMN_NAME = "_partition";
   public static final String PARTITION_COLUMN_DOC = "Partition to which a row belongs to";
+  public static final int CONTENT_OFFSET_COLUMN_ID = Integer.MAX_VALUE - 6;
+  public static final int CONTENT_SIZE_IN_BYTES_COLUMN_ID = Integer.MAX_VALUE - 7;
 
   // IDs Integer.MAX_VALUE - (101-200) are used for reserved columns
   public static final NestedField DELETE_FILE_PATH =
@@ -91,20 +93,6 @@ public class MetadataColumns {
           "_commit_snapshot_id",
           Types.LongType.get(),
           "Commit snapshot ID");
-
-  // the content size and offset of a DV
-  public static final NestedField CONTENT_OFFSET =
-      Types.NestedField.optional(
-          Integer.MAX_VALUE - 107,
-          "content_offset",
-          Types.LongType.get(),
-          "The offset in the DV where the content starts");
-  public static final NestedField CONTENT_SIZE_IN_BYTES =
-      Types.NestedField.optional(
-          Integer.MAX_VALUE - 108,
-          "content_size_in_bytes",
-          Types.LongType.get(),
-          "The length in bytes of referenced content stored in a DV");
 
   private static final Map<String, NestedField> META_COLUMNS =
       ImmutableMap.of(

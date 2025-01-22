@@ -163,8 +163,8 @@ public class TestPositionDeletesReader extends TestBase {
             MetadataColumns.DELETE_FILE_POS.name(),
             PositionDeletesTable.DELETE_FILE_PATH);
     if (formatVersion >= 3) {
-      columns.add(MetadataColumns.CONTENT_OFFSET.name());
-      columns.add(MetadataColumns.CONTENT_SIZE_IN_BYTES.name());
+      columns.add(PositionDeletesTable.CONTENT_OFFSET);
+      columns.add(PositionDeletesTable.CONTENT_SIZE_IN_BYTES);
     }
 
     Schema projectedSchema = positionDeletesTable.schema().select(columns);

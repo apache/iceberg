@@ -80,9 +80,9 @@ class DVIterator implements CloseableIterator<InternalRow> {
           rowValues.add(idToConstant.get(MetadataColumns.SPEC_ID_COLUMN_ID));
         } else if (fieldId == MetadataColumns.FILE_PATH_COLUMN_ID) {
           rowValues.add(idToConstant.get(MetadataColumns.FILE_PATH_COLUMN_ID));
-        } else if (fieldId == MetadataColumns.CONTENT_OFFSET.fieldId()) {
+        } else if (fieldId == MetadataColumns.CONTENT_OFFSET_COLUMN_ID) {
           rowValues.add(deleteFile.contentOffset());
-        } else if (fieldId == MetadataColumns.CONTENT_SIZE_IN_BYTES.fieldId()) {
+        } else if (fieldId == MetadataColumns.CONTENT_SIZE_IN_BYTES_COLUMN_ID) {
           rowValues.add(ScanTaskUtil.contentSizeInBytes(deleteFile));
         }
       }
