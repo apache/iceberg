@@ -46,6 +46,7 @@ import org.apache.avro.io.Encoder;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.InternalData;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SchemaParser;
@@ -71,6 +72,18 @@ import org.apache.iceberg.util.ArrayUtil;
 public class Avro {
   private Avro() {}
 
+  public static void register() {
+    InternalData.register(FileFormat.AVRO, Avro::writeInternal, Avro::readInternal);
+  }
+
+  private static WriteBuilder writeInternal(OutputFile outputFile) {
+    return write(outputFile).createWriterFunc(InternalWriter::create);
+  }
+
+  private static ReadBuilder readInternal(InputFile inputFile) {
+    return read(inputFile).createResolvingReader(InternalReader::create);
+  }
+
   private enum Codec {
     UNCOMPRESSED,
     SNAPPY,
@@ -90,6 +103,10 @@ public class Avro {
   }
 
   public static WriteBuilder write(OutputFile file) {
+    if (file instanceof EncryptedOutputFile) {
+      return write((EncryptedOutputFile) file);
+    }
+
     return new WriteBuilder(file);
   }
 
@@ -97,7 +114,7 @@ public class Avro {
     return new WriteBuilder(file.encryptingOutputFile());
   }
 
-  public static class WriteBuilder {
+  public static class WriteBuilder implements InternalData.WriteBuilder {
     private final OutputFile file;
     private final Map<String, String> config = Maps.newHashMap();
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
@@ -615,9 +632,11 @@ public class Avro {
     return new ReadBuilder(file);
   }
 
-  public static class ReadBuilder {
+  public static class ReadBuilder implements InternalData.ReadBuilder {
     private final InputFile file;
     private final Map<String, String> renames = Maps.newLinkedHashMap();
+    private final Map<Integer, Class<? extends StructLike>> typeMap = Maps.newHashMap();
+    private Class<? extends StructLike> rootType = null;
     private ClassLoader loader = Thread.currentThread().getContextClassLoader();
     private NameMapping nameMapping;
     private boolean reuseContainers = false;
@@ -701,6 +720,18 @@ public class Avro {
       return this;
     }
 
+    @Override
+    public InternalData.ReadBuilder setRootType(Class<? extends StructLike> rootClass) {
+      this.rootType = rootClass;
+      return this;
+    }
+
+    @Override
+    public InternalData.ReadBuilder setCustomType(int fieldId, Class<? extends StructLike> structClass) {
+      typeMap.put(fieldId, structClass);
+      return this;
+    }
+
     public ReadBuilder withNameMapping(NameMapping newNameMapping) {
       this.nameMapping = newNameMapping;
       return this;
@@ -735,6 +766,10 @@ public class Avro {
       if (reader instanceof SupportsCustomRecords) {
         ((SupportsCustomRecords) reader).setClassLoader(loader);
         ((SupportsCustomRecords) reader).setRenames(renames);
+      }
+
+      if (reader instanceof SupportsCustomTypes) {
+        ((SupportsCustomTypes) reader).setCustomTypes(rootType, typeMap);
       }
 
       return new AvroIterable<>(
