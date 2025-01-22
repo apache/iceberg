@@ -71,8 +71,7 @@ public class TestSparkOrcReader extends AvroDataTest {
   }
 
   private void writeAndValidateRecords(
-      Schema writeSchema, Schema expectedSchema, List<Record> records)
-      throws IOException {
+      Schema writeSchema, Schema expectedSchema, List<Record> records) throws IOException {
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
