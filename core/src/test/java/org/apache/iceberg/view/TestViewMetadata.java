@@ -247,6 +247,38 @@ public class TestViewMetadata {
   }
 
   @Test
+  public void testNeverExpireCurrentVersion() {
+    Map<String, String> properties = ImmutableMap.of(ViewProperties.VERSION_HISTORY_SIZE, "1");
+    ViewVersion viewVersionOne = newViewVersion(1, "select * from ns.tbl");
+    ViewVersion viewVersionTwo = newViewVersion(2, "select count(*) from ns.tbl");
+    ViewVersion viewVersionThree = newViewVersion(3, "select count(*) as count from ns.tbl");
+
+    ViewMetadata originalViewMetadata =
+        ViewMetadata.builder()
+            .setProperties(properties)
+            .setLocation("location")
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addVersion(viewVersionOne)
+            .addVersion(viewVersionTwo)
+            .addVersion(viewVersionThree)
+            .setCurrentVersionId(1)
+            .build();
+
+    // the first build will not expire versions that were added in the builder
+    assertThat(originalViewMetadata.versions()).hasSize(3);
+    assertThat(originalViewMetadata.history()).hasSize(1);
+
+    // rebuild the metadata to expire older versions
+    ViewMetadata viewMetadata = ViewMetadata.buildFrom(originalViewMetadata).build();
+    assertThat(viewMetadata.versions()).hasSize(1);
+
+    // make sure history and current version are retained
+    assertThat(viewMetadata.currentVersionId()).isEqualTo(1);
+    assertThat(viewMetadata.currentVersion()).isEqualTo(viewVersionOne);
+    assertThat(viewMetadata.history()).hasSize(1);
+  }
+
+  @Test
   public void viewVersionHistoryNormalization() {
     Map<String, String> properties = ImmutableMap.of(ViewProperties.VERSION_HISTORY_SIZE, "2");
     ViewVersion viewVersionOne = newViewVersion(1, "select * from ns.tbl");
