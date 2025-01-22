@@ -85,32 +85,34 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
   }
 
   private class ColumnBatchLoader {
-    private int numRowsToRead;
-    // the rowId mapping to skip deleted rows for all column vectors inside a batch, it is null when
-    // there is no deletes
-    private int[] rowIdMapping;
-    // the array to indicate if a row is deleted or not, it is null when there is no "_deleted"
-    // metadata column
-    private boolean[] isDeleted;
+    private final int batchSize;
 
     ColumnBatchLoader(int numRowsToRead) {
       Preconditions.checkArgument(
           numRowsToRead > 0, "Invalid number of rows to read: %s", numRowsToRead);
-      this.numRowsToRead = numRowsToRead;
-      if (hasIsDeletedColumn) {
-        isDeleted = new boolean[numRowsToRead];
-      }
+      this.batchSize = numRowsToRead;
     }
 
     ColumnarBatch loadDataToColumnBatch() {
       ColumnVector[] arrowColumnVectors = readDataToColumnVectors();
-      if (!hasIsDeletedColumn) {
+      int numLiveRows = batchSize;
+      if (hasIsDeletedColumn) {
+        boolean[] isDeleted =
+            ColumnarBatchUtil.buildIsDeleted(
+                arrowColumnVectors, deletes, rowStartPosInBatch, batchSize);
+        for (int i = 0; i < arrowColumnVectors.length; i++) {
+          ColumnVector vector = arrowColumnVectors[i];
+          if (vector instanceof DeletedColumnVector) {
+            ((DeletedColumnVector) vector).setValue(isDeleted);
+          }
+        }
+      } else {
         Pair<int[], Integer> pair =
             ColumnarBatchUtil.buildRowIdMapping(
-                arrowColumnVectors, deletes, rowStartPosInBatch, numRowsToRead);
+                arrowColumnVectors, deletes, rowStartPosInBatch, batchSize);
         if (pair != null) {
-          rowIdMapping = pair.first();
-          numRowsToRead = pair.second();
+          int[] rowIdMapping = pair.first();
+          numLiveRows = pair.second();
           for (int i = 0; i < arrowColumnVectors.length; i++) {
             ColumnVector vector = arrowColumnVectors[i];
             if (vector instanceof IcebergArrowColumnVector) {
@@ -120,26 +122,15 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
             }
           }
         }
-      } else {
-        isDeleted =
-            ColumnarBatchUtil.buildIsDeleted(
-                arrowColumnVectors, deletes, rowStartPosInBatch, numRowsToRead);
-        for (int i = 0; i < arrowColumnVectors.length; i++) {
-          ColumnVector vector = arrowColumnVectors[i];
-          if (vector instanceof DeletedColumnVector) {
-            ((DeletedColumnVector) vector).setIsDeleted(isDeleted);
-          }
-        }
       }
-
-      ColumnarBatch newColumnarBatch = new ColumnarBatch(arrowColumnVectors);
-      newColumnarBatch.setNumRows(numRowsToRead);
 
       if (deletes != null && deletes.hasEqDeletes()) {
-        return ColumnarBatchUtil.removeExtraColumns(deletes, arrowColumnVectors, newColumnarBatch);
-      } else {
-        return newColumnarBatch;
+        arrowColumnVectors = ColumnarBatchUtil.removeExtraColumns(deletes, arrowColumnVectors);
       }
+      ColumnarBatch newColumnarBatch = new ColumnarBatch(arrowColumnVectors);
+      newColumnarBatch.setNumRows(numLiveRows);
+
+      return newColumnarBatch;
     }
 
     ColumnVector[] readDataToColumnVectors() {
@@ -147,13 +138,13 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
 
       ColumnVectorBuilder columnVectorBuilder = new ColumnVectorBuilder();
       for (int i = 0; i < readers.length; i += 1) {
-        vectorHolders[i] = readers[i].read(vectorHolders[i], numRowsToRead);
+        vectorHolders[i] = readers[i].read(vectorHolders[i], batchSize);
         int numRowsInVector = vectorHolders[i].numValues();
         Preconditions.checkState(
-            numRowsInVector == numRowsToRead,
+            numRowsInVector == batchSize,
             "Number of rows in the vector %s didn't match expected %s ",
             numRowsInVector,
-            numRowsToRead);
+            batchSize);
 
         arrowColumnVectors[i] = columnVectorBuilder.build(vectorHolders[i], numRowsInVector);
       }

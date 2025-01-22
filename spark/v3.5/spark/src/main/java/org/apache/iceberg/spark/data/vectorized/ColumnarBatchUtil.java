@@ -25,7 +25,6 @@ import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnVector;
-import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.sql.vectorized.ColumnarBatchRow;
 
 public class ColumnarBatchUtil {
@@ -33,20 +32,22 @@ public class ColumnarBatchUtil {
   private ColumnarBatchUtil() {}
 
   /**
-   * Build a row id mapping inside a batch, which skips deleted rows. Here is an example of how we
-   * delete 2 rows in a batch with 8 rows in total. [0,1,2,3,4,5,6,7] -- Original status of the row
-   * id mapping array [F,F,F,F,F,F,F,F] -- Original status of the isDeleted array Position delete 2,
-   * 6 [0,1,3,4,5,7,-,-] -- After applying position deletes [Set Num records to 6] [F,F,T,F,F,F,T,F]
-   * -- After applying position deletes
+   * Build a row id mapping inside a batch to skip deleted rows. Here is an example:
+   * [0,1,2,3,4,5,6,7] -- Original status of the row id mapping array
+   * [F,F,F,F,F,F,F,F] -- Original status of the isDeleted array
+   * Position delete 2, 6
+   * Equality delete 1 <= x <= 3
+   * [0,4,5,7,-,-,-,-] -- After applying position and equality deletes [Set Num records to 4]
+   * [F,T,T,T,F,F,T,F] -- After applying position and equality deletes
    *
-   * @param vectors The array of ColumnVectors for the batch.
-   * @param deletes The delete filter containing delete information.
-   * @param rowStartPosInBatch The starting position of the row in the batch.
-   * @param batchSize The size of the batch.
+   * @param columnVectors the array of column vectors for the batch.
+   * @param deletes the delete filter containing delete information.
+   * @param rowStartPosInBatch the starting position of the row in the batch.
+   * @param batchSize the size of the batch.
    * @return the mapping array and the new num of rows in a batch, null if no row is deleted
    */
   public static Pair<int[], Integer> buildRowIdMapping(
-      ColumnVector[] vectors,
+      ColumnVector[] columnVectors,
       DeleteFilter<InternalRow> deletes,
       long rowStartPosInBatch,
       int batchSize) {
@@ -56,7 +57,7 @@ public class ColumnarBatchUtil {
 
     PositionDeleteIndex deletedPositions = deletes.deletedRowPositions();
     Predicate<InternalRow> eqDeleteFilter = deletes.eqDeletedRowFilter();
-    ColumnarBatchRow row = new ColumnarBatchRow(vectors);
+    ColumnarBatchRow row = new ColumnarBatchRow(columnVectors);
     int[] rowIdMapping = new int[batchSize];
     int liveRowId = 0;
 
@@ -80,15 +81,15 @@ public class ColumnarBatchUtil {
    * determine the deleted status for each row starting from a specified row position within the
    * batch.
    *
-   * @param vectors The array of ColumnVectors for the batch.
-   * @param deletes The delete filter containing information about which rows should be deleted.
-   * @param rowStartPosInBatch The starting position of the row in the batch, used to calculate the
+   * @param columnVectors the array of column vectors for the batch.
+   * @param deletes the delete filter containing information about which rows should be deleted.
+   * @param rowStartPosInBatch the starting position of the row in the batch, used to calculate the
    *     absolute position of the rows in the context of the entire dataset.
-   * @param batchSize The number of rows in the current batch.
-   * @return An array of boolean values to indicate if a row is deleted or not
+   * @param batchSize the number of rows in the current batch.
+   * @return an array of boolean values to indicate if a row is deleted or not
    */
   public static boolean[] buildIsDeleted(
-      ColumnVector[] vectors,
+      ColumnVector[] columnVectors,
       DeleteFilter<InternalRow> deletes,
       long rowStartPosInBatch,
       int batchSize) {
@@ -100,7 +101,7 @@ public class ColumnarBatchUtil {
 
     PositionDeleteIndex deletedPositions = deletes.deletedRowPositions();
     Predicate<InternalRow> eqDeleteFilter = deletes.eqDeletedRowFilter();
-    ColumnarBatchRow row = new ColumnarBatchRow(vectors);
+    ColumnarBatchRow row = new ColumnarBatchRow(columnVectors);
 
     for (int rowId = 0; rowId < batchSize; rowId++) {
       long pos = rowStartPosInBatch + rowId;
@@ -132,34 +133,30 @@ public class ColumnarBatchUtil {
   }
 
   /**
-   * Removes extra columns added for processing equality delete filters that are not part of the
-   * final query output.
+   * Removes extra column vectors added for processing equality delete filters that are not part of
+   * the final query output.
    *
    * <p>During query execution, additional columns may be included in the schema to evaluate
    * equality delete filters. For example, if the table schema contains columns C1, C2, C3, C4, and
-   * C5, and the query is 'SELECT C5 FROM table' while equality delete filters are applied on C3 and
-   * C4, the processing schema includes C5, C3, and C4. These extra columns (C3 and C4) are needed
-   * to identify rows to delete but are not included in the final result.
+   * C5, and the query is 'SELECT C5 FROM table'. While equality delete filters are applied on C3
+   * and C4, the processing schema includes C5, C3, and C4. These extra columns (C3 and C4) are
+   * needed to identify rows to delete but are not included in the final result.
    *
-   * <p>This method removes these extra columns from the end of {@code arrowColumnVectors}, ensuring
-   * only the expected columns remain.
+   * <p>This method removes the extra column vectors from the end of column vectors array, ensuring
+   * only the expected column vectors remain.
    *
-   * @param deletes The delete filter containing delete information.
-   * @param arrowColumnVectors the array of column vectors representing query result data
-   * @param columnarBatch the original {@code ColumnarBatch} containing query results
-   * @return a new {@code ColumnarBatch} with extra columns removed, or the original batch if no
-   *     extra columns were found
+   * @param deletes the delete filter containing delete information.
+   * @param columnVectors the array of column vectors representing query result data
+   * @return a new column vectors array with extra column vectors removed, or the original column
+   *     vectors array if no extra column vectors are found
    */
-  public static ColumnarBatch removeExtraColumns(
-      DeleteFilter<InternalRow> deletes,
-      ColumnVector[] arrowColumnVectors,
-      ColumnarBatch columnarBatch) {
+  public static ColumnVector[] removeExtraColumns(
+      DeleteFilter<InternalRow> deletes, ColumnVector[] columnVectors) {
     int expectedColumnSize = deletes.expectedSchema().columns().size();
-    if (arrowColumnVectors.length > expectedColumnSize) {
-      ColumnVector[] newColumns = Arrays.copyOf(arrowColumnVectors, expectedColumnSize);
-      return new ColumnarBatch(newColumns, columnarBatch.numRows());
+    if (columnVectors.length > expectedColumnSize) {
+      return Arrays.copyOf(columnVectors, expectedColumnSize);
     } else {
-      return columnarBatch;
+      return columnVectors;
     }
   }
 }
