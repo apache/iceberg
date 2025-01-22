@@ -35,7 +35,7 @@ public interface UpdateStatistics extends PendingUpdate<List<StatisticsFile>> {
 
   /**
    * Set the table's statistics file for given snapshot, replacing the previous statistics file for
-   * the snapshot if any exists.
+   * the snapshot if any exists. The snapshot id of the statistics file will be used.
    *
    * @return this for method chaining
    */
