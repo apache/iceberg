@@ -114,7 +114,7 @@ public class ParquetValueWriters {
     return new BytesWriter(desc);
   }
 
-  public static PrimitiveWriter<ByteBuffer> fixedBuffer(ColumnDescriptor desc) {
+  public static PrimitiveWriter<ByteBuffer> fixedBuffers(ColumnDescriptor desc) {
     return new FixedBufferWriter(desc);
   }
 
@@ -125,6 +125,11 @@ public class ParquetValueWriters {
   public static <K, V> MapWriter<K, V> maps(
       int dl, int rl, ParquetValueWriter<K> keyWriter, ParquetValueWriter<V> valueWriter) {
     return new MapWriter<>(dl, rl, keyWriter, valueWriter);
+  }
+
+  public static <T extends StructLike> StructWriter<T> recordWriter(
+      List<ParquetValueWriter<?>> writers) {
+    return new RecordWriter<>(writers);
   }
 
   public abstract static class PrimitiveWriter<T> implements ParquetValueWriter<T> {
@@ -381,8 +386,8 @@ public class ParquetValueWriters {
     }
   }
 
-  public static class RecordWriter<T extends StructLike> extends StructWriter<T> {
-    public RecordWriter(List<ParquetValueWriter<?>> writers) {
+  private static class RecordWriter<T extends StructLike> extends StructWriter<T> {
+    private RecordWriter(List<ParquetValueWriter<?>> writers) {
       super(writers);
     }
 

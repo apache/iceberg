@@ -73,12 +73,17 @@ public class ParquetValueReaders {
     return new ParquetValueReaders.UUIDReader(desc);
   }
 
-  public static ParquetValueReader<Long> timestampInt96Reader(ColumnDescriptor desc) {
+  public static ParquetValueReader<Long> int96Timestamps(ColumnDescriptor desc) {
     return new ParquetValueReaders.TimestampInt96Reader(desc);
   }
 
-  public static ParquetValueReader<Long> timestampMillisReader(ColumnDescriptor desc) {
+  public static ParquetValueReader<Long> millisAsTimestamps(ColumnDescriptor desc) {
     return new ParquetValueReaders.TimestampMillisReader(desc);
+  }
+
+  public static <T extends StructLike> StructReader<T, T> recordReader(
+      List<Type> types, List<ParquetValueReader<?>> readers, Types.StructType struct) {
+    return new RecordReader<>(types, readers, struct);
   }
 
   private static class NullReader<T> implements ParquetValueReader<T> {
@@ -915,10 +920,10 @@ public class ParquetValueReaders {
     }
   }
 
-  public static class RecordReader<T extends StructLike> extends StructReader<T, T> {
+  private static class RecordReader<T extends StructLike> extends StructReader<T, T> {
     private final GenericRecord template;
 
-    public RecordReader(
+    private RecordReader(
         List<Type> types, List<ParquetValueReader<?>> readers, Types.StructType struct) {
       super(types, readers);
       this.template = struct != null ? GenericRecord.create(struct) : null;

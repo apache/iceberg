@@ -22,7 +22,6 @@ import java.util.List;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
-import org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
 import org.apache.iceberg.types.Type;
 import org.apache.parquet.column.ColumnDescriptor;
@@ -45,34 +44,34 @@ public class InternalWriter extends BaseParquetWriter<StructLike> {
 
   @Override
   protected StructWriter<StructLike> createStructWriter(List<ParquetValueWriter<?>> writers) {
-    return new ParquetValueWriters.RecordWriter<>(writers);
+    return ParquetValueWriters.recordWriter(writers);
   }
 
   @Override
-  protected PrimitiveWriter<?> fixedWriter(ColumnDescriptor desc) {
-    return ParquetValueWriters.fixedBuffer(desc);
+  protected ParquetValueWriter<?> fixedWriter(ColumnDescriptor desc) {
+    return ParquetValueWriters.fixedBuffers(desc);
   }
 
   @Override
-  protected PrimitiveWriter<?> dateWriter(ColumnDescriptor desc) {
+  protected ParquetValueWriter<?> dateWriter(ColumnDescriptor desc) {
     // Use primitive-type writer; no special writer needed.
     return null;
   }
 
   @Override
-  protected PrimitiveWriter<?> timeWriter(ColumnDescriptor desc) {
+  protected ParquetValueWriter<?> timeWriter(ColumnDescriptor desc) {
     // Use primitive-type writer; no special writer needed.
     return null;
   }
 
   @Override
-  protected PrimitiveWriter<?> timestampWriter(ColumnDescriptor desc, boolean isAdjustedToUTC) {
+  protected ParquetValueWriter<?> timestampWriter(ColumnDescriptor desc, boolean isAdjustedToUTC) {
     // Use primitive-type writer; no special writer needed.
     return null;
   }
 
   @Override
-  protected PrimitiveWriter<?> uuidWriter(ColumnDescriptor desc) {
+  protected ParquetValueWriter<?> uuidWriter(ColumnDescriptor desc) {
     return ParquetValueWriters.uuids(desc);
   }
 }

@@ -18,14 +18,25 @@
  */
 package org.apache.iceberg.data.parquet;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericDataUtil;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 
@@ -48,11 +59,132 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
   @Override
   protected ParquetValueReader<Record> createStructReader(
       List<Type> types, List<ParquetValueReader<?>> fieldReaders, StructType structType) {
-    return new ParquetValueReaders.RecordReader<>(types, fieldReaders, structType);
+    return ParquetValueReaders.recordReader(types, fieldReaders, structType);
   }
 
   @Override
   protected Object convertConstant(org.apache.iceberg.types.Type type, Object value) {
     return GenericDataUtil.internalToGeneric(type, value);
+  }
+
+  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
+
+  protected static class DateReader extends ParquetValueReaders.PrimitiveReader<LocalDate> {
+    protected DateReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public LocalDate read(LocalDate reuse) {
+      return EPOCH_DAY.plusDays(column.nextInteger());
+    }
+  }
+
+  protected static class TimestampReader
+      extends ParquetValueReaders.PrimitiveReader<LocalDateTime> {
+    protected TimestampReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public LocalDateTime read(LocalDateTime reuse) {
+      return EPOCH.plus(column.nextLong(), ChronoUnit.MICROS).toLocalDateTime();
+    }
+  }
+
+  protected static class TimestampMillisReader
+      extends ParquetValueReaders.PrimitiveReader<LocalDateTime> {
+    protected TimestampMillisReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public LocalDateTime read(LocalDateTime reuse) {
+      return EPOCH.plus(column.nextLong() * 1000, ChronoUnit.MICROS).toLocalDateTime();
+    }
+  }
+
+  protected static class TimestampInt96Reader
+      extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
+    private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
+
+    protected TimestampInt96Reader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public OffsetDateTime read(OffsetDateTime reuse) {
+      final ByteBuffer byteBuffer =
+          column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+      final long timeOfDayNanos = byteBuffer.getLong();
+      final int julianDay = byteBuffer.getInt();
+
+      return Instant.ofEpochMilli(TimeUnit.DAYS.toMillis(julianDay - UNIX_EPOCH_JULIAN))
+          .plusNanos(timeOfDayNanos)
+          .atOffset(ZoneOffset.UTC);
+    }
+  }
+
+  protected static class TimestamptzReader
+      extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
+    protected TimestamptzReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public OffsetDateTime read(OffsetDateTime reuse) {
+      return EPOCH.plus(column.nextLong(), ChronoUnit.MICROS);
+    }
+  }
+
+  protected static class TimestamptzMillisReader
+      extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
+    protected TimestamptzMillisReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public OffsetDateTime read(OffsetDateTime reuse) {
+      return EPOCH.plus(column.nextLong() * 1000, ChronoUnit.MICROS);
+    }
+  }
+
+  protected static class TimeMillisReader extends ParquetValueReaders.PrimitiveReader<LocalTime> {
+    protected TimeMillisReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public LocalTime read(LocalTime reuse) {
+      return LocalTime.ofNanoOfDay(column.nextInteger() * 1000000L);
+    }
+  }
+
+  protected static class TimeReader extends ParquetValueReaders.PrimitiveReader<LocalTime> {
+    protected TimeReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public LocalTime read(LocalTime reuse) {
+      return LocalTime.ofNanoOfDay(column.nextLong() * 1000L);
+    }
+  }
+
+  protected static class FixedReader extends ParquetValueReaders.PrimitiveReader<byte[]> {
+    protected FixedReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public byte[] read(byte[] reuse) {
+      if (reuse != null) {
+        column.nextBinary().toByteBuffer().duplicate().get(reuse);
+        return reuse;
+      } else {
+        return column.nextBinary().getBytes();
+      }
+    }
   }
 }

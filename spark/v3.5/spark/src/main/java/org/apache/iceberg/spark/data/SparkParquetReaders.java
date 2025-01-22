@@ -263,7 +263,7 @@ public class SparkParquetReaders {
           case TIMESTAMP_MICROS:
             return new UnboxedReader<>(desc);
           case TIMESTAMP_MILLIS:
-            return ParquetValueReaders.timestampMillisReader(desc);
+            return ParquetValueReaders.millisAsTimestamps(desc);
           case DECIMAL:
             DecimalLogicalTypeAnnotation decimal =
                 (DecimalLogicalTypeAnnotation) primitive.getLogicalTypeAnnotation();
@@ -313,7 +313,7 @@ public class SparkParquetReaders {
         case INT96:
           // Impala & Spark used to write timestamps as INT96 without a logical type. For backwards
           // compatibility we try to read INT96 as timestamps.
-          return ParquetValueReaders.timestampInt96Reader(desc);
+          return ParquetValueReaders.int96Timestamps(desc);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }

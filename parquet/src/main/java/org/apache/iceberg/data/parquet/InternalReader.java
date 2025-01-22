@@ -28,6 +28,7 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 public class InternalReader extends BaseParquetReaders<StructLike> {
@@ -49,7 +50,7 @@ public class InternalReader extends BaseParquetReaders<StructLike> {
   @Override
   protected ParquetValueReader<StructLike> createStructReader(
       List<Type> types, List<ParquetValueReader<?>> fieldReaders, StructType structType) {
-    return new ParquetValueReaders.RecordReader<>(types, fieldReaders, structType);
+    return ParquetValueReaders.recordReader(types, fieldReaders, structType);
   }
 
   @Override
@@ -66,7 +67,7 @@ public class InternalReader extends BaseParquetReaders<StructLike> {
   protected ParquetValueReader<?> timeReader(
       ColumnDescriptor desc, LogicalTypeAnnotation.TimeUnit unit) {
     if (unit == LogicalTypeAnnotation.TimeUnit.MILLIS) {
-      return ParquetValueReaders.timestampMillisReader(desc);
+      return ParquetValueReaders.millisAsTimestamps(desc);
     }
 
     return new ParquetValueReaders.UnboxedReader<>(desc);
@@ -75,10 +76,12 @@ public class InternalReader extends BaseParquetReaders<StructLike> {
   @Override
   protected ParquetValueReader<?> timestampReader(
       ColumnDescriptor desc, LogicalTypeAnnotation.TimeUnit unit, boolean isAdjustedToUTC) {
+    if (desc.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
+      return ParquetValueReaders.int96Timestamps(desc);
+    }
+
     if (unit == LogicalTypeAnnotation.TimeUnit.MILLIS) {
-      return ParquetValueReaders.timestampMillisReader(desc);
-    } else if (unit == LogicalTypeAnnotation.TimeUnit.NANOS) {
-      return ParquetValueReaders.timestampInt96Reader(desc);
+      return ParquetValueReaders.millisAsTimestamps(desc);
     }
 
     return new ParquetValueReaders.UnboxedReader<>(desc);
