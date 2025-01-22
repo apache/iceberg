@@ -31,10 +31,13 @@ public class ColumnarBatchUtil {
 
   private ColumnarBatchUtil() {}
 
+  // spotless:off
   /**
    * Build a row id mapping inside a batch to skip deleted rows. Here is an example:
-   * [0,1,2,3,4,5,6,7] -- Original status of the row id mapping array [F,F,F,F,F,F,F,F] -- Original
-   * status of the isDeleted array Position delete 2, 6 Equality delete 1 &lt;= x &lt;= 3
+   * [0,1,2,3,4,5,6,7] -- Original status of the row id mapping array
+   * [F,F,F,F,F,F,F,F] -- Original status of the isDeleted array
+   * Position delete 2, 6
+   * Equality delete 1 &lt;= x &lt;= 3
    * [0,4,5,7,-,-,-,-] -- After applying position and equality deletes [Set Num records to 4]
    * [F,T,T,T,F,F,T,F] -- After applying position and equality deletes
    *
@@ -44,6 +47,7 @@ public class ColumnarBatchUtil {
    * @param batchSize the size of the batch.
    * @return the mapping array and the new num of rows in a batch, null if no row is deleted
    */
+  // spotless:on
   public static Pair<int[], Integer> buildRowIdMapping(
       ColumnVector[] columnVectors,
       DeleteFilter<InternalRow> deletes,
