@@ -158,6 +158,16 @@ public class TestIdentity {
   }
 
   @Test
+  public void testUnknownToHumanString() {
+    Types.UnknownType unknownType = Types.UnknownType.get();
+    Transform<Object, Object> identity = Transforms.identity();
+
+    assertThat(identity.toHumanString(unknownType, null))
+        .as("Should produce \"null\" for null")
+        .isEqualTo("null");
+  }
+
+  @Test
   public void testVariantUnsupported() {
     assertThatThrownBy(() -> Transforms.identity().bind(Types.VariantType.get()))
         .isInstanceOf(IllegalArgumentException.class)
@@ -172,22 +182,5 @@ public class TestIdentity {
         .hasMessage("Unsupported type for identity: variant");
 
     assertThat(Transforms.identity().canTransform(Types.VariantType.get())).isFalse();
-  }
-
-  @Test
-  public void testUnknownUnsupported() {
-    assertThatThrownBy(() -> Transforms.identity().bind(Types.UnknownType.get()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot bind to unsupported type: unknown");
-
-    assertThatThrownBy(() -> Transforms.fromString(Types.UnknownType.get(), "identity"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Unsupported type for identity: unknown");
-
-    assertThatThrownBy(() -> Transforms.identity(Types.UnknownType.get()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Unsupported type for identity: unknown");
-
-    assertThat(Transforms.identity().canTransform(Types.UnknownType.get())).isFalse();
   }
 }
