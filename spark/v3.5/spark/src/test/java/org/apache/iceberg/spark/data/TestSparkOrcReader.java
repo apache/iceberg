@@ -44,11 +44,6 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.jupiter.api.Test;
 
 public class TestSparkOrcReader extends AvroDataTest {
-//  @Override
-//  protected boolean supportsDefaultValues() {
-//    return true;
-//  }
-
   @Override
   protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
     List<Record> records = RandomGenericData.generate(writeSchema, 100, 0L);

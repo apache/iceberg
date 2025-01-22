@@ -238,7 +238,7 @@ public class GenericsHelpers {
     List<?> expectedElements = Lists.newArrayList(expected);
     for (int i = 0; i < expectedElements.size(); i += 1) {
       Object expectedValue = expectedElements.get(i);
-      Object actualValue = actual.get(i, convert(elementType));
+      Object actualValue = actual.isNullAt(i) ? null : actual.get(i, convert(elementType));
 
       assertEqualsUnsafe(elementType, expectedValue, actualValue);
     }
@@ -254,8 +254,8 @@ public class GenericsHelpers {
 
     for (int i = 0; i < expectedElements.size(); i += 1) {
       Map.Entry<?, ?> expectedPair = expectedElements.get(i);
-      Object actualKey = actualKeys.get(i, convert(keyType));
-      Object actualValue = actualValues.get(i, convert(valueType));
+      Object actualKey = actualKeys.isNullAt(i) ? null : actualKeys.get(i, convert(keyType));
+      Object actualValue = actualValues.isNullAt(i) ? null : actualValues.get(i, convert(valueType));
 
       assertEqualsUnsafe(keyType, expectedPair.getKey(), actualKey);
       assertEqualsUnsafe(valueType, expectedPair.getValue(), actualValue);
