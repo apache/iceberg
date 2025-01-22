@@ -33,8 +33,8 @@ public class DeletedColumnVector extends ColumnVector {
     super(SparkSchemaUtil.convert(type));
   }
 
-  public void setValue(boolean[] isDeleted) {
-    this.isDeleted = isDeleted;
+  public void setValue(boolean[] deleted) {
+    this.isDeleted = deleted;
   }
 
   @Override
