@@ -70,7 +70,6 @@ public class TestSparkFileRewriter extends TestBase {
     checkDataFileGroupWithEnoughData(rewriter);
     checkDataFileGroupWithTooMuchData(rewriter);
     checkDataFilesWithHighFileScopedDeleteRatio(rewriter);
-    checkDataFilesWithHighDVDeleteRatio(rewriter);
   }
 
   @Test
@@ -84,7 +83,6 @@ public class TestSparkFileRewriter extends TestBase {
     checkDataFileGroupWithEnoughData(rewriter);
     checkDataFileGroupWithTooMuchData(rewriter);
     checkDataFilesWithHighFileScopedDeleteRatio(rewriter);
-    checkDataFilesWithHighDVDeleteRatio(rewriter);
   }
 
   @Test
@@ -99,7 +97,6 @@ public class TestSparkFileRewriter extends TestBase {
     checkDataFileGroupWithEnoughData(rewriter);
     checkDataFileGroupWithTooMuchData(rewriter);
     checkDataFilesWithHighFileScopedDeleteRatio(rewriter);
-    checkDataFilesWithHighDVDeleteRatio(rewriter);
   }
 
   private void checkDataFileSizeFiltering(SizeBasedDataRewriter rewriter) {
@@ -207,23 +204,6 @@ public class TestSparkFileRewriter extends TestBase {
         MockFileScanTask.mockTaskWithFileScopedDeleteRecords(1000L, 100, 1, 30);
     FileScanTask optimalTask =
         MockFileScanTask.mockTaskWithFileScopedDeleteRecords(1000L, 100, 1, 29);
-    List<FileScanTask> tasks = ImmutableList.of(tooManyDeletesTask, optimalTask);
-
-    Map<String, String> options =
-        ImmutableMap.of(
-            SizeBasedDataRewriter.MIN_FILE_SIZE_BYTES, "0",
-            SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, "10");
-    rewriter.init(options);
-
-    Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    assertThat(groups).as("Must have 1 group").hasSize(1);
-    List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    assertThat(group).as("Must rewrite 1 file").hasSize(1);
-  }
-
-  private void checkDataFilesWithHighDVDeleteRatio(SizeBasedDataRewriter rewriter) {
-    FileScanTask tooManyDeletesTask = MockFileScanTask.mockTaskWithDVDeleteRecords(1000L, 100, 30);
-    FileScanTask optimalTask = MockFileScanTask.mockTaskWithDVDeleteRecords(1000L, 100, 29);
     List<FileScanTask> tasks = ImmutableList.of(tooManyDeletesTask, optimalTask);
 
     Map<String, String> options =

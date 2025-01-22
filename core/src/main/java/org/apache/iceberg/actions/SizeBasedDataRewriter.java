@@ -47,6 +47,7 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
   public static final String DELETE_FILE_THRESHOLD = "delete-file-threshold";
 
   public static final int DELETE_FILE_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
+  private static final double DELETE_RATIO_THRESHOLD = 0.3;
 
   private int deleteFileThreshold;
 
@@ -70,8 +71,11 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
 
   @Override
   protected Iterable<FileScanTask> filterFiles(Iterable<FileScanTask> tasks) {
-    return Iterables.filter(
-        tasks, task -> wronglySized(task) || tooManyDeletes(task) || tooHighDeleteRatio(task));
+    return Iterables.filter(tasks, this::shouldRewrite);
+  }
+
+  private boolean shouldRewrite(FileScanTask task) {
+    return wronglySized(task) || tooManyDeletes(task) || tooHighDeleteRatio(task);
   }
 
   private boolean tooManyDeletes(FileScanTask task) {
@@ -100,19 +104,19 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
   }
 
   private boolean tooHighDeleteRatio(FileScanTask task) {
-    if (null == task.deletes() || task.deletes().isEmpty()) {
+    if (task.deletes() == null || task.deletes().isEmpty()) {
       return false;
     }
 
-    if (ContentFileUtil.containsSingleDV(task.deletes())
-        || task.deletes().stream().allMatch(ContentFileUtil::isFileScoped)) {
-      long sum = task.deletes().stream().mapToLong(ContentFile::recordCount).sum();
-      double deletedRecords = (double) Math.min(sum, task.file().recordCount());
-      double deleteRatio = deletedRecords / task.file().recordCount();
-      return deleteRatio >= 0.3;
-    }
+    long knownDeletedRecordCount =
+        task.deletes().stream()
+            .filter(ContentFileUtil::isFileScoped)
+            .mapToLong(ContentFile::recordCount)
+            .sum();
 
-    return false;
+    double deletedRecords = (double) Math.min(knownDeletedRecordCount, task.file().recordCount());
+    double deleteRatio = deletedRecords / task.file().recordCount();
+    return deleteRatio >= DELETE_RATIO_THRESHOLD;
   }
 
   @Override
