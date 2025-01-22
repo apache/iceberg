@@ -111,6 +111,8 @@ paths:
 
           - GET /v1/{prefix}/namespaces/{namespace}
 
+          - HEAD /v1/{prefix}/namespaces/{namespace}
+
           - DELETE /v1/{prefix}/namespaces/{namespace}
 
           - POST /v1/{prefix}/namespaces/{namespace}/properties
@@ -120,6 +122,8 @@ paths:
           - POST /v1/{prefix}/namespaces/{namespace}/tables
 
           - GET /v1/{prefix}/namespaces/{namespace}/tables/{table}
+
+          - HEAD /v1/{prefix}/namespaces/{namespace}/tables/{table}
 
           - POST /v1/{prefix}/namespaces/{namespace}/tables/{table}
 
