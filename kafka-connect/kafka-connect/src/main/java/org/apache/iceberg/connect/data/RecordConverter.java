@@ -106,9 +106,10 @@ class RecordConverter {
 
   private Object convertValue(
       Object value, Type type, int fieldId, SchemaUpdate.Consumer schemaUpdateConsumer) {
-    if (value == null) {
+    if (value == null || (value instanceof String && ((String) value).trim().isEmpty())) {
       return null;
     }
+
     switch (type.typeId()) {
       case STRUCT:
         return convertStructValue(value, type.asStructType(), fieldId, schemaUpdateConsumer);
@@ -156,7 +157,8 @@ class RecordConverter {
     } else if (value instanceof Struct) {
       return convertToStruct((Struct) value, schema, parentFieldId, schemaUpdateConsumer);
     }
-    throw new IllegalArgumentException("Cannot convert to struct: " + value.getClass().getName());
+    throw new IllegalArgumentException(
+        String.format("Cannot convert %s to struct: %s", value, value.getClass().getName()));
   }
 
   /**
