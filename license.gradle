@@ -1,0 +1,198 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+apply plugin: "com.github.jk1.dependency-license-report"
+
+tasks.register('compareLicenseReport') {
+  doLast {
+    File licenseFile = new File("${projectDir}/build/reports/dependency-license/LICENSE")
+    File currentLicenseFile = new File("${projectDir}/LICENSE")
+    if (licenseFile.text != currentLicenseFile.text) {
+      throw new RuntimeException(
+          "LICENSE file has changed. Run 'gradle updateLicenseReport' to update it.");
+    }
+
+    File noticeFile = new File("${projectDir}/build/reports/dependency-license/NOTICE")
+    File currentNoticeFile = new File("${projectDir}/NOTICE")
+    if (noticeFile.text != currentNoticeFile.text) {
+      throw new RuntimeException(
+          "NOTICE file has changed. Run 'gradle updateLicenseReport' to update it.");
+    }
+  }
+}
+
+tasks.register('updateLicenseReport') {
+  doLast {
+    File licenseFile = new File("${projectDir}/build/reports/dependency-license/LICENSE")
+    File currentLicenseFile = new File("${projectDir}/LICENSE")
+    currentLicenseFile.text = licenseFile.text
+
+    File noticeFile = new File("${projectDir}/build/reports/dependency-license/NOTICE")
+    File currentNoticeFile = new File("${projectDir}/NOTICE")
+    currentNoticeFile.text = noticeFile.text
+  }
+}
+
+generateLicenseReport.outputs.upToDateWhen { false }
+updateLicenseReport.dependsOn generateLicenseReport
+compareLicenseReport.dependsOn generateLicenseReport
+check.dependsOn compareLicenseReport
+
+import com.github.jk1.license.render.ReportRenderer
+import com.github.jk1.license.ImportedModuleData
+import com.github.jk1.license.License
+import com.github.jk1.license.LicenseFileDetails
+import com.github.jk1.license.LicenseReportExtension
+import com.github.jk1.license.ManifestData
+import com.github.jk1.license.ModuleData
+import com.github.jk1.license.PomData
+import com.github.jk1.license.ProjectData
+import com.github.jk1.license.util.Files
+import java.util.Optional
+
+class IcebergReportRenderer implements ReportRenderer {
+
+  private Project project
+  private LicenseReportExtension config
+  private File licenseFile
+  private File noticeFile
+  private Map<String, List<ModuleData>> notices = new HashMap<>()
+
+  private static final String SEP = "--------------------------------------------------------------------------------"
+
+  void render(ProjectData data) {
+    project = data.project
+    config = project.licenseReport
+
+    licenseFile = new File(config.absoluteOutputDir, 'LICENSE')
+    licenseFile.text = rootPrefix(new File(data.project.rootDir, 'LICENSE'))
+    licenseFile << "\n${SEP}\n\n"
+
+    noticeFile = new File(config.absoluteOutputDir, 'NOTICE')
+    noticeFile.text = rootPrefix(new File(data.project.rootDir, 'NOTICE'))
+    noticeFile << "\n${SEP}\n\n"
+
+    printDependencies(data)
+
+    notices.forEach { notice, projects ->
+      projects.forEach { project ->
+        if (project.group) noticeFile << "Group: $project.group "
+        if (project.name) noticeFile << " Name: $project.name "
+        if (project.version) noticeFile << " Version: $project.version\n"
+      }
+      noticeFile << "\nNotice: $notice\n\n"
+      noticeFile << "\n${SEP}\n\n"
+    }
+  }
+
+  private String rootPrefix(File rootFile) {
+    String text = rootFile.text
+    return text.substring(0, text.indexOf(SEP))
+  }
+
+  private void printDependencies(ProjectData data) {
+    data.allDependencies.sort().each {
+      printDependency(it)
+    }
+    data.importedModules.modules.flatten().sort().each {
+      printImportedModuleDependency(it)
+    }
+  }
+
+  private void printDependency(ModuleData data) {
+    if (data.group) licenseFile << "Group: $data.group "
+    if (data.name) licenseFile << " Name: $data.name "
+    if (data.version) licenseFile << " Version: $data.version\n"
+
+    if (data.poms.isEmpty() && data.manifests.isEmpty()) {
+      licenseFile << "No license information found\n"
+      return
+    }
+
+    if (!data.manifests.isEmpty()) {
+      ManifestData manifest = data.manifests.first()
+      if (manifest.url) {
+        licenseFile << "Project URL (from manifest): $manifest.url\n"
+      }
+      if (manifest.license) {
+        if (Files.maybeLicenseUrl(manifest.licenseUrl)) {
+          licenseFile << "License URL (from manifest): $manifest.licenseUrl\n"
+        } else if (manifest.hasPackagedLicense) {
+          licenseFile << "Packaged License File: $manifest.license\n"
+        } else {
+          licenseFile << "Manifest License: $manifest.license (Not packaged)\n"
+        }
+      }
+    }
+
+    if (!data.poms.isEmpty()) {
+      PomData pomData = data.poms.first()
+      if (pomData.projectUrl) {
+        licenseFile << "Project URL (from POM): $pomData.projectUrl\n"
+      }
+      if (pomData.licenses) {
+        pomData.licenses.each { License license ->
+          licenseFile << "License (from POM): $license.name"
+          if (license.url) {
+            if (Files.maybeLicenseUrl(license.url)) {
+              licenseFile << " - $license.url\n"
+            } else {
+              licenseFile << "License: $license.url\n"
+            }
+          }
+        }
+      }
+    }
+
+    if (!data.licenseFiles.isEmpty() && !data.licenseFiles.first().fileDetails.isEmpty()) {
+      Optional<LicenseFileDetails> noticeDetailsOpt = data.licenseFiles.first().fileDetails.stream().filter(detail -> detail.file.containsIgnoreCase("NOTICE")).findFirst()
+      if (noticeDetailsOpt.isPresent()) {
+        LicenseFileDetails noticeDetails = noticeDetailsOpt.get()
+        String noticeText = new File("$config.absoluteOutputDir/$noticeDetails.file").text.trim()
+        List<ModuleData> projects = notices.getOrDefault(noticeText, new ArrayList<ModuleData>())
+        projects.add(data)
+        notices.put(noticeText, projects)
+      }
+    }
+
+    licenseFile << "\n--------------------------------------------------------------------------------\n\n"
+  }
+
+  private void printImportedModuleDependency(ImportedModuleData module) {
+    licenseFile << " Name: $module.name "
+    licenseFile << " Version: $module.version\n"
+
+    if (Files.maybeLicenseUrl(module.projectUrl)) {
+      licenseFile << "Project URL: $module.projectUrl\n"
+    }
+
+    if (Files.maybeLicenseUrl(module.licenseUrl)) {
+      licenseFile << "License: $module.license - $module.licenseUrl\n"
+    } else {
+      licenseFile << "License: $module.license\n"
+    }
+
+    licenseFile << "\n--------------------------------------------------------------------------------\n\n"
+  }
+}
+
+licenseReport {
+  excludeBoms = true
+  renderers = [new IcebergReportRenderer()]
+}

@@ -60,6 +60,7 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect') {
 
 project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
   apply plugin: 'distribution'
+  apply from: "${rootDir}/license.gradle"
 
   configurations {
     hive {
@@ -76,6 +77,10 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
         force 'com.fasterxml.woodstox:woodstox-core:6.7.0'
       }
     }
+  }
+
+  licenseReport {
+    configurations = ['hive']
   }
 
   sourceSets {
