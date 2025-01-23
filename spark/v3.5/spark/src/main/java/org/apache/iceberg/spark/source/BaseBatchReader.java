@@ -19,25 +19,56 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
-import java.util.Set;
+import org.apache.iceberg.DataFileFormats;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
-import org.apache.iceberg.types.TypeUtil;
+import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
+
+  static {
+    DataFileFormats.register(
+        FileFormat.PARQUET,
+        ColumnarBatch.class,
+        (inputFile, task, readSchema, table, deleteFilter) -> {
+          // get required schema if there are deletes
+          Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : readSchema;
+          return Parquet.read(inputFile)
+              .project(requiredSchema)
+              .createBatchedReaderFunc(
+                  fileSchema ->
+                      VectorizedSparkParquetReaders.buildReader(
+                          requiredSchema,
+                          fileSchema,
+                          constantsMap(task, readSchema, table),
+                          (DeleteFilter<InternalRow>) deleteFilter));
+        });
+
+    DataFileFormats.register(
+        FileFormat.ORC,
+        ColumnarBatch.class,
+        (inputFile, task, readSchema, table, deleteFilter) -> {
+          Map<Integer, ?> idToConstant = constantsMap(task, readSchema, table);
+          return ORC.read(inputFile)
+              .project(ORC.schemaWithoutConstantAndMetadataFields(readSchema, idToConstant))
+              .createBatchedReaderFunc(
+                  fileSchema ->
+                      VectorizedSparkOrcReaders.buildReader(readSchema, fileSchema, idToConstant));
+        });
+  }
+
   private final int batchSize;
 
   BaseBatchReader(
@@ -52,76 +83,23 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
   }
 
   protected CloseableIterable<ColumnarBatch> newBatchIterable(
-      InputFile inputFile,
-      FileFormat format,
-      long start,
-      long length,
-      Expression residual,
-      Map<Integer, ?> idToConstant,
-      SparkDeleteFilter deleteFilter) {
-    switch (format) {
-      case PARQUET:
-        return newParquetIterable(inputFile, start, length, residual, idToConstant, deleteFilter);
-
-      case ORC:
-        return newOrcIterable(inputFile, start, length, residual, idToConstant);
-
-      default:
-        throw new UnsupportedOperationException(
-            "Format: " + format + " not supported for batched reads");
-    }
-  }
-
-  private CloseableIterable<ColumnarBatch> newParquetIterable(
-      InputFile inputFile,
-      long start,
-      long length,
-      Expression residual,
-      Map<Integer, ?> idToConstant,
-      SparkDeleteFilter deleteFilter) {
-    // get required schema if there are deletes
-    Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema();
-
-    return Parquet.read(inputFile)
-        .project(requiredSchema)
-        .split(start, length)
-        .createBatchedReaderFunc(
-            fileSchema ->
-                VectorizedSparkParquetReaders.buildReader(
-                    requiredSchema, fileSchema, idToConstant, deleteFilter))
+      InputFile inputFile, FileScanTask task, SparkDeleteFilter deleteFilter) {
+    return DataFileFormats.read(
+            task.file().format(),
+            ColumnarBatch.class,
+            inputFile,
+            task,
+            expectedSchema(),
+            table(),
+            deleteFilter)
+        .split(task.start(), task.length())
         .recordsPerBatch(batchSize)
-        .filter(residual)
+        .filter(task.residual())
         .caseSensitive(caseSensitive())
         // Spark eagerly consumes the batches. So the underlying memory allocated could be reused
         // without worrying about subsequent reads clobbering over each other. This improves
         // read performance as every batch read doesn't have to pay the cost of allocating memory.
         .reuseContainers()
-        .withNameMapping(nameMapping())
-        .build();
-  }
-
-  private CloseableIterable<ColumnarBatch> newOrcIterable(
-      InputFile inputFile,
-      long start,
-      long length,
-      Expression residual,
-      Map<Integer, ?> idToConstant) {
-    Set<Integer> constantFieldIds = idToConstant.keySet();
-    Set<Integer> metadataFieldIds = MetadataColumns.metadataFieldIds();
-    Sets.SetView<Integer> constantAndMetadataFieldIds =
-        Sets.union(constantFieldIds, metadataFieldIds);
-    Schema schemaWithoutConstantAndMetadataFields =
-        TypeUtil.selectNot(expectedSchema(), constantAndMetadataFieldIds);
-
-    return ORC.read(inputFile)
-        .project(schemaWithoutConstantAndMetadataFields)
-        .split(start, length)
-        .createBatchedReaderFunc(
-            fileSchema ->
-                VectorizedSparkOrcReaders.buildReader(expectedSchema(), fileSchema, idToConstant))
-        .recordsPerBatch(batchSize)
-        .filter(residual)
-        .caseSensitive(caseSensitive())
         .withNameMapping(nameMapping())
         .build();
   }

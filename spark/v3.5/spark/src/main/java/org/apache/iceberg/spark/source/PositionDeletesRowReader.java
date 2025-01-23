@@ -95,15 +95,7 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
       return new DVIterator(inputFile, task.file(), expectedSchema(), idToConstant);
     }
 
-    return newIterable(
-            inputFile,
-            task.file().format(),
-            task.start(),
-            task.length(),
-            residualWithoutConstants,
-            expectedSchema(),
-            idToConstant)
-        .iterator();
+    return newIterable(inputFile, task, residualWithoutConstants, expectedSchema()).iterator();
   }
 
   private Set<Integer> nonConstantFieldIds(Map<Integer, ?> idToConstant) {
