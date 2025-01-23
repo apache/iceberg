@@ -120,7 +120,7 @@ public class TestRowLineageMetadata {
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(base).addSnapshot(invalidLastRow))
         .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("Cannot add a snapshot whose first-row-id");
+        .hasMessageContaining("Cannot add a snapshot whose 'first-row-id'");
 
     Snapshot invalidNewRows =
         new BaseSnapshot(
@@ -129,7 +129,7 @@ public class TestRowLineageMetadata {
     assertThatThrownBy(() -> TableMetadata.buildFrom(base).addSnapshot(invalidNewRows))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining(
-            "Cannot add a snapshot with a null `added-rows` field when row lineage is enabled");
+            "Cannot add a snapshot with a null 'added-rows' field when row lineage is enabled");
   }
 
   @TestTemplate
