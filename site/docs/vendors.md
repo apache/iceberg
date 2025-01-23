@@ -72,6 +72,10 @@ IOMETE is a fully-managed ready to use, batteries included Data Platform. IOMETE
 
 PuppyGraph is a cloud-native graph analytics engine that enables users to query one or more relational data stores as a unified graph model. This eliminates the overhead of deploying and maintaining a siloed graph database system, with no ETL required. [PuppyGraph’s native Apache Iceberg integration](https://docs.puppygraph.com/user-manual/getting-started/iceberg) adds native graph capabilities to your existing data lake in an easy and performant way.
 
+### [RisingWave](https://risingwave.com/)
+
+[RisingWave](https://risingwave.com/) is a cloud-native streaming database for real-time data ingestion, processing, and management. It integrates with Iceberg to [read from](https://docs.risingwave.com/integrations/sources/apache-iceberg) and [write to](https://docs.risingwave.com/integrations/destinations/apache-iceberg) Iceberg tables, enabling efficient file compaction across sources like message queues, databases (via Change Data Capture), data lakes, and files. RisingWave is available as [open source](https://github.com/risingwavelabs/risingwave), a managed cloud service ([RisingWave Cloud](https://cloud.risingwave.com/auth/signin/)) with BYOC support, and an enterprise on-premises edition ([RisingWave Premium](https://docs.risingwave.com/get-started/rw-premium-edition-intro)).
+
 <!-- markdown-link-check-disable-next-line -->
 ### [Snowflake](https://snowflake.com/)
 
@@ -84,11 +88,11 @@ Starburst is a commercial offering for the [Trino query engine](https://trino.io
 
 ### [Tabular](https://tabular.io)
 
-[Tabular](https://tabular.io/product/) is a managed warehouse and automation platform. Tabular offers a central store for analytic data that can be used with any query engine or processing framework that supports Iceberg. Tabular warehouses add role-based access control and automatic optimization, clustering, and compaction to Iceberg tables.
+[Tabular](https://tabular.io/) is a managed warehouse and automation platform. Tabular offers a central store for analytic data that can be used with any query engine or processing framework that supports Iceberg. Tabular warehouses add role-based access control and automatic optimization, clustering, and compaction to Iceberg tables.
 
 ### [Upsolver](https://upsolver.com)
 
-[Upsolver](https://upsolver.com) is a streaming data ingestion and table management solution for Apache Iceberg. With Upsolver, users can easily ingest batch and streaming data from files, streams and databases (CDC) into [Iceberg tables](https://docs.upsolver.com/reference/sql-commands/iceberg-tables/upsolver-managed-tables). In addition, Upsolver connects to your existing REST and Hive catalogs, and [analyzes the health](https://docs.upsolver.com/how-to-guides/apache-iceberg/optimize-your-iceberg-tables) of your tables. Use Upsolver to continuously optimize tables by compacting small files, sorting and compressing, repartitioning, and cleaning up dangling files and expired manifests. Upsolver is available from the [Upsolver Cloud](https://www.upsolver.com/sqlake-signup-wp) or can be deployed in your AWS VPC.
+[Upsolver](https://upsolver.com) is a streaming data ingestion and table management solution for Apache Iceberg. With Upsolver, users can easily ingest batch and streaming data from files, streams and databases (CDC) into [Iceberg tables](https://docs.upsolver.com/content/reference-1/sql-commands/iceberg-tables/upsolver-managed-tables). In addition, Upsolver connects to your existing REST and Hive catalogs, and [analyzes the health](https://docs.upsolver.com/content/how-to-guides-1/apache-iceberg/optimize-your-iceberg-tables) of your tables. Use Upsolver to continuously optimize tables by compacting small files, sorting and compressing, repartitioning, and cleaning up dangling files and expired manifests. Upsolver is available from the [Upsolver Cloud](https://www.upsolver.com/sqlake-signup-wp) or can be deployed in your AWS VPC.
 
 ### [VeloDB](https://velodb.io)
 
