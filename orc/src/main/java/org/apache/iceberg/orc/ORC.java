@@ -51,7 +51,9 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.DataFileFormats;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -59,6 +61,8 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -68,19 +72,21 @@ import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.encryption.NativeEncryptionInputFile;
 import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.FileFormatReadBuilderBase;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.orc.CompressionKind;
 import org.apache.orc.OrcConf;
@@ -100,6 +106,19 @@ public class ORC {
    */
   @Deprecated private static final String VECTOR_ROW_BATCH_SIZE = "iceberg.orc.vectorbatch.size";
 
+  static {
+    DataFileFormats.register(
+        FileFormat.ORC,
+        Record.class,
+        (inputFile, task, readSchema, table, deleteFilter) -> {
+          Map<Integer, ?> idToConstant = PartitionUtil.constantsMap(task, readSchema);
+          return new ReadBuilder(inputFile)
+              .project(ORC.schemaWithoutConstantAndMetadataFields(readSchema, idToConstant))
+              .createReaderFunc(
+                  fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema, idToConstant));
+        });
+  }
+
   private ORC() {}
 
   public static WriteBuilder write(OutputFile file) {
@@ -110,6 +129,12 @@ public class ORC {
     Preconditions.checkState(
         !(file instanceof NativeEncryptionOutputFile), "Native ORC encryption is not supported");
     return new WriteBuilder(file.encryptingOutputFile());
+  }
+
+  public static Schema schemaWithoutConstantAndMetadataFields(
+      Schema target, Map<Integer, ?> idToConstant) {
+    return TypeUtil.selectNot(
+        target, Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
   }
 
   public static class WriteBuilder {
@@ -686,23 +711,13 @@ public class ORC {
     return new ReadBuilder(file);
   }
 
-  public static class ReadBuilder {
-    private final InputFile file;
+  public static class ReadBuilder extends FileFormatReadBuilderBase<ReadBuilder> {
     private final Configuration conf;
-    private Schema schema = null;
-    private Long start = null;
-    private Long length = null;
-    private Expression filter = null;
-    private boolean caseSensitive = true;
-    private NameMapping nameMapping = null;
-
     private Function<TypeDescription, OrcRowReader<?>> readerFunc;
     private Function<TypeDescription, OrcBatchReader<?>> batchedReaderFunc;
-    private int recordsPerBatch = VectorizedRowBatch.DEFAULT_SIZE;
 
-    private ReadBuilder(InputFile file) {
-      Preconditions.checkNotNull(file, "Input file cannot be null");
-      this.file = file;
+    ReadBuilder(InputFile file) {
+      super(file);
       if (file instanceof HadoopInputFile) {
         this.conf = new Configuration(((HadoopInputFile) file).getConf());
       } else {
@@ -712,34 +727,18 @@ public class ORC {
       // We need to turn positional schema evolution off since we use column name based schema
       // evolution for projection
       this.conf.setBoolean(OrcConf.FORCE_POSITIONAL_EVOLUTION.getHiveConfName(), false);
+      this.recordsPerBatch(VectorizedRowBatch.DEFAULT_SIZE);
     }
 
-    /**
-     * Restricts the read to the given range: [start, start + length).
-     *
-     * @param newStart the start position for this read
-     * @param newLength the length of the range this read should scan
-     * @return this builder for method chaining
-     */
-    public ReadBuilder split(long newStart, long newLength) {
-      this.start = newStart;
-      this.length = newLength;
-      return this;
-    }
-
-    public ReadBuilder project(Schema newSchema) {
-      this.schema = newSchema;
-      return this;
-    }
-
-    public ReadBuilder caseSensitive(boolean newCaseSensitive) {
-      OrcConf.IS_SCHEMA_EVOLUTION_CASE_SENSITIVE.setBoolean(this.conf, newCaseSensitive);
-      this.caseSensitive = newCaseSensitive;
-      return this;
-    }
-
+    @Deprecated
     public ReadBuilder config(String property, String value) {
-      conf.set(property, value);
+      return set(property, value);
+    }
+
+    @Override
+    public ReadBuilder set(String key, String value) {
+      super.set(key, value);
+      conf.set(key, value);
       return this;
     }
 
@@ -748,11 +747,6 @@ public class ORC {
           this.batchedReaderFunc == null,
           "Reader function cannot be set since the batched version is already set");
       this.readerFunc = readerFunction;
-      return this;
-    }
-
-    public ReadBuilder filter(Expression newFilter) {
-      this.filter = newFilter;
       return this;
     }
 
@@ -765,30 +759,21 @@ public class ORC {
       return this;
     }
 
-    public ReadBuilder recordsPerBatch(int numRecordsPerBatch) {
-      this.recordsPerBatch = numRecordsPerBatch;
-      return this;
-    }
-
-    public ReadBuilder withNameMapping(NameMapping newNameMapping) {
-      this.nameMapping = newNameMapping;
-      return this;
-    }
-
+    @Override
     public <D> CloseableIterable<D> build() {
-      Preconditions.checkNotNull(schema, "Schema is required");
+      Preconditions.checkNotNull(schema(), "Schema is required");
       return new OrcIterable<>(
-          file,
+          file(),
           conf,
-          schema,
-          nameMapping,
-          start,
-          length,
+          schema(),
+          nameMapping(),
+          start(),
+          length(),
           readerFunc,
-          caseSensitive,
-          filter,
+          isCaseSensitive(),
+          filter(),
           batchedReaderFunc,
-          recordsPerBatch);
+          recordsPerBatch());
     }
   }
 

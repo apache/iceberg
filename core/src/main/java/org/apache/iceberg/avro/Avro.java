@@ -44,6 +44,7 @@ import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.specific.SpecificData;
+import org.apache.iceberg.DataFileFormats;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
@@ -52,6 +53,8 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -60,6 +63,7 @@ import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.FileFormatReadBuilderBase;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.MappingUtil;
@@ -67,8 +71,23 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.util.PartitionUtil;
 
 public class Avro {
+
+  static {
+    DataFileFormats.register(
+        FileFormat.AVRO,
+        Record.class,
+        (inputFile, task, readSchema, table, deleteFilter) ->
+            Avro.read(inputFile)
+                .project(readSchema)
+                .createResolvingReader(
+                    fileSchema ->
+                        PlannedDataReader.create(
+                            fileSchema, PartitionUtil.constantsMap(task, readSchema))));
+  }
+
   private Avro() {}
 
   private enum Codec {
@@ -615,13 +634,9 @@ public class Avro {
     return new ReadBuilder(file);
   }
 
-  public static class ReadBuilder {
-    private final InputFile file;
+  public static class ReadBuilder extends FileFormatReadBuilderBase<ReadBuilder> {
     private final Map<String, String> renames = Maps.newLinkedHashMap();
     private ClassLoader loader = Thread.currentThread().getContextClassLoader();
-    private NameMapping nameMapping;
-    private boolean reuseContainers = false;
-    private org.apache.iceberg.Schema schema = null;
     private Function<Schema, DatumReader<?>> createReaderFunc = null;
     private BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<?>> createReaderBiFunc = null;
     private Function<org.apache.iceberg.Schema, DatumReader<?>> createResolvingReaderFunc = null;
@@ -634,12 +649,8 @@ public class Avro {
           return reader;
         };
 
-    private Long start = null;
-    private Long length = null;
-
     private ReadBuilder(InputFile file) {
-      Preconditions.checkNotNull(file, "Input file cannot be null");
-      this.file = file;
+      super(file);
     }
 
     public ReadBuilder createResolvingReader(
@@ -668,41 +679,8 @@ public class Avro {
       return this;
     }
 
-    /**
-     * Restricts the read to the given range: [start, end = start + length).
-     *
-     * @param newStart the start position for this read
-     * @param newLength the length of the range this read should scan
-     * @return this builder for method chaining
-     */
-    public ReadBuilder split(long newStart, long newLength) {
-      this.start = newStart;
-      this.length = newLength;
-      return this;
-    }
-
-    public ReadBuilder project(org.apache.iceberg.Schema projectedSchema) {
-      this.schema = projectedSchema;
-      return this;
-    }
-
-    public ReadBuilder reuseContainers() {
-      this.reuseContainers = true;
-      return this;
-    }
-
-    public ReadBuilder reuseContainers(boolean shouldReuse) {
-      this.reuseContainers = shouldReuse;
-      return this;
-    }
-
     public ReadBuilder rename(String fullName, String newName) {
       renames.put(fullName, newName);
-      return this;
-    }
-
-    public ReadBuilder withNameMapping(NameMapping newNameMapping) {
-      this.nameMapping = newNameMapping;
       return this;
     }
 
@@ -711,25 +689,28 @@ public class Avro {
       return this;
     }
 
+    @Override
     @SuppressWarnings("unchecked")
     public <D> AvroIterable<D> build() {
-      Preconditions.checkNotNull(schema, "Schema is required");
+      Preconditions.checkNotNull(schema(), "Schema is required");
 
-      if (null == nameMapping) {
-        this.nameMapping = MappingUtil.create(schema);
-      }
+      NameMapping nameMapping =
+          nameMapping() != null ? nameMapping() : MappingUtil.create(schema());
 
       DatumReader<D> reader;
       if (createReaderBiFunc != null) {
         reader =
             new ProjectionDatumReader<>(
-                avroSchema -> createReaderBiFunc.apply(schema, avroSchema), schema, renames, null);
+                avroSchema -> createReaderBiFunc.apply(schema(), avroSchema),
+                schema(),
+                renames,
+                null);
       } else if (createReaderFunc != null) {
-        reader = new ProjectionDatumReader<>(createReaderFunc, schema, renames, null);
+        reader = new ProjectionDatumReader<>(createReaderFunc, schema(), renames, null);
       } else if (createResolvingReaderFunc != null) {
-        reader = (DatumReader<D>) createResolvingReaderFunc.apply(schema);
+        reader = (DatumReader<D>) createResolvingReaderFunc.apply(schema());
       } else {
-        reader = (DatumReader<D>) defaultCreateReaderFunc.apply(schema);
+        reader = (DatumReader<D>) defaultCreateReaderFunc.apply(schema());
       }
 
       if (reader instanceof SupportsCustomRecords) {
@@ -738,7 +719,11 @@ public class Avro {
       }
 
       return new AvroIterable<>(
-          file, new NameMappingDatumReader<>(nameMapping, reader), start, length, reuseContainers);
+          file(),
+          new NameMappingDatumReader<>(nameMapping, reader),
+          start(),
+          length(),
+          isReuseContainers());
     }
   }
 

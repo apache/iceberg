@@ -33,6 +33,7 @@ import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.Types.MinorType;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.DataFileFormats;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
@@ -43,6 +44,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileFormatReadBuilder;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMappingParser;
@@ -115,6 +117,21 @@ public class ArrowReader extends CloseableGroup {
           TypeID.UUID,
           TypeID.TIME,
           TypeID.DECIMAL);
+
+  static {
+    DataFileFormats.register(
+        FileFormat.PARQUET,
+        ColumnarBatch.class,
+        (inputFile, task, readSchema, table, deleteFilter) ->
+            Parquet.read(inputFile)
+                .project(readSchema)
+                .createBatchedReaderFunc(
+                    fileSchema ->
+                        VectorizedCombinedScanIterator.buildReader(
+                            readSchema,
+                            fileSchema, /* setArrowValidityVector */
+                            NullCheckingForGet.NULL_CHECKING_ENABLED)));
+  }
 
   private final Schema schema;
   private final FileIO io;
@@ -322,16 +339,9 @@ public class ArrowReader extends CloseableGroup {
       InputFile location = getInputFile(task);
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
       if (task.file().format() == FileFormat.PARQUET) {
-        Parquet.ReadBuilder builder =
-            Parquet.read(location)
-                .project(expectedSchema)
+        FileFormatReadBuilder<?> builder =
+            DataFileFormats.read(FileFormat.PARQUET, ColumnarBatch.class, location, expectedSchema)
                 .split(task.start(), task.length())
-                .createBatchedReaderFunc(
-                    fileSchema ->
-                        buildReader(
-                            expectedSchema,
-                            fileSchema, /* setArrowValidityVector */
-                            NullCheckingForGet.NULL_CHECKING_ENABLED))
                 .recordsPerBatch(batchSize)
                 .filter(task.residual())
                 .caseSensitive(caseSensitive);

@@ -60,6 +60,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.DataFileFormats;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetricsConfig;
@@ -71,6 +72,8 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -79,13 +82,13 @@ import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.encryption.NativeEncryptionInputFile;
 import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.FileFormatReadBuilderBase;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
@@ -99,6 +102,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
@@ -131,6 +135,19 @@ public class Parquet {
           "parquet.private.read.filter.predicate",
           "parquet.read.support.class",
           "parquet.crypto.factory.class");
+
+  static {
+    DataFileFormats.register(
+        FileFormat.PARQUET,
+        Record.class,
+        (inputFile, task, schema, table, deleteFilter) ->
+            new ReadBuilder(inputFile)
+                .project(schema)
+                .createReaderFunc(
+                    fileSchema ->
+                        GenericParquetReaders.buildReader(
+                            schema, fileSchema, PartitionUtil.constantsMap(task, schema))));
+  }
 
   public static WriteBuilder write(OutputFile file) {
     return new WriteBuilder(file);
@@ -1056,64 +1073,14 @@ public class Parquet {
     }
   }
 
-  public static class ReadBuilder {
-    private final InputFile file;
-    private final Map<String, String> properties = Maps.newHashMap();
-    private Long start = null;
-    private Long length = null;
-    private Schema schema = null;
-    private Expression filter = null;
+  public static class ReadBuilder extends FileFormatReadBuilderBase<ReadBuilder> {
     private ReadSupport<?> readSupport = null;
+    private boolean callInit = false;
     private Function<MessageType, VectorizedReader<?>> batchedReaderFunc = null;
     private Function<MessageType, ParquetValueReader<?>> readerFunc = null;
-    private boolean filterRecords = true;
-    private boolean caseSensitive = true;
-    private boolean callInit = false;
-    private boolean reuseContainers = false;
-    private int maxRecordsPerBatch = 10000;
-    private NameMapping nameMapping = null;
-    private ByteBuffer fileEncryptionKey = null;
-    private ByteBuffer fileAADPrefix = null;
 
-    private ReadBuilder(InputFile file) {
-      this.file = file;
-    }
-
-    /**
-     * Restricts the read to the given range: [start, start + length).
-     *
-     * @param newStart the start position for this read
-     * @param newLength the length of the range this read should scan
-     * @return this builder for method chaining
-     */
-    public ReadBuilder split(long newStart, long newLength) {
-      this.start = newStart;
-      this.length = newLength;
-      return this;
-    }
-
-    public ReadBuilder project(Schema newSchema) {
-      this.schema = newSchema;
-      return this;
-    }
-
-    public ReadBuilder caseInsensitive() {
-      return caseSensitive(false);
-    }
-
-    public ReadBuilder caseSensitive(boolean newCaseSensitive) {
-      this.caseSensitive = newCaseSensitive;
-      return this;
-    }
-
-    public ReadBuilder filterRecords(boolean newFilterRecords) {
-      this.filterRecords = newFilterRecords;
-      return this;
-    }
-
-    public ReadBuilder filter(Expression newFilter) {
-      this.filter = newFilter;
-      return this;
+    ReadBuilder(InputFile file) {
+      super(file);
     }
 
     /**
@@ -1142,11 +1109,6 @@ public class Parquet {
       return this;
     }
 
-    public ReadBuilder set(String key, String value) {
-      properties.put(key, value);
-      return this;
-    }
-
     /**
      * @deprecated will be removed in 2.0.0; use {@link #createReaderFunc(Function)} instead
      */
@@ -1156,51 +1118,28 @@ public class Parquet {
       return this;
     }
 
-    public ReadBuilder reuseContainers() {
-      this.reuseContainers = true;
-      return this;
-    }
-
-    public ReadBuilder recordsPerBatch(int numRowsPerBatch) {
-      this.maxRecordsPerBatch = numRowsPerBatch;
-      return this;
-    }
-
-    public ReadBuilder withNameMapping(NameMapping newNameMapping) {
-      this.nameMapping = newNameMapping;
-      return this;
-    }
-
-    public ReadBuilder withFileEncryptionKey(ByteBuffer encryptionKey) {
-      this.fileEncryptionKey = encryptionKey;
-      return this;
-    }
-
-    public ReadBuilder withAADPrefix(ByteBuffer aadPrefix) {
-      this.fileAADPrefix = aadPrefix;
-      return this;
-    }
-
+    @Override
     @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
     public <D> CloseableIterable<D> build() {
       FileDecryptionProperties fileDecryptionProperties = null;
-      if (fileEncryptionKey != null) {
-        byte[] encryptionKeyArray = ByteBuffers.toByteArray(fileEncryptionKey);
-        byte[] aadPrefixArray = ByteBuffers.toByteArray(fileAADPrefix);
+      if (fileEncryptionKey() != null) {
+        byte[] encryptionKeyArray = ByteBuffers.toByteArray(fileEncryptionKey());
+        byte[] aadPrefixArray = ByteBuffers.toByteArray(fileAADPrefix());
         fileDecryptionProperties =
             FileDecryptionProperties.builder()
                 .withFooterKey(encryptionKeyArray)
                 .withAADPrefix(aadPrefixArray)
                 .build();
       } else {
-        Preconditions.checkState(fileAADPrefix == null, "AAD prefix set with null encryption key");
+        Preconditions.checkState(
+            fileAADPrefix() == null, "AAD prefix set with null encryption key");
       }
 
       if (readerFunc != null || batchedReaderFunc != null) {
         ParquetReadOptions.Builder optionsBuilder;
-        if (file instanceof HadoopInputFile) {
+        if (file() instanceof HadoopInputFile) {
           // remove read properties already set that may conflict with this read
-          Configuration conf = new Configuration(((HadoopInputFile) file).getConf());
+          Configuration conf = new Configuration(((HadoopInputFile) file()).getConf());
           for (String property : READ_PROPERTIES_TO_REMOVE) {
             conf.unset(property);
           }
@@ -1209,12 +1148,12 @@ public class Parquet {
           optionsBuilder = ParquetReadOptions.builder();
         }
 
-        for (Map.Entry<String, String> entry : properties.entrySet()) {
+        for (Map.Entry<String, String> entry : properties().entrySet()) {
           optionsBuilder.set(entry.getKey(), entry.getValue());
         }
 
-        if (start != null) {
-          optionsBuilder.withRange(start, start + length);
+        if (start() != null) {
+          optionsBuilder.withRange(start(), start() + length());
         }
 
         if (fileDecryptionProperties != null) {
@@ -1224,8 +1163,8 @@ public class Parquet {
         ParquetReadOptions options = optionsBuilder.build();
 
         NameMapping mapping;
-        if (nameMapping != null) {
-          mapping = nameMapping;
+        if (nameMapping() != null) {
+          mapping = nameMapping();
         } else if (SystemConfigs.NETFLIX_UNSAFE_PARQUET_ID_FALLBACK_ENABLED.value()) {
           mapping = null;
         } else {
@@ -1234,24 +1173,31 @@ public class Parquet {
 
         if (batchedReaderFunc != null) {
           return new VectorizedParquetReader<>(
-              file,
-              schema,
+              file(),
+              schema(),
               options,
               batchedReaderFunc,
               mapping,
-              filter,
-              reuseContainers,
-              caseSensitive,
-              maxRecordsPerBatch);
+              filter(),
+              isReuseContainers(),
+              isCaseSensitive(),
+              recordsPerBatch());
         } else {
           return new org.apache.iceberg.parquet.ParquetReader<>(
-              file, schema, options, readerFunc, mapping, filter, reuseContainers, caseSensitive);
+              file(),
+              schema(),
+              options,
+              readerFunc,
+              mapping,
+              filter(),
+              isReuseContainers(),
+              isCaseSensitive());
         }
       }
 
-      ParquetReadBuilder<D> builder = new ParquetReadBuilder<>(ParquetIO.file(file));
+      ParquetReadBuilder<D> builder = new ParquetReadBuilder<>(ParquetIO.file(file()));
 
-      builder.project(schema);
+      builder.project(schema());
 
       if (readSupport != null) {
         builder.readSupport((ReadSupport<D>) readSupport);
@@ -1267,18 +1213,18 @@ public class Parquet {
               "parquet.avro.add-list-element-records",
               "false"); // assume that lists use a 3-level schema
 
-      for (Map.Entry<String, String> entry : properties.entrySet()) {
+      for (Map.Entry<String, String> entry : properties().entrySet()) {
         builder.set(entry.getKey(), entry.getValue());
       }
 
-      if (filter != null) {
+      if (filter() != null) {
         // TODO: should not need to get the schema to push down before opening the file.
         // Parquet should allow setting a filter inside its read support
         ParquetReadOptions decryptOptions =
             ParquetReadOptions.builder().withDecryption(fileDecryptionProperties).build();
         MessageType type;
         try (ParquetFileReader schemaReader =
-            ParquetFileReader.open(ParquetIO.file(file), decryptOptions)) {
+            ParquetFileReader.open(ParquetIO.file(file()), decryptOptions)) {
           type = schemaReader.getFileMetaData().getSchema();
         } catch (IOException e) {
           throw new RuntimeIOException(e);
@@ -1287,9 +1233,9 @@ public class Parquet {
         builder
             .useStatsFilter()
             .useDictionaryFilter()
-            .useRecordFilter(filterRecords)
+            .useRecordFilter(isFilterRecords())
             .useBloomFilter()
-            .withFilter(ParquetFilters.convert(fileSchema, filter, caseSensitive));
+            .withFilter(ParquetFilters.convert(fileSchema, filter(), isCaseSensitive()));
       } else {
         // turn off filtering
         builder
@@ -1303,12 +1249,12 @@ public class Parquet {
         builder.callInit();
       }
 
-      if (start != null) {
-        builder.withFileRange(start, start + length);
+      if (start() != null) {
+        builder.withFileRange(start(), start() + length());
       }
 
-      if (nameMapping != null) {
-        builder.withNameMapping(nameMapping);
+      if (nameMapping() != null) {
+        builder.withNameMapping(nameMapping());
       }
 
       if (fileDecryptionProperties != null) {
