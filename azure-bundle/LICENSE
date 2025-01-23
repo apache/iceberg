@@ -511,9 +511,3 @@ License: The Apache Software License, Version 2.0 - http://www.apache.org/licens
 Group: org.reactivestreams  Name: reactive-streams  Version: 1.0.4
 Project URL: http://www.reactive-streams.org/
 License: MIT-0 - https://spdx.org/licenses/MIT-0.html
-
---------------------------------------------------------------------------------
-
-Group: org.slf4j  Name: slf4j-api  Version: 1.7.36
-Project URL: http://www.slf4j.org
-License: MIT License - http://www.opensource.org/licenses/mit-license.php
