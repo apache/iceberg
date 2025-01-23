@@ -69,7 +69,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.util.Pair;
-import org.apache.iceberg.util.SerializableMap;
 import org.apache.spark.api.java.function.ForeachFunction;
 import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.api.java.function.ReduceFunction;
@@ -98,8 +97,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   private String stagingDir;
 
   private final Table table;
-  private Broadcast<Table> tblBroadcast = null;
-  private Broadcast<Map<Integer, PartitionSpec>> specsBroadcast = null;
+  private Broadcast<Table> tableBroadcast = null;
 
   RewriteTablePathSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -466,7 +464,6 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
                 tableBroadcast(),
                 stagingDir,
                 tableMetadata.formatVersion(),
-                specsBroadcast(tableMetadata.specsById()),
                 sourcePrefix,
                 targetPrefix),
             Encoders.bean(RewriteContentFileResult.class))
@@ -476,10 +473,9 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   private static MapFunction<ManifestFile, RewriteContentFileResult> toManifests(
-      Broadcast<Table> tableBroadcast,
+      Broadcast<Table> table,
       String stagingLocation,
       int format,
-      Broadcast<Map<Integer, PartitionSpec>> specsById,
       String sourcePrefix,
       String targetPrefix) {
 
@@ -489,24 +485,12 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
         case DATA:
           result.appendDataFile(
               writeDataManifest(
-                  manifestFile,
-                  tableBroadcast,
-                  stagingLocation,
-                  format,
-                  specsById,
-                  sourcePrefix,
-                  targetPrefix));
+                  manifestFile, table, stagingLocation, format, sourcePrefix, targetPrefix));
           break;
         case DELETES:
           result.appendDeleteFile(
               writeDeleteManifest(
-                  manifestFile,
-                  tableBroadcast,
-                  stagingLocation,
-                  format,
-                  specsById,
-                  sourcePrefix,
-                  targetPrefix));
+                  manifestFile, table, stagingLocation, format, sourcePrefix, targetPrefix));
           break;
         default:
           throw new UnsupportedOperationException(
@@ -518,17 +502,16 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
   private static RewriteResult<DataFile> writeDataManifest(
       ManifestFile manifestFile,
-      Broadcast<Table> tableBroadcast,
+      Broadcast<Table> table,
       String stagingLocation,
       int format,
-      Broadcast<Map<Integer, PartitionSpec>> specsByIdBroadcast,
       String sourcePrefix,
       String targetPrefix) {
     try {
       String stagingPath = RewriteTablePathUtil.stagingPath(manifestFile.path(), stagingLocation);
-      FileIO io = tableBroadcast.getValue().io();
+      FileIO io = table.getValue().io();
       OutputFile outputFile = io.newOutputFile(stagingPath);
-      Map<Integer, PartitionSpec> specsById = specsByIdBroadcast.getValue();
+      Map<Integer, PartitionSpec> specsById = table.getValue().specs();
       return RewriteTablePathUtil.rewriteDataManifest(
           manifestFile, outputFile, io, format, specsById, sourcePrefix, targetPrefix);
     } catch (IOException e) {
@@ -538,17 +521,16 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
   private static RewriteResult<DeleteFile> writeDeleteManifest(
       ManifestFile manifestFile,
-      Broadcast<Table> tableBroadcast,
+      Broadcast<Table> table,
       String stagingLocation,
       int format,
-      Broadcast<Map<Integer, PartitionSpec>> specsByIdBroadcast,
       String sourcePrefix,
       String targetPrefix) {
     try {
       String stagingPath = RewriteTablePathUtil.stagingPath(manifestFile.path(), stagingLocation);
-      FileIO io = tableBroadcast.getValue().io();
+      FileIO io = table.getValue().io();
       OutputFile outputFile = io.newOutputFile(stagingPath);
-      Map<Integer, PartitionSpec> specsById = specsByIdBroadcast.getValue();
+      Map<Integer, PartitionSpec> specsById = table.getValue().specs();
       return RewriteTablePathUtil.rewriteDeleteManifest(
           manifestFile,
           outputFile,
@@ -577,12 +559,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
         .repartition(toRewrite.size())
         .foreach(
             rewritePositionDelete(
-                tableBroadcast(),
-                specsBroadcast(metadata.specsById()),
-                sourcePrefix,
-                targetPrefix,
-                stagingDir,
-                posDeleteReaderWriter));
+                tableBroadcast(), sourcePrefix, targetPrefix, stagingDir, posDeleteReaderWriter));
   }
 
   private static class SparkPositionDeleteReaderWriter implements PositionDeleteReaderWriter {
@@ -605,17 +582,16 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   private ForeachFunction<DeleteFile> rewritePositionDelete(
-      Broadcast<Table> tableBroadcast,
-      Broadcast<Map<Integer, PartitionSpec>> specsById,
+      Broadcast<Table> tableArg,
       String sourcePrefixArg,
       String targetPrefixArg,
       String stagingLocationArg,
       PositionDeleteReaderWriter posDeleteReaderWriter) {
     return deleteFile -> {
-      FileIO io = tableBroadcast.getValue().io();
+      FileIO io = tableArg.getValue().io();
       String newPath = RewriteTablePathUtil.stagingPath(deleteFile.location(), stagingLocationArg);
       OutputFile outputFile = io.newOutputFile(newPath);
-      PartitionSpec spec = specsById.getValue().get(deleteFile.specId());
+      PartitionSpec spec = tableArg.getValue().specs().get(deleteFile.specId());
       RewriteTablePathUtil.rewritePositionDeleteFile(
           deleteFile,
           outputFile,
@@ -727,19 +703,10 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
   @VisibleForTesting
   Broadcast<Table> tableBroadcast() {
-    if (tblBroadcast == null) {
-      this.tblBroadcast = sparkContext().broadcast(SerializableTableWithSize.copyOf(table));
+    if (tableBroadcast == null) {
+      this.tableBroadcast = sparkContext().broadcast(SerializableTableWithSize.copyOf(table));
     }
 
-    return tblBroadcast;
-  }
-
-  @VisibleForTesting
-  Broadcast<Map<Integer, PartitionSpec>> specsBroadcast(Map<Integer, PartitionSpec> specsById) {
-    if (specsBroadcast == null) {
-      this.specsBroadcast = sparkContext().broadcast(SerializableMap.copyOf(specsById));
-    }
-
-    return specsBroadcast;
+    return tableBroadcast;
   }
 }

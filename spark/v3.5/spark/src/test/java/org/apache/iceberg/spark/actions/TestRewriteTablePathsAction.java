@@ -925,12 +925,6 @@ public class TestRewriteTablePathsAction extends TestBase {
     // force deserializing broadcast values
     removeBroadcastValuesFromLocalBlockManager(tableBroadcast.id());
     assertThat(tableBroadcast.getValue().uuid()).isEqualTo(table.uuid());
-
-    Map<Integer, PartitionSpec> specs = table.specs();
-    Broadcast<Map<Integer, PartitionSpec>> specsBroadcast = action.specsBroadcast(specs);
-    // force deserializing broadcast values
-    removeBroadcastValuesFromLocalBlockManager(specsBroadcast.id());
-    assertThat(specsBroadcast.getValue()).isEqualTo(specs);
   }
 
   protected void checkFileNum(
