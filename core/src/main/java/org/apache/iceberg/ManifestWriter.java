@@ -219,11 +219,11 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   }
 
   static class V3Writer extends ManifestWriter<DataFile> {
-    private final V3Metadata.IndexedManifestEntry<DataFile> entryWrapper;
+    private final V3Metadata.ManifestEntryWrapper<DataFile> entryWrapper;
 
     V3Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
-      this.entryWrapper = new V3Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
+      this.entryWrapper = new V3Metadata.ManifestEntryWrapper<>(snapshotId);
     }
 
     @Override
@@ -253,11 +253,11 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   }
 
   static class V3DeleteWriter extends ManifestWriter<DeleteFile> {
-    private final V3Metadata.IndexedManifestEntry<DeleteFile> entryWrapper;
+    private final V3Metadata.ManifestEntryWrapper<DeleteFile> entryWrapper;
 
     V3DeleteWriter(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
-      this.entryWrapper = new V3Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
+      this.entryWrapper = new V3Metadata.ManifestEntryWrapper<>(snapshotId);
     }
 
     @Override
@@ -270,7 +270,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V3Metadata.entrySchema(spec.partitionType());
       try {
-        return Avro.write(file)
+        return InternalData.write(FileFormat.AVRO, file)
             .schema(manifestSchema)
             .named("manifest_entry")
             .meta("schema", SchemaParser.toJson(spec.schema()))
@@ -292,11 +292,11 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   }
 
   static class V2Writer extends ManifestWriter<DataFile> {
-    private final V2Metadata.IndexedManifestEntry<DataFile> entryWrapper;
+    private final V2Metadata.ManifestEntryWrapper<DataFile> entryWrapper;
 
     V2Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
-      this.entryWrapper = new V2Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
+      this.entryWrapper = new V2Metadata.ManifestEntryWrapper<>(snapshotId);
     }
 
     @Override
@@ -309,7 +309,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V2Metadata.entrySchema(spec.partitionType());
       try {
-        return Avro.write(file)
+        return InternalData.write(FileFormat.AVRO, file)
             .schema(manifestSchema)
             .named("manifest_entry")
             .meta("schema", SchemaParser.toJson(spec.schema()))
@@ -326,11 +326,11 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   }
 
   static class V2DeleteWriter extends ManifestWriter<DeleteFile> {
-    private final V2Metadata.IndexedManifestEntry<DeleteFile> entryWrapper;
+    private final V2Metadata.ManifestEntryWrapper<DeleteFile> entryWrapper;
 
     V2DeleteWriter(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
-      this.entryWrapper = new V2Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
+      this.entryWrapper = new V2Metadata.ManifestEntryWrapper<>(snapshotId);
     }
 
     @Override
@@ -343,7 +343,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V2Metadata.entrySchema(spec.partitionType());
       try {
-        return Avro.write(file)
+        return InternalData.write(FileFormat.AVRO, file)
             .schema(manifestSchema)
             .named("manifest_entry")
             .meta("schema", SchemaParser.toJson(spec.schema()))
@@ -365,11 +365,11 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   }
 
   static class V1Writer extends ManifestWriter<DataFile> {
-    private final V1Metadata.IndexedManifestEntry entryWrapper;
+    private final V1Metadata.ManifestEntryWrapper entryWrapper;
 
     V1Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
-      this.entryWrapper = new V1Metadata.IndexedManifestEntry(spec.partitionType());
+      this.entryWrapper = new V1Metadata.ManifestEntryWrapper();
     }
 
     @Override
@@ -382,7 +382,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V1Metadata.entrySchema(spec.partitionType());
       try {
-        return Avro.write(file)
+        return InternalData.write(FileFormat.AVRO, file)
             .schema(manifestSchema)
             .named("manifest_entry")
             .meta("schema", SchemaParser.toJson(spec.schema()))

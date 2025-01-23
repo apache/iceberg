@@ -119,6 +119,20 @@ public class InternalData {
      */
     WriteBuilder meta(String property, String value);
 
+    /**
+     * Set a file metadata properties from a Map.
+     *
+     * <p>Metadata properties are written into file metadata. To alter a writer configuration
+     * property, use {@link #set(String, String)}.
+     *
+     * @param properties a map of file metadata properties
+     * @return this for method chaining
+     */
+    default WriteBuilder meta(Map<String, String> properties) {
+      properties.forEach(this::meta);
+      return this;
+    }
+
     /** Overwrite the file if it already exists. */
     WriteBuilder overwrite();
 
