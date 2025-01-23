@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.actions;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -180,9 +179,13 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     validateAndSetStartVersion();
 
     if (stagingDir == null) {
-      stagingDir = getMetadataLocation(table) + "copy-table-staging-" + UUID.randomUUID() + "/";
-    } else if (!stagingDir.endsWith("/")) {
-      stagingDir = stagingDir + "/";
+      stagingDir =
+          getMetadataLocation(table)
+              + "copy-table-staging-"
+              + UUID.randomUUID()
+              + RewriteTablePathUtil.FILE_SEPARATOR;
+    } else {
+      stagingDir = RewriteTablePathUtil.maybeAppendFileSeparator(stagingDir);
     }
   }
 
@@ -361,7 +364,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     TableMetadata newTableMetadata =
         RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix);
     TableMetadataParser.overwrite(newTableMetadata, table.io().newOutputFile(stagingPath));
-    return Pair.of(stagingPath, newPath(versionFilePath, sourcePrefix, targetPrefix));
+    return Pair.of(
+        stagingPath, RewriteTablePathUtil.newPath(versionFilePath, sourcePrefix, targetPrefix));
   }
 
   /**
@@ -392,7 +396,9 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
     result.append(rewriteResult);
     // add the manifest list copy plan itself to the result
-    result.copyPlan().add(Pair.of(outputPath, newPath(path, sourcePrefix, targetPrefix)));
+    result
+        .copyPlan()
+        .add(Pair.of(outputPath, RewriteTablePathUtil.newPath(path, sourcePrefix, targetPrefix)));
     return result;
   }
 
@@ -710,15 +716,10 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     return table.io().newInputFile(path).exists();
   }
 
-  private static String newPath(String path, String sourcePrefix, String targetPrefix) {
-    return RewriteTablePathUtil.combinePaths(
-        targetPrefix, RewriteTablePathUtil.relativize(path, sourcePrefix));
-  }
-
   private String getMetadataLocation(Table tbl) {
     String currentMetadataPath =
         ((HasTableOperations) tbl).operations().current().metadataFileLocation();
-    int lastIndex = currentMetadataPath.lastIndexOf(File.separator);
+    int lastIndex = currentMetadataPath.lastIndexOf(RewriteTablePathUtil.FILE_SEPARATOR);
     String metadataDir = "";
     if (lastIndex != -1) {
       metadataDir = currentMetadataPath.substring(0, lastIndex + 1);
