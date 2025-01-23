@@ -24,12 +24,16 @@ import java.util.Map;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.common.DynMethods;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The wrapped IO methods in {@code WrappedIO}, dynamically loaded. Derived from {@code
  * org.apache.hadoop.io.wrappedio.impl.DynamicWrappedIO}.
  */
 public final class DynamicWrappedIO {
+
+  private static final Logger LOG = LoggerFactory.getLogger(DynamicWrappedIO.class);
 
   /** Classname of the wrapped IO class: {@value}. */
   public static final String WRAPPED_IO_CLASSNAME = "org.apache.hadoop.io.wrappedio.WrappedIO";
@@ -66,18 +70,31 @@ public final class DynamicWrappedIO {
     loaded = wrappedIO != null;
 
     // bulk delete APIs
-    bulkDeleteDeleteMethod =
-        BindingUtils.loadStaticMethod(
-            wrappedIO,
-            List.class,
-            BULKDELETE_DELETE,
-            FileSystem.class,
-            Path.class,
-            Collection.class);
+    DynMethods.UnboundMethod deleteMethod;
+    DynMethods.UnboundMethod pageSizeMethod;
+    try {
+      deleteMethod =
+          BindingUtils.loadStaticMethod(
+              wrappedIO,
+              List.class,
+              BULKDELETE_DELETE,
+              FileSystem.class,
+              Path.class,
+              Collection.class);
 
-    bulkDeletePageSizeMethod =
-        BindingUtils.loadStaticMethod(
-            wrappedIO, Integer.class, BULKDELETE_PAGESIZE, FileSystem.class, Path.class);
+      pageSizeMethod =
+          BindingUtils.loadStaticMethod(
+              wrappedIO, Integer.class, BULKDELETE_PAGESIZE, FileSystem.class, Path.class);
+    } catch (RuntimeException e) {
+      // something low level went wrong.
+      // Log, then declare both methods as no-ops
+      LOG.debug("Exception raised while trying to load bulk delete API", e);
+      deleteMethod = BindingUtils.noop(BULKDELETE_DELETE);
+      pageSizeMethod = BindingUtils.noop(BULKDELETE_PAGESIZE);
+    }
+
+    bulkDeleteDeleteMethod = deleteMethod;
+    bulkDeletePageSizeMethod = pageSizeMethod;
   }
 
   /**
@@ -95,7 +112,7 @@ public final class DynamicWrappedIO {
    * @return true if the methods were found.
    */
   public boolean bulkDeleteAvailable() {
-    return !bulkDeleteDeleteMethod.isNoop();
+    return !bulkDeleteDeleteMethod.isNoop() && !bulkDeletePageSizeMethod.isNoop();
   }
 
   /**

@@ -66,7 +66,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   /** Is bulk delete enabled on hadoop runtimes with API support: {@value}. */
   public static final String BULK_DELETE_ENABLED = "iceberg.hadoop.bulk.delete.enabled";
 
-  private static final boolean BULK_DELETE_ENABLED_DEFAULT = true;
+  private static final boolean BULK_DELETE_ENABLED_DEFAULT = false;
   private static final String DELETE_FILE_POOL_NAME = "iceberg-hadoopfileio-delete";
   private static final int DELETE_RETRY_ATTEMPTS = 3;
   private static final int DEFAULT_DELETE_CORE_MULTIPLE = 4;
@@ -253,25 +253,38 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
    */
   @Override
   public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
-    AtomicInteger failureCount = new AtomicInteger(0);
     if (maybeUseBulkDeleteApi()) {
       // bulk delete.
-      failureCount.set(bulkDeleteFiles(pathsToDelete));
-    } else {
-      // classic delete in which each file is deleted individually
-      // in a separate thread.
-      Tasks.foreach(pathsToDelete)
-          .executeWith(executorService())
-          .retry(DELETE_RETRY_ATTEMPTS)
-          .stopRetryOn(FileNotFoundException.class)
-          .suppressFailureWhenFinished()
-          .onFailure(
-              (f, e) -> {
-                LOG.error("Failure during bulk delete on file: {} ", f, e);
-                failureCount.incrementAndGet();
-              })
-          .run(this::deleteFile);
+      try {
+        final int count = bulkDeleteFiles(pathsToDelete);
+        if (count != 0) {
+          throw new BulkDeletionFailureException(count);
+        }
+        // deletion worked.
+        return;
+      } catch (UnsupportedOperationException e) {
+        // Something went very wrong with reflection here.
+        // Probably a mismatch between the hadoop FS APIs and the implementation
+        // class, either due to mocking or library versions.
+
+        // Log and fall back to the classic delete
+        LOG.debug("Failed to use bulk delete -falling back", e);
+      }
     }
+    // classic delete in which each file is deleted individually
+    // in a separate thread.
+    AtomicInteger failureCount = new AtomicInteger(0);
+    Tasks.foreach(pathsToDelete)
+        .executeWith(executorService())
+        .retry(DELETE_RETRY_ATTEMPTS)
+        .stopRetryOn(FileNotFoundException.class)
+        .suppressFailureWhenFinished()
+        .onFailure(
+            (f, e) -> {
+              LOG.error("Failure during bulk delete on file: {} ", f, e);
+              failureCount.incrementAndGet();
+            })
+        .run(this::deleteFile);
     if (failureCount.get() != 0) {
       throw new BulkDeletionFailureException(failureCount.get());
     }
@@ -301,6 +314,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
    * @param pathnames paths to delete.
    * @return count of failures.
    * @throws UncheckedIOException if an IOE was raised in the invoked methods.
+   * @throws UnsupportedOperationException if invoked and the API is not available.
    * @throws RuntimeException if interrupted while waiting for deletions to complete.
    */
   private int bulkDeleteFiles(Iterable<String> pathnames) {
@@ -343,7 +357,15 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
       Path fsRoot = fs.makeQualified(rootPath);
       int pageSize;
       if (!fsPageSizeMap.containsKey(fsRoot)) {
-        pageSize = wrappedIO.bulkDelete_pageSize(fs, rootPath);
+        try {
+          pageSize = wrappedIO.bulkDelete_pageSize(fs, rootPath);
+        } catch (UnsupportedOperationException | UncheckedIOException e) {
+          throw e;
+        } catch (RuntimeException e) {
+          // something else went wrong..downgrade to unsupported.
+          LOG.debug("Failed to invoke bulkDelete_pageSize", e);
+          throw new UnsupportedOperationException("Failed to invoke bulkDelete_pageSize: " + e, e);
+        }
         fsPageSizeMap.put(fsRoot, pageSize);
       } else {
         pageSize = fsPageSizeMap.get(fsRoot);
