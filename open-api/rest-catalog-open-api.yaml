@@ -2946,6 +2946,7 @@ components:
           items:
             type: integer
 
+    # Disabling Row Lineage is Forbidden
     EnableRowLineageUpdate:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
