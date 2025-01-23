@@ -35,10 +35,10 @@ public class RewriteTablePathProcedure extends BaseProcedure {
 
   private static final ProcedureParameter TABLE_PARAM =
       ProcedureParameter.required("table", DataTypes.StringType);
-  private static final ProcedureParameter SOURCE_LOCATION_PARAM =
-      ProcedureParameter.required("source_location_prefix", DataTypes.StringType);
-  private static final ProcedureParameter TARGET_LOCATION_PARAM =
-      ProcedureParameter.required("target_location_prefix", DataTypes.StringType);
+  private static final ProcedureParameter SOURCE_PREFIX_PARAM =
+      ProcedureParameter.required("source_prefix", DataTypes.StringType);
+  private static final ProcedureParameter TARGET_PREFIX_PARAM =
+      ProcedureParameter.required("target_prefix", DataTypes.StringType);
   private static final ProcedureParameter START_VERSION_PARAM =
       ProcedureParameter.optional("start_version", DataTypes.StringType);
   private static final ProcedureParameter END_VERSION_PARM =
@@ -49,8 +49,8 @@ public class RewriteTablePathProcedure extends BaseProcedure {
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
         TABLE_PARAM,
-        SOURCE_LOCATION_PARAM,
-        TARGET_LOCATION_PARAM,
+        SOURCE_PREFIX_PARAM,
+        TARGET_PREFIX_PARAM,
         START_VERSION_PARAM,
         END_VERSION_PARM,
         STAGING_LOCATION_PARAM
@@ -60,7 +60,7 @@ public class RewriteTablePathProcedure extends BaseProcedure {
       new StructType(
           new StructField[] {
             new StructField("latest_version", DataTypes.StringType, true, Metadata.empty()),
-            new StructField("files_list_location", DataTypes.StringType, true, Metadata.empty())
+            new StructField("file_list_location", DataTypes.StringType, true, Metadata.empty())
           });
 
   public static SparkProcedures.ProcedureBuilder builder() {
@@ -90,8 +90,8 @@ public class RewriteTablePathProcedure extends BaseProcedure {
   public InternalRow[] call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
     Identifier tableIdent = input.ident(TABLE_PARAM);
-    String sourcePrefix = input.asString(SOURCE_LOCATION_PARAM);
-    String targetPrefix = input.asString(TARGET_LOCATION_PARAM);
+    String sourcePrefix = input.asString(SOURCE_PREFIX_PARAM);
+    String targetPrefix = input.asString(TARGET_PREFIX_PARAM);
     String startVersion = input.asString(START_VERSION_PARAM, null);
     String endVersion = input.asString(END_VERSION_PARM, null);
     String stagingLocation = input.asString(STAGING_LOCATION_PARAM, null);

@@ -62,7 +62,7 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
         .as("Should return correct latest version")
         .isEqualTo(RewriteTablePathUtil.fileName(metadataJson));
     assertThat(result.get(0)[1])
-        .as("Should return files_list_location")
+        .as("Should return file_list_location")
         .asString()
         .startsWith(table.location())
         .endsWith("file-list");
@@ -88,8 +88,8 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
         sql(
             "CALL %s.system.rewrite_table_path("
                 + "table => '%s', "
-                + "target_location_prefix => '%s', "
-                + "source_location_prefix => '%s', "
+                + "target_prefix => '%s', "
+                + "source_prefix => '%s', "
                 + "end_version => '%s', "
                 + "start_version => '%s', "
                 + "staging_location => '%s')",
@@ -103,7 +103,7 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
     assertThat(result).hasSize(1);
     assertThat(result.get(0)[0]).as("Should return correct latest version").isEqualTo(v1Metadata);
     assertThat(result.get(0)[1])
-        .as("Should return correct files_list_location")
+        .as("Should return correct file_list_location")
         .isEqualTo(expectedFileListLocation);
     checkFileListLocationCount((String) result.get(0)[1], 4);
   }
@@ -115,15 +115,14 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_table_path('%s')", catalogName, tableIdent))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(
-            "Missing required parameters: [source_location_prefix,target_location_prefix]");
+        .hasMessageContaining("Missing required parameters: [source_prefix,target_prefix]");
     assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_table_path('%s','%s')",
                     catalogName, tableIdent, targetLocation))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Missing required parameters: [target_location_prefix]");
+        .hasMessageContaining("Missing required parameters: [target_prefix]");
     assertThatThrownBy(
             () ->
                 sql(
@@ -141,8 +140,8 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
                 sql(
                     "CALL %s.system.rewrite_table_path("
                         + "table => '%s', "
-                        + "source_location_prefix => '%s', "
-                        + "target_location_prefix => '%s', "
+                        + "source_prefix => '%s', "
+                        + "target_prefix => '%s', "
                         + "start_version => '%s')",
                     catalogName, tableIdent, table.location(), targetLocation, "v20.metadata.json"))
         .isInstanceOf(IllegalArgumentException.class)
@@ -153,8 +152,8 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
                 sql(
                     "CALL %s.system.rewrite_table_path("
                         + "table => '%s', "
-                        + "source_location_prefix => '%s', "
-                        + "target_location_prefix => '%s', "
+                        + "source_prefix => '%s', "
+                        + "target_prefix => '%s', "
                         + "start_version => '%s',"
                         + "end_version => '%s')",
                     catalogName,
