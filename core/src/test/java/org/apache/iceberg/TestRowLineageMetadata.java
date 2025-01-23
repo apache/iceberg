@@ -316,6 +316,74 @@ public class TestRowLineageMetadata {
     assertThat(table.ops().current().rowLineageEnabled()).isTrue();
   }
 
+  @TestTemplate
+  public void testEnableRowLineageWithEqualityDeletes() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+
+    TestTables.TestTable table =
+        TestTables.create(
+            tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
+
+    assertThat(table.ops().current().rowLineageEnabled()).isFalse();
+
+    DeleteFile equalityDelete =
+        new GenericDeleteFile(
+            table.spec().specId(),
+            FileContent.EQUALITY_DELETES,
+            "file://equality.parquet",
+            FileFormat.PARQUET,
+            BaseFile.EMPTY_PARTITION_DATA,
+            100,
+            new Metrics(1L, null, null, null, null),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+
+    table.newRowDelta().addDeletes(equalityDelete).commit();
+
+    assertThatThrownBy(
+            () -> table.updateProperties().set(TableProperties.ROW_LINEAGE, "true").commit())
+        .hasMessageContaining(
+            "Cannot enable 'row-lineage' on a table that currently has equality deletes");
+  }
+
+  @TestTemplate
+  public void testAddEqualityDeletesWithRowLineageEnabled() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+
+    TestTables.TestTable table =
+        TestTables.create(
+            tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
+
+    table.updateProperties().set(TableProperties.ROW_LINEAGE, "true").commit();
+    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
+
+    DeleteFile equalityDelete =
+        new GenericDeleteFile(
+            table.spec().specId(),
+            FileContent.EQUALITY_DELETES,
+            "file://equality.parquet",
+            FileFormat.PARQUET,
+            BaseFile.EMPTY_PARTITION_DATA,
+            100,
+            new Metrics(1L, null, null, null, null),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+
+    assertThatThrownBy(() -> table.newRowDelta().addDeletes(equalityDelete).commit())
+        .hasMessageContaining(
+            "Cannot add a snapshot with equality deletes when 'row-lineage' is enabled");
+  }
+
   private final AtomicInteger fileNum = new AtomicInteger(0);
 
   private DataFile fileWithRows(long numRows) {

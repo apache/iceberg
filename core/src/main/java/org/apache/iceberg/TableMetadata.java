@@ -1278,6 +1278,17 @@ public class TableMetadata implements Serializable {
             snapshot.addedRows() >= 0,
             "Cannot decrease 'last-row-id'. 'last-row-id' must increase monotonically. Snapshot reports %s added rows");
 
+        // This is our best effort for checking for equality deletes without reading manifests
+        if (snapshot.summary() != null) {
+          Long reportedEqualityDeletes =
+              Long.valueOf(
+                  snapshot.summary().getOrDefault(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "0"));
+          Preconditions.checkArgument(
+              reportedEqualityDeletes == 0,
+              "Cannot add a snapshot with equality deletes when 'row-lineage' is enabled. Snapshot reported %s equality deletes",
+              reportedEqualityDeletes);
+        }
+
         this.nextRowId += snapshot.addedRows();
       }
 
@@ -1542,6 +1553,20 @@ public class TableMetadata implements Serializable {
           "Cannot use row lineage with format version %s. Only format version %s or higher support row lineage",
           formatVersion,
           MIN_FORMAT_VERSION_ROW_LINEAGE);
+
+      if (base != null && base.currentSnapshot() != null) {
+        // This is our best effort for checking for equality deletes without reading manifests
+        Long reportedEqualityDeletes =
+            Long.valueOf(
+                base.currentSnapshot()
+                    .summary()
+                    .getOrDefault(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "0"));
+        Preconditions.checkArgument(
+            reportedEqualityDeletes == 0,
+            "Cannot enable 'row-lineage' on a table that currently has equality deletes. Current snapshot reports %s equality deletes",
+            reportedEqualityDeletes);
+      }
+
       this.rowLineage = true;
       changes.add(new MetadataUpdate.EnableRowLineage());
       return this;
