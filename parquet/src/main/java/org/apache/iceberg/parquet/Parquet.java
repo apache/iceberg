@@ -138,7 +138,6 @@ public class Parquet {
     return read(inputFile);
   }
 
-
   private static final Collection<String> READ_PROPERTIES_TO_REMOVE =
       Sets.newHashSet(
           "parquet.read.filter",

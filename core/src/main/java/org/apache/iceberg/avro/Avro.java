@@ -727,7 +727,8 @@ public class Avro {
     }
 
     @Override
-    public InternalData.ReadBuilder setCustomType(int fieldId, Class<? extends StructLike> structClass) {
+    public InternalData.ReadBuilder setCustomType(
+        int fieldId, Class<? extends StructLike> structClass) {
       typeMap.put(fieldId, structClass);
       return this;
     }
