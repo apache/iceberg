@@ -62,6 +62,7 @@ import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.InternalData;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -125,6 +126,19 @@ public class Parquet {
 
   private Parquet() {}
 
+  public void register() {
+    InternalData.register(FileFormat.PARQUET, Parquet::writeInternal, Parquet::readInternal);
+  }
+
+  private static WriteBuilder writeInternal(OutputFile outputFile) {
+    return write(outputFile);
+  }
+
+  private static ReadBuilder readInternal(InputFile inputFile) {
+    return read(inputFile);
+  }
+
+
   private static final Collection<String> READ_PROPERTIES_TO_REMOVE =
       Sets.newHashSet(
           "parquet.read.filter",
@@ -133,6 +147,10 @@ public class Parquet {
           "parquet.crypto.factory.class");
 
   public static WriteBuilder write(OutputFile file) {
+    if (file instanceof EncryptedOutputFile) {
+      return write((EncryptedOutputFile) file);
+    }
+
     return new WriteBuilder(file);
   }
 
@@ -147,7 +165,7 @@ public class Parquet {
     }
   }
 
-  public static class WriteBuilder {
+  public static class WriteBuilder implements InternalData.WriteBuilder {
     private final OutputFile file;
     private final Configuration conf;
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
@@ -1056,7 +1074,7 @@ public class Parquet {
     }
   }
 
-  public static class ReadBuilder {
+  public static class ReadBuilder implements InternalData.ReadBuilder {
     private final InputFile file;
     private final Map<String, String> properties = Maps.newHashMap();
     private Long start = null;
@@ -1169,6 +1187,16 @@ public class Parquet {
     public ReadBuilder withNameMapping(NameMapping newNameMapping) {
       this.nameMapping = newNameMapping;
       return this;
+    }
+
+    @Override
+    public ReadBuilder setRootType(Class<? extends StructLike> rootClass) {
+      throw new UnsupportedOperationException("Custom types are not yet supported");
+    }
+
+    @Override
+    public ReadBuilder setCustomType(int fieldId, Class<? extends StructLike> structClass) {
+      throw new UnsupportedOperationException("Custom types are not yet supported");
     }
 
     public ReadBuilder withFileEncryptionKey(ByteBuffer encryptionKey) {
