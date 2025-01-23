@@ -119,11 +119,11 @@ public class RewriteTablePathProcedure extends BaseProcedure {
   }
 
   private InternalRow[] toOutputRows(RewriteTablePath.Result result) {
-    InternalRow row =
-        newInternalRow(
-            UTF8String.fromString(result.latestVersion()),
-            UTF8String.fromString(result.fileListLocation()));
-    return new InternalRow[] {row};
+    return new InternalRow[] {
+      newInternalRow(
+          UTF8String.fromString(result.latestVersion()),
+          UTF8String.fromString(result.fileListLocation()))
+    };
   }
 
   @Override
