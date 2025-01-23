@@ -24,6 +24,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
@@ -320,5 +322,28 @@ public class TestAlterTable extends CatalogTestBase {
           .hasMessageStartingWith(
               "Cannot specify the '%s' because it's a reserved table property", reservedProp);
     }
+  }
+
+  @TestTemplate
+  public void testRenameAndAddPartitionKey() {
+    sql(
+        "REPLACE TABLE %s USING iceberg PARTITIONED BY (data) AS SELECT * FROM %s",
+        tableName, tableName);
+    sql("ALTER TABLE %s RENAME COLUMN data TO data1", tableName);
+    sql("ALTER TABLE %s ADD COLUMN data INT", tableName);
+
+    Types.StructType expectedSchema =
+        Types.StructType.of(
+            NestedField.optional(1, "id", Types.LongType.get()),
+            NestedField.optional(2, "data1", Types.StringType.get()),
+            NestedField.optional(3, "data", Types.IntegerType.get()));
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.schema().asStruct())
+        .as("Schema should match expected")
+        .isEqualTo(expectedSchema);
+    assertThat(table.spec().fields())
+        .hasSameElementsAs(
+            PartitionSpec.builderFor(table.schema()).identity("data1").build().fields());
   }
 }

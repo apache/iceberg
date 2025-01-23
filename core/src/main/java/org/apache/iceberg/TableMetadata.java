@@ -745,7 +745,12 @@ public class TableMetadata implements Serializable {
 
     // add all the fields to the builder. IDs should not change.
     for (PartitionField field : partitionSpec.fields()) {
-      specBuilder.add(field.sourceId(), field.fieldId(), field.name(), field.transform());
+      specBuilder.add(
+          field.sourceId(),
+          field.fieldId(),
+          // TODO: handle other partition types.
+          field.transform().isIdentity() ? schema.findColumnName(field.sourceId()) : field.name(),
+          field.transform());
     }
 
     // build without validation because the schema may have changed in a way that makes this spec
@@ -1071,7 +1076,6 @@ public class TableMetadata implements Serializable {
       Schema schema = schemasById.get(schemaId);
       Preconditions.checkArgument(
           schema != null, "Cannot set current schema to unknown schema: %s", schemaId);
-
       // rebuild all the partition specs and sort orders for the new current schema
       this.specs =
           Lists.newArrayList(Iterables.transform(specs, spec -> updateSpecSchema(schema, spec)));

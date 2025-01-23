@@ -1214,6 +1214,30 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void testRenameIdentityPartitionKey() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "x", Types.LongType.get()),
+            Types.NestedField.required(2, "y", Types.LongType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).withSpecId(0).identity("x").build();
+    String location = "file://tmp/db/table";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            schema, spec, SortOrder.unsorted(), location, ImmutableMap.of(), 2);
+    assertThat(metadata.spec()).isEqualTo(spec);
+    Schema updatedSchema =
+        new Schema(
+            Types.NestedField.required(1, "z", Types.LongType.get()),
+            Types.NestedField.required(2, "y", Types.LongType.get()));
+
+    TableMetadata updated = metadata.updateSchema(updatedSchema);
+
+    PartitionSpec expected =
+        PartitionSpec.builderFor(updated.schema()).add(1, 1000, "z", Transforms.identity()).build();
+    assertThat(updated.spec()).isEqualTo(expected);
+  }
+
+  @Test
   public void testStatistics() {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
