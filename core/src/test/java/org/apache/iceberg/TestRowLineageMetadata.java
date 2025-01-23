@@ -41,8 +41,7 @@ public class TestRowLineageMetadata {
     return Ints.asList(TestHelpers.ALL_VERSIONS);
   }
 
-  @Parameter
-  private int formatVersion;
+  @Parameter private int formatVersion;
 
   private static final String TEST_LOCATION = "s3://bucket/test/location";
 
