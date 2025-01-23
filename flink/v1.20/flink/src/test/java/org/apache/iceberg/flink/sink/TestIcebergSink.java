@@ -141,6 +141,13 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @TestTemplate
+  void testWriteRowWithTableSchemaRANGE() throws Exception {
+    if (partitioned) {
+      testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.RANGE);
+    }
+  }
+
+  @TestTemplate
   void testJobNoneDistributeMode() throws Exception {
     table
         .updateProperties()
