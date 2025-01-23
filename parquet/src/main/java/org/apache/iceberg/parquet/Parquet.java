@@ -126,7 +126,7 @@ public class Parquet {
 
   private Parquet() {}
 
-  public void register() {
+  public static void register() {
     InternalData.register(FileFormat.PARQUET, Parquet::writeInternal, Parquet::readInternal);
   }
 
