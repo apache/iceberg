@@ -88,4 +88,10 @@ public interface ActionsProvider {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement removeDanglingDeleteFiles");
   }
+
+  /** Instantiates an action to remove missing files */
+  default RemoveMissingFiles removeMissingFiles(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement removeMissingFiles");
+  }
 }

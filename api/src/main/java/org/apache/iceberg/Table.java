@@ -277,6 +277,17 @@ public interface Table {
   DeleteFiles newDelete();
 
   /**
+   * Create a new {@link RemoveMissingFiles remove files API} to remove files in this table and
+   * commit.
+   *
+   * @return a new {@link RemoveMissingFiles}
+   */
+  default RemoveMissingFiles newRemoveFiles() {
+    throw new UnsupportedOperationException(
+        "Removing files is not supported by " + getClass().getName());
+  }
+
+  /**
    * Create a new {@link UpdateStatistics update table statistics API} to add or remove statistics
    * files in this table.
    *
