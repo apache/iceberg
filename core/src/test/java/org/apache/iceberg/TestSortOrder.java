@@ -36,6 +36,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SortOrderUtil;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -342,20 +343,11 @@ public class TestSortOrder {
         .hasMessage("Unsupported type for identity: variant");
   }
 
-  @TestTemplate
-  public void testUnknownUnsupported() {
-    Schema v3Schema =
-        new Schema(
-            Types.NestedField.required(3, "id", Types.LongType.get()),
-            Types.NestedField.required(4, "data", Types.StringType.get()),
-            Types.NestedField.required(
-                5,
-                "struct",
-                Types.StructType.of(Types.NestedField.optional(6, "u", Types.UnknownType.get()))));
+  @Test
+  public void testUnknownSupported() {
+    Schema v3Schema = new Schema(Types.NestedField.optional(1, "u", Types.UnknownType.get()));
 
-    assertThatThrownBy(() -> SortOrder.builderFor(v3Schema).withOrderId(10).asc("struct.u").build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Unsupported type for identity: unknown");
+    SortOrder.builderFor(v3Schema).withOrderId(10).asc("u").build();
   }
 
   @TestTemplate

@@ -39,9 +39,7 @@ class Identity<T> implements Transform<T, T> {
   @Deprecated
   public static <I> Identity<I> get(Type type) {
     Preconditions.checkArgument(
-        type.typeId() != Type.TypeID.VARIANT && type.typeId() != Type.TypeID.UNKNOWN,
-        "Unsupported type for identity: %s",
-        type);
+        type.typeId() != Type.TypeID.VARIANT, "Unsupported type for identity: %s", type);
 
     return new Identity<>(type);
   }
