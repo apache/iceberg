@@ -21,7 +21,7 @@ package org.apache.iceberg.data.parquet;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.Record;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.types.Types.StructType;
@@ -31,25 +31,28 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
-public class InternalReader extends BaseParquetReaders<Record> {
+public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> {
 
-  private static final InternalReader INSTANCE = new InternalReader();
+  private static final InternalReader<?> INSTANCE = new InternalReader<>();
 
   private InternalReader() {}
 
-  public static ParquetValueReader<Record> create(Schema expectedSchema, MessageType fileSchema) {
-    return INSTANCE.createReader(expectedSchema, fileSchema);
+  @SuppressWarnings("unchecked")
+  public static <T extends StructLike> ParquetValueReader<T> create(Schema expectedSchema, MessageType fileSchema) {
+    return (ParquetValueReader<T>) INSTANCE.createReader(expectedSchema, fileSchema);
   }
 
-  public static ParquetValueReader<Record> create(
+  @SuppressWarnings("unchecked")
+  public static <T extends StructLike> ParquetValueReader<T> create(
       Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
-    return INSTANCE.createReader(expectedSchema, fileSchema, idToConstant);
+    return (ParquetValueReader<T>) INSTANCE.createReader(expectedSchema, fileSchema, idToConstant);
   }
 
   @Override
-  protected ParquetValueReader<Record> createStructReader(
+  @SuppressWarnings("unchecked")
+  protected ParquetValueReader<T> createStructReader(
       List<Type> types, List<ParquetValueReader<?>> fieldReaders, StructType structType) {
-    return ParquetValueReaders.recordReader(types, fieldReaders, structType);
+    return (ParquetValueReader<T>) ParquetValueReaders.recordReader(types, fieldReaders, structType);
   }
 
   @Override
@@ -66,7 +69,7 @@ public class InternalReader extends BaseParquetReaders<Record> {
   protected ParquetValueReader<?> timeReader(
       ColumnDescriptor desc, LogicalTypeAnnotation.TimeUnit unit) {
     if (unit == LogicalTypeAnnotation.TimeUnit.MILLIS) {
-      return ParquetValueReaders.millisAsTimestamps(desc);
+      return ParquetValueReaders.millisAsTimes(desc);
     }
 
     return new ParquetValueReaders.UnboxedReader<>(desc);

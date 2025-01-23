@@ -33,17 +33,18 @@ import org.apache.parquet.schema.MessageType;
  * <p>Iceberg's internal in-memory object model produces the types defined in {@link
  * Type.TypeID#javaClass()}.
  */
-public class InternalWriter extends BaseParquetWriter<StructLike> {
-  private static final InternalWriter INSTANCE = new InternalWriter();
+public class InternalWriter<T extends StructLike> extends BaseParquetWriter<T> {
+  private static final InternalWriter<?> INSTANCE = new InternalWriter<>();
 
   private InternalWriter() {}
 
-  public static ParquetValueWriter<StructLike> create(MessageType type) {
-    return INSTANCE.createWriter(type);
+  @SuppressWarnings("unchecked")
+  public static <T extends StructLike> ParquetValueWriter<T> create(MessageType type) {
+    return (ParquetValueWriter<T>) INSTANCE.createWriter(type);
   }
 
   @Override
-  protected StructWriter<StructLike> createStructWriter(List<ParquetValueWriter<?>> writers) {
+  protected StructWriter<T> createStructWriter(List<ParquetValueWriter<?>> writers) {
     return ParquetValueWriters.recordWriter(writers);
   }
 

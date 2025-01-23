@@ -77,6 +77,10 @@ public class ParquetValueReaders {
     return new ParquetValueReaders.TimestampInt96Reader(desc);
   }
 
+  public static ParquetValueReader<Long> millisAsTimes(ColumnDescriptor desc) {
+    return new ParquetValueReaders.TimeMillisReader(desc);
+  }
+
   public static ParquetValueReader<Long> millisAsTimestamps(ColumnDescriptor desc) {
     return new ParquetValueReaders.TimestampMillisReader(desc);
   }
@@ -465,6 +469,22 @@ public class ParquetValueReaders {
     }
   }
 
+  private static class TimeMillisReader extends UnboxedReader<Long> {
+    private TimeMillisReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Long read(Long ignored) {
+      return readLong();
+    }
+
+    @Override
+    public long readLong() {
+      return 1000L * column.nextInteger();
+    }
+  }
+
   private static class TimestampMillisReader extends UnboxedReader<Long> {
     private TimestampMillisReader(ColumnDescriptor desc) {
       super(desc);
@@ -477,7 +497,7 @@ public class ParquetValueReaders {
 
     @Override
     public long readLong() {
-      return 1000L * column.nextInteger();
+      return 1000L * column.nextLong();
     }
   }
 
