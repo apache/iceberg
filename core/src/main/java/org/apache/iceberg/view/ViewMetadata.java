@@ -469,7 +469,8 @@ public interface ViewMetadata extends Serializable {
       List<ViewVersion> retainedVersions;
       List<ViewHistoryEntry> retainedHistory;
       if (versions.size() > numVersionsToKeep) {
-        retainedVersions = expireVersions(versionsById, numVersionsToKeep);
+        retainedVersions =
+            expireVersions(versionsById, numVersionsToKeep, versionsById.get(currentVersionId));
         Set<Integer> retainedVersionIds =
             retainedVersions.stream().map(ViewVersion::versionId).collect(Collectors.toSet());
         retainedHistory = updateHistory(history, retainedVersionIds);
@@ -493,14 +494,24 @@ public interface ViewMetadata extends Serializable {
 
     @VisibleForTesting
     static List<ViewVersion> expireVersions(
-        Map<Integer, ViewVersion> versionsById, int numVersionsToKeep) {
+        Map<Integer, ViewVersion> versionsById, int numVersionsToKeep, ViewVersion currentVersion) {
       // version ids are assigned sequentially. keep the latest versions by ID.
       List<Integer> ids = Lists.newArrayList(versionsById.keySet());
       ids.sort(Comparator.reverseOrder());
 
       List<ViewVersion> retainedVersions = Lists.newArrayList();
+      // always retain the current version
+      retainedVersions.add(currentVersion);
+
       for (int idToKeep : ids.subList(0, numVersionsToKeep)) {
-        retainedVersions.add(versionsById.get(idToKeep));
+        if (retainedVersions.size() == numVersionsToKeep) {
+          break;
+        }
+
+        ViewVersion version = versionsById.get(idToKeep);
+        if (currentVersion.versionId() != version.versionId()) {
+          retainedVersions.add(version);
+        }
       }
 
       return retainedVersions;
