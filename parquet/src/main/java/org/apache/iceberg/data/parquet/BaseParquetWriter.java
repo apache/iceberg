@@ -66,11 +66,6 @@ public abstract class BaseParquetWriter<T> {
     }
   }
 
-  protected ParquetValueWriter<?> uuidWriter(ColumnDescriptor desc) {
-    // Use primitive-type writer (as FIXED_LEN_BYTE_ARRAY); no special writer needed.
-    return null;
-  }
-
   private class WriteBuilder extends ParquetTypeVisitor<ParquetValueWriter<?>> {
     private final MessageType type;
 
@@ -212,12 +207,7 @@ public abstract class BaseParquetWriter<T> {
     @Override
     public Optional<ParquetValueWriter<?>> visit(
         LogicalTypeAnnotation.DateLogicalTypeAnnotation dateType) {
-      ParquetValueWriter<?> dateWriter = dateWriter(desc);
-      if (dateWriter != null) {
-        return Optional.of(dateWriter(desc));
-      }
-
-      return LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(dateType);
+      return Optional.of(dateWriter(desc));
     }
 
     @Override
@@ -227,12 +217,7 @@ public abstract class BaseParquetWriter<T> {
           LogicalTypeAnnotation.TimeUnit.MICROS.equals(timeType.getUnit()),
           "Cannot write time in %s, only MICROS is supported",
           timeType.getUnit());
-      ParquetValueWriter<?> timeWriter = timeWriter(desc);
-      if (timeWriter != null) {
-        return Optional.of(timeWriter);
-      }
-
-      return LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(timeType);
+      return Optional.of(timeWriter(desc));
     }
 
     @Override
@@ -242,13 +227,7 @@ public abstract class BaseParquetWriter<T> {
           LogicalTypeAnnotation.TimeUnit.MICROS.equals(timestampType.getUnit()),
           "Cannot write timestamp in %s, only MICROS is supported",
           timestampType.getUnit());
-      ParquetValueWriter<?> timestampWriter =
-          timestampWriter(desc, timestampType.isAdjustedToUTC());
-      if (timestampWriter != null) {
-        return Optional.of(timestampWriter);
-      }
-
-      return LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(timestampType);
+      return Optional.of(timestampWriter(desc, timestampType.isAdjustedToUTC()));
     }
 
     @Override
@@ -279,12 +258,7 @@ public abstract class BaseParquetWriter<T> {
     @Override
     public Optional<ParquetValueWriter<?>> visit(
         LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
-      ParquetValueWriter<?> uuidWriter = uuidWriter(desc);
-      if (uuidWriter != null) {
-        return Optional.of(uuidWriter);
-      }
-
-      return LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(uuidLogicalType);
+      return Optional.of(ParquetValueWriters.uuids(desc));
     }
   }
 }

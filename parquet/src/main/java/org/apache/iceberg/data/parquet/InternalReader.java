@@ -21,7 +21,7 @@ package org.apache.iceberg.data.parquet;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.StructLike;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.types.Types.StructType;
@@ -31,24 +31,23 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
-public class InternalReader extends BaseParquetReaders<StructLike> {
+public class InternalReader extends BaseParquetReaders<Record> {
 
   private static final InternalReader INSTANCE = new InternalReader();
 
   private InternalReader() {}
 
-  public static ParquetValueReader<StructLike> create(
-      Schema expectedSchema, MessageType fileSchema) {
+  public static ParquetValueReader<Record> create(Schema expectedSchema, MessageType fileSchema) {
     return INSTANCE.createReader(expectedSchema, fileSchema);
   }
 
-  public static ParquetValueReader<StructLike> create(
+  public static ParquetValueReader<Record> create(
       Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
     return INSTANCE.createReader(expectedSchema, fileSchema, idToConstant);
   }
 
   @Override
-  protected ParquetValueReader<StructLike> createStructReader(
+  protected ParquetValueReader<Record> createStructReader(
       List<Type> types, List<ParquetValueReader<?>> fieldReaders, StructType structType) {
     return ParquetValueReaders.recordReader(types, fieldReaders, structType);
   }

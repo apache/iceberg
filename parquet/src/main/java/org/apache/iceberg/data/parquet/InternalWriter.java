@@ -54,24 +54,16 @@ public class InternalWriter extends BaseParquetWriter<StructLike> {
 
   @Override
   protected ParquetValueWriter<?> dateWriter(ColumnDescriptor desc) {
-    // Use primitive-type writer; no special writer needed.
-    return null;
+    return ParquetValueWriters.ints(desc);
   }
 
   @Override
   protected ParquetValueWriter<?> timeWriter(ColumnDescriptor desc) {
-    // Use primitive-type writer; no special writer needed.
-    return null;
+    return ParquetValueWriters.longs(desc);
   }
 
   @Override
   protected ParquetValueWriter<?> timestampWriter(ColumnDescriptor desc, boolean isAdjustedToUTC) {
-    // Use primitive-type writer; no special writer needed.
-    return null;
-  }
-
-  @Override
-  protected ParquetValueWriter<?> uuidWriter(ColumnDescriptor desc) {
-    return ParquetValueWriters.uuids(desc);
+    return ParquetValueWriters.longs(desc);
   }
 }

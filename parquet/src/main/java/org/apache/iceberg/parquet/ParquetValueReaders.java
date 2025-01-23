@@ -29,8 +29,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -81,9 +81,9 @@ public class ParquetValueReaders {
     return new ParquetValueReaders.TimestampMillisReader(desc);
   }
 
-  public static <T extends StructLike> StructReader<T, T> recordReader(
+  public static ParquetValueReader<Record> recordReader(
       List<Type> types, List<ParquetValueReader<?>> readers, Types.StructType struct) {
-    return new RecordReader<>(types, readers, struct);
+    return new RecordReader(types, readers, struct);
   }
 
   private static class NullReader<T> implements ParquetValueReader<T> {
@@ -920,40 +920,37 @@ public class ParquetValueReaders {
     }
   }
 
-  private static class RecordReader<T extends StructLike> extends StructReader<T, T> {
+  private static class RecordReader extends StructReader<Record, Record> {
     private final GenericRecord template;
 
-    private RecordReader(
-        List<Type> types, List<ParquetValueReader<?>> readers, Types.StructType struct) {
+    RecordReader(List<Type> types, List<ParquetValueReader<?>> readers, Types.StructType struct) {
       super(types, readers);
       this.template = struct != null ? GenericRecord.create(struct) : null;
     }
 
     @Override
-    protected T newStructData(T reuse) {
+    protected Record newStructData(Record reuse) {
       if (reuse != null) {
         return reuse;
       } else {
-        // GenericRecord.copy() is more performant then GenericRecord.create(StructType) since
-        // NAME_MAP_CACHE access
-        // is eliminated. Using copy here to gain performance.
-        return (T) template.copy();
+        // GenericRecord.copy() is more performant than GenericRecord.create(StructType) since
+        // NAME_MAP_CACHE access is eliminated. Using copy here to gain performance.
+        return template.copy();
       }
     }
 
     @Override
-    protected Object getField(T intermediate, int pos) {
-      // Use StructLike's get method
-      return intermediate.get(pos, Object.class);
+    protected Object getField(Record intermediate, int pos) {
+      return intermediate.get(pos);
     }
 
     @Override
-    protected T buildStruct(T struct) {
+    protected Record buildStruct(Record struct) {
       return struct;
     }
 
     @Override
-    protected void set(T struct, int pos, Object value) {
+    protected void set(Record struct, int pos, Object value) {
       struct.set(pos, value);
     }
   }

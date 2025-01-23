@@ -70,8 +70,8 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
-  protected static class DateReader extends ParquetValueReaders.PrimitiveReader<LocalDate> {
-    protected DateReader(ColumnDescriptor desc) {
+  static class DateReader extends ParquetValueReaders.PrimitiveReader<LocalDate> {
+    DateReader(ColumnDescriptor desc) {
       super(desc);
     }
 
@@ -81,9 +81,8 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     }
   }
 
-  protected static class TimestampReader
-      extends ParquetValueReaders.PrimitiveReader<LocalDateTime> {
-    protected TimestampReader(ColumnDescriptor desc) {
+  static class TimestampReader extends ParquetValueReaders.PrimitiveReader<LocalDateTime> {
+    TimestampReader(ColumnDescriptor desc) {
       super(desc);
     }
 
@@ -93,9 +92,8 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     }
   }
 
-  protected static class TimestampMillisReader
-      extends ParquetValueReaders.PrimitiveReader<LocalDateTime> {
-    protected TimestampMillisReader(ColumnDescriptor desc) {
+  static class TimestampMillisReader extends ParquetValueReaders.PrimitiveReader<LocalDateTime> {
+    TimestampMillisReader(ColumnDescriptor desc) {
       super(desc);
     }
 
@@ -105,11 +103,10 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     }
   }
 
-  protected static class TimestampInt96Reader
-      extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
+  static class TimestampInt96Reader extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
     private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
 
-    protected TimestampInt96Reader(ColumnDescriptor desc) {
+    TimestampInt96Reader(ColumnDescriptor desc) {
       super(desc);
     }
 
@@ -126,9 +123,8 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     }
   }
 
-  protected static class TimestamptzReader
-      extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
-    protected TimestamptzReader(ColumnDescriptor desc) {
+  static class TimestamptzReader extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
+    TimestamptzReader(ColumnDescriptor desc) {
       super(desc);
     }
 
@@ -138,9 +134,8 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     }
   }
 
-  protected static class TimestamptzMillisReader
-      extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
-    protected TimestamptzMillisReader(ColumnDescriptor desc) {
+  static class TimestamptzMillisReader extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
+    TimestamptzMillisReader(ColumnDescriptor desc) {
       super(desc);
     }
 
@@ -150,8 +145,8 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     }
   }
 
-  protected static class TimeMillisReader extends ParquetValueReaders.PrimitiveReader<LocalTime> {
-    protected TimeMillisReader(ColumnDescriptor desc) {
+  static class TimeMillisReader extends ParquetValueReaders.PrimitiveReader<LocalTime> {
+    TimeMillisReader(ColumnDescriptor desc) {
       super(desc);
     }
 
@@ -161,8 +156,8 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     }
   }
 
-  protected static class TimeReader extends ParquetValueReaders.PrimitiveReader<LocalTime> {
-    protected TimeReader(ColumnDescriptor desc) {
+  static class TimeReader extends ParquetValueReaders.PrimitiveReader<LocalTime> {
+    TimeReader(ColumnDescriptor desc) {
       super(desc);
     }
 
@@ -172,8 +167,8 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     }
   }
 
-  protected static class FixedReader extends ParquetValueReaders.PrimitiveReader<byte[]> {
-    protected FixedReader(ColumnDescriptor desc) {
+  static class FixedReader extends ParquetValueReaders.PrimitiveReader<byte[]> {
+    FixedReader(ColumnDescriptor desc) {
       super(desc);
     }
 

@@ -86,7 +86,7 @@ public abstract class BaseParquetReaders<T> {
       case MILLIS:
         return new GenericParquetReaders.TimeMillisReader(desc);
       default:
-        throw new UnsupportedOperationException("Unsupported Unit: " + unit);
+        throw new UnsupportedOperationException("Unsupported unit for time: " + unit);
     }
   }
 
@@ -106,7 +106,7 @@ public abstract class BaseParquetReaders<T> {
             ? new GenericParquetReaders.TimestamptzMillisReader(desc)
             : new GenericParquetReaders.TimestampMillisReader(desc);
       default:
-        throw new UnsupportedOperationException("Unsupported Unit: " + unit);
+        throw new UnsupportedOperationException("Unsupported unit for timestamp: " + unit);
     }
   }
 

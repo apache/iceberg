@@ -52,8 +52,8 @@ public class GenericParquetWriter extends BaseParquetWriter<Record> {
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
-  protected static class DateWriter extends ParquetValueWriters.PrimitiveWriter<LocalDate> {
-    protected DateWriter(ColumnDescriptor desc) {
+  static class DateWriter extends ParquetValueWriters.PrimitiveWriter<LocalDate> {
+    DateWriter(ColumnDescriptor desc) {
       super(desc);
     }
 
@@ -63,8 +63,8 @@ public class GenericParquetWriter extends BaseParquetWriter<Record> {
     }
   }
 
-  protected static class TimeWriter extends ParquetValueWriters.PrimitiveWriter<LocalTime> {
-    protected TimeWriter(ColumnDescriptor desc) {
+  static class TimeWriter extends ParquetValueWriters.PrimitiveWriter<LocalTime> {
+    TimeWriter(ColumnDescriptor desc) {
       super(desc);
     }
 
@@ -74,9 +74,8 @@ public class GenericParquetWriter extends BaseParquetWriter<Record> {
     }
   }
 
-  protected static class TimestampWriter
-      extends ParquetValueWriters.PrimitiveWriter<LocalDateTime> {
-    protected TimestampWriter(ColumnDescriptor desc) {
+  static class TimestampWriter extends ParquetValueWriters.PrimitiveWriter<LocalDateTime> {
+    TimestampWriter(ColumnDescriptor desc) {
       super(desc);
     }
 
@@ -87,9 +86,8 @@ public class GenericParquetWriter extends BaseParquetWriter<Record> {
     }
   }
 
-  protected static class TimestamptzWriter
-      extends ParquetValueWriters.PrimitiveWriter<OffsetDateTime> {
-    protected TimestamptzWriter(ColumnDescriptor desc) {
+  static class TimestamptzWriter extends ParquetValueWriters.PrimitiveWriter<OffsetDateTime> {
+    TimestamptzWriter(ColumnDescriptor desc) {
       super(desc);
     }
 
@@ -99,10 +97,10 @@ public class GenericParquetWriter extends BaseParquetWriter<Record> {
     }
   }
 
-  protected static class FixedWriter extends ParquetValueWriters.PrimitiveWriter<byte[]> {
+  static class FixedWriter extends ParquetValueWriters.PrimitiveWriter<byte[]> {
     private final int length;
 
-    protected FixedWriter(ColumnDescriptor desc) {
+    FixedWriter(ColumnDescriptor desc) {
       super(desc);
       this.length = desc.getPrimitiveType().getTypeLength();
     }
