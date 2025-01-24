@@ -203,105 +203,121 @@
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache Avro.
+The binary artifact contains code from the following projects:
 
+--------------------------------------------------------------------------------
+
+Group: org.apache.avro  Name: avro  Version: 1.7.4
 Copyright: 2014-2020 The Apache Software Foundation.
-Home page: https://parquet.apache.org/
+Home page: https://avro.apache.org/
 License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains the Jackson JSON processor.
-
-Copyright: 2007-2020 Tatu Saloranta and other contributors
-Home page: http://jackson.codehaus.org/
+Group: com.fasterxml.jackson.core Name: jackson-core Version: 2.18.2
+Home page: https://github.com/FasterXML/jackson/
 License: http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache Parquet.
+Group: com.fasterxml.jackson.core Name: jackson-annotations Version: 2.18.2
+Home page: https://github.com/FasterXML/jackson/
+License: http://www.apache.org/licenses/LICENSE-2.0.txt
 
-Copyright: 2014-2020 The Apache Software Foundation.
+--------------------------------------------------------------------------------
+
+Group: com.fasterxml.jackson.core Name: jackson-databind Version: 2.18.2
+Home page: https://github.com/FasterXML/jackson/
+License: http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.parquet Name: parquet-avro Version: 1.15.0
+Copyright: Copyright 2014-2024 The Apache Software Foundation
 Home page: https://parquet.apache.org/
 License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache Thrift.
-
+Group: org.apache.thrift Name: libthrift Version: 0.9.3
 Copyright: 2006-2010 The Apache Software Foundation.
 Home page: https://thrift.apache.org/
 License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains fastutil.
+Group: org.apache.thrift Name: libfb303 Version: 0.9.3
+Copyright: 2006-2010 The Apache Software Foundation.
+Home page: https://thrift.apache.org/
+License: http://www.apache.org/licenses/LICENSE-2.0
 
+--------------------------------------------------------------------------------
+
+Group: org.apache.datasketches Name: datasketches-java Version: 6.2.0
+Copyright: Copyright 2024 The Apache Software Foundation
+Home page: https://datasketches.apache.org/
+License: http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains fastutil.
 Copyright: 2002-2014 Sebastiano Vigna
 Home page: http://fastutil.di.unimi.it/
 License: http://www.apache.org/licenses/LICENSE-2.0.html
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache ORC.
-
+Group: org.apache.orc Name: orc-core Version: 1.9.5
 Copyright: 2013-2020 The Apache Software Foundation.
 Home page: https://orc.apache.org/
 License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache Hive's storage API via ORC.
-
-Copyright: 2013-2020 The Apache Software Foundation.
+Group: org.apache.hive Name: hive-metastore Version: 2.3.9
+Copyright: 2008-2020 The Apache Software Foundation
 Home page: https://hive.apache.org/
 License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Airlift Aircompressor.
-
+Group: io.airlift Name: aircompressor Version: 2.0.2
 Copyright: 2011-2020 Aircompressor authors.
 Home page: https://github.com/airlift/aircompressor
 License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Airlift Slice.
-
+Group: io.airlift Name: slice Version: 0.29
 Copyright: 2013-2020 Slice authors.
 Home page: https://github.com/airlift/slice
 License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains JetBrains annotations.
-
+Group: org.jetbrains Name: annotations Version: 17.0.0
 Copyright: 2000-2020 JetBrains s.r.o.
 Home page: https://github.com/JetBrains/java-annotations
 License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Google Guava.
-
+Group: com.google.guava Name: guava Version: 16.0.1
 Copyright: 2006-2020 The Guava Authors
 Home page: https://github.com/google/guava
 License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Google Error Prone Annotations.
-
+Group: com.google.errorprone Name: error_prone_annotations Version: 2.31.0
 Copyright: Copyright 2011-2019 The Error Prone Authors
 Home page: https://github.com/google/error-prone
 License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains checkerframework checker-qual Annotations.
-
-Copyright: 2004-2020 the Checker Framework developers
+Group: org.checkerframework Name: checker-qual Version: 3.33.0
+Copyright: 2004-present by the Checker Framework developers
 Home page: https://github.com/typetools/checker-framework
 License: https://github.com/typetools/checker-framework/blob/master/LICENSE.txt (MIT license)
 
@@ -336,55 +352,14 @@ License text:
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Animal Sniffer Annotations.
-
-Copyright: 2009-2018 codehaus.org
-Home page: https://www.mojohaus.org/animal-sniffer/animal-sniffer-annotations/
-License: https://www.mojohaus.org/animal-sniffer/animal-sniffer-annotations/license.html (MIT license)
-
-License text:
-| The MIT License
-|
-| Copyright (c) 2009 codehaus.org.
-|
-| Permission is hereby granted, free of charge, to any person obtaining a copy
-| of this software and associated documentation files (the "Software"), to deal
-| in the Software without restriction, including without limitation the rights
-| to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-| copies of the Software, and to permit persons to whom the Software is
-| furnished to do so, subject to the following conditions:
-|
-| The above copyright notice and this permission notice shall be included in
-| all copies or substantial portions of the Software.
-|
-| THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-| IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-| FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-| AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-| LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-| OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-| THE SOFTWARE.
-
---------------------------------------------------------------------------------
-
-This binary artifact contains Caffeine by Ben Manes.
-
+Group: com.github.ben-names.caffeine Name: caffeine Version: 2.9.3
 Copyright: 2014-2020 Ben Manes and contributors
 Home page: https://github.com/ben-manes/caffeine
 License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache Yetus audience annotations.
-
-Copyright: 2008-2020 The Apache Software Foundation.
-Home page: https://yetus.apache.org/
-License: http://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This binary artifact contains Google protobuf.
-
+Group: com.google.protobuf Name: protobuf-java Version: 2.5.0
 Copyright: 2008 Google Inc.
 Home page: https://developers.google.com/protocol-buffers
 License: https://github.com/protocolbuffers/protobuf/blob/master/LICENSE (BSD)
@@ -426,8 +401,7 @@ License text:
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains ThreeTen.
-
+Group: org.threeten Name: threeten-extra Version: 1.7.1
 Copyright: 2007-present, Stephen Colebourne & Michael Nascimento Santos.
 Home page: https://www.threeten.org/threeten-extra/
 License: https://github.com/ThreeTen/threeten-extra/blob/master/LICENSE.txt (BSD 3-clause)
@@ -464,47 +438,35 @@ License text:
 
 --------------------------------------------------------------------------------
 
-This binary artifact includes Project Nessie with the following in its NOTICE
-file:
-
-| Dremio
-| Copyright 2015-2017 Dremio Corporation
-|
-| This product includes software developed at
-| The Apache Software Foundation (http://www.apache.org/).
-
---------------------------------------------------------------------------------
-
-This binary includes code from Apache Commons.
-
-* Core ArrayUtil.
-
-Copyright: 2020 The Apache Software Foundation
-Home page: https://commons.apache.org/
+Group: org.projectnessie.nessie Name: nessie-client Version: 0.102.2
+Copyright: 2015-2017 Dremio Corporation
+Home page: https://projectnessie.org/
 License: https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Apache HttpComponents Client.
+Group: commons-codec Name: commons-codec Version: 1.9
+Copyright: 2002-2013 The Apache Software Foundation
+Home page: https://commons.apache.org/proper/commons-codec/
+License: https://www.apache.org/licenses/LICENSE-2.0
 
-Copyright: 1999-2022 The Apache Software Foundation.
+--------------------------------------------------------------------------------
+
+Group: org.apache.httpcomponents Name: httpclient Version: 4.4.1
+Copyright: 1999-2015 The Apache Software Foundation
 Home page: https://hc.apache.org/
 License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This product includes code from Apache HttpComponents Client.
-
-* retry and error handling logic in ExponentialHttpRequestRetryStrategy.java
-
-Copyright: 1999-2022 The Apache Software Foundation.
-Home page: https://hc.apache.org/
-License: https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This binary artifact contains failsafe.
-
+Group: dev.failsafe Name: failsafe Version: 3.3.2
 Copyright: Jonathan Halterman and friends
 Home page: https://failsafe.dev/
 License: https://www.apache.org/licenses/LICENSE-2.0.html
+
+--------------------------------------------------------------------------------
+
+Group: com.github.luben Name: zstd-jni Version: 1.5.6-6
+Copyright: 2015-present, Luben Karavelov/ All rights reserved.
+Home page: https://github.com/luben/zstd-jni
+License: BSD License
