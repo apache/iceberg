@@ -533,13 +533,15 @@ public class ExpressionUtil {
         return sanitizeTimestamp(DateTimeUtil.nanosToMicros((long) value / 1000), now);
       case STRING:
         return sanitizeString((CharSequence) value, now, today);
+      case UNKNOWN:
+        return "(unknown)";
       case BOOLEAN:
       case UUID:
       case DECIMAL:
       case FIXED:
       case BINARY:
       case VARIANT:
-        // for boolean, uuid, decimal, fixed, variant, and binary, match the string result
+        // for boolean, uuid, decimal, fixed, variant, unknown, and binary, match the string result
         return sanitizeSimpleString(value.toString());
     }
     throw new UnsupportedOperationException(

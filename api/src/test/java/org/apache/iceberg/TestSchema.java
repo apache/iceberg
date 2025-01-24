@@ -41,7 +41,8 @@ public class TestSchema {
       ImmutableList.of(
           Types.TimestampNanoType.withoutZone(),
           Types.TimestampNanoType.withZone(),
-          Types.VariantType.get());
+          Types.VariantType.get(),
+          Types.UnknownType.get());
 
   private static final Schema INITIAL_DEFAULT_SCHEMA =
       new Schema(
