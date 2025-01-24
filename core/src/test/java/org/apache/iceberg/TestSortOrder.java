@@ -345,9 +345,14 @@ public class TestSortOrder {
 
   @Test
   public void testUnknownSupported() {
-    Schema v3Schema = new Schema(Types.NestedField.optional(1, "u", Types.UnknownType.get()));
+    int fieldId = 22;
+    Schema v3Schema = new Schema(Types.NestedField.optional(fieldId, "u", Types.UnknownType.get()));
 
-    SortOrder.builderFor(v3Schema).withOrderId(10).asc("u").build();
+    SortOrder sortOrder = SortOrder.builderFor(v3Schema).asc("u").build();
+
+    assertThat(sortOrder.orderId()).isEqualTo(TableMetadata.INITIAL_SORT_ORDER_ID);
+    assertThat(sortOrder.fields()).hasSize(1);
+    assertThat(sortOrder.fields().get(0).sourceId()).isEqualTo(fieldId);
   }
 
   @TestTemplate
