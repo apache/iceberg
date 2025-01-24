@@ -684,7 +684,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
     return table.io().newInputFile(path).exists();
   }
 
-  static String newPath(String path, String sourcePrefix, String targetPrefix) {
+  private static String newPath(String path, String sourcePrefix, String targetPrefix) {
     return RewriteTablePathUtil.combinePaths(
         targetPrefix, RewriteTablePathUtil.relativize(path, sourcePrefix));
   }

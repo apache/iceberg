@@ -566,9 +566,8 @@ public class TestRewriteTablePathsAction extends TestBase {
         Iterables.getOnlyElement(
                 tableWith3Snaps.snapshot(oldest.snapshotId()).addedDataFiles(tableWith3Snaps.io()))
             .location();
-    String deletedDataFilePath =
-        RewriteTablePathSparkAction.newPath(
-            oldestDataFilePath, tableWith3Snaps.location(), targetTableLocation());
+    String deletedDataFilePathInTargetLocation =
+        String.format("%sdata/%s", targetTableLocation(), fileName(oldestDataFilePath));
 
     // expire the oldest snapshot and remove oldest DataFile
     ExpireSnapshots.Result expireResult =
@@ -588,6 +587,9 @@ public class TestRewriteTablePathsAction extends TestBase {
             .rewriteLocationPrefix(tableWith3Snaps.location(), targetTableLocation())
             .execute();
 
+    // 5 version files include 1 table creation 3 overwrite and 1 snapshot expiration
+    // 3 overwrites generate 3 manifest list and 5 manifests with 3 data files
+    // snapshot expiration removed 1 of each
     checkFileNum(5, 2, 4, 13, result);
 
     // copy the metadata files and data files
@@ -602,7 +604,7 @@ public class TestRewriteTablePathsAction extends TestBase {
             .select("file_path")
             .as(Encoders.STRING())
             .collectAsList();
-    assertThat(copiedDataFiles).hasSize(2).doesNotContain(deletedDataFilePath);
+    assertThat(copiedDataFiles).hasSize(2).doesNotContain(deletedDataFilePathInTargetLocation);
 
     // expect manifest entries still contain deleted entry
     List<String> copiedEntries =
@@ -614,7 +616,7 @@ public class TestRewriteTablePathsAction extends TestBase {
             .select("data_file.file_path")
             .as(Encoders.STRING())
             .collectAsList();
-    assertThat(copiedEntries).contains(deletedDataFilePath);
+    assertThat(copiedEntries).contains(deletedDataFilePathInTargetLocation);
   }
 
   @Test
@@ -1050,7 +1052,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     return toAbsolute(staging);
   }
 
-  protected String toAbsolute(Path relative) {
+  protected String toAbsolute(Path relative) throws IOException {
     return relative.toFile().toURI().toString();
   }
 
