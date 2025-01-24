@@ -255,6 +255,8 @@ public class FileMetadata {
       if (format == FileFormat.PUFFIN) {
         Preconditions.checkArgument(contentOffset != null, "Content offset is required for DV");
         Preconditions.checkArgument(contentSizeInBytes != null, "Content size is required for DV");
+        Preconditions.checkArgument(
+            referencedDataFile != null, "Referenced data file is required for DV");
       } else {
         Preconditions.checkArgument(contentOffset == null, "Content offset can only be set for DV");
         Preconditions.checkArgument(
