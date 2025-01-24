@@ -82,22 +82,10 @@ class ParquetIO {
   }
 
   static SeekableInputStream stream(org.apache.iceberg.io.SeekableInputStream stream) {
-    if (stream instanceof DelegatingInputStream) {
-      InputStream wrapped = ((DelegatingInputStream) stream).getDelegate();
-      if (wrapped instanceof FSDataInputStream) {
-        return HadoopStreams.wrap((FSDataInputStream) wrapped);
-      }
-    }
     return new ParquetInputStreamAdapter(stream);
   }
 
   static PositionOutputStream stream(org.apache.iceberg.io.PositionOutputStream stream) {
-    if (stream instanceof DelegatingOutputStream) {
-      OutputStream wrapped = ((DelegatingOutputStream) stream).getDelegate();
-      if (wrapped instanceof FSDataOutputStream) {
-        return HadoopStreams.wrap((FSDataOutputStream) wrapped);
-      }
-    }
     return new ParquetOutputStreamAdapter(stream);
   }
 
