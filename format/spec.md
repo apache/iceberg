@@ -677,6 +677,8 @@ The snapshot summary's `operation` field is used by some operations, like snapsh
 *   `overwrite` -- Data and delete files were added and removed in a logical overwrite operation.
 *   `delete` -- Data files were removed and their contents logically deleted and/or delete files were added to delete rows.
 
+For other optional snapshot summary fields, see [Appendix F](#optional-snapshot-summary-fields).
+
 Data and delete files for a snapshot can be stored in more than one manifest. This enables:
 
 *   Appends can add a new manifest to minimize the amount of data written, instead of adding new records by rewriting and appending to an existing manifest. (This is called a “fast append”.)
@@ -686,7 +688,6 @@ Data and delete files for a snapshot can be stored in more than one manifest. Th
 Manifests for a snapshot are tracked by a manifest list.
 
 Valid snapshots are stored as a list in table metadata. For serialization, see Appendix C.
-
 
 #### Snapshot Row IDs
 
@@ -1639,3 +1640,47 @@ might indicate different snapshot IDs for a specific timestamp. The discrepancie
 
 When processing point in time queries implementations should use "snapshot-log" metadata to lookup the table state at the given point in time. This ensures time-travel queries reflect the state of the table at the provided timestamp. For example a SQL query like `SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00Z';` would find the snapshot of the Iceberg table just prior to '1986-10-26 01:21:00 UTC' in the snapshot logs and use the metadata from that snapshot to perform the scan of the table. If no  snapshot exists prior to the timestamp given or "snapshot-log" is not populated (it is an optional field), then systems should raise an informative error message about the missing metadata.
 
+### Optional Snapshot Summary Fields
+
+Snapshot summary can include metrics fields to track numeric stats of the snapshot (see [Metrics](#metrics)) and operational details (see [Other Fields](#other-fields)). The value of these fields should be of string type (e.g., `"120"`).
+
+#### Metrics
+
+| Field                               | Description                                                                                      |
+|-------------------------------------|--------------------------------------------------------------------------------------------------|
+| **`added-data-files`**              | Number of data files added in the snapshot                                                       |
+| **`deleted-data-files`**            | Number of data files deleted in the snapshot                                                     |
+| **`total-data-files`**              | Total number of live data files in the snapshot                                                  |
+| **`added-delete-files`**            | Number of positional/equality delete files and deletion vectors added in the snapshot            |
+| **`added-equality-delete-files`**   | Number of equality delete files added in the snapshot                                            |
+| **`removed-equality-delete-files`** | Number of equality delete files removed in the snapshot                                          |
+| **`added-position-delete-files`**   | Number of position delete files added in the snapshot                                            |
+| **`removed-position-delete-files`** | Number of position delete files removed in the snapshot                                          |
+| **`added-dvs`**                     | Number of deletion vectors added in the snapshot                                                 |
+| **`removed-dvs`**                   | Number of deletion vectors removed in the snapshot                                               |
+| **`removed-delete-files`**          | Number of positional/equality delete files and deletion vectors removed in the snapshot          |
+| **`total-delete-files`**            | Total number of live positional/equality delete files and deletion vectors in the snapshot       |
+| **`added-records`**                 | Number of records added in the snapshot                                                          |
+| **`deleted-records`**               | Number of records deleted in the snapshot                                                        |
+| **`total-records`**                 | Total number of records in the snapshot                                                          |
+| **`added-files-size`**              | The size of files added in the snapshot                                                          |
+| **`removed-files-size`**            | The size of files removed in the snapshot                                                        |
+| **`total-files-size`**              | Total size of live files in the snapshot                                                         |
+| **`added-position-deletes`**        | Number of position delete records added in the snapshot                                          |
+| **`removed-position-deletes`**      | Number of position delete records removed in the snapshot                                        |
+| **`total-position-deletes`**        | Total number of position delete records in the snapshot                                          |
+| **`added-equality-deletes`**        | Number of equality delete records added in the snapshot                                          |
+| **`removed-equality-deletes`**      | Number of equality delete records removed in the snapshot                                        |
+| **`total-equality-deletes`**        | Total number of equality delete records in the snapshot                                          |
+| **`deleted-duplicate-files`**       | Number of duplicate files deleted (duplicates are files recorded more than once in the manifest) |
+| **`changed-partition-count`**       | Number of partitions with files added or removed in the snapshot                                 |
+
+#### Other Fields
+
+| Field                    | Example    | Description                                                     |
+|--------------------------|------------|-----------------------------------------------------------------|
+| **`wap.id`**             | "12345678" | The Write-Audit-Publish id of a staged snapshot                 |
+| **`published-wap-id`**   | "12345678" | The Write-Audit-Publish id of a snapshot already been published |
+| **`source-snapshot-id`** | "12345678" | The original id of a cherry-picked snapshot                     |
+| **`engine-name`**        | "spark"    | Name of the engine that created the snapshot                    |
+| **`engine-version`**     | "3.5.4"    | Version of the engine that created the snapshot                 |
