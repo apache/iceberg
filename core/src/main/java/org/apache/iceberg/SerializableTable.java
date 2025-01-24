@@ -104,6 +104,14 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     }
   }
 
+  public String metadataFileLocation() {
+    if (metadataFileLocation == null) {
+      throw new UnsupportedOperationException(
+          this.getClass().getName() + " does not have a metadata file location");
+    }
+    return metadataFileLocation;
+  }
+
   private String metadataFileLocation(Table table) {
     if (table instanceof HasTableOperations) {
       TableOperations ops = ((HasTableOperations) table).operations();

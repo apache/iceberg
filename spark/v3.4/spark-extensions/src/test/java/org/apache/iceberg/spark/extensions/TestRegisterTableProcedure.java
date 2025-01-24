@@ -65,8 +65,7 @@ public class TestRegisterTableProcedure extends SparkExtensionsTestBase {
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     long originalFileCount = (long) scalarSql("SELECT COUNT(*) from %s.files", tableName);
     long currentSnapshotId = table.currentSnapshot().snapshotId();
-    String metadataJson =
-        (((HasTableOperations) table).operations()).current().metadataFileLocation();
+    String metadataJson = TableUtil.metadataFileLocation(table);
 
     List<Object[]> result =
         sql("CALL %s.system.register_table('%s', '%s')", catalogName, targetName, metadataJson);
