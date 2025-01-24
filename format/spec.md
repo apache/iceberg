@@ -935,11 +935,11 @@ The schema of the partition statistics file is as follows:
 | _required_ | _required_ | _required_ | **`4 data_file_count`** | `int` | Count of data files |
 | _required_ | _required_ | _required_ | **`5 total_data_file_size_in_bytes`** | `long` | Total size of data files in bytes |
 | _optional_ | _optional_ | _required_ | **`6 position_delete_record_count`** | `long` | Count of position deletes across position delete files and deletion vectors |
-| _optional_ | _optional_ | _required_ | **`7 position_delete_file_count`** | `int` | Count of position delete files |
-|            |            | _required_ | **`13 dv_count`** | `int` | Count of deletion vector blobs |
+| _optional_ | _optional_ | _required_ | **`7 position_delete_file_count`** | `int` | Count of position delete files ignoring deletion vectors |
+|            |            | _required_ | **`13 dv_count`** | `int` | Count of deletion vectors |
 | _optional_ | _optional_ | _required_ | **`8 equality_delete_record_count`** | `long` | Count of records in equality delete files |
 | _optional_ | _optional_ | _required_ | **`9 equality_delete_file_count`** | `int` | Count of equality delete files |
-| _optional_ | _optional_ | _optional_ | **`10 total_record_count`** | `long` | Accurate count of records in a partition after applying the delete files if any |
+| _optional_ | _optional_ | _optional_ | **`10 total_record_count`** | `long` | Accurate count of records in a partition after applying deletes if any |
 | _optional_ | _optional_ | _optional_ | **`11 last_updated_at`** | `long` | Timestamp in milliseconds from the unix epoch when the partition was last updated |
 | _optional_ | _optional_ | _optional_ | **`12 last_updated_snapshot_id`** | `long` | ID of snapshot that last updated this partition |
 
@@ -957,13 +957,6 @@ The unified partition type looks like `Struct<field#1, field#2, field#3>`.
 2. `spec#0` has two fields `{field#1, field#2}`
 and then the table has evolved into `spec#1` which has just one field `{field#2}`.
 The unified partition type looks like `Struct<field#1, field#2>`.
-
-In v1 and v2, the following fields default to `0` when not set:
-
-- `position_delete_record_count`
-- `position_delete_file_count`
-- `equality_delete_record_count`
-- `equality_delete_file_count`
 
 ### Commit Conflict Resolution and Retry
 
