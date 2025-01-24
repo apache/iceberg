@@ -2052,6 +2052,10 @@ components:
           type: boolean
         doc:
           type: string
+        initial-default:
+          type: string
+        write-default:
+          type: string
 
     StructType:
       type: object

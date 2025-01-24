@@ -148,6 +148,23 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
   }
 
   @Test
+  public void testRoundTripSerdeWithV3TableMetadata() throws Exception {
+    String tableMetadataJson = readTableMetadataInputFile("TableMetadataV3ValidMinimal.json");
+    TableMetadata v3Metadata =
+        TableMetadataParser.fromJson(TEST_METADATA_LOCATION, tableMetadataJson);
+    // Convert the TableMetadata JSON from the file to an object and then back to JSON so that
+    // missing fields
+    // are filled in with their default values.
+    String json =
+        String.format(
+            "{\"metadata-location\":\"%s\",\"metadata\":%s,\"config\":{\"foo\":\"bar\"}}",
+            TEST_METADATA_LOCATION, TableMetadataParser.toJson(v3Metadata));
+    LoadTableResponse resp =
+        LoadTableResponse.builder().withTableMetadata(v3Metadata).addAllConfig(CONFIG).build();
+    assertRoundTripSerializesEquallyFrom(json, resp);
+  }
+
+  @Test
   public void testCanDeserializeWithoutDefaultValues() throws Exception {
     String metadataJson = readTableMetadataInputFile("TableMetadataV1Valid.json");
     // `config` is missing in the JSON
