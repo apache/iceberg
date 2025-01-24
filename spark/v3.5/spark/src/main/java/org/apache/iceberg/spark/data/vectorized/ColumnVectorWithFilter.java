@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.data.vectorized;
 
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.sql.vectorized.ColumnarMap;
@@ -36,6 +37,7 @@ import org.apache.spark.unsafe.types.UTF8String;
 public class ColumnVectorWithFilter extends ColumnVector {
   private final ColumnVector delegate;
   private final int[] rowIdMapping;
+  private volatile ColumnVectorWithFilter[] children = null;
 
   public ColumnVectorWithFilter(ColumnVector delegate, int[] rowIdMapping) {
     super(delegate.dataType());
@@ -132,6 +134,22 @@ public class ColumnVectorWithFilter extends ColumnVector {
 
   @Override
   public ColumnVector getChild(int ordinal) {
-    throw new UnsupportedOperationException("Vectorized reads are only supported for primitives");
+    if (children == null) {
+      synchronized (this) {
+        if (children == null) {
+          if (dataType() instanceof StructType) {
+            StructType structType = (StructType) dataType();
+            this.children = new ColumnVectorWithFilter[structType.length()];
+            for (int index = 0; index < structType.length(); index++) {
+              children[index] = new ColumnVectorWithFilter(delegate.getChild(index), rowIdMapping);
+            }
+          } else {
+            throw new UnsupportedOperationException("Unsupported nested type: " + dataType());
+          }
+        }
+      }
+    }
+
+    return children[ordinal];
   }
 }
