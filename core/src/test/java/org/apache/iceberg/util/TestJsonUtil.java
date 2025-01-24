@@ -197,10 +197,6 @@ public class TestJsonUtil {
 
   @Test
   public void getBoolOrNull() throws JsonProcessingException {
-    assertThat(JsonUtil.getBoolOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
-
-    assertThat(JsonUtil.getBoolOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}"))).isNull();
-
     assertThatThrownBy(
             () -> JsonUtil.getBoolOrNull("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
         .isInstanceOf(IllegalArgumentException.class)
@@ -210,6 +206,10 @@ public class TestJsonUtil {
             () -> JsonUtil.getBoolOrNull("x", JsonUtil.mapper().readTree("{\"x\": \"true\"}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a boolean value: x: \"true\"");
+
+    assertThat(JsonUtil.getBoolOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
+
+    assertThat(JsonUtil.getBoolOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}"))).isNull();
 
     assertThat(JsonUtil.getBoolOrNull("x", JsonUtil.mapper().readTree("{\"x\": true}"))).isTrue();
     assertThat(JsonUtil.getBoolOrNull("x", JsonUtil.mapper().readTree("{\"x\": false}"))).isFalse();
