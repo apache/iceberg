@@ -182,10 +182,7 @@ abstract class TableScanContext {
   TableScanContext reportWith(MetricsReporter reporter) {
     return ImmutableTableScanContext.builder()
         .from(this)
-        .metricsReporter(
-            metricsReporter() instanceof LoggingMetricsReporter
-                ? reporter
-                : MetricsReporters.combine(metricsReporter(), reporter))
+        .metricsReporter(MetricsReporters.combine(metricsReporter(), reporter))
         .build();
   }
 
