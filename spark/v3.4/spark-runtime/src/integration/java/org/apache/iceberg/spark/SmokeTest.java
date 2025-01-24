@@ -82,9 +82,9 @@ public class SmokeTest extends SparkExtensionsTestBase {
         "x",
         scalarSql("SELECT data FROM %s WHERE id = 1", tableName));
     Assert.assertEquals(
-            "Record 2 should now have data y",
-            "y",
-            scalarSql("SELECT data FROM %s WHERE id = 2", tableName));
+        "Record 2 should now have data y",
+        "y",
+        scalarSql("SELECT data FROM %s WHERE id = 2", tableName));
 
     // Not supported because of Spark limitation
     if (!catalogName.equals("spark_catalog")) {
