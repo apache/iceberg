@@ -132,7 +132,6 @@ public class ColumnVectorWithFilter extends ColumnVector {
 
   @Override
   public ColumnVector getChild(int ordinal) {
-    ColumnVector child = delegate.getChild(ordinal);
-    return new ColumnVectorWithFilter(child, rowIdMapping);
+    throw new UnsupportedOperationException("Vectorized reads are only supported for primitives");
   }
 }
