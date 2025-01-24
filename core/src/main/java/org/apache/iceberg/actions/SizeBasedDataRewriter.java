@@ -21,6 +21,7 @@ package org.apache.iceberg.actions;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
@@ -28,6 +29,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
 public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileScanTask, DataFile> {
@@ -45,6 +47,7 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
   public static final String DELETE_FILE_THRESHOLD = "delete-file-threshold";
 
   public static final int DELETE_FILE_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
+  private static final double DELETE_RATIO_THRESHOLD = 0.3;
 
   private int deleteFileThreshold;
 
@@ -68,7 +71,11 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
 
   @Override
   protected Iterable<FileScanTask> filterFiles(Iterable<FileScanTask> tasks) {
-    return Iterables.filter(tasks, task -> wronglySized(task) || tooManyDeletes(task));
+    return Iterables.filter(tasks, this::shouldRewrite);
+  }
+
+  private boolean shouldRewrite(FileScanTask task) {
+    return wronglySized(task) || tooManyDeletes(task) || tooHighDeleteRatio(task);
   }
 
   private boolean tooManyDeletes(FileScanTask task) {
@@ -84,11 +91,32 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
     return enoughInputFiles(group)
         || enoughContent(group)
         || tooMuchContent(group)
-        || anyTaskHasTooManyDeletes(group);
+        || anyTaskHasTooManyDeletes(group)
+        || anyTaskHasTooHighDeleteRatio(group);
   }
 
   private boolean anyTaskHasTooManyDeletes(List<FileScanTask> group) {
     return group.stream().anyMatch(this::tooManyDeletes);
+  }
+
+  private boolean anyTaskHasTooHighDeleteRatio(List<FileScanTask> group) {
+    return group.stream().anyMatch(this::tooHighDeleteRatio);
+  }
+
+  private boolean tooHighDeleteRatio(FileScanTask task) {
+    if (task.deletes() == null || task.deletes().isEmpty()) {
+      return false;
+    }
+
+    long knownDeletedRecordCount =
+        task.deletes().stream()
+            .filter(ContentFileUtil::isFileScoped)
+            .mapToLong(ContentFile::recordCount)
+            .sum();
+
+    double deletedRecords = (double) Math.min(knownDeletedRecordCount, task.file().recordCount());
+    double deleteRatio = deletedRecords / task.file().recordCount();
+    return deleteRatio >= DELETE_RATIO_THRESHOLD;
   }
 
   @Override
