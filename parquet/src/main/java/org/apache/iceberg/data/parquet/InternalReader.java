@@ -38,7 +38,8 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
   private InternalReader() {}
 
   @SuppressWarnings("unchecked")
-  public static <T extends StructLike> ParquetValueReader<T> create(Schema expectedSchema, MessageType fileSchema) {
+  public static <T extends StructLike> ParquetValueReader<T> create(
+      Schema expectedSchema, MessageType fileSchema) {
     return (ParquetValueReader<T>) INSTANCE.createReader(expectedSchema, fileSchema);
   }
 
@@ -52,7 +53,8 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
   @SuppressWarnings("unchecked")
   protected ParquetValueReader<T> createStructReader(
       List<Type> types, List<ParquetValueReader<?>> fieldReaders, StructType structType) {
-    return (ParquetValueReader<T>) ParquetValueReaders.recordReader(types, fieldReaders, structType);
+    return (ParquetValueReader<T>)
+        ParquetValueReaders.recordReader(types, fieldReaders, structType);
   }
 
   @Override
