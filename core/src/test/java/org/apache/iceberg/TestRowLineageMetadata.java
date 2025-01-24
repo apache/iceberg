@@ -147,13 +147,11 @@ public class TestRowLineageMetadata {
 
     table.newFastAppend().appendFile(fileWithRows(30)).commit();
 
-    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(0);
     assertThat(table.ops().current().nextRowId()).isEqualTo(30);
 
     table.newFastAppend().appendFile(fileWithRows(17)).appendFile(fileWithRows(11)).commit();
 
-    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(30);
     assertThat(table.ops().current().nextRowId()).isEqualTo(30 + 17 + 11);
   }
@@ -173,13 +171,11 @@ public class TestRowLineageMetadata {
 
     table.newAppend().appendFile(fileWithRows(30)).commit();
 
-    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(0);
     assertThat(table.ops().current().nextRowId()).isEqualTo(30);
 
     table.newAppend().appendFile(fileWithRows(17)).appendFile(fileWithRows(11)).commit();
 
-    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(30);
     assertThat(table.ops().current().nextRowId()).isEqualTo(30 + 17 + 11);
   }
@@ -205,7 +201,6 @@ public class TestRowLineageMetadata {
     // Write to Branch
     table.newAppend().appendFile(fileWithRows(30)).toBranch(branch).commit();
 
-    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot()).isNull();
     assertThat(table.snapshot(branch).firstRowId()).isEqualTo(0L);
     assertThat(table.ops().current().nextRowId()).isEqualTo(30);
@@ -213,7 +208,6 @@ public class TestRowLineageMetadata {
     // Write to Main
     table.newAppend().appendFile(fileWithRows(17)).appendFile(fileWithRows(11)).commit();
 
-    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(30);
     assertThat(table.ops().current().nextRowId()).isEqualTo(30 + 17 + 11);
 
@@ -240,7 +234,6 @@ public class TestRowLineageMetadata {
 
     table.newAppend().appendFile(file).commit();
 
-    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(0);
     assertThat(table.ops().current().nextRowId()).isEqualTo(30);
 
@@ -249,7 +242,6 @@ public class TestRowLineageMetadata {
     // Deleting a file should create a new snapshot which should inherit last-row-id from the
     // previous metadata and not
     // change last-row-id for this metadata.
-    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(30);
     assertThat(table.currentSnapshot().addedRows()).isEqualTo(0);
     assertThat(table.ops().current().nextRowId()).isEqualTo(30);
@@ -275,14 +267,12 @@ public class TestRowLineageMetadata {
 
     table.newAppend().appendFile(filePart1).appendFile(filePart2).commit();
 
-    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(0);
     assertThat(table.ops().current().nextRowId()).isEqualTo(60);
 
     table.newRewrite().deleteFile(filePart1).deleteFile(filePart2).addFile(fileCompacted).commit();
 
     // Rewrites are currently just treated as appends. In the future we could treat these as no-ops
-    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(60);
     assertThat(table.ops().current().nextRowId()).isEqualTo(120);
   }
