@@ -24,12 +24,18 @@ import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.io.api.Binary;
@@ -61,6 +67,27 @@ public class ParquetValueReaders {
 
   public static ParquetValueReader<Long> position() {
     return new PositionReader();
+  }
+
+  public static ParquetValueReader<UUID> uuids(ColumnDescriptor desc) {
+    return new ParquetValueReaders.UUIDReader(desc);
+  }
+
+  public static ParquetValueReader<Long> int96Timestamps(ColumnDescriptor desc) {
+    return new ParquetValueReaders.TimestampInt96Reader(desc);
+  }
+
+  public static ParquetValueReader<Long> millisAsTimes(ColumnDescriptor desc) {
+    return new ParquetValueReaders.TimeMillisReader(desc);
+  }
+
+  public static ParquetValueReader<Long> millisAsTimestamps(ColumnDescriptor desc) {
+    return new ParquetValueReaders.TimestampMillisReader(desc);
+  }
+
+  public static ParquetValueReader<Record> recordReader(
+      List<Type> types, List<ParquetValueReader<?>> readers, Types.StructType struct) {
+    return new RecordReader(types, readers, struct);
   }
 
   private static class NullReader<T> implements ParquetValueReader<T> {
@@ -401,6 +428,17 @@ public class ParquetValueReaders {
     }
   }
 
+  private static class UUIDReader extends PrimitiveReader<UUID> {
+    private UUIDReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public UUID read(UUID reuse) {
+      return UUIDUtil.convert(column.nextBinary().toByteBuffer());
+    }
+  }
+
   public static class ByteArrayReader extends ParquetValueReaders.PrimitiveReader<byte[]> {
     public ByteArrayReader(ColumnDescriptor desc) {
       super(desc);
@@ -409,6 +447,57 @@ public class ParquetValueReaders {
     @Override
     public byte[] read(byte[] ignored) {
       return column.nextBinary().getBytes();
+    }
+  }
+
+  private static class TimestampInt96Reader extends UnboxedReader<Long> {
+
+    private TimestampInt96Reader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Long read(Long ignored) {
+      return readLong();
+    }
+
+    @Override
+    public long readLong() {
+      final ByteBuffer byteBuffer =
+          column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+      return ParquetUtil.extractTimestampInt96(byteBuffer);
+    }
+  }
+
+  private static class TimeMillisReader extends UnboxedReader<Long> {
+    private TimeMillisReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Long read(Long ignored) {
+      return readLong();
+    }
+
+    @Override
+    public long readLong() {
+      return 1000L * column.nextInteger();
+    }
+  }
+
+  private static class TimestampMillisReader extends UnboxedReader<Long> {
+    private TimestampMillisReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Long read(Long ignored) {
+      return readLong();
+    }
+
+    @Override
+    public long readLong() {
+      return 1000L * column.nextLong();
     }
   }
 
@@ -848,6 +937,41 @@ public class ParquetValueReaders {
         }
       }
       return NullReader.NULL_COLUMN;
+    }
+  }
+
+  private static class RecordReader extends StructReader<Record, Record> {
+    private final GenericRecord template;
+
+    RecordReader(List<Type> types, List<ParquetValueReader<?>> readers, Types.StructType struct) {
+      super(types, readers);
+      this.template = struct != null ? GenericRecord.create(struct) : null;
+    }
+
+    @Override
+    protected Record newStructData(Record reuse) {
+      if (reuse != null) {
+        return reuse;
+      } else {
+        // GenericRecord.copy() is more performant than GenericRecord.create(StructType) since
+        // NAME_MAP_CACHE access is eliminated. Using copy here to gain performance.
+        return template.copy();
+      }
+    }
+
+    @Override
+    protected Object getField(Record intermediate, int pos) {
+      return intermediate.get(pos);
+    }
+
+    @Override
+    protected Record buildStruct(Record struct) {
+      return struct;
+    }
+
+    @Override
+    protected void set(Record struct, int pos, Object value) {
+      struct.set(pos, value);
     }
   }
 }

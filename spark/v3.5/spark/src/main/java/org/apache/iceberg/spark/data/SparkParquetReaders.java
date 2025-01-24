@@ -21,14 +21,12 @@ package org.apache.iceberg.spark.data;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
-import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.parquet.ParquetValueReaders.FloatAsDoubleReader;
@@ -265,7 +263,7 @@ public class SparkParquetReaders {
           case TIMESTAMP_MICROS:
             return new UnboxedReader<>(desc);
           case TIMESTAMP_MILLIS:
-            return new TimestampMillisReader(desc);
+            return ParquetValueReaders.millisAsTimestamps(desc);
           case DECIMAL:
             DecimalLogicalTypeAnnotation decimal =
                 (DecimalLogicalTypeAnnotation) primitive.getLogicalTypeAnnotation();
@@ -315,7 +313,7 @@ public class SparkParquetReaders {
         case INT96:
           // Impala & Spark used to write timestamps as INT96 without a logical type. For backwards
           // compatibility we try to read INT96 as timestamps.
-          return new TimestampInt96Reader(desc);
+          return ParquetValueReaders.int96Timestamps(desc);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
@@ -370,41 +368,6 @@ public class SparkParquetReaders {
     @Override
     public Decimal read(Decimal ignored) {
       return Decimal.apply(column.nextLong(), precision, scale);
-    }
-  }
-
-  private static class TimestampMillisReader extends UnboxedReader<Long> {
-    TimestampMillisReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public Long read(Long ignored) {
-      return readLong();
-    }
-
-    @Override
-    public long readLong() {
-      return 1000 * column.nextLong();
-    }
-  }
-
-  private static class TimestampInt96Reader extends UnboxedReader<Long> {
-
-    TimestampInt96Reader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public Long read(Long ignored) {
-      return readLong();
-    }
-
-    @Override
-    public long readLong() {
-      final ByteBuffer byteBuffer =
-          column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
-      return ParquetUtil.extractTimestampInt96(byteBuffer);
     }
   }
 

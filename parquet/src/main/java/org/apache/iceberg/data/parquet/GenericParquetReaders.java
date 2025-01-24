@@ -18,15 +18,25 @@
  */
 package org.apache.iceberg.data.parquet;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericDataUtil;
-import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.parquet.ParquetValueReader;
-import org.apache.iceberg.parquet.ParquetValueReaders.StructReader;
+import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 
@@ -49,7 +59,7 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
   @Override
   protected ParquetValueReader<Record> createStructReader(
       List<Type> types, List<ParquetValueReader<?>> fieldReaders, StructType structType) {
-    return new RecordReader(types, fieldReaders, structType);
+    return ParquetValueReaders.recordReader(types, fieldReaders, structType);
   }
 
   @Override
@@ -57,39 +67,119 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     return GenericDataUtil.internalToGeneric(type, value);
   }
 
-  private static class RecordReader extends StructReader<Record, Record> {
-    private final GenericRecord template;
+  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
-    RecordReader(List<Type> types, List<ParquetValueReader<?>> readers, StructType struct) {
-      super(types, readers);
-      this.template = struct != null ? GenericRecord.create(struct) : null;
+  static class DateReader extends ParquetValueReaders.PrimitiveReader<LocalDate> {
+    DateReader(ColumnDescriptor desc) {
+      super(desc);
     }
 
     @Override
-    protected Record newStructData(Record reuse) {
+    public LocalDate read(LocalDate reuse) {
+      return EPOCH_DAY.plusDays(column.nextInteger());
+    }
+  }
+
+  static class TimestampReader extends ParquetValueReaders.PrimitiveReader<LocalDateTime> {
+    TimestampReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public LocalDateTime read(LocalDateTime reuse) {
+      return EPOCH.plus(column.nextLong(), ChronoUnit.MICROS).toLocalDateTime();
+    }
+  }
+
+  static class TimestampMillisReader extends ParquetValueReaders.PrimitiveReader<LocalDateTime> {
+    TimestampMillisReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public LocalDateTime read(LocalDateTime reuse) {
+      return EPOCH.plus(column.nextLong() * 1000, ChronoUnit.MICROS).toLocalDateTime();
+    }
+  }
+
+  static class TimestampInt96Reader extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
+    private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
+
+    TimestampInt96Reader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public OffsetDateTime read(OffsetDateTime reuse) {
+      final ByteBuffer byteBuffer =
+          column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+      final long timeOfDayNanos = byteBuffer.getLong();
+      final int julianDay = byteBuffer.getInt();
+
+      return Instant.ofEpochMilli(TimeUnit.DAYS.toMillis(julianDay - UNIX_EPOCH_JULIAN))
+          .plusNanos(timeOfDayNanos)
+          .atOffset(ZoneOffset.UTC);
+    }
+  }
+
+  static class TimestamptzReader extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
+    TimestamptzReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public OffsetDateTime read(OffsetDateTime reuse) {
+      return EPOCH.plus(column.nextLong(), ChronoUnit.MICROS);
+    }
+  }
+
+  static class TimestamptzMillisReader extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
+    TimestamptzMillisReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public OffsetDateTime read(OffsetDateTime reuse) {
+      return EPOCH.plus(column.nextLong() * 1000, ChronoUnit.MICROS);
+    }
+  }
+
+  static class TimeMillisReader extends ParquetValueReaders.PrimitiveReader<LocalTime> {
+    TimeMillisReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public LocalTime read(LocalTime reuse) {
+      return LocalTime.ofNanoOfDay(column.nextInteger() * 1000000L);
+    }
+  }
+
+  static class TimeReader extends ParquetValueReaders.PrimitiveReader<LocalTime> {
+    TimeReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public LocalTime read(LocalTime reuse) {
+      return LocalTime.ofNanoOfDay(column.nextLong() * 1000L);
+    }
+  }
+
+  static class FixedReader extends ParquetValueReaders.PrimitiveReader<byte[]> {
+    FixedReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public byte[] read(byte[] reuse) {
       if (reuse != null) {
+        column.nextBinary().toByteBuffer().duplicate().get(reuse);
         return reuse;
       } else {
-        // GenericRecord.copy() is more performant then GenericRecord.create(StructType) since
-        // NAME_MAP_CACHE access
-        // is eliminated. Using copy here to gain performance.
-        return template.copy();
+        return column.nextBinary().getBytes();
       }
-    }
-
-    @Override
-    protected Object getField(Record intermediate, int pos) {
-      return intermediate.get(pos);
-    }
-
-    @Override
-    protected Record buildStruct(Record struct) {
-      return struct;
-    }
-
-    @Override
-    protected void set(Record struct, int pos, Object value) {
-      struct.set(pos, value);
     }
   }
 }

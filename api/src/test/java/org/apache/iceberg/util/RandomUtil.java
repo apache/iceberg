@@ -237,7 +237,7 @@ public class RandomUtil {
   }
 
   public static List<Object> generateList(
-      Random random, Types.ListType list, Supplier<Object> elementResult) {
+      Random random, Types.ListType list, Supplier<Object> elementSupplier) {
     int numElements = random.nextInt(20);
 
     List<Object> result = Lists.newArrayListWithExpectedSize(numElements);
@@ -246,7 +246,7 @@ public class RandomUtil {
       if (list.isElementOptional() && random.nextInt(20) == 1) {
         result.add(null);
       } else {
-        result.add(elementResult.get());
+        result.add(elementSupplier.get());
       }
     }
 
@@ -254,15 +254,18 @@ public class RandomUtil {
   }
 
   public static Map<Object, Object> generateMap(
-      Random random, Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
+      Random random,
+      Types.MapType map,
+      Supplier<Object> keySupplier,
+      Supplier<Object> valueSupplier) {
     int numEntries = random.nextInt(20);
 
     Map<Object, Object> result = Maps.newLinkedHashMap();
     Supplier<Object> keyFunc;
     if (map.keyType() == Types.StringType.get()) {
-      keyFunc = () -> keyResult.get().toString();
+      keyFunc = () -> keySupplier.get().toString();
     } else {
-      keyFunc = keyResult;
+      keyFunc = keySupplier;
     }
 
     Set<Object> keySet = Sets.newHashSet();
@@ -279,7 +282,7 @@ public class RandomUtil {
       if (map.isValueOptional() && random.nextInt(20) == 1) {
         result.put(key, null);
       } else {
-        result.put(key, valueResult.get());
+        result.put(key, valueSupplier.get());
       }
     }
 

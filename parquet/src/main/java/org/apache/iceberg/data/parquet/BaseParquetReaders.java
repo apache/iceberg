@@ -18,19 +18,9 @@
  */
 package org.apache.iceberg.data.parquet;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
@@ -50,6 +40,10 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
+/**
+ * @deprecated since 1.8.0, will be made package-private in 1.9.0
+ */
+@Deprecated
 public abstract class BaseParquetReaders<T> {
   protected BaseParquetReaders() {}
 
@@ -75,6 +69,46 @@ public abstract class BaseParquetReaders<T> {
 
   protected abstract ParquetValueReader<T> createStructReader(
       List<Type> types, List<ParquetValueReader<?>> fieldReaders, Types.StructType structType);
+
+  protected ParquetValueReader<?> fixedReader(ColumnDescriptor desc) {
+    return new GenericParquetReaders.FixedReader(desc);
+  }
+
+  protected ParquetValueReader<?> dateReader(ColumnDescriptor desc) {
+    return new GenericParquetReaders.DateReader(desc);
+  }
+
+  protected ParquetValueReader<?> timeReader(
+      ColumnDescriptor desc, LogicalTypeAnnotation.TimeUnit unit) {
+    switch (unit) {
+      case MICROS:
+        return new GenericParquetReaders.TimeReader(desc);
+      case MILLIS:
+        return new GenericParquetReaders.TimeMillisReader(desc);
+      default:
+        throw new UnsupportedOperationException("Unsupported unit for time: " + unit);
+    }
+  }
+
+  protected ParquetValueReader<?> timestampReader(
+      ColumnDescriptor desc, LogicalTypeAnnotation.TimeUnit unit, boolean isAdjustedToUTC) {
+    if (desc.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
+      return new GenericParquetReaders.TimestampInt96Reader(desc);
+    }
+
+    switch (unit) {
+      case MICROS:
+        return isAdjustedToUTC
+            ? new GenericParquetReaders.TimestamptzReader(desc)
+            : new GenericParquetReaders.TimestampReader(desc);
+      case MILLIS:
+        return isAdjustedToUTC
+            ? new GenericParquetReaders.TimestamptzMillisReader(desc)
+            : new GenericParquetReaders.TimestampMillisReader(desc);
+      default:
+        throw new UnsupportedOperationException("Unsupported unit for timestamp: " + unit);
+    }
+  }
 
   protected Object convertConstant(org.apache.iceberg.types.Type type, Object value) {
     return value;
@@ -164,37 +198,23 @@ public abstract class BaseParquetReaders<T> {
     @Override
     public Optional<ParquetValueReader<?>> visit(
         LogicalTypeAnnotation.DateLogicalTypeAnnotation dateLogicalType) {
-      return Optional.of(new DateReader(desc));
+      return Optional.of(dateReader(desc));
     }
 
     @Override
     public Optional<ParquetValueReader<?>> visit(
         LogicalTypeAnnotation.TimeLogicalTypeAnnotation timeLogicalType) {
-      if (timeLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS) {
-        return Optional.of(new TimeReader(desc));
-      } else if (timeLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS) {
-        return Optional.of(new TimeMillisReader(desc));
-      }
-
-      return Optional.empty();
+      return Optional.of(timeReader(desc, timeLogicalType.getUnit()));
     }
 
     @Override
     public Optional<ParquetValueReader<?>> visit(
         LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampLogicalType) {
-      if (timestampLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS) {
-        Types.TimestampType tsMicrosType = (Types.TimestampType) expected;
-        return tsMicrosType.shouldAdjustToUTC()
-            ? Optional.of(new TimestamptzReader(desc))
-            : Optional.of(new TimestampReader(desc));
-      } else if (timestampLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS) {
-        Types.TimestampType tsMillisType = (Types.TimestampType) expected;
-        return tsMillisType.shouldAdjustToUTC()
-            ? Optional.of(new TimestamptzMillisReader(desc))
-            : Optional.of(new TimestampMillisReader(desc));
-      }
-
-      return LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(timestampLogicalType);
+      return Optional.of(
+          timestampReader(
+              desc,
+              timestampLogicalType.getUnit(),
+              ((Types.TimestampType) expected).shouldAdjustToUTC()));
     }
 
     @Override
@@ -218,6 +238,12 @@ public abstract class BaseParquetReaders<T> {
     public Optional<ParquetValueReader<?>> visit(
         LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonLogicalType) {
       return Optional.of(new ParquetValueReaders.BytesReader(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueReader<?>> visit(
+        LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
+      return Optional.of(ParquetValueReaders.uuids(desc));
     }
   }
 
@@ -359,7 +385,7 @@ public abstract class BaseParquetReaders<T> {
 
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
 
-      if (primitive.getOriginalType() != null) {
+      if (primitive.getLogicalTypeAnnotation() != null) {
         return primitive
             .getLogicalTypeAnnotation()
             .accept(new LogicalTypeAnnotationParquetValueReaderVisitor(desc, expected, primitive))
@@ -371,7 +397,7 @@ public abstract class BaseParquetReaders<T> {
 
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
-          return new FixedReader(desc);
+          return fixedReader(desc);
         case BINARY:
           if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.STRING) {
             return new ParquetValueReaders.StringReader(desc);
@@ -397,7 +423,7 @@ public abstract class BaseParquetReaders<T> {
         case INT96:
           // Impala & Spark used to write timestamps as INT96 without a logical type. For backwards
           // compatibility we try to read INT96 as timestamps.
-          return new TimestampInt96Reader(desc);
+          return timestampReader(desc, LogicalTypeAnnotation.TimeUnit.NANOS, true);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
@@ -405,126 +431,6 @@ public abstract class BaseParquetReaders<T> {
 
     MessageType type() {
       return type;
-    }
-  }
-
-  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
-  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
-
-  private static class DateReader extends ParquetValueReaders.PrimitiveReader<LocalDate> {
-    private DateReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public LocalDate read(LocalDate reuse) {
-      return EPOCH_DAY.plusDays(column.nextInteger());
-    }
-  }
-
-  private static class TimestampReader extends ParquetValueReaders.PrimitiveReader<LocalDateTime> {
-    private TimestampReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public LocalDateTime read(LocalDateTime reuse) {
-      return EPOCH.plus(column.nextLong(), ChronoUnit.MICROS).toLocalDateTime();
-    }
-  }
-
-  private static class TimestampMillisReader
-      extends ParquetValueReaders.PrimitiveReader<LocalDateTime> {
-    private TimestampMillisReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public LocalDateTime read(LocalDateTime reuse) {
-      return EPOCH.plus(column.nextLong() * 1000, ChronoUnit.MICROS).toLocalDateTime();
-    }
-  }
-
-  private static class TimestampInt96Reader
-      extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
-    private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
-
-    private TimestampInt96Reader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public OffsetDateTime read(OffsetDateTime reuse) {
-      final ByteBuffer byteBuffer =
-          column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
-      final long timeOfDayNanos = byteBuffer.getLong();
-      final int julianDay = byteBuffer.getInt();
-
-      return Instant.ofEpochMilli(TimeUnit.DAYS.toMillis(julianDay - UNIX_EPOCH_JULIAN))
-          .plusNanos(timeOfDayNanos)
-          .atOffset(ZoneOffset.UTC);
-    }
-  }
-
-  private static class TimestamptzReader
-      extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
-    private TimestamptzReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public OffsetDateTime read(OffsetDateTime reuse) {
-      return EPOCH.plus(column.nextLong(), ChronoUnit.MICROS);
-    }
-  }
-
-  private static class TimestamptzMillisReader
-      extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
-    private TimestamptzMillisReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public OffsetDateTime read(OffsetDateTime reuse) {
-      return EPOCH.plus(column.nextLong() * 1000, ChronoUnit.MICROS);
-    }
-  }
-
-  private static class TimeMillisReader extends ParquetValueReaders.PrimitiveReader<LocalTime> {
-    private TimeMillisReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public LocalTime read(LocalTime reuse) {
-      return LocalTime.ofNanoOfDay(column.nextLong() * 1000000L);
-    }
-  }
-
-  private static class TimeReader extends ParquetValueReaders.PrimitiveReader<LocalTime> {
-    private TimeReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public LocalTime read(LocalTime reuse) {
-      return LocalTime.ofNanoOfDay(column.nextLong() * 1000L);
-    }
-  }
-
-  private static class FixedReader extends ParquetValueReaders.PrimitiveReader<byte[]> {
-    private FixedReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public byte[] read(byte[] reuse) {
-      if (reuse != null) {
-        column.nextBinary().toByteBuffer().duplicate().get(reuse);
-        return reuse;
-      } else {
-        return column.nextBinary().getBytes();
-      }
     }
   }
 }
