@@ -101,7 +101,6 @@ public class RewriteTablePathProcedure extends BaseProcedure {
         table -> {
           RewriteTablePathSparkAction action = SparkActions.get().rewriteTablePath(table);
 
-          action.rewriteLocationPrefix(sourcePrefix, targetPrefix);
           if (startVersion != null) {
             action.startVersion(startVersion);
           }
@@ -112,9 +111,7 @@ public class RewriteTablePathProcedure extends BaseProcedure {
             action.stagingLocation(stagingLocation);
           }
 
-          RewriteTablePath.Result result = action.execute();
-
-          return toOutputRows(result);
+          return toOutputRows(action.rewriteLocationPrefix(sourcePrefix, targetPrefix).execute());
         });
   }
 
