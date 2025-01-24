@@ -80,7 +80,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
               reuseContainers,
               caseSensitive,
               null);
-      this.conf = readConf.copy();
+      this.conf = readConf;
       return readConf;
     }
     return conf;
