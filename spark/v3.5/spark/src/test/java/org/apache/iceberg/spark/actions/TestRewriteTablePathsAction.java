@@ -41,6 +41,7 @@ import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -59,6 +60,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkCatalog;
@@ -555,32 +557,22 @@ public class TestRewriteTablePathsAction extends TestBase {
   @Test
   public void testRewritePathWithNonLiveEntry() throws Exception {
     String location = newTableLocation();
-    int overwriteCount = 3;
     // first overwrite generate 1 manifest and 1 data file
     // each subsequent overwrite on unpartitioned table generate 2 manifests and 1 data file
     Table tableWith3Snaps = createTableWithSnapshots(location, 3, Maps.newHashMap(), "overwrite");
 
-    // check the data file location before the rebuild
-    List<String> validDataFiles =
-        spark
-            .read()
-            .format("iceberg")
-            .load(tableWith3Snaps + "#all_files")
-            .select("file_path")
-            .as(Encoders.STRING())
-            .collectAsList();
-    assertThat(validDataFiles)
-        .as("Should have 3 data files in 3 snapshots")
-        .hasSize(overwriteCount);
+    Snapshot oldest = SnapshotUtil.oldestAncestor(tableWith3Snaps);
+    String oldestDataFilePath =
+        Iterables.getOnlyElement(
+                tableWith3Snaps.snapshot(oldest.snapshotId()).addedDataFiles(tableWith3Snaps.io()))
+            .location();
+    String deletedDataFilePath =
+        RewriteTablePathSparkAction.newPath(
+            oldestDataFilePath, tableWith3Snaps.location(), targetTableLocation());
 
-    // expire first snapshot
+    // expire the oldest snapshot and remove oldest DataFile
     ExpireSnapshots.Result expireResult =
-        actions()
-            .expireSnapshots(tableWith3Snaps)
-            .expireSnapshotId(SnapshotUtil.oldestAncestor(tableWith3Snaps).snapshotId())
-            .execute();
-
-    // expire first out of 3 snapshots
+        actions().expireSnapshots(tableWith3Snaps).expireSnapshotId(oldest.snapshotId()).execute();
     assertThat(expireResult)
         .as("Should deleted 1 data files in root snapshot")
         .extracting(
@@ -597,6 +589,32 @@ public class TestRewriteTablePathsAction extends TestBase {
             .execute();
 
     checkFileNum(5, 2, 4, 13, result);
+
+    // copy the metadata files and data files
+    copyTableFiles(result);
+
+    // expect deleted data file is excluded from rewrite and copy
+    List<String> copiedDataFiles =
+        spark
+            .read()
+            .format("iceberg")
+            .load(targetTableLocation() + "#all_files")
+            .select("file_path")
+            .as(Encoders.STRING())
+            .collectAsList();
+    assertThat(copiedDataFiles).hasSize(2).doesNotContain(deletedDataFilePath);
+
+    // expect manifest entries still contain deleted entry
+    List<String> copiedEntries =
+        spark
+            .read()
+            .format("iceberg")
+            .load(targetTableLocation() + "#all_entries")
+            .filter("status == 2")
+            .select("data_file.file_path")
+            .as(Encoders.STRING())
+            .collectAsList();
+    assertThat(copiedEntries).contains(deletedDataFilePath);
   }
 
   @Test

@@ -291,7 +291,7 @@ public class RewriteTablePathUtil {
             ManifestFiles.write(format, spec, outputFile, manifestFile.snapshotId());
         ManifestReader<DataFile> reader =
             ManifestFiles.read(manifestFile, io, specsById).select(Arrays.asList("*"))) {
-      return StreamSupport.stream(reader.liveEntries().spliterator(), false)
+      return StreamSupport.stream(reader.entries().spliterator(), false)
           .map(entry -> writeDataFileEntry(entry, spec, sourcePrefix, targetPrefix, writer))
           .reduce(new RewriteResult<>(), RewriteResult::append);
     }
@@ -327,7 +327,7 @@ public class RewriteTablePathUtil {
         ManifestReader<DeleteFile> reader =
             ManifestFiles.readDeleteManifest(manifestFile, io, specsById)
                 .select(Arrays.asList("*"))) {
-      return StreamSupport.stream(reader.liveEntries().spliterator(), false)
+      return StreamSupport.stream(reader.entries().spliterator(), false)
           .map(
               entry ->
                   writeDeleteFileEntry(
@@ -354,7 +354,10 @@ public class RewriteTablePathUtil {
     DataFile newDataFile =
         DataFiles.builder(spec).copy(entry.file()).withPath(targetDataFilePath).build();
     appendEntryWithFile(entry, writer, newDataFile);
-    result.copyPlan().add(Pair.of(sourceDataFilePath, newDataFile.location()));
+    // Keep non-live entry but exclude deleted data files as part of copyPlan
+    if (entry.isLive()) {
+      result.copyPlan().add(Pair.of(sourceDataFilePath, newDataFile.location()));
+    }
     return result;
   }
 
@@ -381,16 +384,22 @@ public class RewriteTablePathUtil {
                 .withMetrics(metricsWithTargetPath)
                 .build();
         appendEntryWithFile(entry, writer, movedFile);
-        result
-            .copyPlan()
-            .add(Pair.of(stagingPath(file.location(), stagingLocation), movedFile.location()));
+        // Keep non-live entry but exclude deleted position delete files as part of copyPlan
+        if (entry.isLive()) {
+          result
+              .copyPlan()
+              .add(Pair.of(stagingPath(file.location(), stagingLocation), movedFile.location()));
+        }
         result.toRewrite().add(file);
         return result;
       case EQUALITY_DELETES:
         DeleteFile eqDeleteFile = newEqualityDeleteEntry(file, spec, sourcePrefix, targetPrefix);
         appendEntryWithFile(entry, writer, eqDeleteFile);
-        // No need to rewrite equality delete files as they do not contain absolute file paths.
-        result.copyPlan().add(Pair.of(file.location(), eqDeleteFile.location()));
+        // Keep non-live entry but exclude deleted equality delete files as part of copyPlan
+        if (entry.isLive()) {
+          // No need to rewrite equality delete files as they do not contain absolute file paths.
+          result.copyPlan().add(Pair.of(file.location(), eqDeleteFile.location()));
+        }
         return result;
 
       default:
