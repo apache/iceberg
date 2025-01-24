@@ -32,17 +32,27 @@ public class ColumnarBatchUtil {
   private ColumnarBatchUtil() {}
 
   /**
-   * Build a row id mapping inside a batch to skip deleted rows. Here is an example:
-   * [0,1,2,3,4,5,6,7] -- Original status of the row id mapping array [F,F,F,F,F,F,F,F] -- Original
-   * status of the isDeleted array Position delete 2, 6 Equality delete 1 &lt;= x &lt;= 3
-   * [0,4,5,7,-,-,-,-] -- After applying position and equality deletes [Set Num records to 4]
-   * [F,T,T,T,F,F,T,F] -- After applying position and equality deletes
+   * Builds a row ID mapping inside a batch to skip deleted rows.
    *
-   * @param columnVectors the array of column vectors for the batch.
-   * @param deletes the delete filter containing delete information.
-   * @param rowStartPosInBatch the starting position of the row in the batch.
-   * @param batchSize the size of the batch.
-   * @return the mapping array and the new num of rows in a batch, null if no row is deleted
+   * <pre>
+   * Initial state
+   * Data values: [v0, v1, v2, v3, v4, v5, v6, v7]
+   * Row ID mapping: [0, 1, 2, 3, 4, 5, 6, 7]
+   *
+   * Apply position deletes
+   * Position deletes: 2, 6
+   * Row ID mapping: [0, 1, 3, 4, 5, 7, -, -] (6 live records)
+   *
+   * Apply equality deletes
+   * Equality deletes: v1, v2, v3
+   * Row ID mapping: [0, 4, 5, 7, -, -, -, -] (4 live records)
+   * </pre>
+   *
+   * @param columnVectors the array of column vectors for the batch
+   * @param deletes the delete filter containing delete information
+   * @param rowStartPosInBatch the starting position of the row in the batch
+   * @param batchSize the size of the batch
+   * @return the mapping array and the number of live rows, or {@code null} if nothing is deleted
    */
   public static Pair<int[], Integer> buildRowIdMapping(
       ColumnVector[] columnVectors,
@@ -74,10 +84,21 @@ public class ColumnarBatchUtil {
   }
 
   /**
-   * Constructs an array indicating whether each row in a batch is deleted based on the specified
-   * delete filters. This method processes the column vectors and applies the delete filters to
-   * determine the deleted status for each row starting from a specified row position within the
-   * batch.
+   * Builds a boolean array to indicate if a row is deleted or not.
+   *
+   * <pre>
+   * Initial state
+   * Data values: [v0, v1, v2, v3, v4, v5, v6, v7]
+   * Is deleted array: [F, F, F, F, F, F, F, F]
+   *
+   * Apply position deletes
+   * Position deletes: 2, 6
+   * Is deleted array: [F, F, T, F, F, F, T, F] (6 live records)
+   *
+   * Apply equality deletes
+   * Equality deletes: v1, v2, v3
+   * Is deleted array: [F, T, T, T, F, F, T, F] (4 live records)
+   * </pre>
    *
    * @param columnVectors the array of column vectors for the batch.
    * @param deletes the delete filter containing information about which rows should be deleted.
