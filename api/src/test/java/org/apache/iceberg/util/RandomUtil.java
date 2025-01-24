@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.util;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Arrays;
@@ -284,5 +287,57 @@ public class RandomUtil {
     }
 
     return result;
+  }
+
+  public static String generateRandomJsonString(int numFields, Random random)
+      throws JsonProcessingException {
+    ObjectMapper mapper = new ObjectMapper();
+    ObjectNode jsonObject = mapper.createObjectNode();
+    for (int i = 0; i < numFields; i++) {
+      String key = randomString(random);
+      Object value = randomValue(random);
+      jsonObject.putPOJO(key, value);
+    }
+
+    return mapper.writeValueAsString(jsonObject);
+  }
+
+  private static Object randomValue(Random random) {
+    Type.PrimitiveType primitive = randomPrimitiveType(random);
+    return generatePrimitive(primitive, random);
+  }
+
+  private static Type.PrimitiveType randomPrimitiveType(Random random) {
+    int choice = random.nextInt(13);
+    switch (choice) {
+      case 0:
+        return Types.BooleanType.get();
+      case 1:
+        return Types.IntegerType.get();
+      case 2:
+        return Types.LongType.get();
+      case 3:
+        return Types.FloatType.get();
+      case 4:
+        return Types.DoubleType.get();
+      case 5:
+        return Types.DateType.get();
+      case 6:
+        return Types.TimeType.get();
+      case 7:
+        return Types.TimestampType.withoutZone();
+      case 8:
+        return Types.StringType.get();
+      case 9:
+        return Types.UUIDType.get();
+      case 10:
+        return Types.FixedType.ofLength(16);
+      case 11:
+        return Types.BinaryType.get();
+      case 12:
+        return Types.DecimalType.of(38, 9);
+      default:
+        throw new IllegalArgumentException("Unknown type choice: " + choice);
+    }
   }
 }

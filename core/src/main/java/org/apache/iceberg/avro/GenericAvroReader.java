@@ -112,11 +112,14 @@ public class GenericAvroReader<T>
         return ValueReaders.skipStruct(fieldResults);
       }
 
-      Types.StructType expected = partner.asStructType();
-      List<Pair<Integer, ValueReader<?>>> readPlan =
-          ValueReaders.buildReadPlan(expected, record, fieldResults, idToConstant);
-
-      return recordReader(readPlan, avroSchemas.get(partner), record.getFullName());
+      if (partner.isVariantType()) {
+        return ValueReaders.record(fieldResults, record);
+      } else {
+        Types.StructType expected = partner.asStructType();
+        List<Pair<Integer, ValueReader<?>>> readPlan =
+            ValueReaders.buildReadPlan(expected, record, fieldResults, idToConstant);
+        return recordReader(readPlan, avroSchemas.get(partner), record.getFullName());
+      }
     }
 
     @SuppressWarnings("unchecked")

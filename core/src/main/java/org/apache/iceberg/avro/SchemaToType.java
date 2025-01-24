@@ -83,6 +83,10 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
     List<Schema.Field> fields = record.getFields();
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(fields.size());
 
+    if ("variant".equals(record.getName())) {
+      return Types.VariantType.get();
+    }
+
     if (Objects.equals(root, record)) {
       this.nextId = 0;
     }

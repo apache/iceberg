@@ -18,22 +18,9 @@
  */
 package org.apache.iceberg.variants;
 
-/** An variant object value. */
-public interface VariantObject extends VariantValue {
-  default int numElements() {
-    throw new UnsupportedOperationException();
-  }
+public class VariantSizeLimitException extends RuntimeException {
 
-  /** Returns the {@link VariantValue} for the field named {@code name} in this object. */
-  VariantValue get(String name);
-
-  @Override
-  default Variants.PhysicalType type() {
-    return Variants.PhysicalType.OBJECT;
-  }
-
-  @Override
-  default VariantObject asObject() {
-    return this;
+  public VariantSizeLimitException() {
+    super("Variant size limit exceeded");
   }
 }

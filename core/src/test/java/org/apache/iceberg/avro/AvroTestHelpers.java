@@ -104,6 +104,25 @@ class AvroTestHelpers {
     }
   }
 
+  static void assertEquals(Types.VariantType variantType, Record expected, Record actual) {
+    assertThat(expected).as("Expected value should not be null").isNotNull();
+    assertThat(actual).as("Actual value should not be null").isNotNull();
+
+    int expectedFields = expected.getSchema().getFields().size();
+    int actualFields = actual.getSchema().getFields().size();
+
+    assertThat(actualFields)
+        .as("Variant should have the same number of fields")
+        .isEqualTo(expectedFields);
+    assertThat(actualFields).as("Variant record should have 2 fields").isEqualTo(2);
+    for (int i = 0; i < expectedFields; i += 1) {
+      Object expectedValue = expected.get(i);
+      Object actualValue = actual.get(i);
+
+      assertEquals(Types.BinaryType.get(), expectedValue, actualValue);
+    }
+  }
+
   private static void assertEquals(Type type, Object expected, Object actual) {
     if (expected == null && actual == null) {
       return;
@@ -124,6 +143,11 @@ class AvroTestHelpers {
       case BINARY:
       case DECIMAL:
         assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
+        break;
+      case VARIANT:
+        assertThat(expected).as("Expected should be a Record").isInstanceOf(Record.class);
+        assertThat(actual).as("Actual should be a Record").isInstanceOf(Record.class);
+        assertEquals(type.asVariantType(), (Record) expected, (Record) actual);
         break;
       case STRUCT:
         assertThat(expected).as("Expected should be a Record").isInstanceOf(Record.class);
