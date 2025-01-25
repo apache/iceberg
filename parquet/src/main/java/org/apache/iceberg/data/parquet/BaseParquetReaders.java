@@ -67,8 +67,18 @@ public abstract class BaseParquetReaders<T> {
     }
   }
 
+  /**
+   * @deprecated will be removed in 1.9.0; use {@link #createStructReader(List, Types.StructType)}
+   *     instead.
+   */
+  @Deprecated
+  protected ParquetValueReader<T> createStructReader(
+      List<Type> types, List<ParquetValueReader<?>> fieldReaders, Types.StructType structType) {
+    return createStructReader(fieldReaders, structType);
+  }
+
   protected abstract ParquetValueReader<T> createStructReader(
-      List<Type> types, List<ParquetValueReader<?>> fieldReaders, Types.StructType structType);
+      List<ParquetValueReader<?>> fieldReaders, Types.StructType structType);
 
   protected ParquetValueReader<?> fixedReader(ColumnDescriptor desc) {
     return new GenericParquetReaders.FixedReader(desc);

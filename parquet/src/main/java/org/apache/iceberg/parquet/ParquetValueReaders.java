@@ -86,8 +86,8 @@ public class ParquetValueReaders {
   }
 
   public static ParquetValueReader<Record> recordReader(
-      List<Type> types, List<ParquetValueReader<?>> readers, Types.StructType struct) {
-    return new RecordReader(types, readers, struct);
+      List<ParquetValueReader<?>> readers, Types.StructType struct) {
+    return new RecordReader(readers, struct);
   }
 
   private static class NullReader<T> implements ParquetValueReader<T> {
@@ -826,7 +826,15 @@ public class ParquetValueReaders {
     private final TripleIterator<?> column;
     private final List<TripleIterator<?>> children;
 
+    /**
+     * @deprecated will be removed in 1.9.0; use {@link #StructReader(List)} instead.
+     */
+    @Deprecated
     protected StructReader(List<Type> types, List<ParquetValueReader<?>> readers) {
+      this(readers);
+    }
+
+    protected StructReader(List<ParquetValueReader<?>> readers) {
       this.readers =
           (ParquetValueReader<?>[]) Array.newInstance(ParquetValueReader.class, readers.size());
       TripleIterator<?>[] columns =
@@ -943,8 +951,8 @@ public class ParquetValueReaders {
   private static class RecordReader extends StructReader<Record, Record> {
     private final GenericRecord template;
 
-    RecordReader(List<Type> types, List<ParquetValueReader<?>> readers, Types.StructType struct) {
-      super(types, readers);
+    RecordReader(List<ParquetValueReader<?>> readers, Types.StructType struct) {
+      super(readers);
       this.template = struct != null ? GenericRecord.create(struct) : null;
     }
 

@@ -38,7 +38,6 @@ import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.Type;
 
 public class GenericParquetReaders extends BaseParquetReaders<Record> {
 
@@ -58,8 +57,8 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
 
   @Override
   protected ParquetValueReader<Record> createStructReader(
-      List<Type> types, List<ParquetValueReader<?>> fieldReaders, StructType structType) {
-    return ParquetValueReaders.recordReader(types, fieldReaders, structType);
+      List<ParquetValueReader<?>> fieldReaders, StructType structType) {
+    return ParquetValueReaders.recordReader(fieldReaders, structType);
   }
 
   @Override
