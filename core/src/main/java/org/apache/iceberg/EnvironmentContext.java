@@ -52,4 +52,13 @@ public class EnvironmentContext {
   public static void put(String key, String value) {
     PROPERTIES.put(key, value);
   }
+
+  /**
+   * Remove the key from the global properties map.
+   *
+   * @param key The key whose value to remove
+   */
+  public static void remove(String key) {
+    PROPERTIES.remove(key);
+  }
 }
