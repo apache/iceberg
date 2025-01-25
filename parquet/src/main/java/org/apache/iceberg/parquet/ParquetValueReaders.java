@@ -213,9 +213,6 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {}
-
-    @Override
     public void setPageSource(PageReadStore pageStore) {}
   }
 
@@ -279,9 +276,6 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {}
-
-    @Override
     public void setPageSource(PageReadStore pageStore) {}
   }
 
@@ -303,11 +297,6 @@ public class ParquetValueReaders {
     @Override
     public List<TripleIterator<?>> columns() {
       return NullReader.COLUMNS;
-    }
-
-    @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      setPageSource(pageStore);
     }
 
     @Override
@@ -335,11 +324,6 @@ public class ParquetValueReaders {
       this.desc = desc;
       this.column = ColumnIterator.newIterator(desc, "");
       this.children = ImmutableList.of(column);
-    }
-
-    @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      setPageSource(pageStore);
     }
 
     @Override
@@ -589,11 +573,6 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      setPageSource(pageStore);
-    }
-
-    @Override
     public void setPageSource(PageReadStore pageStore) {
       reader.setPageSource(pageStore);
     }
@@ -636,11 +615,6 @@ public class ParquetValueReaders {
       this.reader = reader;
       this.column = reader.column();
       this.children = reader.columns();
-    }
-
-    @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      setPageSource(pageStore);
     }
 
     @Override
@@ -760,11 +734,6 @@ public class ParquetValueReaders {
               .addAll(keyReader.columns())
               .addAll(valueReader.columns())
               .build();
-    }
-
-    @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      setPageSource(pageStore);
     }
 
     @Override
@@ -924,11 +893,6 @@ public class ParquetValueReaders {
 
       this.children = columnsBuilder.build();
       this.column = firstNonNullColumn(children);
-    }
-
-    @Override
-    public final void setPageSource(PageReadStore pageStore, long rowPosition) {
-      setPageSource(pageStore);
     }
 
     @Override
