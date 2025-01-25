@@ -152,11 +152,11 @@ public class ParquetValueReaders {
   }
 
   public static ParquetValueReader<UUID> uuids(ColumnDescriptor desc) {
-    return new ParquetValueReaders.UUIDReader(desc);
+    return new UUIDReader(desc);
   }
 
   public static ParquetValueReader<Long> int96Timestamps(ColumnDescriptor desc) {
-    return new ParquetValueReaders.TimestampInt96Reader(desc);
+    return new TimestampInt96Reader(desc);
   }
 
   public static ParquetValueReader<Record> recordReader(
@@ -497,7 +497,7 @@ public class ParquetValueReaders {
     }
   }
 
-  public static class ByteArrayReader extends ParquetValueReaders.PrimitiveReader<byte[]> {
+  public static class ByteArrayReader extends PrimitiveReader<byte[]> {
     public ByteArrayReader(ColumnDescriptor desc) {
       super(desc);
     }
