@@ -235,6 +235,9 @@ public class TestParquet {
       class TestStreamClosedProperlyStream extends SeekableInputStream implements DelegatingInputStream {
         boolean thisClosed = false;
         boolean delegateClosed = false;
+        {
+          reset();
+        }
 
         @Override
         public InputStream getDelegate() {
@@ -270,6 +273,11 @@ public class TestParquet {
           thisClosed = true;
           delegateClosed = true;
         }
+
+        public void reset(){
+          thisClosed = false;
+          delegateClosed = false;
+        }
       }
 
       try (TestStreamClosedProperlyStream stream = new TestStreamClosedProperlyStream()) {
@@ -281,6 +289,7 @@ public class TestParquet {
 
           @Override
           public SeekableInputStream newStream() {
+            stream.reset();
             return stream;
           }
 
@@ -308,6 +317,9 @@ public class TestParquet {
       class TestStreamClosedProperlyStream extends PositionOutputStream implements DelegatingOutputStream {
         boolean thisClosed = false;
         boolean delegateClosed = false;
+        {
+          reset();
+        }
 
         @Override
         public long getPos() throws IOException {
