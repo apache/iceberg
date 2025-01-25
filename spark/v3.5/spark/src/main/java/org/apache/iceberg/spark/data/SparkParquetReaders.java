@@ -251,10 +251,10 @@ public class SparkParquetReaders {
             }
           case DATE:
           case INT_64:
-          case TIMESTAMP_MICROS:
             return new UnboxedReader<>(desc);
+          case TIMESTAMP_MICROS:
           case TIMESTAMP_MILLIS:
-            return ParquetValueReaders.millisAsTimestamps(desc);
+            return ParquetValueReaders.timestamps(desc);
           case DECIMAL:
             DecimalLogicalTypeAnnotation decimal =
                 (DecimalLogicalTypeAnnotation) primitive.getLogicalTypeAnnotation();
