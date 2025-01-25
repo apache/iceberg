@@ -131,6 +131,12 @@ public class PartitionSpec implements Serializable {
           for (PartitionField field : fields) {
             Type sourceType = schema.findType(field.sourceId());
             Type resultType = field.transform().getResultType(sourceType);
+
+            // When the source field has been dropped we cannot determine the type
+            if (resultType == null) {
+              resultType = Types.UnknownType.get();
+            }
+
             structFields.add(Types.NestedField.optional(field.fieldId(), field.name(), resultType));
           }
 
@@ -633,8 +639,6 @@ public class PartitionSpec implements Serializable {
       // We don't care about the source type since a VoidTransform is always compatible and skip the
       // checks
       if (!transform.equals(Transforms.alwaysNull())) {
-        ValidationException.check(
-            sourceType != null, "Cannot find source column for partition field: %s", field);
         ValidationException.check(
             sourceType.isPrimitiveType(),
             "Cannot partition by non-primitive source field: %s",
