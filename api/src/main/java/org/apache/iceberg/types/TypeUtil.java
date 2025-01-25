@@ -617,7 +617,7 @@ public class TypeUtil {
     }
 
     public T variant() {
-      return null;
+      throw new UnsupportedOperationException("Unsupported type: variant");
     }
 
     public T primitive(Type.PrimitiveType primitive) {

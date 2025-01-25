@@ -74,4 +74,9 @@ class GetProjectedIds extends TypeUtil.SchemaVisitor<Set<Integer>> {
     }
     return fieldIds;
   }
+
+  @Override
+  public Set<Integer> variant() {
+    return null;
+  }
 }

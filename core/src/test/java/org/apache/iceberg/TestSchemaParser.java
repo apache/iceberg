@@ -123,4 +123,14 @@ public class TestSchemaParser extends AvroDataTest {
     assertThat(serialized.findField("col_with_default").initialDefault()).isEqualTo(defaultValue);
     assertThat(serialized.findField("col_with_default").writeDefault()).isEqualTo(defaultValue);
   }
+
+  @Test
+  public void testVariantType() throws IOException {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.VariantType.get()));
+
+    writeAndValidate(schema);
+  }
 }

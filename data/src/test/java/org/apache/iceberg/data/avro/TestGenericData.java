@@ -18,11 +18,18 @@
  */
 package org.apache.iceberg.data.avro;
 
+import static org.apache.iceberg.avro.AvroSchemaUtil.convert;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
@@ -33,6 +40,9 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.JsonUtil;
+import org.junit.jupiter.api.Test;
 
 public class TestGenericData extends DataTest {
   @Override
@@ -75,5 +85,30 @@ public class TestGenericData extends DataTest {
   @Override
   protected boolean supportsDefaultValues() {
     return true;
+  }
+
+  @Test
+  public void testSchemaWithTwoVariants() throws JsonProcessingException {
+    final Schema FILE_SCHEMA =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            optional(2, "v1", Types.VariantType.get()),
+            optional(3, "v2", Types.VariantType.get()));
+
+    GenericRecordBuilder builder = new GenericRecordBuilder(convert(FILE_SCHEMA, "table"));
+    builder.set("id", 1);
+
+    GenericData.Record record = builder.build();
+    String expectedSchema =
+        "{\"type\":\"record\",\"name\":\"table\","
+            + "\"fields\":[{\"name\":\"id\",\"type\":\"int\",\"field-id\":1},"
+            + "{\"name\":\"v1\",\"type\":[\"null\",{\"type\":\"record\",\"name\":\"r2\","
+            + "\"fields\":[{\"name\":\"metadata\",\"type\":\"bytes\"},"
+            + "{\"name\":\"value\",\"type\":\"bytes\"}]}],\"default\":null,\"field-id\":2},"
+            + "{\"name\":\"v2\",\"type\":[\"null\",{\"type\":\"record\",\"name\":\"r3\","
+            + "\"fields\":[{\"name\":\"metadata\",\"type\":\"bytes\"},"
+            + "{\"name\":\"value\",\"type\":\"bytes\"}]}],\"default\":null,\"field-id\":3}]}";
+    assertThat(JsonUtil.mapper().readValue(record.getSchema().toString(), JsonNode.class))
+        .isEqualTo(JsonUtil.mapper().readValue(expectedSchema, JsonNode.class));
   }
 }

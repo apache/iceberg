@@ -39,8 +39,8 @@ public class Types {
 
   private Types() {}
 
-  private static final ImmutableMap<String, PrimitiveType> TYPES =
-      ImmutableMap.<String, PrimitiveType>builder()
+  private static final ImmutableMap<String, Type> TYPES =
+      ImmutableMap.<String, Type>builder()
           .put(BooleanType.get().toString(), BooleanType.get())
           .put(IntegerType.get().toString(), IntegerType.get())
           .put(LongType.get().toString(), LongType.get())
@@ -56,21 +56,14 @@ public class Types {
           .put(UUIDType.get().toString(), UUIDType.get())
           .put(BinaryType.get().toString(), BinaryType.get())
           .put(UnknownType.get().toString(), UnknownType.get())
+          .put(VariantType.get().toString(), VariantType.get())
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
   private static final Pattern DECIMAL =
       Pattern.compile("decimal\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)");
 
-  public static Type typeFromTypeString(String typeString) {
-    if (VariantType.get().toString().equalsIgnoreCase(typeString)) {
-      return Types.VariantType.get();
-    }
-
-    return Types.fromPrimitiveString(typeString);
-  }
-
-  public static PrimitiveType fromPrimitiveString(String typeString) {
+  public static Type fromPrimitiveString(String typeString) {
     String lowerTypeString = typeString.toLowerCase(Locale.ROOT);
     if (TYPES.containsKey(lowerTypeString)) {
       return TYPES.get(lowerTypeString);

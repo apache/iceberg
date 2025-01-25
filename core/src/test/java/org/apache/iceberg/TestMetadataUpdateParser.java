@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -43,9 +42,6 @@ import org.apache.iceberg.view.ImmutableViewVersion;
 import org.apache.iceberg.view.ViewVersion;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestMetadataUpdateParser {
 
@@ -55,15 +51,6 @@ public class TestMetadataUpdateParser {
       new Schema(
           Types.NestedField.required(1, "id", Types.IntegerType.get()),
           Types.NestedField.optional(2, "data", Types.StringType.get()));
-
-  private static final Schema ID_VARIANTDATA_SCHEMA =
-      new Schema(
-          Types.NestedField.required(1, "id", Types.IntegerType.get()),
-          Types.NestedField.optional(2, "data", Types.VariantType.get()));
-
-  private static Stream<Arguments> testSchemas() {
-    return Stream.of(Arguments.of(ID_DATA_SCHEMA), Arguments.of(ID_VARIANTDATA_SCHEMA));
-  }
 
   @Test
   public void testMetadataUpdateWithoutActionCannotDeserialize() {
@@ -121,19 +108,19 @@ public class TestMetadataUpdateParser {
   }
 
   /** AddSchema * */
-  @ParameterizedTest
-  @MethodSource("testSchemas")
-  public void testAddSchemaFromJson(Schema schema) {
+  @Test
+  public void testAddSchemaFromJson() {
     String action = MetadataUpdateParser.ADD_SCHEMA;
+    Schema schema = ID_DATA_SCHEMA;
     String json =
         String.format("{\"action\":\"add-schema\",\"schema\":%s}", SchemaParser.toJson(schema));
     MetadataUpdate actualUpdate = new MetadataUpdate.AddSchema(schema);
     assertEquals(action, actualUpdate, MetadataUpdateParser.fromJson(json));
   }
 
-  @ParameterizedTest
-  @MethodSource("testSchemas")
-  public void testAddSchemaToJson(Schema schema) {
+  @Test
+  public void testAddSchemaToJson() {
+    Schema schema = ID_DATA_SCHEMA;
     int lastColumnId = schema.highestFieldId();
     String expected =
         String.format(

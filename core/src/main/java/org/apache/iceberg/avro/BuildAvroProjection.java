@@ -56,6 +56,8 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
   @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Schema record(Schema record, List<String> names, Iterable<Schema.Field> schemaIterable) {
+    // TODO: When the Variant logical type is introduced in Avro, handle the following in a separate
+    // visitor method
     if (current.isVariantType()) {
       return variant(record);
     }

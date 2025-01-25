@@ -409,15 +409,14 @@ public class TestBuildAvroProjection {
 
     final org.apache.avro.Schema expected =
         SchemaBuilder.record("variant")
+            .prop(AvroSchemaUtil.FIELD_ID_PROP, "1")
             .namespace("unit.test")
             .fields()
             .name("metadata")
-            .prop(AvroSchemaUtil.FIELD_ID_PROP, "1")
             .type()
             .bytesType()
             .noDefault()
             .name("value")
-            .prop(AvroSchemaUtil.FIELD_ID_PROP, "2")
             .type()
             .bytesType()
             .noDefault()

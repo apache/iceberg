@@ -43,6 +43,9 @@ public class TestTypes {
 
     assertThat(Types.fromPrimitiveString("Decimal(2,3)")).isEqualTo(Types.DecimalType.of(2, 3));
 
+    assertThat(Types.fromPrimitiveString("variant")).isSameAs(Types.VariantType.get());
+    assertThat(Types.fromPrimitiveString("Variant")).isSameAs(Types.VariantType.get());
+
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("abcdefghij"))
         .withMessage("Cannot parse type string to primitive: abcdefghij");
