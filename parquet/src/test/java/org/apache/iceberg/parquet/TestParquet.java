@@ -31,6 +31,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -39,12 +41,18 @@ import java.util.function.Function;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.io.DelegatingInputStream;
+import org.apache.iceberg.io.DelegatingOutputStream;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -57,6 +65,7 @@ import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.schema.MessageType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -217,6 +226,170 @@ public class TestParquet {
 
     assertThat(recordRead.get("arraybytes")).isEqualTo(expectedByteList);
     assertThat(recordRead.get("topbytes")).isEqualTo(expectedBinary);
+  }
+
+  @Test
+  public void testStreamClosedProperly() throws IOException{
+    // test for input
+    {
+      class TestStreamClosedProperlyStream extends SeekableInputStream implements DelegatingInputStream {
+        boolean thisClosed = false;
+        boolean delegateClosed = false;
+
+        @Override
+        public InputStream getDelegate() {
+          return new FSDataInputStream(new InputStream() {
+            @Override
+            public int read() throws IOException {
+              return 0;
+            }
+
+            @Override
+            public void close() throws IOException {
+              delegateClosed = true;
+            }
+          });
+        }
+
+        @Override
+        public long getPos() throws IOException {
+          return 0;
+        }
+
+        @Override
+        public void seek(long newPos) throws IOException {
+        }
+
+        @Override
+        public int read() throws IOException {
+          return 0;
+        }
+
+        @Override
+        public void close() throws IOException {
+          thisClosed = true;
+          delegateClosed = true;
+        }
+      }
+
+      try (TestStreamClosedProperlyStream stream = new TestStreamClosedProperlyStream()) {
+        try (org.apache.parquet.io.SeekableInputStream _unused = ParquetIO.file(new InputFile() {
+          @Override
+          public long getLength() {
+            return 0;
+          }
+
+          @Override
+          public SeekableInputStream newStream() {
+            return stream;
+          }
+
+          @Override
+          public String location() {
+            return "";
+          }
+
+          @Override
+          public boolean exists() {
+            return false;
+          }
+        }).newStream()) {
+          assertThat(stream.delegateClosed).isFalse();
+          assertThat(stream.thisClosed).isFalse();
+        } finally {
+          assertThat(stream.delegateClosed).isTrue();
+          assertThat(stream.thisClosed).isTrue();
+        }
+      }
+    }
+
+    // test for output
+    {
+      class TestStreamClosedProperlyStream extends PositionOutputStream implements DelegatingOutputStream {
+        boolean thisClosed = false;
+        boolean delegateClosed = false;
+
+        @Override
+        public long getPos() throws IOException {
+          return 0;
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+        }
+
+        @Override
+        public OutputStream getDelegate() {
+          try {
+            return new FSDataOutputStream(new OutputStream() {
+              @Override
+              public void write(int b) {
+              }
+
+              @Override
+              public void close() throws IOException {
+                delegateClosed = true;
+              }
+            }, null);
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        }
+
+        @Override
+        public void close() throws IOException {
+          thisClosed = true;
+          delegateClosed = true;
+        }
+
+        public void reset() {
+          thisClosed = false;
+          delegateClosed = false;
+        }
+      }
+
+      try (TestStreamClosedProperlyStream stream = new TestStreamClosedProperlyStream()) {
+        OutputFile file = ParquetIO.file(new org.apache.iceberg.io.OutputFile() {
+          @Override
+          public PositionOutputStream create() {
+            stream.reset();
+            return stream;
+          }
+
+          @Override
+          public PositionOutputStream createOrOverwrite() {
+            stream.reset();
+            return stream;
+          }
+
+          @Override
+          public String location() {
+            return "";
+          }
+
+          @Override
+          public InputFile toInputFile() {
+            return null;
+          }
+        });
+
+        try (org.apache.parquet.io.PositionOutputStream _unused = file.create(0)) {
+          assertThat(stream.delegateClosed).isFalse();
+          assertThat(stream.thisClosed).isFalse();
+        } finally {
+          assertThat(stream.delegateClosed).isTrue();
+          assertThat(stream.thisClosed).isTrue();
+        }
+
+        try (org.apache.parquet.io.PositionOutputStream _unused = file.createOrOverwrite(0)) {
+          assertThat(stream.delegateClosed).isFalse();
+          assertThat(stream.thisClosed).isFalse();
+        } finally {
+          assertThat(stream.delegateClosed).isTrue();
+          assertThat(stream.thisClosed).isTrue();
+        }
+      }
+    }
   }
 
   private Pair<File, Long> generateFile(
