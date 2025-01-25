@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
@@ -309,15 +310,22 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   @VisibleForTesting
   List<String> listLocationWithPrefix(String location, PathFilter pathFilter) {
     List<String> matchingFiles = Lists.newArrayList();
-    Iterator<org.apache.iceberg.io.FileInfo> iterator =
-        ((SupportsPrefixOperations) table.io()).listPrefix(location).iterator();
-    while (iterator.hasNext()) {
-      org.apache.iceberg.io.FileInfo fileInfo = iterator.next();
-      // NOTE: To avoid checking un necessary root folders, check the path relative to table
-      // location.
-      Path relativeFilePath = new Path(fileInfo.location().replace(location, ""));
-      if (fileInfo.createdAtMillis() < olderThanTimestamp && pathFilter.accept(relativeFilePath)) {
-        matchingFiles.add(fileInfo.location());
+    try {
+      Iterator<org.apache.iceberg.io.FileInfo> iterator =
+          ((SupportsPrefixOperations) table.io()).listPrefix(location).iterator();
+      while (iterator.hasNext()) {
+        org.apache.iceberg.io.FileInfo fileInfo = iterator.next();
+        // NOTE: To avoid checking un necessary root folders, check the path relative to table
+        // location.
+        Path relativeFilePath = new Path(fileInfo.location().replace(location, ""));
+        if (fileInfo.createdAtMillis() < olderThanTimestamp
+            && pathFilter.accept(relativeFilePath)) {
+          matchingFiles.add(fileInfo.location());
+        }
+      }
+    } catch (Exception e) {
+      if (!(e.getCause() instanceof FileNotFoundException)) {
+        throw e;
       }
     }
     return matchingFiles;

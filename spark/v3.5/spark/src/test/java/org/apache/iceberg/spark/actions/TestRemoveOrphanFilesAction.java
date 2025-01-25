@@ -60,7 +60,6 @@ import org.apache.iceberg.Transaction;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
@@ -1100,17 +1099,23 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             String.valueOf(formatVersion),
             TableProperties.OBJECT_STORE_ENABLED,
             "true");
-    System.out.println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).truncate("c2", 2).identity("c3").build();
     Table table = TABLES.create(SCHEMA, spec, props, tableLocation);
-    System.out.println(">: " + table.location());
-    System.out.println(">: " + table.locationProvider().newDataLocation("test"));
-    GenericRecord record =
-        GenericRecord.create(SCHEMA).copy(Map.of("c1", "54321", "c2", "bbbb", "c3", "cccc"));
-    System.out.println(">: " + table.locationProvider().newDataLocation(spec, record, "test"));
-    System.out.println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
-    assertThat(table.locationProvider().newDataLocation("test")).as("equals").isEqualTo("xxx");
-    assertThat(table.locationProvider().getClass().toString()).as("equals").isEqualTo("xxx");
+
+    StructType structType =
+        new StructType()
+            .add("c1", DataTypes.IntegerType)
+            .add("c2", DataTypes.StringType)
+            .add("c3", DataTypes.StringType);
+
+    List<Row> records = Lists.newArrayList(RowFactory.create(54321, "bbbb", "cccc"));
+    Dataset<Row> df = spark.createDataFrame(records, structType).coalesce(1);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+
+    DeleteOrphanFilesSparkAction action =
+        SparkActions.get().deleteOrphanFiles(table).olderThan(System.currentTimeMillis());
+    // test list methods by directly instantiating the action
+    assertThatDatasetsAreEqualIgnoringOrder(action.listWithPrefix(), action.listWithoutPrefix());
   }
 
   protected String randomName(String prefix) {
