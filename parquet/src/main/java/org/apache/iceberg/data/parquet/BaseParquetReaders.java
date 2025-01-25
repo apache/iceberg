@@ -184,8 +184,7 @@ public abstract class BaseParquetReaders<T> {
     private final org.apache.iceberg.types.Type.PrimitiveType expected;
 
     LogicalTypeReadBuilder(
-        ColumnDescriptor desc,
-        org.apache.iceberg.types.Type.PrimitiveType expected) {
+        ColumnDescriptor desc, org.apache.iceberg.types.Type.PrimitiveType expected) {
       this.desc = desc;
       this.expected = expected;
     }
