@@ -190,9 +190,9 @@ public class TestRemoveMissingFilesAction extends TestBaseWithCatalog {
 
     SparkActions actions = SparkActions.get(spark);
     RemoveMissingFiles.Result result = actions.removeMissingFiles(table).execute();
-    List<DataFile> removedDataFiles = Lists.newArrayList(result.removedDataFiles());
+    List<String> removedDataFiles = Lists.newArrayList(result.removedDataFiles());
     assertThat(removedDataFiles.size()).as("Removed one data file").isEqualTo(1);
-    assertThat(removedDataFiles.get(0).location())
+    assertThat(removedDataFiles.get(0))
         .as("Removed data file is the missing file")
         .isEqualTo(pathString);
 
@@ -212,12 +212,12 @@ public class TestRemoveMissingFilesAction extends TestBaseWithCatalog {
 
     SparkActions actions = SparkActions.get(spark);
     RemoveMissingFiles.Result result = actions.removeMissingFiles(table).execute();
-    List<DataFile> removedDataFiles = Lists.newArrayList(result.removedDataFiles());
+    List<String> removedDataFiles = Lists.newArrayList(result.removedDataFiles());
     assertThat(removedDataFiles.size()).as("Removed one data file").isEqualTo(1);
-    assertThat(removedDataFiles.get(0).location())
+    assertThat(removedDataFiles.get(0))
         .as("Removed data file is the missing file")
         .isEqualTo(pathString);
-    List<DeleteFile> removedDeleteFiles = Lists.newArrayList(result.removedDeleteFiles());
+    List<String> removedDeleteFiles = Lists.newArrayList(result.removedDeleteFiles());
     assertThat(removedDeleteFiles.size()).as("Removed no delete files").isEqualTo(0);
 
     Dataset<Row> resultDF = spark.sql(String.format("SELECT * FROM %s ORDER by c1", tableName));
@@ -238,16 +238,17 @@ public class TestRemoveMissingFilesAction extends TestBaseWithCatalog {
 
     SparkActions actions = SparkActions.get(spark);
     RemoveMissingFiles.Result result = actions.removeMissingFiles(table).execute();
-    List<DataFile> removedDataFiles = Lists.newArrayList(result.removedDataFiles());
+    List<String> removedDataFiles = Lists.newArrayList(result.removedDataFiles());
     assertThat(removedDataFiles.size()).as("Removed one data file").isEqualTo(1);
-    assertThat(removedDataFiles.get(0).location())
+    assertThat(removedDataFiles.get(0))
         .as("Removed data file is the missing file")
         .isEqualTo(pathString);
-    // The delete file now has a dangling delete (referencing the removed data file)
-    // along with a valid delete (referencing the data file for snapshot 3)
-    List<DeleteFile> removedDeleteFiles = Lists.newArrayList(result.removedDeleteFiles());
+    // The delete file now has a dangling delete (referencing the removed data file) along with a
+    // valid delete (referencing the data file for snapshot 3). It is not removed.
+    List<String> removedDeleteFiles = Lists.newArrayList(result.removedDeleteFiles());
     assertThat(removedDeleteFiles.size()).as("Removed no delete files").isEqualTo(0);
 
+    // Dangling deletes do not prevent the table from being read
     Dataset<Row> resultDF = spark.sql(String.format("SELECT c1 FROM %s ORDER by c1", tableName));
     List<Integer> actualRecords = resultDF.as(Encoders.INT()).collectAsList();
     // rows 1, 2, 3 are removed from the table; 4, 5, 6, 7, 9 remain (row 8 has been deleted)
@@ -264,11 +265,11 @@ public class TestRemoveMissingFilesAction extends TestBaseWithCatalog {
 
     SparkActions actions = SparkActions.get(spark);
     RemoveMissingFiles.Result result = actions.removeMissingFiles(table).execute();
-    List<DataFile> removedDataFiles = Lists.newArrayList(result.removedDataFiles());
+    List<String> removedDataFiles = Lists.newArrayList(result.removedDataFiles());
     assertThat(removedDataFiles.size()).as("Removed no data files").isEqualTo(0);
-    List<DeleteFile> removedDeleteFiles = Lists.newArrayList(result.removedDeleteFiles());
+    List<String> removedDeleteFiles = Lists.newArrayList(result.removedDeleteFiles());
     assertThat(removedDeleteFiles.size()).as("Removed one delete file").isEqualTo(1);
-    assertThat(removedDeleteFiles.get(0).location())
+    assertThat(removedDeleteFiles.get(0))
         .as("Removed delete file is the missing file")
         .isEqualTo(pathString);
 

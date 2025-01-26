@@ -80,19 +80,19 @@ public class RemoveMissingFilesSparkAction
             .collect(Collectors.toList());
 
     FileIO fileIO = table.io();
-    List<DataFile> removedDataFiles = Lists.newArrayList();
-    List<DeleteFile> removedDeleteFiles = Lists.newArrayList();
+    List<String> removedDataFiles = Lists.newArrayList();
+    List<String> removedDeleteFiles = Lists.newArrayList();
 
     for (DataFile f : dataFiles) {
-      if (!fileIO.newInputFile(f.path().toString()).exists()) {
-        removedDataFiles.add(f);
+      if (!fileIO.newInputFile(f.location()).exists()) {
+        removedDataFiles.add(f.location());
         rmf.deleteFile(f);
       }
     }
 
     for (DeleteFile f : deleteFiles) {
-      if (!fileIO.newInputFile(f.path().toString()).exists()) {
-        removedDeleteFiles.add(f);
+      if (!fileIO.newInputFile(f.location()).exists()) {
+        removedDeleteFiles.add(f.location());
         rmf.deleteFile(f);
       }
     }

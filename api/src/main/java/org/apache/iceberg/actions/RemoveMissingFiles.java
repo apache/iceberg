@@ -18,15 +18,14 @@
  */
 package org.apache.iceberg.actions;
 
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
-
 /** An action for removing missing data and delete files from a table. */
 public interface RemoveMissingFiles extends Action<RemoveMissingFiles, RemoveMissingFiles.Result> {
 
   interface Result {
-    Iterable<DataFile> removedDataFiles();
+    /** Locations of removed data files */
+    Iterable<String> removedDataFiles();
 
-    Iterable<DeleteFile> removedDeleteFiles();
+    /** Locations of removed delete files */
+    Iterable<String> removedDeleteFiles();
   }
 }
