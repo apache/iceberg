@@ -108,4 +108,9 @@ public class SparkActions implements ActionsProvider {
   public RemoveDanglingDeleteFiles removeDanglingDeleteFiles(Table table) {
     return new RemoveDanglingDeletesSparkAction(spark, table);
   }
+
+  @Override
+  public RewriteTablePathSparkAction rewriteTablePath(Table table) {
+    return new RewriteTablePathSparkAction(spark, table);
+  }
 }
