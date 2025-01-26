@@ -18,7 +18,19 @@
  */
 package org.apache.iceberg.spark;
 
+/** Enumerates the types of Parquet readers. */
 public enum ParquetReaderType {
+  /** ICEBERG type utilizes the Parquet reader from Apache Iceberg. */
   ICEBERG,
+
+  /**
+   * COMET type changes the Parquet reader to the Apache DataFusion Comet Parquet reader. Comet
+   * Parquet reader performs I/O and decompression in the JVM but decodes in native to improve
+   * performance. Additionally, Comet will convert Spark's physical plan into a native physical plan
+   * and execute this plan natively.
+   *
+   * <p>TODO: Implement {@link org.apache.comet.parquet.SupportsComet} in SparkScan to convert Spark
+   * physical plan to native physical plan for native execution.
+   */
   COMET
 }

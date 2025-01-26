@@ -22,11 +22,10 @@ import org.apache.comet.parquet.ConstantColumnReader;
 import org.apache.iceberg.types.Types;
 
 class CometConstantColumnReader<T> extends CometColumnReader {
-  private final T value;
 
   CometConstantColumnReader(T value, Types.NestedField field) {
     super(field);
-    this.value = value;
+    // use delegate to set constant value on the native side to be consumed by native execution.
     delegate = new ConstantColumnReader(getSparkType(), getDescriptor(), value, false);
   }
 

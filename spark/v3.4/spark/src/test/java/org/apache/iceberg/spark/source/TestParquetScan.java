@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.Files.localOutput;
+import static org.apache.iceberg.spark.SparkSQLProperties.PARQUET_READER_TYPE;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
@@ -35,12 +36,23 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.spark.ParquetReaderType;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.sql.SparkSession;
+import org.junit.jupiter.api.BeforeAll;
 
 public class TestParquetScan extends ScanTestBase {
   protected boolean vectorized() {
     return false;
+  }
+
+  @BeforeAll
+  public static void startSpark() {
+    ScanTestBase.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    ScanTestBase.spark.conf().set(PARQUET_READER_TYPE, ParquetReaderType.ICEBERG.toString());
+    ScanTestBase.sc = JavaSparkContext.fromSparkContext(spark.sparkContext());
   }
 
   @Override

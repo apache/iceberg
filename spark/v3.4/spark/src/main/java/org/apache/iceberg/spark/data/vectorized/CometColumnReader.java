@@ -38,37 +38,12 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 
-/**
- * A Iceberg Parquet column reader backed by a Comet {@link ColumnReader}. This class should be used
- * together with {@link CometVector}.
- *
- * <p>Example:
- *
- * <pre>
- *   CometColumnReader reader = ...
- *   reader.setBatchSize(batchSize);
- *
- *   while (hasMoreRowsToRead) {
- *     if (endOfRowGroup) {
- *       reader.reset();
- *       PageReader pageReader = ...
- *       reader.setPageReader(pageReader);
- *     }
- *
- *     int numRows = ...
- *     CometVector vector = reader.read(null, numRows);
- *
- *     // consume the vector
- *   }
- *
- *   reader.close();
- * </pre>
- */
 @SuppressWarnings({"checkstyle:VisibilityModifier", "ParameterAssignment"})
 class CometColumnReader implements VectorizedReader<CometVector> {
   public static final int DEFAULT_BATCH_SIZE = 5000;
 
   private final DataType sparkType;
+  // the delegated column reader from Comet side
   protected AbstractColumnReader delegate;
   private final CometVector vector;
   private final ColumnDescriptor descriptor;
@@ -94,7 +69,7 @@ class CometColumnReader implements VectorizedReader<CometVector> {
   }
 
   /**
-   * This method is to initialized/reset the ColumnReader. This needs to be called for each row
+   * This method is to initialized/reset the CometColumnReader. This needs to be called for each row
    * group after readNextRowGroup, so a new dictionary encoding can be set for each of the new row
    * groups.
    */
@@ -145,6 +120,7 @@ class CometColumnReader implements VectorizedReader<CometVector> {
 
   @Override
   public void close() {
+    // close reader on native side
     if (delegate != null) {
       delegate.close();
     }

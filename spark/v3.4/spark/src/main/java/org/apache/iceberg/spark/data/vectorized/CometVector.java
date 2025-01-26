@@ -26,13 +26,6 @@ import org.apache.spark.unsafe.types.UTF8String;
 @SuppressWarnings("checkstyle:VisibilityModifier")
 class CometVector extends CometDelegateVector {
 
-  // the rowId mapping to skip deleted rows for all column vectors inside a batch
-  // Here is an example:
-  // [0,1,2,3,4,5,6,7] -- Original status of the row id mapping array
-  // Position delete 2, 6
-  // [0,1,3,4,5,7,-,-] -- After applying position deletes [Set Num records to 6]
-  // Equality delete 1 <= x <= 3
-  // [0,4,5,7,-,-,-,-] -- After applying equality deletes [Set Num records to 4]
   protected int[] rowIdMapping;
 
   CometVector(DataType type, boolean useDecimal128) {
@@ -41,6 +34,10 @@ class CometVector extends CometDelegateVector {
 
   public void setRowIdMapping(int[] rowIdMapping) {
     this.rowIdMapping = rowIdMapping;
+  }
+
+  public void resetRowIdMapping() {
+    this.rowIdMapping = null;
   }
 
   @Override

@@ -42,17 +42,13 @@ class CometPositionColumnReader extends CometColumnReader {
     private long position;
 
     PositionColumnReader(ColumnDescriptor descriptor) {
-      this(descriptor, 0L);
-    }
-
-    PositionColumnReader(ColumnDescriptor descriptor, long position) {
       super(DataTypes.LongType, descriptor, false);
-      this.position = position;
     }
 
     @Override
     public void readBatch(int total) {
       Native.resetBatch(nativeHandle);
+      // set position on the native side to be consumed by native execution
       Native.setPosition(nativeHandle, position, total);
       position += total;
 

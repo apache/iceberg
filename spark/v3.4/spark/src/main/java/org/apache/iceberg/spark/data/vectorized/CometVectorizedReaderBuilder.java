@@ -91,9 +91,16 @@ class CometVectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReade
         reorderedFields.add(deleteReader);
       } else if (reader != null) {
         reorderedFields.add(reader);
-      } else {
+      } else if (field.initialDefault() != null) {
+        CometColumnReader constantReader =
+            new CometConstantColumnReader<>(field.initialDefault(), field);
+        reorderedFields.add(constantReader);
+      } else if (field.isOptional()) {
         CometColumnReader constantReader = new CometConstantColumnReader<>(null, field);
         reorderedFields.add(constantReader);
+      } else {
+        throw new IllegalArgumentException(
+            String.format("Missing required field: %s", field.name()));
       }
     }
     return vectorizedReader(reorderedFields);
