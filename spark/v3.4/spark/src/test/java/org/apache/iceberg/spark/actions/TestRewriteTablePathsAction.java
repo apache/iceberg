@@ -241,7 +241,6 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
   }
 
   @Test
-  //  public void testTableWith3Snapshots(@TempDir Path location1, @TempDir Path location2)
   public void testTableWith3Snapshots() throws Exception {
     String location = newTableLocation();
     Table tableWith3Snaps = createTableWithSnapshots(location, 3);
