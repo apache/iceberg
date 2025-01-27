@@ -27,10 +27,12 @@ import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -50,12 +52,18 @@ public abstract class DataTest {
 
   protected abstract void writeAndValidate(Schema schema) throws IOException;
 
+  protected abstract void writeAndValidate(Schema schema, List<Record> data) throws IOException;
+
   protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
     throw new UnsupportedEncodingException(
         "Cannot run test, writeAndValidate(Schema, Schema) is not implemented");
   }
 
   protected boolean supportsDefaultValues() {
+    return false;
+  }
+
+  protected boolean allowsWritingNullValuesForRequiredFields() {
     return false;
   }
 
@@ -485,5 +493,25 @@ public abstract class DataTest {
                 .build());
 
     writeAndValidate(writeSchema, readSchema);
+  }
+
+  @Test
+  public void testWriteNullValueForRequiredType() throws Exception {
+    Schema schema =
+        new Schema(
+            required(0, "id", LongType.get()), required(1, "string", Types.StringType.get()));
+
+    GenericRecord genericRecord = GenericRecord.create(schema);
+    genericRecord.set(0, 42L);
+    genericRecord.set(1, null);
+
+    if (allowsWritingNullValuesForRequiredFields()) {
+      writeAndValidate(schema, ImmutableList.of(genericRecord));
+    } else {
+      assertThatThrownBy(
+          // The actual exception depends on the implementation, e.g.
+          // NullPointerException or IllegalArgumentException.
+          () -> writeAndValidate(schema, ImmutableList.of(genericRecord)));
+    }
   }
 }

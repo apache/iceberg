@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.apache.iceberg.flink.TestFixtures.DATABASE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -38,9 +39,11 @@ import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -51,6 +54,8 @@ import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
+import org.junit.Assume;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -412,6 +417,44 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
     assertThat(firstTransformation.getName()).isEqualTo("Sink pre-writer mapper: data-ingestion");
     assertThat(secondTransformation.getUid()).isEqualTo("data-ingestion");
     assertThat(secondTransformation.getName()).isEqualTo("data-ingestion");
+  }
+
+  @TestTemplate
+  void testErrorOnNullForRequiredField() throws Exception {
+    Assume.assumeFalse(
+        "ORC file format supports null values even for required fields.", format == FileFormat.ORC);
+
+    Schema icebergSchema =
+        new Schema(
+            Types.NestedField.required(1, "id2", Types.IntegerType.get()),
+            Types.NestedField.required(2, "data2", Types.StringType.get()));
+    TableIdentifier tableIdentifier = TableIdentifier.of(DATABASE, "t2");
+    Table table2 =
+        CATALOG_EXTENSION
+            .catalog()
+            .createTable(
+                tableIdentifier,
+                icebergSchema,
+                PartitionSpec.unpartitioned(),
+                ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()));
+
+    // Null out a required field
+    List<Row> rows = List.of(Row.of(42, null));
+
+    env = StreamExecutionEnvironment.getExecutionEnvironment();
+
+    DataStream<Row> dataStream =
+        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO).uid("mySourceId");
+
+    TableSchema flinkSchema = FlinkSchemaUtil.toSchema(icebergSchema);
+    IcebergSink.forRow(dataStream, flinkSchema)
+        .table(table2)
+        .tableLoader(TableLoader.fromCatalog(CATALOG_EXTENSION.catalogLoader(), tableIdentifier))
+        .tableSchema(flinkSchema)
+        .writeParallelism(parallelism)
+        .append();
+
+    assertThatThrownBy(() -> env.execute()).hasRootCauseInstanceOf(NullPointerException.class);
   }
 
   private void testWriteRow(TableSchema tableSchema, DistributionMode distributionMode)
