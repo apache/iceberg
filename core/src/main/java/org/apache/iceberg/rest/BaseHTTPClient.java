@@ -20,7 +20,6 @@ package org.apache.iceberg.rest;
 
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.responses.ErrorResponse;
@@ -41,37 +40,9 @@ public abstract class BaseHTTPClient implements RESTClient {
   public abstract RESTClient withAuthSession(AuthSession session);
 
   @Override
-  public void head(
-      String path, Supplier<Map<String, String>> headers, Consumer<ErrorResponse> errorHandler) {
-    HTTPRequest request = buildRequest(HTTPMethod.HEAD, path, null, headers.get(), null);
-    execute(request, null, errorHandler, h -> {});
-  }
-
-  @Override
   public void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
     HTTPRequest request = buildRequest(HTTPMethod.HEAD, path, null, headers, null);
     execute(request, null, errorHandler, h -> {});
-  }
-
-  @Override
-  public <T extends RESTResponse> T delete(
-      String path,
-      Map<String, String> queryParams,
-      Class<T> responseType,
-      Supplier<Map<String, String>> headers,
-      Consumer<ErrorResponse> errorHandler) {
-    HTTPRequest request = buildRequest(HTTPMethod.DELETE, path, queryParams, headers.get(), null);
-    return execute(request, responseType, errorHandler, h -> {});
-  }
-
-  @Override
-  public <T extends RESTResponse> T delete(
-      String path,
-      Class<T> responseType,
-      Supplier<Map<String, String>> headers,
-      Consumer<ErrorResponse> errorHandler) {
-    HTTPRequest request = buildRequest(HTTPMethod.DELETE, path, null, headers.get(), null);
-    return execute(request, responseType, errorHandler, h -> {});
   }
 
   @Override
@@ -98,37 +69,6 @@ public abstract class BaseHTTPClient implements RESTClient {
   @Override
   public <T extends RESTResponse> T get(
       String path,
-      Class<T> responseType,
-      Supplier<Map<String, String>> headers,
-      Consumer<ErrorResponse> errorHandler) {
-    HTTPRequest request = buildRequest(HTTPMethod.GET, path, null, headers.get(), null);
-    return execute(request, responseType, errorHandler, h -> {});
-  }
-
-  @Override
-  public <T extends RESTResponse> T get(
-      String path,
-      Class<T> responseType,
-      Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
-    HTTPRequest request = buildRequest(HTTPMethod.GET, path, null, headers, null);
-    return execute(request, responseType, errorHandler, h -> {});
-  }
-
-  @Override
-  public <T extends RESTResponse> T get(
-      String path,
-      Map<String, String> queryParams,
-      Class<T> responseType,
-      Supplier<Map<String, String>> headers,
-      Consumer<ErrorResponse> errorHandler) {
-    HTTPRequest request = buildRequest(HTTPMethod.GET, path, queryParams, headers.get(), null);
-    return execute(request, responseType, errorHandler, h -> {});
-  }
-
-  @Override
-  public <T extends RESTResponse> T get(
-      String path,
       Map<String, String> queryParams,
       Class<T> responseType,
       Map<String, String> headers,
@@ -142,22 +82,10 @@ public abstract class BaseHTTPClient implements RESTClient {
       String path,
       RESTRequest body,
       Class<T> responseType,
-      Supplier<Map<String, String>> headers,
+      Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler) {
-    HTTPRequest request = buildRequest(HTTPMethod.POST, path, null, headers.get(), body);
+    HTTPRequest request = buildRequest(HTTPMethod.POST, path, null, headers, body);
     return execute(request, responseType, errorHandler, h -> {});
-  }
-
-  @Override
-  public <T extends RESTResponse> T post(
-      String path,
-      RESTRequest body,
-      Class<T> responseType,
-      Supplier<Map<String, String>> headers,
-      Consumer<ErrorResponse> errorHandler,
-      Consumer<Map<String, String>> responseHeaders) {
-    HTTPRequest request = buildRequest(HTTPMethod.POST, path, null, headers.get(), body);
-    return execute(request, responseType, errorHandler, responseHeaders);
   }
 
   @Override
@@ -170,28 +98,6 @@ public abstract class BaseHTTPClient implements RESTClient {
       Consumer<Map<String, String>> responseHeaders) {
     HTTPRequest request = buildRequest(HTTPMethod.POST, path, null, headers, body);
     return execute(request, responseType, errorHandler, responseHeaders);
-  }
-
-  @Override
-  public <T extends RESTResponse> T post(
-      String path,
-      RESTRequest body,
-      Class<T> responseType,
-      Map<String, String> headers,
-      Consumer<ErrorResponse> errorHandler) {
-    HTTPRequest request = buildRequest(HTTPMethod.POST, path, null, headers, body);
-    return execute(request, responseType, errorHandler, h -> {});
-  }
-
-  @Override
-  public <T extends RESTResponse> T postForm(
-      String path,
-      Map<String, String> formData,
-      Class<T> responseType,
-      Supplier<Map<String, String>> headers,
-      Consumer<ErrorResponse> errorHandler) {
-    HTTPRequest request = buildRequest(HTTPMethod.POST, path, null, headers.get(), formData);
-    return execute(request, responseType, errorHandler, h -> {});
   }
 
   @Override
