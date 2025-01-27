@@ -74,8 +74,6 @@ import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
-import org.apache.iceberg.data.parquet.InternalReader;
-import org.apache.iceberg.data.parquet.InternalWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -128,18 +126,6 @@ public class Parquet {
   private static final Logger LOG = LoggerFactory.getLogger(Parquet.class);
 
   private Parquet() {}
-
-  public static void register() {
-    InternalData.register(FileFormat.PARQUET, Parquet::writeInternal, Parquet::readInternal);
-  }
-
-  private static WriteBuilder writeInternal(OutputFile outputFile) {
-    return write(outputFile).createWriterFunc(InternalWriter::create);
-  }
-
-  private static ReadBuilder readInternal(InputFile inputFile) {
-    return read(inputFile).createReaderFunc(InternalReader::create);
-  }
 
   private static final Collection<String> READ_PROPERTIES_TO_REMOVE =
       Sets.newHashSet(
@@ -1158,7 +1144,7 @@ public class Parquet {
       return this;
     }
 
-    private ReadBuilder createReaderFunc(
+    public ReadBuilder createReaderFunc(
         BiFunction<Schema, MessageType, ParquetValueReader<?>> newReaderFunction) {
       Preconditions.checkArgument(
           this.readerFunc == null,

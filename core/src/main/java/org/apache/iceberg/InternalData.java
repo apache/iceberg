@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.avro.InternalReader;
+import org.apache.iceberg.avro.InternalWriter;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -41,12 +43,14 @@ public class InternalData {
       Maps.newConcurrentMap();
 
   static {
-    Avro.register();
+    InternalData.register(FileFormat.AVRO,
+        outputFile -> Avro.write(outputFile).createWriterFunc(InternalWriter::create),
+        inputFile -> Avro.read(inputFile).createResolvingReader(InternalReader::create));
 
     try {
       DynMethods.StaticMethod registerParquet =
           DynMethods.builder("register")
-              .impl("org.apache.iceberg.parquet.Parquet")
+              .impl("org.apache.iceberg.InternalParquet")
               .buildStaticChecked();
 
       registerParquet.invoke();
@@ -57,7 +61,7 @@ public class InternalData {
     }
   }
 
-  public static void register(
+  static void register(
       FileFormat format,
       Function<OutputFile, WriteBuilder> writeBuilder,
       Function<InputFile, ReadBuilder> readBuilder) {

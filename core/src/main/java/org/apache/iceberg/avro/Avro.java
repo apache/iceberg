@@ -72,18 +72,6 @@ import org.apache.iceberg.util.ArrayUtil;
 public class Avro {
   private Avro() {}
 
-  public static void register() {
-    InternalData.register(FileFormat.AVRO, Avro::writeInternal, Avro::readInternal);
-  }
-
-  private static WriteBuilder writeInternal(OutputFile outputFile) {
-    return write(outputFile).createWriterFunc(InternalWriter::create);
-  }
-
-  private static ReadBuilder readInternal(InputFile inputFile) {
-    return read(inputFile).createResolvingReader(InternalReader::create);
-  }
-
   private enum Codec {
     UNCOMPRESSED,
     SNAPPY,
