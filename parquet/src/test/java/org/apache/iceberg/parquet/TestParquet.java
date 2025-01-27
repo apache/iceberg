@@ -229,29 +229,32 @@ public class TestParquet {
   }
 
   @Test
-  public void testStreamClosedProperly() throws IOException{
+  public void testStreamClosedProperly() throws IOException {
     // test for input
     {
-      class TestStreamClosedProperlyStream extends SeekableInputStream implements DelegatingInputStream {
+      class TestStreamClosedProperlyStream extends SeekableInputStream
+          implements DelegatingInputStream {
         boolean thisClosed = false;
         boolean delegateClosed = false;
+
         {
           reset();
         }
 
         @Override
         public InputStream getDelegate() {
-          return new FSDataInputStream(new InputStream() {
-            @Override
-            public int read() throws IOException {
-              return 0;
-            }
+          return new FSDataInputStream(
+              new InputStream() {
+                @Override
+                public int read() throws IOException {
+                  return 0;
+                }
 
-            @Override
-            public void close() throws IOException {
-              delegateClosed = true;
-            }
-          });
+                @Override
+                public void close() throws IOException {
+                  delegateClosed = true;
+                }
+              });
         }
 
         @Override
@@ -260,8 +263,7 @@ public class TestParquet {
         }
 
         @Override
-        public void seek(long newPos) throws IOException {
-        }
+        public void seek(long newPos) throws IOException {}
 
         @Override
         public int read() throws IOException {
@@ -274,35 +276,38 @@ public class TestParquet {
           delegateClosed = true;
         }
 
-        public void reset(){
+        public void reset() {
           thisClosed = false;
           delegateClosed = false;
         }
       }
 
       try (TestStreamClosedProperlyStream stream = new TestStreamClosedProperlyStream()) {
-        try (org.apache.parquet.io.SeekableInputStream _unused = ParquetIO.file(new InputFile() {
-          @Override
-          public long getLength() {
-            return 0;
-          }
+        try (org.apache.parquet.io.SeekableInputStream _unused =
+            ParquetIO.file(
+                    new InputFile() {
+                      @Override
+                      public long getLength() {
+                        return 0;
+                      }
 
-          @Override
-          public SeekableInputStream newStream() {
-            stream.reset();
-            return stream;
-          }
+                      @Override
+                      public SeekableInputStream newStream() {
+                        stream.reset();
+                        return stream;
+                      }
 
-          @Override
-          public String location() {
-            return "";
-          }
+                      @Override
+                      public String location() {
+                        return "";
+                      }
 
-          @Override
-          public boolean exists() {
-            return false;
-          }
-        }).newStream()) {
+                      @Override
+                      public boolean exists() {
+                        return false;
+                      }
+                    })
+                .newStream()) {
           assertThat(stream.delegateClosed).isFalse();
           assertThat(stream.thisClosed).isFalse();
         } finally {
@@ -314,9 +319,11 @@ public class TestParquet {
 
     // test for output
     {
-      class TestStreamClosedProperlyStream extends PositionOutputStream implements DelegatingOutputStream {
+      class TestStreamClosedProperlyStream extends PositionOutputStream
+          implements DelegatingOutputStream {
         boolean thisClosed = false;
         boolean delegateClosed = false;
+
         {
           reset();
         }
@@ -327,22 +334,22 @@ public class TestParquet {
         }
 
         @Override
-        public void write(int b) throws IOException {
-        }
+        public void write(int b) throws IOException {}
 
         @Override
         public OutputStream getDelegate() {
           try {
-            return new FSDataOutputStream(new OutputStream() {
-              @Override
-              public void write(int b) {
-              }
+            return new FSDataOutputStream(
+                new OutputStream() {
+                  @Override
+                  public void write(int b) {}
 
-              @Override
-              public void close() throws IOException {
-                delegateClosed = true;
-              }
-            }, null);
+                  @Override
+                  public void close() throws IOException {
+                    delegateClosed = true;
+                  }
+                },
+                null);
           } catch (IOException e) {
             throw new RuntimeException(e);
           }
@@ -361,29 +368,31 @@ public class TestParquet {
       }
 
       try (TestStreamClosedProperlyStream stream = new TestStreamClosedProperlyStream()) {
-        OutputFile file = ParquetIO.file(new org.apache.iceberg.io.OutputFile() {
-          @Override
-          public PositionOutputStream create() {
-            stream.reset();
-            return stream;
-          }
+        OutputFile file =
+            ParquetIO.file(
+                new org.apache.iceberg.io.OutputFile() {
+                  @Override
+                  public PositionOutputStream create() {
+                    stream.reset();
+                    return stream;
+                  }
 
-          @Override
-          public PositionOutputStream createOrOverwrite() {
-            stream.reset();
-            return stream;
-          }
+                  @Override
+                  public PositionOutputStream createOrOverwrite() {
+                    stream.reset();
+                    return stream;
+                  }
 
-          @Override
-          public String location() {
-            return "";
-          }
+                  @Override
+                  public String location() {
+                    return "";
+                  }
 
-          @Override
-          public InputFile toInputFile() {
-            return null;
-          }
-        });
+                  @Override
+                  public InputFile toInputFile() {
+                    return null;
+                  }
+                });
 
         try (org.apache.parquet.io.PositionOutputStream _unused = file.create(0)) {
           assertThat(stream.delegateClosed).isFalse();
