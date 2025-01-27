@@ -68,6 +68,8 @@ public class ShreddedObject implements VariantObject {
       Iterables.addAll(names, unshredded.fieldNames());
     }
 
+    names.removeAll(removedFields);
+
     return names;
   }
 

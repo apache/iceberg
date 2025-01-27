@@ -142,11 +142,13 @@ public class TestShreddedObject {
 
     // replace field c with a new value
     partial.put("c", Variants.ofIsoDate("2024-10-12"));
+    assertThat(partial.numFields()).isEqualTo(3);
+
+    partial.remove("b");
+    assertThat(partial.numFields()).isEqualTo(2);
 
     assertThat(partial.get("a")).isInstanceOf(VariantPrimitive.class);
     assertThat(partial.get("a").asPrimitive().get()).isEqualTo(34);
-    assertThat(partial.get("b")).isInstanceOf(VariantPrimitive.class);
-    assertThat(partial.get("b").asPrimitive().get()).isEqualTo("iceberg");
     assertThat(partial.get("c")).isInstanceOf(VariantPrimitive.class);
     assertThat(partial.get("c").type()).isEqualTo(Variants.PhysicalType.DATE);
     assertThat(partial.get("c").asPrimitive().get())
@@ -178,6 +180,7 @@ public class TestShreddedObject {
 
     // replace field c with a new value
     partial.put("c", Variants.ofIsoDate("2024-10-12"));
+    partial.remove("b");
 
     VariantValue value = roundTripMinimalBuffer(partial, metadata);
 
@@ -186,8 +189,6 @@ public class TestShreddedObject {
 
     assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
     assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
-    assertThat(actual.get("b")).isInstanceOf(VariantPrimitive.class);
-    assertThat(actual.get("b").asPrimitive().get()).isEqualTo("iceberg");
     assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
     assertThat(actual.get("c").type()).isEqualTo(Variants.PhysicalType.DATE);
     assertThat(actual.get("c").asPrimitive().get())
@@ -201,6 +202,7 @@ public class TestShreddedObject {
 
     // replace field c with a new value
     partial.put("c", Variants.ofIsoDate("2024-10-12"));
+    partial.remove("b");
 
     VariantValue value = roundTripLargeBuffer(partial, metadata);
 
@@ -209,8 +211,6 @@ public class TestShreddedObject {
 
     assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
     assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
-    assertThat(actual.get("b")).isInstanceOf(VariantPrimitive.class);
-    assertThat(actual.get("b").asPrimitive().get()).isEqualTo("iceberg");
     assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
     assertThat(actual.get("c").type()).isEqualTo(Variants.PhysicalType.DATE);
     assertThat(actual.get("c").asPrimitive().get())
