@@ -21,9 +21,9 @@ package org.apache.iceberg.spark.extensions;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
@@ -64,8 +64,7 @@ public class TestRegisterTableProcedure extends ExtensionsTestBase {
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     long originalFileCount = (long) scalarSql("SELECT COUNT(*) from %s.files", tableName);
     long currentSnapshotId = table.currentSnapshot().snapshotId();
-    String metadataJson =
-        (((HasTableOperations) table).operations()).current().metadataFileLocation();
+    String metadataJson = TableUtil.metadataFileLocation(table);
 
     List<Object[]> result =
         sql("CALL %s.system.register_table('%s', '%s')", catalogName, targetName, metadataJson);
