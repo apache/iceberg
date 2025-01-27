@@ -39,6 +39,9 @@ public class TestSparkMonthsFunction extends TestBaseWithCatalog {
     assertThat(scalarSql("SELECT system.months(date('2017-12-01'))"))
         .as("Expected to produce 47 * 12 + 11 = 575")
         .isEqualTo(575);
+    assertThat(scalarSql("SELECT system.month(date('2017-12-01'))"))
+        .as("Expected to produce 47 * 12 + 11 = 575")
+        .isEqualTo(575);
     assertThat(scalarSql("SELECT system.months(date('1970-01-01'))"))
         .as("Expected to produce 0 * 12 + 0 = 0")
         .isEqualTo(0);
@@ -53,6 +56,9 @@ public class TestSparkMonthsFunction extends TestBaseWithCatalog {
     assertThat(scalarSql("SELECT system.months(TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00')"))
         .as("Expected to produce 47 * 12 + 11 = 575")
         .isEqualTo(575);
+    assertThat(scalarSql("SELECT system.month(TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00')"))
+        .as("Expected to produce 47 * 12 + 11 = 575")
+        .isEqualTo(575);
     assertThat(scalarSql("SELECT system.months(TIMESTAMP '1970-01-01 00:00:01.000001 UTC+00:00')"))
         .as("Expected to produce 0 * 12 + 0 = 0")
         .isEqualTo(0);
@@ -65,6 +71,9 @@ public class TestSparkMonthsFunction extends TestBaseWithCatalog {
   @TestTemplate
   public void testTimestampNtz() {
     assertThat(scalarSql("SELECT system.months(TIMESTAMP_NTZ '2017-12-01 10:12:55.038194 UTC')"))
+        .as("Expected to produce 47 * 12 + 11 = 575")
+        .isEqualTo(575);
+    assertThat(scalarSql("SELECT system.month(TIMESTAMP_NTZ '2017-12-01 10:12:55.038194 UTC')"))
         .as("Expected to produce 47 * 12 + 11 = 575")
         .isEqualTo(575);
     assertThat(scalarSql("SELECT system.months(TIMESTAMP_NTZ '1970-01-01 00:00:01.000001 UTC')"))

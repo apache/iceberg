@@ -39,6 +39,9 @@ public class TestSparkYearsFunction extends TestBaseWithCatalog {
     assertThat(scalarSql("SELECT system.years(date('2017-12-01'))"))
         .as("Expected to produce 2017 - 1970 = 47")
         .isEqualTo(47);
+    assertThat(scalarSql("SELECT system.year(date('2017-12-01'))"))
+        .as("Expected to produce 2017 - 1970 = 47")
+        .isEqualTo(47);
     assertThat(scalarSql("SELECT system.years(date('1970-01-01'))"))
         .as("Expected to produce 1970 - 1970 = 0")
         .isEqualTo(0);
@@ -53,6 +56,9 @@ public class TestSparkYearsFunction extends TestBaseWithCatalog {
     assertThat(scalarSql("SELECT system.years(TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00')"))
         .as("Expected to produce 2017 - 1970 = 47")
         .isEqualTo(47);
+    assertThat(scalarSql("SELECT system.year(TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00')"))
+        .as("Expected to produce 2017 - 1970 = 47")
+        .isEqualTo(47);
     assertThat(scalarSql("SELECT system.years(TIMESTAMP '1970-01-01 00:00:01.000001 UTC+00:00')"))
         .as("Expected to produce 1970 - 1970 = 0")
         .isEqualTo(0);
@@ -65,6 +71,9 @@ public class TestSparkYearsFunction extends TestBaseWithCatalog {
   @TestTemplate
   public void testTimestampNtz() {
     assertThat(scalarSql("SELECT system.years(TIMESTAMP_NTZ '2017-12-01 10:12:55.038194 UTC')"))
+        .as("Expected to produce 2017 - 1970 = 47")
+        .isEqualTo(47);
+    assertThat(scalarSql("SELECT system.year(TIMESTAMP_NTZ '2017-12-01 10:12:55.038194 UTC')"))
         .as("Expected to produce 2017 - 1970 = 47")
         .isEqualTo(47);
     assertThat(scalarSql("SELECT system.years(TIMESTAMP_NTZ '1970-01-01 00:00:01.000001 UTC')"))

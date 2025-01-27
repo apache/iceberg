@@ -30,14 +30,19 @@ public class SparkFunctions {
   private SparkFunctions() {}
 
   private static final Map<String, UnboundFunction> FUNCTIONS =
-      ImmutableMap.of(
-          "iceberg_version", new IcebergVersionFunction(),
-          "years", new YearsFunction(),
-          "months", new MonthsFunction(),
-          "days", new DaysFunction(),
-          "hours", new HoursFunction(),
-          "bucket", new BucketFunction(),
-          "truncate", new TruncateFunction());
+      new ImmutableMap.Builder<String, UnboundFunction>()
+          .put("iceberg_version", new IcebergVersionFunction())
+          .put("years", new YearsFunction())
+          .put("year", new YearsFunction())
+          .put("months", new MonthsFunction())
+          .put("month", new MonthsFunction())
+          .put("days", new DaysFunction())
+          .put("day", new DaysFunction())
+          .put("hours", new HoursFunction())
+          .put("hour", new HoursFunction())
+          .put("bucket", new BucketFunction())
+          .put("truncate", new TruncateFunction())
+          .build();
 
   private static final Map<Class<?>, UnboundFunction> CLASS_TO_FUNCTIONS =
       ImmutableMap.of(
