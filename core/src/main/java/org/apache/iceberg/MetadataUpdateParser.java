@@ -512,10 +512,9 @@ public class MetadataUpdateParser {
   }
 
   private static MetadataUpdate readSetStatistics(JsonNode node) {
-    long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
     JsonNode statisticsFileNode = JsonUtil.get(STATISTICS, node);
     StatisticsFile statisticsFile = StatisticsFileParser.fromJson(statisticsFileNode);
-    return new MetadataUpdate.SetStatistics(snapshotId, statisticsFile);
+    return new MetadataUpdate.SetStatistics(statisticsFile);
   }
 
   private static MetadataUpdate readRemoveStatistics(JsonNode node) {

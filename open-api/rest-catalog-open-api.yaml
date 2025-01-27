@@ -2886,7 +2886,6 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
-        - snapshot-id
         - statistics
       properties:
         action:
@@ -2895,6 +2894,10 @@ components:
         snapshot-id:
           type: integer
           format: int64
+          deprecated: true
+          description:
+            This optional field is **DEPRECATED for REMOVAL** since it contains redundant information.
+            Clients should use the `statistics.snapshot-id` field instead.
         statistics:
           $ref: '#/components/schemas/StatisticsFile'
 
