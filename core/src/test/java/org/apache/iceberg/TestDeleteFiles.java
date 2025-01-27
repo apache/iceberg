@@ -445,7 +445,7 @@ public class TestDeleteFiles extends TestBase {
   }
 
   @Test
-  public void testPuffinRequiredFields() {
+  public void testRequiredFieldsForDV() {
     FileMetadata.Builder builder =
         FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
             .ofPositionDeletes()
