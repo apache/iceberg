@@ -56,6 +56,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -73,6 +74,8 @@ import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.data.parquet.InternalReader;
+import org.apache.iceberg.data.parquet.InternalWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -131,11 +134,11 @@ public class Parquet {
   }
 
   private static WriteBuilder writeInternal(OutputFile outputFile) {
-    return write(outputFile);
+    return write(outputFile).createWriterFunc(InternalWriter::create);
   }
 
   private static ReadBuilder readInternal(InputFile inputFile) {
-    return read(inputFile);
+    return read(inputFile).createReaderFunc(InternalReader::create);
   }
 
   private static final Collection<String> READ_PROPERTIES_TO_REMOVE =
@@ -1083,6 +1086,7 @@ public class Parquet {
     private ReadSupport<?> readSupport = null;
     private Function<MessageType, VectorizedReader<?>> batchedReaderFunc = null;
     private Function<MessageType, ParquetValueReader<?>> readerFunc = null;
+    private BiFunction<Schema, MessageType, ParquetValueReader<?>> readerFuncWithSchema = null;
     private boolean filterRecords = true;
     private boolean caseSensitive = true;
     private boolean callInit = false;
@@ -1146,15 +1150,33 @@ public class Parquet {
         Function<MessageType, ParquetValueReader<?>> newReaderFunction) {
       Preconditions.checkArgument(
           this.batchedReaderFunc == null,
-          "Reader function cannot be set since the batched version is already set");
+          "Cannot set reader function: batched reader function already set");
+      Preconditions.checkArgument(
+          this.readerFuncWithSchema == null,
+          "Cannot set reader function: 2-argument reader function already set");
       this.readerFunc = newReaderFunction;
+      return this;
+    }
+
+    private ReadBuilder createReaderFunc(
+        BiFunction<Schema, MessageType, ParquetValueReader<?>> newReaderFunction) {
+      Preconditions.checkArgument(
+          this.readerFunc == null,
+          "Cannot set 2-argument reader function: reader function already set");
+      Preconditions.checkArgument(
+          this.batchedReaderFunc == null,
+          "Cannot set 2-argument reader function: batched reader function already set");
+      this.readerFuncWithSchema = newReaderFunction;
       return this;
     }
 
     public ReadBuilder createBatchedReaderFunc(Function<MessageType, VectorizedReader<?>> func) {
       Preconditions.checkArgument(
           this.readerFunc == null,
-          "Batched reader function cannot be set since the non-batched version is already set");
+          "Cannot set batched reader function: reader function already set");
+      Preconditions.checkArgument(
+          this.readerFuncWithSchema == null,
+          "Cannot set batched reader function: 2-argument reader function already set");
       this.batchedReaderFunc = func;
       return this;
     }
@@ -1223,7 +1245,7 @@ public class Parquet {
         Preconditions.checkState(fileAADPrefix == null, "AAD prefix set with null encryption key");
       }
 
-      if (readerFunc != null || batchedReaderFunc != null) {
+      if (readerFunc != null || readerFuncWithSchema != null || batchedReaderFunc != null) {
         ParquetReadOptions.Builder optionsBuilder;
         if (file instanceof HadoopInputFile) {
           // remove read properties already set that may conflict with this read
@@ -1271,8 +1293,12 @@ public class Parquet {
               caseSensitive,
               maxRecordsPerBatch);
         } else {
+          Function<MessageType, ParquetValueReader<?>> readBuilder =
+              readerFuncWithSchema != null
+                  ? (fileType) -> readerFuncWithSchema.apply(schema, fileType)
+                  : readerFunc;
           return new org.apache.iceberg.parquet.ParquetReader<>(
-              file, schema, options, readerFunc, mapping, filter, reuseContainers, caseSensitive);
+              file, schema, options, readBuilder, mapping, filter, reuseContainers, caseSensitive);
         }
       }
 
