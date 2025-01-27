@@ -973,3 +973,85 @@ Collect statistics of the snapshot with id `snap1` of table `my_table` for colum
 ```sql
 CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id => 'snap1', columns => array('col1', 'col2'));
 ```
+
+## Table Replication
+
+### `rewrite-table-path`
+
+This procedure rewrites an iceberg table's metadata files to a new location by replacing all source prefixes in absolute paths
+with a specified target prefix. After copying both metadata and data to the desired location, the replicated iceberg
+table will appear identical to the source table, including snapshot history, schema and partition specs.
+
+!!! info
+this procedure serves as the starting point to fully or incrementally copying an iceberg table to a new location. Copying all
+metadata and data files from source to target location is not included as part of this procedure.
+
+| Argument Name      | Required? | Type   | Description                                                                                                |
+|--------------------|-----------|--------|------------------------------------------------------------------------------------------------------------|
+| `table`            | ✔️        | string | Name of the table                                                                                          |
+| `source_prefix`    | ✔️        | string | source prefix to be replaced                                                                               |
+| `target_prefix`    | ✔️        | string | target prefix                                                                                          |
+| `start_version`    |           | string | First metadata version to rewrite, identified by name of a metadata.json file in the table's metadata log. |
+| `end_version`      |           | string | Last metadata version to rewrite, identified by name of a metadata.json file in the table's metadata log.  |
+| `staging_location` |           | string | Custom staging location                                                                                    |
+
+#### Output
+
+| Output Name          | Type   | Description                                                                     |
+|----------------------|--------|---------------------------------------------------------------------------------|
+| `latest_version`     | string | Name of latest metadata file version                                            |
+| `file_list_location` | string | Path to a file containing a listing of comma-separated paths ready to be copied |
+
+Example file list content :
+
+```csv
+sourcepath/datafile1.parquet,targetpath/datafile1.parquet
+sourcepath/datafile2.parquet,targetpath/datafile2.parquet
+stagingpath/manifest.avro,targetpath/manifest.avro
+```
+
+#### Examples
+
+Full rewrite of a table's metadata path from source location in HDFS to a target location in S3 bucket of table `my_table`
+
+```sql
+CALL catalog_name.system.rewrite_table_path(
+    table => 'db.my_table', 
+    source_prefix => "hdfs://nn:8020/path/to/source_table",
+    target_prefix => "s3a://bucket/prefix/db.db/my_table"
+);
+```
+
+Incremental rewrite of a table's metadata path from a source location to a target location between metadata version
+`v2.metadata.json` and `v3.metadata.json`, with files written to a staging location
+
+```sql
+CALL catalog_name.system.rewrite_table_path(
+    table => 'db.my_table', 
+    source_prefix => "s3a://bucketOne/prefix/db.db/my_table",
+    target_prefix => "s3a://bucketTwo/prefix/db.db/my_table",
+    start_version => "v2.metadata.json",
+    end_version => "v3.metadata.json",
+    staging_location => "s3a://bucketStaging/my_table"  
+);
+```
+
+Once the rewrite is completed, third-party tools (
+eg. [Distcp](https://hadoop.apache.org/docs/current/hadoop-distcp/DistCp.html)) can be used to copy the newly created
+metadata files and data files to the target location. Here is an example of reading result from file list location in
+Spark.
+
+```java
+List<String> filesToMove =
+        spark
+        .read()
+        .format("text")
+        .load(result.fileListLocation())
+        .as(Encoders.STRING())
+        .collectAsList();
+```
+
+Lastly, [register_table](#register_table) procedure can be used to register copied table in the target location with catalog.
+
+!!! warning
+    Iceberg table with statistics files is not currently supported 
