@@ -27,7 +27,7 @@ import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
-public class ContentFileParser {
+class ContentFileParser {
   private static final String SPEC_ID = "spec-id";
   private static final String CONTENT = "content";
   private static final String FILE_PATH = "file-path";
@@ -48,7 +48,7 @@ public class ContentFileParser {
 
   private ContentFileParser() {}
 
-  public static void unboundContentFileToJson(
+  static void unboundContentFileToJson(
       ContentFile<?> contentFile, PartitionSpec spec, JsonGenerator generator) throws IOException {
     Preconditions.checkArgument(contentFile != null, "Invalid content file: null");
     Preconditions.checkArgument(spec != null, "Invalid partition spec: null");
@@ -97,7 +97,7 @@ public class ContentFileParser {
     generator.writeEndObject();
   }
 
-  public static ContentFile<?> unboundContentFileFromJson(JsonNode jsonNode) {
+  static ContentFile<?> unboundContentFileFromJson(JsonNode jsonNode) {
     Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for content file: null");
 
     int specId = JsonUtil.getInt(SPEC_ID, jsonNode);

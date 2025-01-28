@@ -30,14 +30,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.JsonUtil;
 
-public class RESTFileScanTaskParser {
+class RESTFileScanTaskParser {
   private static final String DATA_FILE = "data-file";
   private static final String DELETE_FILE_REFERENCES = "delete-file-references";
   private static final String RESIDUAL = "residual-filter";
 
   private RESTFileScanTaskParser() {}
 
-  public static void toJson(
+  static void toJson(
       FileScanTask fileScanTask,
       Set<Integer> deleteFileReferences,
       PartitionSpec partitionSpec,
@@ -60,7 +60,7 @@ public class RESTFileScanTaskParser {
     generator.writeEndObject();
   }
 
-  public static FileScanTask fromJson(JsonNode jsonNode, List<DeleteFile> allDeleteFiles) {
+  static FileScanTask fromJson(JsonNode jsonNode, List<DeleteFile> allDeleteFiles) {
     Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for file scan task: null");
     Preconditions.checkArgument(
         jsonNode.isObject(), "Invalid JSON node for file scan task: non-object (%s)", jsonNode);
