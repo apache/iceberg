@@ -18,15 +18,23 @@
  */
 package org.apache.iceberg.spark.data.vectorized;
 
+import java.math.BigDecimal;
 import org.apache.comet.parquet.ConstantColumnReader;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.types.DecimalType;
+import org.apache.spark.unsafe.types.UTF8String;
 
 class CometConstantColumnReader<T> extends CometColumnReader {
 
   CometConstantColumnReader(T value, Types.NestedField field) {
     super(field);
     // use delegate to set constant value on the native side to be consumed by native execution.
-    delegate = new ConstantColumnReader(getSparkType(), getDescriptor(), value, false);
+    delegate =
+        new ConstantColumnReader(
+            getSparkType(), getDescriptor(), convertToSparkValue(value), false);
   }
 
   @Override
@@ -34,5 +42,20 @@ class CometConstantColumnReader<T> extends CometColumnReader {
     delegate.setBatchSize(batchSize);
     this.batchSize = batchSize;
     initialized = true;
+  }
+
+  private Object convertToSparkValue(T value) {
+    DataType dataType = getSparkType();
+    if (dataType == DataTypes.StringType) {
+      return UTF8String.fromString((String) value);
+    } else if (dataType instanceof DecimalType) {
+      return Decimal.apply((BigDecimal) value);
+    } else if (dataType == DataTypes.BinaryType) {
+      // Iceberg default value should always use HeapBufferBuffer, so calling ByteBuffer.array()
+      // should be safe.
+      return ((java.nio.ByteBuffer) value).array();
+    } else {
+      return value;
+    }
   }
 }
