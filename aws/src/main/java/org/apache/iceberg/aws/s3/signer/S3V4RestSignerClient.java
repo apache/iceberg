@@ -192,7 +192,8 @@ public abstract class S3V4RestSignerClient
               HTTPClient.builder(properties())
                   .uri(baseSignerUri())
                   .withObjectMapper(S3ObjectMapper.mapper())
-                  .build();
+                  .build()
+                  .withAuthSession(org.apache.iceberg.rest.auth.AuthSession.EMPTY);
         }
       }
     }
@@ -206,24 +207,21 @@ public abstract class S3V4RestSignerClient
       return authSessionCache()
           .get(
               token,
-              id -> {
-                RESTClient client =
-                    httpClient().withAuthSession(org.apache.iceberg.rest.auth.AuthSession.EMPTY);
-                return AuthSession.fromAccessToken(
-                    client,
-                    tokenRefreshExecutor(),
-                    token,
-                    expiresAtMillis(properties()),
-                    new AuthSession(
-                        ImmutableMap.of(),
-                        AuthConfig.builder()
-                            .token(token)
-                            .credential(credential())
-                            .scope(SCOPE)
-                            .oauth2ServerUri(oauth2ServerUri())
-                            .optionalOAuthParams(optionalOAuthParams())
-                            .build()));
-              });
+              id ->
+                  AuthSession.fromAccessToken(
+                      httpClient(),
+                      tokenRefreshExecutor(),
+                      token,
+                      expiresAtMillis(properties()),
+                      new AuthSession(
+                          ImmutableMap.of(),
+                          AuthConfig.builder()
+                              .token(token)
+                              .credential(credential())
+                              .scope(SCOPE)
+                              .oauth2ServerUri(oauth2ServerUri())
+                              .optionalOAuthParams(optionalOAuthParams())
+                              .build())));
     }
 
     if (credentialProvided()) {
@@ -241,18 +239,16 @@ public abstract class S3V4RestSignerClient
                             .optionalOAuthParams(optionalOAuthParams())
                             .build());
                 long startTimeMillis = System.currentTimeMillis();
-                RESTClient client =
-                    httpClient().withAuthSession(org.apache.iceberg.rest.auth.AuthSession.EMPTY);
                 OAuthTokenResponse authResponse =
                     OAuth2Util.fetchToken(
-                        client,
+                        httpClient(),
                         session.headers(),
                         credential(),
                         SCOPE,
                         oauth2ServerUri(),
                         optionalOAuthParams());
                 return AuthSession.fromTokenResponse(
-                    client, tokenRefreshExecutor(), authResponse, startTimeMillis, session);
+                    httpClient(), tokenRefreshExecutor(), authResponse, startTimeMillis, session);
               });
     }
 
