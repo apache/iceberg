@@ -89,6 +89,17 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String CONNECT_GROUP_ID_PROP = "iceberg.connect.group-id";
   private static final String HADOOP_CONF_DIR_PROP = "iceberg.hadoop-conf-dir";
 
+  private static final String HDFS_AUTHENTICATION_KERBEROS_PROP =
+      "iceberg.hdfs.authentication.kerberos";
+  private static final Boolean HDFS_AUTHENTICATION_KERBEROS_DEFAULT = false;
+  private static final String CONNECT_HDFS_PRINCIPAL_PROP = "iceberg.connect.hdfs.principal";
+  private static final String CONNECT_HDFS_PRINCIPAL_DEFAULT = "";
+  private static final String CONNECT_HDFS_KEYTAB_PROP = "iceberg.connect.hdfs.keytab";
+  private static final String CONNECT_HDFS_KEYTAB_DEFAULT = "";
+  private static final String KERBEROS_TICKET_RENEW_PERIOD_MS_PROP =
+      "kerberos.ticket.renew.period.ms";
+  private static final long KERBEROS_TICKET_RENEW_PERIOD_MS_DEFAULT = 60000 * 60;
+
   private static final String NAME_PROP = "name";
   private static final String BOOTSTRAP_SERVERS_PROP = "bootstrap.servers";
 
@@ -193,6 +204,30 @@ public class IcebergSinkConfig extends AbstractConfig {
         null,
         Importance.LOW,
         "Name of the Connect consumer group, should not be set under normal conditions");
+    configDef.define(
+        HDFS_AUTHENTICATION_KERBEROS_PROP,
+        ConfigDef.Type.BOOLEAN,
+        HDFS_AUTHENTICATION_KERBEROS_DEFAULT,
+        Importance.HIGH,
+        "Configuration indicating whether HDFS is using Kerberos for authentication");
+    configDef.define(
+        CONNECT_HDFS_PRINCIPAL_PROP,
+        ConfigDef.Type.STRING,
+        CONNECT_HDFS_PRINCIPAL_DEFAULT,
+        Importance.HIGH,
+        "The principal name to load from the keytab for Kerberos authentication");
+    configDef.define(
+        CONNECT_HDFS_KEYTAB_PROP,
+        ConfigDef.Type.STRING,
+        CONNECT_HDFS_KEYTAB_DEFAULT,
+        Importance.HIGH,
+        "The path to the keytab file for the HDFS connector principal. This keytab file should only be readable by the connector user");
+    configDef.define(
+        KERBEROS_TICKET_RENEW_PERIOD_MS_PROP,
+        ConfigDef.Type.LONG,
+        KERBEROS_TICKET_RENEW_PERIOD_MS_DEFAULT,
+        Importance.LOW,
+        "The period in milliseconds to renew the Kerberos ticket");
     configDef.define(
         COMMIT_INTERVAL_MS_PROP,
         ConfigDef.Type.INT,
@@ -379,6 +414,22 @@ public class IcebergSinkConfig extends AbstractConfig {
     String connectorName = connectorName();
     Preconditions.checkNotNull(connectorName, "Connector name cannot be null");
     return "connect-" + connectorName;
+  }
+
+  public boolean kerberosAuthentication() {
+    return getBoolean(HDFS_AUTHENTICATION_KERBEROS_PROP);
+  }
+
+  public String connectHdfsPrincipal() {
+    return getString(CONNECT_HDFS_PRINCIPAL_PROP);
+  }
+
+  public String connectHdfsKeytab() {
+    return getString(CONNECT_HDFS_KEYTAB_PROP);
+  }
+
+  public long kerberosTicketRenewPeriodMs() {
+    return getLong(KERBEROS_TICKET_RENEW_PERIOD_MS_PROP);
   }
 
   public int commitIntervalMs() {
