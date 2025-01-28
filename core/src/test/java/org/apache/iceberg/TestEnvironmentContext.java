@@ -36,9 +36,9 @@ public class TestEnvironmentContext {
     EnvironmentContext.put("test-key", "test-value");
     assertThat(EnvironmentContext.get()).containsEntry("test-key", "test-value");
 
-    EnvironmentContext.remove("test-key");
+    assertThat(EnvironmentContext.remove("test-key")).isEqualTo("test-value");
     assertThat(EnvironmentContext.get()).doesNotContainKey("test-key");
 
-    assertThatNoException().isThrownBy(() -> EnvironmentContext.remove("test-key"));
+    assertThat(EnvironmentContext.remove("test-key")).isNull();
   }
 }
