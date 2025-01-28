@@ -97,7 +97,6 @@ public class FlinkCatalog extends AbstractCatalog {
   private final Namespace baseNamespace;
   private final SupportsNamespaces asNamespaceCatalog;
   private final Closeable closeable;
-  private final Map<String, String> catalogProps;
   private final boolean cacheEnabled;
 
   public FlinkCatalog(
@@ -105,12 +104,10 @@ public class FlinkCatalog extends AbstractCatalog {
       String defaultDatabase,
       Namespace baseNamespace,
       CatalogLoader catalogLoader,
-      Map<String, String> catalogProps,
       boolean cacheEnabled,
       long cacheExpirationIntervalMs) {
     super(catalogName, defaultDatabase);
     this.catalogLoader = catalogLoader;
-    this.catalogProps = catalogProps;
     this.baseNamespace = baseNamespace;
     this.cacheEnabled = cacheEnabled;
 
@@ -335,15 +332,7 @@ public class FlinkCatalog extends AbstractCatalog {
   public CatalogTable getTable(ObjectPath tablePath)
       throws TableNotExistException, CatalogException {
     Table table = loadIcebergTable(tablePath);
-    Map<String, String> catalogAndTableProps = Maps.newHashMap(catalogProps);
-    catalogAndTableProps.put(FlinkCreateTableOptions.CATALOG_NAME.key(), getName());
-    catalogAndTableProps.put(
-        FlinkCreateTableOptions.CATALOG_DATABASE.key(), tablePath.getDatabaseName());
-    catalogAndTableProps.put(
-        FlinkCreateTableOptions.CATALOG_TABLE.key(), tablePath.getObjectName());
-    catalogAndTableProps.put("connector", FlinkDynamicTableFactory.FACTORY_IDENTIFIER);
-    catalogAndTableProps.putAll(table.properties());
-    return toCatalogTableWithProps(table, catalogAndTableProps);
+    return toCatalogTable(table);
   }
 
   private Table loadIcebergTable(ObjectPath tablePath) throws TableNotExistException {
@@ -395,6 +384,13 @@ public class FlinkCatalog extends AbstractCatalog {
   @Override
   public void createTable(ObjectPath tablePath, CatalogBaseTable table, boolean ignoreIfExists)
       throws CatalogException, TableAlreadyExistException {
+    if (Objects.equals(
+        table.getOptions().get("connector"), FlinkDynamicTableFactory.FACTORY_IDENTIFIER)) {
+      throw new IllegalArgumentException(
+          "Cannot create the table with 'connector'='iceberg' table property in "
+              + "an iceberg catalog, Please create table with 'connector'='iceberg' property in a non-iceberg catalog or "
+              + "create table without 'connector'='iceberg' related properties in an iceberg table.");
+    }
     Preconditions.checkArgument(table instanceof ResolvedCatalogTable, "table should be resolved");
     createIcebergTable(tablePath, (ResolvedCatalogTable) table, ignoreIfExists);
   }
@@ -629,7 +625,7 @@ public class FlinkCatalog extends AbstractCatalog {
     return partitionKeysBuilder.build();
   }
 
-  static CatalogTable toCatalogTableWithProps(Table table, Map<String, String> props) {
+  static CatalogTable toCatalogTable(Table table) {
     TableSchema schema = FlinkSchemaUtil.toSchema(table.schema());
     List<String> partitionKeys = toPartitionKeys(table.spec(), table.schema());
 
@@ -638,11 +634,7 @@ public class FlinkCatalog extends AbstractCatalog {
     // CatalogTableImpl to copy a new catalog table.
     // Let's re-loading table from Iceberg catalog when creating source/sink operators.
     // Iceberg does not have Table comment, so pass a null (Default comment value in Flink).
-    return new CatalogTableImpl(schema, partitionKeys, props, null);
-  }
-
-  static CatalogTable toCatalogTable(Table table) {
-    return toCatalogTableWithProps(table, table.properties());
+    return new CatalogTableImpl(schema, partitionKeys, table.properties(), null);
   }
 
   @Override
