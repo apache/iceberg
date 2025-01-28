@@ -96,6 +96,7 @@ public class ParquetValueReaders {
       case INT32:
         return new IntegerAsDecimalReader(desc, scale);
     }
+
     throw new IllegalArgumentException(
         "Invalid primitive type for decimal: " + desc.getPrimitiveType());
   }
