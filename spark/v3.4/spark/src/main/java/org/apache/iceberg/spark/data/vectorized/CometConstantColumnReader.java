@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.data.vectorized;
 
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import org.apache.comet.parquet.ConstantColumnReader;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.DataType;
@@ -46,11 +47,11 @@ class CometConstantColumnReader<T> extends CometColumnReader {
 
   private Object convertToSparkValue(T value) {
     DataType dataType = getSparkType();
-    if (dataType == DataTypes.StringType) {
+    if (dataType == DataTypes.StringType && value instanceof String) {
       return UTF8String.fromString((String) value);
-    } else if (dataType instanceof DecimalType) {
+    } else if (dataType instanceof DecimalType && value instanceof BigDecimal) {
       return Decimal.apply((BigDecimal) value);
-    } else if (dataType == DataTypes.BinaryType) {
+    } else if (dataType == DataTypes.BinaryType && value instanceof ByteBuffer) {
       // Iceberg default value should always use HeapBufferBuffer, so calling ByteBuffer.array()
       // should be safe.
       return ((java.nio.ByteBuffer) value).array();
