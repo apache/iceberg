@@ -102,7 +102,7 @@ public class HTTPClient extends BaseHTTPClient {
     this.baseUri = baseUri;
     this.baseHeaders = baseHeaders;
     this.mapper = objectMapper;
-    this.authSession = AuthSession.EMPTY;
+    this.authSession = null;
 
     HttpClientBuilder clientBuilder = HttpClients.custom();
 
@@ -141,6 +141,7 @@ public class HTTPClient extends BaseHTTPClient {
 
   @Override
   public HTTPClient withAuthSession(AuthSession session) {
+    Preconditions.checkNotNull(session, "Invalid auth session: null");
     return new HTTPClient(this, session);
   }
 
@@ -266,6 +267,7 @@ public class HTTPClient extends BaseHTTPClient {
       baseHeaders.forEach(allHeaders::putIfAbsent);
     }
 
+    Preconditions.checkState(authSession != null, "no AuthSession available");
     return authSession.authenticate(builder.headers(HTTPHeaders.of(allHeaders)).build());
   }
 
@@ -328,7 +330,9 @@ public class HTTPClient extends BaseHTTPClient {
   @Override
   public void close() throws IOException {
     try {
-      authSession.close();
+      if (authSession != null) {
+        authSession.close();
+      }
     } finally {
       httpClient.close(CloseMode.GRACEFUL);
     }

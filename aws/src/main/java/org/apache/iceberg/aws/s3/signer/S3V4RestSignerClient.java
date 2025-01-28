@@ -208,7 +208,7 @@ public abstract class S3V4RestSignerClient
               token,
               id ->
                   AuthSession.fromAccessToken(
-                      httpClient(),
+                      httpClient().withAuthSession(org.apache.iceberg.rest.auth.AuthSession.EMPTY),
                       tokenRefreshExecutor(),
                       token,
                       expiresAtMillis(properties()),
@@ -338,6 +338,7 @@ public abstract class S3V4RestSignerClient
       Consumer<Map<String, String>> responseHeadersConsumer = responseHeaders::putAll;
       S3SignResponse s3SignResponse =
           httpClient()
+              .withAuthSession(org.apache.iceberg.rest.auth.AuthSession.EMPTY)
               .post(
                   endpoint(),
                   remoteSigningRequest,

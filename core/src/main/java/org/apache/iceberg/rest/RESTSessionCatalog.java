@@ -242,7 +242,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
     String oauth2ServerUri =
         props.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
-    try (RESTClient initClient = clientBuilder.apply(props)) {
+    try (RESTClient initClient =
+        clientBuilder
+            .apply(props)
+            .withAuthSession(org.apache.iceberg.rest.auth.AuthSession.EMPTY)) {
       Map<String, String> initHeaders =
           RESTUtil.merge(configHeaders(props), OAuth2Util.authHeaders(initToken));
       if (hasCredential) {
@@ -283,7 +286,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             mergedProps,
             OAuth2Properties.TOKEN_REFRESH_ENABLED,
             OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
-    this.client = clientBuilder.apply(mergedProps);
+    this.client =
+        clientBuilder
+            .apply(mergedProps)
+            .withAuthSession(org.apache.iceberg.rest.auth.AuthSession.EMPTY);
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
     String token = mergedProps.get(OAuth2Properties.TOKEN);

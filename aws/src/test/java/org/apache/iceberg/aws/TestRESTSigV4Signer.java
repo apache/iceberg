@@ -27,6 +27,7 @@ import org.apache.hc.core5.http.HttpStatus;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPClient;
+import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
@@ -64,7 +65,8 @@ public class TestRESTSigV4Signer {
         HTTPClient.builder(properties)
             .uri("http://localhost:" + mockServer.getLocalPort())
             .withHeader(HttpHeaders.AUTHORIZATION, "Bearer existing_token")
-            .build();
+            .build()
+            .withAuthSession(AuthSession.EMPTY);
   }
 
   @AfterAll

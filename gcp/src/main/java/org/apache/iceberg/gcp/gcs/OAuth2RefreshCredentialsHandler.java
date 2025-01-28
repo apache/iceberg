@@ -30,6 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.credentials.Credential;
@@ -50,7 +51,7 @@ public class OAuth2RefreshCredentialsHandler
   @Override
   public AccessToken refreshAccessToken() {
     LoadCredentialsResponse response;
-    try (RESTClient client = httpClient()) {
+    try (RESTClient client = httpClient().withAuthSession(AuthSession.EMPTY)) {
       response =
           client.get(
               properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT),

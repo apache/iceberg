@@ -27,6 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.credentials.Credential;
@@ -84,6 +85,7 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
 
   private LoadCredentialsResponse fetchCredentials() {
     return httpClient()
+        .withAuthSession(AuthSession.EMPTY)
         .get(
             properties.get(URI),
             null,
