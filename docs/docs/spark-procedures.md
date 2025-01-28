@@ -980,7 +980,7 @@ The `rewrite-table-path` assists in moving or copying an Iceberg table from one 
 
 ### `rewrite-table-path`
 
-This procedure writes a new copy of the Iceberg table's metadata files where every path has had its prefix replaced.
+This procedure writes a new copy of the Iceberg table's files where every path has had its prefix replaced.
 The newly rewritten metadata files, along with data files, enable moving or coping an Iceberg table to a new location.
 After copying both metadata and data to the desired location, the replicated iceberg
 table will appear identical to the source table, including snapshot history, schema and partition specs.
@@ -1004,11 +1004,11 @@ table will appear identical to the source table, including snapshot history, sch
 
 - Full Rewrite:
 
-By default, the procedure operates in full rewrite mode where all metadata files are rewritten.
+By default, the procedure operates in full rewrite mode, rewriting every Iceberg table file containing a path reference. This includes metadata.json, manifest lists, manifests, and position delete files.
 
 - Incremental Rewrite:
 
-If `start_version` is provided, the procedure will only rewrite delta metadata files between `start_version` and `end_version`. `end_version` is default to latest metadata location of the table. 
+If `start_version` is provided, the procedure will only rewrite delta of table files containing a path reference between `start_version` and `end_version`. `end_version` defaults to the latest metadata location of the table. 
 
 #### Output
 
@@ -1027,7 +1027,7 @@ stagingpath/manifest.avro,targetpath/manifest.avro
 
 #### Examples
 
-Full rewrite of a table's metadata path from source location in HDFS to a target location in S3 bucket of table `my_table`.
+Full rewrite of a table's path from source location in HDFS to a target location in S3 bucket of table `my_table`.
 This produces a new set of metadata using the s3a prefix in the default staging location under table's metadata directory
 
 ```sql
@@ -1038,8 +1038,8 @@ CALL catalog_name.system.rewrite_table_path(
 );
 ```
 
-Incremental rewrite of a table's metadata path from a source location to a target location between metadata versions
-`v2.metadata.json` and `v20.metadata.json`, with files written to a staging location
+Incremental rewrite of a table's path from a source location to a target location between metadata versions
+`v2.metadata.json` and `v20.metadata.json`, with files written to an explicit staging location
 
 ```sql
 CALL catalog_name.system.rewrite_table_path(
@@ -1056,7 +1056,7 @@ Once the rewrite is completed, third-party tools (
 eg. [Distcp](https://hadoop.apache.org/docs/current/hadoop-distcp/DistCp.html)) can be used to copy the newly created
 metadata files and data files to the target location
 
-Lastly, after referential integrity check on copied files, [register_table](#register_table) procedure can be used to register copied table in the target location with catalog.
+Lastly, [register_table](#register_table) procedure can be used to register copied table in the target location with catalog.
 
 !!! warning
     Iceberg table with statistics files are not currently supported for path rewrite
