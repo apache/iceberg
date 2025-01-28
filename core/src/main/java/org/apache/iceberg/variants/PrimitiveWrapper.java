@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.variants.Variants.PhysicalType;
 import org.apache.iceberg.variants.Variants.Primitives;
 
 class PrimitiveWrapper<T> implements VariantPrimitive<T> {
@@ -47,17 +48,23 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
   private static final byte BINARY_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_BINARY);
   private static final byte STRING_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_STRING);
 
-  private final Variants.PhysicalType type;
+  private final PhysicalType type;
   private final T value;
   private ByteBuffer buffer = null;
 
-  PrimitiveWrapper(Variants.PhysicalType type, T value) {
-    this.type = type;
+  PrimitiveWrapper(PhysicalType type, T value) {
+    if (value instanceof Boolean
+        && (type == PhysicalType.BOOLEAN_TRUE || type == PhysicalType.BOOLEAN_FALSE)) {
+      // set the boolean type from the value so that callers can use BOOLEAN_* interchangeably
+      this.type = ((Boolean) value) ? PhysicalType.BOOLEAN_TRUE : PhysicalType.BOOLEAN_FALSE;
+    } else {
+      this.type = type;
+    }
     this.value = value;
   }
 
   @Override
-  public Variants.PhysicalType type() {
+  public PhysicalType type() {
     return type;
   }
 
