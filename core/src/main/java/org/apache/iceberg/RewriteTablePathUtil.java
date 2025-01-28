@@ -50,7 +50,8 @@ import org.slf4j.LoggerFactory;
 public class RewriteTablePathUtil {
 
   private static final Logger LOG = LoggerFactory.getLogger(RewriteTablePathUtil.class);
-  // iceberg client file separator, independent of that of the underlying file system
+  // Use the POSIX separator instead of File.separator because File.separator is dependent on
+  // the client environment and not the target filesystem. POSIX is compatible with S3, GCS, etc
   public static final String FILE_SEPARATOR = "/";
 
   private RewriteTablePathUtil() {}
