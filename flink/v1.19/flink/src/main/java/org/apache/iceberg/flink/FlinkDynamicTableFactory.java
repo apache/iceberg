@@ -21,6 +21,7 @@ package org.apache.iceberg.flink;
 import java.util.Map;
 import java.util.Set;
 import org.apache.flink.configuration.ConfigOption;
+import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.catalog.CatalogDatabaseImpl;
@@ -44,6 +45,31 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 public class FlinkDynamicTableFactory
     implements DynamicTableSinkFactory, DynamicTableSourceFactory {
   static final String FACTORY_IDENTIFIER = "iceberg";
+
+  private static final ConfigOption<String> CATALOG_NAME =
+      ConfigOptions.key("catalog-name")
+          .stringType()
+          .noDefaultValue()
+          .withDescription("Catalog name");
+
+  private static final ConfigOption<String> CATALOG_TYPE =
+      ConfigOptions.key(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE)
+          .stringType()
+          .noDefaultValue()
+          .withDescription("Catalog type, the optional types are: custom, hadoop, hive.");
+
+  private static final ConfigOption<String> CATALOG_DATABASE =
+      ConfigOptions.key("catalog-database")
+          .stringType()
+          .defaultValue(FlinkCatalogFactory.DEFAULT_DATABASE_NAME)
+          .withDescription("Database name managed in the iceberg catalog.");
+
+  private static final ConfigOption<String> CATALOG_TABLE =
+      ConfigOptions.key("catalog-table")
+          .stringType()
+          .noDefaultValue()
+          .withDescription("Table name managed in the underlying iceberg catalog and database.");
+
   private final FlinkCatalog catalog;
 
   public FlinkDynamicTableFactory() {
@@ -101,16 +127,16 @@ public class FlinkDynamicTableFactory
   @Override
   public Set<ConfigOption<?>> requiredOptions() {
     Set<ConfigOption<?>> options = Sets.newHashSet();
-    options.add(FlinkCreateTableOptions.CATALOG_TYPE);
-    options.add(FlinkCreateTableOptions.CATALOG_NAME);
+    options.add(CATALOG_TYPE);
+    options.add(CATALOG_NAME);
     return options;
   }
 
   @Override
   public Set<ConfigOption<?>> optionalOptions() {
     Set<ConfigOption<?>> options = Sets.newHashSet();
-    options.add(FlinkCreateTableOptions.CATALOG_DATABASE);
-    options.add(FlinkCreateTableOptions.CATALOG_TABLE);
+    options.add(CATALOG_DATABASE);
+    options.add(CATALOG_TABLE);
     return options;
   }
 
@@ -127,17 +153,14 @@ public class FlinkDynamicTableFactory
     Configuration flinkConf = new Configuration();
     tableProps.forEach(flinkConf::setString);
 
-    String catalogName = flinkConf.getString(FlinkCreateTableOptions.CATALOG_NAME);
+    String catalogName = flinkConf.getString(CATALOG_NAME);
     Preconditions.checkNotNull(
-        catalogName,
-        "Table property '%s' cannot be null",
-        FlinkCreateTableOptions.CATALOG_NAME.key());
+        catalogName, "Table property '%s' cannot be null", CATALOG_NAME.key());
 
-    String catalogDatabase =
-        flinkConf.getString(FlinkCreateTableOptions.CATALOG_DATABASE, databaseName);
+    String catalogDatabase = flinkConf.getString(CATALOG_DATABASE, databaseName);
     Preconditions.checkNotNull(catalogDatabase, "The iceberg database name cannot be null");
 
-    String catalogTable = flinkConf.getString(FlinkCreateTableOptions.CATALOG_TABLE, tableName);
+    String catalogTable = flinkConf.getString(CATALOG_TABLE, tableName);
     Preconditions.checkNotNull(catalogTable, "The iceberg table name cannot be null");
 
     org.apache.hadoop.conf.Configuration hadoopConf = FlinkCatalogFactory.clusterHadoopConf();

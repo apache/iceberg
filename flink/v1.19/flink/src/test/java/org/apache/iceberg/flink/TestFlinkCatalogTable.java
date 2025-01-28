@@ -189,23 +189,6 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testCreateTableLikeInFlinkCatalog() throws TableNotExistException {
-    sql("CREATE TABLE  tl(id BIGINT)");
-
-    sql("CREATE TABLE `default_catalog`.`default_database`.tl2 LIKE tl");
-
-    CatalogTable catalogTable = catalogTable("default_catalog", "default_database", "tl2");
-    assertThat(catalogTable.getSchema())
-        .isEqualTo(TableSchema.builder().field("id", DataTypes.BIGINT()).build());
-
-    Map<String, String> options = catalogTable.getOptions();
-    assertThat(options.entrySet().containsAll(config.entrySet())).isTrue();
-    assertThat(options.get(FlinkCreateTableOptions.CATALOG_NAME.key())).isEqualTo(catalogName);
-    assertThat(options.get(FlinkCreateTableOptions.CATALOG_DATABASE.key())).isEqualTo(DATABASE);
-    assertThat(options.get(FlinkCreateTableOptions.CATALOG_TABLE.key())).isEqualTo("tl");
-  }
-
-  @TestTemplate
   public void testCreateTableLocation() {
     assumeThat(isHadoopCatalog)
         .as("HadoopCatalog does not support creating table with location")
@@ -677,12 +660,10 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   }
 
   private CatalogTable catalogTable(String name) throws TableNotExistException {
-    return catalogTable(getTableEnv().getCurrentCatalog(), DATABASE, name);
-  }
-
-  private CatalogTable catalogTable(String catalog, String database, String table)
-      throws TableNotExistException {
     return (CatalogTable)
-        getTableEnv().getCatalog(catalog).get().getTable(new ObjectPath(database, table));
+        getTableEnv()
+            .getCatalog(getTableEnv().getCurrentCatalog())
+            .get()
+            .getTable(new ObjectPath(DATABASE, name));
   }
 }
