@@ -137,33 +137,37 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
     }
 
     ColumnarBatch loadDataToColumnBatch() {
-      ColumnVector[] arrowColumnVectors = readDataToColumnVectors();
+      ColumnVector[] vectors = readDataToColumnVectors();
       int numLiveRows = batchSize;
       if (hasIsDeletedColumn) {
-        boolean[] isDeleted =
-            ColumnarBatchUtil.buildIsDeleted(
-                arrowColumnVectors, deletes, rowStartPosInBatch, batchSize);
-        readDeletedColumn(arrowColumnVectors, isDeleted);
+        boolean[] isDeleted = buildIsDeleted(vectors);
+        readDeletedColumn(vectors, isDeleted);
       } else {
-        Pair<int[], Integer> pair =
-            ColumnarBatchUtil.buildRowIdMapping(
-                arrowColumnVectors, deletes, rowStartPosInBatch, batchSize);
+        Pair<int[], Integer> pair = buildRowIdMapping(vectors);
         if (pair != null) {
           int[] rowIdMapping = pair.first();
           numLiveRows = pair.second();
-          for (int i = 0; i < arrowColumnVectors.length; i++) {
-            ((CometVector) arrowColumnVectors[i]).setRowIdMapping(rowIdMapping);
+          for (int i = 0; i < vectors.length; i++) {
+            ((CometVector) vectors[i]).setRowIdMapping(rowIdMapping);
           }
         }
       }
 
       if (deletes != null && deletes.hasEqDeletes()) {
-        arrowColumnVectors = ColumnarBatchUtil.removeExtraColumns(deletes, arrowColumnVectors);
+        vectors = ColumnarBatchUtil.removeExtraColumns(deletes, vectors);
       }
 
-      ColumnarBatch newColumnarBatch = new ColumnarBatch(arrowColumnVectors);
-      newColumnarBatch.setNumRows(numLiveRows);
-      return newColumnarBatch;
+      ColumnarBatch batch = new ColumnarBatch(vectors);
+      batch.setNumRows(numLiveRows);
+      return batch;
+    }
+
+    private boolean[] buildIsDeleted(ColumnVector[] vectors) {
+      return ColumnarBatchUtil.buildIsDeleted(vectors, deletes, rowStartPosInBatch, batchSize);
+    }
+
+    private Pair<int[], Integer> buildRowIdMapping(ColumnVector[] vectors) {
+      return ColumnarBatchUtil.buildRowIdMapping(vectors, deletes, rowStartPosInBatch, batchSize);
     }
 
     ColumnVector[] readDataToColumnVectors() {

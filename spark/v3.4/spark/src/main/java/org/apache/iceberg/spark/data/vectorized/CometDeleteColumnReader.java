@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.data.vectorized;
 
-import org.apache.comet.parquet.ConstantColumnReader;
 import org.apache.comet.parquet.MetadataColumnReader;
 import org.apache.comet.parquet.Native;
 import org.apache.comet.parquet.TypeUtil;
@@ -31,7 +30,7 @@ import org.apache.spark.sql.types.StructField;
 class CometDeleteColumnReader<T> extends CometColumnReader {
   CometDeleteColumnReader(Types.NestedField field) {
     super(field);
-    delegate = new ConstantColumnReader(getSparkType(), getDescriptor(), false, false);
+    delegate = new DeleteColumnReader();
   }
 
   CometDeleteColumnReader(boolean[] isDeleted) {
@@ -49,12 +48,17 @@ class CometDeleteColumnReader<T> extends CometColumnReader {
   private static class DeleteColumnReader extends MetadataColumnReader {
     private boolean[] isDeleted;
 
-    DeleteColumnReader(boolean[] isDeleted) {
+    DeleteColumnReader() {
       super(
           DataTypes.BooleanType,
           TypeUtil.convertToParquet(
               new StructField("_deleted", DataTypes.BooleanType, false, Metadata.empty())),
-          false);
+          false /* useDecimal128 = false */);
+      this.isDeleted = new boolean[0];
+    }
+
+    DeleteColumnReader(boolean[] isDeleted) {
+      this();
       this.isDeleted = isDeleted;
     }
 
