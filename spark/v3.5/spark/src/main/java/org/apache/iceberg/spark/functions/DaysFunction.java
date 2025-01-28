@@ -31,6 +31,8 @@ import org.apache.spark.sql.types.TimestampType;
  * A Spark function implementation for the Iceberg day transform.
  *
  * <p>Example usage: {@code SELECT system.days('source_col')}.
+ *
+ * <p>Alternate form: {@code SELECT system.day('source_col')}.
  */
 public class DaysFunction extends UnaryUnboundFunction {
 

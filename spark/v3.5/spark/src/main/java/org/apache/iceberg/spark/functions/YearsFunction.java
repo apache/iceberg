@@ -31,6 +31,8 @@ import org.apache.spark.sql.types.TimestampType;
  * A Spark function implementation for the Iceberg year transform.
  *
  * <p>Example usage: {@code SELECT system.years('source_col')}.
+ *
+ * <p>Alternate form: {@code SELECT system.year('source_col')}.
  */
 public class YearsFunction extends UnaryUnboundFunction {
 

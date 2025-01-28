@@ -30,6 +30,8 @@ import org.apache.spark.sql.types.TimestampType;
  * A Spark function implementation for the Iceberg hour transform.
  *
  * <p>Example usage: {@code SELECT system.hours('source_col')}.
+ *
+ * <p>Alternate form: {@code SELECT system.hour('source_col')}.
  */
 public class HoursFunction extends UnaryUnboundFunction {
 

@@ -29,29 +29,37 @@ public class SparkFunctions {
 
   private SparkFunctions() {}
 
+  private static final UnboundFunction VERSION_FUNCTION = new IcebergVersionFunction();
+  private static final UnboundFunction YEAR_FUNCTION = new YearsFunction();
+  private static final UnboundFunction MONTH_FUNCTION = new MonthsFunction();
+  private static final UnboundFunction DAY_FUNCTION = new DaysFunction();
+  private static final UnboundFunction HOUR_FUNCTION = new HoursFunction();
+  private static final UnboundFunction BUCKET_FUNCTION = new BucketFunction();
+  private static final UnboundFunction TRUNCATE_FUNCTION = new TruncateFunction();
+
   private static final Map<String, UnboundFunction> FUNCTIONS =
       new ImmutableMap.Builder<String, UnboundFunction>()
-          .put("iceberg_version", new IcebergVersionFunction())
-          .put("years", new YearsFunction())
-          .put("year", new YearsFunction())
-          .put("months", new MonthsFunction())
-          .put("month", new MonthsFunction())
-          .put("days", new DaysFunction())
-          .put("day", new DaysFunction())
-          .put("hours", new HoursFunction())
-          .put("hour", new HoursFunction())
-          .put("bucket", new BucketFunction())
-          .put("truncate", new TruncateFunction())
+          .put("iceberg_version", VERSION_FUNCTION)
+          .put("years", YEAR_FUNCTION)
+          .put("year", YEAR_FUNCTION)
+          .put("months", MONTH_FUNCTION)
+          .put("month", MONTH_FUNCTION)
+          .put("days", DAY_FUNCTION)
+          .put("day", DAY_FUNCTION)
+          .put("hours", HOUR_FUNCTION)
+          .put("hour", HOUR_FUNCTION)
+          .put("bucket", BUCKET_FUNCTION)
+          .put("truncate", TRUNCATE_FUNCTION)
           .build();
 
   private static final Map<Class<?>, UnboundFunction> CLASS_TO_FUNCTIONS =
       ImmutableMap.of(
-          YearsFunction.class, new YearsFunction(),
-          MonthsFunction.class, new MonthsFunction(),
-          DaysFunction.class, new DaysFunction(),
-          HoursFunction.class, new HoursFunction(),
-          BucketFunction.class, new BucketFunction(),
-          TruncateFunction.class, new TruncateFunction());
+          YearsFunction.class, YEAR_FUNCTION,
+          MonthsFunction.class, MONTH_FUNCTION,
+          DaysFunction.class, DAY_FUNCTION,
+          HoursFunction.class, HOUR_FUNCTION,
+          BucketFunction.class, BUCKET_FUNCTION,
+          TruncateFunction.class, TRUNCATE_FUNCTION);
 
   private static final List<String> FUNCTION_NAMES = ImmutableList.copyOf(FUNCTIONS.keySet());
 

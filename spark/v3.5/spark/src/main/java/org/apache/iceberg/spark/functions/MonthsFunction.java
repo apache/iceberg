@@ -31,6 +31,8 @@ import org.apache.spark.sql.types.TimestampType;
  * A Spark function implementation for the Iceberg month transform.
  *
  * <p>Example usage: {@code SELECT system.months('source_col')}.
+ *
+ * <p>Alternate form: {@code SELECT system.month('source_col')}.
  */
 public class MonthsFunction extends UnaryUnboundFunction {
 
