@@ -97,6 +97,10 @@ public class CatalogUtil {
 
     Set<String> manifestListsToDelete = Sets.newHashSet();
     Set<ManifestFile> manifestsToDelete = Sets.newHashSet();
+    Set<String> metadataToDelete = Sets.newHashSet();
+    Set<StatisticsFile> statisticsToDelete = Sets.newHashSet();
+    Set<PartitionStatisticsFile> partitionStatsToDelete = Sets.newHashSet();
+
     for (Snapshot snapshot : metadata.snapshots()) {
       // add all manifests to the delete set because both data and delete files should be removed
       Iterables.addAll(manifestsToDelete, snapshot.allManifests(io));
@@ -108,23 +112,18 @@ public class CatalogUtil {
 
     LOG.info("Manifests to delete: {}", Joiner.on(", ").join(manifestsToDelete));
 
-    Set<String> metadataToDelete = Sets.newHashSet();
-    Set<StatisticsFile> statisticsToDelete = Sets.newHashSet();
-    Set<PartitionStatisticsFile> partitionStatsToDelete = Sets.newHashSet();
-
-    // Look through metadata files and collect all possible statistics / partition statistics files
-    TableMetadata tableMetadata;
+    // Collect all metadata files and extract historical statistics files
     for (TableMetadata.MetadataLogEntry previousFile : metadata.previousFiles()) {
       metadataToDelete.add(previousFile.file());
-      tableMetadata = TableMetadataParser.read(io, previousFile.file());
-      statisticsToDelete.addAll(tableMetadata.statisticsFiles());
-      partitionStatsToDelete.addAll(tableMetadata.partitionStatisticsFiles());
+      TableMetadata previousMetadata = TableMetadataParser.read(io, previousFile.file());
+      statisticsToDelete.addAll(previousMetadata.statisticsFiles());
+      partitionStatsToDelete.addAll(previousMetadata.partitionStatisticsFiles());
     }
-    metadataToDelete.add(metadata.metadataFileLocation());
 
-    tableMetadata = TableMetadataParser.read(io, metadata.metadataFileLocation());
-    statisticsToDelete.addAll(tableMetadata.statisticsFiles());
-    partitionStatsToDelete.addAll(tableMetadata.partitionStatisticsFiles());
+    // Process the latest metadata file
+    metadataToDelete.add(metadata.metadataFileLocation());
+    statisticsToDelete.addAll(metadata.statisticsFiles());
+    partitionStatsToDelete.addAll(metadata.partitionStatisticsFiles());
 
     // run all of the deletes
 
