@@ -30,19 +30,19 @@ import org.apache.spark.sql.types.StructField;
 class CometDeleteColumnReader<T> extends CometColumnReader {
   CometDeleteColumnReader(Types.NestedField field) {
     super(field);
-    delegate = new DeleteColumnReader();
+    setDelegate(new DeleteColumnReader());
   }
 
   CometDeleteColumnReader(boolean[] isDeleted) {
     super(MetadataColumns.IS_DELETED);
-    delegate = new DeleteColumnReader(isDeleted);
+    setDelegate(new DeleteColumnReader(isDeleted));
   }
 
   @Override
   public void setBatchSize(int batchSize) {
-    delegate.setBatchSize(batchSize);
-    this.batchSize = batchSize;
-    initialized = true;
+    delegate().setBatchSize(batchSize);
+    setBatchSize(batchSize);
+    setInitialized(true);
   }
 
   private static class DeleteColumnReader extends MetadataColumnReader {

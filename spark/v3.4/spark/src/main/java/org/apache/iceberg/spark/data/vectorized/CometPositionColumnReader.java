@@ -27,14 +27,14 @@ import org.apache.spark.sql.types.DataTypes;
 class CometPositionColumnReader extends CometColumnReader {
   CometPositionColumnReader(Types.NestedField field) {
     super(field);
-    delegate = new PositionColumnReader(descriptor());
+    setDelegate(new PositionColumnReader(descriptor()));
   }
 
   @Override
   public void setBatchSize(int batchSize) {
-    delegate.setBatchSize(batchSize);
-    this.batchSize = batchSize;
-    initialized = true;
+    delegate().setBatchSize(batchSize);
+    setBatchSize(batchSize);
+    setInitialized(true);
   }
 
   private static class PositionColumnReader extends MetadataColumnReader {

@@ -39,17 +39,16 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 
-@SuppressWarnings("checkstyle:VisibilityModifier")
 class CometColumnReader implements VectorizedReader<CometVector> {
   public static final int DEFAULT_BATCH_SIZE = 5000;
 
   private final DataType sparkType;
   // the delegated column reader from Comet side
-  protected AbstractColumnReader delegate;
+  private AbstractColumnReader delegate;
   private final CometVector vector;
   private final ColumnDescriptor descriptor;
-  protected boolean initialized = false;
-  protected int batchSize = DEFAULT_BATCH_SIZE;
+  private boolean initialized = false;
+  private int batchSize = DEFAULT_BATCH_SIZE;
 
   CometColumnReader(DataType sparkType, ColumnDescriptor descriptor) {
     this.sparkType = sparkType;
@@ -65,8 +64,20 @@ class CometColumnReader implements VectorizedReader<CometVector> {
     this.vector = new CometVector(sparkType, false);
   }
 
-  public AbstractColumnReader getDelegate() {
+  public AbstractColumnReader delegate() {
     return delegate;
+  }
+
+  void setDelegate(AbstractColumnReader delegate) {
+    this.delegate = delegate;
+  }
+
+  void setInitialized(boolean initialized) {
+    this.initialized = initialized;
+  }
+
+  public int batchSize() {
+    return batchSize;
   }
 
   /**
@@ -81,8 +92,8 @@ class CometColumnReader implements VectorizedReader<CometVector> {
 
     CometSchemaImporter importer = new CometSchemaImporter(new RootAllocator());
 
-    delegate = Utils.getColumnReader(sparkType, descriptor, importer, batchSize, false, false);
-    initialized = true;
+    this.delegate = Utils.getColumnReader(sparkType, descriptor, importer, batchSize, false, false);
+    this.initialized = true;
   }
 
   @Override

@@ -23,7 +23,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 /** Enumerates the types of Parquet readers. */
 public enum ParquetReaderType {
   /** ICEBERG type utilizes the built-in Parquet reader. */
-  ICEBERG("iceberg"),
+  ICEBERG,
 
   /**
    * COMET type changes the Parquet reader to the Apache DataFusion Comet Parquet reader. Comet
@@ -34,29 +34,14 @@ public enum ParquetReaderType {
    * <p>TODO: Implement {@link org.apache.comet.parquet.SupportsComet} in SparkScan to convert Spark
    * physical plan to native physical plan for native execution.
    */
-  COMET("comet");
+  COMET;
 
-  private final String parquetReaderType;
-
-  ParquetReaderType(String readerType) {
-    this.parquetReaderType = readerType;
-  }
-
-  public static ParquetReaderType fromName(String parquetReaderType) {
-    Preconditions.checkArgument(parquetReaderType != null, "Parquet reader type is null");
-
-    if (ICEBERG.parquetReaderType().equalsIgnoreCase(parquetReaderType)) {
-      return ICEBERG;
-
-    } else if (COMET.parquetReaderType().equalsIgnoreCase(parquetReaderType)) {
-      return COMET;
-
-    } else {
-      throw new IllegalArgumentException("Unknown parquet reader type: " + parquetReaderType);
+  public static ParquetReaderType fromString(String typeAsString) {
+    Preconditions.checkArgument(typeAsString != null, "Parquet reader type is null");
+    try {
+      return ParquetReaderType.valueOf(typeAsString.toUpperCase());
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException("Unknown parquet reader type: " + typeAsString);
     }
-  }
-
-  public String parquetReaderType() {
-    return parquetReaderType;
   }
 }

@@ -47,10 +47,10 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
 
   private final CometColumnReader[] readers;
   private final boolean hasIsDeletedColumn;
-  private DeleteFilter<InternalRow> deletes = null;
-  private long rowStartPosInBatch = 0;
   // The delegated batch reader on Comet side
   private final BatchReader delegate;
+  private DeleteFilter<InternalRow> deletes = null;
+  private long rowStartPosInBatch = 0;
 
   CometColumnarBatchReader(List<VectorizedReader<?>> readers, Schema schema) {
     this.readers =
@@ -59,7 +59,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
         readers.stream().anyMatch(reader -> reader instanceof CometDeleteColumnReader);
 
     AbstractColumnReader[] abstractColumnReaders = new AbstractColumnReader[readers.size()];
-    delegate = new BatchReader(abstractColumnReaders);
+    this.delegate = new BatchReader(abstractColumnReaders);
     delegate.setSparkSchema(SparkSchemaUtil.convert(schema));
   }
 
@@ -86,7 +86,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
     }
 
     for (int i = 0; i < readers.length; i++) {
-      delegate.getColumnReaders()[i] = this.readers[i].getDelegate();
+      delegate.getColumnReaders()[i] = this.readers[i].delegate();
     }
 
     this.rowStartPosInBatch =
@@ -178,7 +178,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
       for (int i = 0; i < readers.length; i++) {
         columnVectors[i] = readers[i].vector();
         columnVectors[i].resetRowIdMapping();
-        org.apache.comet.vector.CometVector vector = readers[i].getDelegate().currentBatch();
+        org.apache.comet.vector.CometVector vector = readers[i].delegate().currentBatch();
         columnVectors[i].setDelegate(vector);
       }
 

@@ -33,15 +33,15 @@ class CometConstantColumnReader<T> extends CometColumnReader {
   CometConstantColumnReader(T value, Types.NestedField field) {
     super(field);
     // use delegate to set constant value on the native side to be consumed by native execution.
-    delegate =
-        new ConstantColumnReader(sparkType(), descriptor(), convertToSparkValue(value), false);
+    setDelegate(
+        new ConstantColumnReader(sparkType(), descriptor(), convertToSparkValue(value), false));
   }
 
   @Override
   public void setBatchSize(int batchSize) {
-    delegate.setBatchSize(batchSize);
-    this.batchSize = batchSize;
-    initialized = true;
+    delegate().setBatchSize(batchSize);
+    setBatchSize(batchSize);
+    setInitialized(true);
   }
 
   private Object convertToSparkValue(T value) {
