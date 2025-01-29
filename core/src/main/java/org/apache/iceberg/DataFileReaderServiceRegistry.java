@@ -19,34 +19,43 @@
 package org.apache.iceberg;
 
 import java.util.Map;
+import java.util.ServiceLoader;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.io.FileFormatReadBuilder;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Maintains the available reader and writer factories for the supported {@link FileFormat}s. {@link
- * BuilderFactory} needs to be registered for {@link FileFormatReadBuilder} with the supported
- * return type.
+ * Registry which maintains the available {@link DataFileReaderService} implementations. Based on
+ * the file format and the required return type the registry returns the correct {@link
+ * FileFormatReadBuilder} implementations which could be used to generate the readers.
  */
-public class DataFileFormats {
-  private static final Map<Key, BuilderFactory> READ_BUILDERS = Maps.newConcurrentMap();
+public class DataFileReaderServiceRegistry {
+  private static final Logger LOG = LoggerFactory.getLogger(DataFileReaderServiceRegistry.class);
+  private static final Map<Key, DataFileReaderService> READ_BUILDERS = Maps.newConcurrentMap();
 
-  private DataFileFormats() {}
+  static {
+    ServiceLoader<DataFileReaderService> loader = ServiceLoader.load(DataFileReaderService.class);
+    for (DataFileReaderService service : loader) {
+      Key key = new Key(service.format(), service.returnType());
+      if (READ_BUILDERS.containsKey(key)) {
+        throw new IllegalArgumentException(
+            String.format(
+                "Service %s clashes with %s. Both serves %s",
+                service.getClass(), READ_BUILDERS.get(key), key));
+      }
 
-  /**
-   * Registers a new reader factory which could be used to read the given {@link FileFormat} and
-   * returns an object with a given returnType for every row.
-   *
-   * @param format which could be read by the factory
-   * @param returnType of the reader created by the factory
-   * @param factory used for reading the given file format and returning the give type
-   */
-  public static void register(FileFormat format, Class<?> returnType, BuilderFactory factory) {
-    READ_BUILDERS.put(new Key(format, returnType), factory);
+      READ_BUILDERS.putIfAbsent(key, service);
+    }
+
+    LOG.info("DataFileReaderServices found: {}", READ_BUILDERS);
   }
+
+  private DataFileReaderServiceRegistry() {}
 
   /**
    * Provides a reader for the given {@link InputFile} which returns objects with a given
@@ -91,22 +100,9 @@ public class DataFileFormats {
       Schema readSchema,
       Table table,
       DeleteFilter<?> deleteFilter) {
-    BuilderFactory factory = READ_BUILDERS.get(new Key(format, returnType));
-    if (factory != null) {
-      return factory.readBuilder(inputFile, task, readSchema, table, deleteFilter);
-    } else {
-      throw new UnsupportedOperationException(
-          String.format("Cannot find factory for format: %s and type: %s", format, returnType));
-    }
-  }
-
-  public interface BuilderFactory {
-    FileFormatReadBuilder<?> readBuilder(
-        InputFile inputFile,
-        ContentScanTask<?> task,
-        Schema readSchema,
-        Table table,
-        DeleteFilter<?> deleteFilter);
+    return READ_BUILDERS
+        .get(new Key(format, returnType))
+        .builder(inputFile, task, readSchema, table, deleteFilter);
   }
 
   private static class Key {

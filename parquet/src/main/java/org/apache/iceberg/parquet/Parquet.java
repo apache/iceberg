@@ -60,7 +60,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.DataFileFormats;
+import org.apache.iceberg.ContentScanTask;
+import org.apache.iceberg.DataFileReaderService;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetricsConfig;
@@ -72,6 +73,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
@@ -88,6 +90,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.FileFormatReadBuilder;
 import org.apache.iceberg.io.FileFormatReadBuilderBase;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -135,19 +138,6 @@ public class Parquet {
           "parquet.private.read.filter.predicate",
           "parquet.read.support.class",
           "parquet.crypto.factory.class");
-
-  static {
-    DataFileFormats.register(
-        FileFormat.PARQUET,
-        Record.class,
-        (inputFile, task, schema, table, deleteFilter) ->
-            new ReadBuilder(inputFile)
-                .project(schema)
-                .createReaderFunc(
-                    fileSchema ->
-                        GenericParquetReaders.buildReader(
-                            schema, fileSchema, PartitionUtil.constantsMap(task, schema))));
-  }
 
   public static WriteBuilder write(OutputFile file) {
     return new WriteBuilder(file);
@@ -1331,5 +1321,32 @@ public class Parquet {
       writer.appendFile(ParquetIO.file(Files.localInput(inputFile)));
     }
     writer.end(metadata);
+  }
+
+  public static class ReaderService implements DataFileReaderService {
+    @Override
+    public FileFormat format() {
+      return FileFormat.PARQUET;
+    }
+
+    @Override
+    public Class<?> returnType() {
+      return Record.class;
+    }
+
+    @Override
+    public FileFormatReadBuilder<?> builder(
+        InputFile inputFile,
+        ContentScanTask<?> task,
+        Schema readSchema,
+        Table table,
+        DeleteFilter<?> deleteFilter) {
+      return new ReadBuilder(inputFile)
+          .project(readSchema)
+          .createReaderFunc(
+              fileSchema ->
+                  GenericParquetReaders.buildReader(
+                      readSchema, fileSchema, PartitionUtil.constantsMap(task, readSchema)));
+    }
   }
 }

@@ -20,7 +20,7 @@ package org.apache.iceberg.data;
 
 import java.io.Serializable;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.DataFileFormats;
+import org.apache.iceberg.DataFileReaderServiceRegistry;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableScan;
@@ -84,7 +84,8 @@ class GenericReader implements Serializable {
   private CloseableIterable<Record> openFile(FileScanTask task, Schema fileProjection) {
     InputFile input = io.newInputFile(task.file().location());
 
-    return DataFileFormats.read(task.file().format(), Record.class, input, task, fileProjection)
+    return DataFileReaderServiceRegistry.read(
+            task.file().format(), Record.class, input, task, fileProjection)
         .split(task.start(), task.length())
         .caseSensitive(caseSensitive)
         .reuseContainers(reuseContainers)

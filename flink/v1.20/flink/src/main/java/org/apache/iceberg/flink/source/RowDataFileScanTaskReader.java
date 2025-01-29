@@ -24,11 +24,13 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.ContentScanTask;
-import org.apache.iceberg.DataFileFormats;
+import org.apache.iceberg.DataFileReaderService;
+import org.apache.iceberg.DataFileReaderServiceRegistry;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.encryption.InputFilesDecryptor;
@@ -55,41 +57,6 @@ import org.apache.iceberg.util.PartitionUtil;
 
 @Internal
 public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
-
-  static {
-    DataFileFormats.register(
-        FileFormat.PARQUET,
-        RowData.class,
-        (inputFile, task, readSchema, table, deleteFilter) ->
-            Parquet.read(inputFile)
-                .project(readSchema)
-                .createReaderFunc(
-                    fileSchema ->
-                        FlinkParquetReaders.buildReader(
-                            readSchema, fileSchema, constantsMap(task, readSchema))));
-
-    DataFileFormats.register(
-        FileFormat.ORC,
-        RowData.class,
-        (inputFile, task, readSchema, table, deleteFilter) -> {
-          Map<Integer, ?> idToConstant = constantsMap(task, readSchema);
-          return ORC.read(inputFile)
-              .project(ORC.schemaWithoutConstantAndMetadataFields(readSchema, idToConstant))
-              .createReaderFunc(
-                  readOrcSchema -> new FlinkOrcReader(readSchema, readOrcSchema, idToConstant));
-        });
-
-    DataFileFormats.register(
-        FileFormat.AVRO,
-        RowData.class,
-        (inputFile, task, readSchema, table, deleteFilter) ->
-            Avro.read(inputFile)
-                .project(readSchema)
-                .createReaderFunc(
-                    fileSchema ->
-                        FlinkPlannedAvroReader.create(readSchema, constantsMap(task, readSchema))));
-  }
-
   private final Schema tableSchema;
   private final Schema projectedSchema;
   private final String nameMapping;
@@ -145,7 +112,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
       throw new UnsupportedOperationException("Cannot read data task.");
     } else {
       FileFormatReadBuilder<?> builder =
-          DataFileFormats.read(
+          DataFileReaderServiceRegistry.read(
                   task.file().format(),
                   RowData.class,
                   inputFilesDecryptor.getInputFile(task),
@@ -205,6 +172,85 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     @Override
     protected InputFile getInputFile(String location) {
       return inputFilesDecryptor.getInputFile(location);
+    }
+  }
+
+  public static class ParquetReaderService implements DataFileReaderService {
+    @Override
+    public FileFormat format() {
+      return FileFormat.PARQUET;
+    }
+
+    @Override
+    public Class<?> returnType() {
+      return RowData.class;
+    }
+
+    @Override
+    public FileFormatReadBuilder<?> builder(
+        InputFile inputFile,
+        ContentScanTask<?> task,
+        Schema readSchema,
+        Table table,
+        DeleteFilter<?> deleteFilter) {
+      return Parquet.read(inputFile)
+          .project(readSchema)
+          .createReaderFunc(
+              fileSchema ->
+                  FlinkParquetReaders.buildReader(
+                      readSchema, fileSchema, constantsMap(task, readSchema)));
+    }
+  }
+
+  public static class ORCReaderService implements DataFileReaderService {
+    @Override
+    public FileFormat format() {
+      return FileFormat.ORC;
+    }
+
+    @Override
+    public Class<?> returnType() {
+      return RowData.class;
+    }
+
+    @Override
+    public FileFormatReadBuilder<?> builder(
+        InputFile inputFile,
+        ContentScanTask<?> task,
+        Schema readSchema,
+        Table table,
+        DeleteFilter<?> deleteFilter) {
+      Map<Integer, ?> idToConstant = constantsMap(task, readSchema);
+      return ORC.read(inputFile)
+          .project(ORC.schemaWithoutConstantAndMetadataFields(readSchema, idToConstant))
+          .createReaderFunc(
+              readOrcSchema -> new FlinkOrcReader(readSchema, readOrcSchema, idToConstant));
+    }
+  }
+
+  public static class AvroReaderService implements DataFileReaderService {
+    @Override
+    public FileFormat format() {
+      return FileFormat.AVRO;
+    }
+
+    @Override
+    public Class<?> returnType() {
+      return RowData.class;
+    }
+
+    @Override
+    public FileFormatReadBuilder<?> builder(
+        InputFile inputFile,
+        ContentScanTask<?> task,
+        Schema readSchema,
+        Table table,
+        DeleteFilter<?> deleteFilter) {
+      return Avro.read(inputFile)
+          .project(readSchema)
+          .createReaderFunc(
+              fileSchema ->
+                  FlinkPlannedAvroReader.create(readSchema, constantsMap(task, readSchema)));
     }
   }
 }
