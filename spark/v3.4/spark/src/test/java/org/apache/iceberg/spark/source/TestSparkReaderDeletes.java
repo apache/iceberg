@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
-import static org.apache.iceberg.spark.SparkSQLProperties.PARQUET_READER_TYPE;
 import static org.apache.iceberg.spark.source.SparkSQLExecutionHelper.lastExecutedMetricValue;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -110,12 +109,12 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   @Parameters(name = "fileFormat = {0}, formatVersion = {1}, vectorized = {2}, planningMode = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
-      //      new Object[] {FileFormat.PARQUET, 2, false, PlanningMode.DISTRIBUTED},
+      new Object[] {FileFormat.PARQUET, 2, false, PlanningMode.DISTRIBUTED},
       new Object[] {FileFormat.PARQUET, 2, true, PlanningMode.LOCAL},
-      //      new Object[] {FileFormat.ORC, 2, false, PlanningMode.DISTRIBUTED},
-      //      new Object[] {FileFormat.AVRO, 2, false, PlanningMode.LOCAL},
-      //      new Object[] {FileFormat.PARQUET, 3, false, PlanningMode.DISTRIBUTED},
-      //      new Object[] {FileFormat.PARQUET, 3, true, PlanningMode.LOCAL},
+      new Object[] {FileFormat.ORC, 2, false, PlanningMode.DISTRIBUTED},
+      new Object[] {FileFormat.AVRO, 2, false, PlanningMode.LOCAL},
+      new Object[] {FileFormat.PARQUET, 3, false, PlanningMode.DISTRIBUTED},
+      new Object[] {FileFormat.PARQUET, 3, true, PlanningMode.LOCAL},
     };
   }
 
@@ -132,7 +131,6 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             .config("spark.ui.liveUpdate.period", 0)
             .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
             .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
-            //    .config(PARQUET_READER_TYPE, "iceberg")
             .enableHiveSupport()
             .getOrCreate();
 
