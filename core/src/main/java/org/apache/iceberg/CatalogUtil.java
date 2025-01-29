@@ -115,15 +115,26 @@ public class CatalogUtil {
     // Collect all metadata files and extract historical statistics files
     for (TableMetadata.MetadataLogEntry previousFile : metadata.previousFiles()) {
       metadataToDelete.add(previousFile.file());
+
+      // Skip missing metadata files
+      if (!io.newInputFile(previousFile.file()).exists()) {
+        LOG.warn("Skipping missing metadata file: {}", previousFile.file());
+        continue;
+      }
+
       TableMetadata previousMetadata = TableMetadataParser.read(io, previousFile.file());
       statisticsToDelete.addAll(previousMetadata.statisticsFiles());
       partitionStatsToDelete.addAll(previousMetadata.partitionStatisticsFiles());
     }
 
     // Process the latest metadata file
-    metadataToDelete.add(metadata.metadataFileLocation());
-    statisticsToDelete.addAll(metadata.statisticsFiles());
-    partitionStatsToDelete.addAll(metadata.partitionStatisticsFiles());
+    if (io.newInputFile(metadata.metadataFileLocation()).exists()) {
+      TableMetadata latestMetadata = TableMetadataParser.read(io, metadata.metadataFileLocation());
+      statisticsToDelete.addAll(latestMetadata.statisticsFiles());
+      partitionStatsToDelete.addAll(latestMetadata.partitionStatisticsFiles());
+    } else {
+      LOG.warn("Skipping missing latest metadata file: {}", metadata.metadataFileLocation());
+    }
 
     // run all of the deletes
 
