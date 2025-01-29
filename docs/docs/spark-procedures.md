@@ -981,12 +981,12 @@ The `rewrite-table-path` assists in moving or copying an Iceberg table from one 
 ### `rewrite-table-path`
 
 This procedure writes a new copy of the Iceberg table's files where every path has had its prefix replaced.
-The newly rewritten metadata files, along with data files, enable moving or coping an Iceberg table to a new location.
+The newly rewritten metadata files enable moving or coping an Iceberg table to a new location.
 After copying both metadata and data to the desired location, the replicated iceberg
 table will appear identical to the source table, including snapshot history, schema and partition specs.
 
 !!! info
-    This procedure only creates metadata for an existing Iceberg table modified for a new location. Procedure results can be consumed for copying the files.
+    This procedure only creates metadata for an existing Iceberg table modified for a new location. The produced file_list can be used for copying rewritten metadata and data files to the new location.
     Copying/Moving metadata and data files to the new location is not part of this procedure.
 
 
@@ -1004,11 +1004,11 @@ table will appear identical to the source table, including snapshot history, sch
 
 - Full Rewrite:
 
-By default, the procedure operates in full rewrite mode, rewriting every Iceberg table file containing a path reference. This includes metadata.json, manifest lists, manifests, and position delete files.
+By default, the procedure operates in full rewrite mode, rewriting all reachable metadata files. This includes metadata.json, manifest lists, manifests, and position delete files.
 
 - Incremental Rewrite:
 
-If `start_version` is provided, the procedure will only rewrite delta of table files containing a path reference between `start_version` and `end_version`. `end_version` defaults to the latest metadata location of the table. 
+If `start_version` is provided, the procedure will only rewrite metadata files created between between `start_version` and `end_version`. `end_version` defaults to the latest metadata location of the table. 
 
 #### Output
 
