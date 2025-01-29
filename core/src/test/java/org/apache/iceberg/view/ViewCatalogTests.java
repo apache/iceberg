@@ -259,14 +259,16 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
             .withDefaultNamespace(identifier.namespace())
             .withDefaultCatalog(catalog().name())
             .withQuery("spark", "select * from ns.tbl")
-            .withProperty("write.metadata.path", customLocation)
+            .withProperty(ViewProperties.WRITE_METADATA_LOCATION, customLocation)
             .withLocation(location)
             .create();
 
     assertThat(view).isNotNull();
     assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
     assertThat(view.properties()).containsEntry("write.metadata.path", customLocation);
-    assertThat(((BaseView) view).operations().current().metadataFileLocation()).isNotNull();
+    assertThat(((BaseView) view).operations().current().metadataFileLocation())
+        .isNotNull()
+        .startsWith(customLocation);
   }
 
   @Test
