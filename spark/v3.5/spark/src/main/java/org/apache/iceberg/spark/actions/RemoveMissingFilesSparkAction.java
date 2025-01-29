@@ -32,7 +32,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.SparkDataFile;
 import org.apache.iceberg.spark.SparkDeleteFile;
+import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.function.FilterFunction;
+import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -64,11 +68,32 @@ public class RemoveMissingFilesSparkAction
   private RemoveMissingFiles.Result doExecute() {
     org.apache.iceberg.RemoveMissingFiles rmf = table.newRemoveFiles();
 
+    JavaSparkContext jsc = JavaSparkContext.fromSparkContext(spark().sparkContext());
+    Broadcast<Table> tableBroadcast = jsc.broadcast(SerializableTableWithSize.copyOf(table));
+
     Dataset<Row> entries = loadMetadataTable(table, MetadataTableType.ENTRIES);
     Dataset<Row> dataEntries =
-        entries.filter("data_file.content = 0 AND status < 2").select("data_file.*");
+        entries
+            .filter("data_file.content = 0 AND status < 2")
+            .select("data_file.*")
+            .filter(
+                (FilterFunction<Row>)
+                    row -> {
+                      String filePath = row.getString(row.fieldIndex("file_path"));
+                      FileIO fileIO = tableBroadcast.value().io();
+                      return !fileIO.newInputFile(filePath).exists();
+                    });
     Dataset<Row> deleteEntries =
-        entries.filter("data_file.content != 0 AND status < 2").select("data_file.*");
+        entries
+            .filter("data_file.content != 0 AND status < 2")
+            .select("data_file.*")
+            .filter(
+                (FilterFunction<Row>)
+                    row -> {
+                      String filePath = row.getString(row.fieldIndex("file_path"));
+                      FileIO fileIO = tableBroadcast.value().io();
+                      return !fileIO.newInputFile(filePath).exists();
+                    });
 
     List<DataFile> dataFiles =
         dataEntries.collectAsList().stream()
@@ -79,22 +104,17 @@ public class RemoveMissingFilesSparkAction
             .map(row -> deleteFileWrapper(deleteEntries.schema(), row))
             .collect(Collectors.toList());
 
-    FileIO fileIO = table.io();
     List<String> removedDataFiles = Lists.newArrayList();
     List<String> removedDeleteFiles = Lists.newArrayList();
 
     for (DataFile f : dataFiles) {
-      if (!fileIO.newInputFile(f.location()).exists()) {
-        removedDataFiles.add(f.location());
-        rmf.deleteFile(f);
-      }
+      removedDataFiles.add(f.location());
+      rmf.deleteFile(f);
     }
 
     for (DeleteFile f : deleteFiles) {
-      if (!fileIO.newInputFile(f.location()).exists()) {
-        removedDeleteFiles.add(f.location());
-        rmf.deleteFile(f);
-      }
+      removedDeleteFiles.add(f.location());
+      rmf.deleteFile(f);
     }
 
     if (!(dataFiles.isEmpty() && deleteFiles.isEmpty())) {
