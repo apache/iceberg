@@ -1008,7 +1008,7 @@ By default, the procedure operates in full rewrite mode, rewriting all reachable
 
 - Incremental Rewrite:
 
-If `start_version` is provided, the procedure will only rewrite metadata files created between between `start_version` and `end_version`. `end_version` defaults to the latest metadata location of the table. 
+If `start_version` is provided, the procedure will only rewrite metadata files created between `start_version` and `end_version`. `end_version` defaults to the latest metadata location of the table. 
 
 #### Output
 
