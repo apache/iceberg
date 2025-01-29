@@ -184,7 +184,7 @@ A **`map`** is a collection of key-value pairs with a key type and a value type.
 
 #### Semi-structured Types
 
-A **`variant`** is a value that stores semi-structured data. The structure and data types in a variant are not necessarily consistent across rows in a table or data file. The variant type and binary encoding are defined in the [Parquet project](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md). Support for Variant is added in Iceberg v3.
+A **`variant`** is a value that stores semi-structured data. The structure and data types in a variant are not necessarily consistent across rows in a table or data file. The variant type and binary encoding are defined in the [Parquet project](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md), with support currently available for V1. Support for Variant is added in Iceberg v3.
 
 Variants are similar to JSON with a wider set of primitive values including date, timestamp, timestamptz, binary, and decimals.
 
@@ -1223,7 +1223,7 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`struct`**       | `group`                                                            |                                             |                                                                |
 | **`list`**         | `3-level list`                                                     | `LIST`                                      | See Parquet docs for 3-level representation.                   |
 | **`map`**          | `3-level map`                                                      | `MAP`                                       | See Parquet docs for 3-level representation.                   |
-| **`variant`**      | `group` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs and the fields are accessed through names.| `VARIANT`                                   | See Parquet docs for [Variant encoding](https://github.com/apache/parquet-format/blob/4f208158dba80ff4bff4afaa4441d7270103dff6/VariantEncoding.md) and [Variant shredding encoding](https://github.com/apache/parquet-format/blob/4f208158dba80ff4bff4afaa4441d7270103dff6/VariantShreddingEncoding.md). |
+| **`variant`**      | `group` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs and the fields are accessed through names.| `VARIANT`                                   | See Parquet docs for [Variant encoding](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md) and [Variant shredding encoding](https://github.com/apache/parquet-format/blob/master/VariantShredding.md). |
 
 
 When reading an `unknown` column, any corresponding column must be ignored and replaced with `null` values.
