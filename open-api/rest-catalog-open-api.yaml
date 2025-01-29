@@ -2053,9 +2053,9 @@ components:
         doc:
           type: string
         initial-default:
-          type: string
+          $ref: "#/components/schemas/PrimitiveTypeValue"
         write-default:
-          type: string
+          $ref: "#/components/schemas/PrimitiveTypeValue"
 
     StructType:
       type: object

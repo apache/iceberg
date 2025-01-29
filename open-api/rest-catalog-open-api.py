@@ -1052,8 +1052,8 @@ class StructField(BaseModel):
     type: Type
     required: bool
     doc: Optional[str] = None
-    initial_default: Optional[str] = Field(None, alias='initial-default')
-    write_default: Optional[str] = Field(None, alias='write-default')
+    initial_default: Optional[PrimitiveTypeValue] = Field(None, alias='initial-default')
+    write_default: Optional[PrimitiveTypeValue] = Field(None, alias='write-default')
 
 
 class StructType(BaseModel):
