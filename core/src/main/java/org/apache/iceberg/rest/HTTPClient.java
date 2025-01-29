@@ -98,11 +98,12 @@ public class HTTPClient extends BaseHTTPClient {
       ObjectMapper objectMapper,
       HttpRequestInterceptor requestInterceptor,
       Map<String, String> properties,
-      HttpClientConnectionManager connectionManager) {
+      HttpClientConnectionManager connectionManager,
+      AuthSession session) {
     this.baseUri = baseUri;
     this.baseHeaders = baseHeaders;
     this.mapper = objectMapper;
-    this.authSession = null;
+    this.authSession = session;
 
     HttpClientBuilder clientBuilder = HttpClients.custom();
 
@@ -429,6 +430,7 @@ public class HTTPClient extends BaseHTTPClient {
     private ObjectMapper mapper = RESTObjectMapper.mapper();
     private HttpHost proxy;
     private CredentialsProvider proxyCredentialsProvider;
+    private AuthSession authSession;
 
     private Builder(Map<String, String> properties) {
       this.properties = properties;
@@ -478,6 +480,11 @@ public class HTTPClient extends BaseHTTPClient {
       return this;
     }
 
+    public Builder withAuthSession(AuthSession session) {
+      this.authSession = session;
+      return this;
+    }
+
     public HTTPClient build() {
       withHeader(CLIENT_VERSION_HEADER, IcebergBuild.fullVersion());
       withHeader(CLIENT_GIT_COMMIT_SHORT_HEADER, IcebergBuild.gitCommitShortId());
@@ -501,7 +508,8 @@ public class HTTPClient extends BaseHTTPClient {
           mapper,
           interceptor,
           properties,
-          configureConnectionManager(properties));
+          configureConnectionManager(properties),
+          authSession);
     }
   }
 }

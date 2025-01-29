@@ -65,8 +65,8 @@ public class TestRESTSigV4Signer {
         HTTPClient.builder(properties)
             .uri("http://localhost:" + mockServer.getLocalPort())
             .withHeader(HttpHeaders.AUTHORIZATION, "Bearer existing_token")
-            .build()
-            .withAuthSession(AuthSession.EMPTY);
+            .withAuthSession(AuthSession.EMPTY)
+            .build();
   }
 
   @AfterAll

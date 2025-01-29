@@ -51,7 +51,7 @@ public class OAuth2RefreshCredentialsHandler
   @Override
   public AccessToken refreshAccessToken() {
     LoadCredentialsResponse response;
-    try (RESTClient client = httpClient().withAuthSession(AuthSession.EMPTY)) {
+    try (RESTClient client = httpClient()) {
       response =
           client.get(
               properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT),
@@ -96,6 +96,7 @@ public class OAuth2RefreshCredentialsHandler
   private RESTClient httpClient() {
     return HTTPClient.builder(properties)
         .uri(properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT))
+        .withAuthSession(AuthSession.EMPTY)
         .build();
   }
 }

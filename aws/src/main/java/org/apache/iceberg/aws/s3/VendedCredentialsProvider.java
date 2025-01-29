@@ -75,7 +75,11 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
     if (null == client) {
       synchronized (this) {
         if (null == client) {
-          client = HTTPClient.builder(properties).uri(properties.get(URI)).build();
+          client =
+              HTTPClient.builder(properties)
+                  .uri(properties.get(URI))
+                  .withAuthSession(AuthSession.EMPTY)
+                  .build();
         }
       }
     }
@@ -85,7 +89,6 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
 
   private LoadCredentialsResponse fetchCredentials() {
     return httpClient()
-        .withAuthSession(AuthSession.EMPTY)
         .get(
             properties.get(URI),
             null,

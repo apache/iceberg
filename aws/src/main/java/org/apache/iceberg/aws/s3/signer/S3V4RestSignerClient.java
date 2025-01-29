@@ -192,8 +192,8 @@ public abstract class S3V4RestSignerClient
               HTTPClient.builder(properties())
                   .uri(baseSignerUri())
                   .withObjectMapper(S3ObjectMapper.mapper())
-                  .build()
-                  .withAuthSession(org.apache.iceberg.rest.auth.AuthSession.EMPTY);
+                  .withAuthSession(org.apache.iceberg.rest.auth.AuthSession.EMPTY)
+                  .build();
         }
       }
     }
