@@ -32,8 +32,8 @@ class CometPositionColumnReader extends CometColumnReader {
 
   @Override
   public void setBatchSize(int batchSize) {
+    super.setBatchSize(batchSize);
     delegate().setBatchSize(batchSize);
-    setBatchSize(batchSize);
     setInitialized(true);
   }
 

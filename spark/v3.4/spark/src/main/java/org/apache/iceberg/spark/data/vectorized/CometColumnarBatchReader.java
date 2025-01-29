@@ -47,6 +47,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
 
   private final CometColumnReader[] readers;
   private final boolean hasIsDeletedColumn;
+
   // The delegated batch reader on Comet side
   private final BatchReader delegate;
   private DeleteFilter<InternalRow> deletes = null;
@@ -149,7 +150,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
           int[] rowIdMapping = pair.first();
           numLiveRows = pair.second();
           for (int i = 0; i < vectors.length; i++) {
-            ((CometVector) vectors[i]).setRowIdMapping(rowIdMapping);
+            vectors[i] = new ColumnVectorWithFilter(vectors[i], rowIdMapping);
           }
         }
       }
@@ -172,14 +173,11 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
     }
 
     ColumnVector[] readDataToColumnVectors() {
-      CometVector[] columnVectors = new CometVector[readers.length];
+      ColumnVector[] columnVectors = new ColumnVector[readers.length];
       // Fetch rows for all readers in the delegate
       delegate.nextBatch(batchSize);
       for (int i = 0; i < readers.length; i++) {
-        columnVectors[i] = readers[i].vector();
-        columnVectors[i].resetRowIdMapping();
-        org.apache.comet.vector.CometVector vector = readers[i].delegate().currentBatch();
-        columnVectors[i].setDelegate(vector);
+        columnVectors[i] = readers[i].delegate().currentBatch();
       }
 
       return columnVectors;
@@ -190,8 +188,8 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
         if (readers[i] instanceof CometDeleteColumnReader) {
           CometDeleteColumnReader deleteColumnReader = new CometDeleteColumnReader<>(isDeleted);
           deleteColumnReader.setBatchSize(batchSize);
-          deleteColumnReader.read(deleteColumnReader.vector(), batchSize);
-          columnVectors[i] = deleteColumnReader.vector();
+          deleteColumnReader.delegate().readBatch(batchSize);
+          columnVectors[i] = deleteColumnReader.delegate().currentBatch();
         }
       }
     }

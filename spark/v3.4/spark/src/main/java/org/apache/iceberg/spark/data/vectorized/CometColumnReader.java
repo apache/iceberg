@@ -38,22 +38,22 @@ import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.vectorized.ColumnVector;
 
-class CometColumnReader implements VectorizedReader<CometVector> {
+class CometColumnReader implements VectorizedReader<ColumnVector> {
   public static final int DEFAULT_BATCH_SIZE = 5000;
 
+  private final ColumnDescriptor descriptor;
   private final DataType sparkType;
+
   // the delegated column reader from Comet side
   private AbstractColumnReader delegate;
-  private final CometVector vector;
-  private final ColumnDescriptor descriptor;
   private boolean initialized = false;
   private int batchSize = DEFAULT_BATCH_SIZE;
 
   CometColumnReader(DataType sparkType, ColumnDescriptor descriptor) {
     this.sparkType = sparkType;
     this.descriptor = descriptor;
-    this.vector = new CometVector(sparkType, false);
   }
 
   CometColumnReader(Types.NestedField field) {
@@ -61,7 +61,6 @@ class CometColumnReader implements VectorizedReader<CometVector> {
     StructField structField = new StructField(field.name(), dataType, false, Metadata.empty());
     this.sparkType = dataType;
     this.descriptor = TypeUtil.convertToParquet(structField);
-    this.vector = new CometVector(sparkType, false);
   }
 
   public AbstractColumnReader delegate() {
@@ -96,20 +95,8 @@ class CometColumnReader implements VectorizedReader<CometVector> {
     this.initialized = true;
   }
 
-  @Override
-  public CometVector read(CometVector reuse, int numRows) {
-    delegate.readBatch(numRows);
-    org.apache.comet.vector.CometVector bv = delegate.currentBatch();
-    reuse.setDelegate(bv);
-    return reuse;
-  }
-
   public ColumnDescriptor descriptor() {
     return descriptor;
-  }
-
-  public CometVector vector() {
-    return vector;
   }
 
   /** Returns the Spark data type for this column. */
@@ -144,6 +131,11 @@ class CometColumnReader implements VectorizedReader<CometVector> {
   @Override
   public void setRowGroupInfo(
       PageReadStore pageReadStore, Map<ColumnPath, ColumnChunkMetaData> map, long size) {
+    throw new UnsupportedOperationException("Not supported");
+  }
+
+  @Override
+  public ColumnVector read(ColumnVector reuse, int numRowsToRead) {
     throw new UnsupportedOperationException("Not supported");
   }
 }
