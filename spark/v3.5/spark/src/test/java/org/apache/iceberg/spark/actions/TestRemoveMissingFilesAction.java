@@ -281,4 +281,18 @@ public class TestRemoveMissingFilesAction extends TestBaseWithCatalog {
         Stream.of(records1, records2).flatMap(List::stream).collect(Collectors.toList());
     assertThat(actualRecords).as("Rows must match").isEqualTo(expectedRecords);
   }
+
+  @TestTemplate
+  public void testNoMissingFiles() throws Exception {
+    Table table = createTable();
+    spark.sql(String.format("DELETE from %s WHERE c1 = 6", tableName));
+    table.refresh();
+
+    SparkActions actions = SparkActions.get(spark);
+    RemoveMissingFiles.Result result = actions.removeMissingFiles(table).execute();
+    List<String> removedDataFiles = Lists.newArrayList(result.removedDataFiles());
+    assertThat(removedDataFiles.size()).as("Removed no data files").isEqualTo(0);
+    List<String> removedDeleteFiles = Lists.newArrayList(result.removedDeleteFiles());
+    assertThat(removedDeleteFiles.size()).as("Removed no delete files").isEqualTo(0);
+  }
 }

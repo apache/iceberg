@@ -65,6 +65,11 @@ public class RemoveMissingFilesSparkAction
     return withJobGroupInfo(info, this::doExecute);
   }
 
+  private static boolean missingFromStorage(Row row, FileIO io) {
+    String filePath = row.getString(row.fieldIndex("file_path"));
+    return !io.newInputFile(filePath).exists();
+  }
+
   private RemoveMissingFiles.Result doExecute() {
     org.apache.iceberg.RemoveMissingFiles rmf = table.newRemoveFiles();
 
@@ -77,23 +82,13 @@ public class RemoveMissingFilesSparkAction
             .filter("data_file.content = 0 AND status < 2")
             .select("data_file.*")
             .filter(
-                (FilterFunction<Row>)
-                    row -> {
-                      String filePath = row.getString(row.fieldIndex("file_path"));
-                      FileIO fileIO = tableBroadcast.value().io();
-                      return !fileIO.newInputFile(filePath).exists();
-                    });
+                (FilterFunction<Row>) row -> missingFromStorage(row, tableBroadcast.value().io()));
     Dataset<Row> deleteEntries =
         entries
             .filter("data_file.content != 0 AND status < 2")
             .select("data_file.*")
             .filter(
-                (FilterFunction<Row>)
-                    row -> {
-                      String filePath = row.getString(row.fieldIndex("file_path"));
-                      FileIO fileIO = tableBroadcast.value().io();
-                      return !fileIO.newInputFile(filePath).exists();
-                    });
+                (FilterFunction<Row>) row -> missingFromStorage(row, tableBroadcast.value().io()));
 
     List<DataFile> dataFiles =
         dataEntries.collectAsList().stream()
