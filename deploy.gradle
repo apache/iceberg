@@ -60,7 +60,7 @@ subprojects {
         task.from("${rootDir}/build") {
           include 'iceberg-build.properties'
         }
-        task.from(rootDir) {
+        task.from("${rootDir}/licenses-binary") {
           include 'LICENSE'
           include 'NOTICE'
         }
