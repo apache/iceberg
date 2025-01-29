@@ -25,7 +25,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import org.apache.iceberg.DataFileFormats;
+import org.apache.iceberg.DataFileReaderServiceRegistry;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
@@ -221,7 +221,7 @@ public class BaseDeleteLoader implements DeleteLoader {
     LOG.trace("Opening delete file {}", deleteFile.location());
     InputFile inputFile = loadInputFile.apply(deleteFile);
 
-    return DataFileFormats.read(format, Record.class, inputFile, projection)
+    return DataFileReaderServiceRegistry.read(format, Record.class, inputFile, projection)
         .reuseContainers()
         .filter(filter)
         .build();

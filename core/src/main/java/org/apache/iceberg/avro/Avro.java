@@ -44,7 +44,8 @@ import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.specific.SpecificData;
-import org.apache.iceberg.DataFileFormats;
+import org.apache.iceberg.ContentScanTask;
+import org.apache.iceberg.DataFileReaderService;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
@@ -53,6 +54,7 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -63,6 +65,7 @@ import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.FileFormatReadBuilder;
 import org.apache.iceberg.io.FileFormatReadBuilderBase;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -74,19 +77,6 @@ import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.PartitionUtil;
 
 public class Avro {
-
-  static {
-    DataFileFormats.register(
-        FileFormat.AVRO,
-        Record.class,
-        (inputFile, task, readSchema, table, deleteFilter) ->
-            Avro.read(inputFile)
-                .project(readSchema)
-                .createResolvingReader(
-                    fileSchema ->
-                        PlannedDataReader.create(
-                            fileSchema, PartitionUtil.constantsMap(task, readSchema))));
-  }
 
   private Avro() {}
 
@@ -735,5 +725,32 @@ public class Avro {
    */
   public static long rowCount(InputFile file) {
     return AvroIO.findStartingRowPos(file::newStream, Long.MAX_VALUE);
+  }
+
+  public static class ReaderService implements DataFileReaderService {
+    @Override
+    public FileFormat format() {
+      return FileFormat.AVRO;
+    }
+
+    @Override
+    public Class<?> returnType() {
+      return Record.class;
+    }
+
+    @Override
+    public FileFormatReadBuilder<?> builder(
+        InputFile inputFile,
+        ContentScanTask<?> task,
+        org.apache.iceberg.Schema readSchema,
+        Table table,
+        DeleteFilter<?> deleteFilter) {
+      return Avro.read(inputFile)
+          .project(readSchema)
+          .createResolvingReader(
+              fileSchema ->
+                  PlannedDataReader.create(
+                      fileSchema, PartitionUtil.constantsMap(task, readSchema)));
+    }
   }
 }

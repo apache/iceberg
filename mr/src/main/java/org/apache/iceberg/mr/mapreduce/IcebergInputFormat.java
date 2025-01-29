@@ -33,7 +33,7 @@ import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFileFormats;
+import org.apache.iceberg.DataFileReaderServiceRegistry;
 import org.apache.iceberg.DataTableScan;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
@@ -313,7 +313,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
               EncryptedFiles.encryptedInput(io.newInputFile(file.location()), file.keyMetadata()));
 
       FileFormatReadBuilder<?> builder =
-          DataFileFormats.read(file.format(), Record.class, inputFile, currentTask, readSchema)
+          DataFileReaderServiceRegistry.read(
+                  file.format(), Record.class, inputFile, currentTask, readSchema)
               .filter(currentTask.residual())
               .caseSensitive(caseSensitive)
               .split(currentTask.start(), currentTask.length());

@@ -26,7 +26,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFileFormats;
+import org.apache.iceberg.DataFileReaderServiceRegistry;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
@@ -612,7 +612,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   private static CloseableIterable<Record> positionDeletesReader(
       InputFile inputFile, FileFormat format, PartitionSpec spec) {
     Schema deleteSchema = DeleteSchemaUtil.posDeleteReadSchema(spec.schema());
-    return DataFileFormats.read(format, Record.class, inputFile, deleteSchema)
+    return DataFileReaderServiceRegistry.read(format, Record.class, inputFile, deleteSchema)
         .reuseContainers()
         .build();
   }

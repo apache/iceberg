@@ -51,7 +51,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.DataFileFormats;
+import org.apache.iceberg.ContentScanTask;
+import org.apache.iceberg.DataFileReaderService;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
@@ -61,6 +62,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
@@ -78,6 +80,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.FileFormatReadBuilder;
 import org.apache.iceberg.io.FileFormatReadBuilderBase;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -105,19 +108,6 @@ public class ORC {
    * @deprecated use {@link TableProperties#ORC_WRITE_BATCH_SIZE} instead
    */
   @Deprecated private static final String VECTOR_ROW_BATCH_SIZE = "iceberg.orc.vectorbatch.size";
-
-  static {
-    DataFileFormats.register(
-        FileFormat.ORC,
-        Record.class,
-        (inputFile, task, readSchema, table, deleteFilter) -> {
-          Map<Integer, ?> idToConstant = PartitionUtil.constantsMap(task, readSchema);
-          return new ReadBuilder(inputFile)
-              .project(ORC.schemaWithoutConstantAndMetadataFields(readSchema, idToConstant))
-              .createReaderFunc(
-                  fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema, idToConstant));
-        });
-  }
 
   private ORC() {}
 
@@ -813,5 +803,31 @@ public class ORC {
     metadata.forEach((key, value) -> writer.addUserMetadata(key, ByteBuffer.wrap(value)));
 
     return writer;
+  }
+
+  public static class ReaderService implements DataFileReaderService {
+    @Override
+    public FileFormat format() {
+      return FileFormat.ORC;
+    }
+
+    @Override
+    public Class<?> returnType() {
+      return Record.class;
+    }
+
+    @Override
+    public FileFormatReadBuilder<?> builder(
+        InputFile inputFile,
+        ContentScanTask<?> task,
+        Schema readSchema,
+        Table table,
+        DeleteFilter<?> deleteFilter) {
+      Map<Integer, ?> idToConstant = PartitionUtil.constantsMap(task, readSchema);
+      return new ReadBuilder(inputFile)
+          .project(ORC.schemaWithoutConstantAndMetadataFields(readSchema, idToConstant))
+          .createReaderFunc(
+              fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema, idToConstant));
+    }
   }
 }

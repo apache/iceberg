@@ -19,7 +19,9 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
-import org.apache.iceberg.DataFileFormats;
+import org.apache.iceberg.ContentScanTask;
+import org.apache.iceberg.DataFileReaderService;
+import org.apache.iceberg.DataFileReaderServiceRegistry;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTask;
@@ -28,6 +30,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileFormatReadBuilder;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
@@ -37,37 +40,6 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
-
-  static {
-    DataFileFormats.register(
-        FileFormat.PARQUET,
-        ColumnarBatch.class,
-        (inputFile, task, readSchema, table, deleteFilter) -> {
-          // get required schema if there are deletes
-          Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : readSchema;
-          return Parquet.read(inputFile)
-              .project(requiredSchema)
-              .createBatchedReaderFunc(
-                  fileSchema ->
-                      VectorizedSparkParquetReaders.buildReader(
-                          requiredSchema,
-                          fileSchema,
-                          constantsMap(task, readSchema, table),
-                          (DeleteFilter<InternalRow>) deleteFilter));
-        });
-
-    DataFileFormats.register(
-        FileFormat.ORC,
-        ColumnarBatch.class,
-        (inputFile, task, readSchema, table, deleteFilter) -> {
-          Map<Integer, ?> idToConstant = constantsMap(task, readSchema, table);
-          return ORC.read(inputFile)
-              .project(ORC.schemaWithoutConstantAndMetadataFields(readSchema, idToConstant))
-              .createBatchedReaderFunc(
-                  fileSchema ->
-                      VectorizedSparkOrcReaders.buildReader(readSchema, fileSchema, idToConstant));
-        });
-  }
 
   private final int batchSize;
 
@@ -84,7 +56,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
 
   protected CloseableIterable<ColumnarBatch> newBatchIterable(
       InputFile inputFile, FileScanTask task, SparkDeleteFilter deleteFilter) {
-    return DataFileFormats.read(
+    return DataFileReaderServiceRegistry.read(
             task.file().format(),
             ColumnarBatch.class,
             inputFile,
@@ -102,5 +74,64 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         .reuseContainers()
         .withNameMapping(nameMapping())
         .build();
+  }
+
+  public static class ParquetReaderService implements DataFileReaderService {
+    @Override
+    public FileFormat format() {
+      return FileFormat.PARQUET;
+    }
+
+    @Override
+    public Class<?> returnType() {
+      return ColumnarBatch.class;
+    }
+
+    @Override
+    public FileFormatReadBuilder<?> builder(
+        InputFile inputFile,
+        ContentScanTask<?> task,
+        Schema readSchema,
+        Table table,
+        DeleteFilter<?> deleteFilter) {
+      // get required schema if there are deletes
+      Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : readSchema;
+      return Parquet.read(inputFile)
+          .project(requiredSchema)
+          .createBatchedReaderFunc(
+              fileSchema ->
+                  VectorizedSparkParquetReaders.buildReader(
+                      requiredSchema,
+                      fileSchema,
+                      constantsMap(task, readSchema, table),
+                      (DeleteFilter<InternalRow>) deleteFilter));
+    }
+  }
+
+  public static class ORCReaderService implements DataFileReaderService {
+    @Override
+    public FileFormat format() {
+      return FileFormat.ORC;
+    }
+
+    @Override
+    public Class<?> returnType() {
+      return ColumnarBatch.class;
+    }
+
+    @Override
+    public FileFormatReadBuilder<?> builder(
+        InputFile inputFile,
+        ContentScanTask<?> task,
+        Schema readSchema,
+        Table table,
+        DeleteFilter<?> deleteFilter) {
+      Map<Integer, ?> idToConstant = constantsMap(task, readSchema, table);
+      return ORC.read(inputFile)
+          .project(ORC.schemaWithoutConstantAndMetadataFields(readSchema, idToConstant))
+          .createBatchedReaderFunc(
+              fileSchema ->
+                  VectorizedSparkOrcReaders.buildReader(readSchema, fileSchema, idToConstant));
+    }
   }
 }
