@@ -1,0 +1,127 @@
+{
+  "format-version": 3,
+  "table-uuid": "9faafb13-1ce7-4603-93f8-197afc7394a9",
+  "location": "s3://bucket/test/location",
+  "last-sequence-number": 34,
+  "last-updated-ms": 1733710954170,
+  "last-column-id": 3,
+  "current-schema-id": 7,
+  "schemas": [
+    {
+      "type": "struct",
+      "schema-id": 7,
+      "fields": [
+        {
+          "id": 1,
+          "name": "x",
+          "required": true,
+          "type": "long"
+        },
+        {
+          "id": 2,
+          "name": "y",
+          "required": true,
+          "type": "long",
+          "doc": "comment"
+        },
+        {
+          "id": 3,
+          "name": "z",
+          "required": true,
+          "type": "long"
+        }
+      ]
+    },
+    {
+      "type": "struct",
+      "schema-id": 6,
+      "fields": [
+        {
+          "id": 10,
+          "name": "x",
+          "required": true,
+          "type": "string"
+        }
+      ]
+    }
+  ],
+  "default-spec-id": 5,
+  "partition-specs": [
+    {
+      "spec-id": 5,
+      "fields": []
+    }
+  ],
+  "last-partition-id": 999,
+  "default-sort-order-id": 3,
+  "properties": {
+    "property": "value"
+  },
+  "current-snapshot-id": 1733710954168,
+  "refs": {
+    "main": {
+      "snapshot-id": 1733710954168,
+      "type": "branch"
+    },
+    "previous": {
+      "snapshot-id": 1733710953138,
+      "type": "tag"
+    },
+    "test": {
+      "snapshot-id": 1733710953138,
+      "type": "branch"
+    }
+  },
+  "snapshots": [
+    {
+      "snapshot-id": 1733710953138,
+      "timestamp-ms": 1733710953138,
+      "manifest-list": "/var/folders/z8/cv70q7pj1l13r_j628cyyks80000gn/T/junit-9477945946492951907/manifests17078459248221091859.tmp"
+    },
+    {
+      "snapshot-id": 1733710954168,
+      "parent-snapshot-id": 1733710953138,
+      "timestamp-ms": 1733710954168,
+      "manifest-list": "/var/folders/z8/cv70q7pj1l13r_j628cyyks80000gn/T/junit-9477945946492951907/manifests17490643917806818981.tmp",
+      "schema-id": 7
+    }
+  ],
+  "statistics": [
+    {
+      "snapshot-id": 11,
+      "statistics-path": "/some/stats/file.puffin",
+      "file-size-in-bytes": 100,
+      "file-footer-size-in-bytes": 42,
+      "blob-metadata": [
+        {
+          "type": "some-stats",
+          "snapshot-id": 11,
+          "sequence-number": 2,
+          "fields": [
+            4
+          ]
+        }
+      ]
+    }
+  ],
+  "partition-statistics": [
+    {
+      "snapshot-id": 11,
+      "statistics-path": "/some/partition/stats/file.parquet",
+      "file-size-in-bytes": 42
+    }
+  ],
+  "row-lineage": false,
+  "next-row-id": 0,
+  "snapshot-log": [
+    {
+      "timestamp-ms": 1733710953138,
+      "snapshot-id": 1733710953138
+    },
+    {
+      "timestamp-ms": 1733710954168,
+      "snapshot-id": 1733710954168
+    }
+  ],
+  "metadata-log": []
+}
