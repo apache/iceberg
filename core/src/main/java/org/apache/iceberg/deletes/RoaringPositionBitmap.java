@@ -209,7 +209,7 @@ class RoaringPositionBitmap {
    * <p>Note the byte order of the buffer must be little-endian.
    *
    * @param buffer the buffer to write to
-   * @see <a href="https://github.com/RoaringBitmap/RoaringFormatSpe">Roaring bitmap spec</a>
+   * @see <a href="https://github.com/RoaringBitmap/RoaringFormatSpec">Roaring bitmap spec</a>
    */
   public void serialize(ByteBuffer buffer) {
     validateByteOrder(buffer);
