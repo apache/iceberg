@@ -268,7 +268,7 @@ public class HTTPClient extends BaseHTTPClient {
       baseHeaders.forEach(allHeaders::putIfAbsent);
     }
 
-    Preconditions.checkState(authSession != null, "no AuthSession available");
+    Preconditions.checkState(authSession != null, "Invalid auth session: null");
     return authSession.authenticate(builder.headers(HTTPHeaders.of(allHeaders)).build());
   }
 
