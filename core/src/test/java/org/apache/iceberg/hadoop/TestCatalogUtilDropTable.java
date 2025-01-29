@@ -41,6 +41,7 @@ import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.PositionOutputStream;
@@ -82,8 +83,8 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     Set<String> manifestLocations = manifestLocations(snapshotSet, table.io());
     Set<String> dataLocations = dataLocations(snapshotSet, table.io());
     Set<String> metadataLocations = metadataLocations(tableMetadata);
-    Set<String> statsLocations = statsLocations(tableMetadata);
-    Set<String> partitionStatsLocations = partitionStatsLocations(tableMetadata);
+    Set<String> statsLocations = statsLocations(tableMetadata, table.io());
+    Set<String> partitionStatsLocations = partitionStatsLocations(tableMetadata, table.io());
 
     assertThat(manifestListLocations).as("should have 2 manifest lists").hasSize(2);
     assertThat(metadataLocations).as("should have 5 metadata locations").hasSize(5);
@@ -121,6 +122,82 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     assertThat(deletedPaths)
         .as("should contain all created metadata locations")
         .containsAll(metadataLocations);
+    assertThat(deletedPaths)
+        .as("should contain all created statistics")
+        .containsAll(statsLocations);
+    assertThat(deletedPaths)
+        .as("should contain all created partition stats files")
+        .containsAll(partitionStatsLocations);
+  }
+
+  @Test
+  public void dropTableDataDeletesAllPuffinFiles() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    StatisticsFile oldStatisticsFile =
+        writeStatsFile(
+            table.currentSnapshot().snapshotId(),
+            table.currentSnapshot().sequenceNumber(),
+            tableLocation + "/metadata/" + UUID.randomUUID() + ".stats",
+            table.io());
+    table
+        .updateStatistics()
+        .setStatistics(oldStatisticsFile.snapshotId(), oldStatisticsFile)
+        .commit();
+
+    StatisticsFile newStatisticsFile =
+        writeStatsFile(
+            table.currentSnapshot().snapshotId(),
+            table.currentSnapshot().sequenceNumber(),
+            tableLocation + "/metadata/" + UUID.randomUUID() + ".stats",
+            table.io());
+    table
+        .updateStatistics()
+        .setStatistics(newStatisticsFile.snapshotId(), newStatisticsFile)
+        .commit();
+
+    table.newAppend().appendFile(FILE_B).commit();
+
+    PartitionStatisticsFile oldPartitionStatisticsFile =
+        writePartitionStatsFile(
+            table.currentSnapshot().snapshotId(),
+            tableLocation + "/metadata/" + UUID.randomUUID() + ".stats",
+            table.io());
+    table.updatePartitionStatistics().setPartitionStatistics(oldPartitionStatisticsFile).commit();
+
+    PartitionStatisticsFile newPartitionStatisticsFile =
+        writePartitionStatsFile(
+            table.currentSnapshot().snapshotId(),
+            tableLocation + "/metadata/" + UUID.randomUUID() + ".stats",
+            table.io());
+    table.updatePartitionStatistics().setPartitionStatistics(newPartitionStatisticsFile).commit();
+
+    TableMetadata tableMetadata = readMetadataVersion(7);
+    Set<Snapshot> snapshotSet = Sets.newHashSet(table.snapshots());
+
+    Set<String> statsLocations = statsLocations(tableMetadata, table.io());
+    Set<String> partitionStatsLocations = partitionStatsLocations(tableMetadata, table.io());
+
+    // Only latest statistics and partition statistics file are tracked in table metadata
+    assertThat(statsLocations).as("should have 2 stats file").hasSize(2);
+    assertThat(partitionStatsLocations).as("should have 2 partition stats file").hasSize(2);
+
+    FileIO fileIO = createMockFileIO(table.io());
+    CatalogUtil.dropTableData(fileIO, tableMetadata);
+    ArgumentCaptor<String> argumentCaptor = ArgumentCaptor.forClass(String.class);
+
+    Mockito.verify(
+            fileIO,
+            Mockito.times(
+                manifestListLocations(snapshotSet).size()
+                    + manifestLocations(snapshotSet, fileIO).size()
+                    + dataLocations(snapshotSet, table.io()).size()
+                    + metadataLocations(tableMetadata).size()
+                    + statsLocations.size()
+                    + partitionStatsLocations.size()))
+        .deleteFile(argumentCaptor.capture());
+    List<String> deletedPaths = argumentCaptor.getAllValues();
+
     assertThat(deletedPaths)
         .as("should contain all created statistics")
         .containsAll(statsLocations);
@@ -234,10 +311,24 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     return metadataLocations;
   }
 
-  private static Set<String> statsLocations(TableMetadata tableMetadata) {
-    return tableMetadata.statisticsFiles().stream()
-        .map(StatisticsFile::path)
-        .collect(Collectors.toSet());
+  private static Set<String> statsLocations(TableMetadata tableMetadata, FileIO fileIO) {
+    Set<String> statsLocations =
+        tableMetadata.statisticsFiles().stream()
+            .map(StatisticsFile::path)
+            .collect(Collectors.toSet());
+
+    tableMetadata
+        .previousFiles()
+        .forEach(
+            previousMetadata -> {
+              TableMetadata oldMetadata = TableMetadataParser.read(fileIO, previousMetadata.file());
+              statsLocations.addAll(
+                  oldMetadata.statisticsFiles().stream()
+                      .map(StatisticsFile::path)
+                      .collect(Collectors.toSet()));
+            });
+
+    return statsLocations;
   }
 
   private static StatisticsFile writeStatsFile(
@@ -281,9 +372,23 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
         .build();
   }
 
-  private static Set<String> partitionStatsLocations(TableMetadata tableMetadata) {
-    return tableMetadata.partitionStatisticsFiles().stream()
-        .map(PartitionStatisticsFile::path)
-        .collect(Collectors.toSet());
+  private static Set<String> partitionStatsLocations(TableMetadata tableMetadata, FileIO fileIO) {
+    Set<String> partitionStatsLocations =
+        tableMetadata.partitionStatisticsFiles().stream()
+            .map(PartitionStatisticsFile::path)
+            .collect(Collectors.toSet());
+
+    tableMetadata
+        .previousFiles()
+        .forEach(
+            previousMetadata -> {
+              TableMetadata oldMetadata = TableMetadataParser.read(fileIO, previousMetadata.file());
+              partitionStatsLocations.addAll(
+                  oldMetadata.partitionStatisticsFiles().stream()
+                      .map(PartitionStatisticsFile::path)
+                      .collect(Collectors.toSet()));
+            });
+
+    return partitionStatsLocations;
   }
 }
