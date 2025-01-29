@@ -34,8 +34,7 @@ class CometConstantColumnReader<T> extends CometColumnReader {
     super(field);
     // use delegate to set constant value on the native side to be consumed by native execution.
     delegate =
-        new ConstantColumnReader(
-            getSparkType(), getDescriptor(), convertToSparkValue(value), false);
+        new ConstantColumnReader(sparkType(), descriptor(), convertToSparkValue(value), false);
   }
 
   @Override
@@ -46,7 +45,7 @@ class CometConstantColumnReader<T> extends CometColumnReader {
   }
 
   private Object convertToSparkValue(T value) {
-    DataType dataType = getSparkType();
+    DataType dataType = sparkType();
     if (dataType == DataTypes.StringType && value instanceof String) {
       return UTF8String.fromString((String) value);
     } else if (dataType instanceof DecimalType && value instanceof BigDecimal) {

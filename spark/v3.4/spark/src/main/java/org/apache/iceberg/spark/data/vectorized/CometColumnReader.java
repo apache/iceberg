@@ -27,6 +27,7 @@ import org.apache.comet.parquet.Utils;
 import org.apache.comet.shaded.arrow.c.CometSchemaImporter;
 import org.apache.comet.shaded.arrow.memory.RootAllocator;
 import org.apache.iceberg.parquet.VectorizedReader;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
@@ -38,7 +39,7 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 
-@SuppressWarnings({"checkstyle:VisibilityModifier", "ParameterAssignment"})
+@SuppressWarnings("checkstyle:VisibilityModifier")
 class CometColumnReader implements VectorizedReader<CometVector> {
   public static final int DEFAULT_BATCH_SIZE = 5000;
 
@@ -92,16 +93,16 @@ class CometColumnReader implements VectorizedReader<CometVector> {
     return reuse;
   }
 
-  public ColumnDescriptor getDescriptor() {
+  public ColumnDescriptor descriptor() {
     return descriptor;
   }
 
-  public CometVector getVector() {
+  public CometVector vector() {
     return vector;
   }
 
   /** Returns the Spark data type for this column. */
-  public DataType getSparkType() {
+  public DataType sparkType() {
     return sparkType;
   }
 
@@ -112,9 +113,7 @@ class CometColumnReader implements VectorizedReader<CometVector> {
    * CometColumnReader#reset} is called.
    */
   public void setPageReader(PageReader pageReader) throws IOException {
-    if (!initialized) {
-      throw new IllegalStateException("Invalid state: 'reset' should be called first");
-    }
+    Preconditions.checkState(initialized, "Invalid state: 'reset' should be called first");
     ((ColumnReader) delegate).setPageReader(pageReader);
   }
 

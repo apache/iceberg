@@ -78,7 +78,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
             && !(readers[i] instanceof CometPositionColumnReader)
             && !(readers[i] instanceof CometDeleteColumnReader)) {
           readers[i].reset();
-          readers[i].setPageReader(pageStore.getPageReader(readers[i].getDescriptor()));
+          readers[i].setPageReader(pageStore.getPageReader(readers[i].descriptor()));
         }
       } catch (IOException e) {
         throw new UncheckedIOException("Failed to setRowGroupInfo for Comet vectorization", e);
@@ -139,6 +139,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
     ColumnarBatch loadDataToColumnBatch() {
       ColumnVector[] vectors = readDataToColumnVectors();
       int numLiveRows = batchSize;
+
       if (hasIsDeletedColumn) {
         boolean[] isDeleted = buildIsDeleted(vectors);
         readDeletedColumn(vectors, isDeleted);
@@ -175,7 +176,7 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
       // Fetch rows for all readers in the delegate
       delegate.nextBatch(batchSize);
       for (int i = 0; i < readers.length; i++) {
-        columnVectors[i] = readers[i].getVector();
+        columnVectors[i] = readers[i].vector();
         columnVectors[i].resetRowIdMapping();
         org.apache.comet.vector.CometVector vector = readers[i].getDelegate().currentBatch();
         columnVectors[i].setDelegate(vector);
@@ -189,8 +190,8 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
         if (readers[i] instanceof CometDeleteColumnReader) {
           CometDeleteColumnReader deleteColumnReader = new CometDeleteColumnReader<>(isDeleted);
           deleteColumnReader.setBatchSize(batchSize);
-          deleteColumnReader.read(deleteColumnReader.getVector(), batchSize);
-          columnVectors[i] = deleteColumnReader.getVector();
+          deleteColumnReader.read(deleteColumnReader.vector(), batchSize);
+          columnVectors[i] = deleteColumnReader.vector();
         }
       }
     }

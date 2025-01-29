@@ -27,7 +27,7 @@ import org.apache.spark.sql.types.DataTypes;
 class CometPositionColumnReader extends CometColumnReader {
   CometPositionColumnReader(Types.NestedField field) {
     super(field);
-    delegate = new PositionColumnReader(getDescriptor());
+    delegate = new PositionColumnReader(descriptor());
   }
 
   @Override

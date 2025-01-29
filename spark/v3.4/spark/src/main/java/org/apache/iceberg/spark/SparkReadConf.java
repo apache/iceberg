@@ -362,7 +362,7 @@ public class SparkReadConf {
 
   public ParquetReaderType parquetReaderType() {
     return confParser
-        .enumConf(ParquetReaderType::valueOf)
+        .enumConf(ParquetReaderType::fromName)
         .sessionConf(SparkSQLProperties.PARQUET_READER_TYPE)
         .defaultValue(SparkSQLProperties.PARQUET_READER_TYPE_DEFAULT)
         .parse();
