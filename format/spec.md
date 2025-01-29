@@ -341,7 +341,7 @@ The set of metadata columns is:
 | **`2147483542  _change_ordinal`**                 | `int`         | The order of the change                                                                                     |
 | **`2147483541  _commit_snapshot_id`**             | `long`        | The snapshot ID in which the change occured                                                                 |
 | **`2147483540  _row_id`**                         | `long`        | A unique long assigned when row-lineage is enabled, see [Row Lineage](#row-lineage)                                  |
-| **`2147483539  _last_updated_sequence_number`**   | `long`        | The sequence number which last updated this row when row-lineage is enabled [Row Lineage](#row-lineage)              |
+| **`2147483539  _last_updated_sequence_number`**   | `long`        | The sequence number which last updated this row when row-lineage is enabled, see [Row Lineage](#row-lineage)              |
 
 #### Row Lineage
 
