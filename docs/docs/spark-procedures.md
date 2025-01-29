@@ -980,7 +980,7 @@ The `rewrite-table-path` assists in moving or copying an Iceberg table from one 
 
 ### `rewrite-table-path`
 
-This procedure writes a new copy of the Iceberg table's files where every path has had its prefix replaced.
+This procedure writes a new copy of the Iceberg table's metadata files where every path has had its prefix replaced.
 The newly rewritten metadata files enable moving or coping an Iceberg table to a new location.
 After copying both metadata and data to the desired location, the replicated iceberg
 table will appear identical to the source table, including snapshot history, schema and partition specs.
