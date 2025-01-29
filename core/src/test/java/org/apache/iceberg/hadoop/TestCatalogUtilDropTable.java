@@ -178,7 +178,6 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     Set<String> statsLocations = statsLocations(tableMetadata, table.io());
     Set<String> partitionStatsLocations = partitionStatsLocations(tableMetadata, table.io());
 
-    // Only latest statistics and partition statistics file are tracked in table metadata
     assertThat(statsLocations).as("should have 2 stats file").hasSize(2);
     assertThat(partitionStatsLocations).as("should have 2 partition stats file").hasSize(2);
 

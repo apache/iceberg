@@ -108,6 +108,24 @@ public class CatalogUtil {
 
     LOG.info("Manifests to delete: {}", Joiner.on(", ").join(manifestsToDelete));
 
+    Set<String> metadataToDelete = Sets.newHashSet();
+    Set<StatisticsFile> statisticsToDelete = Sets.newHashSet();
+    Set<PartitionStatisticsFile> partitionStatsToDelete = Sets.newHashSet();
+
+    // Look through metadata files and collect all possible statistics / partition statistics files
+    TableMetadata tableMetadata;
+    for (TableMetadata.MetadataLogEntry previousFile : metadata.previousFiles()) {
+      metadataToDelete.add(previousFile.file());
+      tableMetadata = TableMetadataParser.read(io, previousFile.file());
+      statisticsToDelete.addAll(tableMetadata.statisticsFiles());
+      partitionStatsToDelete.addAll(tableMetadata.partitionStatisticsFiles());
+    }
+    metadataToDelete.add(metadata.metadataFileLocation());
+
+    tableMetadata = TableMetadataParser.read(io, metadata.metadataFileLocation());
+    statisticsToDelete.addAll(tableMetadata.statisticsFiles());
+    partitionStatsToDelete.addAll(tableMetadata.partitionStatisticsFiles());
+
     // run all of the deletes
 
     boolean gcEnabled =
@@ -120,22 +138,14 @@ public class CatalogUtil {
 
     deleteFiles(io, Iterables.transform(manifestsToDelete, ManifestFile::path), "manifest", true);
     deleteFiles(io, manifestListsToDelete, "manifest list", true);
+    deleteFiles(io, metadataToDelete, "metadata", true);
+    deleteFiles(
+        io, Iterables.transform(statisticsToDelete, StatisticsFile::path), "statistics", true);
     deleteFiles(
         io,
-        Iterables.transform(metadata.previousFiles(), TableMetadata.MetadataLogEntry::file),
-        "previous metadata",
-        true);
-    deleteFiles(
-        io,
-        Iterables.transform(metadata.statisticsFiles(), StatisticsFile::path),
-        "statistics",
-        true);
-    deleteFiles(
-        io,
-        Iterables.transform(metadata.partitionStatisticsFiles(), PartitionStatisticsFile::path),
+        Iterables.transform(partitionStatsToDelete, PartitionStatisticsFile::path),
         "partition statistics",
         true);
-    deleteFile(io, metadata.metadataFileLocation(), "metadata");
   }
 
   /**
