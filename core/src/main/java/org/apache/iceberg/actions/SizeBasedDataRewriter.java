@@ -47,12 +47,19 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
   public static final String DELETE_FILE_THRESHOLD = "delete-file-threshold";
 
   public static final int DELETE_FILE_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
-  private static final double DELETE_RATIO_THRESHOLD = 0.3;
+  private final double deleteRatioThreshold;
 
   private int deleteFileThreshold;
 
-  protected SizeBasedDataRewriter(Table table) {
+  protected SizeBasedDataRewriter(Table table, double deleteRatioThreshold) {
     super(table);
+    this.deleteRatioThreshold = deleteRatioThreshold;
+    this.deleteFileThreshold = DELETE_FILE_THRESHOLD_DEFAULT;
+  }
+
+  // Default constructor
+  public SizeBasedDataRewriter(Table table) {
+    this(table, 0.3); // Providing default deleteRatioThreshold
   }
 
   @Override
