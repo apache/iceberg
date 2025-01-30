@@ -194,9 +194,27 @@ public class TestDataTaskParser {
     List<Snapshot> snapshots =
         Arrays.asList(
             new BaseSnapshot(
-                1L, 1L, null, 1234567890000L, "append", summary1, 1, "file:/tmp/manifest1.avro"),
+                1L,
+                1L,
+                null,
+                1234567890000L,
+                "append",
+                summary1,
+                1,
+                "file:/tmp/manifest1.avro",
+                null,
+                null),
             new BaseSnapshot(
-                2L, 2L, 1L, 9876543210000L, "append", summary2, 1, "file:/tmp/manifest2.avro"));
+                2L,
+                2L,
+                1L,
+                9876543210000L,
+                "append",
+                summary2,
+                1,
+                "file:/tmp/manifest2.avro",
+                null,
+                null));
 
     return StaticDataTask.of(
         Files.localInput("file:/tmp/metadata2.json"),

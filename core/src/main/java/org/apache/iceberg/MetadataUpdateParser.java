@@ -60,6 +60,7 @@ public class MetadataUpdateParser {
   static final String SET_PARTITION_STATISTICS = "set-partition-statistics";
   static final String REMOVE_PARTITION_STATISTICS = "remove-partition-statistics";
   static final String REMOVE_PARTITION_SPECS = "remove-partition-specs";
+  static final String ENABLE_ROW_LINEAGE = "enable-row-lineage";
 
   // AssignUUID
   private static final String UUID = "uuid";
@@ -154,6 +155,7 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.AddViewVersion.class, ADD_VIEW_VERSION)
           .put(MetadataUpdate.SetCurrentViewVersion.class, SET_CURRENT_VIEW_VERSION)
           .put(MetadataUpdate.RemovePartitionSpecs.class, REMOVE_PARTITION_SPECS)
+          .put(MetadataUpdate.EnableRowLineage.class, ENABLE_ROW_LINEAGE)
           .buildOrThrow();
 
   public static String toJson(MetadataUpdate metadataUpdate) {
@@ -249,6 +251,8 @@ public class MetadataUpdateParser {
       case REMOVE_PARTITION_SPECS:
         writeRemovePartitionSpecs((MetadataUpdate.RemovePartitionSpecs) metadataUpdate, generator);
         break;
+      case ENABLE_ROW_LINEAGE:
+        break;
       default:
         throw new IllegalArgumentException(
             String.format(
@@ -322,6 +326,8 @@ public class MetadataUpdateParser {
         return readCurrentViewVersionId(jsonNode);
       case REMOVE_PARTITION_SPECS:
         return readRemovePartitionSpecs(jsonNode);
+      case ENABLE_ROW_LINEAGE:
+        return new MetadataUpdate.EnableRowLineage();
       default:
         throw new UnsupportedOperationException(
             String.format("Cannot convert metadata update action to json: %s", action));
