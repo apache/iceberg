@@ -30,20 +30,30 @@ import org.apache.spark.sql.types.TimestampType;
 /**
  * A Spark function implementation for the Iceberg month transform.
  *
- * <p>Example usage: {@code SELECT system.months('source_col')}.
+ * <p>Example usage: {@code SELECT system.month('source_col')}.
  *
- * <p>Alternate form: {@code SELECT system.month('source_col')}.
+ * <p>Alternate form: {@code SELECT system.months('source_col')}.
  */
 public class MonthsFunction extends UnaryUnboundFunction {
+
+  private boolean singular;
+
+  public MonthsFunction() {
+    this(true);
+  }
+
+  MonthsFunction(boolean singular) {
+    this.singular = singular;
+  }
 
   @Override
   protected BoundFunction doBind(DataType valueType) {
     if (valueType instanceof DateType) {
-      return new DateToMonthsFunction();
+      return new DateToMonthsFunction(singular);
     } else if (valueType instanceof TimestampType) {
-      return new TimestampToMonthsFunction();
+      return new TimestampToMonthsFunction(singular);
     } else if (valueType instanceof TimestampNTZType) {
-      return new TimestampNtzToMonthsFunction();
+      return new TimestampNtzToMonthsFunction(singular);
     } else {
       throw new UnsupportedOperationException(
           "Expected value to be date or timestamp: " + valueType.catalogString());
@@ -59,13 +69,19 @@ public class MonthsFunction extends UnaryUnboundFunction {
 
   @Override
   public String name() {
-    return "months";
+    return singular ? "month" : "months";
   }
 
   private abstract static class BaseToMonthsFunction extends BaseScalarFunction<Integer> {
+    private boolean singular;
+
+    protected BaseToMonthsFunction(boolean singular) {
+      this.singular = singular;
+    }
+
     @Override
     public String name() {
-      return "months";
+      return singular ? "month" : "months";
     }
 
     @Override
@@ -75,6 +91,14 @@ public class MonthsFunction extends UnaryUnboundFunction {
   }
 
   public static class DateToMonthsFunction extends BaseToMonthsFunction {
+    public DateToMonthsFunction() {
+      this(true);
+    }
+
+    DateToMonthsFunction(boolean singular) {
+      super(singular);
+    }
+
     // magic method used in codegen
     public static int invoke(int days) {
       return DateTimeUtil.daysToMonths(days);
@@ -87,7 +111,7 @@ public class MonthsFunction extends UnaryUnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.months(date)";
+      return "iceberg." + name() + "months(date)";
     }
 
     @Override
@@ -98,6 +122,14 @@ public class MonthsFunction extends UnaryUnboundFunction {
   }
 
   public static class TimestampToMonthsFunction extends BaseToMonthsFunction {
+    public TimestampToMonthsFunction() {
+      this(true);
+    }
+
+    TimestampToMonthsFunction(boolean singular) {
+      super(singular);
+    }
+
     // magic method used in codegen
     public static int invoke(long micros) {
       return DateTimeUtil.microsToMonths(micros);
@@ -110,7 +142,7 @@ public class MonthsFunction extends UnaryUnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.months(timestamp)";
+      return "iceberg." + name() + "(timestamp)";
     }
 
     @Override
@@ -121,6 +153,14 @@ public class MonthsFunction extends UnaryUnboundFunction {
   }
 
   public static class TimestampNtzToMonthsFunction extends BaseToMonthsFunction {
+    public TimestampNtzToMonthsFunction() {
+      this(true);
+    }
+
+    TimestampNtzToMonthsFunction(boolean singular) {
+      super(singular);
+    }
+
     // magic method used in codegen
     public static int invoke(long micros) {
       return DateTimeUtil.microsToMonths(micros);
@@ -133,7 +173,7 @@ public class MonthsFunction extends UnaryUnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.months(timestamp_ntz)";
+      return "iceberg." + name() + "(timestamp_ntz)";
     }
 
     @Override

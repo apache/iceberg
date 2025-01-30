@@ -92,6 +92,11 @@ public class TestSparkMonthsFunction extends TestBaseWithCatalog {
         .hasMessageStartingWith(
             "Function 'months' cannot process input: (): Wrong number of inputs");
 
+    assertThatThrownBy(() -> scalarSql("SELECT system.month()"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith(
+            "Function 'month' cannot process input: (): Wrong number of inputs");
+
     assertThatThrownBy(
             () -> scalarSql("SELECT system.months(date('1969-12-31'), date('1969-12-31'))"))
         .isInstanceOf(AnalysisException.class)
@@ -120,10 +125,18 @@ public class TestSparkMonthsFunction extends TestBaseWithCatalog {
         .asString()
         .isNotNull()
         .contains("staticinvoke(class " + dateTransformClass);
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.month(%s)", dateValue))
+        .asString()
+        .isNotNull()
+        .contains("staticinvoke(class " + dateTransformClass);
 
     String timestampValue = "TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00'";
     String timestampTransformClass = MonthsFunction.TimestampToMonthsFunction.class.getName();
     assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.months(%s)", timestampValue))
+        .asString()
+        .isNotNull()
+        .contains("staticinvoke(class " + timestampTransformClass);
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.month(%s)", timestampValue))
         .asString()
         .isNotNull()
         .contains("staticinvoke(class " + timestampTransformClass);

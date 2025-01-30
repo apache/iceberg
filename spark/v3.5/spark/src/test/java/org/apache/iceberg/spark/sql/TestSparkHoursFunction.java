@@ -74,6 +74,10 @@ public class TestSparkHoursFunction extends TestBaseWithCatalog {
         .hasMessageStartingWith(
             "Function 'hours' cannot process input: (): Wrong number of inputs");
 
+    assertThatThrownBy(() -> scalarSql("SELECT system.hour()"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith("Function 'hour' cannot process input: (): Wrong number of inputs");
+
     assertThatThrownBy(
             () -> scalarSql("SELECT system.hours(date('1969-12-31'), date('1969-12-31'))"))
         .isInstanceOf(AnalysisException.class)

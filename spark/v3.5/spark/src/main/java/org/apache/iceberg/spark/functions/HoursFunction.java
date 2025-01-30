@@ -29,18 +29,28 @@ import org.apache.spark.sql.types.TimestampType;
 /**
  * A Spark function implementation for the Iceberg hour transform.
  *
- * <p>Example usage: {@code SELECT system.hours('source_col')}.
+ * <p>Example usage: {@code SELECT system.hour('source_col')}.
  *
- * <p>Alternate form: {@code SELECT system.hour('source_col')}.
+ * <p>Alternate form: {@code SELECT system.hours('source_col')}.
  */
 public class HoursFunction extends UnaryUnboundFunction {
+
+  private boolean singular;
+
+  public HoursFunction() {
+    this(true);
+  }
+
+  HoursFunction(boolean singular) {
+    this.singular = singular;
+  }
 
   @Override
   protected BoundFunction doBind(DataType valueType) {
     if (valueType instanceof TimestampType) {
-      return new TimestampToHoursFunction();
+      return new TimestampToHoursFunction(singular);
     } else if (valueType instanceof TimestampNTZType) {
-      return new TimestampNtzToHoursFunction();
+      return new TimestampNtzToHoursFunction(singular);
     } else {
       throw new UnsupportedOperationException(
           "Expected value to be timestamp: " + valueType.catalogString());
@@ -56,10 +66,20 @@ public class HoursFunction extends UnaryUnboundFunction {
 
   @Override
   public String name() {
-    return "hours";
+    return singular ? "hour" : "hours";
   }
 
   public static class TimestampToHoursFunction extends BaseScalarFunction<Integer> {
+    private boolean singular;
+
+    public TimestampToHoursFunction() {
+      this(true);
+    }
+
+    TimestampToHoursFunction(boolean singular) {
+      this.singular = singular;
+    }
+
     // magic method used in codegen
     public static int invoke(long micros) {
       return DateTimeUtil.microsToHours(micros);
@@ -67,7 +87,7 @@ public class HoursFunction extends UnaryUnboundFunction {
 
     @Override
     public String name() {
-      return "hours";
+      return singular ? "hour" : "hours";
     }
 
     @Override
@@ -82,7 +102,7 @@ public class HoursFunction extends UnaryUnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.hours(timestamp)";
+      return "iceberg." + name() + "(timestamp)";
     }
 
     @Override
@@ -93,6 +113,16 @@ public class HoursFunction extends UnaryUnboundFunction {
   }
 
   public static class TimestampNtzToHoursFunction extends BaseScalarFunction<Integer> {
+    private boolean singular;
+
+    public TimestampNtzToHoursFunction() {
+      this(true);
+    }
+
+    TimestampNtzToHoursFunction(boolean singular) {
+      this.singular = singular;
+    }
+
     // magic method used in codegen
     public static int invoke(long micros) {
       return DateTimeUtil.microsToHours(micros);
@@ -100,7 +130,7 @@ public class HoursFunction extends UnaryUnboundFunction {
 
     @Override
     public String name() {
-      return "hours";
+      return singular ? "hour" : "hours";
     }
 
     @Override
@@ -115,7 +145,7 @@ public class HoursFunction extends UnaryUnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.hours(timestamp_ntz)";
+      return "iceberg." + name() + "(timestamp_ntz)";
     }
 
     @Override

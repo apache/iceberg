@@ -91,6 +91,10 @@ public class TestSparkDaysFunction extends TestBaseWithCatalog {
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith("Function 'days' cannot process input: (): Wrong number of inputs");
 
+    assertThatThrownBy(() -> scalarSql("SELECT system.day()"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith("Function 'day' cannot process input: (): Wrong number of inputs");
+
     assertThatThrownBy(
             () -> scalarSql("SELECT system.days(date('1969-12-31'), date('1969-12-31'))"))
         .isInstanceOf(AnalysisException.class)

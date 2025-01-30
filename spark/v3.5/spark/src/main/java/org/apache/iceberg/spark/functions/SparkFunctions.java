@@ -31,23 +31,27 @@ public class SparkFunctions {
 
   private static final UnboundFunction VERSION_FUNCTION = new IcebergVersionFunction();
   private static final UnboundFunction YEAR_FUNCTION = new YearsFunction();
+  private static final UnboundFunction YEARS_FUNCTION = new YearsFunction(false);
   private static final UnboundFunction MONTH_FUNCTION = new MonthsFunction();
+  private static final UnboundFunction MONTHS_FUNCTION = new MonthsFunction(false);
   private static final UnboundFunction DAY_FUNCTION = new DaysFunction();
+  private static final UnboundFunction DAYS_FUNCTION = new DaysFunction(false);
   private static final UnboundFunction HOUR_FUNCTION = new HoursFunction();
+  private static final UnboundFunction HOURS_FUNCTION = new HoursFunction(false);
   private static final UnboundFunction BUCKET_FUNCTION = new BucketFunction();
   private static final UnboundFunction TRUNCATE_FUNCTION = new TruncateFunction();
 
   private static final Map<String, UnboundFunction> FUNCTIONS =
       new ImmutableMap.Builder<String, UnboundFunction>()
           .put("iceberg_version", VERSION_FUNCTION)
-          .put("years", YEAR_FUNCTION)
           .put("year", YEAR_FUNCTION)
-          .put("months", MONTH_FUNCTION)
+          .put("years", YEARS_FUNCTION)
           .put("month", MONTH_FUNCTION)
-          .put("days", DAY_FUNCTION)
+          .put("months", MONTHS_FUNCTION)
           .put("day", DAY_FUNCTION)
-          .put("hours", HOUR_FUNCTION)
+          .put("days", DAYS_FUNCTION)
           .put("hour", HOUR_FUNCTION)
+          .put("hours", HOURS_FUNCTION)
           .put("bucket", BUCKET_FUNCTION)
           .put("truncate", TRUNCATE_FUNCTION)
           .build();
