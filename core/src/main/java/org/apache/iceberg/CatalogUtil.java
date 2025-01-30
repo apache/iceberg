@@ -128,6 +128,7 @@ public class CatalogUtil {
     }
 
     // Process the latest metadata file
+    metadataToDelete.add(metadata.metadataFileLocation());
     if (io.newInputFile(metadata.metadataFileLocation()).exists()) {
       TableMetadata latestMetadata = TableMetadataParser.read(io, metadata.metadataFileLocation());
       statisticsToDelete.addAll(latestMetadata.statisticsFiles());
