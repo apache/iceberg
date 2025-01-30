@@ -46,11 +46,15 @@ class CometConstantColumnReader<T> extends CometColumnReader {
 
   private Object convertToSparkValue(T value) {
     DataType dataType = sparkType();
+    // Match the value to Spark internal type if necessary
     if (dataType == DataTypes.StringType && value instanceof String) {
+      // the internal type for StringType is UTF8String
       return UTF8String.fromString((String) value);
     } else if (dataType instanceof DecimalType && value instanceof BigDecimal) {
+      // the internal type for DecimalType is Decimal
       return Decimal.apply((BigDecimal) value);
     } else if (dataType == DataTypes.BinaryType && value instanceof ByteBuffer) {
+      // the internal type for DecimalType is byte[]
       // Iceberg default value should always use HeapBufferBuffer, so calling ByteBuffer.array()
       // should be safe.
       return ((java.nio.ByteBuffer) value).array();

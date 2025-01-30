@@ -48,7 +48,13 @@ class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
   private final CometColumnReader[] readers;
   private final boolean hasIsDeletedColumn;
 
-  // The delegated batch reader on Comet side
+  // The delegated BatchReader on the Comet side does the real work of loading a batch of rows.
+  // The Comet BatchReader contains an array of ColumnReader. There is no need to explicitly call
+  // ColumnReader.readBatch; instead, BatchReader.nextBatch will be called, which underneath calls
+  // ColumnReader.readBatch. The only exception is DeleteColumnReader, because at the time of
+  // calling BatchReader.nextBatch, the isDeleted value is not yet available, so
+  // DeleteColumnReader.readBatch must be called explicitly later, after the isDeleted value is
+  // available.
   private final BatchReader delegate;
   private DeleteFilter<InternalRow> deletes = null;
   private long rowStartPosInBatch = 0;

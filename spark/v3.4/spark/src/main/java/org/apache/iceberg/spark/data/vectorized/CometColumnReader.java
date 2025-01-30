@@ -41,15 +41,17 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.vectorized.ColumnVector;
 
 class CometColumnReader implements VectorizedReader<ColumnVector> {
-  public static final int DEFAULT_BATCH_SIZE = 5000;
+  // use the Comet default batch size
+  public static final int DEFAULT_BATCH_SIZE = 8192;
 
   private final ColumnDescriptor descriptor;
   private final DataType sparkType;
 
-  // the delegated column reader from Comet side
+  // The delegated ColumnReader from Comet side
   private AbstractColumnReader delegate;
   private boolean initialized = false;
   private int batchSize = DEFAULT_BATCH_SIZE;
+  private CometSchemaImporter importer;
 
   CometColumnReader(DataType sparkType, ColumnDescriptor descriptor) {
     this.sparkType = sparkType;
@@ -89,8 +91,7 @@ class CometColumnReader implements VectorizedReader<ColumnVector> {
       delegate.close();
     }
 
-    CometSchemaImporter importer = new CometSchemaImporter(new RootAllocator());
-
+    this.importer = new CometSchemaImporter(new RootAllocator());
     this.delegate = Utils.getColumnReader(sparkType, descriptor, importer, batchSize, false, false);
     this.initialized = true;
   }
@@ -117,7 +118,11 @@ class CometColumnReader implements VectorizedReader<ColumnVector> {
 
   @Override
   public void close() {
-    // close reader on native side
+    // close resources on native side
+    if (importer != null) {
+      importer.close();
+    }
+
     if (delegate != null) {
       delegate.close();
     }
