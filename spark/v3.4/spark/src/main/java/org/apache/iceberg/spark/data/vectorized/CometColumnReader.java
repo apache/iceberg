@@ -87,6 +87,10 @@ class CometColumnReader implements VectorizedReader<ColumnVector> {
    * groups.
    */
   public void reset() {
+    if (importer != null) {
+      importer.close();
+    }
+
     if (delegate != null) {
       delegate.close();
     }
