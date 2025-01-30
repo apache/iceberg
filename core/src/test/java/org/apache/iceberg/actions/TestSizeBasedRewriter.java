@@ -76,6 +76,27 @@ public class TestSizeBasedRewriter extends TestBase {
     assertThat(splitSize).isLessThan(maxFileSize);
   }
 
+  @TestTemplate
+  public void testDeleteFileThresholdOption() {
+    SizeBasedDataFileRewriterImpl rewriter = new SizeBasedDataFileRewriterImpl(table);
+
+    Map<String, String> options = ImmutableMap.of(
+            SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, "5"
+    );
+    rewriter.init(options);
+
+    assertThat(rewriter.getDeleteFileThreshold()).isEqualTo(5);
+  }
+
+  @TestTemplate
+  public void testHighDeleteRatioTriggersRewrite() {
+    SizeBasedDataFileRewriterImpl rewriter = new SizeBasedDataFileRewriterImpl(table);
+
+    FileScanTask task = new MockFileScanTask(100L * 1024 * 1024, 80); // 80% delete ratio
+
+    assertThat(rewriter.tooHighDeleteRatio(task)).isTrue();
+  }
+
   private static class SizeBasedDataFileRewriterImpl extends SizeBasedDataRewriter {
 
     SizeBasedDataFileRewriterImpl(Table table) {
