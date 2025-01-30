@@ -18,13 +18,10 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.Files.localInput;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
@@ -37,13 +34,16 @@ public class TestSnapshotJson {
 
   @Test
   public void testJsonConversion() throws IOException {
-    int snapshotId = 23;
-    Long parentId = null;
-    String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
-
     Snapshot expected =
-        new BaseSnapshot(
-            0, snapshotId, parentId, System.currentTimeMillis(), null, null, 1, manifestList);
+        MetadataTestUtils.buildTestSnapshotWithExampleValues()
+            .setOperation(null)
+            .setSummary(null)
+            .setSchemaId(1)
+            .buildWithExampleManifestList(
+                temp,
+                ImmutableList.of(
+                    MetadataTestUtils.EXAMPLE_MANIFEST_PATH_1,
+                    MetadataTestUtils.EXAMPLE_MANIFEST_PATH_2));
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
 
@@ -56,13 +56,16 @@ public class TestSnapshotJson {
 
   @Test
   public void testJsonConversionWithoutSchemaId() throws IOException {
-    int snapshotId = 23;
-    Long parentId = null;
-    String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
-
     Snapshot expected =
-        new BaseSnapshot(
-            0, snapshotId, parentId, System.currentTimeMillis(), null, null, null, manifestList);
+        MetadataTestUtils.buildTestSnapshotWithExampleValues()
+            .setOperation(null)
+            .setSummary(null)
+            .setSchemaId(null)
+            .buildWithExampleManifestList(
+                temp,
+                ImmutableList.of(
+                    MetadataTestUtils.EXAMPLE_MANIFEST_PATH_1,
+                    MetadataTestUtils.EXAMPLE_MANIFEST_PATH_2));
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
 
@@ -75,21 +78,15 @@ public class TestSnapshotJson {
 
   @Test
   public void testJsonConversionWithOperation() throws IOException {
-    long parentId = 1;
-    long id = 2;
-
-    String manifestList = createManifestListWithManifestFiles(id, parentId);
-
     Snapshot expected =
-        new BaseSnapshot(
-            0,
-            id,
-            parentId,
-            System.currentTimeMillis(),
-            DataOperations.REPLACE,
-            ImmutableMap.of("files-added", "4", "files-deleted", "100"),
-            3,
-            manifestList);
+        MetadataTestUtils.buildTestSnapshotWithExampleValues()
+            .setSequenceNumber(0L)
+            .setOperation(DataOperations.REPLACE)
+            .buildWithExampleManifestList(
+                temp,
+                ImmutableList.of(
+                    MetadataTestUtils.EXAMPLE_MANIFEST_PATH_1,
+                    MetadataTestUtils.EXAMPLE_MANIFEST_PATH_2));
 
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
@@ -115,15 +112,16 @@ public class TestSnapshotJson {
     // this creates a V1 snapshot with manifests
     long timestampMillis = System.currentTimeMillis();
     Snapshot expected =
-        new BaseSnapshot(
-            0,
-            id,
-            parentId,
-            timestampMillis,
-            DataOperations.REPLACE,
-            ImmutableMap.of("files-added", "4", "files-deleted", "100"),
-            3,
-            new String[] {"/tmp/manifest1.avro", "/tmp/manifest2.avro"});
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0)
+            .setSnapshotId(id)
+            .setParentId(parentId)
+            .setTimestampMillis(timestampMillis)
+            .setOperation(DataOperations.REPLACE)
+            .setSummary(ImmutableMap.of("files-added", "4", "files-deleted", "100"))
+            .setSchemaId(3)
+            .setV1ManifestLocations(new String[] {"/tmp/manifest1.avro", "/tmp/manifest2.avro"})
+            .build();
 
     String expectedJson =
         String.format(
@@ -157,24 +155,6 @@ public class TestSnapshotJson {
     assertThat(snapshot.operation()).isEqualTo(expected.operation());
     assertThat(snapshot.summary()).isEqualTo(expected.summary());
     assertThat(snapshot.schemaId()).isEqualTo(expected.schemaId());
-  }
-
-  private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)
-      throws IOException {
-    File manifestList = File.createTempFile("manifests", null, temp.toFile());
-    manifestList.deleteOnExit();
-
-    List<ManifestFile> manifests =
-        ImmutableList.of(
-            new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0, snapshotId),
-            new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0, snapshotId));
-
-    try (ManifestListWriter writer =
-        ManifestLists.write(1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0)) {
-      writer.addAll(manifests);
-    }
-
-    return localInput(manifestList).location();
   }
 
   @Test

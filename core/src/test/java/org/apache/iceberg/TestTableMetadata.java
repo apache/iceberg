@@ -18,7 +18,8 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.TableMetadata.BRANCHING_MIN_SUPPORT_VERSION;
+import static org.apache.iceberg.TableMetadata.UUID_REQUIRED_MIN_VERSION;
 import static org.apache.iceberg.TableMetadataParser.CURRENT_SNAPSHOT_ID;
 import static org.apache.iceberg.TableMetadataParser.FORMAT_VERSION;
 import static org.apache.iceberg.TableMetadataParser.LAST_COLUMN_ID;
@@ -32,10 +33,10 @@ import static org.apache.iceberg.TestHelpers.assertSameSchemaList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.entry;
+import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import com.fasterxml.jackson.core.JsonGenerator;
-import java.io.File;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
@@ -68,6 +69,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.FieldSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestTableMetadata {
@@ -79,9 +81,6 @@ public class TestTableMetadata {
           Types.NestedField.required(1, "x", Types.LongType.get()),
           Types.NestedField.required(2, "y", Types.LongType.get(), "comment"),
           Types.NestedField.required(3, "z", Types.LongType.get()));
-
-  private static final long SEQ_NO = 34;
-  private static final int LAST_ASSIGNED_COLUMN_ID = 3;
 
   private static final PartitionSpec SPEC_5 =
       PartitionSpec.builderFor(TEST_SCHEMA).withSpecId(5).build();
@@ -96,31 +95,27 @@ public class TestTableMetadata {
 
   public TableOperations ops = new LocalTableOperations(temp);
 
-  @Test
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   @SuppressWarnings("MethodLength")
-  public void testJsonConversion() throws Exception {
+  public void testJsonConversion(int formatVersion) throws Exception {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
-    String manifestList =
-        createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
-        new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+        MetadataTestUtils.buildTestSnapshotWithExampleValues()
+            .setSnapshotId(previousSnapshotId)
+            .setParentId(null)
+            .setSchemaId(null)
+            .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest1.avro"));
 
     long currentSnapshotId = System.currentTimeMillis();
-    manifestList =
-        createManifestListWithManifestFile(
-            currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
     Snapshot currentSnapshot =
-        new BaseSnapshot(
-            0,
-            currentSnapshotId,
-            previousSnapshotId,
-            currentSnapshotId,
-            null,
-            null,
-            7,
-            manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(currentSnapshotId)
+            .setParentId(previousSnapshotId)
+            .setSchemaId(7)
+            .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest2.avro"));
 
     List<HistoryEntry> snapshotLog =
         ImmutableList.<HistoryEntry>builder()
@@ -160,31 +155,16 @@ public class TestTableMetadata {
                 .build());
 
     TableMetadata expected =
-        new TableMetadata(
-            null,
-            2,
-            UUID.randomUUID().toString(),
-            TEST_LOCATION,
-            SEQ_NO,
-            System.currentTimeMillis(),
-            3,
-            7,
-            ImmutableList.of(TEST_SCHEMA, schema),
-            5,
-            ImmutableList.of(SPEC_5),
-            SPEC_5.lastAssignedFieldId(),
-            3,
-            ImmutableList.of(SORT_ORDER_3),
-            ImmutableMap.of("property", "value"),
-            currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot),
-            null,
-            snapshotLog,
-            ImmutableList.of(),
-            refs,
-            statisticsFiles,
-            partitionStatisticsFiles,
-            ImmutableList.of());
+        MetadataTestUtils.buildTestTableMetadataWithExampleValues(formatVersion)
+            .setCurrentSchemaId(7)
+            .setSchemas(ImmutableList.of(TEST_SCHEMA, schema))
+            .setCurrentSnapshotId(currentSnapshotId)
+            .setSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+            .setSnapshotLog(snapshotLog)
+            .setRefs(refs)
+            .setStatisticsFiles(statisticsFiles)
+            .setPartitionStatisticsFiles(partitionStatisticsFiles)
+            .build();
 
     String asJson = TableMetadataParser.toJson(expected);
     TableMetadata metadata = TableMetadataParser.fromJson(asJson);
@@ -227,53 +207,35 @@ public class TestTableMetadata {
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
-    String manifestList =
-        createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
-        new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+        MetadataTestUtils.buildTestSnapshotWithExampleValues()
+            .setSnapshotId(previousSnapshotId)
+            .setParentId(null)
+            .setSchemaId(null)
+            .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest1.avro"));
 
     long currentSnapshotId = System.currentTimeMillis();
-    manifestList =
-        createManifestListWithManifestFile(
-            currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
     Snapshot currentSnapshot =
-        new BaseSnapshot(
-            0,
-            currentSnapshotId,
-            previousSnapshotId,
-            currentSnapshotId,
-            null,
-            null,
-            null,
-            manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSequenceNumber(0L)
+            .setSnapshotId(currentSnapshotId)
+            .setParentId(previousSnapshotId)
+            .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest1.avro"));
 
     TableMetadata expected =
-        new TableMetadata(
-            null,
-            1,
-            null,
-            TEST_LOCATION,
-            0,
-            System.currentTimeMillis(),
-            3,
-            TableMetadata.INITIAL_SCHEMA_ID,
-            ImmutableList.of(schema),
-            6,
-            ImmutableList.of(spec),
-            spec.lastAssignedFieldId(),
-            TableMetadata.INITIAL_SORT_ORDER_ID,
-            ImmutableList.of(sortOrder),
-            ImmutableMap.of("property", "value"),
-            currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot),
-            null,
-            ImmutableList.of(),
-            ImmutableList.of(),
-            ImmutableMap.of(),
-            ImmutableList.of(),
-            ImmutableList.of(),
-            ImmutableList.of());
+        MetadataTestUtils.buildTestTableMetadataWithExampleValues(1)
+            .setFormatVersion(1)
+            .setUuid(null)
+            .setCurrentSchemaId(TableMetadata.INITIAL_SCHEMA_ID)
+            .setSchemas(ImmutableList.of(schema))
+            .setDefaultSpecId(6)
+            .setSpecs(ImmutableList.of(spec))
+            .setLastAssignedPartitionId(spec.lastAssignedFieldId())
+            .setDefaultSortOrderId(TableMetadata.INITIAL_SORT_ORDER_ID)
+            .setSortOrders(ImmutableList.of(sortOrder))
+            .setCurrentSnapshotId(currentSnapshotId)
+            .setSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+            .build();
 
     String asJson = toJsonWithoutSpecAndSchemaList(expected);
     TableMetadata metadata = TableMetadataParser.fromJson(asJson);
@@ -314,31 +276,25 @@ public class TestTableMetadata {
     assertThat(metadata.snapshot(previousSnapshotId).schemaId()).isNull();
   }
 
-  @Test
-  public void testInvalidMainBranch() throws IOException {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testInvalidMainBranch(int formatVersion) throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(BRANCHING_MIN_SUPPORT_VERSION);
+
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
-    String manifestList =
-        createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
-        new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+        MetadataTestUtils.buildTestSnapshotWithExampleValues()
+            .setSnapshotId(previousSnapshotId)
+            .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest1.avro"));
 
     long currentSnapshotId = System.currentTimeMillis();
-    manifestList =
-        createManifestListWithManifestFile(
-            currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
 
     Snapshot currentSnapshot =
-        new BaseSnapshot(
-            0,
-            currentSnapshotId,
-            previousSnapshotId,
-            currentSnapshotId,
-            null,
-            null,
-            7,
-            manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSnapshotId(currentSnapshotId)
+            .setParentId(previousSnapshotId)
+            .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest2.avro"));
 
     List<HistoryEntry> snapshotLog =
         ImmutableList.<HistoryEntry>builder()
@@ -350,123 +306,62 @@ public class TestTableMetadata {
                     currentSnapshot.timestampMillis(), currentSnapshot.snapshotId()))
             .build();
 
-    Schema schema = new Schema(6, Types.NestedField.required(10, "x", Types.StringType.get()));
-
     Map<String, SnapshotRef> refs =
         ImmutableMap.of("main", SnapshotRef.branchBuilder(previousSnapshotId).build());
 
     assertThatThrownBy(
             () ->
-                new TableMetadata(
-                    null,
-                    2,
-                    UUID.randomUUID().toString(),
-                    TEST_LOCATION,
-                    SEQ_NO,
-                    System.currentTimeMillis(),
-                    3,
-                    7,
-                    ImmutableList.of(TEST_SCHEMA, schema),
-                    5,
-                    ImmutableList.of(SPEC_5),
-                    SPEC_5.lastAssignedFieldId(),
-                    3,
-                    ImmutableList.of(SORT_ORDER_3),
-                    ImmutableMap.of("property", "value"),
-                    currentSnapshotId,
-                    Arrays.asList(previousSnapshot, currentSnapshot),
-                    null,
-                    snapshotLog,
-                    ImmutableList.of(),
-                    refs,
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    ImmutableList.of()))
+                MetadataTestUtils.buildTestTableMetadataWithExampleValues(formatVersion)
+                    .setCurrentSnapshotId(currentSnapshotId)
+                    .setSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+                    .setSnapshotLog(snapshotLog)
+                    .setRefs(refs)
+                    .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot ID does not match main branch");
   }
 
-  @Test
-  public void testMainWithoutCurrent() throws IOException {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testMainWithoutCurrent(int formatVersion) throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(BRANCHING_MIN_SUPPORT_VERSION);
+
     long snapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
-    String manifestList =
-        createManifestListWithManifestFile(snapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot snapshot =
-        new BaseSnapshot(0, snapshotId, null, snapshotId, null, null, null, manifestList);
-
-    Schema schema = new Schema(6, Types.NestedField.required(10, "x", Types.StringType.get()));
+        MetadataTestUtils.buildTestSnapshot()
+            .setSnapshotId(snapshotId)
+            .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest1.avro"));
 
     Map<String, SnapshotRef> refs =
         ImmutableMap.of("main", SnapshotRef.branchBuilder(snapshotId).build());
 
     assertThatThrownBy(
             () ->
-                new TableMetadata(
-                    null,
-                    2,
-                    UUID.randomUUID().toString(),
-                    TEST_LOCATION,
-                    SEQ_NO,
-                    System.currentTimeMillis(),
-                    3,
-                    7,
-                    ImmutableList.of(TEST_SCHEMA, schema),
-                    5,
-                    ImmutableList.of(SPEC_5),
-                    SPEC_5.lastAssignedFieldId(),
-                    3,
-                    ImmutableList.of(SORT_ORDER_3),
-                    ImmutableMap.of("property", "value"),
-                    -1,
-                    ImmutableList.of(snapshot),
-                    null,
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    refs,
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    ImmutableList.of()))
+                MetadataTestUtils.buildTestTableMetadataWithExampleValues(formatVersion)
+                    .setSnapshots(ImmutableList.of(snapshot))
+                    .setCurrentSnapshotId(-1L)
+                    .setSnapshotsSupplier(null)
+                    .setRefs(refs)
+                    .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot is not set, but main branch exists");
   }
 
-  @Test
-  public void testBranchSnapshotMissing() {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testBranchSnapshotMissing(int formatVersion) {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
     long snapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
-
-    Schema schema = new Schema(6, Types.NestedField.required(10, "x", Types.StringType.get()));
-
     Map<String, SnapshotRef> refs =
         ImmutableMap.of("main", SnapshotRef.branchBuilder(snapshotId).build());
 
     assertThatThrownBy(
             () ->
-                new TableMetadata(
-                    null,
-                    2,
-                    UUID.randomUUID().toString(),
-                    TEST_LOCATION,
-                    SEQ_NO,
-                    System.currentTimeMillis(),
-                    3,
-                    7,
-                    ImmutableList.of(TEST_SCHEMA, schema),
-                    5,
-                    ImmutableList.of(SPEC_5),
-                    SPEC_5.lastAssignedFieldId(),
-                    3,
-                    ImmutableList.of(SORT_ORDER_3),
-                    ImmutableMap.of("property", "value"),
-                    -1,
-                    ImmutableList.of(),
-                    null,
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    refs,
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    ImmutableList.of()))
+                MetadataTestUtils.buildTestTableMetadataWithExampleValues(formatVersion)
+                    .setRefs(refs)
+                    .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageEndingWith("does not exist in the existing snapshots list");
   }
@@ -513,32 +408,23 @@ public class TestTableMetadata {
     return writer.toString();
   }
 
-  @Test
-  public void testJsonWithPreviousMetadataLog() throws Exception {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testJsonWithPreviousMetadataLog(int formatVersion) throws Exception {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
-    String manifestList =
-        createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
-        new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSnapshotId(previousSnapshotId)
+            .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest1.avro"));
 
     long currentSnapshotId = System.currentTimeMillis();
-    manifestList =
-        createManifestListWithManifestFile(
-            currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
     Snapshot currentSnapshot =
-        new BaseSnapshot(
-            0,
-            currentSnapshotId,
-            previousSnapshotId,
-            currentSnapshotId,
-            null,
-            null,
-            null,
-            manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSnapshotId(currentSnapshotId)
+            .setParentId(previousSnapshotId)
+            .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest2.avro"));
 
-    List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     long currentTimestamp = System.currentTimeMillis();
     List<MetadataLogEntry> previousMetadataLog = Lists.newArrayList();
     previousMetadataLog.add(
@@ -546,31 +432,11 @@ public class TestTableMetadata {
             currentTimestamp, "/tmp/000001-" + UUID.randomUUID() + ".metadata.json"));
 
     TableMetadata base =
-        new TableMetadata(
-            null,
-            1,
-            UUID.randomUUID().toString(),
-            TEST_LOCATION,
-            0,
-            System.currentTimeMillis(),
-            3,
-            7,
-            ImmutableList.of(TEST_SCHEMA),
-            5,
-            ImmutableList.of(SPEC_5),
-            SPEC_5.lastAssignedFieldId(),
-            3,
-            ImmutableList.of(SORT_ORDER_3),
-            ImmutableMap.of("property", "value"),
-            currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot),
-            null,
-            reversedSnapshotLog,
-            ImmutableList.copyOf(previousMetadataLog),
-            ImmutableMap.of(),
-            ImmutableList.of(),
-            ImmutableList.of(),
-            ImmutableList.of());
+        MetadataTestUtils.buildTestTableMetadataWithExampleValues(formatVersion)
+            .setCurrentSnapshotId(currentSnapshotId)
+            .setSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+            .setMetadataHistory(ImmutableList.copyOf(previousMetadataLog))
+            .build();
 
     String asJson = TableMetadataParser.toJson(base);
     TableMetadata metadataFromJson = TableMetadataParser.fromJson(asJson);
@@ -578,30 +444,23 @@ public class TestTableMetadata {
     assertThat(metadataFromJson.previousFiles()).isEqualTo(previousMetadataLog);
   }
 
-  @Test
-  public void testAddPreviousMetadataRemoveNone() throws IOException {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testAddPreviousMetadataRemoveNone(int formatVersion) throws IOException {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
-    String manifestList =
-        createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
-        new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSnapshotId(previousSnapshotId)
+            .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest1.avro"));
+
     long currentSnapshotId = System.currentTimeMillis();
 
-    manifestList =
-        createManifestListWithManifestFile(
-            currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
     Snapshot currentSnapshot =
-        new BaseSnapshot(
-            0,
-            currentSnapshotId,
-            previousSnapshotId,
-            currentSnapshotId,
-            null,
-            null,
-            null,
-            manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSnapshotId(currentSnapshotId)
+            .setParentId(previousSnapshotId)
+            .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest2.avro"));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     reversedSnapshotLog.add(
@@ -622,31 +481,14 @@ public class TestTableMetadata {
             currentTimestamp - 80, "/tmp/000003-" + UUID.randomUUID() + ".metadata.json");
 
     TableMetadata base =
-        new TableMetadata(
-            latestPreviousMetadata.file(),
-            1,
-            UUID.randomUUID().toString(),
-            TEST_LOCATION,
-            0,
-            currentTimestamp - 80,
-            3,
-            7,
-            ImmutableList.of(TEST_SCHEMA),
-            5,
-            ImmutableList.of(SPEC_5),
-            SPEC_5.lastAssignedFieldId(),
-            3,
-            ImmutableList.of(SORT_ORDER_3),
-            ImmutableMap.of("property", "value"),
-            currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot),
-            null,
-            reversedSnapshotLog,
-            ImmutableList.copyOf(previousMetadataLog),
-            ImmutableMap.of(),
-            ImmutableList.of(),
-            ImmutableList.of(),
-            ImmutableList.of());
+        MetadataTestUtils.buildTestTableMetadataWithExampleValues(formatVersion)
+            .setMetadataLocation(latestPreviousMetadata.file())
+            .setCurrentSnapshotId(currentSnapshotId)
+            .setSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+            .setSnapshotLog(reversedSnapshotLog)
+            .setLastUpdatedMillis(currentTimestamp - 80)
+            .setMetadataHistory(ImmutableList.copyOf(previousMetadataLog))
+            .build();
 
     previousMetadataLog.add(latestPreviousMetadata);
 
@@ -660,30 +502,22 @@ public class TestTableMetadata {
     assertThat(removedPreviousMetadata).isEmpty();
   }
 
-  @Test
-  public void testAddPreviousMetadataRemoveOne() throws IOException {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testAddPreviousMetadataRemoveOne(int formatVersion) throws IOException {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
-    String manifestList =
-        createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
-        new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSnapshotId(previousSnapshotId)
+            .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest1.avro"));
 
     long currentSnapshotId = System.currentTimeMillis();
-    manifestList =
-        createManifestListWithManifestFile(
-            currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
     Snapshot currentSnapshot =
-        new BaseSnapshot(
-            0,
-            currentSnapshotId,
-            previousSnapshotId,
-            currentSnapshotId,
-            null,
-            null,
-            null,
-            manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSnapshotId(currentSnapshotId)
+            .setParentId(previousSnapshotId)
+            .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest2.avro"));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     reversedSnapshotLog.add(
@@ -713,31 +547,15 @@ public class TestTableMetadata {
             currentTimestamp - 50, "/tmp/000006-" + UUID.randomUUID() + ".metadata.json");
 
     TableMetadata base =
-        new TableMetadata(
-            latestPreviousMetadata.file(),
-            1,
-            UUID.randomUUID().toString(),
-            TEST_LOCATION,
-            0,
-            currentTimestamp - 50,
-            3,
-            7,
-            ImmutableList.of(TEST_SCHEMA),
-            5,
-            ImmutableList.of(SPEC_5),
-            SPEC_5.lastAssignedFieldId(),
-            3,
-            ImmutableList.of(SORT_ORDER_3),
-            ImmutableMap.of("property", "value"),
-            currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot),
-            null,
-            reversedSnapshotLog,
-            ImmutableList.copyOf(previousMetadataLog),
-            ImmutableMap.of(),
-            ImmutableList.of(),
-            ImmutableList.of(),
-            ImmutableList.of());
+        MetadataTestUtils.buildTestTableMetadataWithExampleValues(formatVersion)
+            .setMetadataLocation(latestPreviousMetadata.file())
+            .setLastUpdatedMillis(currentTimestamp - 50)
+            .setLastColumnId(3)
+            .setCurrentSnapshotId(currentSnapshotId)
+            .setSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+            .setSnapshotLog(reversedSnapshotLog)
+            .setMetadataHistory(ImmutableList.copyOf(previousMetadataLog))
+            .build();
 
     previousMetadataLog.add(latestPreviousMetadata);
 
@@ -755,30 +573,22 @@ public class TestTableMetadata {
         .isEqualTo(previousMetadataLog.subList(0, 1));
   }
 
-  @Test
-  public void testAddPreviousMetadataRemoveMultiple() throws IOException {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testAddPreviousMetadataRemoveMultiple(int formatVersion) throws IOException {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
 
-    String manifestList =
-        createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
     Snapshot previousSnapshot =
-        new BaseSnapshot(
-            0, previousSnapshotId, null, previousSnapshotId, null, null, null, manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSnapshotId(previousSnapshotId)
+            .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest1.avro"));
 
     long currentSnapshotId = System.currentTimeMillis();
-    manifestList =
-        createManifestListWithManifestFile(
-            currentSnapshotId, previousSnapshotId, "file:/tmp/manifest2.avro");
     Snapshot currentSnapshot =
-        new BaseSnapshot(
-            0,
-            currentSnapshotId,
-            previousSnapshotId,
-            currentSnapshotId,
-            null,
-            null,
-            null,
-            manifestList);
+        MetadataTestUtils.buildTestSnapshot()
+            .setSnapshotId(currentSnapshotId)
+            .setParentId(previousSnapshotId)
+            .buildWithExampleManifestList(temp, ImmutableList.of("file:/tmp/manifest2.avro"));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
     reversedSnapshotLog.add(
@@ -808,31 +618,14 @@ public class TestTableMetadata {
             currentTimestamp - 50, "/tmp/000006-" + UUID.randomUUID() + ".metadata.json");
 
     TableMetadata base =
-        new TableMetadata(
-            latestPreviousMetadata.file(),
-            1,
-            UUID.randomUUID().toString(),
-            TEST_LOCATION,
-            0,
-            currentTimestamp - 50,
-            3,
-            7,
-            ImmutableList.of(TEST_SCHEMA),
-            SPEC_5.specId(),
-            ImmutableList.of(SPEC_5),
-            SPEC_5.lastAssignedFieldId(),
-            SortOrder.unsorted().orderId(),
-            ImmutableList.of(SortOrder.unsorted()),
-            ImmutableMap.of("property", "value"),
-            currentSnapshotId,
-            Arrays.asList(previousSnapshot, currentSnapshot),
-            null,
-            reversedSnapshotLog,
-            ImmutableList.copyOf(previousMetadataLog),
-            ImmutableMap.of(),
-            ImmutableList.of(),
-            ImmutableList.of(),
-            ImmutableList.of());
+        MetadataTestUtils.buildTestTableMetadataWithExampleValues(formatVersion)
+            .setMetadataLocation(latestPreviousMetadata.file())
+            .setLastUpdatedMillis(currentTimestamp - 50)
+            .setCurrentSnapshotId(currentSnapshotId)
+            .setSnapshots(Arrays.asList(previousSnapshot, currentSnapshot))
+            .setSnapshotLog(reversedSnapshotLog)
+            .setMetadataHistory(ImmutableList.copyOf(previousMetadataLog))
+            .build();
 
     previousMetadataLog.add(latestPreviousMetadata);
 
@@ -850,37 +643,18 @@ public class TestTableMetadata {
         .isEqualTo(previousMetadataLog.subList(0, 4));
   }
 
-  @Test
-  public void testV2UUIDValidation() {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testUUIDValidation(int formatVersion) {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(UUID_REQUIRED_MIN_VERSION);
+
     assertThatThrownBy(
             () ->
-                new TableMetadata(
-                    null,
-                    2,
-                    null,
-                    TEST_LOCATION,
-                    SEQ_NO,
-                    System.currentTimeMillis(),
-                    LAST_ASSIGNED_COLUMN_ID,
-                    7,
-                    ImmutableList.of(TEST_SCHEMA),
-                    SPEC_5.specId(),
-                    ImmutableList.of(SPEC_5),
-                    SPEC_5.lastAssignedFieldId(),
-                    3,
-                    ImmutableList.of(SORT_ORDER_3),
-                    ImmutableMap.of(),
-                    -1L,
-                    ImmutableList.of(),
-                    null,
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    ImmutableMap.of(),
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    ImmutableList.of()))
+                MetadataTestUtils.buildTestTableMetadataWithExampleValues(formatVersion)
+                    .setUuid(null)
+                    .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("UUID is required in format v2");
+        .hasMessage(String.format("UUID is required in format v%s", formatVersion));
   }
 
   @Test
@@ -889,31 +663,8 @@ public class TestTableMetadata {
     int unsupportedVersion = supportedVersion + 1;
     assertThatThrownBy(
             () ->
-                new TableMetadata(
-                    null,
-                    unsupportedVersion,
-                    null,
-                    TEST_LOCATION,
-                    SEQ_NO,
-                    System.currentTimeMillis(),
-                    LAST_ASSIGNED_COLUMN_ID,
-                    7,
-                    ImmutableList.of(TEST_SCHEMA),
-                    SPEC_5.specId(),
-                    ImmutableList.of(SPEC_5),
-                    SPEC_5.lastAssignedFieldId(),
-                    3,
-                    ImmutableList.of(SORT_ORDER_3),
-                    ImmutableMap.of(),
-                    -1L,
-                    ImmutableList.of(),
-                    null,
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    ImmutableMap.of(),
-                    ImmutableList.of(),
-                    ImmutableList.of(),
-                    ImmutableList.of()))
+                MetadataTestUtils.buildTestTableMetadataWithExampleValues(unsupportedVersion)
+                    .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Unsupported format version: v%s (supported: v%s)",
@@ -934,32 +685,7 @@ public class TestTableMetadata {
             unsupportedVersion, supportedVersion);
 
     // should be allowed in the supported version
-    assertThat(
-            new TableMetadata(
-                null,
-                supportedVersion,
-                UUID.randomUUID().toString(),
-                TEST_LOCATION,
-                SEQ_NO,
-                System.currentTimeMillis(),
-                LAST_ASSIGNED_COLUMN_ID,
-                7,
-                ImmutableList.of(TEST_SCHEMA),
-                SPEC_5.specId(),
-                ImmutableList.of(SPEC_5),
-                SPEC_5.lastAssignedFieldId(),
-                3,
-                ImmutableList.of(SORT_ORDER_3),
-                ImmutableMap.of(),
-                -1L,
-                ImmutableList.of(),
-                null,
-                ImmutableList.of(),
-                ImmutableList.of(),
-                ImmutableMap.of(),
-                ImmutableList.of(),
-                ImmutableList.of(),
-                ImmutableList.of()))
+    assertThat(MetadataTestUtils.buildTestTableMetadataWithExampleValues(supportedVersion).build())
         .isNotNull();
 
     assertThat(
@@ -973,62 +699,86 @@ public class TestTableMetadata {
         .isNotNull();
   }
 
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testParserVersionValidation(int formatVersion) throws Exception {
+    String supportedVersion =
+        readTableMetadataInputFile(String.format("TableMetadataV%sValid.json", formatVersion));
+    TableMetadata parsed = TableMetadataParser.fromJson(supportedVersion);
+    assertThat(parsed).as("Should successfully read supported metadata version").isNotNull();
+  }
+
   @Test
-  public void testParserVersionValidation() throws Exception {
-    String supportedVersion1 = readTableMetadataInputFile("TableMetadataV1Valid.json");
-    TableMetadata parsed1 = TableMetadataParser.fromJson(supportedVersion1);
-    assertThat(parsed1).as("Should successfully read supported metadata version").isNotNull();
-
-    String supportedVersion2 = readTableMetadataInputFile("TableMetadataV2Valid.json");
-    TableMetadata parsed2 = TableMetadataParser.fromJson(supportedVersion2);
-    assertThat(parsed2).as("Should successfully read supported metadata version").isNotNull();
-
+  public void testParserUnsupportedVersion() throws Exception {
     String unsupportedVersion = readTableMetadataInputFile("TableMetadataUnsupportedVersion.json");
     assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot read unsupported version");
   }
 
-  @Test
-  public void testParserV2PartitionSpecsValidation() throws Exception {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testParserV2PartitionSpecsValidation(int formatVersion) throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
     String unsupportedVersion =
-        readTableMetadataInputFile("TableMetadataV2MissingPartitionSpecs.json");
+        readTableMetadataInputFile(
+            String.format("TableMetadataV%sMissingPartitionSpecs.json", formatVersion));
     assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("partition-specs must exist in format v2");
+        .hasMessage(String.format("partition-specs must exist in format v%s", formatVersion));
   }
 
-  @Test
-  public void testParserV2LastAssignedFieldIdValidation() throws Exception {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testParserLastAssignedFieldIdValidation(int formatVersion) throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
     String unsupportedVersion =
-        readTableMetadataInputFile("TableMetadataV2MissingLastPartitionId.json");
+        readTableMetadataInputFile(
+            String.format("TableMetadataV%sMissingLastPartitionId.json", formatVersion));
     assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("last-partition-id must exist in format v2");
+        .hasMessage(String.format("last-partition-id must exist in format v%s", formatVersion));
   }
 
-  @Test
-  public void testParserV2SortOrderValidation() throws Exception {
-    String unsupportedVersion = readTableMetadataInputFile("TableMetadataV2MissingSortOrder.json");
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testParserSortOrderValidation(int formatVersion) throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    String unsupportedVersion =
+        readTableMetadataInputFile(
+            String.format("TableMetadataV%sMissingSortOrder.json", formatVersion));
     assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupportedVersion))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("sort-orders must exist in format v2");
+        .hasMessage(String.format("sort-orders must exist in format v%s", formatVersion));
   }
 
-  @Test
-  public void testParserV2CurrentSchemaIdValidation() throws Exception {
-    String unsupported = readTableMetadataInputFile("TableMetadataV2CurrentSchemaNotFound.json");
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testParserCurrentSchemaIdValidation(int formatVersion) throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    String unsupported =
+        readTableMetadataInputFile(
+            String.format("TableMetadataV%sCurrentSchemaNotFound.json", formatVersion));
     assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupported))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find schema with current-schema-id=2 from schemas");
   }
 
-  @Test
-  public void testParserV2SchemasValidation() throws Exception {
-    String unsupported = readTableMetadataInputFile("TableMetadataV2MissingSchemas.json");
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testParserV2SchemasValidation(int formatVersion) throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    String unsupported =
+        readTableMetadataInputFile(
+            String.format("TableMetadataV%sMissingSchemas.json", formatVersion));
     assertThatThrownBy(() -> TableMetadataParser.fromJson(unsupported))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("schemas must exist in format v2");
+        .hasMessage(String.format("schemas must exist in format v%s", formatVersion));
   }
 
   private String readTableMetadataInputFile(String fileName) throws Exception {
@@ -1036,8 +786,9 @@ public class TestTableMetadata {
     return String.join("", java.nio.file.Files.readAllLines(path));
   }
 
-  @Test
-  public void testNewTableMetadataReassignmentAllIds() throws Exception {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testNewTableMetadataReassignmentAllIds(int formatVersion) throws Exception {
     Schema schema =
         new Schema(
             Types.NestedField.required(3, "x", Types.LongType.get()),
@@ -1052,7 +803,8 @@ public class TestTableMetadata {
             .build();
     String location = "file://tmp/db/table";
     TableMetadata metadata =
-        TableMetadata.newTableMetadata(schema, spec, location, ImmutableMap.of());
+        TableMetadata.newTableMetadata(
+            schema, spec, SortOrder.unsorted(), location, ImmutableMap.of(), formatVersion);
 
     // newTableMetadata should reassign column ids and partition field ids.
     PartitionSpec expected =
@@ -1126,8 +878,11 @@ public class TestTableMetadata {
         .isEqualTo(expected);
   }
 
-  @Test
-  public void testBuildReplacementForV2Table() {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testBuildReplacementForV2AndV3Table(int formatVersion) {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
     Schema schema =
         new Schema(
             Types.NestedField.required(1, "x", Types.LongType.get()),
@@ -1137,7 +892,7 @@ public class TestTableMetadata {
     String location = "file://tmp/db/table";
     TableMetadata metadata =
         TableMetadata.newTableMetadata(
-            schema, spec, SortOrder.unsorted(), location, ImmutableMap.of(), 2);
+            schema, spec, SortOrder.unsorted(), location, ImmutableMap.of(), formatVersion);
     assertThat(metadata.spec()).isEqualTo(spec);
 
     Schema updatedSchema =
@@ -1161,28 +916,39 @@ public class TestTableMetadata {
         .isEqualTo(expected);
   }
 
-  @Test
-  public void testSortOrder() {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testSortOrder(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema,
+            PartitionSpec.unpartitioned(),
+            null,
+            ImmutableMap.of("format-version", String.valueOf(formatVersion)));
+    assertThat(meta.formatVersion()).isEqualTo(formatVersion);
     assertThat(meta.sortOrder().isUnsorted()).isTrue();
     assertThat(meta.replaceSortOrder(SortOrder.unsorted()))
         .as("Should detect identical unsorted order")
         .isSameAs(meta);
   }
 
-  @Test
-  public void testUpdateSortOrder() {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testUpdateSortOrder(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     SortOrder order = SortOrder.builderFor(schema).asc("x").build();
 
     TableMetadata sortedByX =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), order, null, ImmutableMap.of());
+            schema,
+            PartitionSpec.unpartitioned(),
+            order,
+            null,
+            ImmutableMap.of("format-version", String.valueOf(formatVersion)));
+    assertThat(sortedByX.formatVersion()).isEqualTo(formatVersion);
     assertThat(sortedByX.sortOrders()).hasSize(1);
     assertThat(sortedByX.sortOrder().orderId()).isEqualTo(1);
     assertThat(sortedByX.sortOrder().fields()).hasSize(1);
@@ -1213,23 +979,35 @@ public class TestTableMetadata {
     assertThat(sortedByX.sortOrder().fields().get(0).nullOrder()).isEqualTo(NullOrder.NULLS_FIRST);
   }
 
-  @Test
-  public void testStatistics() {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testStatistics(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            null,
+            ImmutableMap.of(),
+            formatVersion);
     assertThat(meta.statisticsFiles()).as("Should default to no statistics files").isEmpty();
   }
 
-  @Test
-  public void testSetStatistics() {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testSetStatistics(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            null,
+            ImmutableMap.of(),
+            formatVersion);
 
     TableMetadata withStatistics =
         TableMetadata.buildFrom(meta)
@@ -1262,14 +1040,20 @@ public class TestTableMetadata {
     assertThat(statisticsFile.path()).isEqualTo("/some/path/to/stats/file2");
   }
 
-  @Test
-  public void testRemoveStatistics() {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testRemoveStatistics(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
         TableMetadata.buildFrom(
                 TableMetadata.newTableMetadata(
-                    schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
+                    schema,
+                    PartitionSpec.unpartitioned(),
+                    SortOrder.unsorted(),
+                    null,
+                    ImmutableMap.of(),
+                    formatVersion))
             .setStatistics(
                 43,
                 new GenericStatisticsFile(
@@ -1294,25 +1078,37 @@ public class TestTableMetadata {
     assertThat(statisticsFile.path()).isEqualTo("/some/path/to/stats/file2");
   }
 
-  @Test
-  public void testPartitionStatistics() {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testPartitionStatistics(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            null,
+            ImmutableMap.of(),
+            formatVersion);
     assertThat(meta.partitionStatisticsFiles())
         .as("Should default to no partition statistics files")
         .isEmpty();
   }
 
-  @Test
-  public void testSetPartitionStatistics() {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testSetPartitionStatistics(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            null,
+            ImmutableMap.of(),
+            formatVersion);
 
     TableMetadata withPartitionStatistics =
         TableMetadata.buildFrom(meta)
@@ -1355,14 +1151,20 @@ public class TestTableMetadata {
     assertThat(partitionStatisticsFile.fileSizeInBytes()).isEqualTo(48L);
   }
 
-  @Test
-  public void testRemovePartitionStatistics() {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testRemovePartitionStatistics(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
         TableMetadata.buildFrom(
                 TableMetadata.newTableMetadata(
-                    schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
+                    schema,
+                    PartitionSpec.unpartitioned(),
+                    SortOrder.unsorted(),
+                    null,
+                    ImmutableMap.of(),
+                    formatVersion))
             .setPartitionStatistics(
                 ImmutableGenericPartitionStatisticsFile.builder()
                     .snapshotId(43)
@@ -1395,17 +1197,26 @@ public class TestTableMetadata {
     assertThat(partitionStatisticsFile.fileSizeInBytes()).isEqualTo(49L);
   }
 
-  @Test
-  public void testParseSchemaIdentifierFields() throws Exception {
-    String data = readTableMetadataInputFile("TableMetadataV2Valid.json");
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testParseSchemaIdentifierFields(int formatVersion) throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    String data =
+        readTableMetadataInputFile(String.format("TableMetadataV%sValid.json", formatVersion));
     TableMetadata parsed = TableMetadataParser.fromJson(data);
     assertThat(parsed.schemasById().get(0).identifierFieldIds()).isEmpty();
     assertThat(parsed.schemasById().get(1).identifierFieldIds()).containsExactly(1, 2);
   }
 
-  @Test
-  public void testParseMinimal() throws Exception {
-    String data = readTableMetadataInputFile("TableMetadataV2ValidMinimal.json");
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testParseMinimal(int formatVersion) throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    String data =
+        readTableMetadataInputFile(
+            String.format("TableMetadataV%sValidMinimal.json", formatVersion));
     TableMetadata parsed = TableMetadataParser.fromJson(data);
     assertThat(parsed.snapshots()).isEmpty();
     assertThat(parsed.snapshotLog()).isEmpty();
@@ -1413,13 +1224,19 @@ public class TestTableMetadata {
     assertThat(parsed.previousFiles()).isEmpty();
   }
 
-  @Test
-  public void testUpdateSchemaIdentifierFields() {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testUpdateSchemaIdentifierFields(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            null,
+            ImmutableMap.of(),
+            formatVersion);
 
     Schema newSchema =
         new Schema(
@@ -1430,13 +1247,19 @@ public class TestTableMetadata {
     assertThat(newMeta.schema().identifierFieldIds()).containsExactly(1);
   }
 
-  @Test
-  public void testUpdateSchema() {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testUpdateSchema(int formatVersion) {
     Schema schema =
         new Schema(0, Types.NestedField.required(1, "y", Types.LongType.get(), "comment"));
     TableMetadata freshTable =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            null,
+            ImmutableMap.of(),
+            formatVersion);
     assertThat(freshTable.currentSchemaId()).isEqualTo(TableMetadata.INITIAL_SCHEMA_ID);
     assertSameSchemaList(ImmutableList.of(schema), freshTable.schemas());
     assertThat(freshTable.schema().asStruct()).isEqualTo(schema.asStruct());
@@ -1496,8 +1319,9 @@ public class TestTableMetadata {
     assertThat(threeSchemaTable.lastColumnId()).isEqualTo(6);
   }
 
-  @Test
-  public void testCreateV2MetadataThroughTableProperty() {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testCreateMetadataThroughTableProperty(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
@@ -1505,9 +1329,10 @@ public class TestTableMetadata {
             schema,
             PartitionSpec.unpartitioned(),
             null,
-            ImmutableMap.of(TableProperties.FORMAT_VERSION, "2", "key", "val"));
+            ImmutableMap.of(
+                TableProperties.FORMAT_VERSION, String.valueOf(formatVersion), "key", "val"));
 
-    assertThat(meta.formatVersion()).isEqualTo(2);
+    assertThat(meta.formatVersion()).isEqualTo(formatVersion);
     assertThat(meta.properties())
         .containsEntry("key", "val")
         .doesNotContainKey(TableProperties.FORMAT_VERSION);
@@ -1579,9 +1404,14 @@ public class TestTableMetadata {
         .containsExactly(entry("key2", "val2"));
   }
 
-  @Test
-  public void testParseStatisticsFiles() throws Exception {
-    String data = readTableMetadataInputFile("TableMetadataStatisticsFiles.json");
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testParseStatisticsFiles(int formatVersion) throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    String data =
+        readTableMetadataInputFile(
+            String.format("TableMetadataV%sStatisticsFiles.json", formatVersion));
     TableMetadata parsed = TableMetadataParser.fromJson(data);
     assertThat(parsed.statisticsFiles()).hasSize(1);
     assertThat(parsed.statisticsFiles())
@@ -1598,9 +1428,14 @@ public class TestTableMetadata {
                         "ndv", 3055729675574597004L, 1, ImmutableList.of(1), ImmutableMap.of()))));
   }
 
-  @Test
-  public void testParsePartitionStatisticsFiles() throws Exception {
-    String data = readTableMetadataInputFile("TableMetadataPartitionStatisticsFiles.json");
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testParsePartitionStatisticsFiles(int formatVersion) throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    String data =
+        readTableMetadataInputFile(
+            String.format("TableMetadataV%sPartitionStatisticsFiles.json", formatVersion));
     TableMetadata parsed = TableMetadataParser.fromJson(data);
     assertThat(parsed.partitionStatisticsFiles())
         .hasSize(1)
@@ -1613,8 +1448,9 @@ public class TestTableMetadata {
                 .build());
   }
 
-  @Test
-  public void testNoReservedPropertyForTableMetadataCreation() {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testNoReservedPropertyForTableMetadataCreation(int formatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     assertThatThrownBy(
@@ -1624,11 +1460,13 @@ public class TestTableMetadata {
                     PartitionSpec.unpartitioned(),
                     null,
                     "/tmp",
-                    ImmutableMap.of(TableProperties.FORMAT_VERSION, "1"),
-                    1))
+                    ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+                    formatVersion))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Table properties should not contain reserved properties, but got {format-version=1}");
+            String.format(
+                "Table properties should not contain reserved properties, but got {format-version=%s}",
+                formatVersion));
 
     assertThatThrownBy(
             () ->
@@ -1638,42 +1476,37 @@ public class TestTableMetadata {
                     null,
                     "/tmp",
                     ImmutableMap.of(TableProperties.UUID, "uuid"),
-                    1))
+                    formatVersion))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Table properties should not contain reserved properties, but got {uuid=uuid}");
   }
 
-  @Test
-  public void testNoTrailingLocationSlash() {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void testNoTrailingLocationSlash(int formatVersion) {
     String locationWithSlash = "/with_trailing_slash/";
     String locationWithoutSlash = "/with_trailing_slash";
     TableMetadata meta =
         TableMetadata.newTableMetadata(
-            TEST_SCHEMA, SPEC_5, SORT_ORDER_3, locationWithSlash, Collections.emptyMap());
+            TEST_SCHEMA,
+            SPEC_5,
+            SORT_ORDER_3,
+            locationWithSlash,
+            Collections.emptyMap(),
+            formatVersion);
     assertThat(meta.location())
         .as("Metadata should never return a location ending in a slash")
         .isEqualTo(locationWithoutSlash);
   }
 
-  private String createManifestListWithManifestFile(
-      long snapshotId, Long parentSnapshotId, String manifestFile) throws IOException {
-    File manifestList = File.createTempFile("manifests", null, temp.toFile());
-    manifestList.deleteOnExit();
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void buildReplacementKeepsSnapshotLog(int formatVersion) throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
 
-    try (ManifestListWriter writer =
-        ManifestLists.write(1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0)) {
-      writer.addAll(
-          ImmutableList.of(
-              new GenericManifestFile(localInput(manifestFile), SPEC_5.specId(), snapshotId)));
-    }
-
-    return localInput(manifestList).location();
-  }
-
-  @Test
-  public void buildReplacementKeepsSnapshotLog() throws Exception {
     TableMetadata metadata =
-        TableMetadataParser.fromJson(readTableMetadataInputFile("TableMetadataV2Valid.json"));
+        TableMetadataParser.fromJson(
+            readTableMetadataInputFile(String.format("TableMetadataV%sValid.json", formatVersion)));
     assertThat(metadata.currentSnapshot()).isNotNull();
     assertThat(metadata.snapshots()).hasSize(2);
     assertThat(metadata.snapshotLog()).hasSize(2);
@@ -1711,22 +1544,12 @@ public class TestTableMetadata {
         .containsExactlyElementsOf(metadata.snapshotLog());
   }
 
-  @Test
-  public void testConstructV3Metadata() {
-    TableMetadata.newTableMetadata(
-        TEST_SCHEMA,
-        PartitionSpec.unpartitioned(),
-        SortOrder.unsorted(),
-        TEST_LOCATION,
-        ImmutableMap.of(),
-        3);
-  }
-
-  @Test
-  public void onlyMetadataLocationIsUpdatedWithoutTimestampAndMetadataLogEntry() {
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void onlyMetadataLocationIsUpdatedWithoutTimestampAndMetadataLogEntry(int formatVersion) {
     String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
     TableMetadata metadata =
-        TableMetadata.buildFromEmpty()
+        TableMetadata.buildFromEmpty(formatVersion)
             .assignUUID(uuid)
             .setLocation("location")
             .setCurrentSchema(TEST_SCHEMA, 3)
