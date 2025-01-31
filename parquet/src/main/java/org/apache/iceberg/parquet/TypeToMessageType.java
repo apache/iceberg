@@ -122,9 +122,12 @@ public class TypeToMessageType {
 
   public Type variant(Type.Repetition repetition, int id, String originalName) {
     String name = AvroSchemaUtil.makeCompatibleName(originalName);
-    return Types.buildGroup(repetition).id(id)
-        .required(BINARY).named("metadata")
-        .required(BINARY).named("value")
+    return Types.buildGroup(repetition)
+        .id(id)
+        .required(BINARY)
+        .named("metadata")
+        .required(BINARY)
+        .named("value")
         .named(name);
   }
 
