@@ -34,4 +34,20 @@ public interface VariantMetadata extends Variants.Serialized {
 
   /** Returns the size of the metadata dictionary. */
   int dictionarySize();
+
+  static String asString(VariantMetadata metadata) {
+    StringBuilder builder = new StringBuilder();
+
+    builder.append("VariantMetadata(dict={");
+    for (int i = 0; i < metadata.dictionarySize(); i += 1) {
+      if (i > 0) {
+        builder.append(", ");
+      }
+
+      builder.append(i).append(" => ").append(metadata.get(i));
+    }
+    builder.append("})");
+
+    return builder.toString();
+  }
 }

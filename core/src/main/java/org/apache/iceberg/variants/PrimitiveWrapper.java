@@ -210,4 +210,9 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
 
     throw new UnsupportedOperationException("Unsupported primitive type: " + type());
   }
+
+  @Override
+  public String toString() {
+    return VariantPrimitive.asString(this);
+  }
 }
