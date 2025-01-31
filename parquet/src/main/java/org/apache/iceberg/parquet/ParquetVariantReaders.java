@@ -127,7 +127,7 @@ public class ParquetVariantReaders {
   }
 
   private static class VariantMetadataReader extends PrimitiveReader<VariantMetadata> {
-    public VariantMetadataReader(ColumnDescriptor desc) {
+    private VariantMetadataReader(ColumnDescriptor desc) {
       super(desc);
     }
 
@@ -139,7 +139,7 @@ public class ParquetVariantReaders {
 
   private static class SerializedVariantReader extends PrimitiveReader<VariantValue>
       implements VariantValueReader {
-    public SerializedVariantReader(ColumnDescriptor desc) {
+    private SerializedVariantReader(ColumnDescriptor desc) {
       super(desc);
     }
 
@@ -178,7 +178,7 @@ public class ParquetVariantReaders {
     private final TripleIterator<?> column;
     private final List<TripleIterator<?>> children;
 
-    public ShreddedVariantReader(
+    private ShreddedVariantReader(
         int valueDL, VariantValueReader valueReader, int typedDL, VariantValueReader typedReader) {
       this.valueDL = valueDL;
       this.valueReader = valueReader;
@@ -238,7 +238,7 @@ public class ParquetVariantReaders {
     private final TripleIterator<?> fieldColumn;
     private final List<TripleIterator<?>> children;
 
-    public ShreddedObjectReader(
+    private ShreddedObjectReader(
         int valueDL,
         VariantValueReader valueReader,
         int fieldsDL,
@@ -323,7 +323,7 @@ public class ParquetVariantReaders {
     private final TripleIterator<?> column;
     private final List<TripleIterator<?>> children;
 
-    public VariantReader(
+    private VariantReader(
         ParquetValueReader<VariantMetadata> metadataReader, VariantValueReader valueReader) {
       this.metadataReader = metadataReader;
       this.valueReader = valueReader;
