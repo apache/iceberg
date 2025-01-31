@@ -42,6 +42,7 @@ public class TestContext {
 
   public static final ObjectMapper MAPPER = new ObjectMapper();
   public static final int CONNECT_PORT = 8083;
+  public static final String CONTROL_TOPIC_BOOTSTRAP_SERVERS = "kafka:9092";
 
   private static final int MINIO_PORT = 9000;
   private static final int CATALOG_PORT = 8181;

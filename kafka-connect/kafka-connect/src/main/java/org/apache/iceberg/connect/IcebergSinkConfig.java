@@ -18,19 +18,14 @@
  */
 package org.apache.iceberg.connect;
 
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -43,12 +38,8 @@ import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.json.JsonConverterConfig;
 import org.apache.kafka.connect.storage.ConverterConfig;
 import org.apache.kafka.connect.storage.ConverterType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class IcebergSinkConfig extends AbstractConfig {
-
-  private static final Logger LOG = LoggerFactory.getLogger(IcebergSinkConfig.class.getName());
 
   public static final String INTERNAL_TRANSACTIONAL_SUFFIX_PROP =
       "iceberg.coordinator.transactional.suffix";
@@ -92,7 +83,6 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String HADOOP_CONF_DIR_PROP = "iceberg.hadoop-conf-dir";
 
   private static final String NAME_PROP = "name";
-  private static final String BOOTSTRAP_SERVERS_PROP = "bootstrap.servers";
 
   private static final String DEFAULT_CATALOG_NAME = "iceberg";
   private static final String DEFAULT_CONTROL_TOPIC = "control-iceberg";
@@ -244,8 +234,7 @@ public class IcebergSinkConfig extends AbstractConfig {
     this.catalogProps = PropertyUtil.propertiesWithPrefix(originalProps, CATALOG_PROP_PREFIX);
     this.hadoopProps = PropertyUtil.propertiesWithPrefix(originalProps, HADOOP_PROP_PREFIX);
 
-    this.kafkaProps = Maps.newHashMap(loadWorkerProps());
-    kafkaProps.putAll(PropertyUtil.propertiesWithPrefix(originalProps, KAFKA_PROP_PREFIX));
+    this.kafkaProps = PropertyUtil.propertiesWithPrefix(originalProps, KAFKA_PROP_PREFIX);
 
     this.autoCreateProps =
         PropertyUtil.propertiesWithPrefix(originalProps, AUTO_CREATE_PROP_PREFIX);
@@ -438,40 +427,5 @@ public class IcebergSinkConfig extends AbstractConfig {
   static boolean checkClassName(String className) {
     return (className.matches(".*\\.ConnectDistributed.*")
         || className.matches(".*\\.ConnectStandalone.*"));
-  }
-
-  /**
-   * This method attempts to load the Kafka Connect worker properties, which are not exposed to
-   * connectors. It does this by parsing the Java command used to launch the worker, extracting the
-   * name of the properties file, and then loading the file. <br>
-   * The sink uses these properties, if available, when initializing its internal Kafka clients. By
-   * doing this, Kafka-related properties only need to be set in the worker properties and do not
-   * need to be duplicated in the sink config. <br>
-   * If the worker properties cannot be loaded, then Kafka-related properties must be set via the
-   * `iceberg.kafka.*` sink configs.
-   *
-   * @return The Kafka Connect worker properties
-   */
-  private Map<String, String> loadWorkerProps() {
-    String javaCmd = System.getProperty("sun.java.command");
-    if (javaCmd != null && !javaCmd.isEmpty()) {
-      List<String> args = Splitter.on(' ').splitToList(javaCmd);
-      if (args.size() > 1 && checkClassName(args.get(0))) {
-        Properties result = new Properties();
-        try (InputStream in = Files.newInputStream(Paths.get(args.get(1)))) {
-          result.load(in);
-          // sanity check that this is the config we want
-          if (result.containsKey(BOOTSTRAP_SERVERS_PROP)) {
-            return Maps.fromProperties(result);
-          }
-        } catch (Exception e) {
-          // NO-OP
-        }
-      }
-    }
-    LOG.info(
-        "Worker properties not loaded, using only {}* properties for Kafka clients",
-        KAFKA_PROP_PREFIX);
-    return ImmutableMap.of();
   }
 }
