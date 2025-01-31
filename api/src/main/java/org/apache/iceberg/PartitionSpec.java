@@ -638,7 +638,7 @@ public class PartitionSpec implements Serializable {
       // https://iceberg.apache.org/spec/#partition-transforms
       // We don't care about the source type since a VoidTransform is always compatible and skip the
       // checks
-      if (!transform.equals(Transforms.alwaysNull())) {
+      if (sourceType != null && !transform.equals(Transforms.alwaysNull())) {
         ValidationException.check(
             sourceType.isPrimitiveType(),
             "Cannot partition by non-primitive source field: %s",
