@@ -70,7 +70,8 @@ import org.apache.spark.unsafe.types.UTF8String;
 public class SparkV2Filters {
 
   public static final Set<String> SUPPORTED_FUNCTIONS =
-      ImmutableSet.of("years", "months", "days", "hours", "bucket", "truncate");
+      ImmutableSet.of(
+          "year", "years", "month", "months", "day", "days", "hour", "hours", "bucket", "truncate");
 
   private static final String TRUE = "ALWAYS_TRUE";
   private static final String FALSE = "ALWAYS_FALSE";
@@ -455,12 +456,16 @@ public class SparkV2Filters {
       if (isRef(child)) {
         String column = SparkUtil.toColumnName((NamedReference) child);
         switch (udfName) {
+          case "year":
           case "years":
             return year(column);
+          case "month":
           case "months":
             return month(column);
+          case "day":
           case "days":
             return day(column);
+          case "hour":
           case "hours":
             return hour(column);
         }
