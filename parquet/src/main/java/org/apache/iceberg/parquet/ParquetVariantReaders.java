@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.stream.Streams;
+import org.apache.iceberg.parquet.ParquetValueReaders.PrimitiveReader;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.variants.ShreddedObject;
@@ -34,7 +36,6 @@ import org.apache.iceberg.variants.VariantObject;
 import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
 import org.apache.iceberg.variants.Variants.PhysicalType;
-import org.apache.parquet.Preconditions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.PageReadStore;
 
@@ -125,8 +126,7 @@ public class ParquetVariantReaders {
     return ByteBuffer.wrap(array).order(ByteOrder.LITTLE_ENDIAN);
   }
 
-  private static class VariantMetadataReader
-      extends ParquetValueReaders.PrimitiveReader<VariantMetadata> {
+  private static class VariantMetadataReader extends PrimitiveReader<VariantMetadata> {
     public VariantMetadataReader(ColumnDescriptor desc) {
       super(desc);
     }
@@ -137,8 +137,8 @@ public class ParquetVariantReaders {
     }
   }
 
-  private static class SerializedVariantReader
-      extends ParquetValueReaders.PrimitiveReader<VariantValue> implements VariantValueReader {
+  private static class SerializedVariantReader extends PrimitiveReader<VariantValue>
+      implements VariantValueReader {
     public SerializedVariantReader(ColumnDescriptor desc) {
       super(desc);
     }
