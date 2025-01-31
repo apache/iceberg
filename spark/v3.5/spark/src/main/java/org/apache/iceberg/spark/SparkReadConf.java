@@ -355,4 +355,14 @@ public class SparkReadConf {
         .defaultValue(SparkSQLProperties.REPORT_COLUMN_STATS_DEFAULT)
         .parse();
   }
+
+  public boolean deriveStatsFromManifestOnFly() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.DERIVE_STATS_FROM_MANIFEST_ENABLED)
+        .option(SparkReadOptions.DERIVE_STATS_FROM_MANIFEST_ENABLED)
+        .tableProperty(TableProperties.SPARK_DERIVE_STATS_FROM_MANIFEST_ENABLED)
+        .defaultValue(TableProperties.SPARK_DERIVE_STATS_FROM_MANIFEST_ENABLED_DEFAULT)
+        .parse();
+  }
 }
