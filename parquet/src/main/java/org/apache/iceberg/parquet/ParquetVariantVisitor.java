@@ -19,8 +19,8 @@
 package org.apache.iceberg.parquet;
 
 import java.util.List;
-import org.apache.commons.compress.utils.Lists;
-import org.apache.parquet.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation.ListLogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
