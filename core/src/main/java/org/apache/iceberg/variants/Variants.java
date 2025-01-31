@@ -52,6 +52,10 @@ public class Variants {
     ARRAY
   }
 
+  public static VariantMetadata emptyMetadata() {
+    return SerializedMetadata.EMPTY_V1_METADATA;
+  }
+
   public static VariantMetadata metadata(ByteBuffer metadata) {
     return SerializedMetadata.from(metadata);
   }
@@ -89,59 +93,59 @@ public class Variants {
     return new PrimitiveWrapper<>(PhysicalType.NULL, null);
   }
 
-  static VariantPrimitive<Boolean> of(boolean value) {
+  public static VariantPrimitive<Boolean> of(boolean value) {
     return new PrimitiveWrapper<>(PhysicalType.BOOLEAN_TRUE, value);
   }
 
-  static VariantPrimitive<Byte> of(byte value) {
+  public static VariantPrimitive<Byte> of(byte value) {
     return new PrimitiveWrapper<>(PhysicalType.INT8, value);
   }
 
-  static VariantPrimitive<Short> of(short value) {
+  public static VariantPrimitive<Short> of(short value) {
     return new PrimitiveWrapper<>(PhysicalType.INT16, value);
   }
 
-  static VariantPrimitive<Integer> of(int value) {
+  public static VariantPrimitive<Integer> of(int value) {
     return new PrimitiveWrapper<>(PhysicalType.INT32, value);
   }
 
-  static VariantPrimitive<Long> of(long value) {
+  public static VariantPrimitive<Long> of(long value) {
     return new PrimitiveWrapper<>(PhysicalType.INT64, value);
   }
 
-  static VariantPrimitive<Float> of(float value) {
+  public static VariantPrimitive<Float> of(float value) {
     return new PrimitiveWrapper<>(PhysicalType.FLOAT, value);
   }
 
-  static VariantPrimitive<Double> of(double value) {
+  public static VariantPrimitive<Double> of(double value) {
     return new PrimitiveWrapper<>(PhysicalType.DOUBLE, value);
   }
 
-  static VariantPrimitive<Integer> ofDate(int value) {
+  public static VariantPrimitive<Integer> ofDate(int value) {
     return new PrimitiveWrapper<>(PhysicalType.DATE, value);
   }
 
-  static VariantPrimitive<Integer> ofIsoDate(String value) {
+  public static VariantPrimitive<Integer> ofIsoDate(String value) {
     return ofDate(DateTimeUtil.isoDateToDays(value));
   }
 
-  static VariantPrimitive<Long> ofTimestamptz(long value) {
+  public static VariantPrimitive<Long> ofTimestamptz(long value) {
     return new PrimitiveWrapper<>(PhysicalType.TIMESTAMPTZ, value);
   }
 
-  static VariantPrimitive<Long> ofIsoTimestamptz(String value) {
+  public static VariantPrimitive<Long> ofIsoTimestamptz(String value) {
     return ofTimestamptz(DateTimeUtil.isoTimestamptzToMicros(value));
   }
 
-  static VariantPrimitive<Long> ofTimestampntz(long value) {
+  public static VariantPrimitive<Long> ofTimestampntz(long value) {
     return new PrimitiveWrapper<>(PhysicalType.TIMESTAMPNTZ, value);
   }
 
-  static VariantPrimitive<Long> ofIsoTimestampntz(String value) {
+  public static VariantPrimitive<Long> ofIsoTimestampntz(String value) {
     return ofTimestampntz(DateTimeUtil.isoTimestampToMicros(value));
   }
 
-  static VariantPrimitive<BigDecimal> of(BigDecimal value) {
+  public static VariantPrimitive<BigDecimal> of(BigDecimal value) {
     int bitLength = value.unscaledValue().bitLength();
     if (bitLength < 32) {
       return new PrimitiveWrapper<>(PhysicalType.DECIMAL4, value);
@@ -154,11 +158,11 @@ public class Variants {
     throw new UnsupportedOperationException("Unsupported decimal precision: " + value.precision());
   }
 
-  static VariantPrimitive<ByteBuffer> of(ByteBuffer value) {
+  public static VariantPrimitive<ByteBuffer> of(ByteBuffer value) {
     return new PrimitiveWrapper<>(PhysicalType.BINARY, value);
   }
 
-  static VariantPrimitive<String> of(String value) {
+  public static VariantPrimitive<String> of(String value) {
     return new PrimitiveWrapper<>(PhysicalType.STRING, value);
   }
 }
