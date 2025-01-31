@@ -74,7 +74,7 @@ public class TestPrimitiveWrapper {
     readBuffer.limit(300 + size);
 
     // read and validate the serialized bytes
-    VariantValue actual = Variants.from(SerializedMetadata.EMPTY_V1_BUFFER, readBuffer);
+    VariantValue actual = Variants.value(SerializedMetadata.EMPTY_V1_METADATA, readBuffer);
     assertThat(actual.type()).isEqualTo(primitive.type());
     assertThat(actual).isInstanceOf(VariantPrimitive.class);
     assertThat(actual.asPrimitive().get()).isEqualTo(primitive.get());

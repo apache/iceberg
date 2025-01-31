@@ -38,4 +38,23 @@ public class TableUtil {
           String.format("%s does not have a format version", table.getClass().getSimpleName()));
     }
   }
+
+  /** Returns the metadata file location of the given table */
+  public static String metadataFileLocation(Table table) {
+    Preconditions.checkArgument(null != table, "Invalid table: null");
+
+    if (table instanceof SerializableTable) {
+      SerializableTable serializableTable = (SerializableTable) table;
+      return serializableTable.metadataFileLocation();
+    } else if (table instanceof HasTableOperations) {
+      HasTableOperations ops = (HasTableOperations) table;
+      return ops.operations().current().metadataFileLocation();
+    } else if (table instanceof BaseMetadataTable) {
+      return ((BaseMetadataTable) table).table().operations().current().metadataFileLocation();
+    } else {
+      throw new IllegalArgumentException(
+          String.format(
+              "%s does not have a metadata file location", table.getClass().getSimpleName()));
+    }
+  }
 }

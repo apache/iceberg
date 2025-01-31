@@ -29,4 +29,15 @@ public class TestEnvironmentContext {
     assertThat(EnvironmentContext.get().get("iceberg-version"))
         .isEqualTo(IcebergBuild.fullVersion());
   }
+
+  @Test
+  public void testPutAndRemove() {
+    EnvironmentContext.put("test-key", "test-value");
+    assertThat(EnvironmentContext.get()).containsEntry("test-key", "test-value");
+
+    assertThat(EnvironmentContext.remove("test-key")).isEqualTo("test-value");
+    assertThat(EnvironmentContext.get()).doesNotContainKey("test-key");
+
+    assertThat(EnvironmentContext.remove("test-key")).isNull();
+  }
 }

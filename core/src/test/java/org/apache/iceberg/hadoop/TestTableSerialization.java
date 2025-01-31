@@ -49,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestTableSerialization extends HadoopTableTestBase {
@@ -69,6 +70,8 @@ public class TestTableSerialization extends HadoopTableTestBase {
     assertThat(((HasTableOperations) serializableTable).operations())
         .isInstanceOf(StaticTableOperations.class);
     assertThat(TableUtil.formatVersion(serializableTable)).isEqualTo(2);
+    assertThat(TableUtil.metadataFileLocation(serializableTable))
+        .isEqualTo(TableUtil.metadataFileLocation(table));
   }
 
   @Test
@@ -96,22 +99,24 @@ public class TestTableSerialization extends HadoopTableTestBase {
     TestHelpers.assertSerializedMetadata(txn.table(), TestHelpers.roundTripSerialize(txn.table()));
   }
 
-  @Test
-  public void testSerializableMetadataTable() throws IOException, ClassNotFoundException {
-    for (MetadataTableType type : MetadataTableType.values()) {
-      Table metadataTable = getMetaDataTable(table, type);
-      TestHelpers.assertSerializedAndLoadedMetadata(
-          metadataTable, TestHelpers.roundTripSerialize(metadataTable));
-      Table serializableTable = SerializableTable.copyOf(metadataTable);
-      TestHelpers.assertSerializedAndLoadedMetadata(
-          serializableTable, TestHelpers.KryoHelpers.roundTripSerialize(serializableTable));
-      assertThatThrownBy(() -> ((HasTableOperations) serializableTable).operations())
-          .isInstanceOf(UnsupportedOperationException.class)
-          .hasMessageEndingWith("does not support operations()");
-      assertThatThrownBy(() -> TableUtil.formatVersion(serializableTable))
-          .isInstanceOf(UnsupportedOperationException.class)
-          .hasMessageEndingWith("does not have a format version");
-    }
+  @ParameterizedTest
+  @EnumSource(MetadataTableType.class)
+  public void testSerializableMetadataTable(MetadataTableType type)
+      throws IOException, ClassNotFoundException {
+    Table metadataTable = getMetaDataTable(table, type);
+    TestHelpers.assertSerializedAndLoadedMetadata(
+        metadataTable, TestHelpers.roundTripSerialize(metadataTable));
+    Table serializableTable = SerializableTable.copyOf(metadataTable);
+    TestHelpers.assertSerializedAndLoadedMetadata(
+        serializableTable, TestHelpers.KryoHelpers.roundTripSerialize(serializableTable));
+    assertThatThrownBy(() -> ((HasTableOperations) serializableTable).operations())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageEndingWith("does not support operations()");
+    assertThatThrownBy(() -> TableUtil.formatVersion(serializableTable))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageEndingWith("does not have a format version");
+    assertThat(TableUtil.metadataFileLocation(serializableTable))
+        .isEqualTo(TableUtil.metadataFileLocation(table));
   }
 
   @Test

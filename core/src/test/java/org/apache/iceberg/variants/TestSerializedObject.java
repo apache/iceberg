@@ -35,8 +35,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestSerializedObject {
-  private static final SerializedMetadata EMPTY_METADATA =
-      SerializedMetadata.from(SerializedMetadata.EMPTY_V1_BUFFER);
+  private static final VariantMetadata EMPTY_METADATA = SerializedMetadata.EMPTY_V1_METADATA;
   private static final SerializedPrimitive I1 = SerializedPrimitive.from(new byte[] {0b1100, 1});
   private static final SerializedPrimitive I2 = SerializedPrimitive.from(new byte[] {0b1100, 2});
   private static final SerializedPrimitive I3 = SerializedPrimitive.from(new byte[] {0b1100, 3});
@@ -70,7 +69,7 @@ public class TestSerializedObject {
     SerializedObject object = SerializedObject.from(EMPTY_METADATA, new byte[] {0b10, 0x00});
 
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(object.numElements()).isEqualTo(0);
+    assertThat(object.numFields()).isEqualTo(0);
   }
 
   @Test
@@ -79,7 +78,7 @@ public class TestSerializedObject {
         SerializedObject.from(EMPTY_METADATA, new byte[] {0b1000010, 0x00, 0x00, 0x00, 0x00});
 
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(object.numElements()).isEqualTo(0);
+    assertThat(object.numFields()).isEqualTo(0);
   }
 
   @Test
@@ -88,11 +87,11 @@ public class TestSerializedObject {
     ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), true /* sort names */);
     ByteBuffer value = VariantTestUtil.createObject(meta, data);
 
-    SerializedMetadata metadata = SerializedMetadata.from(meta);
+    VariantMetadata metadata = Variants.metadata(meta);
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(object.numElements()).isEqualTo(3);
+    assertThat(object.numFields()).isEqualTo(3);
 
     assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
     assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
@@ -109,11 +108,11 @@ public class TestSerializedObject {
     ByteBuffer meta =
         VariantTestUtil.createMetadata(Sets.newHashSet("a", "b", "c"), true /* sort names */);
 
-    SerializedMetadata metadata = SerializedMetadata.from(meta);
+    VariantMetadata metadata = Variants.metadata(meta);
     SerializedObject object = SerializedObject.from(metadata, UNSORTED_VALUES);
 
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(object.numElements()).isEqualTo(3);
+    assertThat(object.numFields()).isEqualTo(3);
 
     assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
     assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
@@ -131,11 +130,11 @@ public class TestSerializedObject {
     ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), false /* sort names */);
     ByteBuffer value = VariantTestUtil.createObject(meta, data);
 
-    SerializedMetadata metadata = SerializedMetadata.from(meta);
+    VariantMetadata metadata = Variants.metadata(meta);
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(object.numElements()).isEqualTo(3);
+    assertThat(object.numFields()).isEqualTo(3);
 
     assertThat(object.get("d")).isEqualTo(null);
 
@@ -152,7 +151,7 @@ public class TestSerializedObject {
     ByteBuffer meta =
         VariantTestUtil.createMetadata(
             ImmutableList.of("a", "b", "c", "d", "e", "f"), true /* sort names */);
-    SerializedMetadata metadata = SerializedMetadata.from(meta);
+    VariantMetadata metadata = Variants.metadata(meta);
 
     Map<String, VariantValue> inner = ImmutableMap.of("b", I2, "f", I3);
     ByteBuffer innerBuffer = VariantTestUtil.createObject(meta, inner);
@@ -164,7 +163,7 @@ public class TestSerializedObject {
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(object.numElements()).isEqualTo(5);
+    assertThat(object.numFields()).isEqualTo(5);
 
     assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
     assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
@@ -177,7 +176,7 @@ public class TestSerializedObject {
 
     assertThat(object.get("e").type()).isEqualTo(PhysicalType.OBJECT);
     SerializedObject actualInner = (SerializedObject) object.get("e").asObject();
-    assertThat(actualInner.numElements()).isEqualTo(2);
+    assertThat(actualInner.numFields()).isEqualTo(2);
     assertThat(actualInner.get("b").type()).isEqualTo(PhysicalType.INT8);
     assertThat(actualInner.get("b").asPrimitive().get()).isEqualTo((byte) 2);
     assertThat(actualInner.get("f").type()).isEqualTo(PhysicalType.INT8);
@@ -195,11 +194,11 @@ public class TestSerializedObject {
     ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), true /* sort names */);
     ByteBuffer value = VariantTestUtil.createObject(meta, data);
 
-    SerializedMetadata metadata = SerializedMetadata.from(meta);
+    VariantMetadata metadata = Variants.metadata(meta);
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(object.numElements()).isEqualTo(4);
+    assertThat(object.numFields()).isEqualTo(4);
 
     assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
     assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
@@ -223,11 +222,11 @@ public class TestSerializedObject {
     ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), true /* sort names */);
     ByteBuffer value = VariantTestUtil.createObject(meta, data);
 
-    SerializedMetadata metadata = SerializedMetadata.from(meta);
+    VariantMetadata metadata = Variants.metadata(meta);
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(object.numElements()).isEqualTo(4);
+    assertThat(object.numFields()).isEqualTo(4);
 
     assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT8);
     assertThat(object.get("a").asPrimitive().get()).isEqualTo((byte) 1);
@@ -253,11 +252,11 @@ public class TestSerializedObject {
     ByteBuffer meta = VariantTestUtil.createMetadata(fields.keySet(), sortFieldNames);
     ByteBuffer value = VariantTestUtil.createObject(meta, (Map) fields);
 
-    SerializedMetadata metadata = SerializedMetadata.from(meta);
+    VariantMetadata metadata = Variants.metadata(meta);
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
     assertThat(object.type()).isEqualTo(Variants.PhysicalType.OBJECT);
-    assertThat(object.numElements()).isEqualTo(10_000);
+    assertThat(object.numFields()).isEqualTo(10_000);
 
     for (Map.Entry<String, VariantPrimitive<String>> entry : fields.entrySet()) {
       VariantValue fieldValue = object.get(entry.getKey());
@@ -281,11 +280,11 @@ public class TestSerializedObject {
     ByteBuffer meta = VariantTestUtil.createMetadata(keySet, sortFieldNames);
     ByteBuffer value = VariantTestUtil.createObject(meta, data);
 
-    SerializedMetadata metadata = SerializedMetadata.from(meta);
+    VariantMetadata metadata = Variants.metadata(meta);
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(object.numElements()).isEqualTo(3);
+    assertThat(object.numFields()).isEqualTo(3);
 
     assertThat(object.get("aa").type()).isEqualTo(PhysicalType.INT8);
     assertThat(object.get("aa").asPrimitive().get()).isEqualTo((byte) 1);
@@ -310,11 +309,11 @@ public class TestSerializedObject {
     ByteBuffer meta = VariantTestUtil.createMetadata(keySet, sortFieldNames);
     ByteBuffer value = VariantTestUtil.createObject(meta, data);
 
-    SerializedMetadata metadata = SerializedMetadata.from(meta);
+    VariantMetadata metadata = Variants.metadata(meta);
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
     assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
-    assertThat(object.numElements()).isEqualTo(3);
+    assertThat(object.numFields()).isEqualTo(3);
 
     assertThat(object.get("aa").type()).isEqualTo(PhysicalType.INT8);
     assertThat(object.get("aa").asPrimitive().get()).isEqualTo((byte) 1);

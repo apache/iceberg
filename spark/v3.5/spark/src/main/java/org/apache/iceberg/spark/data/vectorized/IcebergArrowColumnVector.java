@@ -39,17 +39,11 @@ public class IcebergArrowColumnVector extends ColumnVector {
 
   private final ArrowVectorAccessor<Decimal, UTF8String, ColumnarArray, ArrowColumnVector> accessor;
   private final NullabilityHolder nullabilityHolder;
-  private final VectorHolder holder;
 
   public IcebergArrowColumnVector(VectorHolder holder) {
     super(SparkSchemaUtil.convert(holder.icebergType()));
     this.nullabilityHolder = holder.nullabilityHolder();
     this.accessor = ArrowVectorAccessors.getVectorAccessor(holder);
-    this.holder = holder;
-  }
-
-  public VectorHolder vector() {
-    return holder;
   }
 
   protected ArrowVectorAccessor<Decimal, UTF8String, ColumnarArray, ArrowColumnVector> accessor() {

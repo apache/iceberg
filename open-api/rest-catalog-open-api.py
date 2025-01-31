@@ -1028,7 +1028,11 @@ class Term(BaseModel):
 
 class SetStatisticsUpdate(BaseUpdate):
     action: str = Field('set-statistics', const=True)
-    snapshot_id: int = Field(..., alias='snapshot-id')
+    snapshot_id: Optional[int] = Field(
+        None,
+        alias='snapshot-id',
+        description='This optional field is **DEPRECATED for REMOVAL** since it contains redundant information. Clients should use the `statistics.snapshot-id` field instead.',
+    )
     statistics: StatisticsFile
 
 
@@ -1056,6 +1060,8 @@ class StructField(BaseModel):
     type: Type
     required: bool
     doc: Optional[str] = None
+    initial_default: Optional[PrimitiveTypeValue] = Field(None, alias='initial-default')
+    write_default: Optional[PrimitiveTypeValue] = Field(None, alias='write-default')
 
 
 class StructType(BaseModel):

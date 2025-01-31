@@ -26,9 +26,7 @@ import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> {
@@ -53,8 +51,7 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
   @SuppressWarnings("unchecked")
   protected ParquetValueReader<T> createStructReader(
       List<Type> types, List<ParquetValueReader<?>> fieldReaders, StructType structType) {
-    return (ParquetValueReader<T>)
-        ParquetValueReaders.recordReader(types, fieldReaders, structType);
+    return (ParquetValueReader<T>) ParquetValueReaders.recordReader(fieldReaders, structType);
   }
 
   @Override
@@ -68,26 +65,12 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
   }
 
   @Override
-  protected ParquetValueReader<?> timeReader(
-      ColumnDescriptor desc, LogicalTypeAnnotation.TimeUnit unit) {
-    if (unit == LogicalTypeAnnotation.TimeUnit.MILLIS) {
-      return ParquetValueReaders.millisAsTimes(desc);
-    }
-
-    return new ParquetValueReaders.UnboxedReader<>(desc);
+  protected ParquetValueReader<?> timeReader(ColumnDescriptor desc) {
+    return ParquetValueReaders.times(desc);
   }
 
   @Override
-  protected ParquetValueReader<?> timestampReader(
-      ColumnDescriptor desc, LogicalTypeAnnotation.TimeUnit unit, boolean isAdjustedToUTC) {
-    if (desc.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
-      return ParquetValueReaders.int96Timestamps(desc);
-    }
-
-    if (unit == LogicalTypeAnnotation.TimeUnit.MILLIS) {
-      return ParquetValueReaders.millisAsTimestamps(desc);
-    }
-
-    return new ParquetValueReaders.UnboxedReader<>(desc);
+  protected ParquetValueReader<?> timestampReader(ColumnDescriptor desc, boolean isAdjustedToUTC) {
+    return ParquetValueReaders.timestamps(desc);
   }
 }
