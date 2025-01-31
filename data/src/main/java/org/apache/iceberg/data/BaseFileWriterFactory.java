@@ -21,6 +21,7 @@ package org.apache.iceberg.data;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
+import org.apache.iceberg.DataFileWriterServiceRegistry;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
@@ -42,6 +43,7 @@ import org.apache.iceberg.parquet.Parquet;
 public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
   private final Table table;
   private final FileFormat dataFileFormat;
+  private final Class<?> inputType;
   private final Schema dataSchema;
   private final SortOrder dataSortOrder;
   private final FileFormat deleteFileFormat;
@@ -53,6 +55,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
   protected BaseFileWriterFactory(
       Table table,
       FileFormat dataFileFormat,
+      Class<?> inputType,
       Schema dataSchema,
       SortOrder dataSortOrder,
       FileFormat deleteFileFormat,
@@ -62,6 +65,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
       Schema positionDeleteRowSchema) {
     this.table = table;
     this.dataFileFormat = dataFileFormat;
+    this.inputType = inputType;
     this.dataSchema = dataSchema;
     this.dataSortOrder = dataSortOrder;
     this.deleteFileFormat = deleteFileFormat;
@@ -97,10 +101,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
-      switch (dataFileFormat) {
-        case AVRO:
-          Avro.DataWriteBuilder avroBuilder =
-              Avro.writeData(file)
+      return DataFileWriterServiceRegistry.dataWriterBuilder(dataFileFormat, inputType, file)
                   .schema(dataSchema)
                   .setAll(properties)
                   .metricsConfig(metricsConfig)
@@ -108,48 +109,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
                   .withPartition(partition)
                   .withKeyMetadata(keyMetadata)
                   .withSortOrder(dataSortOrder)
-                  .overwrite();
-
-          configureDataWrite(avroBuilder);
-
-          return avroBuilder.build();
-
-        case PARQUET:
-          Parquet.DataWriteBuilder parquetBuilder =
-              Parquet.writeData(file)
-                  .schema(dataSchema)
-                  .setAll(properties)
-                  .metricsConfig(metricsConfig)
-                  .withSpec(spec)
-                  .withPartition(partition)
-                  .withKeyMetadata(keyMetadata)
-                  .withSortOrder(dataSortOrder)
-                  .overwrite();
-
-          configureDataWrite(parquetBuilder);
-
-          return parquetBuilder.build();
-
-        case ORC:
-          ORC.DataWriteBuilder orcBuilder =
-              ORC.writeData(file)
-                  .schema(dataSchema)
-                  .setAll(properties)
-                  .metricsConfig(metricsConfig)
-                  .withSpec(spec)
-                  .withPartition(partition)
-                  .withKeyMetadata(keyMetadata)
-                  .withSortOrder(dataSortOrder)
-                  .overwrite();
-
-          configureDataWrite(orcBuilder);
-
-          return orcBuilder.build();
-
-        default:
-          throw new UnsupportedOperationException(
-              "Unsupported data file format: " + dataFileFormat);
-      }
+                  .overwrite().build();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -163,62 +123,16 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
-      switch (deleteFileFormat) {
-        case AVRO:
-          Avro.DeleteWriteBuilder avroBuilder =
-              Avro.writeDeletes(file)
+      return DataFileWriterServiceRegistry.equalityDeleteWriterBuilder(deleteFileFormat, inputType, file)
                   .setAll(properties)
                   .metricsConfig(metricsConfig)
-                  .rowSchema(equalityDeleteRowSchema)
+                  .schema(equalityDeleteRowSchema)
                   .equalityFieldIds(equalityFieldIds)
                   .withSpec(spec)
                   .withPartition(partition)
                   .withKeyMetadata(keyMetadata)
                   .withSortOrder(equalityDeleteSortOrder)
-                  .overwrite();
-
-          configureEqualityDelete(avroBuilder);
-
-          return avroBuilder.buildEqualityWriter();
-
-        case PARQUET:
-          Parquet.DeleteWriteBuilder parquetBuilder =
-              Parquet.writeDeletes(file)
-                  .setAll(properties)
-                  .metricsConfig(metricsConfig)
-                  .rowSchema(equalityDeleteRowSchema)
-                  .equalityFieldIds(equalityFieldIds)
-                  .withSpec(spec)
-                  .withPartition(partition)
-                  .withKeyMetadata(keyMetadata)
-                  .withSortOrder(equalityDeleteSortOrder)
-                  .overwrite();
-
-          configureEqualityDelete(parquetBuilder);
-
-          return parquetBuilder.buildEqualityWriter();
-
-        case ORC:
-          ORC.DeleteWriteBuilder orcBuilder =
-              ORC.writeDeletes(file)
-                  .setAll(properties)
-                  .metricsConfig(metricsConfig)
-                  .rowSchema(equalityDeleteRowSchema)
-                  .equalityFieldIds(equalityFieldIds)
-                  .withSpec(spec)
-                  .withPartition(partition)
-                  .withKeyMetadata(keyMetadata)
-                  .withSortOrder(equalityDeleteSortOrder)
-                  .overwrite();
-
-          configureEqualityDelete(orcBuilder);
-
-          return orcBuilder.buildEqualityWriter();
-
-        default:
-          throw new UnsupportedOperationException(
-              "Unsupported format for equality deletes: " + deleteFileFormat);
-      }
+                  .overwrite().buildEqualityWriter();
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create new equality delete writer", e);
     }
@@ -232,57 +146,14 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
     MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
 
     try {
-      switch (deleteFileFormat) {
-        case AVRO:
-          Avro.DeleteWriteBuilder avroBuilder =
-              Avro.writeDeletes(file)
+      return DataFileWriterServiceRegistry.positionDeleteWriterBuilder(deleteFileFormat, inputType, file)
                   .setAll(properties)
                   .metricsConfig(metricsConfig)
-                  .rowSchema(positionDeleteRowSchema)
+                  .schema(positionDeleteRowSchema)
                   .withSpec(spec)
                   .withPartition(partition)
                   .withKeyMetadata(keyMetadata)
-                  .overwrite();
-
-          configurePositionDelete(avroBuilder);
-
-          return avroBuilder.buildPositionWriter();
-
-        case PARQUET:
-          Parquet.DeleteWriteBuilder parquetBuilder =
-              Parquet.writeDeletes(file)
-                  .setAll(properties)
-                  .metricsConfig(metricsConfig)
-                  .rowSchema(positionDeleteRowSchema)
-                  .withSpec(spec)
-                  .withPartition(partition)
-                  .withKeyMetadata(keyMetadata)
-                  .overwrite();
-
-          configurePositionDelete(parquetBuilder);
-
-          return parquetBuilder.buildPositionWriter();
-
-        case ORC:
-          ORC.DeleteWriteBuilder orcBuilder =
-              ORC.writeDeletes(file)
-                  .setAll(properties)
-                  .metricsConfig(metricsConfig)
-                  .rowSchema(positionDeleteRowSchema)
-                  .withSpec(spec)
-                  .withPartition(partition)
-                  .withKeyMetadata(keyMetadata)
-                  .overwrite();
-
-          configurePositionDelete(orcBuilder);
-
-          return orcBuilder.buildPositionWriter();
-
-        default:
-          throw new UnsupportedOperationException(
-              "Unsupported format for position deletes: " + deleteFileFormat);
-      }
-
+                  .overwrite().buildPositionWriter();
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create new position delete writer", e);
     }

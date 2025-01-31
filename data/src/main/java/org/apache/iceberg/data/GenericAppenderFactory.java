@@ -21,15 +21,12 @@ package org.apache.iceberg.data;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
+import org.apache.iceberg.DataFileWriterServiceRegistry;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.avro.DataWriter;
-import org.apache.iceberg.data.orc.GenericOrcWriter;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -37,8 +34,6 @@ import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
@@ -93,38 +88,12 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
       EncryptedOutputFile encryptedOutputFile, FileFormat fileFormat) {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
     try {
-      switch (fileFormat) {
-        case AVRO:
-          return Avro.write(encryptedOutputFile)
-              .schema(schema)
-              .createWriterFunc(DataWriter::create)
-              .metricsConfig(metricsConfig)
-              .setAll(config)
-              .overwrite()
-              .build();
-
-        case PARQUET:
-          return Parquet.write(encryptedOutputFile)
-              .schema(schema)
-              .createWriterFunc(GenericParquetWriter::buildWriter)
-              .setAll(config)
-              .metricsConfig(metricsConfig)
-              .overwrite()
-              .build();
-
-        case ORC:
-          return ORC.write(encryptedOutputFile)
-              .schema(schema)
-              .createWriterFunc(GenericOrcWriter::buildWriter)
-              .setAll(config)
-              .metricsConfig(metricsConfig)
-              .overwrite()
-              .build();
-
-        default:
-          throw new UnsupportedOperationException(
-              "Cannot write unknown file format: " + fileFormat);
-      }
+      return DataFileWriterServiceRegistry.appenderBuilder(fileFormat, Record.class, encryptedOutputFile)
+          .schema(schema)
+          .metricsConfig(metricsConfig)
+          .setAll(config)
+          .overwrite()
+          .build();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -155,49 +124,16 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
 
     try {
-      switch (format) {
-        case AVRO:
-          return Avro.writeDeletes(file)
-              .createWriterFunc(DataWriter::create)
-              .withPartition(partition)
-              .overwrite()
-              .setAll(config)
-              .rowSchema(eqDeleteRowSchema)
-              .withSpec(spec)
-              .withKeyMetadata(file.keyMetadata())
-              .equalityFieldIds(equalityFieldIds)
-              .buildEqualityWriter();
-
-        case ORC:
-          return ORC.writeDeletes(file)
-              .createWriterFunc(GenericOrcWriter::buildWriter)
+      return DataFileWriterServiceRegistry.equalityDeleteWriterBuilder(format, Record.class, file)
               .withPartition(partition)
               .overwrite()
               .setAll(config)
               .metricsConfig(metricsConfig)
-              .rowSchema(eqDeleteRowSchema)
+              .schema(eqDeleteRowSchema)
               .withSpec(spec)
               .withKeyMetadata(file.keyMetadata())
               .equalityFieldIds(equalityFieldIds)
               .buildEqualityWriter();
-
-        case PARQUET:
-          return Parquet.writeDeletes(file)
-              .createWriterFunc(GenericParquetWriter::buildWriter)
-              .withPartition(partition)
-              .overwrite()
-              .setAll(config)
-              .metricsConfig(metricsConfig)
-              .rowSchema(eqDeleteRowSchema)
-              .withSpec(spec)
-              .withKeyMetadata(file.keyMetadata())
-              .equalityFieldIds(equalityFieldIds)
-              .buildEqualityWriter();
-
-        default:
-          throw new UnsupportedOperationException(
-              "Cannot write equality-deletes for unsupported file format: " + format);
-      }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -209,45 +145,15 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
 
     try {
-      switch (format) {
-        case AVRO:
-          return Avro.writeDeletes(file)
-              .createWriterFunc(DataWriter::create)
-              .withPartition(partition)
-              .overwrite()
-              .setAll(config)
-              .rowSchema(posDeleteRowSchema)
-              .withSpec(spec)
-              .withKeyMetadata(file.keyMetadata())
-              .buildPositionWriter();
-
-        case ORC:
-          return ORC.writeDeletes(file)
-              .createWriterFunc(GenericOrcWriter::buildWriter)
-              .withPartition(partition)
-              .overwrite()
-              .setAll(config)
-              .rowSchema(posDeleteRowSchema)
-              .withSpec(spec)
-              .withKeyMetadata(file.keyMetadata())
-              .buildPositionWriter();
-
-        case PARQUET:
-          return Parquet.writeDeletes(file)
-              .createWriterFunc(GenericParquetWriter::buildWriter)
+      return DataFileWriterServiceRegistry.positionDeleteWriterBuilder(format, Record.class, file)
               .withPartition(partition)
               .overwrite()
               .setAll(config)
               .metricsConfig(metricsConfig)
-              .rowSchema(posDeleteRowSchema)
+              .schema(posDeleteRowSchema)
               .withSpec(spec)
               .withKeyMetadata(file.keyMetadata())
               .buildPositionWriter();
-
-        default:
-          throw new UnsupportedOperationException(
-              "Cannot write pos-deletes for unsupported file format: " + format);
-      }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

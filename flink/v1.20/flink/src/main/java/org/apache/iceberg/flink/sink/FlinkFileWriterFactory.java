@@ -65,6 +65,7 @@ class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> implements S
     super(
         table,
         dataFileFormat,
+        RowData.class,
         dataSchema,
         dataSortOrder,
         deleteFileFormat,

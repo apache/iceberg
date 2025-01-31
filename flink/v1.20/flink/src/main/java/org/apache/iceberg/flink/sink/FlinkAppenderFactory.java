@@ -25,6 +25,7 @@ import java.util.Map;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.DataFileWriterService;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
@@ -32,6 +33,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -43,6 +45,10 @@ import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
+import org.apache.iceberg.io.FileFormatAppenderBuilder;
+import org.apache.iceberg.io.FileFormatDataWriterBuilder;
+import org.apache.iceberg.io.FileFormatEqualityDeleteWriterBuilder;
+import org.apache.iceberg.io.FileFormatPositionDeleteWriterBuilder;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
@@ -269,6 +275,39 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
+    }
+  }
+
+  public static class AvroWriterService implements DataFileWriterService {
+    @Override
+    public FileFormat format() {
+      return FileFormat.AVRO;
+    }
+
+    @Override
+    public Class<?> returnType() {
+      return RowData.class;
+    }
+
+    @Override
+    public FileFormatAppenderBuilder<?> appenderBuilder(EncryptedOutputFile outputFile, Schema schema) {
+      return Avro.write(outputFile)
+              .createWriterFunc(ignore -> new FlinkAvroWriter(flinkSchema));
+    }
+
+    @Override
+    public FileFormatDataWriterBuilder<?> dataWriterBuilder(EncryptedOutputFile outputFile) {
+      return Avro.writeData(outputFile.encryptingOutputFile()).createWriterFunc(org.apache.iceberg.data.avro.DataWriter::create);
+    }
+
+    @Override
+    public FileFormatEqualityDeleteWriterBuilder<?> equalityDeleteWriterBuilder(EncryptedOutputFile outputFile) {
+      return Avro.writeDeletes(outputFile.encryptingOutputFile()).createWriterFunc(ignore -> new FlinkAvroWriter(lazyEqDeleteFlinkSchema()))
+    }
+
+    @Override
+    public FileFormatPositionDeleteWriterBuilder<?> positionDeleteWriterBuilder(EncryptedOutputFile outputFile) {
+      return new Avro.DeleteWriteBuilder(outputFile.encryptingOutputFile()).createWriterFunc(ignore -> new FlinkAvroWriter(lazyPosDeleteFlinkSchema()))
     }
   }
 }

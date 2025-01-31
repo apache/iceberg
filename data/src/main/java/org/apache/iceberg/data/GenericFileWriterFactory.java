@@ -50,6 +50,7 @@ class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
     super(
         table,
         dataFileFormat,
+        Record.class,
         dataSchema,
         dataSortOrder,
         deleteFileFormat,
