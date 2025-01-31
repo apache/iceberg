@@ -342,6 +342,40 @@ public class TestVariantReaders {
   }
 
   @Test
+  public void testShreddedObjectMissingValueColumn() throws IOException {
+    GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
+    GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
+    GroupType objectFields = objectFields(fieldA, fieldB);
+    GroupType variantType = Types.buildGroup(Type.Repetition.REQUIRED)
+        .id(2)
+        .required(PrimitiveTypeName.BINARY)
+        .named("metadata")
+        .addField(objectFields)
+        .named("var");
+
+    MessageType parquetSchema = parquetSchema(variantType);
+
+    GenericRecord a = record(fieldA, Map.of("value", serialize(Variants.of((short) 1234))));
+    GenericRecord b = record(fieldB, Map.of("typed_value", "iceberg"));
+    GenericRecord fields = record(objectFields, Map.of("a", a, "b", b));
+    GenericRecord variant =
+        record(variantType, Map.of("metadata", TEST_METADATA_BUFFER, "typed_value", fields));
+    GenericRecord record = record(parquetSchema, Map.of("id", 1, "var", variant));
+
+    Record actual = writeAndRead(parquetSchema, record);
+    assertThat(actual.getField("id")).isEqualTo(1);
+    assertThat(actual.getField("var")).isInstanceOf(Variant.class);
+
+    ShreddedObject expected = Variants.object(TEST_METADATA);
+    expected.put("a", Variants.of((short) 1234));
+    expected.put("b", Variants.of("iceberg"));
+
+    Variant actualVariant = (Variant) actual.getField("var");
+    VariantTestUtil.assertEqual(TEST_METADATA, actualVariant.metadata());
+    VariantTestUtil.assertEqual(expected, actualVariant.value());
+  }
+
+  @Test
   public void testShreddedObjectMissingField() throws IOException {
     GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
     GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));

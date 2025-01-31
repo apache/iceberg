@@ -146,8 +146,10 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
       GroupType group,
       ParquetValueReader<?> valueReader,
       List<ParquetValueReader<?>> fieldResults) {
-    // TODO: if fields are required, set DL to 0. Or maybe these values work?
-    int valueDL = schema.getMaxDefinitionLevel(path(ParquetVariantVisitor.VALUE)) - 1;
+    int valueDL =
+        valueReader != null
+            ? schema.getMaxDefinitionLevel(path(ParquetVariantVisitor.VALUE)) - 1
+            : Integer.MAX_VALUE;
     int fieldsDL = schema.getMaxDefinitionLevel(path(ParquetVariantVisitor.TYPED_VALUE)) - 1;
 
     List<String> shreddedFieldNames =

@@ -249,9 +249,9 @@ public class ParquetVariantReaders {
       this.fieldsDL = fieldsDL;
       this.fieldNames = fieldNames.toArray(String[]::new);
       this.fieldReaders = fieldReaders.toArray(VariantValueReader[]::new);
-      this.valueColumn = valueReader.column();
       this.fieldColumn = this.fieldReaders[0].column();
-      this.children = children(Iterables.concat(ImmutableList.of(valueReader), fieldReaders));
+      this.valueColumn = valueReader != null ? valueReader.column() : fieldColumn;
+      this.children = children(Iterables.concat(Arrays.asList(valueReader), fieldReaders));
     }
 
     @Override
@@ -307,7 +307,10 @@ public class ParquetVariantReaders {
 
     @Override
     public void setPageSource(PageReadStore pageStore) {
-      valueReader.setPageSource(pageStore);
+      if (valueReader != null) {
+        valueReader.setPageSource(pageStore);
+      }
+
       for (VariantValueReader reader : fieldReaders) {
         reader.setPageSource(pageStore);
       }
