@@ -43,6 +43,8 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.PositionedReadable;
+import org.apache.hadoop.fs.Seekable;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
@@ -65,7 +67,6 @@ import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
-import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.schema.MessageType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -228,186 +229,205 @@ public class TestParquet {
     assertThat(recordRead.get("topbytes")).isEqualTo(expectedBinary);
   }
 
+  private static class CloseAwareInputStream extends InputStream
+      implements Seekable, PositionedReadable {
+
+    boolean isClosed = false;
+
+    @Override
+    public void close() throws IOException {
+      super.close();
+      this.isClosed = true;
+    }
+
+    @Override
+    public int read() throws IOException {
+      return 0;
+    }
+
+    @Override
+    public int read(long l, byte[] bytes, int i, int i1) throws IOException {
+      return 0;
+    }
+
+    @Override
+    public void readFully(long l, byte[] bytes, int i, int i1) throws IOException {}
+
+    @Override
+    public void readFully(long l, byte[] bytes) throws IOException {}
+
+    @Override
+    public void seek(long l) throws IOException {}
+
+    @Override
+    public long getPos() throws IOException {
+      return 0;
+    }
+
+    @Override
+    public boolean seekToNewSource(long l) throws IOException {
+      return false;
+    }
+  }
+
+  private static class CloseAwareFSDataInputStream extends FSDataInputStream {
+
+    boolean isClosed = false;
+
+    public CloseAwareFSDataInputStream(CloseAwareInputStream in) {
+      super(in);
+    }
+
+    @Override
+    public void close() throws IOException {
+      super.close();
+      this.isClosed = true;
+    }
+  }
+
+  private static class CloseAwareDelegatingInputStream extends SeekableInputStream
+      implements DelegatingInputStream {
+
+    boolean isClosed = false;
+    private final InputStream delegate;
+
+    public CloseAwareDelegatingInputStream(InputStream delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override
+    public int read() throws IOException {
+      return 0;
+    }
+
+    @Override
+    public void close() throws IOException {
+      super.close();
+      this.getDelegate().close();
+      this.isClosed = true;
+    }
+
+    @Override
+    public InputStream getDelegate() {
+      return delegate;
+    }
+
+    @Override
+    public long getPos() {
+      return 0;
+    }
+
+    @Override
+    public void seek(long l) {}
+  }
+
   @Test
-  public void testStreamClosedProperly() throws IOException {
-    // test for input
-    {
-      class TestStreamClosedProperlyStream extends SeekableInputStream
-          implements DelegatingInputStream {
-        boolean thisClosed = false;
-        boolean delegateClosed = false;
-
-        {
-          reset();
-        }
-
-        @Override
-        public InputStream getDelegate() {
-          return new FSDataInputStream(
-              new InputStream() {
-                @Override
-                public int read() throws IOException {
-                  return 0;
-                }
-
-                @Override
-                public void close() throws IOException {
-                  delegateClosed = true;
-                }
-              });
-        }
-
-        @Override
-        public long getPos() throws IOException {
-          return 0;
-        }
-
-        @Override
-        public void seek(long newPos) throws IOException {}
-
-        @Override
-        public int read() throws IOException {
-          return 0;
-        }
-
-        @Override
-        public void close() throws IOException {
-          thisClosed = true;
-          delegateClosed = true;
-        }
-
-        public void reset() {
-          thisClosed = false;
-          delegateClosed = false;
-        }
-      }
-
-      try (TestStreamClosedProperlyStream stream = new TestStreamClosedProperlyStream()) {
-        try (org.apache.parquet.io.SeekableInputStream _unused =
-            ParquetIO.file(
-                    new InputFile() {
-                      @Override
-                      public long getLength() {
-                        return 0;
-                      }
-
-                      @Override
-                      public SeekableInputStream newStream() {
-                        stream.reset();
-                        return stream;
-                      }
-
-                      @Override
-                      public String location() {
-                        return "";
-                      }
-
-                      @Override
-                      public boolean exists() {
-                        return false;
-                      }
-                    })
-                .newStream()) {
-          assertThat(stream.delegateClosed).isFalse();
-          assertThat(stream.thisClosed).isFalse();
-        } finally {
-          assertThat(stream.delegateClosed).isTrue();
-          assertThat(stream.thisClosed).isTrue();
+  public void testDelegatingInputStreamCloseProperly() throws IOException {
+    // prepare the underlying stream
+    try (CloseAwareInputStream underlying = new CloseAwareInputStream()) {
+      // special case for hadoop stream
+      try (CloseAwareFSDataInputStream fsInput = new CloseAwareFSDataInputStream(underlying)) {
+        // then prepare the delegating stream
+        try (CloseAwareDelegatingInputStream delegating =
+            new CloseAwareDelegatingInputStream(fsInput)) {
+          // ok, call the testing target, ensure no leek.
+          try (org.apache.parquet.io.SeekableInputStream _unused = ParquetIO.stream(delegating)) {
+            assertThat(underlying.isClosed).isFalse();
+            assertThat(fsInput.isClosed).isFalse();
+            assertThat(delegating.isClosed).isFalse();
+          } finally {
+            // a try-catch-finally for `_unused` stream.
+            // implies all stream crated before should be closed without leaking behavior.
+            assertThat(delegating.isClosed).isTrue();
+            assertThat(fsInput.isClosed).isTrue();
+            assertThat(underlying.isClosed).isTrue();
+          }
         }
       }
     }
+  }
 
-    // test for output
-    {
-      class TestStreamClosedProperlyStream extends PositionOutputStream
-          implements DelegatingOutputStream {
-        boolean thisClosed = false;
-        boolean delegateClosed = false;
+  private static class CloseAwareOutputStream extends OutputStream {
 
-        {
-          reset();
-        }
+    boolean isClosed = false;
 
-        @Override
-        public long getPos() throws IOException {
-          return 0;
-        }
+    @Override
+    public void write(int b) {}
 
-        @Override
-        public void write(int b) throws IOException {}
+    @Override
+    public void close() throws IOException {
+      super.close();
+      this.isClosed = true;
+    }
+  }
 
-        @Override
-        public OutputStream getDelegate() {
-          try {
-            return new FSDataOutputStream(
-                new OutputStream() {
-                  @Override
-                  public void write(int b) {}
+  private static class CloseAwareFSDataOutputStream extends FSDataOutputStream {
 
-                  @Override
-                  public void close() throws IOException {
-                    delegateClosed = true;
-                  }
-                },
-                null);
-          } catch (IOException e) {
-            throw new RuntimeException(e);
+    boolean isClosed = false;
+
+    public CloseAwareFSDataOutputStream(OutputStream out) throws IOException {
+      super(out, null);
+    }
+
+    @Override
+    public void close() throws IOException {
+      super.close();
+      this.isClosed = true;
+    }
+  }
+
+  private static class CloseAwareDelegatingOutputStream extends PositionOutputStream
+      implements DelegatingOutputStream {
+
+    boolean isClosed = false;
+    private final OutputStream delegate;
+
+    public CloseAwareDelegatingOutputStream(OutputStream delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override
+    public void close() throws IOException {
+      super.close();
+      this.getDelegate().close();
+      this.isClosed = true;
+    }
+
+    @Override
+    public OutputStream getDelegate() {
+      return delegate;
+    }
+
+    @Override
+    public long getPos() {
+      return 0;
+    }
+
+    @Override
+    public void write(int b) {}
+  }
+
+  @Test
+  public void testDelegatingOutputStreamCloseProperly() throws IOException {
+    // prepare the underlying stream
+    try (CloseAwareOutputStream underlying = new CloseAwareOutputStream()) {
+      // special case for hadoop stream
+      try (CloseAwareFSDataOutputStream fsOutput = new CloseAwareFSDataOutputStream(underlying)) {
+        // then prepare the delegating stream
+        try (CloseAwareDelegatingOutputStream delegating =
+            new CloseAwareDelegatingOutputStream(fsOutput)) {
+          // ok, call the testing target, ensure no leek.
+          try (org.apache.parquet.io.PositionOutputStream _unused = ParquetIO.stream(delegating)) {
+            assertThat(underlying.isClosed).isFalse();
+            assertThat(fsOutput.isClosed).isFalse();
+            assertThat(delegating.isClosed).isFalse();
+          } finally {
+            // a try-catch-finally for `_unused` stream.
+            // implies all stream crated before should be closed without leaking behavior.
+            assertThat(delegating.isClosed).isTrue();
+            assertThat(fsOutput.isClosed).isTrue();
+            assertThat(underlying.isClosed).isTrue();
           }
-        }
-
-        @Override
-        public void close() throws IOException {
-          thisClosed = true;
-          delegateClosed = true;
-        }
-
-        public void reset() {
-          thisClosed = false;
-          delegateClosed = false;
-        }
-      }
-
-      try (TestStreamClosedProperlyStream stream = new TestStreamClosedProperlyStream()) {
-        OutputFile file =
-            ParquetIO.file(
-                new org.apache.iceberg.io.OutputFile() {
-                  @Override
-                  public PositionOutputStream create() {
-                    stream.reset();
-                    return stream;
-                  }
-
-                  @Override
-                  public PositionOutputStream createOrOverwrite() {
-                    stream.reset();
-                    return stream;
-                  }
-
-                  @Override
-                  public String location() {
-                    return "";
-                  }
-
-                  @Override
-                  public InputFile toInputFile() {
-                    return null;
-                  }
-                });
-
-        try (org.apache.parquet.io.PositionOutputStream _unused = file.create(0)) {
-          assertThat(stream.delegateClosed).isFalse();
-          assertThat(stream.thisClosed).isFalse();
-        } finally {
-          assertThat(stream.delegateClosed).isTrue();
-          assertThat(stream.thisClosed).isTrue();
-        }
-
-        try (org.apache.parquet.io.PositionOutputStream _unused = file.createOrOverwrite(0)) {
-          assertThat(stream.delegateClosed).isFalse();
-          assertThat(stream.thisClosed).isFalse();
-        } finally {
-          assertThat(stream.delegateClosed).isTrue();
-          assertThat(stream.thisClosed).isTrue();
         }
       }
     }
