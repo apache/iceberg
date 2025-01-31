@@ -30,16 +30,16 @@ import org.apache.spark.sql.types.TimestampType;
 /**
  * A Spark function implementation for the Iceberg year transform.
  *
- * <p>Example usage: {@code SELECT system.year('source_col')}.
+ * <p>Example usage: {@code SELECT system.years('source_col')}.
  *
- * <p>Alternate form: {@code SELECT system.years('source_col')}.
+ * <p>Alternate form: {@code SELECT system.year('source_col')}.
  */
 public class YearsFunction extends UnaryUnboundFunction {
 
   private boolean singular;
 
   public YearsFunction() {
-    this(true);
+    this(false);
   }
 
   YearsFunction(boolean singular) {
@@ -92,7 +92,7 @@ public class YearsFunction extends UnaryUnboundFunction {
 
   public static class DateToYearsFunction extends BaseToYearsFunction {
     public DateToYearsFunction() {
-      this(true);
+      this(false);
     }
 
     DateToYearsFunction(boolean singular) {
@@ -123,7 +123,7 @@ public class YearsFunction extends UnaryUnboundFunction {
 
   public static class TimestampToYearsFunction extends BaseToYearsFunction {
     public TimestampToYearsFunction() {
-      this(true);
+      this(false);
     }
 
     TimestampToYearsFunction(boolean singular) {
@@ -154,7 +154,7 @@ public class YearsFunction extends UnaryUnboundFunction {
 
   public static class TimestampNtzToYearsFunction extends BaseToYearsFunction {
     public TimestampNtzToYearsFunction() {
-      this(true);
+      this(false);
     }
 
     TimestampNtzToYearsFunction(boolean singular) {

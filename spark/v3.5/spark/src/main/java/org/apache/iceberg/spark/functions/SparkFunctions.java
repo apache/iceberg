@@ -30,14 +30,14 @@ public class SparkFunctions {
   private SparkFunctions() {}
 
   private static final UnboundFunction VERSION_FUNCTION = new IcebergVersionFunction();
-  private static final UnboundFunction YEAR_FUNCTION = new YearsFunction();
-  private static final UnboundFunction YEARS_FUNCTION = new YearsFunction(false);
-  private static final UnboundFunction MONTH_FUNCTION = new MonthsFunction();
-  private static final UnboundFunction MONTHS_FUNCTION = new MonthsFunction(false);
-  private static final UnboundFunction DAY_FUNCTION = new DaysFunction();
-  private static final UnboundFunction DAYS_FUNCTION = new DaysFunction(false);
-  private static final UnboundFunction HOUR_FUNCTION = new HoursFunction();
-  private static final UnboundFunction HOURS_FUNCTION = new HoursFunction(false);
+  private static final UnboundFunction YEAR_FUNCTION = new YearsFunction(true);
+  private static final UnboundFunction YEARS_FUNCTION = new YearsFunction();
+  private static final UnboundFunction MONTH_FUNCTION = new MonthsFunction(true);
+  private static final UnboundFunction MONTHS_FUNCTION = new MonthsFunction();
+  private static final UnboundFunction DAY_FUNCTION = new DaysFunction(true);
+  private static final UnboundFunction DAYS_FUNCTION = new DaysFunction();
+  private static final UnboundFunction HOUR_FUNCTION = new HoursFunction(true);
+  private static final UnboundFunction HOURS_FUNCTION = new HoursFunction();
   private static final UnboundFunction BUCKET_FUNCTION = new BucketFunction();
   private static final UnboundFunction TRUNCATE_FUNCTION = new TruncateFunction();
 
@@ -58,10 +58,10 @@ public class SparkFunctions {
 
   private static final Map<Class<?>, UnboundFunction> CLASS_TO_FUNCTIONS =
       ImmutableMap.of(
-          YearsFunction.class, YEAR_FUNCTION,
-          MonthsFunction.class, MONTH_FUNCTION,
-          DaysFunction.class, DAY_FUNCTION,
-          HoursFunction.class, HOUR_FUNCTION,
+          YearsFunction.class, YEARS_FUNCTION,
+          MonthsFunction.class, MONTHS_FUNCTION,
+          DaysFunction.class, DAYS_FUNCTION,
+          HoursFunction.class, HOURS_FUNCTION,
           BucketFunction.class, BUCKET_FUNCTION,
           TruncateFunction.class, TRUNCATE_FUNCTION);
 

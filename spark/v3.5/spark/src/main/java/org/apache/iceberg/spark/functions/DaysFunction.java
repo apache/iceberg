@@ -30,16 +30,16 @@ import org.apache.spark.sql.types.TimestampType;
 /**
  * A Spark function implementation for the Iceberg day transform.
  *
- * <p>Example usage: {@code SELECT system.day('source_col')}.
+ * <p>Example usage: {@code SELECT system.days('source_col')}.
  *
- * <p>Alternate form: {@code SELECT system.days('source_col')}.
+ * <p>Alternate form: {@code SELECT system.day('source_col')}.
  */
 public class DaysFunction extends UnaryUnboundFunction {
 
   private boolean singular;
 
   public DaysFunction() {
-    this(true);
+    this(false);
   }
 
   DaysFunction(boolean singular) {
@@ -93,7 +93,7 @@ public class DaysFunction extends UnaryUnboundFunction {
   // Spark and Iceberg internal representations of dates match so no transformation is required
   public static class DateToDaysFunction extends BaseToDaysFunction {
     public DateToDaysFunction() {
-      this(true);
+      this(false);
     }
 
     DateToDaysFunction(boolean singular) {
@@ -124,7 +124,7 @@ public class DaysFunction extends UnaryUnboundFunction {
 
   public static class TimestampToDaysFunction extends BaseToDaysFunction {
     public TimestampToDaysFunction() {
-      this(true);
+      this(false);
     }
 
     TimestampToDaysFunction(boolean singular) {
@@ -155,7 +155,7 @@ public class DaysFunction extends UnaryUnboundFunction {
 
   public static class TimestampNtzToDaysFunction extends BaseToDaysFunction {
     public TimestampNtzToDaysFunction() {
-      this(true);
+      this(false);
     }
 
     TimestampNtzToDaysFunction(boolean singular) {

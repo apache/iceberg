@@ -29,16 +29,16 @@ import org.apache.spark.sql.types.TimestampType;
 /**
  * A Spark function implementation for the Iceberg hour transform.
  *
- * <p>Example usage: {@code SELECT system.hour('source_col')}.
+ * <p>Example usage: {@code SELECT system.hours('source_col')}.
  *
- * <p>Alternate form: {@code SELECT system.hours('source_col')}.
+ * <p>Alternate form: {@code SELECT system.hour('source_col')}.
  */
 public class HoursFunction extends UnaryUnboundFunction {
 
   private boolean singular;
 
   public HoursFunction() {
-    this(true);
+    this(false);
   }
 
   HoursFunction(boolean singular) {
@@ -73,7 +73,7 @@ public class HoursFunction extends UnaryUnboundFunction {
     private boolean singular;
 
     public TimestampToHoursFunction() {
-      this(true);
+      this(false);
     }
 
     TimestampToHoursFunction(boolean singular) {
@@ -116,7 +116,7 @@ public class HoursFunction extends UnaryUnboundFunction {
     private boolean singular;
 
     public TimestampNtzToHoursFunction() {
-      this(true);
+      this(false);
     }
 
     TimestampNtzToHoursFunction(boolean singular) {

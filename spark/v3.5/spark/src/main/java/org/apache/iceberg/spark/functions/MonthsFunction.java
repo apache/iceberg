@@ -30,16 +30,16 @@ import org.apache.spark.sql.types.TimestampType;
 /**
  * A Spark function implementation for the Iceberg month transform.
  *
- * <p>Example usage: {@code SELECT system.month('source_col')}.
+ * <p>Example usage: {@code SELECT system.months('source_col')}.
  *
- * <p>Alternate form: {@code SELECT system.months('source_col')}.
+ * <p>Alternate form: {@code SELECT system.month('source_col')}.
  */
 public class MonthsFunction extends UnaryUnboundFunction {
 
   private boolean singular;
 
   public MonthsFunction() {
-    this(true);
+    this(false);
   }
 
   MonthsFunction(boolean singular) {
@@ -92,7 +92,7 @@ public class MonthsFunction extends UnaryUnboundFunction {
 
   public static class DateToMonthsFunction extends BaseToMonthsFunction {
     public DateToMonthsFunction() {
-      this(true);
+      this(false);
     }
 
     DateToMonthsFunction(boolean singular) {
@@ -123,7 +123,7 @@ public class MonthsFunction extends UnaryUnboundFunction {
 
   public static class TimestampToMonthsFunction extends BaseToMonthsFunction {
     public TimestampToMonthsFunction() {
-      this(true);
+      this(false);
     }
 
     TimestampToMonthsFunction(boolean singular) {
@@ -154,7 +154,7 @@ public class MonthsFunction extends UnaryUnboundFunction {
 
   public static class TimestampNtzToMonthsFunction extends BaseToMonthsFunction {
     public TimestampNtzToMonthsFunction() {
-      this(true);
+      this(false);
     }
 
     TimestampNtzToMonthsFunction(boolean singular) {
