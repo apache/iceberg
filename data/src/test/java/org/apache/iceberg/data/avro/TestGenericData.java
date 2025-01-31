@@ -89,13 +89,13 @@ public class TestGenericData extends DataTest {
 
   @Test
   public void testSchemaWithTwoVariants() throws JsonProcessingException {
-    final Schema FILE_SCHEMA =
+    final Schema schema =
         new Schema(
             required(1, "id", Types.IntegerType.get()),
             optional(2, "v1", Types.VariantType.get()),
             optional(3, "v2", Types.VariantType.get()));
 
-    GenericRecordBuilder builder = new GenericRecordBuilder(convert(FILE_SCHEMA, "table"));
+    GenericRecordBuilder builder = new GenericRecordBuilder(convert(schema, "table"));
     builder.set("id", 1);
 
     GenericData.Record record = builder.build();

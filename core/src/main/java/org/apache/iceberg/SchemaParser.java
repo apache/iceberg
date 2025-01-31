@@ -181,7 +181,7 @@ public class SchemaParser {
 
   private static Type typeFromJson(JsonNode json) {
     if (json.isTextual()) {
-      return Types.fromPrimitiveString(json.asText());
+      return Types.fromTypeString(json.asText());
     } else if (json.isObject()) {
       JsonNode typeObj = json.get(TYPE);
       if (typeObj != null) {

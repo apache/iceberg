@@ -26,28 +26,27 @@ import org.junit.jupiter.api.Test;
 public class TestTypes {
 
   @Test
-  public void fromPrimitiveString() {
-    assertThat(Types.fromPrimitiveString("boolean")).isSameAs(Types.BooleanType.get());
-    assertThat(Types.fromPrimitiveString("BooLean")).isSameAs(Types.BooleanType.get());
+  public void fromTypeString() {
+    assertThat(Types.fromTypeString("boolean")).isSameAs(Types.BooleanType.get());
+    assertThat(Types.fromTypeString("BooLean")).isSameAs(Types.BooleanType.get());
 
-    assertThat(Types.fromPrimitiveString("timestamp")).isSameAs(Types.TimestampType.withoutZone());
-    assertThat(Types.fromPrimitiveString("timestamptz")).isSameAs(Types.TimestampType.withZone());
-    assertThat(Types.fromPrimitiveString("timestamp_ns"))
+    assertThat(Types.fromTypeString("timestamp")).isSameAs(Types.TimestampType.withoutZone());
+    assertThat(Types.fromTypeString("timestamptz")).isSameAs(Types.TimestampType.withZone());
+    assertThat(Types.fromTypeString("timestamp_ns"))
         .isSameAs(Types.TimestampNanoType.withoutZone());
-    assertThat(Types.fromPrimitiveString("timestamptz_ns"))
-        .isSameAs(Types.TimestampNanoType.withZone());
+    assertThat(Types.fromTypeString("timestamptz_ns")).isSameAs(Types.TimestampNanoType.withZone());
 
-    assertThat(Types.fromPrimitiveString("Fixed[ 3 ]")).isEqualTo(Types.FixedType.ofLength(3));
+    assertThat(Types.fromTypeString("Fixed[ 3 ]")).isEqualTo(Types.FixedType.ofLength(3));
 
-    assertThat(Types.fromPrimitiveString("Decimal( 2 , 3 )")).isEqualTo(Types.DecimalType.of(2, 3));
+    assertThat(Types.fromTypeString("Decimal( 2 , 3 )")).isEqualTo(Types.DecimalType.of(2, 3));
 
-    assertThat(Types.fromPrimitiveString("Decimal(2,3)")).isEqualTo(Types.DecimalType.of(2, 3));
+    assertThat(Types.fromTypeString("Decimal(2,3)")).isEqualTo(Types.DecimalType.of(2, 3));
 
-    assertThat(Types.fromPrimitiveString("variant")).isSameAs(Types.VariantType.get());
-    assertThat(Types.fromPrimitiveString("Variant")).isSameAs(Types.VariantType.get());
+    assertThat(Types.fromTypeString("variant")).isSameAs(Types.VariantType.get());
+    assertThat(Types.fromTypeString("Variant")).isSameAs(Types.VariantType.get());
 
     assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> Types.fromPrimitiveString("abcdefghij"))
+        .isThrownBy(() -> Types.fromTypeString("abcdefghij"))
         .withMessage("Cannot parse type string to primitive: abcdefghij");
   }
 }

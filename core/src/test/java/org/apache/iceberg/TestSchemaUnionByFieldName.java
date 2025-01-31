@@ -75,7 +75,7 @@ public class TestSchemaUnionByFieldName {
                 optional(
                     atomicInteger.incrementAndGet(),
                     type.toString(),
-                    Types.fromPrimitiveString(type.toString())))
+                    Types.fromTypeString(type.toString())))
         .toArray(NestedField[]::new);
   }
 

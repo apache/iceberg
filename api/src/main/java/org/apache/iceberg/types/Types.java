@@ -63,7 +63,7 @@ public class Types {
   private static final Pattern DECIMAL =
       Pattern.compile("decimal\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)");
 
-  public static Type fromPrimitiveString(String typeString) {
+  public static Type fromTypeString(String typeString) {
     String lowerTypeString = typeString.toLowerCase(Locale.ROOT);
     if (TYPES.containsKey(lowerTypeString)) {
       return TYPES.get(lowerTypeString);

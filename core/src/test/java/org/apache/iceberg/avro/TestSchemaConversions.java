@@ -380,7 +380,7 @@ public class TestSchemaConversions {
     org.apache.avro.Schema variantSchema = avroSchema.getField("variantCol").schema();
     assertThat(variantSchema.getType()).isEqualTo(org.apache.avro.Schema.Type.RECORD);
     assertThat(variantSchema.getFields().size()).isEqualTo(2);
-    assertThat(variantSchema.getField("metadata")).isNotNull();
-    assertThat(variantSchema.getField("value")).isNotNull();
+    assertThat(variantSchema.getField("metadata").schema().getType()).isEqualTo(Schema.Type.BYTES);
+    assertThat(variantSchema.getField("value").schema().getType()).isEqualTo(Schema.Type.BYTES);
   }
 }
