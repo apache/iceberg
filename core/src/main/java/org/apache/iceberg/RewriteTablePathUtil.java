@@ -26,7 +26,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -219,11 +218,7 @@ public class RewriteTablePathUtil {
     OutputFile outputFile = io.newOutputFile(outputPath);
 
     List<ManifestFile> manifestFiles = manifestFilesInSnapshot(io, snapshot);
-    List<ManifestFile> manifestFilesToRewrite =
-        manifestFiles.stream()
-            .filter(mf -> manifestsToRewrite.contains(mf.path()))
-            .collect(Collectors.toList());
-    manifestFilesToRewrite.forEach(
+    manifestFiles.forEach(
         mf ->
             Preconditions.checkArgument(
                 mf.path().startsWith(sourcePrefix),
@@ -239,13 +234,15 @@ public class RewriteTablePathUtil {
             snapshot.parentId(),
             snapshot.sequenceNumber())) {
 
-      for (ManifestFile file : manifestFilesToRewrite) {
+      for (ManifestFile file : manifestFiles) {
         ManifestFile newFile = file.copy();
         ((StructLike) newFile).set(0, newPath(newFile.path(), sourcePrefix, targetPrefix));
         writer.add(newFile);
 
-        result.toRewrite().add(file);
-        result.copyPlan().add(Pair.of(stagingPath(file.path(), stagingDir), newFile.path()));
+        if (manifestsToRewrite.contains(file.path())) {
+          result.toRewrite().add(file);
+          result.copyPlan().add(Pair.of(stagingPath(file.path(), stagingDir), newFile.path()));
+        }
       }
       return result;
     } catch (IOException e) {

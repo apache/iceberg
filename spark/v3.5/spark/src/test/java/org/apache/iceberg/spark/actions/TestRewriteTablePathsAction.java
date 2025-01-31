@@ -236,6 +236,51 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @Test
+  public void testIncrementalRewrite() throws Exception {
+    String location = newTableLocation();
+    Table sourceTable =
+        TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), location);
+    List<ThreeColumnRecord> recordsA =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
+    Dataset<Row> dfA = spark.createDataFrame(recordsA, ThreeColumnRecord.class).coalesce(1);
+
+    // Write first increment to source table
+    dfA.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(location);
+    spark.read().format("iceberg").load(location).show();
+    assertThat(spark.read().format("iceberg").load(location).count()).isEqualTo(1);
+
+    // Replicate first increment to target table
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .rewriteLocationPrefix(sourceTable.location(), targetTableLocation())
+            .execute();
+    copyTableFiles(result);
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).count()).isEqualTo(1);
+
+    // Write second increment to source table
+    List<ThreeColumnRecord> recordsB =
+        Lists.newArrayList(new ThreeColumnRecord(1, "BBBBBBBBB", "BBB"));
+    Dataset<Row> dfB = spark.createDataFrame(recordsB, ThreeColumnRecord.class).coalesce(1);
+    dfB.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(location);
+    assertThat(spark.read().format("iceberg").load(location).count()).isEqualTo(2);
+
+    // Replicate second increment to target table
+    Table sourceTableIncrement = TABLES.load(location);
+    Table targetTable = TABLES.load(targetTableLocation());
+    String targetTableMetadata = currentMetadata(targetTable).metadataFileLocation();
+    String startVersion = fileName(targetTableMetadata);
+    RewriteTablePath.Result resultB =
+        actions()
+            .rewriteTablePath(sourceTableIncrement)
+            .rewriteLocationPrefix(sourceTable.location(), targetTableLocation())
+            .startVersion(startVersion)
+            .execute();
+    copyTableFiles(resultB);
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).count()).isEqualTo(2);
+  }
+
+  @Test
   public void testTableWith3Snapshots(@TempDir Path location1, @TempDir Path location2)
       throws Exception {
     String location = newTableLocation();
