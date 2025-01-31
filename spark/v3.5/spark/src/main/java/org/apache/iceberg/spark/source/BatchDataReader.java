@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.FileScanTask;
@@ -88,8 +87,6 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(filePath, task.start(), task.length());
 
-    Map<Integer, ?> idToConstant = constantsMap(task, expectedSchema());
-
     InputFile inputFile = getInputFile(filePath);
     Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with FileScanTask");
 
@@ -98,14 +95,6 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
             ? null
             : new SparkDeleteFilter(filePath, task.deletes(), counter(), false);
 
-    return newBatchIterable(
-            inputFile,
-            task.file().format(),
-            task.start(),
-            task.length(),
-            task.residual(),
-            idToConstant,
-            deleteFilter)
-        .iterator();
+    return newBatchIterable(inputFile, task, deleteFilter).iterator();
   }
 }

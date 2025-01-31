@@ -19,23 +19,25 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
+import org.apache.iceberg.ContentScanTask;
+import org.apache.iceberg.DataFileReaderService;
+import org.apache.iceberg.DataFileReaderServiceRegistry;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileFormatReadBuilder;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.spark.data.SparkPlannedAvroReader;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow, T> {
@@ -49,77 +51,93 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
   }
 
   protected CloseableIterable<InternalRow> newIterable(
-      InputFile file,
-      FileFormat format,
-      long start,
-      long length,
-      Expression residual,
-      Schema projection,
-      Map<Integer, ?> idToConstant) {
-    switch (format) {
-      case PARQUET:
-        return newParquetIterable(file, start, length, residual, projection, idToConstant);
+      InputFile file, ContentScanTask<?> task, Expression residual, Schema projection) {
+    return DataFileReaderServiceRegistry.read(
+            task.file().format(), InternalRow.class, file, task, projection, table(), null)
+        .reuseContainers()
+        .split(task.start(), task.length())
+        .filter(residual)
+        .caseSensitive(caseSensitive())
+        .withNameMapping(nameMapping())
+        .build();
+  }
 
-      case AVRO:
-        return newAvroIterable(file, start, length, projection, idToConstant);
+  public static class ParquetReaderService implements DataFileReaderService {
+    @Override
+    public FileFormat format() {
+      return FileFormat.PARQUET;
+    }
 
-      case ORC:
-        return newOrcIterable(file, start, length, residual, projection, idToConstant);
+    @Override
+    public Class<?> returnType() {
+      return InternalRow.class;
+    }
 
-      default:
-        throw new UnsupportedOperationException("Cannot read unknown format: " + format);
+    @Override
+    public FileFormatReadBuilder<?> builder(
+        InputFile inputFile,
+        ContentScanTask<?> task,
+        Schema readSchema,
+        Table table,
+        DeleteFilter<?> deleteFilter) {
+      return Parquet.read(inputFile)
+          .project(readSchema)
+          .createReaderFunc(
+              fileSchema ->
+                  SparkParquetReaders.buildReader(
+                      readSchema, fileSchema, constantsMap(task, readSchema, table)));
     }
   }
 
-  private CloseableIterable<InternalRow> newAvroIterable(
-      InputFile file, long start, long length, Schema projection, Map<Integer, ?> idToConstant) {
-    return Avro.read(file)
-        .reuseContainers()
-        .project(projection)
-        .split(start, length)
-        .createResolvingReader(schema -> SparkPlannedAvroReader.create(schema, idToConstant))
-        .withNameMapping(nameMapping())
-        .build();
+  public static class ORCReaderService implements DataFileReaderService {
+    @Override
+    public FileFormat format() {
+      return FileFormat.ORC;
+    }
+
+    @Override
+    public Class<?> returnType() {
+      return InternalRow.class;
+    }
+
+    @Override
+    public FileFormatReadBuilder<?> builder(
+        InputFile inputFile,
+        ContentScanTask<?> task,
+        Schema readSchema,
+        Table table,
+        DeleteFilter<?> deleteFilter) {
+      Map<Integer, ?> idToConstant = constantsMap(task, readSchema, table);
+      return ORC.read(inputFile)
+          .project(ORC.schemaWithoutConstantAndMetadataFields(readSchema, idToConstant))
+          .createReaderFunc(
+              readOrcSchema -> new SparkOrcReader(readSchema, readOrcSchema, idToConstant));
+    }
   }
 
-  private CloseableIterable<InternalRow> newParquetIterable(
-      InputFile file,
-      long start,
-      long length,
-      Expression residual,
-      Schema readSchema,
-      Map<Integer, ?> idToConstant) {
-    return Parquet.read(file)
-        .reuseContainers()
-        .split(start, length)
-        .project(readSchema)
-        .createReaderFunc(
-            fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema, idToConstant))
-        .filter(residual)
-        .caseSensitive(caseSensitive())
-        .withNameMapping(nameMapping())
-        .build();
-  }
+  public static class AvroReaderService implements DataFileReaderService {
+    @Override
+    public FileFormat format() {
+      return FileFormat.AVRO;
+    }
 
-  private CloseableIterable<InternalRow> newOrcIterable(
-      InputFile file,
-      long start,
-      long length,
-      Expression residual,
-      Schema readSchema,
-      Map<Integer, ?> idToConstant) {
-    Schema readSchemaWithoutConstantAndMetadataFields =
-        TypeUtil.selectNot(
-            readSchema, Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
+    @Override
+    public Class<?> returnType() {
+      return InternalRow.class;
+    }
 
-    return ORC.read(file)
-        .project(readSchemaWithoutConstantAndMetadataFields)
-        .split(start, length)
-        .createReaderFunc(
-            readOrcSchema -> new SparkOrcReader(readSchema, readOrcSchema, idToConstant))
-        .filter(residual)
-        .caseSensitive(caseSensitive())
-        .withNameMapping(nameMapping())
-        .build();
+    @Override
+    public FileFormatReadBuilder<?> builder(
+        InputFile inputFile,
+        ContentScanTask<?> task,
+        Schema readSchema,
+        Table table,
+        DeleteFilter<?> deleteFilter) {
+      return Avro.read(inputFile)
+          .project(readSchema)
+          .createResolvingReader(
+              fileSchema ->
+                  SparkPlannedAvroReader.create(fileSchema, constantsMap(task, readSchema, table)));
+    }
   }
 }

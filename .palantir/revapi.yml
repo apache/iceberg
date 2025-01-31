@@ -1171,6 +1171,15 @@ acceptedBreaks:
         \ java.util.function.Function<T, java.lang.Long>, org.apache.iceberg.io.CloseableIterable<java.lang.Long>,\
         \ java.util.function.Consumer<T>)"
       justification: "Removing deprecated code"
+    org.apache.iceberg:iceberg-data:
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.data.BaseDeleteLoader"
+      justification: "Moved from iceberg-data to iceberg-core, so this should not\
+        \ cause issues"
+    - code: "java.class.removed"
+      old: "class org.apache.iceberg.data.InternalRecordWrapper"
+      justification: "Moved from iceberg-data to iceberg-core, so this should not\
+        \ cause issues"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"
