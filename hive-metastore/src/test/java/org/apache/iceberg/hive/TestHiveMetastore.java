@@ -31,6 +31,7 @@ import java.io.Reader;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.apache.hadoop.conf.Configuration;
@@ -273,13 +274,13 @@ public class TestHiveMetastore {
   }
 
   private static void setupMetastoreDB(String dbURL) throws SQLException, IOException {
-    Connection connection = DriverManager.getConnection(dbURL);
-    ScriptRunner scriptRunner = new ScriptRunner(connection, true, true);
+    try (Connection connection = DriverManager.getConnection(dbURL)) {
+      ScriptRunner scriptRunner = new ScriptRunner(connection, true, true);
 
-    ClassLoader classLoader = ClassLoader.getSystemClassLoader();
-    InputStream inputStream = classLoader.getResourceAsStream("hive-schema-3.1.0.derby.sql");
-    try (Reader reader = new InputStreamReader(inputStream)) {
-      scriptRunner.runScript(reader);
+      InputStream inputStream = TestHiveMetastore.class.getClassLoader().getResourceAsStream("hive-schema-3.1.0.derby.sql");
+      try (Reader reader = new InputStreamReader(Objects.requireNonNull(inputStream))) {
+        scriptRunner.runScript(reader);
+      }
     }
   }
 }
