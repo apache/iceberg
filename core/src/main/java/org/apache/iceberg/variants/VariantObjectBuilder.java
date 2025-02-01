@@ -29,24 +29,24 @@ import org.apache.iceberg.util.DateTimeUtil;
 public class VariantObjectBuilder extends VariantBuilderBase {
   private final List<FieldEntry> fields;
 
-  VariantObjectBuilder(ByteBufferWrapper buffer, Dictionary dict) {
-    super(buffer, dict);
+  VariantObjectBuilder(ByteBufferWrapper valueBuffer, Dictionary dict) {
+    super(valueBuffer, dict);
     fields = Lists.newArrayList();
   }
 
   public VariantObjectBuilder startObject(String key) {
     writeKey(key);
-    return new VariantObjectBuilder(getBuffer(), getDict());
+    return new VariantObjectBuilder(valueBuffer, dict);
   }
 
   public VariantArrayBuilder startArray(String key) {
     writeKey(key);
-    return new VariantArrayBuilder(getBuffer(), getDict());
+    return new VariantArrayBuilder(valueBuffer, dict);
   }
 
   private void writeKey(String key) {
-    int id = getDict().add(key);
-    fields.add(new FieldEntry(key, id, getBuffer().getPos() - getStartPos()));
+    int id = dict.add(key);
+    fields.add(new FieldEntry(key, id, valueBuffer.pos() - startPos));
   }
 
   public VariantObjectBuilder writeNull(String key) {
@@ -116,6 +116,6 @@ public class VariantObjectBuilder extends VariantBuilderBase {
   }
 
   public void endObject() {
-    super.endObject(getStartPos(), fields);
+    super.endObject(startPos, fields);
   }
 }

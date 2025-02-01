@@ -32,20 +32,19 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 /** A builder class to build a primitive/array/object variant. */
 public class VariantBuilder extends VariantBuilderBase {
   public VariantBuilder() {
-    super(new VariantBuilderBase.ByteBufferWrapper(), new VariantBuilderBase.Dictionary());
+    super(new ByteBufferWrapper(), new Dictionary());
   }
 
   public VariantPrimitiveBuilder createPrimitive() {
-    VariantPrimitiveBuilder primitiveBuilder = new VariantPrimitiveBuilder(getBuffer(), getDict());
-    return primitiveBuilder;
+    return new VariantPrimitiveBuilder(valueBuffer, dict);
   }
 
   public VariantObjectBuilder startObject() {
-    return new VariantObjectBuilder(getBuffer(), getDict());
+    return new VariantObjectBuilder(valueBuffer, dict);
   }
 
   public VariantArrayBuilder startArray() {
-    return new VariantArrayBuilder(getBuffer(), getDict());
+    return new VariantArrayBuilder(valueBuffer, dict);
   }
 
   /**
@@ -63,13 +62,13 @@ public class VariantBuilder extends VariantBuilderBase {
       parser.nextToken();
 
       VariantBuilder builder = new VariantBuilder();
-      builder.buildJson(parser);
+      builder.parseJson(parser);
 
       return builder.build();
     }
   }
 
-  private void buildJson(JsonParser parser) throws IOException {
+  private void parseJson(JsonParser parser) throws IOException {
     JsonToken token = parser.currentToken();
 
     if (token == null) {
@@ -108,16 +107,16 @@ public class VariantBuilder extends VariantBuilderBase {
 
   private void writeObject(JsonParser parser) throws IOException {
     List<VariantBuilderBase.FieldEntry> fields = Lists.newArrayList();
-    int startPos = getBuffer().getPos();
+    int startPos = valueBuffer.pos();
 
     // Store object keys to dictionary of metadata
     while (parser.nextToken() != JsonToken.END_OBJECT) {
       String key = parser.currentName();
       parser.nextToken(); // Move to the value
 
-      int id = getDict().add(key);
-      fields.add(new VariantBuilderBase.FieldEntry(key, id, getBuffer().getPos() - startPos));
-      buildJson(parser);
+      int id = dict.add(key);
+      fields.add(new VariantBuilderBase.FieldEntry(key, id, valueBuffer.pos() - startPos));
+      parseJson(parser);
     }
 
     endObject(startPos, fields);
@@ -125,11 +124,11 @@ public class VariantBuilder extends VariantBuilderBase {
 
   private void writeArray(JsonParser parser) throws IOException {
     List<Integer> offsets = Lists.newArrayList();
-    int startPos = getBuffer().getPos();
+    int startPos = valueBuffer.pos();
 
     while (parser.nextToken() != JsonToken.END_ARRAY) {
-      offsets.add(getBuffer().getPos() - startPos);
-      buildJson(parser);
+      offsets.add(valueBuffer.pos() - startPos);
+      parseJson(parser);
     }
 
     endArray(startPos, offsets);
@@ -150,12 +149,10 @@ public class VariantBuilder extends VariantBuilderBase {
   }
 
   /**
-   * Attempts to parse a JSON number as a decimal and write it. The input must meet the following
-   * criteria: - Be in a valid decimal format (integer with an optional '.'). - Not in scientific
-   * notation. - Fit within the precision and scale limits of decimal types.
+   * This function attempts to parse a JSON number and write it as a decimal value.
    *
-   * @param input the input string representing the JSON number
-   * @return true if the decimal is valid and written successfully; false otherwise
+   * @param input the input string expecting to be in decimal format, not in scientific notation.
+   * @return true if the decimal is valid and written successfully; false otherwise.
    */
   private boolean tryWriteDecimal(String input) {
     // Validate that the input matches a decimal format and is not in scientific notation.
@@ -167,8 +164,8 @@ public class VariantBuilder extends VariantBuilderBase {
     BigDecimal decimalValue = new BigDecimal(input);
 
     // Ensure the decimal value meets precision and scale limits.
-    if (decimalValue.scale() <= VariantConstants.MAX_DECIMAL16_PRECISION
-        && decimalValue.precision() <= VariantConstants.MAX_DECIMAL16_PRECISION) {
+    if (decimalValue.scale() <= MAX_DECIMAL16_PRECISION
+        && decimalValue.precision() <= MAX_DECIMAL16_PRECISION) {
       writeDecimalInternal(decimalValue);
       return true;
     }

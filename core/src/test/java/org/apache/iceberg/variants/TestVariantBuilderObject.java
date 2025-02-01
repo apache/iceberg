@@ -30,7 +30,7 @@ public class TestVariantBuilderObject {
     VariantObject object = variant.value().asObject();
 
     assertThat(object.type()).isEqualTo(Variants.PhysicalType.OBJECT);
-    assertThat(object.numElements()).isEqualTo(0);
+    assertThat(object.numFields()).isEqualTo(0);
   }
 
   @Test
@@ -91,7 +91,7 @@ public class TestVariantBuilderObject {
     VariantObject object = variant.value().asObject();
 
     assertThat(object.type()).isEqualTo(Variants.PhysicalType.OBJECT);
-    assertThat(object.numElements()).isEqualTo(5);
+    assertThat(object.numFields()).isEqualTo(5);
 
     assertThat(object.get("firstName").asPrimitive().get()).isEqualTo("John");
     assertThat(object.get("lastName").asPrimitive().get()).isEqualTo("Smith");
@@ -99,7 +99,7 @@ public class TestVariantBuilderObject {
 
     VariantObject address = object.get("address").asObject();
     assertThat(address.type()).isEqualTo(Variants.PhysicalType.OBJECT);
-    assertThat(address.numElements()).isEqualTo(4);
+    assertThat(address.numFields()).isEqualTo(4);
     assertThat(address.get("streetAddress").asPrimitive().get()).isEqualTo("21 2nd Street");
     assertThat(address.get("city").asPrimitive().get()).isEqualTo("New York");
     assertThat(address.get("state").asPrimitive().get()).isEqualTo("NY");

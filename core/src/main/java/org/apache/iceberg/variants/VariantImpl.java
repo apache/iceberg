@@ -18,43 +18,41 @@
  */
 package org.apache.iceberg.variants;
 
+import java.nio.ByteBuffer;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public final class VariantImpl implements Variant {
+  // The mask to retrieve the version from first metadata byte
+  private static final byte VERSION_MASK = 0x0F;
+
   private final VariantMetadata metadata;
   private final VariantValue value;
 
-  public VariantImpl(byte[] metadata, byte[] value) {
+  public VariantImpl(ByteBuffer metadata, ByteBuffer value) {
     Preconditions.checkArgument(
-        metadata != null && metadata.length >= 1, "Metadata must not be null or empty.");
+        metadata != null && metadata.limit() > 0, "Metadata must not be null or empty.");
     Preconditions.checkArgument(
-        value != null && value.length >= 1, "Value must not be null or empty.");
+        value != null && value.limit() > 0, "Value must not be null or empty.");
 
     Preconditions.checkArgument(
-        (metadata[0] & VariantConstants.VERSION_MASK) == VariantConstants.VERSION,
-        "Unsupported metadata version.");
-
-    if (value.length > VariantConstants.SIZE_LIMIT
-        || metadata.length > VariantConstants.SIZE_LIMIT) {
-      throw new VariantSizeLimitException();
-    }
+        (metadata.get(0) & VERSION_MASK) == Variants.VERSION, "Unsupported metadata version.");
 
     this.metadata = SerializedMetadata.from(metadata);
 
-    int header = value[0];
+    int header = value.get(0);
     Variants.BasicType basicType = VariantUtil.basicType(header);
     switch (basicType) {
       case PRIMITIVE:
-        this.value = SerializedPrimitive.from(value);
+        this.value = SerializedPrimitive.from(value.array());
         break;
       case ARRAY:
-        this.value = SerializedArray.from((SerializedMetadata) this.metadata, value);
+        this.value = SerializedArray.from((SerializedMetadata) this.metadata, value.array());
         break;
       case OBJECT:
-        this.value = SerializedObject.from((SerializedMetadata) this.metadata, value);
+        this.value = SerializedObject.from((SerializedMetadata) this.metadata, value.array());
         break;
       case SHORT_STRING:
-        this.value = SerializedShortString.from(value);
+        this.value = SerializedShortString.from(value.array());
         break;
       default:
         throw new UnsupportedOperationException("Unsupported basic type: " + basicType);

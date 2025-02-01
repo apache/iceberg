@@ -19,9 +19,9 @@
 package org.apache.iceberg.variants;
 
 import java.math.BigDecimal;
-import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -30,16 +30,18 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 abstract class VariantBuilderBase {
-  protected static final int MAX_SHORT_STR_SIZE = 0x3F;
+  private static final int MAX_DECIMAL4_PRECISION = 9;
+  private static final int MAX_DECIMAL8_PRECISION = 18;
+  protected static final int MAX_DECIMAL16_PRECISION = 38;
 
-  private final ByteBufferWrapper buffer;
-  private final Dictionary dict;
-  private int startPos;
+  protected final ByteBufferWrapper valueBuffer;
+  protected final Dictionary dict;
+  protected int startPos;
 
-  VariantBuilderBase(ByteBufferWrapper buffer, Dictionary dict) {
-    this.buffer = buffer;
+  VariantBuilderBase(ByteBufferWrapper valueBuffer, Dictionary dict) {
+    this.valueBuffer = valueBuffer;
     this.dict = dict;
-    startPos = buffer.pos;
+    startPos = valueBuffer.pos;
   }
 
   /**
@@ -52,9 +54,6 @@ abstract class VariantBuilderBase {
 
     // Calculate total size of dictionary strings
     long numStringBytes = dict.totalBytes();
-    if (numStringBytes > VariantConstants.SIZE_LIMIT) {
-      throw new VariantSizeLimitException();
-    }
 
     // Determine the number of bytes required for dictionary size and offset entry
     int offsetSize = sizeOf(Math.max((int) numStringBytes, numKeys));
@@ -62,42 +61,43 @@ abstract class VariantBuilderBase {
     // metadata: header byte, dictionary size, offsets and string bytes
     long metadataSize = 1 + offsetSize + (numKeys + 1) * offsetSize + numStringBytes;
 
-    // Ensure the metadata size is within limits
-    if (metadataSize > VariantConstants.SIZE_LIMIT) {
-      throw new VariantSizeLimitException();
-    }
-
-    ByteBufferWrapper metadataBuffer =
-        new ByteBufferWrapper((int) metadataSize, (int) metadataSize);
+    ByteBuffer metadataBuffer =
+        ByteBuffer.allocate((int) metadataSize).order(ByteOrder.LITTLE_ENDIAN);
 
     // Write header byte (version + offset size)
-    metadataBuffer.addByte(VariantUtil.metadataHeader(VariantConstants.VERSION, offsetSize));
+    VariantUtil.writeByte(
+        metadataBuffer, VariantUtil.metadataHeader(Variants.VERSION, offsetSize), 0);
 
     // Write number of keys
-    metadataBuffer.writeLittleEndianUnsigned(numKeys, offsetSize);
+    VariantUtil.writeLittleEndianUnsigned(metadataBuffer, numKeys, 1, offsetSize);
 
     // Write offsets
-    int currentOffset = 0;
-    for (byte[] key : dict.getKeys()) {
-      metadataBuffer.writeLittleEndianUnsigned(currentOffset, offsetSize);
-      currentOffset += key.length;
+    int offset = 1 + offsetSize;
+    int dictOffset = 0;
+    for (byte[] key : dict.keys()) {
+      VariantUtil.writeLittleEndianUnsigned(metadataBuffer, dictOffset, offset, offsetSize);
+      dictOffset += key.length;
+      offset += offsetSize;
     }
-    metadataBuffer.writeLittleEndianUnsigned(numStringBytes, offsetSize);
+    VariantUtil.writeLittleEndianUnsigned(metadataBuffer, numStringBytes, offset, offsetSize);
 
     // Write dictionary strings
-    dict.getKeys().forEach(metadataBuffer::addBytes);
+    offset += offsetSize;
+    for (byte[] key : dict.keys()) {
+      VariantUtil.writeBufferAbsolute(metadataBuffer, offset, ByteBuffer.wrap(key));
+      offset += key.length;
+    }
 
-    return new VariantImpl(metadataBuffer.toByteArray(), buffer.toByteArray());
+    return new VariantImpl(metadataBuffer, valueBuffer.buffer);
   }
 
   protected void writeNullInternal() {
-    buffer.addByte(VariantUtil.primitiveHeader(Variants.Primitives.TYPE_NULL));
+    valueBuffer.writePrimitive(Variants.PhysicalType.NULL, null);
   }
 
   protected void writeBooleanInternal(boolean value) {
-    buffer.addByte(
-        VariantUtil.primitiveHeader(
-            value ? Variants.Primitives.TYPE_TRUE : Variants.Primitives.TYPE_FALSE));
+    valueBuffer.writePrimitive(
+        value ? Variants.PhysicalType.BOOLEAN_TRUE : Variants.PhysicalType.BOOLEAN_FALSE, value);
   }
 
   /**
@@ -108,27 +108,18 @@ abstract class VariantBuilderBase {
    */
   protected void writeNumericInternal(long value) {
     if (value == (byte) value) {
-      // INT8: Requires 1 byte for header + 1 byte for value
-      buffer.addByte(VariantUtil.primitiveHeader(Variants.Primitives.TYPE_INT8));
-      buffer.writeLittleEndianUnsigned(value, 1);
+      valueBuffer.writePrimitive(Variants.PhysicalType.INT8, (byte) value);
     } else if (value == (short) value) {
-      // INT16: Requires 1 byte for header + 2 bytes for value
-      buffer.addByte(VariantUtil.primitiveHeader(Variants.Primitives.TYPE_INT16));
-      buffer.writeLittleEndianUnsigned(value, 2);
+      valueBuffer.writePrimitive(Variants.PhysicalType.INT16, (short) value);
     } else if (value == (int) value) {
-      // INT32: Requires 1 byte for header + 4 bytes for value
-      buffer.addByte(VariantUtil.primitiveHeader(Variants.Primitives.TYPE_INT32));
-      buffer.writeLittleEndianUnsigned(value, 4);
+      valueBuffer.writePrimitive(Variants.PhysicalType.INT32, (int) value);
     } else {
-      // INT64: Requires 1 byte for header + 8 bytes for value
-      buffer.addByte(VariantUtil.primitiveHeader(Variants.Primitives.TYPE_INT64));
-      buffer.writeLittleEndianUnsigned(value, 8);
+      valueBuffer.writePrimitive(Variants.PhysicalType.INT64, value);
     }
   }
 
   protected void writeDoubleInternal(double value) {
-    buffer.addByte(VariantUtil.primitiveHeader(Variants.Primitives.TYPE_DOUBLE));
-    buffer.writeLittleEndianUnsigned(Double.doubleToLongBits(value), 8);
+    valueBuffer.writePrimitive(Variants.PhysicalType.DOUBLE, value);
   }
 
   /**
@@ -137,75 +128,44 @@ abstract class VariantBuilderBase {
    */
   public void writeDecimalInternal(BigDecimal value) {
     Preconditions.checkArgument(
-        value.precision() <= VariantConstants.MAX_DECIMAL16_PRECISION,
+        value.precision() <= MAX_DECIMAL16_PRECISION,
         "Unsupported Decimal precision: %s",
         value.precision());
 
-    BigInteger unscaled = value.unscaledValue();
-    if (value.scale() <= VariantConstants.MAX_DECIMAL4_PRECISION
-        && value.precision() <= VariantConstants.MAX_DECIMAL4_PRECISION) {
-      buffer.addByte(VariantUtil.primitiveHeader(Variants.Primitives.TYPE_DECIMAL4));
-      buffer.addByte((byte) value.scale());
-      buffer.writeLittleEndianUnsigned(unscaled.intValueExact(), 4);
-    } else if (value.scale() <= VariantConstants.MAX_DECIMAL8_PRECISION
-        && value.precision() <= VariantConstants.MAX_DECIMAL8_PRECISION) {
-      buffer.addByte(VariantUtil.primitiveHeader(Variants.Primitives.TYPE_DECIMAL8));
-      buffer.addByte((byte) value.scale());
-      buffer.writeLittleEndianUnsigned(unscaled.longValueExact(), 8);
+    if (value.scale() <= MAX_DECIMAL4_PRECISION && value.precision() <= MAX_DECIMAL4_PRECISION) {
+      valueBuffer.writePrimitive(Variants.PhysicalType.DECIMAL4, value);
+    } else if (value.scale() <= MAX_DECIMAL8_PRECISION
+        && value.precision() <= MAX_DECIMAL8_PRECISION) {
+      valueBuffer.writePrimitive(Variants.PhysicalType.DECIMAL8, value);
     } else {
-      buffer.addByte(VariantUtil.primitiveHeader(Variants.Primitives.TYPE_DECIMAL16));
-      buffer.addByte((byte) value.scale());
-      byte[] bytes = unscaled.toByteArray();
-      for (int i = 0; i < 16; i++) {
-        byte byteValue =
-            i < bytes.length ? bytes[bytes.length - 1 - i] : (byte) (bytes[0] < 0 ? -1 : 0);
-        buffer.addByte(byteValue);
-      }
+      valueBuffer.writePrimitive(Variants.PhysicalType.DECIMAL16, value);
     }
   }
 
   protected void writeDateInternal(int daysSinceEpoch) {
-    buffer.addByte(VariantUtil.primitiveHeader(Variants.Primitives.TYPE_DATE));
-    buffer.writeLittleEndianUnsigned(daysSinceEpoch, 4);
+    valueBuffer.writePrimitive(Variants.PhysicalType.DATE, daysSinceEpoch);
   }
 
   /** Writes a timestamp with timezone (microseconds since epoch) to the variant builder. */
   protected void writeTimestampTzInternal(long microsSinceEpoch) {
-    buffer.addByte(VariantUtil.primitiveHeader(Variants.Primitives.TYPE_TIMESTAMPTZ));
-    buffer.writeLittleEndianUnsigned(microsSinceEpoch, 8);
+    valueBuffer.writePrimitive(Variants.PhysicalType.TIMESTAMPTZ, microsSinceEpoch);
   }
 
   /** Writes a timestamp without timezone (microseconds since epoch) to the variant builder. */
   protected void writeTimestampNtzInternal(long microsSinceEpoch) {
-    buffer.addByte(VariantUtil.primitiveHeader(Variants.Primitives.TYPE_TIMESTAMPNTZ));
-    buffer.writeLittleEndianUnsigned(microsSinceEpoch, 8);
+    valueBuffer.writePrimitive(Variants.PhysicalType.TIMESTAMPNTZ, microsSinceEpoch);
   }
 
-  protected void writeFloatInternal(float value) throws VariantSizeLimitException {
-    buffer.addByte(VariantUtil.primitiveHeader(Variants.Primitives.TYPE_FLOAT));
-    buffer.writeLittleEndianUnsigned(Float.floatToIntBits(value), 4);
+  protected void writeFloatInternal(float value) {
+    valueBuffer.writePrimitive(Variants.PhysicalType.FLOAT, value);
   }
 
-  protected void writeBinaryInternal(byte[] value) throws VariantSizeLimitException {
-    buffer.addByte(VariantUtil.primitiveHeader(Variants.Primitives.TYPE_BINARY));
-    buffer.writeLittleEndianUnsigned(value.length, 4);
-    buffer.addBytes(value);
+  protected void writeBinaryInternal(byte[] value) {
+    valueBuffer.writePrimitive(Variants.PhysicalType.BINARY, ByteBuffer.wrap(value));
   }
 
   protected void writeStringInternal(String value) {
-    byte[] text = value.getBytes(StandardCharsets.UTF_8);
-    boolean longStr = text.length > MAX_SHORT_STR_SIZE;
-
-    // Write header
-    if (longStr) {
-      buffer.addByte(VariantUtil.primitiveHeader(Variants.Primitives.TYPE_STRING));
-      buffer.writeLittleEndianUnsigned(text.length, 4);
-    } else {
-      buffer.addByte(VariantUtil.shortStrHeader(text.length));
-    }
-
-    // Write string content
-    buffer.addBytes(text);
+    valueBuffer.writePrimitive(Variants.PhysicalType.STRING, value);
   }
 
   /** Choose the smallest number of bytes to store the given value. */
@@ -241,7 +201,7 @@ abstract class VariantBuilderBase {
       }
     }
 
-    int dataSize = buffer.pos - objStartPos; // Total byte size of the object values
+    int dataSize = valueBuffer.pos - objStartPos; // Total byte size of the object values
     boolean isLarge = numElements > 0xFF; // Determine whether to use large format
     int sizeBytes = isLarge ? 4 : 1; // Number of bytes for the object size
     int fieldIdSize = sizeOf(maxId); // Number of bytes for each field id
@@ -250,26 +210,26 @@ abstract class VariantBuilderBase {
         1 + sizeBytes + numElements * fieldIdSize + (numElements + 1) * fieldOffsetSize;
 
     // Shift existing data to make room for header
-    buffer.shift(objStartPos, headerSize);
+    valueBuffer.shift(objStartPos, headerSize);
 
-    buffer.insertByte(
+    valueBuffer.insertByte(
         VariantUtil.objectHeader(isLarge, fieldIdSize, fieldOffsetSize),
         objStartPos); // Insert header byte
-    buffer.insertLittleEndianUnsigned(
+    valueBuffer.insertLittleEndianUnsigned(
         numElements, sizeBytes, objStartPos + 1); // Insert number of elements
 
     // Insert field IDs and offsets
     int fieldIdStart = objStartPos + 1 + sizeBytes;
     int fieldOffsetStart = fieldIdStart + numElements * fieldIdSize;
     for (int i = 0; i < numElements; i++) {
-      buffer.insertLittleEndianUnsigned(
+      valueBuffer.insertLittleEndianUnsigned(
           fields.get(i).id, fieldIdSize, fieldIdStart + i * fieldIdSize);
-      buffer.insertLittleEndianUnsigned(
+      valueBuffer.insertLittleEndianUnsigned(
           fields.get(i).offset, fieldOffsetSize, fieldOffsetStart + i * fieldOffsetSize);
     }
 
     // Insert the offset to the end of the data
-    buffer.insertLittleEndianUnsigned(
+    valueBuffer.insertLittleEndianUnsigned(
         dataSize, fieldOffsetSize, fieldOffsetStart + numElements * fieldOffsetSize);
   }
 
@@ -281,7 +241,7 @@ abstract class VariantBuilderBase {
    * @param offsets The offsets for each array value.
    */
   protected void endArray(int arrStartPos, List<Integer> offsets) {
-    int dataSize = buffer.pos - arrStartPos; // Total byte size of the array values
+    int dataSize = valueBuffer.pos - arrStartPos; // Total byte size of the array values
     int numElements = offsets.size();
 
     boolean isLarge = numElements > 0xFF; // Determine whether to use large format
@@ -291,105 +251,65 @@ abstract class VariantBuilderBase {
     int offsetStart = arrStartPos + 1 + sizeBytes; // Start position for offsets
 
     // Shift existing data to make room for header
-    buffer.shift(arrStartPos, headerSize);
+    valueBuffer.shift(arrStartPos, headerSize);
 
-    buffer.insertByte(
+    valueBuffer.insertByte(
         VariantUtil.arrayHeader(isLarge, fieldOffsetSize), arrStartPos); // Insert header byte
-    buffer.insertLittleEndianUnsigned(
+    valueBuffer.insertLittleEndianUnsigned(
         numElements, sizeBytes, arrStartPos + 1); // Insert number of elements
 
     // Insert field offsets
     for (int i = 0; i < numElements; i++) {
-      buffer.insertLittleEndianUnsigned(
+      valueBuffer.insertLittleEndianUnsigned(
           offsets.get(i), fieldOffsetSize, offsetStart + i * fieldOffsetSize);
     }
 
     // Insert the offset to the end of the data
-    buffer.insertLittleEndianUnsigned(
+    valueBuffer.insertLittleEndianUnsigned(
         dataSize, fieldOffsetSize, offsetStart + numElements * fieldOffsetSize);
-  }
-
-  protected ByteBufferWrapper getBuffer() {
-    return buffer;
-  }
-
-  protected Dictionary getDict() {
-    return dict;
-  }
-
-  protected int getStartPos() {
-    return startPos;
   }
 
   /** An auto-growing byte buffer that doubles its size whenever the capacity is exceeded. */
   protected static class ByteBufferWrapper {
     private static final int INITIAL_CAPACITY = 128; // Starting capacity
-    private byte[] buffer;
+    private ByteBuffer buffer;
     private int pos = 0;
-    private final int sizeLimit;
 
     ByteBufferWrapper() {
-      this(INITIAL_CAPACITY, VariantConstants.SIZE_LIMIT);
+      this(INITIAL_CAPACITY);
     }
 
-    ByteBufferWrapper(int initialCapacity, int sizeLimit) {
+    ByteBufferWrapper(int initialCapacity) {
       if (initialCapacity <= 0) {
         throw new IllegalArgumentException("Initial capacity must be positive");
       }
-      this.buffer = new byte[initialCapacity];
-      this.sizeLimit = sizeLimit;
+      this.buffer = ByteBuffer.allocate(initialCapacity).order(ByteOrder.LITTLE_ENDIAN);
     }
 
     /**
      * Ensures the buffer has enough capacity to hold additional bytes.
      *
      * @param additional The number of additional bytes required.
-     * @throws VariantSizeLimitException If the required capacity exceeds the size limit.
      */
     private void ensureCapacity(int additional) {
       int required = pos + additional;
-      if (required > buffer.length) {
+      if (required > buffer.capacity()) {
         int newCapacity = Integer.highestOneBit(required);
         newCapacity = newCapacity < required ? newCapacity * 2 : newCapacity; // Double the capacity
-        if (newCapacity > this.sizeLimit) {
-          throw new VariantSizeLimitException();
-        }
 
-        byte[] newBuffer = new byte[newCapacity];
-        System.arraycopy(buffer, 0, newBuffer, 0, pos);
+        ByteBuffer newBuffer =
+            ByteBuffer.allocate(newCapacity)
+                .order(ByteOrder.LITTLE_ENDIAN)
+                .put(buffer.array(), 0, pos);
         buffer = newBuffer;
       }
     }
 
-    /** Adds a byte to the buffer, growing the buffer if necessary. */
-    void addByte(byte value) throws VariantSizeLimitException {
-      ensureCapacity(1);
-      buffer[pos++] = value;
-    }
-
-    /** Adds an array of bytes to the buffer, growing the buffer if necessary. */
-    void addBytes(byte[] values) throws VariantSizeLimitException {
-      ensureCapacity(values.length);
-      System.arraycopy(values, 0, buffer, pos, values.length);
-      pos += values.length;
-    }
-
-    /**
-     * Writes a numeric value in little-endian order to the buffer, growing the buffer if necessary.
-     *
-     * @param value The numeric value to write.
-     * @param numBytes The number of bytes to write (e.g., 2 for short, 4 for int, 8 for long).
-     */
-    void writeLittleEndianUnsigned(long value, int numBytes) {
-      if (numBytes < 1 || numBytes > 8) {
-        throw new IllegalArgumentException("numBytes must be between 1 and 8");
-      }
-      ensureCapacity(numBytes);
-
-      for (int i = 0; i < numBytes; ++i) {
-        buffer[pos + i] = (byte) ((value >>> (8 * i)) & 0xFF);
-      }
-      pos += numBytes;
+    <T> void writePrimitive(Variants.PhysicalType type, T value) {
+      PrimitiveWrapper<T> wrapper = new PrimitiveWrapper<T>(type, value);
+      ensureCapacity(pos + wrapper.sizeInBytes());
+      wrapper.writeTo(buffer, pos);
+      pos += wrapper.sizeInBytes();
     }
 
     /**
@@ -402,7 +322,7 @@ abstract class VariantBuilderBase {
       ensureCapacity(offset);
 
       if (pos > start) {
-        System.arraycopy(buffer, start, buffer, start + offset, pos - start);
+        System.arraycopy(buffer.array(), start, buffer.array(), start + offset, pos - start);
       }
 
       pos += offset;
@@ -414,8 +334,7 @@ abstract class VariantBuilderBase {
      */
     void insertByte(byte value, int insertPos) {
       Preconditions.checkArgument(insertPos < pos, "insertPos must be smaller than pos");
-
-      buffer[insertPos] = value;
+      VariantUtil.writeByteAbsolute(buffer, value, insertPos);
     }
 
     /**
@@ -428,17 +347,10 @@ abstract class VariantBuilderBase {
         throw new IllegalArgumentException("numBytes must be between 1 and 8");
       }
 
-      for (int i = 0; i < numBytes; ++i) {
-        buffer[insertPos + i] = (byte) ((value >>> (8 * i)) & 0xFF);
-      }
+      VariantUtil.writeLittleEndianUnsignedAbsolute(buffer, value, insertPos, numBytes);
     }
 
-    /** Returns the underlying byte array. */
-    byte[] toByteArray() {
-      return Arrays.copyOf(buffer, pos);
-    }
-
-    int getPos() {
+    int pos() {
       return pos;
     }
   }
@@ -472,7 +384,7 @@ abstract class VariantBuilderBase {
       return utf8Strings.stream().mapToLong(key -> key.length).sum();
     }
 
-    List<byte[]> getKeys() {
+    List<byte[]> keys() {
       return utf8Strings;
     }
   }

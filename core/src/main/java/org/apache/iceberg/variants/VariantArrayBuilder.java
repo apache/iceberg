@@ -29,19 +29,19 @@ import org.apache.iceberg.util.DateTimeUtil;
 public class VariantArrayBuilder extends VariantBuilderBase {
   private final List<Integer> offsets;
 
-  public VariantArrayBuilder(ByteBufferWrapper buffer, Dictionary dict) {
-    super(buffer, dict);
+  public VariantArrayBuilder(ByteBufferWrapper valueBuffer, Dictionary dict) {
+    super(valueBuffer, dict);
     offsets = Lists.newArrayList();
   }
 
   public VariantObjectBuilder startObject() {
     addOffset();
-    return new VariantObjectBuilder(getBuffer(), getDict());
+    return new VariantObjectBuilder(valueBuffer, dict);
   }
 
   public VariantArrayBuilder startArray() {
     addOffset();
-    return new VariantArrayBuilder(getBuffer(), getDict());
+    return new VariantArrayBuilder(valueBuffer, dict);
   }
 
   public VariantArrayBuilder writeNull() {
@@ -111,10 +111,10 @@ public class VariantArrayBuilder extends VariantBuilderBase {
   }
 
   private void addOffset() {
-    offsets.add(getBuffer().getPos() - getStartPos());
+    offsets.add(valueBuffer.pos() - startPos);
   }
 
   public void endArray() {
-    super.endArray(getStartPos(), offsets);
+    super.endArray(startPos, offsets);
   }
 }

@@ -25,8 +25,8 @@ import java.time.OffsetDateTime;
 import org.apache.iceberg.util.DateTimeUtil;
 
 public class VariantPrimitiveBuilder extends VariantBuilderBase {
-  public VariantPrimitiveBuilder(ByteBufferWrapper buffer, Dictionary dict) {
-    super(buffer, dict);
+  public VariantPrimitiveBuilder(ByteBufferWrapper valueBuffer, Dictionary dict) {
+    super(valueBuffer, dict);
   }
 
   public VariantPrimitiveBuilder writeNull() {
