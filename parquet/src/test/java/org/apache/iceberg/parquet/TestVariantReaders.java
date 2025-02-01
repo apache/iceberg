@@ -21,8 +21,6 @@ package org.apache.iceberg.parquet;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -39,8 +37,11 @@ import org.apache.iceberg.data.parquet.InternalReader;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.NestedField;
@@ -53,7 +54,6 @@ import org.apache.iceberg.variants.VariantPrimitive;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
-import org.apache.parquet.Preconditions;
 import org.apache.parquet.avro.AvroSchemaConverter;
 import org.apache.parquet.avro.AvroWriteSupport;
 import org.apache.parquet.hadoop.ParquetWriter;
@@ -318,9 +318,9 @@ public class TestVariantReaders {
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
-    GenericRecord a = record(fieldA, Map.of("value", serialize(Variants.ofNull())));
-    GenericRecord b = record(fieldB, Map.of("typed_value", ""));
-    GenericRecord fields = record(objectFields, Map.of("a", a, "b", b));
+    GenericRecord recordA = record(fieldA, Map.of("value", serialize(Variants.ofNull())));
+    GenericRecord recordB = record(fieldB, Map.of("typed_value", ""));
+    GenericRecord fields = record(objectFields, Map.of("a", recordA, "b", recordB));
     GenericRecord variant =
         record(variantType, Map.of("metadata", TEST_METADATA_BUFFER, "typed_value", fields));
     GenericRecord record = record(parquetSchema, Map.of("id", 1, "var", variant));
@@ -353,9 +353,9 @@ public class TestVariantReaders {
 
     MessageType parquetSchema = parquetSchema(variantType);
 
-    GenericRecord a = record(fieldA, Map.of("value", serialize(Variants.of((short) 1234))));
-    GenericRecord b = record(fieldB, Map.of("typed_value", "iceberg"));
-    GenericRecord fields = record(objectFields, Map.of("a", a, "b", b));
+    GenericRecord recordA = record(fieldA, Map.of("value", serialize(Variants.of((short) 1234))));
+    GenericRecord recordB = record(fieldB, Map.of("typed_value", "iceberg"));
+    GenericRecord fields = record(objectFields, Map.of("a", recordA, "b", recordB));
     GenericRecord variant =
         record(variantType, Map.of("metadata", TEST_METADATA_BUFFER, "typed_value", fields));
     GenericRecord record = record(parquetSchema, Map.of("id", 1, "var", variant));
@@ -381,10 +381,10 @@ public class TestVariantReaders {
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
-    GenericRecord a = record(fieldA, Map.of("value", serialize(Variants.of(false))));
+    GenericRecord recordA = record(fieldA, Map.of("value", serialize(Variants.of(false))));
     // value and typed_value are null, but a struct for b is required
-    GenericRecord b = record(fieldB, Map.of());
-    GenericRecord fields = record(objectFields, Map.of("a", a, "b", b));
+    GenericRecord recordB = record(fieldB, Map.of());
+    GenericRecord fields = record(objectFields, Map.of("a", recordA, "b", recordB));
     GenericRecord variant =
         record(variantType, Map.of("metadata", TEST_METADATA_BUFFER, "typed_value", fields));
     GenericRecord record = record(parquetSchema, Map.of("id", 1, "var", variant));
@@ -409,9 +409,9 @@ public class TestVariantReaders {
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
-    GenericRecord a = record(fieldA, Map.of()); // missing
-    GenericRecord b = record(fieldB, Map.of()); // missing
-    GenericRecord fields = record(objectFields, Map.of("a", a, "b", b));
+    GenericRecord recordA = record(fieldA, Map.of()); // missing
+    GenericRecord recordB = record(fieldB, Map.of()); // missing
+    GenericRecord fields = record(objectFields, Map.of("a", recordA, "b", recordB));
     GenericRecord variant =
         record(variantType, Map.of("metadata", TEST_METADATA_BUFFER, "typed_value", fields));
     GenericRecord record = record(parquetSchema, Map.of("id", 1, "var", variant));
@@ -443,9 +443,9 @@ public class TestVariantReaders {
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
-    GenericRecord a = record(fieldA, Map.of()); // typed_value=null
-    GenericRecord b = record(fieldB, Map.of("typed_value", "iceberg"));
-    GenericRecord fields = record(objectFields, Map.of("a", a, "b", b));
+    GenericRecord recordA = record(fieldA, Map.of()); // typed_value=null
+    GenericRecord recordB = record(fieldB, Map.of("typed_value", "iceberg"));
+    GenericRecord fields = record(objectFields, Map.of("a", recordA, "b", recordB));
     GenericRecord variant =
         record(variantType, Map.of("metadata", TEST_METADATA_BUFFER, "typed_value", fields));
     GenericRecord record = record(parquetSchema, Map.of("id", 1, "var", variant));
@@ -480,9 +480,9 @@ public class TestVariantReaders {
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
-    GenericRecord a = record(fieldA, Map.of()); // value=null
-    GenericRecord b = record(fieldB, Map.of("value", serialize(Variants.of("iceberg"))));
-    GenericRecord fields = record(objectFields, Map.of("a", a, "b", b));
+    GenericRecord recordA = record(fieldA, Map.of()); // value=null
+    GenericRecord recordB = record(fieldB, Map.of("value", serialize(Variants.of("iceberg"))));
+    GenericRecord fields = record(objectFields, Map.of("a", recordA, "b", recordB));
     GenericRecord variant =
         record(variantType, Map.of("metadata", TEST_METADATA_BUFFER, "typed_value", fields));
     GenericRecord record = record(parquetSchema, Map.of("id", 1, "var", variant));
@@ -510,12 +510,12 @@ public class TestVariantReaders {
     GroupType variantType = variant("var", 2, outerFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
-    GenericRecord a = record(fieldA, Map.of("typed_value", 34));
-    GenericRecord b = record(fieldB, Map.of("typed_value", "iceberg"));
-    GenericRecord inner = record(innerFields, Map.of("a", a, "b", b));
-    GenericRecord c = record(fieldC, Map.of("typed_value", inner));
-    GenericRecord d = record(fieldD, Map.of("typed_value", -0.0D));
-    GenericRecord outer = record(outerFields, Map.of("c", c, "d", d));
+    GenericRecord recordA = record(fieldA, Map.of("typed_value", 34));
+    GenericRecord recordB = record(fieldB, Map.of("typed_value", "iceberg"));
+    GenericRecord inner = record(innerFields, Map.of("a", recordA, "b", recordB));
+    GenericRecord recordC = record(fieldC, Map.of("typed_value", inner));
+    GenericRecord recordD = record(fieldD, Map.of("typed_value", -0.0D));
+    GenericRecord outer = record(outerFields, Map.of("c", recordC, "d", recordD));
     GenericRecord variant =
         record(variantType, Map.of("metadata", TEST_METADATA_BUFFER, "typed_value", outer));
     GenericRecord record = record(parquetSchema, Map.of("id", 1, "var", variant));
@@ -570,10 +570,10 @@ public class TestVariantReaders {
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
-    GenericRecord a = record(fieldA, Map.of("value", serialize(Variants.of(34))));
-    GenericRecord b = record(fieldB, Map.of("typed_value", "iceberg"));
-    GenericRecord c = record(fieldC, Map.of()); // c.value and c.typed_value are missing
-    GenericRecord fields = record(objectFields, Map.of("a", a, "b", b, "c", c)); // d is missing
+    GenericRecord recordA = record(fieldA, Map.of("value", serialize(Variants.of(34))));
+    GenericRecord recordB = record(fieldB, Map.of("typed_value", "iceberg"));
+    GenericRecord recordC = record(fieldC, Map.of()); // c.value and c.typed_value are missing
+    GenericRecord fields = record(objectFields, Map.of("a", recordA, "b", recordB, "c", recordC)); // d is missing
     GenericRecord variant =
         record(variantType, Map.of("metadata", TEST_METADATA_BUFFER, "typed_value", fields));
     GenericRecord record = record(parquetSchema, Map.of("id", 1, "var", variant));
@@ -603,9 +603,9 @@ public class TestVariantReaders {
     ShreddedObject baseObject = Variants.object(TEST_METADATA);
     baseObject.put("d", Variants.ofIsoDate("2024-01-30"));
 
-    GenericRecord a = record(fieldA, Map.of("value", serialize(Variants.ofNull())));
-    GenericRecord b = record(fieldB, Map.of("typed_value", "iceberg"));
-    GenericRecord fields = record(objectFields, Map.of("a", a, "b", b));
+    GenericRecord recordA = record(fieldA, Map.of("value", serialize(Variants.ofNull())));
+    GenericRecord recordB = record(fieldB, Map.of("typed_value", "iceberg"));
+    GenericRecord fields = record(objectFields, Map.of("a", recordA, "b", recordB));
     GenericRecord variant =
         record(
             variantType,
@@ -644,9 +644,9 @@ public class TestVariantReaders {
         VariantTestUtil.createObject(
             TEST_METADATA_BUFFER, Map.of("b", Variants.ofIsoDate("2024-01-30"))); // conflict
 
-    GenericRecord a = record(fieldA, Map.of("value", serialize(Variants.ofNull())));
-    GenericRecord b = record(fieldB, Map.of("typed_value", "iceberg"));
-    GenericRecord fields = record(objectFields, Map.of("a", a, "b", b));
+    GenericRecord recordA = record(fieldA, Map.of("value", serialize(Variants.ofNull())));
+    GenericRecord recordB = record(fieldB, Map.of("typed_value", "iceberg"));
+    GenericRecord fields = record(objectFields, Map.of("a", recordA, "b", recordB));
     GenericRecord variant =
         record(
             variantType,
@@ -685,10 +685,10 @@ public class TestVariantReaders {
         VariantTestUtil.createObject(
             TEST_METADATA_BUFFER, Map.of("b", Variants.ofIsoDate("2024-01-30"))); // conflict
 
-    GenericRecord a = record(fieldA, Map.of("value", serialize(Variants.ofNull())));
+    GenericRecord recordA = record(fieldA, Map.of("value", serialize(Variants.ofNull())));
     // value and typed_value are null, but a struct for b is required
-    GenericRecord b = record(fieldB, Map.of());
-    GenericRecord fields = record(objectFields, Map.of("a", a, "b", b));
+    GenericRecord recordB = record(fieldB, Map.of());
+    GenericRecord fields = record(objectFields, Map.of("a", recordA, "b", recordB));
     GenericRecord variant =
         record(
             variantType,
@@ -745,9 +745,9 @@ public class TestVariantReaders {
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
-    GenericRecord a = record(fieldA, Map.of("value", serialize(Variants.ofNull())));
-    GenericRecord b = record(fieldB, Map.of("value", serialize(Variants.of(9876543210L))));
-    GenericRecord fields = record(objectFields, Map.of("a", a, "b", b));
+    GenericRecord recordA = record(fieldA, Map.of("value", serialize(Variants.ofNull())));
+    GenericRecord recordB = record(fieldB, Map.of("value", serialize(Variants.of(9876543210L))));
+    GenericRecord fields = record(objectFields, Map.of("a", recordA, "b", recordB));
     GenericRecord variant =
         record(
             variantType,
@@ -773,9 +773,9 @@ public class TestVariantReaders {
     GroupType variantType = variant("var", 2, objectFields);
     MessageType parquetSchema = parquetSchema(variantType);
 
-    GenericRecord a = record(fieldA, Map.of()); // missing
-    GenericRecord b = record(fieldB, Map.of()); // missing
-    GenericRecord fields = record(objectFields, Map.of("a", a, "b", b));
+    GenericRecord recordA = record(fieldA, Map.of()); // missing
+    GenericRecord recordB = record(fieldB, Map.of()); // missing
+    GenericRecord fields = record(objectFields, Map.of("a", recordA, "b", recordB));
     GenericRecord variant =
         record(
             variantType,
