@@ -246,7 +246,8 @@ public class TestSparkFileRewriter extends SparkTestBase {
             SparkBinPackDataRewriter.MIN_INPUT_FILES,
             SparkBinPackDataRewriter.REWRITE_ALL,
             SparkBinPackDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
-            SparkBinPackDataRewriter.DELETE_FILE_THRESHOLD),
+            SparkBinPackDataRewriter.DELETE_FILE_THRESHOLD,
+            SparkBinPackDataRewriter.DELETE_RATIO_THRESHOLD),
         rewriter.validOptions());
   }
 
@@ -266,6 +267,7 @@ public class TestSparkFileRewriter extends SparkTestBase {
             SparkSortDataRewriter.REWRITE_ALL,
             SparkSortDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
             SparkSortDataRewriter.DELETE_FILE_THRESHOLD,
+            SparkSortDataRewriter.DELETE_RATIO_THRESHOLD,
             SparkSortDataRewriter.COMPRESSION_FACTOR),
         rewriter.validOptions());
   }
@@ -287,6 +289,7 @@ public class TestSparkFileRewriter extends SparkTestBase {
             SparkZOrderDataRewriter.REWRITE_ALL,
             SparkZOrderDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
             SparkZOrderDataRewriter.DELETE_FILE_THRESHOLD,
+            SparkZOrderDataRewriter.DELETE_RATIO_THRESHOLD,
             SparkZOrderDataRewriter.COMPRESSION_FACTOR,
             SparkZOrderDataRewriter.MAX_OUTPUT_SIZE,
             SparkZOrderDataRewriter.VAR_LENGTH_CONTRIBUTION),
@@ -304,6 +307,17 @@ public class TestSparkFileRewriter extends SparkTestBase {
         ImmutableMap.of(SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, "-1");
     assertThatThrownBy(() -> rewriter.init(invalidDeleteThresholdOptions))
         .hasMessageContaining("'delete-file-threshold' is set to -1 but must be >= 0");
+
+    Map<String, String> negativeDeleteRatioThresholdOptions =
+        ImmutableMap.of(SizeBasedDataRewriter.DELETE_RATIO_THRESHOLD, "-1");
+    assertThatThrownBy(() -> rewriter.init(negativeDeleteRatioThresholdOptions))
+        .hasMessageContaining("'delete-ratio-threshold' is set to negative but must be >= 0");
+
+    Map<String, String> invalidDeleteRatioThresholdOptions =
+        ImmutableMap.of(SizeBasedDataRewriter.DELETE_RATIO_THRESHOLD, "127");
+    ;
+    assertThatThrownBy(() -> rewriter.init(invalidDeleteRatioThresholdOptions))
+        .hasMessageContaining("'delete-ratio-threshold' is greater than 1 but must be <= 1");
   }
 
   @Test
@@ -322,6 +336,17 @@ public class TestSparkFileRewriter extends SparkTestBase {
         ImmutableMap.of(SparkShufflingDataRewriter.COMPRESSION_FACTOR, "0");
     assertThatThrownBy(() -> rewriter.init(invalidCompressionFactorOptions))
         .hasMessageContaining("'compression-factor' is set to 0.0 but must be > 0");
+
+    Map<String, String> negativeDeleteRatioThresholdOptions =
+        ImmutableMap.of(SparkShufflingDataRewriter.DELETE_RATIO_THRESHOLD, "-1");
+    assertThatThrownBy(() -> rewriter.init(negativeDeleteRatioThresholdOptions))
+        .hasMessageContaining("'delete-ratio-threshold' is set to negative but must be >= 0");
+
+    Map<String, String> invalidDeleteRatioThresholdOptions =
+        ImmutableMap.of(SparkShufflingDataRewriter.DELETE_RATIO_THRESHOLD, "127");
+    ;
+    assertThatThrownBy(() -> rewriter.init(invalidDeleteRatioThresholdOptions))
+        .hasMessageContaining("'delete-ratio-threshold' is greater than 1 but must be <= 1");
   }
 
   @Test
@@ -353,6 +378,17 @@ public class TestSparkFileRewriter extends SparkTestBase {
     assertThatThrownBy(() -> rewriter.init(invalidVarLengthContributionOptions))
         .hasMessageContaining("Cannot use less than 1 byte for variable length types with ZOrder")
         .hasMessageContaining("'var-length-contribution' was set to 0");
+
+    Map<String, String> negativeDeleteRatioThresholdOptions =
+        ImmutableMap.of(SparkZOrderDataRewriter.DELETE_RATIO_THRESHOLD, "-1");
+    assertThatThrownBy(() -> rewriter.init(negativeDeleteRatioThresholdOptions))
+        .hasMessageContaining("'delete-ratio-threshold' is set to negative but must be >= 0");
+
+    Map<String, String> invalidDeleteRatioThresholdOptions =
+        ImmutableMap.of(SparkZOrderDataRewriter.DELETE_RATIO_THRESHOLD, "127");
+    ;
+    assertThatThrownBy(() -> rewriter.init(invalidDeleteRatioThresholdOptions))
+        .hasMessageContaining("'delete-ratio-threshold' is greater than 1 but must be <= 1");
   }
 
   private void validateSizeBasedRewriterOptions(SizeBasedFileRewriter<?, ?> rewriter) {
