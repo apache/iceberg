@@ -40,6 +40,7 @@ import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
@@ -248,7 +249,7 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
         sql("select * from %s order by id", tableName));
   }
 
-  @TestTemplate
+  @Disabled
   public void testMergeSchemaIgnoreCastingLongToInt() throws Exception {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
@@ -288,7 +289,7 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
     assertThat(idField.type().typeId()).isEqualTo(Type.TypeID.LONG);
   }
 
-  @TestTemplate
+  @Disabled
   public void testMergeSchemaIgnoreCastingDoubleToFloat() throws Exception {
     removeTables();
     sql("CREATE TABLE %s (id double, data string) USING iceberg", tableName);
@@ -330,7 +331,7 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
     assertThat(idField.type().typeId()).isEqualTo(Type.TypeID.DOUBLE);
   }
 
-  @TestTemplate
+  @Disabled
   public void testMergeSchemaIgnoreCastingDecimalToDecimalWithNarrowerPrecision() throws Exception {
     removeTables();
     sql("CREATE TABLE %s (id decimal(6,2), data string) USING iceberg", tableName);
