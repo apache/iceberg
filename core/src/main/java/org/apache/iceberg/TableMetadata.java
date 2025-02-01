@@ -1310,13 +1310,7 @@ public class TableMetadata implements Serializable {
     }
 
     private Builder resetMainBranch() {
-      this.currentSnapshotId = -1;
-      SnapshotRef ref = refs.remove(SnapshotRef.MAIN_BRANCH);
-      if (ref != null) {
-        changes.add(new MetadataUpdate.RemoveSnapshotRef(SnapshotRef.MAIN_BRANCH));
-      }
-
-      return this;
+      return removeRef(SnapshotRef.MAIN_BRANCH);
     }
 
     /**
