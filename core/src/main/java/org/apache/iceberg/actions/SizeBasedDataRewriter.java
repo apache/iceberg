@@ -84,17 +84,17 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
   public void init(Map<String, String> options) {
     super.init(options);
     this.deleteFileThreshold = deleteFileThreshold(options);
-    this.deleteRatioThreshold = getDeleteRatioThreshold(options);
+    this.deleteRatioThreshold = deleteRatioThreshold(options);
   }
 
-  private double getDeleteRatioThreshold(Map<String, String> options) {
+  private double deleteRatioThreshold(Map<String, String> options) {
     double value =
         PropertyUtil.propertyAsDouble(
             options, DELETE_RATIO_THRESHOLD, DELETE_RATIO_THRESHOLD_DEFAULT);
     Preconditions.checkArgument(
-        value >= 0, "'%s' is set to negative but must be >= 0", DELETE_RATIO_THRESHOLD);
+        value > 0, "'%s' is set to %s but must be > 0", DELETE_RATIO_THRESHOLD, value);
     Preconditions.checkArgument(
-        value <= 1, "'%s' is greater than 1 but must be <= 1", DELETE_RATIO_THRESHOLD);
+        value <= 1, "'%s' is set to %s but must be <= 1", DELETE_RATIO_THRESHOLD, value);
     return value;
   }
 
