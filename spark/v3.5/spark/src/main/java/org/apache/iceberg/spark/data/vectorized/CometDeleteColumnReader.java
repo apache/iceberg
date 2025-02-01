@@ -20,14 +20,22 @@ package org.apache.iceberg.spark.data.vectorized;
 
 import org.apache.comet.parquet.MetadataColumnReader;
 import org.apache.comet.parquet.Native;
+import org.apache.comet.parquet.TypeUtil;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.types.Types;
-import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.Metadata;
+import org.apache.spark.sql.types.StructField;
 
-class CometPositionColumnReader extends CometColumnReader {
-  CometPositionColumnReader(Types.NestedField field) {
+class CometDeleteColumnReader<T> extends CometColumnReader {
+  CometDeleteColumnReader(Types.NestedField field) {
     super(field);
-    setDelegate(new PositionColumnReader(descriptor()));
+    setDelegate(new DeleteColumnReader());
+  }
+
+  CometDeleteColumnReader(boolean[] isDeleted) {
+    super(MetadataColumns.IS_DELETED);
+    setDelegate(new DeleteColumnReader(isDeleted));
   }
 
   @Override
@@ -37,24 +45,29 @@ class CometPositionColumnReader extends CometColumnReader {
     setInitialized(true);
   }
 
-  private static class PositionColumnReader extends MetadataColumnReader {
-    /** The current position value of the column that are used to initialize this column reader. */
-    private long position;
+  private static class DeleteColumnReader extends MetadataColumnReader {
+    private boolean[] isDeleted;
 
-    PositionColumnReader(ColumnDescriptor descriptor) {
+    DeleteColumnReader() {
       super(
-          DataTypes.LongType,
-          descriptor,
+          DataTypes.BooleanType,
+          TypeUtil.convertToParquet(
+              new StructField("_deleted", DataTypes.BooleanType, false, Metadata.empty())),
           false /* useDecimal128 = false */,
-          false /* isConstant */);
+          false /* isConstant = false */);
+      this.isDeleted = new boolean[0];
+    }
+
+    DeleteColumnReader(boolean[] isDeleted) {
+      this();
+      this.isDeleted = isDeleted;
     }
 
     @Override
     public void readBatch(int total) {
       Native.resetBatch(nativeHandle);
-      // set position on the native side to be consumed by native execution
-      Native.setPosition(nativeHandle, position, total);
-      position += total;
+      // set isDeleted on the native side to be consumed by native execution
+      Native.setIsDeleted(nativeHandle, isDeleted);
 
       super.readBatch(total);
     }
