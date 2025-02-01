@@ -81,7 +81,7 @@ public class TestSizeBasedRewriter extends TestBase {
     SizeBasedDataFileRewriterImpl rewriter = new SizeBasedDataFileRewriterImpl(table);
 
     Map<String, String> options = ImmutableMap.of(
-            SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, "5"
+            SizeBasedDataRewriter.DEFAULT_DELETE_THRESHOLD, "5"
     );
     rewriter.init(options);
 
@@ -95,6 +95,13 @@ public class TestSizeBasedRewriter extends TestBase {
     FileScanTask task = new MockFileScanTask(100L * 1024 * 1024, 80); // 80% delete ratio
 
     assertThat(rewriter.tooHighDeleteRatio(task)).isTrue();
+  }
+
+  @Test
+  private void validateThreshold(double threshold) {
+    if (threshold <= 0.0 || threshold > 1.0) {
+      throw new IllegalArgumentException("Threshold must be greater than 0.0 and less than or equal to 1.0");
+    }
   }
 
   private static class SizeBasedDataFileRewriterImpl extends SizeBasedDataRewriter {
