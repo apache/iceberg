@@ -973,3 +973,4 @@ CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id =>
 Collect statistics of the snapshot with id `snap1` of table `my_table` for columns `col1` and `col2`
 ```sql
 CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id => 'snap1', columns => array('col1', 'col2'));
+```
