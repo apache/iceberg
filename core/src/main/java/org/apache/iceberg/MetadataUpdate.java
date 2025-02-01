@@ -526,4 +526,11 @@ public interface MetadataUpdate extends Serializable {
       viewMetadataBuilder.setCurrentVersionId(versionId);
     }
   }
+
+  class EnableRowLineage implements MetadataUpdate {
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.enableRowLineage();
+    }
+  }
 }
