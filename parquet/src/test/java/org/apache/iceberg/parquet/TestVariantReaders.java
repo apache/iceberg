@@ -573,7 +573,8 @@ public class TestVariantReaders {
     GenericRecord recordA = record(fieldA, Map.of("value", serialize(Variants.of(34))));
     GenericRecord recordB = record(fieldB, Map.of("typed_value", "iceberg"));
     GenericRecord recordC = record(fieldC, Map.of()); // c.value and c.typed_value are missing
-    GenericRecord fields = record(objectFields, Map.of("a", recordA, "b", recordB, "c", recordC)); // d is missing
+    GenericRecord fields =
+        record(objectFields, Map.of("a", recordA, "b", recordB, "c", recordC)); // d is missing
     GenericRecord variant =
         record(variantType, Map.of("metadata", TEST_METADATA_BUFFER, "typed_value", fields));
     GenericRecord record = record(parquetSchema, Map.of("id", 1, "var", variant));
