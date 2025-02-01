@@ -914,11 +914,11 @@ Partition statistics file must be registered in the table metadata file to be co
 
 `partition-statistics` field of table metadata is an optional list of structs with the following fields:
 
-| v1 | v2 | Field name | Type | Description |
-|----|----|------------|------|-------------|
-| _required_ | _required_ | **`snapshot-id`** | `long` | ID of the Iceberg table's snapshot the partition statistics file is associated with. |
-| _required_ | _required_ | **`statistics-path`** | `string` | Path of the partition statistics file. See [Partition statistics file](#partition-statistics-file). |
-| _required_ | _required_ | **`file-size-in-bytes`** | `long` | Size of the partition statistics file. |
+| v1 | v2 | v3 | Field name | Type | Description |
+|----|----|----|------------|------|-------------|
+| _required_ | _required_ | _required_ | **`snapshot-id`** | `long` | ID of the Iceberg table's snapshot the partition statistics file is associated with. |
+| _required_ | _required_ | _required_ | **`statistics-path`** | `string` | Path of the partition statistics file. See [Partition statistics file](#partition-statistics-file). |
+| _required_ | _required_ | _required_ | **`file-size-in-bytes`** | `long` | Size of the partition statistics file. |
 
 ##### Partition Statistics File
 
