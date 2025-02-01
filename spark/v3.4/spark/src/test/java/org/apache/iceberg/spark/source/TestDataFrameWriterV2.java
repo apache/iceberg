@@ -41,7 +41,6 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
@@ -215,7 +214,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
     Assert.assertEquals(4, fields.size());
   }
 
-  @Ignore
+  @Test
   public void testMergeSchemaIgnoreCastingLongToInt() throws Exception {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
@@ -255,7 +254,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
     assertThat(idField.type().typeId()).isEqualTo(Type.TypeID.LONG);
   }
 
-  @Ignore
+  @Test
   public void testMergeSchemaIgnoreCastingDoubleToFloat() throws Exception {
     removeTables();
     sql("CREATE TABLE %s (id double, data string) USING iceberg", tableName);
@@ -297,7 +296,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
     assertThat(idField.type().typeId()).isEqualTo(Type.TypeID.DOUBLE);
   }
 
-  @Ignore
+  @Test
   public void testMergeSchemaIgnoreCastingDecimalToDecimalWithNarrowerPrecision() throws Exception {
     removeTables();
     sql("CREATE TABLE %s (id decimal(6,2), data string) USING iceberg", tableName);

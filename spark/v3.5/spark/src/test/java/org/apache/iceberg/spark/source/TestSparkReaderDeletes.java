@@ -670,7 +670,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     ParquetBatchReadConf conf =
         ImmutableParquetBatchReadConf.builder()
             .batchSize(7)
-            .readerType(ParquetReaderType.COMET)
+            .readerType(ParquetReaderType.ICEBERG)
             .build();
 
     for (CombinedScanTask task : tasks) {

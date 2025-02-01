@@ -29,7 +29,7 @@ public class SparkSQLProperties {
 
   // Controls which Parquet reader implementation to use
   public static final String PARQUET_READER_TYPE = "spark.sql.iceberg.parquet.reader-type";
-  public static final ParquetReaderType PARQUET_READER_TYPE_DEFAULT = ParquetReaderType.COMET;
+  public static final ParquetReaderType PARQUET_READER_TYPE_DEFAULT = ParquetReaderType.ICEBERG;
   // Controls whether to perform the nullability check during writes
   public static final String CHECK_NULLABILITY = "spark.sql.iceberg.check-nullability";
   public static final boolean CHECK_NULLABILITY_DEFAULT = true;

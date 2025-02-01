@@ -26,7 +26,6 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.spark.extensions.ExtensionsTestBase;
-import org.junit.Ignore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,7 +40,7 @@ public class SmokeTest extends ExtensionsTestBase {
   // Run through our Doc's Getting Started Example
   // TODO Update doc example so that it can actually be run, modifications were required for this
   // test suite to run
-  @Ignore
+  @TestTemplate
   public void testGettingStarted() throws IOException {
     // Creating a table
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
