@@ -277,10 +277,6 @@ public class TestAlterTable extends CatalogTestBase {
 
   @TestTemplate
   public void testTableRename() {
-    assumeThat(catalogConfig.get(ICEBERG_CATALOG_TYPE))
-        .as(
-            "need to fix https://github.com/apache/iceberg/issues/11154 before enabling this for the REST catalog")
-        .isNotEqualTo(ICEBERG_CATALOG_TYPE_REST);
     assumeThat(validationCatalog)
         .as("Hadoop catalog does not support rename")
         .isNotInstanceOf(HadoopCatalog.class);
@@ -296,6 +292,25 @@ public class TestAlterTable extends CatalogTestBase {
         .as("Initial name should not exist")
         .isFalse();
     assertThat(validationCatalog.tableExists(renamedIdent)).as("New name should exist").isTrue();
+  }
+
+  @TestTemplate
+  public void testTableRenameInMultiLevelNameSpace() {
+    assumeThat(catalogConfig.get(ICEBERG_CATALOG_TYPE)).isEqualTo(ICEBERG_CATALOG_TYPE_REST);
+
+    assertThat(validationCatalog.tableExists(tableIdent)).as("Initial name should exist").isTrue();
+    // Use a special case that first level name space is same as catalog name
+    sql("CREATE NAMESPACE IF NOT EXISTS %s.%s.secondlevel", catalogName, catalogName);
+
+    sql("ALTER TABLE %s RENAME TO %s.secondlevel.table2", tableName, catalogName);
+
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Initial name should not exist")
+        .isFalse();
+    assertThat(
+            validationCatalog.tableExists(TableIdentifier.of(catalogName, "secondlevel", "table2")))
+        .as("New name should exist")
+        .isTrue();
   }
 
   @TestTemplate

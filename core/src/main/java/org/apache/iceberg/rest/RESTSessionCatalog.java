@@ -25,6 +25,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -428,7 +429,20 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     Endpoint.check(endpoints, Endpoint.V1_RENAME_TABLE);
     checkIdentifierIsValid(from);
     checkIdentifierIsValid(to);
+    System.out.println(to);
+    try {
+      renameInternal(context, from, to);
+    } catch (NoSuchNamespaceException e) {
+      if (name().equals(to.namespace().level(0)) && to.namespace().length() > 1) {
+        Namespace namespace =
+            Namespace.of(Arrays.copyOfRange(to.namespace().levels(), 1, to.namespace().length()));
+        TableIdentifier toWithStrippingCatalog = TableIdentifier.of(namespace, to.name());
+        renameInternal(context, from, toWithStrippingCatalog);
+      }
+    }
+  }
 
+  private void renameInternal(SessionContext context, TableIdentifier from, TableIdentifier to) {
     RenameTableRequest request =
         RenameTableRequest.builder().withSource(from).withDestination(to).build();
 
