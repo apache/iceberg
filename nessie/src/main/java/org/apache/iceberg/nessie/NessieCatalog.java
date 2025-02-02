@@ -279,10 +279,11 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
     validateReferenceForRename(fromTableReference, toTableReference, Content.Type.ICEBERG_TABLE);
 
     TableIdentifier fromIdentifier =
-        NessieUtil.removeCatalogName(
-            identifierWithoutTableReference(from, fromTableReference), name());
+        CatalogUtil.removeCatalogName(
+            name(), identifierWithoutTableReference(from, fromTableReference));
     TableIdentifier toIdentifier =
-        NessieUtil.removeCatalogName(identifierWithoutTableReference(to, toTableReference), name());
+        CatalogUtil.removeCatalogName(
+            name(), identifierWithoutTableReference(to, toTableReference));
     client
         .withReference(fromTableReference.getReference(), fromTableReference.getHash())
         .renameTable(fromIdentifier, toIdentifier);
@@ -399,10 +400,11 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
     validateReferenceForRename(fromTableReference, toTableReference, Content.Type.ICEBERG_VIEW);
 
     TableIdentifier fromIdentifier =
-        NessieUtil.removeCatalogName(
-            identifierWithoutTableReference(from, fromTableReference), name());
+        CatalogUtil.removeCatalogName(
+            name(), identifierWithoutTableReference(from, fromTableReference));
     TableIdentifier toIdentifier =
-        NessieUtil.removeCatalogName(identifierWithoutTableReference(to, toTableReference), name());
+        CatalogUtil.removeCatalogName(
+            name(), identifierWithoutTableReference(to, toTableReference));
     client
         .withReference(fromTableReference.getReference(), fromTableReference.getHash())
         .renameView(fromIdentifier, toIdentifier);

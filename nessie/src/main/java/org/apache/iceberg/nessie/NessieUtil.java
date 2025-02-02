@@ -69,6 +69,11 @@ public final class NessieUtil {
 
   private NessieUtil() {}
 
+  /**
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link
+   *     org.apache.iceberg.CatalogUtil#removeCatalogName(String, TableIdentifier)} instead
+   */
+  @Deprecated
   static TableIdentifier removeCatalogName(TableIdentifier to, String name) {
 
     String[] levels = to.namespace().levels();

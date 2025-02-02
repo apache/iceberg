@@ -25,7 +25,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -432,31 +431,17 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   @Override
-  public void renameTable(SessionContext context, TableIdentifier from, TableIdentifier to) {
+  public void renameTable(SessionContext context, TableIdentifier from, TableIdentifier toIdent) {
     Endpoint.check(endpoints, Endpoint.V1_RENAME_TABLE);
     checkIdentifierIsValid(from);
-    checkIdentifierIsValid(to);
-    try {
-      renameInternal(context, from, to, paths.rename());
-    } catch (NoSuchNamespaceException e) {
-      if (name().equals(to.namespace().level(0)) && to.namespace().length() > 1) {
-        Namespace namespace =
-            Namespace.of(Arrays.copyOfRange(to.namespace().levels(), 1, to.namespace().length()));
-        TableIdentifier toWithoutCatalog = TableIdentifier.of(namespace, to.name());
-        renameInternal(context, from, toWithoutCatalog, paths.rename());
-      } else {
-        throw e;
-      }
-    }
-  }
+    checkIdentifierIsValid(toIdent);
 
-  private void renameInternal(
-      SessionContext context, TableIdentifier from, TableIdentifier to, String renameEndpoint) {
+    TableIdentifier to = CatalogUtil.removeCatalogName(name(), toIdent);
     RenameTableRequest request =
         RenameTableRequest.builder().withSource(from).withDestination(to).build();
 
     // for now, ignore the response because there is no way to return it
-    client.post(renameEndpoint, request, null, headers(context), ErrorHandlers.tableErrorHandler());
+    client.post(paths.rename(), request, null, headers(context), ErrorHandlers.tableErrorHandler());
   }
 
   @Override
@@ -1325,22 +1310,17 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   @Override
-  public void renameView(SessionContext context, TableIdentifier from, TableIdentifier to) {
+  public void renameView(SessionContext context, TableIdentifier from, TableIdentifier toIdent) {
     Endpoint.check(endpoints, Endpoint.V1_RENAME_VIEW);
     checkViewIdentifierIsValid(from);
-    checkViewIdentifierIsValid(to);
-    try {
-      renameInternal(context, from, to, paths.renameView());
-    } catch (NoSuchNamespaceException e) {
-      if (name().equals(to.namespace().level(0)) && to.namespace().length() > 1) {
-        Namespace namespace =
-            Namespace.of(Arrays.copyOfRange(to.namespace().levels(), 1, to.namespace().length()));
-        TableIdentifier toWithoutCatalog = TableIdentifier.of(namespace, to.name());
-        renameInternal(context, from, toWithoutCatalog, paths.renameView());
-      } else {
-        throw e;
-      }
-    }
+    checkViewIdentifierIsValid(toIdent);
+
+    TableIdentifier to = CatalogUtil.removeCatalogName(name(), toIdent);
+    RenameTableRequest request =
+        RenameTableRequest.builder().withSource(from).withDestination(to).build();
+
+    client.post(
+        paths.renameView(), request, null, headers(context), ErrorHandlers.viewErrorHandler());
   }
 
   private class RESTViewBuilder implements ViewBuilder {

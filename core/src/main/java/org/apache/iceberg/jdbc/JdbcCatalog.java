@@ -322,11 +322,12 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
-  public void renameTable(TableIdentifier from, TableIdentifier to) {
-    if (from.equals(to)) {
+  public void renameTable(TableIdentifier from, TableIdentifier toIdent) {
+    if (from.equals(toIdent)) {
       return;
     }
 
+    TableIdentifier to = CatalogUtil.removeCatalogName(name(), toIdent);
     if (!tableExists(from)) {
       throw new NoSuchTableException("Table does not exist: %s", from);
     }
@@ -648,15 +649,16 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   }
 
   @Override
-  public void renameView(TableIdentifier from, TableIdentifier to) {
+  public void renameView(TableIdentifier from, TableIdentifier toIdent) {
     if (schemaVersion != JdbcUtil.SchemaVersion.V1) {
       throw new UnsupportedOperationException(VIEW_WARNING_LOG_MESSAGE);
     }
 
-    if (from.equals(to)) {
+    if (from.equals(toIdent)) {
       return;
     }
 
+    TableIdentifier to = CatalogUtil.removeCatalogName(name(), toIdent);
     if (!namespaceExists(to.namespace())) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", to.namespace());
     }
