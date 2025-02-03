@@ -39,6 +39,7 @@ import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
+import org.apache.hc.client5.http.ssl.TlsSocketStrategy;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
@@ -458,12 +459,16 @@ public class HTTPClient implements RESTClient {
     return instance;
   }
 
-  static HttpClientConnectionManager configureConnectionManager(Map<String, String> properties) {
+  static HttpClientConnectionManager configureConnectionManager(
+      Map<String, String> properties, TlsSocketStrategy tlsSocketStrategy) {
     PoolingHttpClientConnectionManagerBuilder connectionManagerBuilder =
         PoolingHttpClientConnectionManagerBuilder.create();
     ConnectionConfig connectionConfig = configureConnectionConfig(properties);
     if (connectionConfig != null) {
       connectionManagerBuilder.setDefaultConnectionConfig(connectionConfig);
+    }
+    if (tlsSocketStrategy != null) {
+      connectionManagerBuilder.setTlsSocketStrategy(tlsSocketStrategy);
     }
 
     return connectionManagerBuilder
@@ -514,6 +519,7 @@ public class HTTPClient implements RESTClient {
     private ObjectMapper mapper = RESTObjectMapper.mapper();
     private HttpHost proxy;
     private CredentialsProvider proxyCredentialsProvider;
+    private TlsSocketStrategy tlsSocketStrategy;
 
     private Builder(Map<String, String> properties) {
       this.properties = properties;
@@ -553,6 +559,11 @@ public class HTTPClient implements RESTClient {
       return this;
     }
 
+    public Builder withTlsSocketStrategy(TlsSocketStrategy socketStrategy) {
+      this.tlsSocketStrategy = socketStrategy;
+      return this;
+    }
+
     public HTTPClient build() {
       withHeader(CLIENT_VERSION_HEADER, IcebergBuild.fullVersion());
       withHeader(CLIENT_GIT_COMMIT_SHORT_HEADER, IcebergBuild.gitCommitShortId());
@@ -576,7 +587,7 @@ public class HTTPClient implements RESTClient {
           mapper,
           interceptor,
           properties,
-          configureConnectionManager(properties));
+          configureConnectionManager(properties, tlsSocketStrategy));
     }
   }
 
