@@ -1379,7 +1379,7 @@ Each partition field in `fields` is stored as a JSON object with the following p
 | V1       | V2       | V3       | Field            | JSON representation | Example      |
 |----------|----------|----------|------------------|---------------------|--------------|
 | required | required | omitted  | **`source-id`**  | `JSON int`          | 1            |
-| optional | optional | required | **`source-ids`** | `JSON list of ints` | `[1,2]`      |
+|          |          | required | **`source-ids`** | `JSON list of ints` | `[1,2]`      |
 |          | required | required | **`field-id`**   | `JSON int`          | 1000         |
 | required | required | required | **`name`**       | `JSON string`       | `id_bucket`  |
 | required | required | required | **`transform`**  | `JSON string`       | `bucket[16]` |
@@ -1400,7 +1400,7 @@ In some cases partition specs are stored using only the field list instead of th
 
 The `field-id` property was added for each partition field in v2. In v1, the reference implementation assigned field ids sequentially in each spec starting at 1,000. See Partition Evolution for more details.
 
-In v3 metadata, writers must use only `source-ids` because v3 requires reader support for multi-arg transforms. In v1 and v2 metadata, writers must always write `source-id`; for multi-arg transforms, writers must produce `source-ids` and set `source-id` to the first ID from the field ID list.
+In v3 metadata, writers must use only `source-ids` because v3 requires reader support for multi-arg transforms.
 
 Older versions of the reference implementation can read tables with transforms unknown to it, ignoring them. But other implementations may break if they encounter unknown transforms. All v3 readers are required to read tables with unknown transforms, ignoring them. Writers should not write using partition specs that use unknown transforms.
 
@@ -1423,7 +1423,7 @@ Each sort field in the fields list is stored as an object with the following pro
 | required | required | required | **`direction`**  | `JSON string`       | `asc`       |
 | required | required | required | **`null-order`** | `JSON string`       | `nulls-last`|
 
-In v3 metadata, writers must use only `source-ids` because v3 requires reader support for multi-arg transforms. In v1 and v2 metadata, writers must always write `source-id`; for multi-arg transforms, writers must produce `source-ids` and set `source-id` to the first ID from the field ID list.
+In v3 metadata, writers must use only `source-ids` because v3 requires reader support for multi-arg transforms.
 
 Older versions of the reference implementation can read tables with transforms unknown to it, ignoring them. But other implementations may break if they encounter unknown transforms. All v3 readers are required to read tables with unknown transforms, ignoring them.
 
@@ -1563,12 +1563,6 @@ Reading v1 or v2 metadata for v3:
 
 * Partition Field and Sort Field JSON:
     * `source-ids` should default to a single-value list of the value of `source-id`
-
-Writing v1 or v2 metadata:
-
-* Partition Field and Sort Field JSON:
-    * For a single-arg transform, `source-id` should be written; if `source-ids` is also written it should be a single-element list of `source-id`
-    * For multi-arg transforms, `source-ids` should be written; `source-id` should be set to the first element of `source-ids`
 
 Row-level delete changes:
 
