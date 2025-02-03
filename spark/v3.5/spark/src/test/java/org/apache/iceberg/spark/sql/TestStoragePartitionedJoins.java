@@ -189,8 +189,18 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testJoinsWithYearOnDateColumn() throws NoSuchTableException {
+    checkJoin("date_col", "DATE", "year(date_col)");
+  }
+
+  @TestTemplate
   public void testJoinsWithMonthsOnTimestampColumn() throws NoSuchTableException {
     checkJoin("timestamp_col", "TIMESTAMP", "months(timestamp_col)");
+  }
+
+  @TestTemplate
+  public void testJoinsWithMonthOnTimestampColumn() throws NoSuchTableException {
+    checkJoin("timestamp_col", "TIMESTAMP", "month(timestamp_col)");
   }
 
   @TestTemplate
@@ -214,6 +224,11 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testJoinsWithDayOnTimestampNtzColumn() throws NoSuchTableException {
+    checkJoin("timestamp_col", "TIMESTAMP_NTZ", "day(timestamp_col)");
+  }
+
+  @TestTemplate
   public void testJoinsWithDaysOnDateColumn() throws NoSuchTableException {
     checkJoin("date_col", "DATE", "days(date_col)");
   }
@@ -224,8 +239,18 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testJoinsWithHourOnTimestampColumn() throws NoSuchTableException {
+    checkJoin("timestamp_col", "TIMESTAMP", "hour(timestamp_col)");
+  }
+
+  @TestTemplate
   public void testJoinsWithHoursOnTimestampNtzColumn() throws NoSuchTableException {
     checkJoin("timestamp_col", "TIMESTAMP_NTZ", "hours(timestamp_col)");
+  }
+
+  @TestTemplate
+  public void testJoinsWithHourOnTimestampNtzColumn() throws NoSuchTableException {
+    checkJoin("timestamp_col", "TIMESTAMP_NTZ", "hour(timestamp_col)");
   }
 
   @TestTemplate

@@ -86,6 +86,22 @@ public class TestSparkMonthsFunction extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testBuiltInMonthFunction() {
+    assertThat(scalarSql("SELECT month(date('2017-12-01'))"))
+        .as("Expected to produce 12")
+        .isEqualTo(12);
+    assertThat(scalarSql("SELECT month(date('1969-12-31'))"))
+        .as("Expected to produce 12")
+        .isEqualTo(12);
+    assertThat(scalarSql("SELECT month(TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00')"))
+        .as("Expected to produce 12")
+        .isEqualTo(12);
+    assertThat(scalarSql("SELECT month(TIMESTAMP_NTZ '1969-12-31 23:59:58.999999')"))
+        .as("Expected to produce 12")
+        .isEqualTo(12);
+  }
+
+  @TestTemplate
   public void testWrongNumberOfArguments() {
     assertThatThrownBy(() -> scalarSql("SELECT system.months()"))
         .isInstanceOf(AnalysisException.class)

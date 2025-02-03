@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.sql;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.TimeZone;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.AnalysisException;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,6 +66,17 @@ public class TestSparkHoursFunction extends TestBaseWithCatalog {
         .as("Expected to produce -1")
         .isEqualTo(-1);
     assertThat(scalarSql("SELECT system.hours(CAST(null AS TIMESTAMP_NTZ))")).isNull();
+  }
+
+  @TestTemplate
+  public void testBuiltInHourFunction() {
+    String tz = TimeZone.getDefault().getID();
+    assertThat(scalarSql(String.format("SELECT hour(TIMESTAMP '2017-12-01 10:12:55 %s')", tz)))
+        .as("Expected to produce 10")
+        .isEqualTo(10);
+    assertThat(scalarSql("SELECT hour(TIMESTAMP_NTZ '1969-12-31 23:59:58.999999')"))
+        .as("Expected to produce 23")
+        .isEqualTo(23);
   }
 
   @TestTemplate
