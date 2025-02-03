@@ -53,8 +53,7 @@ class CometDeleteColumnReader<T> extends CometColumnReader {
           DataTypes.BooleanType,
           TypeUtil.convertToParquet(
               new StructField("_deleted", DataTypes.BooleanType, false, Metadata.empty())),
-          false /* useDecimal128 = false */,
-          false /* isConstant */);
+          false /* useDecimal128 = false */);
       this.isDeleted = new boolean[0];
     }
 
