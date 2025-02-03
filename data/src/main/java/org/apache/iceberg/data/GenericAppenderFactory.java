@@ -88,7 +88,8 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
       EncryptedOutputFile encryptedOutputFile, FileFormat fileFormat) {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
     try {
-      return DataFileWriterServiceRegistry.appenderBuilder(fileFormat, Record.class, encryptedOutputFile)
+      return DataFileWriterServiceRegistry.appenderBuilder(
+              fileFormat, Record.class, encryptedOutputFile, schema)
           .schema(schema)
           .metricsConfig(metricsConfig)
           .setAll(config)
@@ -124,16 +125,17 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
 
     try {
-      return DataFileWriterServiceRegistry.equalityDeleteWriterBuilder(format, Record.class, file)
-              .withPartition(partition)
-              .overwrite()
-              .setAll(config)
-              .metricsConfig(metricsConfig)
-              .schema(eqDeleteRowSchema)
-              .withSpec(spec)
-              .withKeyMetadata(file.keyMetadata())
-              .equalityFieldIds(equalityFieldIds)
-              .buildEqualityWriter();
+      return DataFileWriterServiceRegistry.equalityDeleteWriterBuilder(
+              format, Record.class, file, eqDeleteRowSchema)
+          .withPartition(partition)
+          .overwrite()
+          .setAll(config)
+          .metricsConfig(metricsConfig)
+          .schema(eqDeleteRowSchema)
+          .withSpec(spec)
+          .withKeyMetadata(file.keyMetadata())
+          .equalityFieldIds(equalityFieldIds)
+          .buildEqualityWriter();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -145,15 +147,16 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
 
     try {
-      return DataFileWriterServiceRegistry.positionDeleteWriterBuilder(format, Record.class, file)
-              .withPartition(partition)
-              .overwrite()
-              .setAll(config)
-              .metricsConfig(metricsConfig)
-              .schema(posDeleteRowSchema)
-              .withSpec(spec)
-              .withKeyMetadata(file.keyMetadata())
-              .buildPositionWriter();
+      return DataFileWriterServiceRegistry.positionDeleteWriterBuilder(
+              format, Record.class, file, posDeleteRowSchema)
+          .withPartition(partition)
+          .overwrite()
+          .setAll(config)
+          .metricsConfig(metricsConfig)
+          .schema(posDeleteRowSchema)
+          .withSpec(spec)
+          .withKeyMetadata(file.keyMetadata())
+          .buildPositionWriter();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

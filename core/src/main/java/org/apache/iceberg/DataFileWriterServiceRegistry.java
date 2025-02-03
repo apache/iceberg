@@ -63,29 +63,33 @@ public class DataFileWriterServiceRegistry {
   /**
    * Provides a reader for the given input file which returns objects with a given returnType.
    *
-   * @param format of the file to read
-   * @param returnType returned by the reader
+   * @param format of the file to write
+   * @param inputType of the rows
    * @param outputFile to write
    * @return {@link FileFormatAppenderBuilder} for building the actual writer
    */
-  public static FileFormatAppenderBuilder<?> appenderBuilder(
-      FileFormat format, Class<?> returnType, EncryptedOutputFile outputFile) {
-    return WRITE_BUILDERS.get(new Key(format, returnType)).appenderBuilder(outputFile);
+  public static <S> FileFormatAppenderBuilder<?> appenderBuilder(
+      FileFormat format, Class<?> inputType, EncryptedOutputFile outputFile, S rowType) {
+    return WRITE_BUILDERS.get(new Key(format, inputType)).appenderBuilder(outputFile, rowType);
   }
 
-  public static FileFormatDataWriterBuilder<?> dataWriterBuilder(
-          FileFormat format, Class<?> returnType, EncryptedOutputFile outputFile) {
-    return WRITE_BUILDERS.get(new Key(format, returnType)).dataWriterBuilder(outputFile);
+  public static <S> FileFormatDataWriterBuilder<?> dataWriterBuilder(
+      FileFormat format, Class<?> inputType, EncryptedOutputFile outputFile, S rowType) {
+    return WRITE_BUILDERS.get(new Key(format, inputType)).dataWriterBuilder(outputFile, rowType);
   }
 
-  public static FileFormatEqualityDeleteWriterBuilder<?> equalityDeleteWriterBuilder(
-          FileFormat format, Class<?> returnType, EncryptedOutputFile outputFile) {
-    return WRITE_BUILDERS.get(new Key(format, returnType)).equalityDeleteWriterBuilder(outputFile);
+  public static <S> FileFormatEqualityDeleteWriterBuilder<?> equalityDeleteWriterBuilder(
+      FileFormat format, Class<?> inputType, EncryptedOutputFile outputFile, S rowType) {
+    return WRITE_BUILDERS
+        .get(new Key(format, inputType))
+        .equalityDeleteWriterBuilder(outputFile, rowType);
   }
 
-  public static FileFormatPositionDeleteWriterBuilder<?> positionDeleteWriterBuilder(
-          FileFormat format, Class<?> returnType, EncryptedOutputFile outputFile) {
-    return WRITE_BUILDERS.get(new Key(format, returnType)).positionDeleteWriterBuilder(outputFile);
+  public static <S> FileFormatPositionDeleteWriterBuilder<?> positionDeleteWriterBuilder(
+      FileFormat format, Class<?> inputType, EncryptedOutputFile outputFile, S rowType) {
+    return WRITE_BUILDERS
+        .get(new Key(format, inputType))
+        .positionDeleteWriterBuilder(outputFile, rowType);
   }
 
   private static class Key {

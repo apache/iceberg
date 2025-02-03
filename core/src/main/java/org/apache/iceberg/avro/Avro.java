@@ -255,7 +255,8 @@ public class Avro {
   }
 
   public static class DeleteWriteBuilder
-      extends FileFormatEqualityDeleteWriterBuilderBase<DeleteWriteBuilder>  implements FileFormatPositionDeleteWriterBuilder<DeleteWriteBuilder> {
+      extends FileFormatEqualityDeleteWriterBuilderBase<DeleteWriteBuilder>
+      implements FileFormatPositionDeleteWriterBuilder<DeleteWriteBuilder> {
     private Function<Schema, DatumWriter<?>> createWriterFunc = null;
 
     private DeleteWriteBuilder(OutputFile file) {
@@ -546,7 +547,7 @@ public class Avro {
     }
   }
 
-  public static class WriterService implements DataFileWriterService {
+  public static class WriterService implements DataFileWriterService<org.apache.iceberg.Schema> {
     @Override
     public FileFormat format() {
       return FileFormat.AVRO;
@@ -558,24 +559,30 @@ public class Avro {
     }
 
     @Override
-    public FileFormatAppenderBuilder<?> appenderBuilder(EncryptedOutputFile outputFile) {
-      return Avro.write(outputFile)
+    public FileFormatAppenderBuilder<?> appenderBuilder(
+        EncryptedOutputFile outputFile, org.apache.iceberg.Schema rowType) {
+      return Avro.write(outputFile).createWriterFunc(DataWriter::create);
+    }
+
+    @Override
+    public FileFormatDataWriterBuilder<?> dataWriterBuilder(
+        EncryptedOutputFile outputFile, org.apache.iceberg.Schema rowType) {
+      return new DataWriteBuilder(outputFile.encryptingOutputFile())
           .createWriterFunc(DataWriter::create);
     }
 
     @Override
-    public FileFormatDataWriterBuilder<?> dataWriterBuilder(EncryptedOutputFile outputFile) {
-      return new DataWriteBuilder(outputFile.encryptingOutputFile()).createWriterFunc(DataWriter::create);
+    public FileFormatEqualityDeleteWriterBuilder<?> equalityDeleteWriterBuilder(
+        EncryptedOutputFile outputFile, org.apache.iceberg.Schema rowType) {
+      return new DeleteWriteBuilder(outputFile.encryptingOutputFile())
+          .createWriterFunc(DataWriter::create);
     }
 
     @Override
-    public FileFormatEqualityDeleteWriterBuilder<?> equalityDeleteWriterBuilder(EncryptedOutputFile outputFile) {
-      return new DeleteWriteBuilder(outputFile.encryptingOutputFile()).createWriterFunc(DataWriter::create);
-    }
-
-    @Override
-    public FileFormatPositionDeleteWriterBuilder<?> positionDeleteWriterBuilder(EncryptedOutputFile outputFile) {
-      return new DeleteWriteBuilder(outputFile.encryptingOutputFile()).createWriterFunc(DataWriter::create);
+    public FileFormatPositionDeleteWriterBuilder<?> positionDeleteWriterBuilder(
+        EncryptedOutputFile outputFile, org.apache.iceberg.Schema rowType) {
+      return new DeleteWriteBuilder(outputFile.encryptingOutputFile())
+          .createWriterFunc(DataWriter::create);
     }
   }
 }

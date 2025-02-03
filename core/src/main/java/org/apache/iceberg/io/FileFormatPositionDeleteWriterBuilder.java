@@ -19,11 +19,10 @@
 package org.apache.iceberg.io;
 
 import java.io.IOException;
-import java.util.List;
-import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 
-public interface FileFormatPositionDeleteWriterBuilder<T extends FileFormatPositionDeleteWriterBuilder<T>>
+public interface FileFormatPositionDeleteWriterBuilder<
+        T extends FileFormatPositionDeleteWriterBuilder<T>>
     extends FileFormatWriterBuilder<T> {
   <D> PositionDeleteWriter<D> buildPositionWriter() throws IOException;
 }

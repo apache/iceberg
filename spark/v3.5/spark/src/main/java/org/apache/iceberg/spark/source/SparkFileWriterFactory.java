@@ -68,6 +68,7 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
     super(
         table,
         dataFileFormat,
+        InternalRow.class,
         dataSchema,
         dataSortOrder,
         deleteFileFormat,

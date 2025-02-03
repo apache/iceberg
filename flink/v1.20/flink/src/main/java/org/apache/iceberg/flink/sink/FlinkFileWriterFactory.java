@@ -141,6 +141,21 @@ class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> implements S
     builder.transformPaths(path -> StringData.fromString(path.toString()));
   }
 
+  @Override
+  protected RowType rowSchemaType() {
+    return dataFlinkType();
+  }
+
+  @Override
+  protected RowType equalityDeleteRowSchemaType() {
+    return equalityDeleteFlinkType();
+  }
+
+  @Override
+  protected RowType positionDeleteRowSchemaType() {
+    return positionDeleteFlinkType();
+  }
+
   private RowType dataFlinkType() {
     if (dataFlinkType == null) {
       Preconditions.checkNotNull(dataSchema(), "Data schema must not be null");

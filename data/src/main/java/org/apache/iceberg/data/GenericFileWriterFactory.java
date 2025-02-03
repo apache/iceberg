@@ -109,6 +109,21 @@ class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
     builder.createWriterFunc(GenericOrcWriter::buildWriter);
   }
 
+  @Override
+  protected Schema rowSchemaType() {
+    return dataSchema();
+  }
+
+  @Override
+  protected Schema equalityDeleteRowSchemaType() {
+    return equalityDeleteRowSchema();
+  }
+
+  @Override
+  protected Schema positionDeleteRowSchemaType() {
+    return positionDeleteRowSchema();
+  }
+
   static class Builder {
     private final Table table;
     private FileFormat dataFileFormat;

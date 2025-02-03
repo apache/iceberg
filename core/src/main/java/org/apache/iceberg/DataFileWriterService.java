@@ -29,7 +29,7 @@ import org.apache.iceberg.io.FileFormatPositionDeleteWriterBuilder;
  * java.util.ServiceLoader}. {@link DataFileReaderServiceRegistry} is used to collect and serve the
  * reader implementations.
  */
-public interface DataFileWriterService {
+public interface DataFileWriterService<S> {
   /**
    * Returns the file format which is read by the readers.
    *
@@ -45,11 +45,13 @@ public interface DataFileWriterService {
   Class<?> returnType();
 
   /** Provides a reader for the given input file which returns objects with a given returnType. */
-  FileFormatAppenderBuilder<?> appenderBuilder(EncryptedOutputFile outputFile);
+  FileFormatAppenderBuilder<?> appenderBuilder(EncryptedOutputFile outputFile, S rowType);
 
-  FileFormatDataWriterBuilder<?> dataWriterBuilder(EncryptedOutputFile outputFile);
+  FileFormatDataWriterBuilder<?> dataWriterBuilder(EncryptedOutputFile outputFile, S rowType);
 
-  FileFormatEqualityDeleteWriterBuilder<?> equalityDeleteWriterBuilder(EncryptedOutputFile outputFile);
+  FileFormatEqualityDeleteWriterBuilder<?> equalityDeleteWriterBuilder(
+      EncryptedOutputFile outputFile, S rowType);
 
-  FileFormatPositionDeleteWriterBuilder<?> positionDeleteWriterBuilder(EncryptedOutputFile outputFile);
+  FileFormatPositionDeleteWriterBuilder<?> positionDeleteWriterBuilder(
+      EncryptedOutputFile outputFile, S rowType);
 }

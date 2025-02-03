@@ -93,6 +93,12 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
 
   protected abstract void configurePositionDelete(ORC.DeleteWriteBuilder builder);
 
+  protected abstract <S> S rowSchemaType();
+
+  protected abstract <S> S equalityDeleteRowSchemaType();
+
+  protected abstract <S> S positionDeleteRowSchemaType();
+
   @Override
   public DataWriter<T> newDataWriter(
       EncryptedOutputFile file, PartitionSpec spec, StructLike partition) {
@@ -101,15 +107,17 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
-      return DataFileWriterServiceRegistry.dataWriterBuilder(dataFileFormat, inputType, file)
-                  .schema(dataSchema)
-                  .setAll(properties)
-                  .metricsConfig(metricsConfig)
-                  .withSpec(spec)
-                  .withPartition(partition)
-                  .withKeyMetadata(keyMetadata)
-                  .withSortOrder(dataSortOrder)
-                  .overwrite().build();
+      return DataFileWriterServiceRegistry.dataWriterBuilder(
+              dataFileFormat, inputType, file, rowSchemaType())
+          .schema(dataSchema)
+          .setAll(properties)
+          .metricsConfig(metricsConfig)
+          .withSpec(spec)
+          .withPartition(partition)
+          .withKeyMetadata(keyMetadata)
+          .withSortOrder(dataSortOrder)
+          .overwrite()
+          .build();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -123,16 +131,18 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
-      return DataFileWriterServiceRegistry.equalityDeleteWriterBuilder(deleteFileFormat, inputType, file)
-                  .setAll(properties)
-                  .metricsConfig(metricsConfig)
-                  .schema(equalityDeleteRowSchema)
-                  .equalityFieldIds(equalityFieldIds)
-                  .withSpec(spec)
-                  .withPartition(partition)
-                  .withKeyMetadata(keyMetadata)
-                  .withSortOrder(equalityDeleteSortOrder)
-                  .overwrite().buildEqualityWriter();
+      return DataFileWriterServiceRegistry.equalityDeleteWriterBuilder(
+              deleteFileFormat, inputType, file, equalityDeleteRowSchemaType())
+          .setAll(properties)
+          .metricsConfig(metricsConfig)
+          .schema(equalityDeleteRowSchema)
+          .equalityFieldIds(equalityFieldIds)
+          .withSpec(spec)
+          .withPartition(partition)
+          .withKeyMetadata(keyMetadata)
+          .withSortOrder(equalityDeleteSortOrder)
+          .overwrite()
+          .buildEqualityWriter();
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create new equality delete writer", e);
     }
@@ -146,14 +156,16 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
     MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
 
     try {
-      return DataFileWriterServiceRegistry.positionDeleteWriterBuilder(deleteFileFormat, inputType, file)
-                  .setAll(properties)
-                  .metricsConfig(metricsConfig)
-                  .schema(positionDeleteRowSchema)
-                  .withSpec(spec)
-                  .withPartition(partition)
-                  .withKeyMetadata(keyMetadata)
-                  .overwrite().buildPositionWriter();
+      return DataFileWriterServiceRegistry.positionDeleteWriterBuilder(
+              deleteFileFormat, inputType, file, positionDeleteRowSchemaType())
+          .setAll(properties)
+          .metricsConfig(metricsConfig)
+          .schema(positionDeleteRowSchema)
+          .withSpec(spec)
+          .withPartition(partition)
+          .withKeyMetadata(keyMetadata)
+          .overwrite()
+          .buildPositionWriter();
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create new position delete writer", e);
     }

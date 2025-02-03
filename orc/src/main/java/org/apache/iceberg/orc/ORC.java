@@ -395,7 +395,7 @@ public class ORC {
 
   public static class DeleteWriteBuilder
       extends FileFormatEqualityDeleteWriterBuilderBase<DeleteWriteBuilder>
-  implements FileFormatPositionDeleteWriterBuilder<DeleteWriteBuilder> {
+      implements FileFormatPositionDeleteWriterBuilder<DeleteWriteBuilder> {
     private BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc = null;
     private Function<CharSequence, ?> pathTransformFunc = Function.identity();
 
@@ -644,7 +644,7 @@ public class ORC {
     }
   }
 
-  public static class WriterService implements DataFileWriterService {
+  public static class WriterService implements DataFileWriterService<Schema> {
     @Override
     public FileFormat format() {
       return FileFormat.ORC;
@@ -656,23 +656,30 @@ public class ORC {
     }
 
     @Override
-    public FileFormatAppenderBuilder<?> appenderBuilder(EncryptedOutputFile outputFile) {
+    public FileFormatAppenderBuilder<?> appenderBuilder(
+        EncryptedOutputFile outputFile, Schema rowType) {
       return ORC.write(outputFile).createWriterFunc(GenericOrcWriter::buildWriter);
     }
 
     @Override
-    public FileFormatDataWriterBuilder<?> dataWriterBuilder(EncryptedOutputFile outputFile) {
-      return new DataWriteBuilder(outputFile.encryptingOutputFile()).createWriterFunc(GenericOrcWriter::buildWriter);
+    public FileFormatDataWriterBuilder<?> dataWriterBuilder(
+        EncryptedOutputFile outputFile, Schema rowType) {
+      return new DataWriteBuilder(outputFile.encryptingOutputFile())
+          .createWriterFunc(GenericOrcWriter::buildWriter);
     }
 
     @Override
-    public FileFormatEqualityDeleteWriterBuilder<?> equalityDeleteWriterBuilder(EncryptedOutputFile outputFile) {
-      return new DeleteWriteBuilder(outputFile.encryptingOutputFile()).createWriterFunc(GenericOrcWriter::buildWriter);
+    public FileFormatEqualityDeleteWriterBuilder<?> equalityDeleteWriterBuilder(
+        EncryptedOutputFile outputFile, Schema rowType) {
+      return new DeleteWriteBuilder(outputFile.encryptingOutputFile())
+          .createWriterFunc(GenericOrcWriter::buildWriter);
     }
 
     @Override
-    public FileFormatPositionDeleteWriterBuilder<?> positionDeleteWriterBuilder(EncryptedOutputFile outputFile) {
-      return new DeleteWriteBuilder(outputFile.encryptingOutputFile()).createWriterFunc(GenericOrcWriter::buildWriter);
+    public FileFormatPositionDeleteWriterBuilder<?> positionDeleteWriterBuilder(
+        EncryptedOutputFile outputFile, Schema rowType) {
+      return new DeleteWriteBuilder(outputFile.encryptingOutputFile())
+          .createWriterFunc(GenericOrcWriter::buildWriter);
     }
   }
 }
