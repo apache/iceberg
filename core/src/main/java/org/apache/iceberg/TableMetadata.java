@@ -722,7 +722,7 @@ public class TableMetadata implements Serializable {
 
     return new Builder(this)
         .upgradeFormatVersion(newFormatVersion)
-        .resetMainBranch()
+        .removeRef(SnapshotRef.MAIN_BRANCH)
         .setCurrentSchema(freshSchema, newLastColumnId.get())
         .setDefaultPartitionSpec(freshSpec)
         .setDefaultSortOrder(freshSortOrder)
@@ -1307,10 +1307,6 @@ public class TableMetadata implements Serializable {
       }
 
       return this;
-    }
-
-    private Builder resetMainBranch() {
-      return removeRef(SnapshotRef.MAIN_BRANCH);
     }
 
     /**
