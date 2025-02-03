@@ -82,6 +82,16 @@ public class Types {
     throw new IllegalArgumentException("Cannot parse type string to primitive: " + typeString);
   }
 
+  @Deprecated
+  public static PrimitiveType fromPrimitiveString(String typeString) {
+    Type type = fromTypeString(typeString);
+    if (type.isPrimitiveType()) {
+      return (PrimitiveType) type;
+    }
+
+    throw new IllegalArgumentException("Cannot parse type string to primitive: " + typeString);
+  }
+
   public static class BooleanType extends PrimitiveType {
     private static final BooleanType INSTANCE = new BooleanType();
 

@@ -1146,10 +1146,6 @@ acceptedBreaks:
         \ org.apache.iceberg.TableMetadata)"
       justification: "Removing deprecated code"
   "1.7.0":
-    org.apache.iceberg:iceberg-api:
-    - code: "java.method.removed"
-      old: "method org.apache.iceberg.types.Type.PrimitiveType org.apache.iceberg.types.Types::fromPrimitiveString(java.lang.String)"
-      justification: "Replace with fromTypeString to support variant type"
     org.apache.iceberg:iceberg-core:
     - code: "java.method.removed"
       old: "method <T extends org.apache.iceberg.StructLike> org.apache.iceberg.deletes.PositionDeleteIndex\

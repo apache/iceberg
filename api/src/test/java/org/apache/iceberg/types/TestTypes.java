@@ -49,4 +49,34 @@ public class TestTypes {
         .isThrownBy(() -> Types.fromTypeString("abcdefghij"))
         .withMessage("Cannot parse type string to primitive: abcdefghij");
   }
+
+  @Test
+  public void fromPrimitiveString() {
+    assertThat(Types.fromPrimitiveString("boolean")).isSameAs(Types.BooleanType.get());
+    assertThat(Types.fromPrimitiveString("BooLean")).isSameAs(Types.BooleanType.get());
+
+    assertThat(Types.fromPrimitiveString("timestamp")).isSameAs(Types.TimestampType.withoutZone());
+    assertThat(Types.fromPrimitiveString("timestamptz")).isSameAs(Types.TimestampType.withZone());
+    assertThat(Types.fromPrimitiveString("timestamp_ns"))
+        .isSameAs(Types.TimestampNanoType.withoutZone());
+    assertThat(Types.fromPrimitiveString("timestamptz_ns"))
+        .isSameAs(Types.TimestampNanoType.withZone());
+
+    assertThat(Types.fromPrimitiveString("Fixed[ 3 ]")).isEqualTo(Types.FixedType.ofLength(3));
+
+    assertThat(Types.fromPrimitiveString("Decimal( 2 , 3 )")).isEqualTo(Types.DecimalType.of(2, 3));
+
+    assertThat(Types.fromPrimitiveString("Decimal(2,3)")).isEqualTo(Types.DecimalType.of(2, 3));
+
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.fromPrimitiveString("variant"))
+        .withMessage("Cannot parse type string to primitive: variant");
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.fromPrimitiveString("Variant"))
+        .withMessage("Cannot parse type string to primitive: Variant");
+
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.fromPrimitiveString("abcdefghij"))
+        .withMessage("Cannot parse type string to primitive: abcdefghij");
+  }
 }
