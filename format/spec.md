@@ -53,6 +53,7 @@ Version 3 of the Iceberg spec extends data types and existing metadata structure
 * Multi-argument transforms for partitioning and sorting
 * Row Lineage tracking
 * Binary deletion vectors
+* Table encryption
 
 
 ## Goals
@@ -685,6 +686,8 @@ A snapshot consists of the following fields:
 | _optional_ | _optional_ | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created                                                                     |
 |            |            | _optional_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage)        |
 |            |            | _optional_ | **`added-rows`**             | Sum of the [`added_rows_count`](#manifest-lists) from all manifests added in this snapshot. Required if [Row Lineage](#row-lineage) is enabled | 
+|            |            | _optional_ | **`encrypted-key-metadata`** | Base64-encoded key metadata of the manifest list file in an encrypted table. The key metadata is encrypted by a metadata encryption key before encoding |
+|            |            | _optional_ | **`key-metadata-key-id`**    | The ID of the encryption key that encrypts the manifest list key metadata                                                      |
 
 
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
@@ -889,6 +892,9 @@ Table metadata consists of the following fields:
 | _optional_ | _optional_ | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics).                                                                                                                                                                                                                                                                                                                              |
 |            |            | _optional_ | **`row-lineage`**           | A boolean, defaulting to false, setting whether or not to track the creation and updates to rows in the table. See [Row Lineage](#row-lineage).                                                                                                                                                                                                                                                  |
 |            |            | _optional_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot's `first-row-id`. See [Row Lineage](#row-lineage).                                                                                                                                                                                                                                                                                  |
+|            |            | _optional_ | **`key-cache`**             | A list of encryption keys (key-id/key-wrap pairs), used to encrypt the manifest list file key metadata. See [Snapshot](#key-metadata-key-id).                                                                                                                                                                                                                                                    |
+|            |            | _optional_ | **`key-id`**                | The ID of the encryption key that encrypts the manifest list key metadata. See [Snapshot](#key-metadata-key-id).                                                                                                                                                                                                                                                                                 |
+|            |            | _optional_ | **`key-wrap`**              | Wrapped (encrypted) metadata encryption key. Wrapping can for example be done in a Mey Management Service (KMS).                                                                                                                                                                                                                                                                                 |
 
 For serialization details, see Appendix C.
 
