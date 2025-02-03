@@ -36,12 +36,12 @@ public class VariantArrayBuilder extends VariantBuilderBase {
 
   public VariantObjectBuilder startObject() {
     addOffset();
-    return new VariantObjectBuilder(valueBuffer, dict);
+    return new VariantObjectBuilder(valueBuffer(), dict());
   }
 
   public VariantArrayBuilder startArray() {
     addOffset();
-    return new VariantArrayBuilder(valueBuffer, dict);
+    return new VariantArrayBuilder(valueBuffer(), dict());
   }
 
   public VariantArrayBuilder writeNull() {
@@ -56,9 +56,9 @@ public class VariantArrayBuilder extends VariantBuilderBase {
     return this;
   }
 
-  public VariantArrayBuilder writeNumeric(long value) {
+  public VariantArrayBuilder writeIntegral(long value) {
     addOffset();
-    writeNumericInternal(value);
+    writeIntegralInternal(value);
     return this;
   }
 
@@ -111,10 +111,10 @@ public class VariantArrayBuilder extends VariantBuilderBase {
   }
 
   private void addOffset() {
-    offsets.add(valueBuffer.pos() - startPos);
+    offsets.add(valueBuffer().pos() - startPos());
   }
 
   public void endArray() {
-    super.endArray(startPos, offsets);
+    super.endArray(startPos(), offsets);
   }
 }

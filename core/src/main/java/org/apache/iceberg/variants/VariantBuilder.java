@@ -18,16 +18,17 @@
  */
 package org.apache.iceberg.variants;
 
-import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.JsonUtil;
 
 /** A builder class to build a primitive/array/object variant. */
 public class VariantBuilder extends VariantBuilderBase {
@@ -36,15 +37,15 @@ public class VariantBuilder extends VariantBuilderBase {
   }
 
   public VariantPrimitiveBuilder createPrimitive() {
-    return new VariantPrimitiveBuilder(valueBuffer, dict);
+    return new VariantPrimitiveBuilder(valueBuffer(), dict());
   }
 
   public VariantObjectBuilder startObject() {
-    return new VariantObjectBuilder(valueBuffer, dict);
+    return new VariantObjectBuilder(valueBuffer(), dict());
   }
 
   public VariantArrayBuilder startArray() {
-    return new VariantArrayBuilder(valueBuffer, dict);
+    return new VariantArrayBuilder(valueBuffer(), dict());
   }
 
   /**
@@ -52,19 +53,18 @@ public class VariantBuilder extends VariantBuilderBase {
    *
    * @param json The JSON string to parse.
    * @return The constructed Variant object.
-   * @throws IOException If an error occurs while reading or parsing the JSON.
    */
-  public static Variant parseJson(String json) throws IOException {
+  public static Variant parseJson(String json) {
     Preconditions.checkArgument(
         json != null && !json.isEmpty(), "Input JSON string cannot be null or empty.");
 
-    try (JsonParser parser = new JsonFactory().createParser(json)) {
+    try (JsonParser parser = JsonUtil.factory().createParser(json)) {
       parser.nextToken();
-
       VariantBuilder builder = new VariantBuilder();
       builder.parseJson(parser);
-
       return builder.build();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
     }
   }
 
@@ -77,19 +77,61 @@ public class VariantBuilder extends VariantBuilderBase {
 
     switch (token) {
       case START_OBJECT:
-        writeObject(parser);
+        parseObject(parser);
         break;
       case START_ARRAY:
-        writeArray(parser);
+        parseArray(parser);
         break;
+      default:
+        parsePrimitive(parser);
+    }
+  }
+
+  private void parseObject(JsonParser parser) throws IOException {
+    List<VariantBuilderBase.FieldEntry> fields = Lists.newArrayList();
+    int startPos = valueBuffer().pos();
+
+    // Store object keys to dictionary of metadata
+    while (parser.nextToken() != JsonToken.END_OBJECT) {
+      String key = parser.currentName();
+      parser.nextToken(); // Move to the value
+
+      int id = dict().add(key);
+      fields.add(new VariantBuilderBase.FieldEntry(key, id, valueBuffer().pos() - startPos));
+      parseJson(parser);
+    }
+
+    endObject(startPos, fields);
+  }
+
+  private void parseArray(JsonParser parser) throws IOException {
+    List<Integer> offsets = Lists.newArrayList();
+    int startPos = valueBuffer().pos();
+
+    while (parser.nextToken() != JsonToken.END_ARRAY) {
+      offsets.add(valueBuffer().pos() - startPos);
+      parseJson(parser);
+    }
+
+    endArray(startPos, offsets);
+  }
+
+  private void parsePrimitive(JsonParser parser) throws IOException {
+    JsonToken token = parser.currentToken();
+
+    switch (token) {
       case VALUE_STRING:
         writeStringInternal(parser.getText());
         break;
       case VALUE_NUMBER_INT:
-        writeInteger(parser);
+        try {
+          writeIntegralInternal(parser.getLongValue());
+        } catch (InputCoercionException ignored) {
+          writeFloatValue(parser);
+        }
         break;
       case VALUE_NUMBER_FLOAT:
-        writeFloat(parser);
+        writeFloatValue(parser);
         break;
       case VALUE_TRUE:
         writeBooleanInternal(true);
@@ -105,71 +147,23 @@ public class VariantBuilder extends VariantBuilderBase {
     }
   }
 
-  private void writeObject(JsonParser parser) throws IOException {
-    List<VariantBuilderBase.FieldEntry> fields = Lists.newArrayList();
-    int startPos = valueBuffer.pos();
-
-    // Store object keys to dictionary of metadata
-    while (parser.nextToken() != JsonToken.END_OBJECT) {
-      String key = parser.currentName();
-      parser.nextToken(); // Move to the value
-
-      int id = dict.add(key);
-      fields.add(new VariantBuilderBase.FieldEntry(key, id, valueBuffer.pos() - startPos));
-      parseJson(parser);
-    }
-
-    endObject(startPos, fields);
-  }
-
-  private void writeArray(JsonParser parser) throws IOException {
-    List<Integer> offsets = Lists.newArrayList();
-    int startPos = valueBuffer.pos();
-
-    while (parser.nextToken() != JsonToken.END_ARRAY) {
-      offsets.add(valueBuffer.pos() - startPos);
-      parseJson(parser);
-    }
-
-    endArray(startPos, offsets);
-  }
-
-  private void writeInteger(JsonParser parser) throws IOException {
-    try {
-      writeNumericInternal(parser.getLongValue());
-    } catch (InputCoercionException ignored) {
-      writeFloat(parser); // Fallback for large integers
-    }
-  }
-
-  private void writeFloat(JsonParser parser) throws IOException {
-    if (!tryWriteDecimal(parser.getText())) {
-      writeDoubleInternal(parser.getDoubleValue());
-    }
-  }
-
   /**
-   * This function attempts to parse a JSON number and write it as a decimal value.
+   * This function attempts to write floating number in decimal format to store the exact value if
+   * it fits in the decimal for Variant; otherwise, write as a double value.
    *
-   * @param input the input string expecting to be in decimal format, not in scientific notation.
-   * @return true if the decimal is valid and written successfully; false otherwise.
+   * @param parser instance of JSONParser with the current token to be floating number
    */
-  private boolean tryWriteDecimal(String input) {
-    // Validate that the input matches a decimal format and is not in scientific notation.
-    if (!input.matches("-?\\d+(\\.\\d+)?")) {
-      return false;
-    }
-
-    // Parse the input string to BigDecimal.
+  private void writeFloatValue(JsonParser parser) throws IOException {
+    String input = parser.getText();
     BigDecimal decimalValue = new BigDecimal(input);
 
-    // Ensure the decimal value meets precision and scale limits.
-    if (decimalValue.scale() <= MAX_DECIMAL16_PRECISION
+    // Decimal values only support a scale in [0, 38] and a precision <= 38
+    if (decimalValue.scale() >= 0
+        && decimalValue.scale() <= MAX_DECIMAL16_PRECISION
         && decimalValue.precision() <= MAX_DECIMAL16_PRECISION) {
       writeDecimalInternal(decimalValue);
-      return true;
+    } else {
+      writeDoubleInternal(parser.getDoubleValue());
     }
-
-    return false;
   }
 }

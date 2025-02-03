@@ -39,8 +39,8 @@ public class VariantPrimitiveBuilder extends VariantBuilderBase {
     return this;
   }
 
-  public VariantPrimitiveBuilder writeNumeric(long value) {
-    writeNumericInternal(value);
+  public VariantPrimitiveBuilder writeIntegral(long value) {
+    writeIntegralInternal(value);
     return this;
   }
 

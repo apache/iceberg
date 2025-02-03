@@ -36,17 +36,17 @@ public class VariantObjectBuilder extends VariantBuilderBase {
 
   public VariantObjectBuilder startObject(String key) {
     writeKey(key);
-    return new VariantObjectBuilder(valueBuffer, dict);
+    return new VariantObjectBuilder(valueBuffer(), dict());
   }
 
   public VariantArrayBuilder startArray(String key) {
     writeKey(key);
-    return new VariantArrayBuilder(valueBuffer, dict);
+    return new VariantArrayBuilder(valueBuffer(), dict());
   }
 
   private void writeKey(String key) {
-    int id = dict.add(key);
-    fields.add(new FieldEntry(key, id, valueBuffer.pos() - startPos));
+    int id = dict().add(key);
+    fields.add(new FieldEntry(key, id, valueBuffer().pos() - startPos()));
   }
 
   public VariantObjectBuilder writeNull(String key) {
@@ -61,9 +61,9 @@ public class VariantObjectBuilder extends VariantBuilderBase {
     return this;
   }
 
-  public VariantObjectBuilder writeNumeric(String key, long value) {
+  public VariantObjectBuilder writeIntegral(String key, long value) {
     writeKey(key);
-    writeNumericInternal(value);
+    writeIntegralInternal(value);
     return this;
   }
 
@@ -116,6 +116,6 @@ public class VariantObjectBuilder extends VariantBuilderBase {
   }
 
   public void endObject() {
-    super.endObject(startPos, fields);
+    super.endObject(startPos(), fields);
   }
 }

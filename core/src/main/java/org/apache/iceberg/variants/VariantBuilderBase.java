@@ -34,9 +34,21 @@ abstract class VariantBuilderBase {
   private static final int MAX_DECIMAL8_PRECISION = 18;
   protected static final int MAX_DECIMAL16_PRECISION = 38;
 
-  protected final ByteBufferWrapper valueBuffer;
-  protected final Dictionary dict;
-  protected int startPos;
+  private final ByteBufferWrapper valueBuffer;
+  private final Dictionary dict;
+  private int startPos;
+
+  ByteBufferWrapper valueBuffer() {
+    return valueBuffer;
+  }
+
+  Dictionary dict() {
+    return dict;
+  }
+
+  int startPos() {
+    return startPos;
+  }
 
   VariantBuilderBase(ByteBufferWrapper valueBuffer, Dictionary dict) {
     this.valueBuffer = valueBuffer;
@@ -101,12 +113,12 @@ abstract class VariantBuilderBase {
   }
 
   /**
-   * Writes a numeric value to the variant builder, automatically choosing the smallest type (INT8,
-   * INT16, INT32, or INT64) to store the value efficiently.
+   * Writes an integral value to the variant builder, automatically choosing the smallest type
+   * (INT8, INT16, INT32, or INT64) to store the value efficiently.
    *
-   * @param value The numeric value to append.
+   * @param value The integral value to append.
    */
-  protected void writeNumericInternal(long value) {
+  protected void writeIntegralInternal(long value) {
     if (value == (byte) value) {
       valueBuffer.writePrimitive(Variants.PhysicalType.INT8, (byte) value);
     } else if (value == (short) value) {
@@ -402,10 +414,6 @@ abstract class VariantBuilderBase {
       this.key = key;
       this.id = id;
       this.offset = offset;
-    }
-
-    FieldEntry withNewOffset(int newOffset) {
-      return new FieldEntry(key, id, newOffset);
     }
 
     @Override

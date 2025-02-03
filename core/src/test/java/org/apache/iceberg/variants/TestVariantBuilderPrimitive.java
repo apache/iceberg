@@ -44,7 +44,7 @@ public class TestVariantBuilderPrimitive {
         Arguments.of("1234", Variants.PhysicalType.INT16, (short) 1234),
         Arguments.of("1234567890", Variants.PhysicalType.INT32, 1234567890),
         Arguments.of("1234567890987654321", Variants.PhysicalType.INT64, 1234567890987654321L),
-        Arguments.of("1234e-2", Variants.PhysicalType.DOUBLE, 12.34),
+        Arguments.of("1234e-2", Variants.PhysicalType.DECIMAL4, new BigDecimal("12.34")),
         Arguments.of("123456.789", Variants.PhysicalType.DECIMAL4, new BigDecimal("123456.789")),
         Arguments.of(
             "123456789.987654321",
@@ -63,7 +63,7 @@ public class TestVariantBuilderPrimitive {
   @ParameterizedTest
   @MethodSource("primitiveInputs")
   public void testPrimitiveJson(
-      String input, Variants.PhysicalType expectedType, Object expectedValue) throws IOException {
+      String input, Variants.PhysicalType expectedType, Object expectedValue) {
     Variant variant = VariantBuilder.parseJson(input);
     VariantPrimitive primitive = variant.value().asPrimitive();
 
@@ -117,7 +117,7 @@ public class TestVariantBuilderPrimitive {
   @MethodSource("testPrimitiveNumericInputs")
   public void testPrimitiveNumeric(long value, Variants.PhysicalType type, Object expectedValue) {
     VariantPrimitiveBuilder builder = new VariantBuilder().createPrimitive();
-    builder.writeNumeric(value);
+    builder.writeIntegral(value);
     Variant variant = builder.build();
     VariantPrimitive primitive = variant.value().asPrimitive();
 

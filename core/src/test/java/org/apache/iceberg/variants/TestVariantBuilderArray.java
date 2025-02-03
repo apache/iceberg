@@ -45,7 +45,7 @@ public class TestVariantBuilderArray {
   }
 
   @Test
-  public void testArrayJson() throws IOException {
+  public void testArrayJson() {
     String input =
         "[{\n"
             + "   \"firstName\": \"John\","
@@ -91,10 +91,10 @@ public class TestVariantBuilderArray {
         .writeNull()
         .writeBoolean(true)
         .writeBoolean(false)
-        .writeNumeric(34)
-        .writeNumeric(1234)
-        .writeNumeric(1234567890)
-        .writeNumeric(1234567890987654321L)
+        .writeIntegral(34)
+        .writeIntegral(1234)
+        .writeIntegral(1234567890)
+        .writeIntegral(1234567890987654321L)
         .writeDouble(1234e-2)
         .writeDecimal(new BigDecimal("123456.789"))
         .writeDecimal(new BigDecimal("123456789.987654321"))
@@ -112,7 +112,7 @@ public class TestVariantBuilderArray {
         .startObject()
         .writeString("firstName", "John")
         .writeString("lastName", "Smith")
-        .writeNumeric("age", 25)
+        .writeIntegral("age", 25)
         .endObject();
     builder.endArray();
 

@@ -46,10 +46,10 @@ public final class VariantImpl implements Variant {
         this.value = SerializedPrimitive.from(value.array());
         break;
       case ARRAY:
-        this.value = SerializedArray.from((SerializedMetadata) this.metadata, value.array());
+        this.value = SerializedArray.from(this.metadata, value.array());
         break;
       case OBJECT:
-        this.value = SerializedObject.from((SerializedMetadata) this.metadata, value.array());
+        this.value = SerializedObject.from(this.metadata, value.array());
         break;
       case SHORT_STRING:
         this.value = SerializedShortString.from(value.array());
