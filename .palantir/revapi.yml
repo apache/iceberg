@@ -1180,6 +1180,31 @@ acceptedBreaks:
       old: "class org.apache.iceberg.data.InternalRecordWrapper"
       justification: "Moved from iceberg-data to iceberg-core, so this should not\
         \ cause issues"
+    org.apache.iceberg:iceberg-orc:
+    - code: "java.method.exception.checkedAdded"
+      old: "method <T> org.apache.iceberg.deletes.EqualityDeleteWriter<T> org.apache.iceberg.orc.ORC.DeleteWriteBuilder::buildEqualityWriter()"
+      new: "method <T> org.apache.iceberg.deletes.EqualityDeleteWriter<T> org.apache.iceberg.orc.ORC.DeleteWriteBuilder::buildEqualityWriter()\
+        \ throws java.io.IOException"
+      justification: "Binary compatible and equivalent"
+    - code: "java.method.exception.checkedAdded"
+      old: "method <T> org.apache.iceberg.deletes.PositionDeleteWriter<T> org.apache.iceberg.orc.ORC.DeleteWriteBuilder::buildPositionWriter()"
+      new: "method <T> org.apache.iceberg.deletes.PositionDeleteWriter<T> org.apache.iceberg.orc.ORC.DeleteWriteBuilder::buildPositionWriter()\
+        \ throws java.io.IOException"
+      justification: "Binary compatible and equivalent"
+    - code: "java.method.exception.checkedAdded"
+      old: "method <T> org.apache.iceberg.io.DataWriter<T> org.apache.iceberg.orc.ORC.DataWriteBuilder::build()"
+      new: "method <T> org.apache.iceberg.io.DataWriter<T> org.apache.iceberg.io.FileFormatDataWriterBuilderBase<T\
+        \ extends org.apache.iceberg.io.FileFormatDataWriterBuilderBase<T extends\
+        \ org.apache.iceberg.io.FileFormatDataWriterBuilderBase<T>>>::build() throws\
+        \ java.io.IOException @ org.apache.iceberg.orc.ORC.DataWriteBuilder"
+      justification: "Binary compatible and equivalent"
+    - code: "java.method.movedToSuperClass"
+      old: "method <T> org.apache.iceberg.io.DataWriter<T> org.apache.iceberg.orc.ORC.DataWriteBuilder::build()"
+      new: "method <T> org.apache.iceberg.io.DataWriter<T> org.apache.iceberg.io.FileFormatDataWriterBuilderBase<T\
+        \ extends org.apache.iceberg.io.FileFormatDataWriterBuilderBase<T extends\
+        \ org.apache.iceberg.io.FileFormatDataWriterBuilderBase<T>>>::build() throws\
+        \ java.io.IOException @ org.apache.iceberg.orc.ORC.DataWriteBuilder"
+      justification: "Binary compatible and equivalent"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

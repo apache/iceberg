@@ -209,7 +209,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     @Override
     public FileFormatPositionDeleteWriterBuilder<?> positionDeleteWriterBuilder(
         EncryptedOutputFile outputFile, RowType rowType) {
-      int rowFieldIndex = rowType.getFieldIndex(DELETE_FILE_ROW_FIELD_NAME);
+      int rowFieldIndex = rowType != null ? rowType.getFieldIndex(DELETE_FILE_ROW_FIELD_NAME) : -1;
       return Avro.writeDeletes(outputFile.encryptingOutputFile())
           .createWriterFunc(
               ignore ->

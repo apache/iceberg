@@ -34,8 +34,9 @@ import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
+class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Schema> {
 
   GenericFileWriterFactory(
       Table table,
@@ -57,6 +58,10 @@ class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
         equalityFieldIds,
         equalityDeleteRowSchema,
         equalityDeleteSortOrder,
+        positionDeleteRowSchema,
+        ImmutableMap.of(),
+        dataSchema,
+        equalityDeleteRowSchema,
         positionDeleteRowSchema);
   }
 
@@ -107,21 +112,6 @@ class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
   @Override
   protected void configurePositionDelete(ORC.DeleteWriteBuilder builder) {
     builder.createWriterFunc(GenericOrcWriter::buildWriter);
-  }
-
-  @Override
-  protected Schema rowSchemaType() {
-    return dataSchema();
-  }
-
-  @Override
-  protected Schema equalityDeleteRowSchemaType() {
-    return equalityDeleteRowSchema();
-  }
-
-  @Override
-  protected Schema positionDeleteRowSchemaType() {
-    return positionDeleteRowSchema();
   }
 
   static class Builder {

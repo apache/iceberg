@@ -140,6 +140,12 @@ public class ORC {
       }
     }
 
+    @Deprecated
+    public WriteBuilder metadata(String property, String value) {
+      meta(property, value);
+      return this;
+    }
+
     public WriteBuilder createWriterFunc(
         BiFunction<Schema, TypeDescription, OrcRowWriter<?>> writerFunction) {
       this.createWriterFunc = writerFunction;

@@ -184,6 +184,12 @@ public class Parquet {
       return this;
     }
 
+    @Override
+    public WriteBuilder overwrite(boolean enabled) {
+      this.writeMode = enabled ? ParquetFileWriter.Mode.OVERWRITE : ParquetFileWriter.Mode.CREATE;
+      return this;
+    }
+
     public WriteBuilder writerVersion(WriterVersion version) {
       this.writerVersion = version;
       return this;
