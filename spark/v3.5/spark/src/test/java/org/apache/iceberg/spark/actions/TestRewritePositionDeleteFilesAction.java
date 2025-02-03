@@ -71,6 +71,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.puffin.Puffin;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -316,6 +317,189 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
           .isEqualTo(beforeRewrite.get(3))
           .isEqualTo(ScanTaskUtil.contentSizeInBytes(rewrittenDelete));
     }
+  }
+
+  @TestTemplate
+  public void testDVCompactionWithLowLiveRatioOnUnpartitionedTable() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    Table table =
+        validationCatalog.createTable(
+            TableIdentifier.of("default", TABLE_NAME),
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            tableProperties());
+
+    // write 10 records per data file
+    writeRecords(table, 10, 100);
+
+    dvCompactionWithLowLiveRatio(table);
+  }
+
+  @TestTemplate
+  public void testDVCompactionWithLowLiveRatioOnPartitionedTable() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
+    Table table =
+        validationCatalog.createTable(
+            TableIdentifier.of("default", TABLE_NAME), SCHEMA, spec, tableProperties());
+
+    // write 10 records per data file
+    writeRecords(table, 10, 10, 10);
+
+    dvCompactionWithLowLiveRatio(table);
+  }
+
+  private void dvCompactionWithLowLiveRatio(Table table) throws IOException {
+    assertThat(records(table)).hasSize(100);
+    assertThat(deleteRecords(table)).hasSize(0);
+
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PUFFIN).build();
+    DVFileWriter writer = new BaseDVFileWriter(fileFactory, p -> null);
+
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    for (int i = 0; i < dataFiles.size(); i++) {
+      DataFile dataFile = dataFiles.get(i);
+      for (int j = 0; j < dataFile.recordCount(); j++) {
+        if (i + 1 < dataFiles.size()) {
+          writer.delete(dataFile.location(), j, table.spec(), dataFile.partition());
+        } else if (j < 5) {
+          // only delete 5 records from the last data file
+          writer.delete(dataFile.location(), j, table.spec(), dataFile.partition());
+        }
+      }
+    }
+
+    writer.close();
+    List<DeleteFile> deleteFiles = writer.result().deleteFiles();
+    RowDelta rowDelta = table.newRowDelta();
+    deleteFiles.forEach(rowDelta::addDeletes);
+    rowDelta.commit();
+
+    assertThat(records(table)).hasSize(5);
+    assertThat(deleteRecords(table)).hasSize(95);
+
+    RowDelta delta = table.newRowDelta();
+    // expire 9 out of 10 delete files
+    TestHelpers.deleteFiles(table).stream()
+        .filter(del -> del.recordCount() == 10)
+        .forEach(delta::removeDeletes);
+    delta.commit();
+
+    assertThat(records(table)).hasSize(95);
+    assertThat(deleteRecords(table)).hasSize(5);
+
+    String puffinLocationBeforeRewrite = deleteFiles.get(0).location();
+    assertThat(
+            Puffin.read(Files.localInput(puffinLocationBeforeRewrite))
+                .build()
+                .fileMetadata()
+                .blobs())
+        .hasSize(10);
+
+    Result result =
+        SparkActions.get(spark)
+            .rewriteDVs(table)
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .execute();
+
+    assertThat(result.rewrittenDeleteFilesCount()).isEqualTo(1);
+    assertThat(result.addedDeleteFilesCount()).isEqualTo(1);
+
+    Set<DeleteFile> files = TestHelpers.deleteFiles(table);
+    assertThat(files).hasSize(1);
+
+    // live ratio was 10%, so a new Puffin file has been written with only a single DV
+    String puffinLocationAfterRewrite = Iterables.getOnlyElement(files).location();
+    assertThat(puffinLocationAfterRewrite).isNotEqualTo(puffinLocationBeforeRewrite);
+    assertThat(
+            Puffin.read(Files.localInput(puffinLocationAfterRewrite))
+                .build()
+                .fileMetadata()
+                .blobs())
+        .hasSize(1);
+  }
+
+  @TestTemplate
+  public void testDVCompactionWithNormalLiveRatio() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    Table table =
+        validationCatalog.createTable(
+            TableIdentifier.of("default", TABLE_NAME),
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            tableProperties());
+
+    // write 10 records per data file
+    writeRecords(table, 10, 100);
+
+    assertThat(records(table)).hasSize(100);
+    assertThat(deleteRecords(table)).hasSize(0);
+
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PUFFIN).build();
+    DVFileWriter writer = new BaseDVFileWriter(fileFactory, p -> null);
+
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    for (DataFile dataFile : dataFiles) {
+      for (int j = 0; j < dataFile.recordCount(); j++) {
+        if (j < 5) {
+          // only delete 5 records from each data file
+          writer.delete(dataFile.location(), j, table.spec(), dataFile.partition());
+        }
+      }
+    }
+
+    writer.close();
+    List<DeleteFile> deleteFiles = writer.result().deleteFiles();
+    RowDelta rowDelta = table.newRowDelta();
+    deleteFiles.forEach(rowDelta::addDeletes);
+    rowDelta.commit();
+
+    assertThat(records(table)).hasSize(50);
+    assertThat(deleteRecords(table)).hasSize(50);
+
+    RowDelta delta = table.newRowDelta();
+    // expire 5 out of 10 delete files
+    ImmutableList.copyOf(TestHelpers.deleteFiles(table))
+        .subList(0, 5)
+        .forEach(delta::removeDeletes);
+    delta.commit();
+
+    assertThat(records(table)).hasSize(75);
+    assertThat(deleteRecords(table)).hasSize(25);
+
+    Set<DeleteFile> currentDeleteFiles = TestHelpers.deleteFiles(table);
+    assertThat(currentDeleteFiles).hasSize(5);
+    String puffinLocationBeforeRewrite = currentDeleteFiles.stream().findFirst().get().location();
+    assertThat(
+            Puffin.read(Files.localInput(puffinLocationBeforeRewrite))
+                .build()
+                .fileMetadata()
+                .blobs())
+        .hasSize(10);
+
+    Result result =
+        SparkActions.get(spark)
+            .rewriteDVs(table)
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .execute();
+
+    assertThat(result.rewrittenDeleteFilesCount()).isEqualTo(0);
+    assertThat(result.addedDeleteFilesCount()).isEqualTo(0);
+
+    Set<DeleteFile> filesAfterRewrite = TestHelpers.deleteFiles(table);
+    assertThat(filesAfterRewrite).hasSize(5);
+
+    // live ratio was 50%, so no new Puffin file should have been written
+    String puffinLocationAfterRewrite = filesAfterRewrite.stream().findFirst().get().location();
+    assertThat(puffinLocationAfterRewrite).isEqualTo(puffinLocationBeforeRewrite);
+    assertThat(
+            Puffin.read(Files.localInput(puffinLocationAfterRewrite))
+                .build()
+                .fileMetadata()
+                .blobs())
+        .hasSize(10);
   }
 
   @TestTemplate
@@ -1125,11 +1309,17 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
   private List<DeleteFile> writeDV(
       Table table, StructLike partition, String path, int numPositionsToDelete) throws IOException {
+    return writeDV(table, partition, path, 0, numPositionsToDelete);
+  }
+
+  private List<DeleteFile> writeDV(
+      Table table, StructLike partition, String path, int startRow, int numPositionsToDelete)
+      throws IOException {
     OutputFileFactory fileFactory =
         OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PUFFIN).build();
     DVFileWriter writer = new BaseDVFileWriter(fileFactory, p -> null);
     try (DVFileWriter closeableWriter = writer) {
-      for (int row = 0; row < numPositionsToDelete; row++) {
+      for (int row = startRow; row < numPositionsToDelete; row++) {
         closeableWriter.delete(path, row, table.spec(), partition);
       }
     }
