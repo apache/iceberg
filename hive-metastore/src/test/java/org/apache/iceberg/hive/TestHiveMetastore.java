@@ -276,9 +276,11 @@ public class TestHiveMetastore {
   private static void setupMetastoreDB(String dbURL) throws SQLException, IOException {
     try (Connection connection = DriverManager.getConnection(dbURL)) {
       ScriptRunner scriptRunner = new ScriptRunner(connection, true, true);
-
-      InputStream inputStream = TestHiveMetastore.class.getClassLoader().getResourceAsStream("hive-schema-3.1.0.derby.sql");
-      try (Reader reader = new InputStreamReader(Objects.requireNonNull(inputStream))) {
+      try (InputStream inputStream =
+              TestHiveMetastore.class
+                  .getClassLoader()
+                  .getResourceAsStream("hive-schema-3.1.0.derby.sql");
+          Reader reader = new InputStreamReader(Objects.requireNonNull(inputStream))) {
         scriptRunner.runScript(reader);
       }
     }
