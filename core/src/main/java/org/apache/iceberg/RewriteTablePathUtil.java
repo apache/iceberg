@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
@@ -50,6 +49,9 @@ import org.slf4j.LoggerFactory;
 public class RewriteTablePathUtil {
 
   private static final Logger LOG = LoggerFactory.getLogger(RewriteTablePathUtil.class);
+  // Use the POSIX separator instead of File.separator because File.separator is dependent on
+  // the client environment and not the target filesystem. POSIX is compatible with S3, GCS, etc
+  public static final String FILE_SEPARATOR = "/";
 
   private RewriteTablePathUtil() {}
 
@@ -128,7 +130,9 @@ public class RewriteTablePathUtil {
         // TODO: update statistic file paths
         metadata.statisticsFiles(),
         metadata.partitionStatisticsFiles(),
-        metadata.changes());
+        metadata.changes(),
+        metadata.rowLineageEnabled(),
+        metadata.nextRowId());
   }
 
   private static Map<String, String> updateProperties(
@@ -185,7 +189,9 @@ public class RewriteTablePathUtil {
               snapshot.operation(),
               snapshot.summary(),
               snapshot.schemaId(),
-              newManifestListLocation);
+              newManifestListLocation,
+              snapshot.firstRowId(),
+              snapshot.addedRows());
       newSnapshots.add(newSnapshot);
     }
     return newSnapshots;
@@ -531,18 +537,13 @@ public class RewriteTablePathUtil {
 
   /** Combine a base and relative path. */
   public static String combinePaths(String absolutePath, String relativePath) {
-    String combined = absolutePath;
-    if (!combined.endsWith("/")) {
-      combined += "/";
-    }
-    combined += relativePath;
-    return combined;
+    return maybeAppendFileSeparator(absolutePath) + relativePath;
   }
 
   /** Returns the file name of a path. */
   public static String fileName(String path) {
     String filename = path;
-    int lastIndex = path.lastIndexOf(File.separator);
+    int lastIndex = path.lastIndexOf(FILE_SEPARATOR);
     if (lastIndex != -1) {
       filename = path.substring(lastIndex + 1);
     }
@@ -551,15 +552,16 @@ public class RewriteTablePathUtil {
 
   /** Relativize a path. */
   public static String relativize(String path, String prefix) {
-    String toRemove = prefix;
-    if (!toRemove.endsWith("/")) {
-      toRemove += "/";
-    }
+    String toRemove = maybeAppendFileSeparator(prefix);
     if (!path.startsWith(toRemove)) {
       throw new IllegalArgumentException(
           String.format("Path %s does not start with %s", path, toRemove));
     }
     return path.substring(toRemove.length());
+  }
+
+  public static String maybeAppendFileSeparator(String path) {
+    return path.endsWith(FILE_SEPARATOR) ? path : path + FILE_SEPARATOR;
   }
 
   /**

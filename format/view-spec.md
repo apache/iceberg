@@ -263,7 +263,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
   "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
   "format-version" : 1,
   "location" : "s3://bucket/warehouse/default.db/event_agg",
-  "current-version-id" : 1,
+  "current-version-id" : 2,
   "properties" : {
     "comment" : "Daily event counts"
   },
