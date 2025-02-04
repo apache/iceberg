@@ -79,17 +79,7 @@ public class TestTables {
       PartitionSpec spec,
       SortOrder sortOrder,
       int formatVersion) {
-    TestTableOperations ops = new TestTableOperations(name, temp);
-    if (ops.current() != null) {
-      throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
-    }
-
-    ops.commit(
-        null,
-        newTableMetadata(
-            schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), formatVersion));
-
-    return new TestTable(ops);
+    return createTable(temp, name, schema, spec, formatVersion, ImmutableMap.of(), sortOrder, null);
   }
 
   public static TestTable create(
@@ -100,17 +90,8 @@ public class TestTables {
       SortOrder sortOrder,
       int formatVersion,
       MetricsReporter reporter) {
-    TestTableOperations ops = new TestTableOperations(name, temp);
-    if (ops.current() != null) {
-      throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
-    }
-
-    ops.commit(
-        null,
-        newTableMetadata(
-            schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), formatVersion));
-
-    return new TestTable(ops, reporter);
+    return createTable(
+        temp, name, schema, spec, formatVersion, ImmutableMap.of(), sortOrder, reporter);
   }
 
   public static TestTable create(
@@ -120,6 +101,19 @@ public class TestTables {
       PartitionSpec spec,
       int formatVersion,
       Map<String, String> properties) {
+    return createTable(
+        temp, name, schema, spec, formatVersion, properties, SortOrder.unsorted(), null);
+  }
+
+  private static TestTable createTable(
+      File temp,
+      String name,
+      Schema schema,
+      PartitionSpec spec,
+      int formatVersion,
+      Map<String, String> properties,
+      SortOrder sortOrder,
+      MetricsReporter reporter) {
     TestTableOperations ops = new TestTableOperations(name, temp);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
@@ -127,10 +121,13 @@ public class TestTables {
 
     ops.commit(
         null,
-        newTableMetadata(
-            schema, spec, SortOrder.unsorted(), temp.toString(), properties, formatVersion));
+        newTableMetadata(schema, spec, sortOrder, temp.toString(), properties, formatVersion));
 
-    return new TestTable(ops, name);
+    if (reporter != null) {
+      return new TestTable(ops, reporter);
+    } else {
+      return new TestTable(ops);
+    }
   }
 
   public static Transaction beginCreate(File temp, String name, Schema schema, PartitionSpec spec) {

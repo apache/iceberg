@@ -24,7 +24,6 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Queue;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -136,28 +135,5 @@ public class PartitionStatsUtil {
     }
 
     return statsMap.values();
-  }
-
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  public static boolean isEqual(
-      Comparator<StructLike> partitionComparator, PartitionStats stats1, PartitionStats stats2) {
-    if (stats1 == stats2) {
-      return true;
-    } else if (stats1 == null || stats2 == null) {
-      return false;
-    }
-
-    return partitionComparator.compare(stats1.partition(), stats2.partition()) == 0
-        && stats1.specId() == stats2.specId()
-        && stats1.dataRecordCount() == stats2.dataRecordCount()
-        && stats1.dataFileCount() == stats2.dataFileCount()
-        && stats1.totalDataFileSizeInBytes() == stats2.totalDataFileSizeInBytes()
-        && stats1.positionDeleteRecordCount() == stats2.positionDeleteRecordCount()
-        && stats1.positionDeleteFileCount() == stats2.positionDeleteFileCount()
-        && stats1.equalityDeleteRecordCount() == stats2.equalityDeleteRecordCount()
-        && stats1.equalityDeleteFileCount() == stats2.equalityDeleteFileCount()
-        && stats1.totalRecordCount() == stats2.totalRecordCount()
-        && Objects.equals(stats1.lastUpdatedAt(), stats2.lastUpdatedAt())
-        && Objects.equals(stats1.lastUpdatedSnapshotId(), stats2.lastUpdatedSnapshotId());
   }
 }

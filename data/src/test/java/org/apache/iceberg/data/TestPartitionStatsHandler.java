@@ -32,6 +32,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -46,7 +47,6 @@ import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.PartitionStats;
-import org.apache.iceberg.PartitionStatsUtil;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -104,12 +104,7 @@ public class TestPartitionStatsHandler {
   public void testPartitionStatsOnEmptyBranch() throws Exception {
     Table testTable = TestTables.create(tempDir("empty_branch"), "empty_branch", SCHEMA, SPEC, 2);
     testTable.manageSnapshots().createBranch("b1").commit();
-    PartitionStatisticsFile partitionStatisticsFile =
-        PartitionStatsHandler.computeAndWriteStatsFile(testTable, "b1");
-    // creates an empty stats file since the dummy snapshot exist
-    assertThat(partitionStatisticsFile.fileSizeInBytes()).isEqualTo(0L);
-    assertThat(partitionStatisticsFile.snapshotId())
-        .isEqualTo(testTable.refs().get("b1").snapshotId());
+    assertThat(PartitionStatsHandler.computeAndWriteStatsFile(testTable, "b1")).isNull();
   }
 
   @Test
@@ -214,8 +209,7 @@ public class TestPartitionStatsHandler {
     partitionStats.set(Column.TOTAL_DATA_FILE_SIZE_IN_BYTES.id(), 1024L * RANDOM.nextInt(20));
     List<PartitionStats> expected = Collections.singletonList(partitionStats);
     PartitionStatisticsFile statisticsFile =
-        PartitionStatsHandler.writePartitionStatsFile(
-            testTable, 42L, dataSchema, expected.iterator());
+        PartitionStatsHandler.writePartitionStatsFile(testTable, 42L, dataSchema, expected);
 
     List<PartitionStats> written;
     try (CloseableIterable<PartitionStats> recordIterator =
@@ -227,7 +221,7 @@ public class TestPartitionStatsHandler {
     assertThat(written).hasSize(expected.size());
     Comparator<StructLike> comparator = Comparators.forType(partitionSchema);
     for (int i = 0; i < written.size(); i++) {
-      assertThat(PartitionStatsUtil.isEqual(comparator, written.get(i), expected.get(i))).isTrue();
+      assertThat(isEqual(comparator, written.get(i), expected.get(i))).isTrue();
     }
   }
 
@@ -284,8 +278,7 @@ public class TestPartitionStatsHandler {
                 0L, 0, 0L, 0, 0L, null, null)); // null counters must be initialized to zero.
 
     PartitionStatisticsFile statisticsFile =
-        PartitionStatsHandler.writePartitionStatsFile(
-            testTable, 42L, dataSchema, expected.iterator());
+        PartitionStatsHandler.writePartitionStatsFile(testTable, 42L, dataSchema, expected);
 
     List<PartitionStats> written;
     try (CloseableIterable<PartitionStats> recordIterator =
@@ -297,7 +290,7 @@ public class TestPartitionStatsHandler {
     assertThat(written).hasSize(expected.size());
     Comparator<StructLike> comparator = Comparators.forType(partitionSchema);
     for (int i = 0; i < written.size(); i++) {
-      assertThat(PartitionStatsUtil.isEqual(comparator, written.get(i), expected.get(i))).isTrue();
+      assertThat(isEqual(comparator, written.get(i), expected.get(i))).isTrue();
     }
   }
 
@@ -578,5 +571,28 @@ public class TestPartitionStatsHandler {
 
   private File tempDir(String folderName) throws IOException {
     return java.nio.file.Files.createTempDirectory(temp.toPath(), folderName).toFile();
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  private static boolean isEqual(
+      Comparator<StructLike> partitionComparator, PartitionStats stats1, PartitionStats stats2) {
+    if (stats1 == stats2) {
+      return true;
+    } else if (stats1 == null || stats2 == null) {
+      return false;
+    }
+
+    return partitionComparator.compare(stats1.partition(), stats2.partition()) == 0
+        && stats1.specId() == stats2.specId()
+        && stats1.dataRecordCount() == stats2.dataRecordCount()
+        && stats1.dataFileCount() == stats2.dataFileCount()
+        && stats1.totalDataFileSizeInBytes() == stats2.totalDataFileSizeInBytes()
+        && stats1.positionDeleteRecordCount() == stats2.positionDeleteRecordCount()
+        && stats1.positionDeleteFileCount() == stats2.positionDeleteFileCount()
+        && stats1.equalityDeleteRecordCount() == stats2.equalityDeleteRecordCount()
+        && stats1.equalityDeleteFileCount() == stats2.equalityDeleteFileCount()
+        && stats1.totalRecordCount() == stats2.totalRecordCount()
+        && Objects.equals(stats1.lastUpdatedAt(), stats2.lastUpdatedAt())
+        && Objects.equals(stats1.lastUpdatedSnapshotId(), stats2.lastUpdatedSnapshotId());
   }
 }
