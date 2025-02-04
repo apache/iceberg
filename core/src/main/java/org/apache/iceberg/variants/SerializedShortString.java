@@ -66,4 +66,9 @@ class SerializedShortString extends Variants.SerializedValue implements VariantP
   public ByteBuffer buffer() {
     return value;
   }
+
+  @Override
+  public String toString() {
+    return VariantPrimitive.asString(this);
+  }
 }

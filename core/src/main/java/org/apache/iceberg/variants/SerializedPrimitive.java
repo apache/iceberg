@@ -127,4 +127,9 @@ class SerializedPrimitive extends Variants.SerializedValue implements VariantPri
   public ByteBuffer buffer() {
     return value;
   }
+
+  @Override
+  public String toString() {
+    return VariantPrimitive.asString(this);
+  }
 }

@@ -38,4 +38,23 @@ public interface VariantObject extends VariantValue {
   default VariantObject asObject() {
     return this;
   }
+
+  static String asString(VariantObject object) {
+    StringBuilder builder = new StringBuilder();
+
+    builder.append("VariantObject(fields={");
+    boolean first = true;
+    for (String field : object.fieldNames()) {
+      if (first) {
+        first = false;
+      } else {
+        builder.append(", ");
+      }
+
+      builder.append(field).append(": ").append(object.get(field));
+    }
+    builder.append("})");
+
+    return builder.toString();
+  }
 }
