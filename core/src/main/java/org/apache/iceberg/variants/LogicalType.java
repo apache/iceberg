@@ -18,21 +18,17 @@
  */
 package org.apache.iceberg.variants;
 
-/** An variant array value. */
-public interface VariantArray extends VariantValue {
-  /** Returns the {@link VariantValue} at {@code index} in this array. */
-  VariantValue get(int index);
-
-  /** Returns the number of fields stored in this array. */
-  int numElements();
-
-  @Override
-  default PhysicalType type() {
-    return PhysicalType.ARRAY;
-  }
-
-  @Override
-  default VariantArray asArray() {
-    return this;
-  }
+enum LogicalType {
+  NULL,
+  BOOLEAN,
+  EXACT_NUMERIC,
+  FLOAT,
+  DOUBLE,
+  DATE,
+  TIMESTAMPTZ,
+  TIMESTAMPNTZ,
+  BINARY,
+  STRING,
+  ARRAY,
+  OBJECT
 }

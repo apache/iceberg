@@ -43,12 +43,12 @@ class SerializedPrimitive extends Variants.SerializedValue implements VariantPri
   }
 
   private final ByteBuffer value;
-  private final Variants.PhysicalType type;
+  private final PhysicalType type;
   private Object primitive = null;
 
   private SerializedPrimitive(ByteBuffer value, int header) {
     this.value = value;
-    this.type = Variants.PhysicalType.from(header >> PRIMITIVE_TYPE_SHIFT);
+    this.type = PhysicalType.from(header >> PRIMITIVE_TYPE_SHIFT);
   }
 
   private Object read() {
@@ -111,7 +111,7 @@ class SerializedPrimitive extends Variants.SerializedValue implements VariantPri
   }
 
   @Override
-  public Variants.PhysicalType type() {
+  public PhysicalType type() {
     return type;
   }
 

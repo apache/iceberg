@@ -18,10 +18,11 @@
  */
 package org.apache.iceberg.variants;
 
+import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
 
 /** A variant metadata dictionary. */
-public interface VariantMetadata extends Variants.Serialized {
+public interface VariantMetadata {
   /** Returns the ID for a {@code name} in the dictionary, or -1 if not present. */
   int id(String name);
 
@@ -34,6 +35,20 @@ public interface VariantMetadata extends Variants.Serialized {
 
   /** Returns the size of the metadata dictionary. */
   int dictionarySize();
+
+  /** Returns the serialized size in bytes of this value. */
+  int sizeInBytes();
+
+  /**
+   * Writes this value to the buffer at the given offset, ignoring the buffer's position and limit.
+   *
+   * <p>{@link #sizeInBytes()} bytes will be written to the buffer.
+   *
+   * @param buffer a ByteBuffer to write serialized metadata into
+   * @param offset starting offset to write serialized metadata
+   * @return the number of bytes written
+   */
+  int writeTo(ByteBuffer buffer, int offset);
 
   static String asString(VariantMetadata metadata) {
     StringBuilder builder = new StringBuilder();

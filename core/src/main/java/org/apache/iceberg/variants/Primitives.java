@@ -18,21 +18,26 @@
  */
 package org.apache.iceberg.variants;
 
-/** An variant array value. */
-public interface VariantArray extends VariantValue {
-  /** Returns the {@link VariantValue} at {@code index} in this array. */
-  VariantValue get(int index);
+class Primitives {
+  static final int TYPE_NULL = 0;
+  static final int TYPE_TRUE = 1;
+  static final int TYPE_FALSE = 2;
+  static final int TYPE_INT8 = 3;
+  static final int TYPE_INT16 = 4;
+  static final int TYPE_INT32 = 5;
+  static final int TYPE_INT64 = 6;
+  static final int TYPE_DOUBLE = 7;
+  static final int TYPE_DECIMAL4 = 8;
+  static final int TYPE_DECIMAL8 = 9;
+  static final int TYPE_DECIMAL16 = 10;
+  static final int TYPE_DATE = 11;
+  static final int TYPE_TIMESTAMPTZ = 12; // equivalent to timestamptz
+  static final int TYPE_TIMESTAMPNTZ = 13; // equivalent to timestamp
+  static final int TYPE_FLOAT = 14;
+  static final int TYPE_BINARY = 15;
+  static final int TYPE_STRING = 16;
 
-  /** Returns the number of fields stored in this array. */
-  int numElements();
+  static final int PRIMITIVE_TYPE_SHIFT = 2;
 
-  @Override
-  default PhysicalType type() {
-    return PhysicalType.ARRAY;
-  }
-
-  @Override
-  default VariantArray asArray() {
-    return this;
-  }
+  private Primitives() {}
 }

@@ -30,8 +30,8 @@ public interface VariantObject extends VariantValue {
   int numFields();
 
   @Override
-  default Variants.PhysicalType type() {
-    return Variants.PhysicalType.OBJECT;
+  default PhysicalType type() {
+    return PhysicalType.OBJECT;
   }
 
   @Override

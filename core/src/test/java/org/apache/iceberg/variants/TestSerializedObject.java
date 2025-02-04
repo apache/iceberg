@@ -29,7 +29,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.RandomUtil;
-import org.apache.iceberg.variants.Variants.PhysicalType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -255,12 +254,12 @@ public class TestSerializedObject {
     VariantMetadata metadata = Variants.metadata(meta);
     SerializedObject object = SerializedObject.from(metadata, value, value.get(0));
 
-    assertThat(object.type()).isEqualTo(Variants.PhysicalType.OBJECT);
+    assertThat(object.type()).isEqualTo(PhysicalType.OBJECT);
     assertThat(object.numFields()).isEqualTo(10_000);
 
     for (Map.Entry<String, VariantPrimitive<String>> entry : fields.entrySet()) {
       VariantValue fieldValue = object.get(entry.getKey());
-      assertThat(fieldValue.type()).isEqualTo(Variants.PhysicalType.STRING);
+      assertThat(fieldValue.type()).isEqualTo(PhysicalType.STRING);
       assertThat(fieldValue.asPrimitive().get()).isEqualTo(entry.getValue().get());
     }
   }
