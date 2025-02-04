@@ -22,9 +22,7 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import org.apache.iceberg.FileFormat;
@@ -37,6 +35,7 @@ import org.apache.iceberg.PartitionStatsUtil;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
@@ -59,7 +58,7 @@ import org.apache.iceberg.util.SnapshotUtil;
  * Computes, writes and reads the {@link PartitionStatisticsFile}. Uses generic readers and writers
  * to support writing and reading of the stats in table default format.
  */
-public final class PartitionStatsHandler {
+public class PartitionStatsHandler {
 
   private PartitionStatsHandler() {}
 
@@ -89,17 +88,17 @@ public final class PartitionStatsHandler {
   }
 
   /**
-   * Generates the partition stats file schema based on a given partition type.
+   * Generates the partition stats file schema based on a combined partition type which considers
+   * all specs in a table.
    *
-   * <p>Note: Provide the unified partition schema type as mentioned in the spec.
-   *
-   * @param partitionType unified partition schema type.
+   * @param unifiedPartitionType unified partition schema type. Could be calculated by {@link
+   *     Partitioning#partitionType(Table)}.
    * @return a schema that corresponds to the provided unified partition type.
    */
-  public static Schema schema(StructType partitionType) {
-    Preconditions.checkState(!partitionType.fields().isEmpty(), "table must be partitioned");
+  public static Schema schema(StructType unifiedPartitionType) {
+    Preconditions.checkState(!unifiedPartitionType.fields().isEmpty(), "Table must be partitioned");
     return new Schema(
-        NestedField.required(1, Column.PARTITION.name(), partitionType),
+        NestedField.required(1, Column.PARTITION.name(), unifiedPartitionType),
         NestedField.required(2, Column.SPEC_ID.name(), IntegerType.get()),
         NestedField.required(3, Column.DATA_RECORD_COUNT.name(), LongType.get()),
         NestedField.required(4, Column.DATA_FILE_COUNT.name(), IntegerType.get()),
@@ -117,10 +116,11 @@ public final class PartitionStatsHandler {
    * Computes and writes the {@link PartitionStatisticsFile} for a given table's current snapshot.
    *
    * @param table The {@link Table} for which the partition statistics is computed.
-   * @return {@link PartitionStatisticsFile} for the current snapshot.
+   * @return {@link PartitionStatisticsFile} for the current snapshot, or null if no statistics are
+   *     present.
    */
-  public static PartitionStatisticsFile computeAndWriteStatsFile(Table table) {
-    return computeAndWriteStatsFile(table, null);
+  public static PartitionStatisticsFile computeAndWriteStatsFile(Table table) throws IOException {
+    return computeAndWriteStatsFile(table, SnapshotRef.MAIN_BRANCH);
   }
 
   /**
@@ -128,32 +128,39 @@ public final class PartitionStatsHandler {
    *
    * @param table The {@link Table} for which the partition statistics is computed.
    * @param branch A branch information to select the required snapshot.
-   * @return {@link PartitionStatisticsFile} for the given branch.
+   * @return {@link PartitionStatisticsFile} for the given branch, or null if no statistics are
+   *     present.
    */
-  public static PartitionStatisticsFile computeAndWriteStatsFile(Table table, String branch) {
+  public static PartitionStatisticsFile computeAndWriteStatsFile(Table table, String branch)
+      throws IOException {
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     if (currentSnapshot == null) {
       Preconditions.checkArgument(
-          branch == null, "Couldn't find the snapshot for the branch %s", branch);
+          branch == null || branch.equals(SnapshotRef.MAIN_BRANCH),
+          "Couldn't find the snapshot for the branch %s",
+          branch);
+      return null;
+    }
+
+    Collection<PartitionStats> stats = PartitionStatsUtil.computeStats(table, currentSnapshot);
+    if (stats.isEmpty()) {
       return null;
     }
 
     StructType partitionType = Partitioning.partitionType(table);
-    Collection<PartitionStats> stats = PartitionStatsUtil.computeStats(table, currentSnapshot);
     List<PartitionStats> sortedStats = PartitionStatsUtil.sortStats(stats, partitionType);
     return writePartitionStatsFile(
-        table, currentSnapshot.snapshotId(), schema(partitionType), sortedStats.iterator());
+        table, currentSnapshot.snapshotId(), schema(partitionType), sortedStats);
   }
 
   @VisibleForTesting
   static PartitionStatisticsFile writePartitionStatsFile(
-      Table table, long snapshotId, Schema dataSchema, Iterator<PartitionStats> records) {
+      Table table, long snapshotId, Schema dataSchema, Iterable<PartitionStats> records)
+      throws IOException {
     OutputFile outputFile = newPartitionStatsFile(table, snapshotId);
 
-    try (DataWriter<StructLike> writer = dataWriter(dataSchema, outputFile); ) {
-      records.forEachRemaining(writer::write);
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
+    try (DataWriter<StructLike> writer = dataWriter(dataSchema, outputFile)) {
+      records.iterator().forEachRemaining(writer::write);
     }
 
     return ImmutableGenericPartitionStatisticsFile.builder()
@@ -180,8 +187,11 @@ public final class PartitionStatsHandler {
   }
 
   private static OutputFile newPartitionStatsFile(Table table, long snapshotId) {
+    Preconditions.checkArgument(
+        table instanceof HasTableOperations,
+        "Table must have operations to retrieve metadata location");
     FileFormat fileFormat =
-        fileFormat(
+        FileFormat.fromString(
             table.properties().getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT));
     return table
         .io()
