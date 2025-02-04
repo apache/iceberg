@@ -31,8 +31,23 @@ public class AuthManagers {
   private AuthManagers() {}
 
   public static AuthManager loadAuthManager(String name, Map<String, String> properties) {
-    String authType =
-        properties.getOrDefault(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_TYPE_NONE);
+    String authType = properties.get(AuthProperties.AUTH_TYPE);
+    if (authType == null) {
+      boolean hasCredential = properties.containsKey(OAuth2Properties.CREDENTIAL);
+      boolean hasToken = properties.containsKey(OAuth2Properties.TOKEN);
+      if (hasCredential || hasToken) {
+        LOG.warn(
+            "Inferring {}={} since property {} was provided. "
+                + "Please explicitly set {} to avoid this warning.",
+            AuthProperties.AUTH_TYPE,
+            AuthProperties.AUTH_TYPE_OAUTH2,
+            hasCredential ? OAuth2Properties.CREDENTIAL : OAuth2Properties.TOKEN,
+            AuthProperties.AUTH_TYPE);
+        authType = AuthProperties.AUTH_TYPE_OAUTH2;
+      } else {
+        authType = AuthProperties.AUTH_TYPE_NONE;
+      }
+    }
 
     String impl;
     switch (authType.toLowerCase(Locale.ROOT)) {
@@ -41,6 +56,9 @@ public class AuthManagers {
         break;
       case AuthProperties.AUTH_TYPE_BASIC:
         impl = AuthProperties.AUTH_MANAGER_IMPL_BASIC;
+        break;
+      case AuthProperties.AUTH_TYPE_OAUTH2:
+        impl = AuthProperties.AUTH_MANAGER_IMPL_OAUTH2;
         break;
       default:
         impl = authType;

@@ -44,7 +44,7 @@ public class TestTypes {
     assertThat(Types.fromPrimitiveString("Decimal(2,3)")).isEqualTo(Types.DecimalType.of(2, 3));
 
     assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> Types.fromPrimitiveString("Unknown"))
-        .withMessageContaining("Unknown");
+        .isThrownBy(() -> Types.fromPrimitiveString("abcdefghij"))
+        .withMessage("Cannot parse type string to primitive: abcdefghij");
   }
 }

@@ -196,6 +196,26 @@ public class TestJsonUtil {
   }
 
   @Test
+  public void getBoolOrNull() throws JsonProcessingException {
+    assertThatThrownBy(
+            () -> JsonUtil.getBoolOrNull("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse to a boolean value: x: \"23\"");
+
+    assertThatThrownBy(
+            () -> JsonUtil.getBoolOrNull("x", JsonUtil.mapper().readTree("{\"x\": \"true\"}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse to a boolean value: x: \"true\"");
+
+    assertThat(JsonUtil.getBoolOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
+
+    assertThat(JsonUtil.getBoolOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}"))).isNull();
+
+    assertThat(JsonUtil.getBoolOrNull("x", JsonUtil.mapper().readTree("{\"x\": true}"))).isTrue();
+    assertThat(JsonUtil.getBoolOrNull("x", JsonUtil.mapper().readTree("{\"x\": false}"))).isFalse();
+  }
+
+  @Test
   public void getIntArrayOrNull() throws JsonProcessingException {
     assertThat(JsonUtil.getIntArrayOrNull("items", JsonUtil.mapper().readTree("{}"))).isNull();
 

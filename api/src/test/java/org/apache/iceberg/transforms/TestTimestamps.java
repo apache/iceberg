@@ -19,6 +19,7 @@
 package org.apache.iceberg.transforms;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
@@ -632,5 +633,19 @@ public class TestTimestamps {
     Transform<Integer, Integer> hour = Transforms.hour();
     Type hourResultType = hour.getResultType(type);
     assertThat(hourResultType).isEqualTo(Types.IntegerType.get());
+  }
+
+  @Test
+  public void testUnknownUnsupported() {
+    assertThatThrownBy(() -> Transforms.hour(Types.UnknownType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type: unknown");
+
+    Transform<Object, Integer> hour = Transforms.hour();
+    assertThatThrownBy(() -> hour.bind(Types.UnknownType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type: unknown");
+
+    assertThat(hour.canTransform(Types.UnknownType.get())).isFalse();
   }
 }

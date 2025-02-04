@@ -55,6 +55,7 @@ public class Types {
           .put(StringType.get().toString(), StringType.get())
           .put(UUIDType.get().toString(), UUIDType.get())
           .put(BinaryType.get().toString(), BinaryType.get())
+          .put(UnknownType.get().toString(), UnknownType.get())
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
@@ -444,6 +445,24 @@ public class Types {
     @Override
     public int hashCode() {
       return Objects.hash(VariantType.class, typeId());
+    }
+  }
+
+  public static class UnknownType extends PrimitiveType {
+    private static final UnknownType INSTANCE = new UnknownType();
+
+    public static UnknownType get() {
+      return INSTANCE;
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.UNKNOWN;
+    }
+
+    @Override
+    public String toString() {
+      return "unknown";
     }
   }
 

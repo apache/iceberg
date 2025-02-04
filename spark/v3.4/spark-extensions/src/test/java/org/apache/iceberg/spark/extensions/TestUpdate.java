@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.DataOperations.OVERWRITE;
 import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
+import static org.apache.iceberg.RowLevelOperationMode.MERGE_ON_READ;
 import static org.apache.iceberg.SnapshotSummary.ADDED_FILES_PROP;
 import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_COUNT_PROP;
 import static org.apache.iceberg.SnapshotSummary.DELETED_FILES_PROP;
@@ -89,7 +90,8 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
       String distributionMode,
       boolean fanoutEnabled,
       String branch,
-      PlanningMode planningMode) {
+      PlanningMode planningMode,
+      int formatVersion) {
     super(
         catalogName,
         implementation,
@@ -99,7 +101,8 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         distributionMode,
         fanoutEnabled,
         branch,
-        planningMode);
+        planningMode,
+        formatVersion);
   }
 
   @BeforeClass
@@ -182,6 +185,9 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
       // AQE detects that all shuffle blocks are small and processes them in 1 task
       // otherwise, there would be 200 tasks writing to the table
       validateProperty(snapshot, SnapshotSummary.ADDED_FILES_PROP, "1");
+    } else if (mode(table) == MERGE_ON_READ && formatVersion >= 3) {
+      validateProperty(snapshot, SnapshotSummary.ADDED_DELETE_FILES_PROP, "4");
+      validateProperty(snapshot, SnapshotSummary.ADDED_DVS_PROP, "4");
     } else {
       // MoR UPDATE requests the deleted records to be range distributed by partition and `_file`
       // each task contains only 1 file and therefore writes only 1 shuffle block
@@ -443,6 +449,8 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
       validateProperty(currentSnapshot, CHANGED_PARTITION_COUNT_PROP, "2");
       validateProperty(currentSnapshot, DELETED_FILES_PROP, "3");
       validateProperty(currentSnapshot, ADDED_FILES_PROP, ImmutableSet.of("2", "3"));
+    } else if (mode(table) == MERGE_ON_READ && formatVersion >= 3) {
+      validateMergeOnRead(currentSnapshot, "2", "3", "2");
     } else {
       validateMergeOnRead(currentSnapshot, "2", "2", "2");
     }

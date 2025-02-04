@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.RowLevelOperationMode;
@@ -232,6 +233,7 @@ public class TestMergeOnReadDelete extends TestDelete {
         deleteFiles.stream().filter(ContentFileUtil::isDV).collect(Collectors.toList());
     assertThat(dvs).hasSize(1);
     assertThat(dvs).allMatch(dv -> dv.recordCount() == 3);
+    assertThat(dvs).allMatch(dv -> FileFormat.fromFileName(dv.location()) == FileFormat.PUFFIN);
   }
 
   private void checkDeleteFileGranularity(DeleteGranularity deleteGranularity)

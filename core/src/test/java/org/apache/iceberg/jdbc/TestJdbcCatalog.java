@@ -112,6 +112,12 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     return true;
   }
 
+  @Override
+  protected boolean supportsNamesWithDot() {
+    // namespaces with a dot are not supported
+    return false;
+  }
+
   protected List<String> metadataVersionFiles(String location) {
     return Stream.of(new File(location).listFiles())
         .filter(file -> !file.isDirectory())

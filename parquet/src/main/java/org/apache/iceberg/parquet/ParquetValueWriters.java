@@ -21,11 +21,13 @@ package org.apache.iceberg.parquet;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -33,11 +35,13 @@ import org.apache.avro.util.Utf8;
 import org.apache.iceberg.DoubleFieldMetrics;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FloatFieldMetrics;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.io.api.Binary;
@@ -87,6 +91,10 @@ public class ParquetValueWriters {
     return new StringWriter(desc);
   }
 
+  public static PrimitiveWriter<UUID> uuids(ColumnDescriptor desc) {
+    return new UUIDWriter(desc);
+  }
+
   public static PrimitiveWriter<BigDecimal> decimalAsInteger(
       ColumnDescriptor desc, int precision, int scale) {
     return new IntegerDecimalWriter(desc, precision, scale);
@@ -106,6 +114,10 @@ public class ParquetValueWriters {
     return new BytesWriter(desc);
   }
 
+  public static PrimitiveWriter<ByteBuffer> fixedBuffers(ColumnDescriptor desc) {
+    return new FixedBufferWriter(desc);
+  }
+
   public static <E> CollectionWriter<E> collections(int dl, int rl, ParquetValueWriter<E> writer) {
     return new CollectionWriter<>(dl, rl, writer);
   }
@@ -113,6 +125,11 @@ public class ParquetValueWriters {
   public static <K, V> MapWriter<K, V> maps(
       int dl, int rl, ParquetValueWriter<K> keyWriter, ParquetValueWriter<V> valueWriter) {
     return new MapWriter<>(dl, rl, keyWriter, valueWriter);
+  }
+
+  public static <T extends StructLike> StructWriter<T> recordWriter(
+      List<ParquetValueWriter<?>> writers) {
+    return new RecordWriter<>(writers);
   }
 
   public abstract static class PrimitiveWriter<T> implements ParquetValueWriter<T> {
@@ -313,6 +330,25 @@ public class ParquetValueWriters {
     }
   }
 
+  private static class FixedBufferWriter extends PrimitiveWriter<ByteBuffer> {
+    private final int length;
+
+    private FixedBufferWriter(ColumnDescriptor desc) {
+      super(desc);
+      this.length = desc.getPrimitiveType().getTypeLength();
+    }
+
+    @Override
+    public void write(int repetitionLevel, ByteBuffer buffer) {
+      Preconditions.checkArgument(
+          buffer.remaining() == length,
+          "Cannot write byte buffer of length %s as fixed[%s]",
+          buffer.remaining(),
+          length);
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteBuffer(buffer));
+    }
+  }
+
   private static class StringWriter extends PrimitiveWriter<CharSequence> {
     private StringWriter(ColumnDescriptor desc) {
       super(desc);
@@ -327,6 +363,37 @@ public class ParquetValueWriters {
       } else {
         column.writeBinary(repetitionLevel, Binary.fromString(value.toString()));
       }
+    }
+  }
+
+  private static class UUIDWriter extends PrimitiveWriter<UUID> {
+    private static final ThreadLocal<ByteBuffer> BUFFER =
+        ThreadLocal.withInitial(
+            () -> {
+              ByteBuffer buffer = ByteBuffer.allocate(16);
+              buffer.order(ByteOrder.BIG_ENDIAN);
+              return buffer;
+            });
+
+    private UUIDWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, UUID value) {
+      ByteBuffer buffer = UUIDUtil.convertToByteBuffer(value, BUFFER.get());
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteBuffer(buffer));
+    }
+  }
+
+  private static class RecordWriter<T extends StructLike> extends StructWriter<T> {
+    private RecordWriter(List<ParquetValueWriter<?>> writers) {
+      super(writers);
+    }
+
+    @Override
+    protected Object get(T struct, int index) {
+      return struct.get(index, Object.class);
     }
   }
 

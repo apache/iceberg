@@ -62,7 +62,9 @@ public class ResolvingFileIO implements HadoopConfigurable, DelegateFileIO {
           "s3n", S3_FILE_IO_IMPL,
           "gs", GCS_FILE_IO_IMPL,
           "abfs", ADLS_FILE_IO_IMPL,
-          "abfss", ADLS_FILE_IO_IMPL);
+          "abfss", ADLS_FILE_IO_IMPL,
+          "wasb", ADLS_FILE_IO_IMPL,
+          "wasbs", ADLS_FILE_IO_IMPL);
 
   private final Map<String, DelegateFileIO> ioInstances = Maps.newConcurrentMap();
   private final AtomicBoolean isClosed = new AtomicBoolean(false);

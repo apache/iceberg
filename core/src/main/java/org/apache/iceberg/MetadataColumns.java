@@ -56,6 +56,8 @@ public class MetadataColumns {
   public static final int PARTITION_COLUMN_ID = Integer.MAX_VALUE - 5;
   public static final String PARTITION_COLUMN_NAME = "_partition";
   public static final String PARTITION_COLUMN_DOC = "Partition to which a row belongs to";
+  public static final int CONTENT_OFFSET_COLUMN_ID = Integer.MAX_VALUE - 6;
+  public static final int CONTENT_SIZE_IN_BYTES_COLUMN_ID = Integer.MAX_VALUE - 7;
 
   // IDs Integer.MAX_VALUE - (101-200) are used for reserved columns
   public static final NestedField DELETE_FILE_PATH =

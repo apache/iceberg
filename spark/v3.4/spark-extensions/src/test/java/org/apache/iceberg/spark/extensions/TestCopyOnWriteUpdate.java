@@ -61,7 +61,8 @@ public class TestCopyOnWriteUpdate extends TestUpdate {
       String distributionMode,
       boolean fanoutEnabled,
       String branch,
-      PlanningMode planningMode) {
+      PlanningMode planningMode,
+      int formatVersion) {
     super(
         catalogName,
         implementation,
@@ -71,7 +72,8 @@ public class TestCopyOnWriteUpdate extends TestUpdate {
         distributionMode,
         fanoutEnabled,
         branch,
-        planningMode);
+        planningMode,
+        formatVersion);
   }
 
   @Override

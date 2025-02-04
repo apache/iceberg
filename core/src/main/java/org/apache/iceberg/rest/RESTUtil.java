@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import java.io.UncheckedIOException;
-import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -146,12 +144,7 @@ public class RESTUtil {
    */
   public static String encodeString(String toEncode) {
     Preconditions.checkArgument(toEncode != null, "Invalid string to encode: null");
-    try {
-      return URLEncoder.encode(toEncode, StandardCharsets.UTF_8.name());
-    } catch (UnsupportedEncodingException e) {
-      throw new UncheckedIOException(
-          String.format("Failed to URL encode '%s': UTF-8 encoding is not supported", toEncode), e);
-    }
+    return URLEncoder.encode(toEncode, StandardCharsets.UTF_8);
   }
 
   /**
@@ -164,12 +157,7 @@ public class RESTUtil {
    */
   public static String decodeString(String encoded) {
     Preconditions.checkArgument(encoded != null, "Invalid string to decode: null");
-    try {
-      return URLDecoder.decode(encoded, StandardCharsets.UTF_8.name());
-    } catch (UnsupportedEncodingException e) {
-      throw new UncheckedIOException(
-          String.format("Failed to URL decode '%s': UTF-8 encoding is not supported", encoded), e);
-    }
+    return URLDecoder.decode(encoded, StandardCharsets.UTF_8);
   }
 
   /**

@@ -59,6 +59,11 @@ import org.junit.jupiter.api.Test;
 public class TestFlinkParquetReader extends DataTest {
   private static final int NUM_RECORDS = 100;
 
+  @Override
+  protected boolean supportsDefaultValues() {
+    return true;
+  }
+
   @Test
   public void testBuildReader() {
     MessageType fileSchema =
@@ -199,13 +204,14 @@ public class TestFlinkParquetReader extends DataTest {
     }
   }
 
-  private void writeAndValidate(Iterable<Record> iterable, Schema schema) throws IOException {
+  private void writeAndValidate(
+      Iterable<Record> iterable, Schema writeSchema, Schema expectedSchema) throws IOException {
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).isTrue();
 
     try (FileAppender<Record> writer =
         Parquet.write(Files.localOutput(testFile))
-            .schema(schema)
+            .schema(writeSchema)
             .createWriterFunc(GenericParquetWriter::buildWriter)
             .build()) {
       writer.addAll(iterable);
@@ -213,15 +219,15 @@ public class TestFlinkParquetReader extends DataTest {
 
     try (CloseableIterable<RowData> reader =
         Parquet.read(Files.localInput(testFile))
-            .project(schema)
-            .createReaderFunc(type -> FlinkParquetReaders.buildReader(schema, type))
+            .project(expectedSchema)
+            .createReaderFunc(type -> FlinkParquetReaders.buildReader(expectedSchema, type))
             .build()) {
       Iterator<Record> expected = iterable.iterator();
       Iterator<RowData> rows = reader.iterator();
-      LogicalType rowType = FlinkSchemaUtil.convert(schema);
+      LogicalType rowType = FlinkSchemaUtil.convert(writeSchema);
       for (int i = 0; i < NUM_RECORDS; i += 1) {
         assertThat(rows).hasNext();
-        TestHelpers.assertRowData(schema.asStruct(), rowType, expected.next(), rows.next());
+        TestHelpers.assertRowData(writeSchema.asStruct(), rowType, expected.next(), rows.next());
       }
       assertThat(rows).isExhausted();
     }
@@ -229,11 +235,19 @@ public class TestFlinkParquetReader extends DataTest {
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    writeAndValidate(RandomGenericData.generate(schema, NUM_RECORDS, 19981), schema);
+    writeAndValidate(RandomGenericData.generate(schema, NUM_RECORDS, 19981), schema, schema);
     writeAndValidate(
-        RandomGenericData.generateDictionaryEncodableRecords(schema, NUM_RECORDS, 21124), schema);
+        RandomGenericData.generateDictionaryEncodableRecords(schema, NUM_RECORDS, 21124),
+        schema,
+        schema);
     writeAndValidate(
         RandomGenericData.generateFallbackRecords(schema, NUM_RECORDS, 21124, NUM_RECORDS / 20),
+        schema,
         schema);
+  }
+
+  @Override
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
+    writeAndValidate(RandomGenericData.generate(writeSchema, 100, 0L), writeSchema, expectedSchema);
   }
 }

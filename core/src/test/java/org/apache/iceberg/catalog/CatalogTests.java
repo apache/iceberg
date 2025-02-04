@@ -244,7 +244,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     assertThatThrownBy(() -> catalog.loadNamespaceMetadata(NS))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessageStartingWith("Namespace does not exist: newdb");
+        .hasMessageStartingWith("Namespace does not exist: %s", NS);
 
     catalog.createNamespace(NS);
     assertThat(catalog.namespaceExists(NS)).as("Namespace should exist").isTrue();
@@ -331,7 +331,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     assertThatThrownBy(() -> catalog.setProperties(NS, ImmutableMap.of("test", "value")))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessageStartingWith("Namespace does not exist: newdb");
+        .hasMessageStartingWith("Namespace does not exist: %s", NS);
   }
 
   @Test
@@ -363,7 +363,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     assertThatThrownBy(() -> catalog.removeProperties(NS, ImmutableSet.of("a", "b")))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessageStartingWith("Namespace does not exist: newdb");
+        .hasMessageStartingWith("Namespace does not exist: %s", NS);
   }
 
   @Test
@@ -499,6 +499,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     catalog.createNamespace(withDot);
     assertThat(catalog.namespaceExists(withDot)).as("Namespace should exist").isTrue();
 
+    assertThat(catalog.listNamespaces()).contains(withDot);
+
     Map<String, String> properties = catalog.loadNamespaceMetadata(withDot);
     assertThat(properties).as("Properties should be accessible").isNotNull();
     assertThat(catalog.dropNamespace(withDot)).as("Dropping the namespace should succeed").isTrue();
@@ -565,15 +567,17 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     C catalog = catalog();
 
-    TableIdentifier ident = TableIdentifier.of("ns", "ta.ble");
+    Namespace namespace = Namespace.of("ns");
+    TableIdentifier ident = TableIdentifier.of(namespace, "ta.ble");
     if (requiresNamespaceCreate()) {
-      catalog.createNamespace(Namespace.of("ns"));
+      catalog.createNamespace(namespace);
     }
 
     assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
 
     catalog.buildTable(ident, SCHEMA).create();
     assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
+    assertThat(catalog.listTables(namespace)).contains(ident);
 
     Table loaded = catalog.loadTable(ident);
     assertThat(loaded.schema().asStruct())
@@ -2280,7 +2284,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     assertThatThrownBy(() -> catalog.buildTable(TABLE, SCHEMA).replaceTransaction())
         .isInstanceOf(NoSuchTableException.class)
-        .hasMessageStartingWith("Table does not exist: newdb.table");
+        .hasMessageStartingWith("Table does not exist: %s", TABLE);
   }
 
   @Test

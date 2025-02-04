@@ -110,7 +110,7 @@ public class VariantTestUtil {
 
   static ByteBuffer createObject(ByteBuffer metadataBuffer, Map<String, VariantValue> data) {
     // create the metadata to look up field names
-    SerializedMetadata metadata = SerializedMetadata.from(metadataBuffer);
+    VariantMetadata metadata = Variants.metadata(metadataBuffer);
 
     int numElements = data.size();
     boolean isLarge = numElements > 0xFF;

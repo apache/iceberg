@@ -39,6 +39,7 @@ import org.apache.iceberg.PositionDeletesTable.PositionDeletesBatchScan;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.actions.ImmutableRewritePositionDeleteFiles;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles;
 import org.apache.iceberg.actions.RewritePositionDeletesCommitManager;
@@ -402,6 +403,9 @@ public class RewritePositionDeleteFilesSparkAction
         PARTIAL_PROGRESS_MAX_COMMITS,
         maxCommits,
         PARTIAL_PROGRESS_ENABLED);
+
+    Preconditions.checkArgument(
+        TableUtil.formatVersion(table) <= 2, "Cannot rewrite position deletes for V3 table");
   }
 
   private String jobDesc(RewritePositionDeletesGroup group, RewriteExecutionContext ctx) {

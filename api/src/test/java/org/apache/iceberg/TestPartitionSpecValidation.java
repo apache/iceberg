@@ -36,7 +36,8 @@ public class TestPartitionSpecValidation {
           NestedField.required(4, "d", Types.TimestampType.withZone()),
           NestedField.required(5, "another_d", Types.TimestampType.withZone()),
           NestedField.required(6, "s", Types.StringType.get()),
-          NestedField.required(7, "v", Types.VariantType.get()));
+          NestedField.required(7, "v", Types.VariantType.get()),
+          NestedField.required(8, "u", Types.UnknownType.get()));
 
   @Test
   public void testMultipleTimestampPartitions() {
@@ -324,5 +325,16 @@ public class TestPartitionSpecValidation {
                     .build())
         .isInstanceOf(ValidationException.class)
         .hasMessage("Cannot partition by non-primitive source field: variant");
+  }
+
+  @Test
+  public void testUnknownUnsupported() {
+    assertThatThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA)
+                    .add(8, 1005, "unknown_partition1", Transforms.bucket(5))
+                    .build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Invalid source type unknown for transform: bucket[5]");
   }
 }

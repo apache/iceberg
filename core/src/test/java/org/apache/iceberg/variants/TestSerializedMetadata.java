@@ -35,7 +35,7 @@ public class TestSerializedMetadata {
 
   @Test
   public void testEmptyVariantMetadata() {
-    SerializedMetadata metadata = SerializedMetadata.from(SerializedMetadata.EMPTY_V1_BUFFER);
+    SerializedMetadata metadata = SerializedMetadata.EMPTY_V1_METADATA;
 
     assertThat(metadata.isSorted()).isFalse();
     assertThat(metadata.dictionarySize()).isEqualTo(0);

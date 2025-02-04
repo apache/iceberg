@@ -728,6 +728,22 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     assertEquals("Position deletes", expectedDeletes, actualDeletes);
   }
 
+  @TestTemplate
+  public void testRewritePositionDeletesForV3TableFails() {
+    Table table =
+        validationCatalog.createTable(
+            TableIdentifier.of("default", TABLE_NAME),
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            tableProperties(3));
+
+    writeRecords(table, 2, SCALE);
+
+    assertThatThrownBy(() -> SparkActions.get(spark).rewritePositionDeletes(table).execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot rewrite position deletes for V3 table");
+  }
+
   private Table createTablePartitioned(int partitions, int files, int numRecords) {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
     Table table =
@@ -751,11 +767,15 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
   }
 
   private Map<String, String> tableProperties() {
+    return tableProperties(2);
+  }
+
+  private Map<String, String> tableProperties(int formatVersion) {
     return ImmutableMap.of(
         TableProperties.DEFAULT_WRITE_METRICS_MODE,
         "full",
         TableProperties.FORMAT_VERSION,
-        "2",
+        String.valueOf(formatVersion),
         TableProperties.DEFAULT_FILE_FORMAT,
         format.toString(),
         TableProperties.DELETE_GRANULARITY,

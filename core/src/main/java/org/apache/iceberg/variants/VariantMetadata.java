@@ -31,4 +31,7 @@ public interface VariantMetadata extends Variants.Serialized {
    * @throws NoSuchElementException if the dictionary does not contain the ID
    */
   String get(int id);
+
+  /** Returns the size of the metadata dictionary. */
+  int dictionarySize();
 }

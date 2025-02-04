@@ -23,6 +23,12 @@ public interface VariantObject extends VariantValue {
   /** Returns the {@link VariantValue} for the field named {@code name} in this object. */
   VariantValue get(String name);
 
+  /** Returns the names of fields stored in this object. */
+  Iterable<String> fieldNames();
+
+  /** Returns the number of fields stored in this object. */
+  int numFields();
+
   @Override
   default Variants.PhysicalType type() {
     return Variants.PhysicalType.OBJECT;

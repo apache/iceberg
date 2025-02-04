@@ -64,7 +64,8 @@ public class TestCopyOnWriteDelete extends TestDelete {
       String distributionMode,
       boolean fanoutEnabled,
       String branch,
-      PlanningMode planningMode) {
+      PlanningMode planningMode,
+      int formatVersion) {
     super(
         catalogName,
         implementation,
@@ -74,7 +75,8 @@ public class TestCopyOnWriteDelete extends TestDelete {
         distributionMode,
         fanoutEnabled,
         branch,
-        planningMode);
+        planningMode,
+        formatVersion);
   }
 
   @Override
