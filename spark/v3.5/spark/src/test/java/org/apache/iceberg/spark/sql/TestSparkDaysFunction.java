@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.sql.Date;
+import java.util.TimeZone;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.AnalysisException;
 import org.junit.jupiter.api.BeforeEach;
@@ -93,7 +94,8 @@ public class TestSparkDaysFunction extends TestBaseWithCatalog {
     assertThat(scalarSql("SELECT day(date('1969-12-31'))"))
         .as("Expected to produce 31")
         .isEqualTo(31);
-    assertThat(scalarSql("SELECT day(TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00')"))
+    String tz = TimeZone.getDefault().getID();
+    assertThat(scalarSql(String.format("SELECT day(TIMESTAMP '2017-12-01 10:12:55 %s')", tz)))
         .as("Expected to produce 1")
         .isEqualTo(1);
     assertThat(scalarSql("SELECT day(TIMESTAMP_NTZ '1969-12-31 23:59:58.999999')"))
