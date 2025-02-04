@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.ByteBuffer;
 import java.util.Random;
 import org.apache.iceberg.util.RandomUtil;
-import org.apache.iceberg.variants.Variants.PhysicalType;
 import org.junit.jupiter.api.Test;
 
 public class TestSerializedArray {
