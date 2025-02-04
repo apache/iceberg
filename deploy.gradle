@@ -63,6 +63,27 @@ subprojects {
         task.from(rootDir) {
           include 'LICENSE'
           include 'NOTICE'
+
+          // Small piece of code to remove the Gradle wrapper from the LICENSE in the jar
+          def currentFile = ""
+          def lineNumber = 1
+          eachFile { fileCopyDetails ->
+            currentFile = fileCopyDetails.getSourceName()
+            lineNumber = 1
+          }
+          def skipFollowing = 0
+          filter { String line ->
+            if (skipFollowing > 0) {
+              --skipFollowing
+              return
+            }
+            if (line.toLowerCase().contains('gradle wrapper')) {
+              // The Gradle section in LICENSE is 11 lines
+              skipFollowing = 11
+              return
+            }
+            return line
+          }
         }
       }
     }
