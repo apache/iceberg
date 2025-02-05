@@ -26,7 +26,7 @@ import java.util.stream.Stream;
 import org.apache.iceberg.parquet.ParquetVariantReaders.VariantValueReader;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.apache.iceberg.variants.Variants;
+import org.apache.iceberg.variants.PhysicalType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DateLogicalTypeAnnotation;
@@ -101,23 +101,23 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
       switch (primitive.getPrimitiveTypeName()) {
         case BINARY:
           return ParquetVariantReaders.asVariant(
-              Variants.PhysicalType.BINARY, ParquetValueReaders.byteBuffers(desc));
+              PhysicalType.BINARY, ParquetValueReaders.byteBuffers(desc));
         case BOOLEAN:
           // the actual boolean type will be fixed in PrimitiveWrapper
           return ParquetVariantReaders.asVariant(
-              Variants.PhysicalType.BOOLEAN_TRUE, ParquetValueReaders.unboxed(desc));
+              PhysicalType.BOOLEAN_TRUE, ParquetValueReaders.unboxed(desc));
         case INT32:
           return ParquetVariantReaders.asVariant(
-              Variants.PhysicalType.INT32, ParquetValueReaders.unboxed(desc));
+              PhysicalType.INT32, ParquetValueReaders.unboxed(desc));
         case INT64:
           return ParquetVariantReaders.asVariant(
-              Variants.PhysicalType.INT64, ParquetValueReaders.unboxed(desc));
+              PhysicalType.INT64, ParquetValueReaders.unboxed(desc));
         case FLOAT:
           return ParquetVariantReaders.asVariant(
-              Variants.PhysicalType.FLOAT, ParquetValueReaders.unboxed(desc));
+              PhysicalType.FLOAT, ParquetValueReaders.unboxed(desc));
         case DOUBLE:
           return ParquetVariantReaders.asVariant(
-              Variants.PhysicalType.DOUBLE, ParquetValueReaders.unboxed(desc));
+              PhysicalType.DOUBLE, ParquetValueReaders.unboxed(desc));
       }
     }
 
@@ -178,15 +178,14 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
     @Override
     public Optional<VariantValueReader> visit(StringLogicalTypeAnnotation ignored) {
       VariantValueReader reader =
-          ParquetVariantReaders.asVariant(
-              Variants.PhysicalType.STRING, ParquetValueReaders.strings(desc));
+          ParquetVariantReaders.asVariant(PhysicalType.STRING, ParquetValueReaders.strings(desc));
 
       return Optional.of(reader);
     }
 
     @Override
     public Optional<VariantValueReader> visit(DecimalLogicalTypeAnnotation logical) {
-      Variants.PhysicalType variantType = variantDecimalType(desc.getPrimitiveType());
+      PhysicalType variantType = variantDecimalType(desc.getPrimitiveType());
       VariantValueReader reader =
           ParquetVariantReaders.asVariant(variantType, ParquetValueReaders.bigDecimals(desc));
 
@@ -196,18 +195,15 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
     @Override
     public Optional<VariantValueReader> visit(DateLogicalTypeAnnotation ignored) {
       VariantValueReader reader =
-          ParquetVariantReaders.asVariant(
-              Variants.PhysicalType.DATE, ParquetValueReaders.unboxed(desc));
+          ParquetVariantReaders.asVariant(PhysicalType.DATE, ParquetValueReaders.unboxed(desc));
 
       return Optional.of(reader);
     }
 
     @Override
     public Optional<VariantValueReader> visit(TimestampLogicalTypeAnnotation logical) {
-      Variants.PhysicalType variantType =
-          logical.isAdjustedToUTC()
-              ? Variants.PhysicalType.TIMESTAMPTZ
-              : Variants.PhysicalType.TIMESTAMPNTZ;
+      PhysicalType variantType =
+          logical.isAdjustedToUTC() ? PhysicalType.TIMESTAMPTZ : PhysicalType.TIMESTAMPNTZ;
 
       VariantValueReader reader =
           ParquetVariantReaders.asVariant(variantType, ParquetValueReaders.timestamps(desc));
@@ -227,22 +223,22 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
         case 64:
           reader =
               ParquetVariantReaders.asVariant(
-                  Variants.PhysicalType.INT64, ParquetValueReaders.unboxed(desc));
+                  PhysicalType.INT64, ParquetValueReaders.unboxed(desc));
           break;
         case 32:
           reader =
               ParquetVariantReaders.asVariant(
-                  Variants.PhysicalType.INT32, ParquetValueReaders.unboxed(desc));
+                  PhysicalType.INT32, ParquetValueReaders.unboxed(desc));
           break;
         case 16:
           reader =
               ParquetVariantReaders.asVariant(
-                  Variants.PhysicalType.INT16, ParquetValueReaders.intsAsShort(desc));
+                  PhysicalType.INT16, ParquetValueReaders.intsAsShort(desc));
           break;
         case 8:
           reader =
               ParquetVariantReaders.asVariant(
-                  Variants.PhysicalType.INT8, ParquetValueReaders.intsAsByte(desc));
+                  PhysicalType.INT8, ParquetValueReaders.intsAsByte(desc));
           break;
         default:
           throw new IllegalArgumentException("Invalid bit width for int: " + logical.getBitWidth());
@@ -251,15 +247,15 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
       return Optional.of(reader);
     }
 
-    private static Variants.PhysicalType variantDecimalType(PrimitiveType primitive) {
+    private static PhysicalType variantDecimalType(PrimitiveType primitive) {
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
-          return Variants.PhysicalType.DECIMAL16;
+          return PhysicalType.DECIMAL16;
         case INT64:
-          return Variants.PhysicalType.DECIMAL8;
+          return PhysicalType.DECIMAL8;
         case INT32:
-          return Variants.PhysicalType.DECIMAL4;
+          return PhysicalType.DECIMAL4;
       }
 
       throw new IllegalArgumentException("Invalid primitive type for decimal: " + primitive);

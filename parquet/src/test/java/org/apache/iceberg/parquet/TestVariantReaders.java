@@ -46,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.VariantType;
+import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
@@ -87,7 +88,7 @@ public class TestVariantReaders {
           TEST_METADATA_BUFFER,
           ImmutableMap.of(
               "a", Variants.ofNull(),
-              "d", Variants.of(Variants.PhysicalType.STRING, "iceberg")));
+              "d", Variants.of(PhysicalType.STRING, "iceberg")));
 
   private static final VariantMetadata EMPTY_METADATA =
       Variants.metadata(VariantTestUtil.emptyMetadata());
@@ -143,7 +144,7 @@ public class TestVariantReaders {
     MessageType parquetSchema = parquetSchema(variantType);
 
     GenericRecord variant =
-        record(variantType, Map.of("metadata", metadata.buffer(), "value", serialize(expected)));
+        record(variantType, Map.of("metadata", serialize(metadata), "value", serialize(expected)));
     GenericRecord record = record(parquetSchema, Map.of("id", 1, "var", variant));
 
     Record actual = writeAndRead(parquetSchema, record);
@@ -164,7 +165,7 @@ public class TestVariantReaders {
     MessageType parquetSchema = parquetSchema(variantType);
 
     GenericRecord variant =
-        record(variantType, Map.of("metadata", metadata.buffer(), "value", serialize(expected)));
+        record(variantType, Map.of("metadata", serialize(metadata), "value", serialize(expected)));
     GenericRecord record = record(parquetSchema, Map.of("id", 1, "var", variant));
 
     Record actual = writeAndRead(parquetSchema, record);
@@ -179,7 +180,7 @@ public class TestVariantReaders {
   @ParameterizedTest
   @FieldSource("PRIMITIVES")
   public void testShreddedVariantPrimitives(VariantPrimitive<?> primitive) throws IOException {
-    Assumptions.assumeThat(primitive.type() != Variants.PhysicalType.NULL)
+    Assumptions.assumeThat(primitive.type() != PhysicalType.NULL)
         .as("Null is not a shredded type")
         .isTrue();
 
@@ -885,6 +886,12 @@ public class TestVariantReaders {
   private static ByteBuffer serialize(VariantValue value) {
     ByteBuffer buffer = ByteBuffer.allocate(value.sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
     value.writeTo(buffer, 0);
+    return buffer;
+  }
+
+  private static ByteBuffer serialize(VariantMetadata metadata) {
+    ByteBuffer buffer = ByteBuffer.allocate(metadata.sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
+    metadata.writeTo(buffer, 0);
     return buffer;
   }
 
