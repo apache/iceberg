@@ -311,6 +311,18 @@ public class TestAlterTable extends CatalogTestBase {
             validationCatalog.tableExists(TableIdentifier.of(catalogName, "secondlevel", "table2")))
         .as("New name should exist")
         .isTrue();
+
+    sql(
+        "ALTER TABLE %s.%s.secondlevel.table2 RENAME TO %s.%s.secondlevel.table3",
+        catalogName, catalogName, catalogName, catalogName);
+    assertThat(
+            validationCatalog.tableExists(TableIdentifier.of(catalogName, "secondlevel", "table2")))
+        .as("Second name should not exist")
+        .isFalse();
+    assertThat(
+            validationCatalog.tableExists(TableIdentifier.of(catalogName, "secondlevel", "table3")))
+        .as("Third name should exist")
+        .isTrue();
   }
 
   @TestTemplate

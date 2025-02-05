@@ -429,7 +429,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     Endpoint.check(endpoints, Endpoint.V1_RENAME_TABLE);
     checkIdentifierIsValid(from);
     checkIdentifierIsValid(to);
-    System.out.println(to);
     try {
       renameInternal(context, from, to);
     } catch (NoSuchNamespaceException e) {
