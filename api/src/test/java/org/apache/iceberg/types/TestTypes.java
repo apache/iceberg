@@ -54,7 +54,7 @@ public class TestTypes {
   public void testNestedFieldBuilderIdCheck() {
     assertThatExceptionOfType(NullPointerException.class)
         .isThrownBy(() -> optional("field").ofType(Types.StringType.get()).build())
-        .withMessage("id cannot be null");
+        .withMessage("Id cannot be null");
 
     assertThatExceptionOfType(NullPointerException.class)
         .isThrownBy(() -> required("field").ofType(Types.StringType.get()).build())
