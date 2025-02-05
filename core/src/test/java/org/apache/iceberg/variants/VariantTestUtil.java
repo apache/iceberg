@@ -51,7 +51,7 @@ public class VariantTestUtil {
     assertThat(expected).isNotNull();
     assertThat(actual.type()).as("Variant type should match").isEqualTo(expected.type());
 
-    if (expected.type() == Variants.PhysicalType.OBJECT) {
+    if (expected.type() == PhysicalType.OBJECT) {
       VariantObject expectedObject = expected.asObject();
       VariantObject actualObject = actual.asObject();
       assertThat(actualObject.numFields())
@@ -61,7 +61,7 @@ public class VariantTestUtil {
         assertEqual(expectedObject.get(fieldName), actualObject.get(fieldName));
       }
 
-    } else if (expected.type() == Variants.PhysicalType.ARRAY) {
+    } else if (expected.type() == PhysicalType.ARRAY) {
       VariantArray expectedArray = expected.asArray();
       VariantArray actualArray = actual.asArray();
       assertThat(actualArray.numElements())
