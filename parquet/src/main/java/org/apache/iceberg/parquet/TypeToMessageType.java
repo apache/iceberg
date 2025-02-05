@@ -56,6 +56,10 @@ public class TypeToMessageType {
       LogicalTypeAnnotation.timestampType(false /* not adjusted to UTC */, TimeUnit.MICROS);
   private static final LogicalTypeAnnotation TIMESTAMPTZ_MICROS =
       LogicalTypeAnnotation.timestampType(true /* adjusted to UTC */, TimeUnit.MICROS);
+  // According to
+  // https://github.com/apache/parquet-java/blob/7f77908338192105a5adbfc420a7281d919e8596/parquet-column/src/main/java/org/apache/parquet/schema/LogicalTypeAnnotation.java#L992-L996
+  // This maps to UNKNOWN
+  private static final LogicalTypeAnnotation UNKNOWN = LogicalTypeAnnotation.intervalType();
 
   public MessageType convert(Schema schema, String name) {
     Types.MessageTypeBuilder builder = Types.buildMessage();
@@ -198,6 +202,13 @@ public class TypeToMessageType {
         return Types.primitive(FIXED_LEN_BYTE_ARRAY, repetition)
             .length(16)
             .as(LogicalTypeAnnotation.uuidType())
+            .id(id)
+            .named(name);
+
+      case UNKNOWN:
+        return Types.primitive(FIXED_LEN_BYTE_ARRAY, repetition)
+            .length(12)
+            .as(UNKNOWN)
             .id(id)
             .named(name);
 

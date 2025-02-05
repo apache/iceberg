@@ -24,6 +24,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
@@ -32,6 +33,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Type;
 import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.crypto.FileEncryptionProperties;
@@ -88,8 +90,16 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.metadata = ImmutableMap.copyOf(metadata);
     this.compressor =
         new ParquetCodecFactory(conf, props.getPageSizeThreshold()).getCompressor(codec);
-    this.parquetSchema = ParquetSchemaUtil.convert(schema, "table");
-    this.model = (ParquetValueWriter<T>) createWriterFunc.apply(parquetSchema);
+    // TODO: remove unknown type from the Schema, we will need a visitor if we allow unknown to be
+    // in nestedfield.
+    Schema schemaWithoutUnknown =
+        new Schema(
+            schema.columns().stream()
+                .filter(field -> field.type().typeId() != Type.TypeID.UNKNOWN)
+                .collect(Collectors.toList()));
+    MessageType fullParquetSchema = ParquetSchemaUtil.convert(schema, "table");
+    this.parquetSchema = ParquetSchemaUtil.convert(schemaWithoutUnknown, "table");
+    this.model = (ParquetValueWriter<T>) createWriterFunc.apply(fullParquetSchema);
     this.metricsConfig = metricsConfig;
     this.columnIndexTruncateLength =
         conf.getInt(COLUMN_INDEX_TRUNCATE_LENGTH, DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
