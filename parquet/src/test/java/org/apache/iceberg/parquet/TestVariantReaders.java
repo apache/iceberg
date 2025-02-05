@@ -88,7 +88,7 @@ public class TestVariantReaders {
           TEST_METADATA_BUFFER,
           ImmutableMap.of(
               "a", Variants.ofNull(),
-              "d", Variants.of(PhysicalType.STRING, "iceberg")));
+              "d", Variants.of("iceberg")));
 
   private static final VariantMetadata EMPTY_METADATA =
       Variants.metadata(VariantTestUtil.emptyMetadata());
@@ -265,13 +265,9 @@ public class TestVariantReaders {
                 34));
     GenericRecord record = record(parquetSchema, Map.of("id", 1, "var", variant));
 
-    Record actual = writeAndRead(parquetSchema, record);
-    assertThat(actual.getField("id")).isEqualTo(1);
-    assertThat(actual.getField("var")).isInstanceOf(Variant.class);
-
-    Variant actualVariant = (Variant) actual.getField("var");
-    VariantTestUtil.assertEqual(EMPTY_METADATA, actualVariant.metadata());
-    VariantTestUtil.assertEqual(Variants.of(34), actualVariant.value());
+    assertThatThrownBy(() -> writeAndRead(parquetSchema, record))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid variant, conflicting value and typed_value");
   }
 
   @Test
