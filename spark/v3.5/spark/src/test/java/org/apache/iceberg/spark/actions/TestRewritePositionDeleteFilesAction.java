@@ -227,7 +227,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     }
     assertLocallySorted(newDeleteFiles);
     assertNotContains(deleteFiles, newDeleteFiles);
-    checkResult(result, deleteFiles, newDeleteFiles, 1);
+    int expectedGroups = formatVersion >= 3 ? 2 : 1;
+    checkResult(result, deleteFiles, newDeleteFiles, expectedGroups);
     checkSequenceNumbers(table, deleteFiles, newDeleteFiles);
 
     List<Object[]> actualRecords = records(table);
@@ -262,7 +263,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     assertThat(newDeleteFiles).as("Expected 1 delete file per data file").hasSameSizeAs(dataFiles);
     assertLocallySorted(newDeleteFiles);
     assertNotContains(deleteFiles, newDeleteFiles);
-    checkResult(result, deleteFiles, newDeleteFiles, 1);
+    int expectedGroups = formatVersion >= 3 ? 2 : 1;
+    checkResult(result, deleteFiles, newDeleteFiles, expectedGroups);
     checkSequenceNumbers(table, deleteFiles, newDeleteFiles);
 
     List<Object[]> actualRecords = records(table);
@@ -320,7 +322,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testDVCompactionWithLowLiveRatioOnUnpartitionedTable() throws IOException {
+  public void testDVCompactionWithHighDeleteRatioOnUnpartitionedTable() throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
     Table table =
         validationCatalog.createTable(
@@ -332,11 +334,11 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     // write 10 records per data file
     writeRecords(table, 10, 100);
 
-    dvCompactionWithLowLiveRatio(table);
+    dvCompactionWithHighDeleteRatio(table);
   }
 
   @TestTemplate
-  public void testDVCompactionWithLowLiveRatioOnPartitionedTable() throws IOException {
+  public void testDVCompactionWithHighDeleteRatioOnPartitionedTable() throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
     Table table =
@@ -346,10 +348,10 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     // write 10 records per data file
     writeRecords(table, 10, 10, 10);
 
-    dvCompactionWithLowLiveRatio(table);
+    dvCompactionWithHighDeleteRatio(table);
   }
 
-  private void dvCompactionWithLowLiveRatio(Table table) throws IOException {
+  private void dvCompactionWithHighDeleteRatio(Table table) throws IOException {
     assertThat(records(table)).hasSize(100);
     assertThat(deleteRecords(table)).hasSize(0);
 
@@ -397,11 +399,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
                 .blobs())
         .hasSize(10);
 
-    Result result =
-        SparkActions.get(spark)
-            .rewriteDVs(table)
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
-            .execute();
+    Result result = SparkActions.get(spark).rewritePositionDeletes(table).execute();
 
     assertThat(result.rewrittenDeleteFilesCount()).isEqualTo(1);
     assertThat(result.addedDeleteFilesCount()).isEqualTo(1);
@@ -481,8 +479,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     Result result =
         SparkActions.get(spark)
-            .rewriteDVs(table)
-            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .rewritePositionDeletes(table)
+            .option(SizeBasedFileRewriter.MIN_INPUT_FILES, "20")
             .execute();
 
     assertThat(result.rewrittenDeleteFilesCount()).isEqualTo(0);
@@ -863,7 +861,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     }
     assertNotContains(rewrittenDeleteFiles, newDeleteFiles);
     assertLocallySorted(newDeleteFiles);
-    checkResult(result, rewrittenDeleteFiles, newDeleteFiles, 3);
+    int expectedGroups = formatVersion >= 3 ? 4 : 3;
+    checkResult(result, rewrittenDeleteFiles, newDeleteFiles, expectedGroups);
     checkSequenceNumbers(table, rewrittenDeleteFiles, newDeleteFiles);
 
     List<Object[]> actualRecords = records(table);
@@ -921,7 +920,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     }
     assertNotContains(expectedRewritten, newDeleteFiles);
     assertLocallySorted(newDeleteFiles);
-    checkResult(result, expectedRewritten, newDeleteFiles, 3);
+    int expectedGroups = formatVersion >= 3 ? 4 : 3;
+    checkResult(result, expectedRewritten, newDeleteFiles, expectedGroups);
     checkSequenceNumbers(table, expectedRewritten, newDeleteFiles);
 
     List<Object[]> actualRecords = records(table);
@@ -1454,49 +1454,49 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
       List<DeleteFile> rewrittenDeletes,
       List<DeleteFile> newDeletes,
       int expectedGroups) {
-    assertThat(rewrittenDeletes.size())
+    assertThat(result.rewrittenDeleteFilesCount())
         .as("Rewritten delete file count")
-        .isEqualTo(result.rewrittenDeleteFilesCount());
+        .isEqualTo(rewrittenDeletes.size());
 
-    assertThat(newDeletes.size())
+    assertThat(result.addedDeleteFilesCount())
         .as("New delete file count")
-        .isEqualTo(result.addedDeleteFilesCount());
+        .isEqualTo(newDeletes.size());
 
-    assertThat(size(rewrittenDeletes))
+    assertThat(result.rewrittenBytesCount())
         .as("Rewritten delete byte count")
-        .isEqualTo(result.rewrittenBytesCount());
+        .isEqualTo(size(rewrittenDeletes));
 
-    assertThat(size(newDeletes)).as("New delete byte count").isEqualTo(result.addedBytesCount());
+    assertThat(result.addedBytesCount()).as("New delete byte count").isEqualTo(size(newDeletes));
 
-    assertThat(expectedGroups).as("Rewrite group count").isEqualTo(result.rewriteResults().size());
+    assertThat(result.rewriteResults()).as("Rewrite group count").hasSize(expectedGroups);
 
-    assertThat(rewrittenDeletes.size())
-        .as("Rewritten delete file count in all groups")
-        .isEqualTo(
+    assertThat(
             result.rewriteResults().stream()
                 .mapToInt(FileGroupRewriteResult::rewrittenDeleteFilesCount)
-                .sum());
+                .sum())
+        .as("Rewritten delete file count in all groups")
+        .isEqualTo(rewrittenDeletes.size());
 
-    assertThat(newDeletes.size())
-        .as("Added delete file count in all groups")
-        .isEqualTo(
+    assertThat(
             result.rewriteResults().stream()
                 .mapToInt(FileGroupRewriteResult::addedDeleteFilesCount)
-                .sum());
+                .sum())
+        .as("Added delete file count in all groups")
+        .isEqualTo(newDeletes.size());
 
-    assertThat(size(rewrittenDeletes))
-        .as("Rewritten delete bytes in all groups")
-        .isEqualTo(
+    assertThat(
             result.rewriteResults().stream()
                 .mapToLong(FileGroupRewriteResult::rewrittenBytesCount)
-                .sum());
+                .sum())
+        .as("Rewritten delete bytes in all groups")
+        .isEqualTo(size(rewrittenDeletes));
 
-    assertThat(size(newDeletes))
-        .as("Added delete bytes in all groups")
-        .isEqualTo(
+    assertThat(
             result.rewriteResults().stream()
                 .mapToLong(FileGroupRewriteResult::addedBytesCount)
-                .sum());
+                .sum())
+        .as("Added delete bytes in all groups")
+        .isEqualTo(size(newDeletes));
   }
 
   private void checkSequenceNumbers(

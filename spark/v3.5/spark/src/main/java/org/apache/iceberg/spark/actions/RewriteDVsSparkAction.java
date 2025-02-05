@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.actions;
 
-import java.io.IOException;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
@@ -46,13 +45,10 @@ import org.apache.iceberg.actions.RewritePositionDeletesCommitManager;
 import org.apache.iceberg.actions.RewritePositionDeletesCommitManager.CommitService;
 import org.apache.iceberg.actions.RewritePositionDeletesGroup;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.puffin.Puffin;
-import org.apache.iceberg.puffin.PuffinReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -69,7 +65,7 @@ import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Spark implementation of {@link RewritePositionDeleteFiles}. */
+/** Spark implementation of {@link RewritePositionDeleteFiles} for DVs. */
 public class RewriteDVsSparkAction extends BaseSnapshotUpdateSparkAction<RewriteDVsSparkAction>
     implements RewritePositionDeleteFiles {
 
@@ -84,7 +80,7 @@ public class RewriteDVsSparkAction extends BaseSnapshotUpdateSparkAction<Rewrite
       ImmutableRewritePositionDeleteFiles.Result.builder().build();
 
   private final Table table;
-  private final SparkBinPackPositionDeletesRewriter rewriter;
+  private final SparkBinPackDVRewriter rewriter;
   private Expression filter = Expressions.alwaysTrue();
 
   private int maxConcurrentFileGroupRewrites;
@@ -96,7 +92,7 @@ public class RewriteDVsSparkAction extends BaseSnapshotUpdateSparkAction<Rewrite
   RewriteDVsSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
-    this.rewriter = new SparkBinPackPositionDeletesRewriter(spark(), table);
+    this.rewriter = new SparkBinPackDVRewriter(spark(), table);
     this.caseSensitive = SparkUtil.caseSensitive(spark);
   }
 
@@ -135,22 +131,24 @@ public class RewriteDVsSparkAction extends BaseSnapshotUpdateSparkAction<Rewrite
             .collect(Collectors.groupingBy(task -> task.file().location()));
 
     for (Map.Entry<String, List<PositionDeletesScanTask>> entry : byPuffinPath.entrySet()) {
-      long totalDataSize;
-      try (PuffinReader reader = Puffin.read(table.io().newInputFile(entry.getKey())).build()) {
-        totalDataSize = reader.dataSize();
-      } catch (IOException e) {
-        throw new RuntimeIOException(e);
-      }
-
-      long liveDataSize =
-          entry.getValue().stream().mapToLong(task -> task.file().contentSizeInBytes()).sum();
-
-      double liveRatio = liveDataSize / (double) totalDataSize;
-
-      if (liveRatio < 0.3) {
-        fileGroupsByPuffinPath.put(
-            entry.getKey(), ImmutableList.copyOf(rewriter.planFileGroups(entry.getValue())));
-      }
+      //      long totalDataSize;
+      //      try (PuffinReader reader =
+      // Puffin.read(table.io().newInputFile(entry.getKey())).build()) {
+      //        totalDataSize = reader.dataSize();
+      //      } catch (IOException e) {
+      //        throw new RuntimeIOException(e);
+      //      }
+      //
+      //      long liveDataSize =
+      //          entry.getValue().stream().mapToLong(task ->
+      // task.file().contentSizeInBytes()).sum();
+      //
+      //      double liveRatio = liveDataSize / (double) totalDataSize;
+      //
+      //      if (liveRatio < 0.3) {
+      fileGroupsByPuffinPath.put(
+          entry.getKey(), ImmutableList.copyOf(rewriter.planFileGroups(entry.getValue())));
+      //      }
     }
 
     RewriteExecutionContext ctx = new RewriteExecutionContext(fileGroupsByPuffinPath);

@@ -39,6 +39,7 @@ import org.apache.iceberg.PositionDeletesTable.PositionDeletesBatchScan;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.actions.ImmutableRewritePositionDeleteFiles;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles;
 import org.apache.iceberg.actions.RewritePositionDeletesCommitManager;
@@ -118,6 +119,13 @@ public class RewritePositionDeleteFilesSparkAction
     if (table.currentSnapshot() == null) {
       LOG.info("Nothing found to rewrite in empty table {}", table.name());
       return EMPTY_RESULT;
+    }
+
+    if (TableUtil.formatVersion(table) >= 3) {
+      RewriteDVsSparkAction rewriteDVs =
+          new RewriteDVsSparkAction(spark(), table).options(options()).filter(filter);
+      commitSummary().forEach(rewriteDVs::snapshotProperty);
+      return rewriteDVs.execute();
     }
 
     validateAndInitOptions();
