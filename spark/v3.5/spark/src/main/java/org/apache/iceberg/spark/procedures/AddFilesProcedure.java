@@ -62,9 +62,10 @@ class AddFilesProcedure extends BaseProcedure {
       ProcedureParameter.optional("partition_filter", STRING_MAP);
   private static final ProcedureParameter CHECK_DUPLICATE_FILES_PARAM =
       ProcedureParameter.optional("check_duplicate_files", DataTypes.BooleanType);
-
   private static final ProcedureParameter PARALLELISM =
       ProcedureParameter.optional("parallelism", DataTypes.IntegerType);
+  private static final ProcedureParameter PARTITION_SPEC_VERSION_PARAM =
+      ProcedureParameter.optional("partition_spec_version", DataTypes.IntegerType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -72,7 +73,8 @@ class AddFilesProcedure extends BaseProcedure {
         SOURCE_TABLE_PARAM,
         PARTITION_FILTER_PARAM,
         CHECK_DUPLICATE_FILES_PARAM,
-        PARALLELISM
+        PARALLELISM,
+        PARTITION_SPEC_VERSION_PARAM
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -121,8 +123,15 @@ class AddFilesProcedure extends BaseProcedure {
 
     int parallelism = input.asInt(PARALLELISM, 1);
 
+    Integer partitionSpecVersion = input.asInt(PARTITION_SPEC_VERSION_PARAM, null);
+
     return importToIceberg(
-        tableIdent, sourceIdent, partitionFilter, checkDuplicateFiles, parallelism);
+        tableIdent,
+        sourceIdent,
+        partitionFilter,
+        checkDuplicateFiles,
+        partitionSpecVersion,
+        parallelism);
   }
 
   private InternalRow[] toOutputRows(Snapshot snapshot) {
@@ -153,23 +162,30 @@ class AddFilesProcedure extends BaseProcedure {
       Identifier sourceIdent,
       Map<String, String> partitionFilter,
       boolean checkDuplicateFiles,
+      Integer partitionSpecVersion,
       int parallelism) {
     return modifyIcebergTable(
         destIdent,
         table -> {
-          validatePartitionSpec(table, partitionFilter);
+          validatePartitionFilter(table, partitionFilter);
           ensureNameMappingPresent(table);
 
           if (isFileIdentifier(sourceIdent)) {
             Path sourcePath = new Path(sourceIdent.name());
             String format = sourceIdent.namespace()[0];
+            PartitionSpec partitionSpec;
+            if (partitionSpecVersion != null) {
+              partitionSpec = validateAndGetPartitionSpec(table, partitionSpecVersion);
+            } else {
+              partitionSpec = table.spec();
+            }
             importFileTable(
                 table,
                 sourcePath,
                 format,
                 partitionFilter,
                 checkDuplicateFiles,
-                table.spec(),
+                partitionSpec,
                 parallelism);
           } else {
             importCatalogTable(
@@ -212,11 +228,11 @@ class AddFilesProcedure extends BaseProcedure {
       // Build a Global Partition for the source
       SparkPartition partition =
           new SparkPartition(Collections.emptyMap(), tableLocation.toString(), format);
-      importPartitions(table, ImmutableList.of(partition), checkDuplicateFiles, parallelism);
+      importPartitions(table, ImmutableList.of(partition), checkDuplicateFiles, spec, parallelism);
     } else {
       Preconditions.checkArgument(
           !partitions.isEmpty(), "Cannot find any matching partitions in table %s", table.name());
-      importPartitions(table, partitions, checkDuplicateFiles, parallelism);
+      importPartitions(table, partitions, checkDuplicateFiles, spec, parallelism);
     }
   }
 
@@ -242,16 +258,11 @@ class AddFilesProcedure extends BaseProcedure {
       Table table,
       List<SparkTableUtil.SparkPartition> partitions,
       boolean checkDuplicateFiles,
+      PartitionSpec spec,
       int parallelism) {
     String stagingLocation = getMetadataLocation(table);
     SparkTableUtil.importSparkPartitions(
-        spark(),
-        partitions,
-        table,
-        table.spec(),
-        stagingLocation,
-        checkDuplicateFiles,
-        parallelism);
+        spark(), partitions, table, spec, stagingLocation, checkDuplicateFiles, parallelism);
   }
 
   private String getMetadataLocation(Table table) {
@@ -265,13 +276,13 @@ class AddFilesProcedure extends BaseProcedure {
     return "AddFiles";
   }
 
-  private void validatePartitionSpec(Table table, Map<String, String> partitionFilter) {
+  private void validatePartitionFilter(Table table, Map<String, String> partitionFilter) {
     List<PartitionField> partitionFields = table.spec().fields();
     Set<String> partitionNames =
         table.spec().fields().stream().map(PartitionField::name).collect(Collectors.toSet());
 
     boolean tablePartitioned = !partitionFields.isEmpty();
-    boolean partitionSpecPassed = !partitionFilter.isEmpty();
+    boolean partitionFilterPassed = !partitionFilter.isEmpty();
 
     // Check for any non-identity partition columns
     List<PartitionField> nonIdentityFields =
@@ -285,7 +296,7 @@ class AddFilesProcedure extends BaseProcedure {
         table.name(),
         nonIdentityFields);
 
-    if (tablePartitioned && partitionSpecPassed) {
+    if (tablePartitioned && partitionFilterPassed) {
       // Check to see there are sufficient partition columns to satisfy the filter
       Preconditions.checkArgument(
           partitionFields.size() >= partitionFilter.size(),
@@ -311,9 +322,17 @@ class AddFilesProcedure extends BaseProcedure {
           String.join(",", partitionNames));
     } else {
       Preconditions.checkArgument(
-          !partitionSpecPassed,
+          !partitionFilterPassed,
           "Cannot use partition filter with an unpartitioned table %s",
           table.name());
     }
+  }
+
+  private PartitionSpec validateAndGetPartitionSpec(Table table, int partitionSpecVersion) {
+    Preconditions.checkArgument(
+        table.specs().containsKey(partitionSpecVersion),
+        "Invalid partition spec version: %s",
+        partitionSpecVersion);
+    return table.specs().get(partitionSpecVersion);
   }
 }
