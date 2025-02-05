@@ -204,6 +204,11 @@ public class ParquetVariantReaders {
       VariantValue typed = ParquetVariantReaders.read(metadata, typedReader, typeDefinitionLevel);
 
       if (typed != null) {
+        Preconditions.checkArgument(
+            value == null,
+            "Invalid variant, conflicting value and typed_value: value=%s typed_value=%s",
+            value,
+            typed);
         return typed;
       }
 
