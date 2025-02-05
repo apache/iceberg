@@ -58,6 +58,6 @@ public class TestTypes {
 
     assertThatExceptionOfType(NullPointerException.class)
         .isThrownBy(() -> required("field").ofType(Types.StringType.get()).build())
-        .withMessage("id cannot be null");
+        .withMessage("Id cannot be null");
   }
 }
