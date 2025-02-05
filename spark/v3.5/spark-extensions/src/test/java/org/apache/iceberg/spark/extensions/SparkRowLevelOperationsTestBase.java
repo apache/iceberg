@@ -70,7 +70,9 @@ import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.ParquetReaderType;
 import org.apache.iceberg.spark.SparkCatalog;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoder;
@@ -106,11 +108,14 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
   @Parameter(index = 9)
   protected int formatVersion;
 
+  @Parameter(index = 10)
+  protected ParquetReaderType parquetReaderType;
+
   @Parameters(
       name =
           "catalogName = {0}, implementation = {1}, config = {2},"
               + " format = {3}, vectorized = {4}, distributionMode = {5},"
-              + " fanout = {6}, branch = {7}, planningMode = {8}, formatVersion = {9}")
+              + " fanout = {6}, branch = {7}, planningMode = {8}, formatVersion = {9}, parquetReaderType = {10}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
@@ -125,7 +130,8 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         true,
         SnapshotRef.MAIN_BRANCH,
         LOCAL,
-        2
+        2,
+        ParquetReaderType.ICEBERG
       },
       {
         "testhive",
@@ -139,7 +145,23 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         false,
         "test",
         DISTRIBUTED,
-        2
+        2,
+        ParquetReaderType.ICEBERG
+      },
+      {
+        "testhive",
+        SparkCatalog.class.getName(),
+        ImmutableMap.of(
+            "type", "hive",
+            "default-namespace", "default"),
+        FileFormat.PARQUET,
+        true,
+        WRITE_DISTRIBUTION_MODE_NONE,
+        false,
+        "test",
+        DISTRIBUTED,
+        2,
+        ParquetReaderType.COMET
       },
       {
         "testhadoop",
@@ -151,7 +173,8 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         true,
         null,
         LOCAL,
-        2
+        2,
+        ParquetReaderType.ICEBERG
       },
       {
         "spark_catalog",
@@ -170,7 +193,8 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         false,
         "test",
         DISTRIBUTED,
-        2
+        2,
+        ParquetReaderType.ICEBERG
       },
       {
         "testhadoop",
@@ -182,7 +206,8 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         true,
         null,
         LOCAL,
-        3
+        3,
+        ParquetReaderType.ICEBERG
       },
       {
         "spark_catalog",
@@ -205,7 +230,8 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         false,
         "test",
         DISTRIBUTED,
-        3
+        3,
+        ParquetReaderType.ICEBERG
       },
     };
   }
@@ -250,6 +276,8 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         (prop, value) -> {
           sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName, prop, value);
         });
+
+    spark.conf().set(SparkSQLProperties.PARQUET_READER_TYPE, parquetReaderType.name());
   }
 
   protected void createAndInitTable(String schema) {

@@ -85,6 +85,7 @@ public abstract class ScanTestBase extends AvroDataTest {
 
     HadoopTables tables = new HadoopTables(CONF);
     Table table = tables.create(writeSchema, PartitionSpec.unpartitioned(), location.toString());
+    configureTable(table);
 
     // Important: use the table's schema for the rest of the test
     // When tables are created, the column ids are reassigned.
