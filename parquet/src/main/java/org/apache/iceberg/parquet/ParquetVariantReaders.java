@@ -70,22 +70,29 @@ public class ParquetVariantReaders {
   }
 
   public static VariantValueReader shredded(
-      int valueDL,
+      int valueDefinitionLevel,
       ParquetValueReader<?> valueReader,
-      int typedDL,
+      int typedDefinitionLevel,
       ParquetValueReader<?> typedReader) {
     return new ShreddedVariantReader(
-        valueDL, (VariantValueReader) valueReader, typedDL, (VariantValueReader) typedReader);
+        valueDefinitionLevel,
+        (VariantValueReader) valueReader,
+        typedDefinitionLevel,
+        (VariantValueReader) typedReader);
   }
 
   public static VariantValueReader objects(
-      int valueDL,
+      int valueDefinitionLevel,
       ParquetValueReader<?> valueReader,
-      int fieldDL,
+      int typedDefinitionLevel,
       List<String> fieldNames,
       List<VariantValueReader> fieldReaders) {
     return new ShreddedObjectReader(
-        valueDL, (VariantValueReader) valueReader, fieldDL, fieldNames, fieldReaders);
+        valueDefinitionLevel,
+        (VariantValueReader) valueReader,
+        typedDefinitionLevel,
+        fieldNames,
+        fieldReaders);
   }
 
   public static VariantValueReader asVariant(PhysicalType type, ParquetValueReader<?> reader) {
@@ -171,18 +178,21 @@ public class ParquetVariantReaders {
    * use {@link ShreddedObjectReader}.
    */
   private static class ShreddedVariantReader implements VariantValueReader {
-    private final int valueDL;
+    private final int valueDefinitionLevel;
     private final VariantValueReader valueReader;
-    private final int typedDL;
+    private final int typeDefinitionLevel;
     private final VariantValueReader typedReader;
     private final TripleIterator<?> column;
     private final List<TripleIterator<?>> children;
 
     private ShreddedVariantReader(
-        int valueDL, VariantValueReader valueReader, int typedDL, VariantValueReader typedReader) {
-      this.valueDL = valueDL;
+        int valueDefinitionLevel,
+        VariantValueReader valueReader,
+        int typeDefinitionLevel,
+        VariantValueReader typedReader) {
+      this.valueDefinitionLevel = valueDefinitionLevel;
       this.valueReader = valueReader;
-      this.typedDL = typedDL;
+      this.typeDefinitionLevel = typeDefinitionLevel;
       this.typedReader = typedReader;
       this.column = valueReader != null ? valueReader.column() : typedReader.column();
       this.children = children(valueReader, typedReader);
@@ -190,8 +200,8 @@ public class ParquetVariantReaders {
 
     @Override
     public VariantValue read(VariantMetadata metadata) {
-      VariantValue value = ParquetVariantReaders.read(metadata, valueReader, valueDL);
-      VariantValue typed = ParquetVariantReaders.read(metadata, typedReader, typedDL);
+      VariantValue value = ParquetVariantReaders.read(metadata, valueReader, valueDefinitionLevel);
+      VariantValue typed = ParquetVariantReaders.read(metadata, typedReader, typeDefinitionLevel);
 
       if (typed != null) {
         return typed;
@@ -229,9 +239,9 @@ public class ParquetVariantReaders {
    * ShreddedVariantReader} instead.
    */
   private static class ShreddedObjectReader implements VariantValueReader {
-    private final int valueDL;
+    private final int valueDefinitionLevel;
     private final VariantValueReader valueReader;
-    private final int fieldsDL;
+    private final int fieldsDefinitionLevel;
     private final String[] fieldNames;
     private final VariantValueReader[] fieldReaders;
     private final TripleIterator<?> valueColumn;
@@ -239,14 +249,14 @@ public class ParquetVariantReaders {
     private final List<TripleIterator<?>> children;
 
     private ShreddedObjectReader(
-        int valueDL,
+        int valueDefinitionLevel,
         VariantValueReader valueReader,
-        int fieldsDL,
+        int fieldsDefinitionLevel,
         List<String> fieldNames,
         List<VariantValueReader> fieldReaders) {
-      this.valueDL = valueDL;
+      this.valueDefinitionLevel = valueDefinitionLevel;
       this.valueReader = valueReader;
-      this.fieldsDL = fieldsDL;
+      this.fieldsDefinitionLevel = fieldsDefinitionLevel;
       this.fieldNames = fieldNames.toArray(String[]::new);
       this.fieldReaders = fieldReaders.toArray(VariantValueReader[]::new);
       this.fieldColumn = this.fieldReaders[0].column();
@@ -256,8 +266,8 @@ public class ParquetVariantReaders {
 
     @Override
     public VariantValue read(VariantMetadata metadata) {
-      boolean isObject = fieldColumn.currentDefinitionLevel() > fieldsDL;
-      VariantValue value = ParquetVariantReaders.read(metadata, valueReader, valueDL);
+      boolean isObject = fieldColumn.currentDefinitionLevel() > fieldsDefinitionLevel;
+      VariantValue value = ParquetVariantReaders.read(metadata, valueReader, valueDefinitionLevel);
 
       if (isObject) {
         ShreddedObject object;
