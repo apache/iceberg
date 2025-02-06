@@ -267,14 +267,6 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-This binary artifact contains Airlift Slice.
-
-Copyright: 2013-2020 Slice authors.
-Home page: https://github.com/airlift/slice
-License: http://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
 This binary artifact contains JetBrains annotations.
 
 Copyright: 2000-2020 JetBrains s.r.o.
@@ -465,6 +457,14 @@ This binary artifact contains failsafe.
 
 Copyright: Jonathan Halterman and friends
 Home page: https://failsafe.dev/
+License: https://www.apache.org/licenses/LICENSE-2.0.html
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains Codehale Metrics.
+
+Copyright: (c) 2010-2013 Coda Hale, Yammer.com, 2014-2021 Dropwizard Team
+Home page: https://github.com/dropwizard/metrics
 License: https://www.apache.org/licenses/LICENSE-2.0.html
 
 --------------------------------------------------------------------------------
