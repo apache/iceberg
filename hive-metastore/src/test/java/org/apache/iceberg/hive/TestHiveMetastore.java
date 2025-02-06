@@ -31,7 +31,6 @@ import java.io.Reader;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.apache.hadoop.conf.Configuration;
@@ -48,6 +47,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.server.TServer;
@@ -280,7 +280,7 @@ public class TestHiveMetastore {
               TestHiveMetastore.class
                   .getClassLoader()
                   .getResourceAsStream("hive-schema-3.1.0.derby.sql");
-          Reader reader = new InputStreamReader(Objects.requireNonNull(inputStream))) {
+          Reader reader = new InputStreamReader(Preconditions.checkNotNull(inputStream))) {
         scriptRunner.runScript(reader);
       }
     }
