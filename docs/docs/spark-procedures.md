@@ -976,18 +976,18 @@ CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id =>
 
 ## Table Replication
 
-The `rewrite-table-path` assists in moving or copying an Iceberg table from one location to another.
+The `rewrite-table-path` procedure prepares an Iceberg table for moving or copying to another.
 
 ### `rewrite-table-path`
 
-This procedure writes a new copy of the Iceberg table's metadata files where every path has had its prefix replaced.
-The newly rewritten metadata files enable moving or coping an Iceberg table to a new location.
-After copying both metadata and data to the desired location, the replicated iceberg
-table will appear identical to the source table, including snapshot history, schema and partition specs.
+Stages a copy of the Iceberg table's metadata files where every absolute path source prefix is replaced to the specified target.  
+This can be the starting point to fully or incrementally copy an Iceberg table located under an absolute path under a 
+source prefix to another under the target prefix.
 
 !!! info
-    This procedure only creates metadata for an existing Iceberg table modified for a new location. The produced file_list can be used for copying rewritten metadata and data files to the new location.
+    This procedure only prepares metadata for an existing Iceberg table in preparation for a copy or move to a new location.
     Copying/Moving metadata and data files to the new location is not part of this procedure.
+    
 
 
 | Argument Name      | Required? | default                                        | Type   | Description                                                             |
@@ -1017,7 +1017,17 @@ If `start_version` is provided, the procedure will only rewrite metadata files c
 | `latest_version`     | string | Name of the latest metadata file rewritten by this procedure                        |
 | `file_list_location` | string | Path to a file containing a listing of comma-separated source and destination paths |
 
-Example file list content :
+##### File List Copy Plan
+The file list contains the copy plan for all files added to the table between `startVersion` and `endVersion`. 
+For each file, it specifies
+
+- Source Path:
+The original file path in the table, or the staging location if the file has been rewritten.
+
+- Target Path:
+The path with the replacement prefix.
+
+The following example shows a copy plan for three files:
 
 ```csv
 sourcepath/datafile1.parquet,targetpath/datafile1.parquet
