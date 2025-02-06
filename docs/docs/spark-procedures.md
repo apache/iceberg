@@ -707,9 +707,9 @@ Add the files from table `db.src_table`, a Hive or Spark table registered in the
 `db.tbl`. Only add files that exist within partitions where `part_col_1` is equal to `A`.
 ```sql
 CALL spark_catalog.system.add_files(
-table => 'db.tbl',
-source_table => 'db.src_tbl',
-partition_filter => map('part_col_1', 'A')
+  table => 'db.tbl',
+  source_table => 'db.src_tbl',
+  partition_filter => map('part_col_1', 'A')
 );
 ```
 
@@ -853,7 +853,7 @@ CALL spark_catalog.system.create_changelog_view(
   table => 'db.tbl',
   options => map('start-snapshot-id','1','end-snapshot-id', '2'),
   identifier_columns => array('id', 'name')
-)
+);
 ```
 
 Once the changelog view is created, you can query the view to see the changes that happened between the snapshots.
