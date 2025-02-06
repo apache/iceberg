@@ -649,7 +649,7 @@ Notes:
 5. The `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. For deletion vectors, these values are required and must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
 6. The following field ids are reserved on `data_file`: 141.
 
-For `geometry` and `geography` types, `lower_bounds` and `upper_bounds` is a point: X, Y, Z, and M which are the lower / upper bound of all objects in the file. The axis order is determined by the CRS properties of the type. For the coordinate representing the longitude (X or Y), the lower_bound's values (xmin/ymin) may be greater than the upper_bound's value (xmax/ymax). In this X case, an object in the file may match if it contains an X such that `x >= xmin` OR `x <= xmax`, and in this Y case if `y >= ymin` OR `y <= ymax`. For `geography` types, these points are restricted to the canonical ranges of [-180 180] for longitude and [-90 90] for latitude.
+For `geometry` and `geography` types, `lower_bounds` and `upper_bounds` are both points of the following coordinates X, Y, Z, and M (see [Appendix G](#appendix-g-geospatial-notes)) which are the lower / upper bound of all objects in the file. For the X values only, xmin may be greater than xmax, in which case an object in this bounding box may match if it contains an X such that `x >= xmin` OR`x <= xmax`. In geographic terminology, the concepts of `xmin`, `xmax`, `ymin`, and `ymax` are also known as `westernmost`, `easternmost`, `southernmost` and `northernmost`, respectively. For `geography` types, these points are further restricted to the canonical ranges of [-180 180] for X and [-90 90] for Y.
 
 The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
 
@@ -1763,5 +1763,7 @@ Snapshot summary can include metrics fields to track numeric stats of the snapsh
 ## Appendix G: Geospatial Notes
 
 The Geometry and Geography class hierarchy and its Well-known text (WKT) and Well-known binary (WKB) serializations (ISO supporting XY, XYZ, XYM, XYZM) are defined by [OpenGIS Implementation Specification for Geographic information – Simple feature access – Part 1: Common architecture](https://portal.ogc.org/files/?artifact_id=25355), from [OGC (Open Geospatial Consortium)](https://www.ogc.org/standard/sfa/).
+
+Points are always defined by the coordinates X, Y, Z (optional), and M (optional), in this order. X is the longitude/easting, Y is the latitude/northing, and Z is usually the height, or elevation. M is a fourth optional dimension, for example a linear reference value (e.g., highway milepost value), a timestamp, or some other value as defined by the CRS.
 
 The version of the OGC standard first used here is 1.2.1, but future versions may also used if the WKB representation remains wire-compatible.
