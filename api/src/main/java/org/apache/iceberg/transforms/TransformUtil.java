@@ -37,25 +37,30 @@ class TransformUtil {
   private static final int EPOCH_YEAR = EPOCH.getYear();
 
   static String humanYear(int yearOrdinal) {
-    return String.format(Locale.ROOT, "%04d", EPOCH_YEAR + yearOrdinal);
+    char[] result = new char[4];
+    appendNumber(result, EPOCH_YEAR + yearOrdinal, 0, 4);
+    return new String(result);
   }
 
   static String humanMonth(int monthOrdinal) {
-    return String.format(
-        Locale.ROOT,
-        "%04d-%02d",
-        EPOCH_YEAR + Math.floorDiv(monthOrdinal, 12),
-        1 + Math.floorMod(monthOrdinal, 12));
+    char[] result = new char[7];
+    int year = EPOCH_YEAR + Math.floorDiv(monthOrdinal, 12);
+    appendNumber(result, year, 0, 4);
+    result[4] = '-';
+    appendNumber(result, 1 + Math.floorMod(monthOrdinal, 12), 5, 2);
+    return new String(result);
   }
 
   static String humanDay(int dayOrdinal) {
     OffsetDateTime day = EPOCH.plusDays(dayOrdinal);
-    return String.format(
-        Locale.ROOT,
-        "%04d-%02d-%02d",
-        day.getYear(),
-        day.getMonth().getValue(),
-        day.getDayOfMonth());
+
+    char[] result = new char[10];
+    appendNumber(result, day.getYear(), 0, 4);
+    result[4] = '-';
+    appendNumber(result, day.getMonth().getValue(), 5, 2);
+    result[7] = '-';
+    appendNumber(result, day.getDayOfMonth(), 8, 2);
+    return new String(result);
   }
 
   static String humanTime(Long microsFromMidnight) {
@@ -80,13 +85,15 @@ class TransformUtil {
 
   static String humanHour(int hourOrdinal) {
     OffsetDateTime time = EPOCH.plusHours(hourOrdinal);
-    return String.format(
-        Locale.ROOT,
-        "%04d-%02d-%02d-%02d",
-        time.getYear(),
-        time.getMonth().getValue(),
-        time.getDayOfMonth(),
-        time.getHour());
+    char[] result = new char[13];
+    appendNumber(result, time.getYear(), 0, 4);
+    result[4] = '-';
+    appendNumber(result, time.getMonth().getValue(), 5, 2);
+    result[7] = '-';
+    appendNumber(result, time.getDayOfMonth(), 8, 2);
+    result[10] = '-';
+    appendNumber(result, time.getHour(), 11, 2);
+    return new String(result);
   }
 
   static String base64encode(ByteBuffer buffer) {
@@ -98,5 +105,13 @@ class TransformUtil {
     // test the granularity, in hours. hour(ts) => 1 hour, day(ts) => 24 hours, and hour satisfies
     // the order of day
     return leftGranularity.getDuration().toHours() <= rightGranularity.getDuration().toHours();
+  }
+
+  private static void appendNumber(char[] result, int number, int startIndex, int digits) {
+    int val = number;
+    for (int i = digits - 1; i >= 0; i--) {
+      result[startIndex + i] = (char) ('0' + (val % 10));
+      val /= 10;
+    }
   }
 }
