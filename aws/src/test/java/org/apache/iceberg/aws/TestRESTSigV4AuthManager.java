@@ -133,6 +133,8 @@ class TestRESTSigV4AuthManager {
   @Test
   void contextualSession() {
     AuthManager delegate = Mockito.mock(AuthManager.class);
+    when(delegate.catalogSession(any(), any()))
+        .thenReturn(Mockito.mock(OAuth2Util.AuthSession.class));
     when(delegate.contextualSession(any(), any()))
         .thenReturn(Mockito.mock(OAuth2Util.AuthSession.class));
     AuthManager manager = new RESTSigV4AuthManager("test", delegate);
@@ -149,6 +151,8 @@ class TestRESTSigV4AuthManager {
   @Test
   void tableSession() {
     AuthManager delegate = Mockito.mock(AuthManager.class);
+    when(delegate.catalogSession(any(), any()))
+        .thenReturn(Mockito.mock(OAuth2Util.AuthSession.class));
     when(delegate.tableSession(any(), any(), any()))
         .thenReturn(Mockito.mock(OAuth2Util.AuthSession.class));
     AuthManager manager = new RESTSigV4AuthManager("test", delegate);

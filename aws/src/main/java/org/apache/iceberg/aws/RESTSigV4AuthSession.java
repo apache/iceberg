@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.commons.io.IOUtils;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.HTTPHeaders;
 import org.apache.iceberg.rest.HTTPHeaders.HTTPHeader;
 import org.apache.iceberg.rest.HTTPRequest;
@@ -64,8 +65,8 @@ public class RESTSigV4AuthSession implements AuthSession {
 
   public RESTSigV4AuthSession(
       Aws4Signer aws4Signer, AuthSession delegateAuthSession, AwsProperties awsProperties) {
-    this.signer = aws4Signer;
-    this.delegate = delegateAuthSession;
+    this.signer = Preconditions.checkNotNull(aws4Signer, "Invalid signer: null");
+    this.delegate = Preconditions.checkNotNull(delegateAuthSession, "Invalid delegate: null");
     this.signingRegion = awsProperties.restSigningRegion();
     this.signingName = awsProperties.restSigningName();
     this.credentialsProvider = awsProperties.restCredentialsProvider();
