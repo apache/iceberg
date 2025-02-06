@@ -1024,9 +1024,9 @@ public class TestRewriteTablePathsAction extends TestBase {
             .load(result.fileListLocation())
             .as(Encoders.STRING())
             .collectAsList();
-    Predicate<String> isManifest = f -> (f.endsWith("-m0.avro") || f.endsWith("-m1.avro"));
-    Predicate<String> isManifestList = f -> (f.contains("snap-")) && (f.endsWith(".avro"));
-    Predicate<String> isMetadataJSON = f -> (f.endsWith(".metadata.json"));
+    Predicate<String> isManifest = f -> f.endsWith("-m0.avro") || f.endsWith("-m1.avro");
+    Predicate<String> isManifestList = f -> f.contains("snap-") && f.endsWith(".avro");
+    Predicate<String> isMetadataJSON = f -> f.endsWith(".metadata.json");
 
     assertThat(filesToMove.stream().filter(isMetadataJSON).count())
         .as("Wrong rebuilt version file count")
