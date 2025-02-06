@@ -121,11 +121,12 @@ public class RewritePositionDeleteFilesSparkAction
       return EMPTY_RESULT;
     }
 
+    Result dvResult = null;
     if (TableUtil.formatVersion(table) >= 3) {
       RewriteDVsSparkAction rewriteDVs =
           new RewriteDVsSparkAction(spark(), table).options(options()).filter(filter);
       commitSummary().forEach(rewriteDVs::snapshotProperty);
-      return rewriteDVs.execute();
+      dvResult = rewriteDVs.execute();
     }
 
     validateAndInitOptions();
@@ -134,6 +135,10 @@ public class RewritePositionDeleteFilesSparkAction
     RewriteExecutionContext ctx = new RewriteExecutionContext(fileGroupsByPartition);
 
     if (ctx.totalGroupCount() == 0) {
+      if (dvResult != null) {
+        return dvResult;
+      }
+
       LOG.info("Nothing found to rewrite in {}", table.name());
       return EMPTY_RESULT;
     }

@@ -227,8 +227,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     }
     assertLocallySorted(newDeleteFiles);
     assertNotContains(deleteFiles, newDeleteFiles);
-    int expectedGroups = formatVersion >= 3 ? 2 : 1;
-    checkResult(result, deleteFiles, newDeleteFiles, expectedGroups);
+    checkResult(result, deleteFiles, newDeleteFiles, 1);
     checkSequenceNumbers(table, deleteFiles, newDeleteFiles);
 
     List<Object[]> actualRecords = records(table);
@@ -263,8 +262,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     assertThat(newDeleteFiles).as("Expected 1 delete file per data file").hasSameSizeAs(dataFiles);
     assertLocallySorted(newDeleteFiles);
     assertNotContains(deleteFiles, newDeleteFiles);
-    int expectedGroups = formatVersion >= 3 ? 2 : 1;
-    checkResult(result, deleteFiles, newDeleteFiles, expectedGroups);
+    checkResult(result, deleteFiles, newDeleteFiles, 1);
     checkSequenceNumbers(table, deleteFiles, newDeleteFiles);
 
     List<Object[]> actualRecords = records(table);
@@ -861,8 +859,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     }
     assertNotContains(rewrittenDeleteFiles, newDeleteFiles);
     assertLocallySorted(newDeleteFiles);
-    int expectedGroups = formatVersion >= 3 ? 4 : 3;
-    checkResult(result, rewrittenDeleteFiles, newDeleteFiles, expectedGroups);
+    checkResult(result, rewrittenDeleteFiles, newDeleteFiles, 3);
     checkSequenceNumbers(table, rewrittenDeleteFiles, newDeleteFiles);
 
     List<Object[]> actualRecords = records(table);
@@ -920,8 +917,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     }
     assertNotContains(expectedRewritten, newDeleteFiles);
     assertLocallySorted(newDeleteFiles);
-    int expectedGroups = formatVersion >= 3 ? 4 : 3;
-    checkResult(result, expectedRewritten, newDeleteFiles, expectedGroups);
+    checkResult(result, expectedRewritten, newDeleteFiles, 3);
     checkSequenceNumbers(table, expectedRewritten, newDeleteFiles);
 
     List<Object[]> actualRecords = records(table);

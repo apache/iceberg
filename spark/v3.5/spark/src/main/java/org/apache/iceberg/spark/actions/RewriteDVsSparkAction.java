@@ -116,10 +116,6 @@ public class RewriteDVsSparkAction extends BaseSnapshotUpdateSparkAction<Rewrite
 
     validateAndInitOptions();
 
-    // TODO: 1) if V3 table has V2 deletes -> rewrite those
-    // TODO: 2) if V3 table has V3 deletes -> check their liveness ratio
-    // TODO: 3) if V3 table has multiple (conflicting DVs) for the same data file -> merge those
-
     Table deletesTable =
         MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.POSITION_DELETES);
     CloseableIterable<PositionDeletesScanTask> tasks = planFiles(deletesTable);
@@ -131,24 +127,8 @@ public class RewriteDVsSparkAction extends BaseSnapshotUpdateSparkAction<Rewrite
             .collect(Collectors.groupingBy(task -> task.file().location()));
 
     for (Map.Entry<String, List<PositionDeletesScanTask>> entry : byPuffinPath.entrySet()) {
-      //      long totalDataSize;
-      //      try (PuffinReader reader =
-      // Puffin.read(table.io().newInputFile(entry.getKey())).build()) {
-      //        totalDataSize = reader.dataSize();
-      //      } catch (IOException e) {
-      //        throw new RuntimeIOException(e);
-      //      }
-      //
-      //      long liveDataSize =
-      //          entry.getValue().stream().mapToLong(task ->
-      // task.file().contentSizeInBytes()).sum();
-      //
-      //      double liveRatio = liveDataSize / (double) totalDataSize;
-      //
-      //      if (liveRatio < 0.3) {
       fileGroupsByPuffinPath.put(
           entry.getKey(), ImmutableList.copyOf(rewriter.planFileGroups(entry.getValue())));
-      //      }
     }
 
     RewriteExecutionContext ctx = new RewriteExecutionContext(fileGroupsByPuffinPath);

@@ -20,12 +20,14 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.IOException;
 import java.util.List;
+import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.puffin.Puffin;
 import org.apache.iceberg.puffin.PuffinReader;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.util.BinPacking;
 import org.apache.spark.sql.SparkSession;
 
 class SparkBinPackDVRewriter extends SparkBinPackPositionDeletesRewriter {
@@ -40,16 +42,28 @@ class SparkBinPackDVRewriter extends SparkBinPackPositionDeletesRewriter {
   }
 
   @Override
+  public Iterable<List<PositionDeletesScanTask>> planFileGroups(
+      Iterable<PositionDeletesScanTask> tasks) {
+    Iterable<PositionDeletesScanTask> filteredTasks = filterFiles(tasks);
+    BinPacking.ListPacker<PositionDeletesScanTask> packer =
+        new BinPacking.ListPacker<>(maxGroupSize(), 1, false);
+    List<List<PositionDeletesScanTask>> groups =
+        packer.pack(filteredTasks, ContentScanTask::length);
+    return filterFileGroups(groups);
+  }
+
+  @Override
   protected Iterable<List<PositionDeletesScanTask>> filterFileGroups(
       List<List<PositionDeletesScanTask>> groups) {
     return Iterables.filter(groups, this::shouldRewrite);
   }
 
   private boolean shouldRewrite(List<PositionDeletesScanTask> group) {
-    return enoughInputFiles(group)
-        || enoughContent(group)
-        || tooMuchContent(group)
-        || tooHighDeleteRatio(group);
+    //    return enoughInputFiles(group)
+    //        || enoughContent(group)
+    //        || tooMuchContent(group)
+    //        || tooHighDeleteRatio(group);
+    return tooHighDeleteRatio(group);
   }
 
   private boolean tooHighDeleteRatio(List<PositionDeletesScanTask> group) {
