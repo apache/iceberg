@@ -354,7 +354,7 @@ public class RewriteTablePathUtil {
     DataFile newDataFile =
         DataFiles.builder(spec).copy(entry.file()).withPath(targetDataFilePath).build();
     appendEntryWithFile(entry, writer, newDataFile);
-    // Keep non-live entry but exclude deleted data files as part of copyPlan
+    // keep deleted data file entries but exclude them from copyPlan
     if (entry.isLive()) {
       result.copyPlan().add(Pair.of(sourceDataFilePath, newDataFile.location()));
     }
@@ -384,7 +384,7 @@ public class RewriteTablePathUtil {
                 .withMetrics(metricsWithTargetPath)
                 .build();
         appendEntryWithFile(entry, writer, movedFile);
-        // Keep non-live entry but exclude deleted position delete files as part of copyPlan
+        // keep deleted position delete entries but exclude them from copyPlan
         if (entry.isLive()) {
           result
               .copyPlan()
@@ -395,7 +395,7 @@ public class RewriteTablePathUtil {
       case EQUALITY_DELETES:
         DeleteFile eqDeleteFile = newEqualityDeleteEntry(file, spec, sourcePrefix, targetPrefix);
         appendEntryWithFile(entry, writer, eqDeleteFile);
-        // Keep non-live entry but exclude deleted equality delete files as part of copyPlan
+        // keep deleted equality delete entries but exclude them from copyPlan
         if (entry.isLive()) {
           // No need to rewrite equality delete files as they do not contain absolute file paths.
           result.copyPlan().add(Pair.of(file.location(), eqDeleteFile.location()));

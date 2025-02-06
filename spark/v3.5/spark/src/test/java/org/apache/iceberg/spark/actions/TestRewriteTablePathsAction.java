@@ -624,7 +624,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     // expire one snapshot
     actions().expireSnapshots(table).expireSnapshotId(table.currentSnapshot().parentId()).execute();
 
-    assertThat(table.snapshots()).withFailMessage("1 out 2 snapshot has been removed").hasSize(1);
+    assertThat(table.snapshots()).hasSize(1);
 
     RewriteTablePath.Result result =
         actions()
@@ -1024,7 +1024,7 @@ public class TestRewriteTablePathsAction extends TestBase {
             .load(result.fileListLocation())
             .as(Encoders.STRING())
             .collectAsList();
-    Predicate<String> isManifest = f -> (f.endsWith("-m0.avro")) || (f.endsWith("-m1.avro"));
+    Predicate<String> isManifest = f -> (f.endsWith("-m0.avro") || f.endsWith("-m1.avro"));
     Predicate<String> isManifestList = f -> (f.contains("snap-")) && (f.endsWith(".avro"));
     Predicate<String> isMetadataJSON = f -> (f.endsWith(".metadata.json"));
 
