@@ -280,7 +280,9 @@ public class TestHiveMetastore {
               TestHiveMetastore.class
                   .getClassLoader()
                   .getResourceAsStream("hive-schema-3.1.0.derby.sql");
-          Reader reader = new InputStreamReader(Preconditions.checkNotNull(inputStream))) {
+          Reader reader =
+              new InputStreamReader(
+                  Preconditions.checkNotNull(inputStream, "Invalid input stream: null"))) {
         scriptRunner.runScript(reader);
       }
     }
