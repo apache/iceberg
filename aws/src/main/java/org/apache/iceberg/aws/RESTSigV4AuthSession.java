@@ -67,7 +67,7 @@ public class RESTSigV4AuthSession implements AuthSession {
       Aws4Signer aws4Signer, AuthSession delegateAuthSession, AwsProperties awsProperties) {
     this.signer = Preconditions.checkNotNull(aws4Signer, "Invalid signer: null");
     this.delegate = Preconditions.checkNotNull(delegateAuthSession, "Invalid delegate: null");
-    Preconditions.checkNotNull(awsProperties, "Invalid awsProperties: null");
+    Preconditions.checkNotNull(awsProperties, "Invalid AWS properties: null");
     this.signingRegion = awsProperties.restSigningRegion();
     this.signingName = awsProperties.restSigningName();
     this.credentialsProvider = awsProperties.restCredentialsProvider();

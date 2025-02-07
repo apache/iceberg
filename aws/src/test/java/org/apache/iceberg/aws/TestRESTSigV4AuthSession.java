@@ -63,7 +63,7 @@ class TestRESTSigV4AuthSession {
         .hasMessage("Invalid delegate: null");
     assertThatThrownBy(() -> new RESTSigV4AuthSession(signer, delegate, null))
         .isInstanceOf(NullPointerException.class)
-        .hasMessage("Invalid awsProperties: null");
+        .hasMessage("Invalid AWS properties: null");
   }
 
   @Test
