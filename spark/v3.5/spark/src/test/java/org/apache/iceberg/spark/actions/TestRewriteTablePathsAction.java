@@ -246,7 +246,6 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     // Write first increment to source table
     dfA.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(location);
-    spark.read().format("iceberg").load(location).show();
     assertThat(spark.read().format("iceberg").load(location).count()).isEqualTo(1);
 
     // Replicate first increment to target table
@@ -260,24 +259,26 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     // Write second increment to source table
     List<ThreeColumnRecord> recordsB =
-        Lists.newArrayList(new ThreeColumnRecord(1, "BBBBBBBBB", "BBB"));
+        Lists.newArrayList(new ThreeColumnRecord(2, "BBBBBBBBB", "BBB"));
     Dataset<Row> dfB = spark.createDataFrame(recordsB, ThreeColumnRecord.class).coalesce(1);
     dfB.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(location);
     assertThat(spark.read().format("iceberg").load(location).count()).isEqualTo(2);
 
     // Replicate second increment to target table
-    Table sourceTableIncrement = TABLES.load(location);
+    sourceTable.refresh();
     Table targetTable = TABLES.load(targetTableLocation());
     String targetTableMetadata = currentMetadata(targetTable).metadataFileLocation();
     String startVersion = fileName(targetTableMetadata);
-    RewriteTablePath.Result resultB =
+    RewriteTablePath.Result incrementalRewriteResult =
         actions()
-            .rewriteTablePath(sourceTableIncrement)
+            .rewriteTablePath(sourceTable)
             .rewriteLocationPrefix(sourceTable.location(), targetTableLocation())
             .startVersion(startVersion)
             .execute();
-    copyTableFiles(resultB);
-    assertThat(spark.read().format("iceberg").load(targetTableLocation()).count()).isEqualTo(2);
+    copyTableFiles(incrementalRewriteResult);
+    List<Object[]> actual = rowsSorted(targetTableLocation(), "c1");
+    List<Object[]> expected = rowsSorted(location, "c1");
+    assertEquals("Rows should match after copy", expected, actual);
   }
 
   @Test
@@ -1099,6 +1100,10 @@ public class TestRewriteTablePathsAction extends TestBase {
 
   private List<Object[]> rows(String location) {
     return rowsToJava(spark.read().format("iceberg").load(location).collectAsList());
+  }
+
+  private List<Object[]> rowsSorted(String location, String sortCol) {
+    return rowsToJava(spark.read().format("iceberg").load(location).sort(sortCol).collectAsList());
   }
 
   private PositionDelete<GenericRecord> positionDelete(
