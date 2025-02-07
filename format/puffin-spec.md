@@ -181,22 +181,14 @@ for Puffin v1.
 [roaring-bitmap-portable-serialization]: https://github.com/RoaringBitmap/RoaringFormatSpec?tab=readme-ov-file#extension-for-64-bit-implementations
 [roaring-bitmap-general-layout]: https://github.com/RoaringBitmap/RoaringFormatSpec?tab=readme-ov-file#general-layout
 
-#### `hive-column-statistics-obj` blob type
+#### `apache-datasketches-kll-v1` blob type
 
-A serialized form of Hive ColumnStatsObject.
-
-The ColumnStatsObject supports Histograms, NDV, Min and Max values, Number of nulls, Number of trues, column name, type.
-A full list of supported statistics is listed in the table here:
-[ColumnStatistics](https://cwiki.apache.org/confluence/display/Hive/StatsDev#StatsDev-ColumnStatistics)
-
-#### `apache-datasketches-KLL-sketch` blob type
-
-A serialized form of a "compact" KLL-sketch produced by the [Apache
-DataSketches](https://datasketches.apache.org/) library.
-Apache-Datasketches-KLL-sketch is an implementation of a very compact quantiles
-sketch with lazy compaction scheme and nearly optimal accuracy per bit.
-
-Histograms are derived from this sketch.
+A serialized form of a KLL sketch, a very compact quantiles sketch, produced by the 
+[Apache DataSketches](https://datasketches.apache.org/) library.
+KLL quantiles sketch is a mergeable streaming algorithm to estimate 
+the distribution of values, and approximately answer queries about the rank of a value, 
+probability mass function of the distribution (PMF) or histogram, 
+cumulative distribution function (CDF), and quantiles (median, min, max, 95th percentile and such)
 
 ### Compression codecs
 
