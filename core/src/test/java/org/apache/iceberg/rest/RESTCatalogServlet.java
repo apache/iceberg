@@ -37,6 +37,7 @@ import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.CharStreams;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.RESTCatalogAdapter.Route;
@@ -52,9 +53,10 @@ import org.slf4j.LoggerFactory;
 public class RESTCatalogServlet extends HttpServlet {
   private static final Logger LOG = LoggerFactory.getLogger(RESTCatalogServlet.class);
 
-  private final RESTCatalogAdapter restCatalogAdapter;
-  private final Map<String, String> responseHeaders =
+  private static final Map<String, String> DEFAULT_RESPONSE_HEADERS =
       ImmutableMap.of(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType());
+
+  private final RESTCatalogAdapter restCatalogAdapter;
 
   public RESTCatalogServlet(RESTCatalogAdapter restCatalogAdapter) {
     this.restCatalogAdapter = restCatalogAdapter;
@@ -87,7 +89,7 @@ public class RESTCatalogServlet extends HttpServlet {
   protected void execute(ServletRequestContext context, HttpServletResponse response)
       throws IOException {
     response.setStatus(HttpServletResponse.SC_OK);
-    responseHeaders.forEach(response::setHeader);
+    DEFAULT_RESPONSE_HEADERS.forEach(response::setHeader);
 
     if (context.error().isPresent()) {
       response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
@@ -96,7 +98,6 @@ public class RESTCatalogServlet extends HttpServlet {
     }
 
     try {
-
       HTTPRequest request =
           restCatalogAdapter.buildRequest(
               context.method(),
@@ -104,9 +105,13 @@ public class RESTCatalogServlet extends HttpServlet {
               context.queryParams(),
               context.headers(),
               context.body());
+
+      Map<String, String> responseHeaders = Maps.newHashMap();
       Object responseBody =
           restCatalogAdapter.execute(
-              request, context.route().responseClass(), handle(response), h -> {});
+              request, context.route().responseClass(), handle(response), responseHeaders::putAll);
+
+      responseHeaders.forEach(response::setHeader);
 
       if (responseBody != null) {
         RESTObjectMapper.mapper().writeValue(response.getWriter(), responseBody);
