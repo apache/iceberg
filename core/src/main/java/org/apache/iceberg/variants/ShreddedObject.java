@@ -261,4 +261,9 @@ public class ShreddedObject implements VariantObject {
       return (dataOffset - offset) + dataSize;
     }
   }
+
+  @Override
+  public String toString() {
+    return VariantObject.asString(this);
+  }
 }

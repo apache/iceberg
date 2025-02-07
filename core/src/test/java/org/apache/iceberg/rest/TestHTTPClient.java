@@ -52,6 +52,7 @@ import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.junit.jupiter.api.AfterAll;
@@ -84,7 +85,8 @@ public class TestHTTPClient {
   @BeforeAll
   public static void beforeClass() {
     mockServer = startClientAndServer(PORT);
-    restClient = HTTPClient.builder(ImmutableMap.of()).uri(URI).build();
+    restClient =
+        HTTPClient.builder(ImmutableMap.of()).uri(URI).withAuthSession(AuthSession.EMPTY).build();
     icebergBuildGitCommitShort = IcebergBuild.gitCommitShortId();
     icebergBuildFullVersion = IcebergBuild.fullVersion();
   }
@@ -143,6 +145,7 @@ public class TestHTTPClient {
             HTTPClient.builder(ImmutableMap.of())
                 .uri(URI)
                 .withProxy("localhost", proxyPort)
+                .withAuthSession(AuthSession.EMPTY)
                 .build()) {
       String path = "v1/config";
       HttpRequest mockRequest =
@@ -188,18 +191,19 @@ public class TestHTTPClient {
         new AuthScope(proxy),
         new UsernamePasswordCredentials(authorizedUsername, invalidPassword.toCharArray()));
 
-    try (ClientAndServer proxyServer =
-            startClientAndServer(
-                new Configuration()
-                    .proxyAuthenticationUsername(authorizedUsername)
-                    .proxyAuthenticationPassword(authorizedPassword),
-                proxyPort);
-        RESTClient clientWithProxy =
+    try (RESTClient clientWithProxy =
             HTTPClient.builder(ImmutableMap.of())
                 .uri(URI)
                 .withProxy(proxyHostName, proxyPort)
                 .withProxyCredentialsProvider(credentialsProvider)
-                .build()) {
+                .withAuthSession(AuthSession.EMPTY)
+                .build();
+        ClientAndServer proxyServer =
+            startClientAndServer(
+                new Configuration()
+                    .proxyAuthenticationUsername(authorizedUsername)
+                    .proxyAuthenticationPassword(authorizedPassword),
+                proxyPort)) {
 
       ErrorHandler onError =
           new ErrorHandler() {
@@ -291,7 +295,8 @@ public class TestHTTPClient {
         ImmutableMap.of(HTTPClient.REST_SOCKET_TIMEOUT_MS, String.valueOf(socketTimeoutMs));
     String path = "socket/timeout/path";
 
-    try (HTTPClient client = HTTPClient.builder(properties).uri(URI).build()) {
+    try (HTTPClient client =
+        HTTPClient.builder(properties).uri(URI).withAuthSession(AuthSession.EMPTY).build()) {
       HttpRequest mockRequest =
           request()
               .withPath("/" + path)

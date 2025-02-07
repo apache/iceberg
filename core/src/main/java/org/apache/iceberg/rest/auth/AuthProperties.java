@@ -27,6 +27,7 @@ public final class AuthProperties {
   public static final String AUTH_TYPE_NONE = "none";
   public static final String AUTH_TYPE_BASIC = "basic";
   public static final String AUTH_TYPE_OAUTH2 = "oauth2";
+  public static final String AUTH_TYPE_SIGV4 = "sigv4";
 
   public static final String AUTH_MANAGER_IMPL_NONE =
       "org.apache.iceberg.rest.auth.NoopAuthManager";
@@ -34,7 +35,12 @@ public final class AuthProperties {
       "org.apache.iceberg.rest.auth.BasicAuthManager";
   public static final String AUTH_MANAGER_IMPL_OAUTH2 =
       "org.apache.iceberg.rest.auth.OAuth2Manager";
+  public static final String AUTH_MANAGER_IMPL_SIGV4 =
+      "org.apache.iceberg.aws.RESTSigV4AuthManager";
 
   public static final String BASIC_USERNAME = "rest.auth.basic.username";
   public static final String BASIC_PASSWORD = "rest.auth.basic.password";
+
+  public static final String SIGV4_DELEGATE_AUTH_TYPE = "rest.auth.sigv4.delegate-auth-type";
+  public static final String SIGV4_DELEGATE_AUTH_TYPE_DEFAULT = AUTH_TYPE_OAUTH2;
 }

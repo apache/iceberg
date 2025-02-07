@@ -23,6 +23,7 @@ import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.runtime.typeutils.InternalSerializers;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.flink.FlinkRowData;
 import org.apache.iceberg.flink.data.RowDataUtil;
 
 class RowDataRecordFactory implements RecordFactory<RowData> {
@@ -45,7 +46,7 @@ class RowDataRecordFactory implements RecordFactory<RowData> {
   static RowData.FieldGetter[] createFieldGetters(RowType rowType) {
     RowData.FieldGetter[] fieldGetters = new RowData.FieldGetter[rowType.getFieldCount()];
     for (int i = 0; i < rowType.getFieldCount(); ++i) {
-      fieldGetters[i] = RowData.createFieldGetter(rowType.getTypeAt(i), i);
+      fieldGetters[i] = FlinkRowData.createFieldGetter(rowType.getTypeAt(i), i);
     }
 
     return fieldGetters;

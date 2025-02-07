@@ -30,12 +30,31 @@ public interface VariantObject extends VariantValue {
   int numFields();
 
   @Override
-  default Variants.PhysicalType type() {
-    return Variants.PhysicalType.OBJECT;
+  default PhysicalType type() {
+    return PhysicalType.OBJECT;
   }
 
   @Override
   default VariantObject asObject() {
     return this;
+  }
+
+  static String asString(VariantObject object) {
+    StringBuilder builder = new StringBuilder();
+
+    builder.append("VariantObject(fields={");
+    boolean first = true;
+    for (String field : object.fieldNames()) {
+      if (first) {
+        first = false;
+      } else {
+        builder.append(", ");
+      }
+
+      builder.append(field).append(": ").append(object.get(field));
+    }
+    builder.append("})");
+
+    return builder.toString();
   }
 }

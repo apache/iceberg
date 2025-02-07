@@ -228,4 +228,9 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
   public int sizeInBytes() {
     return value.remaining();
   }
+
+  @Override
+  public String toString() {
+    return VariantObject.asString(this);
+  }
 }

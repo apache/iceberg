@@ -357,7 +357,10 @@ public class RewriteTablePathUtil {
     DataFile newDataFile =
         DataFiles.builder(spec).copy(entry.file()).withPath(targetDataFilePath).build();
     appendEntryWithFile(entry, writer, newDataFile);
-    result.copyPlan().add(Pair.of(sourceDataFilePath, newDataFile.location()));
+    // keep deleted data file entries but exclude them from copyPlan
+    if (entry.isLive()) {
+      result.copyPlan().add(Pair.of(sourceDataFilePath, newDataFile.location()));
+    }
     return result;
   }
 
@@ -384,16 +387,22 @@ public class RewriteTablePathUtil {
                 .withMetrics(metricsWithTargetPath)
                 .build();
         appendEntryWithFile(entry, writer, movedFile);
-        result
-            .copyPlan()
-            .add(Pair.of(stagingPath(file.location(), stagingLocation), movedFile.location()));
+        // keep deleted position delete entries but exclude them from copyPlan
+        if (entry.isLive()) {
+          result
+              .copyPlan()
+              .add(Pair.of(stagingPath(file.location(), stagingLocation), movedFile.location()));
+        }
         result.toRewrite().add(file);
         return result;
       case EQUALITY_DELETES:
         DeleteFile eqDeleteFile = newEqualityDeleteEntry(file, spec, sourcePrefix, targetPrefix);
         appendEntryWithFile(entry, writer, eqDeleteFile);
-        // No need to rewrite equality delete files as they do not contain absolute file paths.
-        result.copyPlan().add(Pair.of(file.location(), eqDeleteFile.location()));
+        // keep deleted equality delete entries but exclude them from copyPlan
+        if (entry.isLive()) {
+          // No need to rewrite equality delete files as they do not contain absolute file paths.
+          result.copyPlan().add(Pair.of(file.location(), eqDeleteFile.location()));
+        }
         return result;
 
       default:
