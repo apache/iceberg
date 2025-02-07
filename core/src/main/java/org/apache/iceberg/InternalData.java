@@ -43,7 +43,8 @@ public class InternalData {
       Maps.newConcurrentMap();
 
   static {
-    InternalData.register(FileFormat.AVRO,
+    InternalData.register(
+        FileFormat.AVRO,
         outputFile -> Avro.write(outputFile).createWriterFunc(InternalWriter::create),
         inputFile -> Avro.read(inputFile).createResolvingReader(InternalReader::create));
 
