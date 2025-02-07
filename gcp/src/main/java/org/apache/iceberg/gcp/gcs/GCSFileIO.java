@@ -67,6 +67,7 @@ public class GCSFileIO implements DelegateFileIO {
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private SerializableMap<String, String> properties = null;
+  private OAuth2RefreshCredentialsHandler handler = null;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -159,10 +160,11 @@ public class GCSFileIO implements DelegateFileIO {
                         new AccessToken(token, gcpProperties.oauth2TokenExpiresAt().orElse(null));
                     if (gcpProperties.oauth2RefreshCredentialsEnabled()
                         && gcpProperties.oauth2RefreshCredentialsEndpoint().isPresent()) {
+                      handler = OAuth2RefreshCredentialsHandler.create(properties);
                       builder.setCredentials(
                           OAuth2CredentialsWithRefresh.newBuilder()
                               .setAccessToken(accessToken)
-                              .setRefreshHandler(OAuth2RefreshCredentialsHandler.create(properties))
+                              .setRefreshHandler(handler)
                               .build());
                     } else {
                       builder.setCredentials(OAuth2Credentials.create(accessToken));
@@ -196,6 +198,9 @@ public class GCSFileIO implements DelegateFileIO {
   public void close() {
     // handles concurrent calls to close()
     if (isResourceClosed.compareAndSet(false, true)) {
+      if (handler != null) {
+        handler.close();
+      }
       if (storage != null) {
         // GCS Storage does not appear to be closable, so release the reference
         storage = null;
