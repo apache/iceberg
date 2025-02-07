@@ -45,6 +45,8 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.http.HttpHeaders;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
@@ -2207,7 +2209,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(RESTCatalogAdapter.Route.LIST_NAMESPACES),
             eq(ImmutableMap.of("pageToken", "", "pageSize", "10")),
             any(),
-            eq(ListNamespacesResponse.class));
+            eq(ListNamespacesResponse.class),
+            any());
 
     // verify second request with updated pageToken
     Mockito.verify(adapter)
@@ -2215,7 +2218,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(RESTCatalogAdapter.Route.LIST_NAMESPACES),
             eq(ImmutableMap.of("pageToken", "10", "pageSize", "10")),
             any(),
-            eq(ListNamespacesResponse.class));
+            eq(ListNamespacesResponse.class),
+            any());
 
     // verify third request with update pageToken
     Mockito.verify(adapter)
@@ -2223,7 +2227,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(RESTCatalogAdapter.Route.LIST_NAMESPACES),
             eq(ImmutableMap.of("pageToken", "20", "pageSize", "10")),
             any(),
-            eq(ListNamespacesResponse.class));
+            eq(ListNamespacesResponse.class),
+            any());
   }
 
   @ParameterizedTest
@@ -2269,7 +2274,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(RESTCatalogAdapter.Route.LIST_TABLES),
             eq(ImmutableMap.of("pageToken", "", "pageSize", "10", "namespace", namespaceName)),
             any(),
-            eq(ListTablesResponse.class));
+            eq(ListTablesResponse.class),
+            any());
 
     // verify second request with updated pageToken
     Mockito.verify(adapter)
@@ -2277,7 +2283,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(RESTCatalogAdapter.Route.LIST_TABLES),
             eq(ImmutableMap.of("pageToken", "10", "pageSize", "10", "namespace", namespaceName)),
             any(),
-            eq(ListTablesResponse.class));
+            eq(ListTablesResponse.class),
+            any());
 
     // verify third request with update pageToken
     Mockito.verify(adapter)
@@ -2285,7 +2292,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(RESTCatalogAdapter.Route.LIST_TABLES),
             eq(ImmutableMap.of("pageToken", "20", "pageSize", "10", "namespace", namespaceName)),
             any(),
-            eq(ListTablesResponse.class));
+            eq(ListTablesResponse.class),
+            any());
   }
 
   @Test
@@ -2696,6 +2704,135 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // simulate a legacy server that doesn't send back supported endpoints, thus the
     // client relies on the default endpoints
     verifyTableExistsFallbackToGETRequest(ConfigResponse.builder().build());
+  }
+
+  @Test
+  public void testETagCreateTableAndLoadTable() {
+    Map<String, String> respHeaders = Maps.newConcurrentMap();
+
+    RESTCatalog catalog = catalogWithResponseHeaders(respHeaders);
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    catalog.createTable(TABLE, SCHEMA);
+
+    assertThat(respHeaders).containsKey(HttpHeaders.ETAG);
+    String eTag = respHeaders.get(HttpHeaders.ETAG);
+    respHeaders.clear();
+
+    catalog.loadTable(TABLE);
+
+    assertThat(respHeaders).containsEntry(HttpHeaders.ETAG, eTag);
+  }
+
+  @Test
+  public void testETagDifferentTables() {
+    Map<String, String> respHeaders = Maps.newConcurrentMap();
+
+    RESTCatalog catalog = catalogWithResponseHeaders(respHeaders);
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    catalog.createTable(TABLE, SCHEMA);
+
+    assertThat(respHeaders).containsKey(HttpHeaders.ETAG);
+    String eTagTbl1 = respHeaders.get(HttpHeaders.ETAG);
+    respHeaders.clear();
+
+    catalog.createTable(TableIdentifier.of(TABLE.namespace(), "table2"), SCHEMA);
+
+    assertThat(respHeaders).containsKey(HttpHeaders.ETAG);
+    assertThat(eTagTbl1).isNotEqualTo(respHeaders.get(HttpHeaders.ETAG));
+  }
+
+  @Test
+  public void testETagAfterDataUpdate() {
+    Map<String, String> respHeaders = Maps.newConcurrentMap();
+
+    RESTCatalog catalog = catalogWithResponseHeaders(respHeaders);
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    Table tbl = catalog.createTable(TABLE, SCHEMA);
+
+    assertThat(respHeaders).containsKey(HttpHeaders.ETAG);
+    String eTag = respHeaders.get(HttpHeaders.ETAG);
+
+    respHeaders.clear();
+
+    tbl.newAppend().appendFile(FILE_A).commit();
+
+    assertThat(respHeaders).containsKey(HttpHeaders.ETAG);
+    assertThat(eTag).isNotEqualTo(respHeaders.get(HttpHeaders.ETAG));
+  }
+
+  @Test
+  public void testETagAfterMetadataOnlyUpdate() {
+    Map<String, String> respHeaders = Maps.newConcurrentMap();
+
+    RESTCatalog catalog = catalogWithResponseHeaders(respHeaders);
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    Table tbl = catalog.createTable(TABLE, SCHEMA);
+
+    assertThat(respHeaders).containsKey(HttpHeaders.ETAG);
+    String eTag = respHeaders.get(HttpHeaders.ETAG);
+
+    respHeaders.clear();
+
+    tbl.updateSchema().addColumn("extra", Types.IntegerType.get()).commit();
+
+    assertThat(respHeaders).containsKey(HttpHeaders.ETAG);
+    assertThat(eTag).isNotEqualTo(respHeaders.get(HttpHeaders.ETAG));
+  }
+
+  @Test
+  public void testETagRegisterTable() {
+    Map<String, String> respHeaders = Maps.newConcurrentMap();
+
+    RESTCatalog catalog = catalogWithResponseHeaders(respHeaders);
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    Table tbl = catalog.createTable(TABLE, SCHEMA);
+
+    assertThat(respHeaders).containsKey(HttpHeaders.ETAG);
+    String eTag = respHeaders.get(HttpHeaders.ETAG);
+
+    respHeaders.clear();
+
+    catalog.registerTable(
+        TableIdentifier.of(TABLE.namespace(), "other_table"),
+        ((BaseTable) tbl).operations().current().metadataFileLocation());
+
+    assertThat(respHeaders).containsEntry(HttpHeaders.ETAG, eTag);
+  }
+
+  private RESTCatalog catalogWithResponseHeaders(Map<String, String> respHeaders) {
+    RESTCatalogAdapter adapter =
+        new RESTCatalogAdapter(backendCatalog) {
+          @Override
+          public <T extends RESTResponse> T execute(
+              HTTPRequest request,
+              Class<T> responseType,
+              Consumer<ErrorResponse> errorHandler,
+              Consumer<Map<String, String>> responseHeaders) {
+            return super.execute(request, responseType, errorHandler, respHeaders::putAll);
+          }
+        };
+
+    return catalog(adapter);
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
