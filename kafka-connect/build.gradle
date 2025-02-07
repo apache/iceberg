@@ -49,7 +49,6 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect') {
     compileOnly libs.kafka.connect.json
 
     testImplementation libs.hadoop3.client
-    testRuntimeOnly project(':iceberg-parquet')
     testRuntimeOnly project(':iceberg-orc')
   }
 
@@ -108,7 +107,6 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
       exclude group: 'org.eclipse.jetty'
     }
     implementation project(':iceberg-orc')
-    implementation project(':iceberg-parquet')
 
     implementation project(':iceberg-aws')
     implementation platform(libs.awssdk.bom)

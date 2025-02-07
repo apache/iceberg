@@ -56,7 +56,6 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     implementation project(':iceberg-core')
     implementation project(':iceberg-data')
     implementation project(':iceberg-orc')
-    implementation project(':iceberg-parquet')
     implementation project(':iceberg-arrow')
     implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}")
 
@@ -157,7 +156,6 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     compileOnly libs.errorprone.annotations
 
     testImplementation project(path: ':iceberg-data')
-    testImplementation project(path: ':iceberg-parquet')
     testImplementation project(path: ':iceberg-hive-metastore')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
