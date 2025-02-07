@@ -26,7 +26,6 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.Collectors;
 import org.apache.iceberg.aws.s3.MinioUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -42,6 +41,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -86,8 +86,10 @@ public class TestS3RestSigner {
       MinioUtil.createContainer(CREDENTIALS_PROVIDER.resolveCredentials());
 
   private static Server httpServer;
-  private static ValidatingSigner validatingSigner;
+
+  private ValidatingSigner validatingSigner;
   private S3Client s3;
+  private ImmutableS3V4RestSignerClient icebergSigner;
 
   @BeforeAll
   public static void beforeClass() throws Exception {
@@ -96,45 +98,10 @@ public class TestS3RestSigner {
     if (null == httpServer) {
       httpServer = initHttpServer();
     }
-
-    validatingSigner =
-        new ValidatingSigner(
-            ImmutableS3V4RestSignerClient.builder()
-                .properties(
-                    ImmutableMap.of(
-                        S3V4RestSignerClient.S3_SIGNER_URI,
-                        httpServer.getURI().toString(),
-                        OAuth2Properties.CREDENTIAL,
-                        "catalog:12345"))
-                .build(),
-            new CustomAwsS3V4Signer());
   }
 
   @AfterAll
   public static void afterClass() throws Exception {
-    assertThat(validatingSigner.icebergSigner.tokenRefreshExecutor())
-        .isInstanceOf(ScheduledThreadPoolExecutor.class);
-
-    ScheduledThreadPoolExecutor executor =
-        ((ScheduledThreadPoolExecutor) validatingSigner.icebergSigner.tokenRefreshExecutor());
-    // token expiration is set to 10000s by the S3SignerServlet so there should be exactly one token
-    // scheduled for refresh. Such a high token expiration value is explicitly selected to be much
-    // larger than TestS3RestSigner would need to execute all tests.
-    // The reason why this check is done here with a high token expiration is to make sure that
-    // there aren't other token refreshes being scheduled after every sign request and after
-    // TestS3RestSigner completes all tests, there should be only this single token in the queue
-    // that is scheduled for refresh
-    assertThat(executor.getPoolSize()).isEqualTo(1);
-    assertThat(executor.getQueue())
-        .as("should only have a single token scheduled for refresh")
-        .hasSize(1);
-    assertThat(executor.getActiveCount())
-        .as("should not have any token being refreshed")
-        .isEqualTo(0);
-    assertThat(executor.getCompletedTaskCount())
-        .as("should not have any expired token that required a refresh")
-        .isEqualTo(0);
-
     if (null != httpServer) {
       httpServer.stop();
     }
@@ -143,6 +110,20 @@ public class TestS3RestSigner {
   @BeforeEach
   public void before() throws Exception {
     MINIO_CONTAINER.start();
+
+    icebergSigner =
+        Mockito.spy(
+            ImmutableS3V4RestSignerClient.builder()
+                .properties(
+                    ImmutableMap.of(
+                        S3V4RestSignerClient.S3_SIGNER_URI,
+                        httpServer.getURI().toString(),
+                        OAuth2Properties.CREDENTIAL,
+                        "catalog:12345"))
+                .build());
+
+    validatingSigner = new ValidatingSigner(icebergSigner, new CustomAwsS3V4Signer());
+
     s3 =
         S3Client.builder()
             .region(REGION)
@@ -238,7 +219,9 @@ public class TestS3RestSigner {
   }
 
   @AfterEach
-  public void after() {
+  public void after() throws Exception {
+    s3.close();
+    Mockito.verify(icebergSigner).close();
     MINIO_CONTAINER.stop();
   }
 
@@ -266,13 +249,19 @@ public class TestS3RestSigner {
    * S3V4RestSignerClient} and with the {@link AbstractAwsS3V4Signer}
    */
   private static class ValidatingSigner
-      extends AbstractAws4Signer<AwsS3V4SignerParams, Aws4PresignerParams> {
+      extends AbstractAws4Signer<AwsS3V4SignerParams, Aws4PresignerParams>
+      implements AutoCloseable {
     private final S3V4RestSignerClient icebergSigner;
     private final AbstractAwsS3V4Signer awsSigner;
 
     private ValidatingSigner(S3V4RestSignerClient icebergSigner, AbstractAwsS3V4Signer awsSigner) {
       this.icebergSigner = icebergSigner;
       this.awsSigner = awsSigner;
+    }
+
+    @Override
+    public void close() throws Exception {
+      icebergSigner.close();
     }
 
     @Override

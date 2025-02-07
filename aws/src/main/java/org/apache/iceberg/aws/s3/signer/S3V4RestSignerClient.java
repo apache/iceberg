@@ -20,7 +20,6 @@ package org.apache.iceberg.aws.s3.signer;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.RemovalListener;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -28,13 +27,11 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -42,13 +39,13 @@ import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.ResourcePaths;
-import org.apache.iceberg.rest.auth.AuthConfig;
+import org.apache.iceberg.rest.auth.AuthManager;
+import org.apache.iceberg.rest.auth.AuthManagers;
+import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.auth.AuthSessionCache;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
-import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
-import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.ThreadPools;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,7 +61,7 @@ import software.amazon.awssdk.utils.IoUtils;
 
 @Value.Immutable
 public abstract class S3V4RestSignerClient
-    extends AbstractAws4Signer<AwsS3V4SignerParams, Aws4PresignerParams> {
+    extends AbstractAws4Signer<AwsS3V4SignerParams, Aws4PresignerParams> implements AutoCloseable {
 
   private static final Logger LOG = LoggerFactory.getLogger(S3V4RestSignerClient.class);
   public static final String S3_SIGNER_URI = "s3.signer.uri";
@@ -81,13 +78,13 @@ public abstract class S3V4RestSignerClient
   private static final String SCOPE = "sign";
 
   @SuppressWarnings("immutables:incompat")
-  private static volatile ScheduledExecutorService tokenRefreshExecutor;
+  private volatile AuthManager authManager;
 
   @SuppressWarnings("immutables:incompat")
-  private static volatile RESTClient httpClient;
+  private volatile RESTClient httpClient;
 
   @SuppressWarnings("immutables:incompat")
-  private static volatile Cache<String, AuthSession> authSessionCache;
+  private volatile AuthSessionCache authSessionCache;
 
   public abstract Map<String, String> properties();
 
@@ -138,24 +135,19 @@ public abstract class S3V4RestSignerClient
         OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
   }
 
-  @VisibleForTesting
-  ScheduledExecutorService tokenRefreshExecutor() {
-    if (!keepTokenRefreshed()) {
-      return null;
-    }
-
-    if (null == tokenRefreshExecutor) {
+  private AuthManager authManager() {
+    if (null == authManager) {
       synchronized (S3V4RestSignerClient.class) {
-        if (null == tokenRefreshExecutor) {
-          tokenRefreshExecutor = ThreadPools.newScheduledPool("s3-signer-token-refresh", 1);
+        if (null == authManager) {
+          authManager = AuthManagers.loadAuthManager("s3-signer", properties());
         }
       }
     }
 
-    return tokenRefreshExecutor;
+    return authManager;
   }
 
-  private Cache<String, AuthSession> authSessionCache() {
+  private AuthSessionCache authSessionCache() {
     if (null == authSessionCache) {
       synchronized (S3V4RestSignerClient.class) {
         if (null == authSessionCache) {
@@ -166,17 +158,7 @@ public abstract class S3V4RestSignerClient
                   CatalogProperties.AUTH_SESSION_TIMEOUT_MS_DEFAULT);
 
           authSessionCache =
-              Caffeine.newBuilder()
-                  .expireAfterAccess(Duration.ofMillis(expirationIntervalMs))
-                  .removalListener(
-                      (RemovalListener<String, AuthSession>)
-                          (id, auth, cause) -> {
-                            if (null != auth) {
-                              LOG.trace("Stopping refresh for AuthSession");
-                              auth.stopRefreshing();
-                            }
-                          })
-                  .build();
+              new AuthSessionCache("s3-signer", Duration.ofMillis(expirationIntervalMs));
         }
       }
     }
@@ -204,80 +186,49 @@ public abstract class S3V4RestSignerClient
     String token = token().get();
     if (null != token) {
       return authSessionCache()
-          .get(
+          .cachedSession(
               token,
-              id -> {
-                // this client will be reused for token refreshes; it must contain an empty auth
-                // session in order to avoid interfering with refreshed tokens
-                RESTClient refreshClient =
-                    httpClient().withAuthSession(org.apache.iceberg.rest.auth.AuthSession.EMPTY);
-                return AuthSession.fromAccessToken(
-                    refreshClient,
-                    tokenRefreshExecutor(),
-                    token,
-                    expiresAtMillis(properties()),
-                    new AuthSession(
-                        ImmutableMap.of(),
-                        AuthConfig.builder()
-                            .token(token)
-                            .credential(credential())
-                            .scope(SCOPE)
-                            .oauth2ServerUri(oauth2ServerUri())
-                            .optionalOAuthParams(optionalOAuthParams())
-                            .build()));
+              key -> {
+                Map<String, String> properties =
+                    ImmutableMap.<String, String>builder()
+                        .putAll(properties())
+                        .putAll(optionalOAuthParams())
+                        .put(OAuth2Properties.OAUTH2_SERVER_URI, oauth2ServerUri())
+                        .put(
+                            OAuth2Properties.TOKEN_REFRESH_ENABLED,
+                            String.valueOf(keepTokenRefreshed()))
+                        .put(OAuth2Properties.TOKEN, token)
+                        .put(OAuth2Properties.SCOPE, SCOPE)
+                        .buildKeepingLast();
+                return authManager().catalogSession(httpClient(), properties);
               });
     }
 
     if (credentialProvided()) {
       return authSessionCache()
-          .get(
+          .cachedSession(
               credential(),
-              id -> {
-                AuthSession session =
-                    new AuthSession(
-                        ImmutableMap.of(),
-                        AuthConfig.builder()
-                            .credential(credential())
-                            .scope(SCOPE)
-                            .oauth2ServerUri(oauth2ServerUri())
-                            .optionalOAuthParams(optionalOAuthParams())
-                            .build());
-                long startTimeMillis = System.currentTimeMillis();
-                // this client will be reused for token refreshes; it must contain an empty auth
-                // session in order to avoid interfering with refreshed tokens
-                RESTClient refreshClient =
-                    httpClient().withAuthSession(org.apache.iceberg.rest.auth.AuthSession.EMPTY);
-                OAuthTokenResponse authResponse =
-                    OAuth2Util.fetchToken(
-                        refreshClient,
-                        session.headers(),
-                        credential(),
-                        SCOPE,
-                        oauth2ServerUri(),
-                        optionalOAuthParams());
-                return AuthSession.fromTokenResponse(
-                    refreshClient, tokenRefreshExecutor(), authResponse, startTimeMillis, session);
+              key -> {
+                Map<String, String> properties =
+                    ImmutableMap.<String, String>builder()
+                        .putAll(properties())
+                        .putAll(optionalOAuthParams())
+                        .put(OAuth2Properties.OAUTH2_SERVER_URI, oauth2ServerUri())
+                        .put(
+                            OAuth2Properties.TOKEN_REFRESH_ENABLED,
+                            String.valueOf(keepTokenRefreshed()))
+                        .put(OAuth2Properties.CREDENTIAL, credential())
+                        .put(OAuth2Properties.SCOPE, SCOPE)
+                        .buildKeepingLast();
+                return authManager().catalogSession(httpClient(), properties);
               });
     }
 
-    return AuthSession.empty();
+    return AuthSession.EMPTY;
   }
 
   private boolean credentialProvided() {
     return null != credential() && !credential().isEmpty();
-  }
-
-  private Long expiresAtMillis(Map<String, String> properties) {
-    if (properties.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
-      long expiresInMillis =
-          PropertyUtil.propertyAsLong(
-              properties,
-              OAuth2Properties.TOKEN_EXPIRES_IN_MS,
-              OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT);
-      return System.currentTimeMillis() + expiresInMillis;
-    } else {
-      return null;
-    }
   }
 
   @Value.Check
@@ -375,6 +326,13 @@ public abstract class S3V4RestSignerClient
     reconstructHeaders(signedComponent.headers(), mutableRequest);
 
     return mutableRequest.build();
+  }
+
+  @Override
+  public void close() throws Exception {
+    IoUtils.closeQuietly(httpClient, null);
+    IoUtils.closeQuietly(authSessionCache, null);
+    IoUtils.closeQuietly(authManager, null);
   }
 
   /**
