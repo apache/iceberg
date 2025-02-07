@@ -143,9 +143,7 @@ public class SchemaParser {
   }
 
   static void toJson(Type type, JsonGenerator generator) throws IOException {
-    if (type.isPrimitiveType()) {
-      toJson(type.asPrimitiveType(), generator);
-    } else if (type.isVariantType()) {
+    if (type.isPrimitiveType() || type.isVariantType()) {
       generator.writeString(type.toString());
     } else {
       Type.NestedType nested = type.asNestedType();
@@ -181,7 +179,7 @@ public class SchemaParser {
 
   private static Type typeFromJson(JsonNode json) {
     if (json.isTextual()) {
-      return Types.fromTypeString(json.asText());
+      return Types.fromTypeName(json.asText());
     } else if (json.isObject()) {
       JsonNode typeObj = json.get(TYPE);
       if (typeObj != null) {

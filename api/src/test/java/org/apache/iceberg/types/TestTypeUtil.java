@@ -26,11 +26,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestTypeUtil {
   @Test
@@ -648,36 +652,76 @@ public class TestTypeUtil {
     assertThat(actualSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
   }
 
-  @Test
-  public void testVariantType() {
+  private static Stream<Arguments> testTypes() {
+    return Stream.of(
+        Arguments.of(Types.UnknownType.get()),
+        Arguments.of(Types.VariantType.get()),
+        Arguments.of(Types.TimestampNanoType.withoutZone()),
+        Arguments.of(Types.TimestampNanoType.withZone()));
+  }
+
+  @ParameterizedTest
+  @MethodSource("testTypes")
+  public void testAssignFreshIdsWithType(Type testType) {
     Schema schema =
-        new Schema(
-            required(0, "v", Types.VariantType.get()), required(1, "A", Types.IntegerType.get()));
+        new Schema(required(0, "v", testType), required(1, "A", Types.IntegerType.get()));
     Schema sourceSchema =
-        new Schema(
-            required(1, "v", Types.VariantType.get()), required(2, "A", Types.IntegerType.get()));
+        new Schema(required(1, "v", testType), required(2, "A", Types.IntegerType.get()));
 
     Schema assignedSchema =
         TypeUtil.assignFreshIds(sourceSchema, new AtomicInteger(10)::incrementAndGet);
     Schema expectedSchema =
-        new Schema(
-            required(11, "v", Types.VariantType.get()), required(12, "A", Types.IntegerType.get()));
+        new Schema(required(11, "v", testType), required(12, "A", Types.IntegerType.get()));
     assertThat(assignedSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
+  }
+
+  @ParameterizedTest
+  @MethodSource("testTypes")
+  public void testReassignIdsWithType(Type testType) {
+    Schema schema =
+        new Schema(required(0, "v", testType), required(1, "A", Types.IntegerType.get()));
+    Schema sourceSchema =
+        new Schema(required(1, "v", testType), required(2, "A", Types.IntegerType.get()));
 
     final Schema reassignedSchema = TypeUtil.reassignIds(schema, sourceSchema);
     assertThat(reassignedSchema.asStruct()).isEqualTo(sourceSchema.asStruct());
+  }
 
-    expectedSchema = new Schema(Lists.newArrayList(required(1, "v", Types.VariantType.get())));
+  @ParameterizedTest
+  @MethodSource("testTypes")
+  public void testIndexByIdWithType(Type testType) {
+    Schema schema =
+        new Schema(required(0, "v", testType), required(1, "A", Types.IntegerType.get()));
+    Schema sourceSchema =
+        new Schema(required(1, "v", testType), required(2, "A", Types.IntegerType.get()));
+
+    Map<Integer, Types.NestedField> indexByIds = TypeUtil.indexById(sourceSchema.asStruct());
+    assertThat(indexByIds.get(1).type()).isEqualTo(testType);
+  }
+
+  @ParameterizedTest
+  @MethodSource("testTypes")
+  public void testIndexNameByIdWithType(Type testType) {
+    Schema schema =
+        new Schema(required(0, "v", testType), required(1, "A", Types.IntegerType.get()));
+    Schema sourceSchema =
+        new Schema(required(1, "v", testType), required(2, "A", Types.IntegerType.get()));
+
+    Map<Integer, String> indexNameByIds = TypeUtil.indexNameById(sourceSchema.asStruct());
+    assertThat(indexNameByIds.get(1)).isEqualTo("v");
+  }
+
+  @ParameterizedTest
+  @MethodSource("testTypes")
+  public void testProjectWithType(Type testType) {
+    Schema sourceSchema =
+        new Schema(required(1, "v", testType), required(2, "A", Types.IntegerType.get()));
+
+    Schema expectedSchema = new Schema(Lists.newArrayList(required(1, "v", testType)));
     Schema projectedSchema = TypeUtil.project(sourceSchema, Sets.newHashSet(1));
     assertThat(projectedSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
 
     Set<Integer> projectedIds = TypeUtil.getProjectedIds(sourceSchema);
     assertThat(Set.of(1, 2)).isEqualTo(projectedIds);
-
-    Map<Integer, Types.NestedField> indexByIds = TypeUtil.indexById(sourceSchema.asStruct());
-    assertThat(indexByIds.get(1).type().isVariantType()).isTrue();
-
-    Map<Integer, String> indexNameByIds = TypeUtil.indexNameById(sourceSchema.asStruct());
-    assertThat(indexNameByIds.get(1)).isEqualTo("v");
   }
 }

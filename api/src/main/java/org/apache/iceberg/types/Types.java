@@ -63,7 +63,7 @@ public class Types {
   private static final Pattern DECIMAL =
       Pattern.compile("decimal\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)");
 
-  public static Type fromTypeString(String typeString) {
+  public static Type fromTypeName(String typeString) {
     String lowerTypeString = typeString.toLowerCase(Locale.ROOT);
     if (TYPES.containsKey(lowerTypeString)) {
       return TYPES.get(lowerTypeString);
@@ -82,9 +82,8 @@ public class Types {
     throw new IllegalArgumentException("Cannot parse type string to primitive: " + typeString);
   }
 
-  @Deprecated
   public static PrimitiveType fromPrimitiveString(String typeString) {
-    Type type = fromTypeString(typeString);
+    Type type = fromTypeName(typeString);
     if (type.isPrimitiveType()) {
       return (PrimitiveType) type;
     }

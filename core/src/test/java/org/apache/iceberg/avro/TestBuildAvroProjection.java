@@ -22,7 +22,6 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.function.Supplier;
 import org.apache.avro.SchemaBuilder;
 import org.apache.iceberg.types.Type;
@@ -401,32 +400,5 @@ public class TestBuildAvroProjection {
     assertThat(Integer.valueOf(actual.getProp(AvroSchemaUtil.VALUE_ID_PROP)).intValue())
         .as("Unexpected value ID discovered on the projected map schema")
         .isEqualTo(1);
-  }
-
-  @Test
-  public void projectVariantSchemaUnchanged() {
-    final Type icebergType = Types.VariantType.get();
-
-    final org.apache.avro.Schema expected =
-        SchemaBuilder.record("variant")
-            .prop(AvroSchemaUtil.FIELD_ID_PROP, "1")
-            .namespace("unit.test")
-            .fields()
-            .name("metadata")
-            .type()
-            .bytesType()
-            .noDefault()
-            .name("value")
-            .type()
-            .bytesType()
-            .noDefault()
-            .endRecord();
-
-    final BuildAvroProjection testSubject =
-        new BuildAvroProjection(icebergType, Collections.emptyMap());
-    final org.apache.avro.Schema actual = testSubject.record(expected, List.of(), null);
-    assertThat(actual)
-        .as("Variant projection produced undesired variant schema")
-        .isEqualTo(expected);
   }
 }

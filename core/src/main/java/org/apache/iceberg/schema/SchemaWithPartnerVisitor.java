@@ -106,7 +106,8 @@ public abstract class SchemaWithPartnerVisitor<P, R> {
         }
 
         return visitor.map(map, partner, keyResult, valueResult);
-
+      case VARIANT:
+        return visitor.variant(partner);
       default:
         return visitor.primitive(type.asPrimitiveType(), partner);
     }
@@ -158,6 +159,10 @@ public abstract class SchemaWithPartnerVisitor<P, R> {
 
   public R map(Types.MapType map, P partner, R keyResult, R valueResult) {
     return null;
+  }
+
+  public R variant(P partner) {
+    throw new UnsupportedOperationException("Unsupported type: variant");
   }
 
   public R primitive(Type.PrimitiveType primitive, P partner) {
