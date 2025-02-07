@@ -976,18 +976,17 @@ CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id =>
 
 ## Table Replication
 
-The `rewrite-table-path` procedure prepares an Iceberg table for moving or copying to another.
+The `rewrite-table-path` procedure prepares an Iceberg table for moving or copying to another location.
 
 ### `rewrite-table-path`
 
-Stages a copy of the Iceberg table's metadata files where every absolute path source prefix is replaced to the specified target.  
+Stages a copy of the Iceberg table's metadata files where every absolute path source prefix is replaced by the specified target prefix.  
 This can be the starting point to fully or incrementally copy an Iceberg table located under an absolute path under a 
 source prefix to another under the target prefix.
 
 !!! info
-    This procedure only prepares metadata for an existing Iceberg table in preparation for a copy or move to a new location.
+    This procedure only prepares metadata for an existing Iceberg table for a copy or move to a new location.
     Copying/Moving metadata and data files to the new location is not part of this procedure.
-    
 
 
 | Argument Name      | Required? | default                                        | Type   | Description                                                             |
@@ -995,7 +994,7 @@ source prefix to another under the target prefix.
 | `table`            | ✔️        |                                                | string | Name of the table                                                       |
 | `source_prefix`    | ✔️        |                                                | string | The existing prefix to be replaced                                      |
 | `target_prefix`    | ✔️        |                                                | string | The replacement prefix for `source_prefix`                              |
-| `start_version`    |           | first metadata.json in table's metadata log    | string | The name or path to the chronologically first metadata.json to rewrite. |
+| `start_version`    |           | first metadata.json in table's metadata log    | string | The name or path to the chronologically first metadata.json to rewrite  |
 | `end_version`      |           | latest metadata.json                           | string | The name or path to the chronologically last metadata.json to rewrite   |
 | `staging_location` |           | new directory under table's metadata directory | string | The output location for newly modified metadata files                   |
 
@@ -1008,7 +1007,7 @@ By default, the procedure operates in full rewrite mode, rewriting all reachable
 
 - Incremental Rewrite:
 
-If `start_version` is provided, the procedure will only rewrite metadata files created between `start_version` and `end_version`. `end_version` defaults to the latest metadata location of the table. 
+If `start_version` is provided, the procedure will only rewrite metadata files created between `start_version` and `end_version`. `end_version` defaults to the latest metadata.json of the table. 
 
 #### Output
 
@@ -1038,7 +1037,7 @@ stagingpath/manifest.avro,targetpath/manifest.avro
 #### Examples
 
 Full rewrite of a table's path from source location in HDFS to a target location in S3 bucket of table `my_table`.
-This produces a new set of metadata using the s3a prefix in the default staging location under table's metadata directory
+This produces a new set of metadata using the s3a prefix in the default staging location under table's metadata directory.
 
 ```sql
 CALL catalog_name.system.rewrite_table_path(
@@ -1049,7 +1048,7 @@ CALL catalog_name.system.rewrite_table_path(
 ```
 
 Incremental rewrite of a table's path from a source location to a target location between metadata versions
-`v2.metadata.json` and `v20.metadata.json`, with files written to an explicit staging location
+`v2.metadata.json` and `v20.metadata.json`, with files written to an explicit staging location.
 
 ```sql
 CALL catalog_name.system.rewrite_table_path(
@@ -1064,9 +1063,9 @@ CALL catalog_name.system.rewrite_table_path(
 
 Once the rewrite is completed, third-party tools (
 eg. [Distcp](https://hadoop.apache.org/docs/current/hadoop-distcp/DistCp.html)) can be used to copy the newly created
-metadata files and data files to the target location
+metadata files and data files to the target location.
 
 Lastly, [register_table](#register_table) procedure can be used to register copied table in the target location with catalog.
 
 !!! warning
-    Iceberg table with statistics files are not currently supported for path rewrite
+    Iceberg table with statistics files are not currently supported for path rewrite.
