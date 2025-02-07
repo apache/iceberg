@@ -19,6 +19,7 @@
 package org.apache.iceberg.aws;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -50,6 +51,20 @@ class TestRESTSigV4AuthSession {
               "id",
               AwsProperties.REST_SECRET_ACCESS_KEY,
               "secret"));
+
+  @Test
+  void nullArguments() {
+    AuthSession delegate = Mockito.mock(AuthSession.class);
+    assertThatThrownBy(() -> new RESTSigV4AuthSession(null, delegate, awsProperties))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid signer: null");
+    assertThatThrownBy(() -> new RESTSigV4AuthSession(signer, null, awsProperties))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid delegate: null");
+    assertThatThrownBy(() -> new RESTSigV4AuthSession(signer, delegate, null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid awsProperties: null");
+  }
 
   @Test
   void authenticateWithoutBody() {

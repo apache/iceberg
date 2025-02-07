@@ -21,6 +21,7 @@ package org.apache.iceberg.aws;
 import java.util.Map;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.auth.AuthManager;
@@ -38,10 +39,10 @@ public class RESTSigV4AuthManager implements AuthManager {
   private final Aws4Signer signer = Aws4Signer.create();
   private final AuthManager delegate;
 
-  private Map<String, String> catalogProperties;
+  private Map<String, String> catalogProperties = Map.of();
 
   public RESTSigV4AuthManager(String name, AuthManager delegate) {
-    this.delegate = delegate;
+    this.delegate = Preconditions.checkNotNull(delegate, "Invalid delegate: null");
   }
 
   @Override
@@ -53,7 +54,7 @@ public class RESTSigV4AuthManager implements AuthManager {
   @Override
   public RESTSigV4AuthSession catalogSession(
       RESTClient sharedClient, Map<String, String> properties) {
-    catalogProperties = properties;
+    this.catalogProperties = properties;
     AwsProperties awsProperties = new AwsProperties(catalogProperties);
     return new RESTSigV4AuthSession(
         signer, delegate.catalogSession(sharedClient, catalogProperties), awsProperties);
