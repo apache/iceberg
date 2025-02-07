@@ -985,7 +985,7 @@ This can be the starting point to fully or incrementally copy an Iceberg table l
 source prefix to another under the target prefix.
 
 !!! info
-    This procedure only prepares metadata for an existing Iceberg table for a copy or move to a new location.
+    This procedure only prepares metadata or/and data files for an existing Iceberg table for a copy or move to a new location.
     Copying/Moving metadata and data files to the new location is not part of this procedure.
 
 
