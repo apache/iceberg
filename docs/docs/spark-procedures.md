@@ -1068,4 +1068,4 @@ metadata files and data files to the target location.
 Lastly, [register_table](#register_table) procedure can be used to register copied table in the target location with catalog.
 
 !!! warning
-    Iceberg table with statistics files are not currently supported for path rewrite.
+    Iceberg table with partition statistics files are not currently supported for path rewrite.
