@@ -37,8 +37,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.ImmutableGenericPartitionStatisticsFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -59,7 +59,6 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -868,25 +867,27 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @Test
-  public void testStatisticFile() throws IOException {
+  public void testPartitionStatisticFile() throws IOException {
     String sourceTableLocation = newTableLocation();
     Map<String, String> properties = Maps.newHashMap();
     properties.put("format-version", "2");
-    String tableName = "v2tblwithstats";
+    String tableName = "v2tblwithPartStats";
     Table sourceTable =
         createMetastoreTable(sourceTableLocation, properties, "default", tableName, 0);
 
     TableMetadata metadata = currentMetadata(sourceTable);
-    TableMetadata withStatistics =
+    TableMetadata withPartStatistics =
         TableMetadata.buildFrom(metadata)
-            .setStatistics(
-                43,
-                new GenericStatisticsFile(
-                    43, "/some/path/to/stats/file", 128, 27, ImmutableList.of()))
+            .setPartitionStatistics(
+                ImmutableGenericPartitionStatisticsFile.builder()
+                    .snapshotId(11L)
+                    .path("/some/partition/stats/file.parquet")
+                    .fileSizeInBytes(42L)
+                    .build())
             .build();
 
     OutputFile file = sourceTable.io().newOutputFile(metadata.metadataFileLocation());
-    TableMetadataParser.overwrite(withStatistics, file);
+    TableMetadataParser.overwrite(withPartStatistics, file);
 
     assertThatThrownBy(
             () ->
@@ -895,7 +896,36 @@ public class TestRewriteTablePathsAction extends TestBase {
                     .rewriteLocationPrefix(sourceTableLocation, targetTableLocation())
                     .execute())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Statistic files are not supported yet");
+        .hasMessageContaining("Partition statistics files are not supported yet");
+  }
+
+  @Test
+  public void testTableWithManyStatisticFiles() throws IOException {
+    String sourceTableLocation = newTableLocation();
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("format-version", "2");
+    String tableName = "v2tblwithmanystats";
+    Table sourceTable =
+        createMetastoreTable(sourceTableLocation, properties, "default", tableName, 0);
+
+    int iterations = 10;
+    for (int i = 0; i < iterations; i++) {
+      sql("insert into hive.default.%s values (%s, 'AAAAAAAAAA', 'AAAA')", tableName, i);
+      sourceTable.refresh();
+      actions().computeTableStats(sourceTable).execute();
+    }
+
+    sourceTable.refresh();
+    assertThat(sourceTable.statisticsFiles().size()).isEqualTo(iterations);
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .rewriteLocationPrefix(sourceTableLocation, targetTableLocation())
+            .execute();
+
+    checkFileNum(
+        iterations * 2 + 1, iterations, iterations, iterations, iterations * 6 + 1, result);
   }
 
   @Test
@@ -1063,6 +1093,16 @@ public class TestRewriteTablePathsAction extends TestBase {
       int manifestFileCount,
       int totalCount,
       RewriteTablePath.Result result) {
+    checkFileNum(versionFileCount, manifestListCount, manifestFileCount, 0, totalCount, result);
+  }
+
+  protected void checkFileNum(
+      int versionFileCount,
+      int manifestListCount,
+      int manifestFileCount,
+      int statisticsFileCount,
+      int totalCount,
+      RewriteTablePath.Result result) {
     List<String> filesToMove =
         spark
             .read()
@@ -1083,6 +1123,9 @@ public class TestRewriteTablePathsAction extends TestBase {
     assertThat(filesToMove.stream().filter(isManifest).count())
         .as("Wrong rebuilt Manifest file file count")
         .isEqualTo(manifestFileCount);
+    assertThat(filesToMove.stream().filter(f -> f.endsWith(".stats")).count())
+        .withFailMessage("Wrong rebuilt Statistic file count")
+        .isEqualTo(statisticsFileCount);
     assertThat(filesToMove.size()).as("Wrong total file count").isEqualTo(totalCount);
   }
 
