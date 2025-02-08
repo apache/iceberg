@@ -379,11 +379,11 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
     // include statistics files in copy plan
     result.addAll(
-        copyPlanStatisticsFiles(metadata.statisticsFiles(), newTableMetadata.statisticsFiles()));
+        statsFileCopyPlan(metadata.statisticsFiles(), newTableMetadata.statisticsFiles()));
     return result;
   }
 
-  private Set<Pair<String, String>> copyPlanStatisticsFiles(
+  private Set<Pair<String, String>> statsFileCopyPlan(
       List<StatisticsFile> beforeStats, List<StatisticsFile> afterStats) {
     Set<Pair<String, String>> result = Sets.newHashSet();
     if (beforeStats.isEmpty()) {
