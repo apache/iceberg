@@ -312,7 +312,7 @@ License (from POM): BSD 2-Clause License - https://opensource.org/licenses/BSD-2
 
 --------------------------------------------------------------------------------
 
-Group: com.github.pjfanning  Name: jersey-json  Version: 1.22
+Group: com.github.pjfanning  Name: jersey-json  Version: 1.22.0
 Project URL (from POM): https://github.com/pjfanning/jersey-1.x
 License (from POM): CDDL 1.1 - http://glassfish.java.net/public/CDDL+GPL_1_1.html
 License (from POM): GPL2 w/ CPE - http://glassfish.java.net/public/CDDL+GPL_1_1.html
