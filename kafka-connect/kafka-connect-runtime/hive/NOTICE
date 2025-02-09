@@ -211,6 +211,7 @@ Group: software.amazon.awssdk  Name: endpoints-spi  Version: 2.30.11
 Group: software.amazon.awssdk  Name: glue  Version: 2.30.11
 Group: software.amazon.awssdk  Name: http-auth  Version: 2.30.11
 Group: software.amazon.awssdk  Name: http-auth-aws  Version: 2.30.11
+Group: software.amazon.awssdk  Name: http-auth-aws-crt  Version: 2.30.11
 Group: software.amazon.awssdk  Name: http-auth-aws-eventstream  Version: 2.30.11
 Group: software.amazon.awssdk  Name: http-auth-spi  Version: 2.30.11
 Group: software.amazon.awssdk  Name: http-client-spi  Version: 2.30.11

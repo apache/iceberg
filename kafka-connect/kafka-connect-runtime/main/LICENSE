@@ -956,6 +956,8 @@ License (from POM): CDDL + GPLv2 with classpath exception - https://glassfish.de
 --------------------------------------------------------------------------------
 
 Group: javax.servlet.jsp  Name: jsp-api  Version: 2.1
+Project URL: https://github.com/javaee/javaee-jsp-api
+License (from POM): CDDL + GPLv2 with classpath exception - https://github.com/javaee/javaee-jsp-api/blob/master/LICENSE
 
 --------------------------------------------------------------------------------
 
@@ -1311,6 +1313,12 @@ License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2
 --------------------------------------------------------------------------------
 
 Group: software.amazon.awssdk  Name: http-auth-aws  Version: 2.30.11
+Project URL (from POM): https://aws.amazon.com/sdkforjava
+License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: http-auth-aws-crt  Version: 2.30.11
 Project URL (from POM): https://aws.amazon.com/sdkforjava
 License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
