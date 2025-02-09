@@ -572,8 +572,7 @@ public class Types {
       private Object initialDefault = null;
       private Object writeDefault = null;
 
-      private Builder() {
-      }
+      private Builder() {}
 
       private Builder(boolean isFieldOptional, String fieldName) {
         isOptional = isFieldOptional;

@@ -196,9 +196,9 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    *
    * <p>Adding a required column without a default is an incompatible change that can break reading
    * older data. To make this a compatible change, add a default value by calling {@link
-   * #updateColumnDefault(String, Object)} or use {@link #addRequiredColumn(String, Type,
-   * String, Object)} instead. To suppress exceptions thrown when an incompatible change is
-   * detected, call {@link #allowIncompatibleChanges()}.
+   * #updateColumnDefault(String, Object)} or use {@link #addRequiredColumn(String, Type, String,
+   * Object)} instead. To suppress exceptions thrown when an incompatible change is detected, call
+   * {@link #allowIncompatibleChanges()}.
    *
    * <p>Because "." may be interpreted as a column path separator or may be used in field names, it
    * is not allowed in names passed to this method. To add to nested structures or to add fields
@@ -220,9 +220,9 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    *
    * <p>Adding a required column without a default is an incompatible change that can break reading
    * older data. To make this a compatible change, add a default value by calling {@link
-   * #updateColumnDefault(String, Object)} or use {@link #addRequiredColumn(String, Type,
-   * String, Object)} instead. To suppress exceptions thrown when an incompatible change is
-   * detected, call {@link #allowIncompatibleChanges()}.
+   * #updateColumnDefault(String, Object)} or use {@link #addRequiredColumn(String, Type, String,
+   * Object)} instead. To suppress exceptions thrown when an incompatible change is detected, call
+   * {@link #allowIncompatibleChanges()}.
    *
    * <p>Because "." may be interpreted as a column path separator or may be used in field names, it
    * is not allowed in names passed to this method. To add to nested structures or to add fields
