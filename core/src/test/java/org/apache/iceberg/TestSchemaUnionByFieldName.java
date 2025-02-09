@@ -87,6 +87,21 @@ public class TestSchemaUnionByFieldName {
   }
 
   @Test
+  public void testAddFieldWithDefault() {
+    Schema newSchema =
+        new Schema(
+            optional("test")
+                .withId(1)
+                .ofType(LongType.get())
+                .withDoc("description")
+                .withInitialDefault(34)
+                .withWriteDefault(35)
+                .build());
+    Schema applied = new SchemaUpdate(new Schema(), 0).unionByNameWith(newSchema).apply();
+    assertThat(applied.asStruct()).isEqualTo(newSchema.asStruct());
+  }
+
+  @Test
   public void testAddTopLevelListOfPrimitives() {
     for (PrimitiveType primitiveType : primitiveTypes()) {
       Schema newSchema =
@@ -277,6 +292,36 @@ public class TestSchemaUnionByFieldName {
     assertThatThrownBy(() -> new SchemaUpdate(currentSchema, 3).unionByNameWith(newSchema).apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot change column type: aMap.key: string -> uuid");
+  }
+
+  @Test
+  public void testUpdateColumnDoc() {
+    Schema currentSchema = new Schema(required(1, "aCol", IntegerType.get()));
+    Schema newSchema = new Schema(required(1, "aCol", IntegerType.get(), "description"));
+
+    Schema applied = new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
+    assertThat(applied.asStruct()).isEqualTo(newSchema.asStruct());
+  }
+
+  @Test
+  public void testUpdateColumnDefaults() {
+    Schema currentSchema = new Schema(required(1, "aCol", IntegerType.get()));
+    Schema newSchema =
+        new Schema(
+            required("aCol")
+                .withId(1)
+                .ofType(IntegerType.get())
+                .withInitialDefault(34)
+                .withWriteDefault(35)
+                .build());
+
+    // the initial default is not modified for existing columns
+    Schema expected =
+        new Schema(
+            required("aCol").withId(1).ofType(IntegerType.get()).withWriteDefault(35).build());
+
+    Schema applied = new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
+    assertThat(applied.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test

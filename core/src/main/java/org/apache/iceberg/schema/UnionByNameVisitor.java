@@ -157,7 +157,9 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
 
   private void addColumn(int parentId, Types.NestedField field) {
     String parentName = partnerSchema.findColumnName(parentId);
-    api.addColumn(parentName, field.name(), field.type(), field.doc());
+    String fullName = (parentName != null ? parentName + "." : "") + field.name();
+    api.addColumn(parentName, field.name(), field.type(), field.doc(), field.initialDefault())
+        .updateColumnDefault(fullName, field.writeDefault());
   }
 
   private void updateColumn(Types.NestedField field, Types.NestedField existingField) {
@@ -166,6 +168,8 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
     boolean needsOptionalUpdate = field.isOptional() && existingField.isRequired();
     boolean needsTypeUpdate = !isIgnorableTypeUpdate(existingField.type(), field.type());
     boolean needsDocUpdate = field.doc() != null && !field.doc().equals(existingField.doc());
+    boolean needsDefaultUpdate =
+        field.writeDefault() != null && !field.writeDefault().equals(existingField.writeDefault());
 
     if (needsOptionalUpdate) {
       api.makeColumnOptional(fullName);
@@ -177,6 +181,10 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
 
     if (needsDocUpdate) {
       api.updateColumnDoc(fullName, field.doc());
+    }
+
+    if (needsDefaultUpdate) {
+      api.updateColumnDefault(fullName, field.writeDefault());
     }
   }
 

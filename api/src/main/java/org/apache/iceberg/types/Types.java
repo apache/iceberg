@@ -559,14 +559,21 @@ public class Types {
       return new Builder(true, name);
     }
 
+    public static Builder builder() {
+      return new Builder();
+    }
+
     public static class Builder {
-      private final boolean isOptional;
-      private final String name;
+      private boolean isOptional = true;
+      private String name = null;
       private Integer id = null;
       private Type type = null;
       private String doc = null;
       private Object initialDefault = null;
       private Object writeDefault = null;
+
+      private Builder() {
+      }
 
       private Builder(boolean isFieldOptional, String fieldName) {
         isOptional = isFieldOptional;
@@ -581,6 +588,26 @@ public class Types {
         this.doc = toCopy.doc;
         this.initialDefault = toCopy.initialDefault;
         this.writeDefault = toCopy.writeDefault;
+      }
+
+      public Builder asRequired() {
+        this.isOptional = false;
+        return this;
+      }
+
+      public Builder asOptional() {
+        this.isOptional = true;
+        return this;
+      }
+
+      public Builder isOptional(boolean fieldIsOptional) {
+        this.isOptional = fieldIsOptional;
+        return this;
+      }
+
+      public Builder withName(String fieldName) {
+        this.name = fieldName;
+        return this;
       }
 
       public Builder withId(int fieldId) {

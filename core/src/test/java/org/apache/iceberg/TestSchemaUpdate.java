@@ -204,6 +204,84 @@ public class TestSchemaUpdate {
   }
 
   @Test
+  public void testUpdateTypePreservesOtherMetadata() {
+    Schema schema =
+        new Schema(
+            required("i")
+                .withId(1)
+                .ofType(Types.IntegerType.get())
+                .withDoc("description")
+                .withInitialDefault(34)
+                .withWriteDefault(35)
+                .build());
+    Schema expected =
+        new Schema(
+            required("i")
+                .withId(1)
+                .withDoc("description")
+                .ofType(Types.LongType.get())
+                .withInitialDefault(34)
+                .withWriteDefault(35)
+                .build());
+
+    Schema updated = new SchemaUpdate(schema, 1).updateColumn("i", Types.LongType.get()).apply();
+
+    assertThat(updated.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testUpdateDocPreservesOtherMetadata() {
+    Schema schema =
+        new Schema(
+            required("i")
+                .withId(1)
+                .ofType(Types.IntegerType.get())
+                .withDoc("description")
+                .withInitialDefault(34)
+                .withWriteDefault(35)
+                .build());
+    Schema expected =
+        new Schema(
+            required("i")
+                .withId(1)
+                .ofType(Types.IntegerType.get())
+                .withDoc("longer description")
+                .withInitialDefault(34)
+                .withWriteDefault(35)
+                .build());
+
+    Schema updated = new SchemaUpdate(schema, 1).updateColumnDoc("i", "longer description").apply();
+
+    assertThat(updated.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testUpdateDefaultPreservesOtherMetadata() {
+    Schema schema =
+        new Schema(
+            required("i")
+                .withId(1)
+                .ofType(Types.IntegerType.get())
+                .withDoc("description")
+                .withInitialDefault(34)
+                .withWriteDefault(35)
+                .build());
+    Schema expected =
+        new Schema(
+            required("i")
+                .withId(1)
+                .ofType(Types.IntegerType.get())
+                .withDoc("description")
+                .withInitialDefault(34)
+                .withWriteDefault(123456)
+                .build());
+
+    Schema updated = new SchemaUpdate(schema, 1).updateColumnDefault("i", 123456).apply();
+
+    assertThat(updated.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
   public void testUpdateTypesCaseInsensitive() {
     Types.StructType expected =
         Types.StructType.of(
@@ -480,6 +558,53 @@ public class TestSchemaUpdate {
   }
 
   @Test
+  public void testAddColumnWithDefault() {
+    Schema schema = new Schema(optional(1, "id", Types.IntegerType.get()));
+    Schema expected =
+        new Schema(
+            optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withDoc("description")
+                .withInitialDefault("unknown")
+                .withWriteDefault("unknown")
+                .build());
+
+    // when default value is passed to add column, both initial and write defaults are set
+    Schema result =
+        new SchemaUpdate(schema, 1)
+            .addColumn("data", Types.StringType.get(), "description", "unknown")
+            .apply();
+
+    assertThat(result.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testAddColumnWithUpdateColumnDefault() {
+    Schema schema = new Schema(optional(1, "id", Types.IntegerType.get()));
+    Schema expected =
+        new Schema(
+            optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault(null)
+                .withWriteDefault("unknown")
+                .build());
+
+    // changes only the write default because the initial default is null when adding an optional
+    // column, unless the default value is given in the addColumn call
+    Schema result =
+        new SchemaUpdate(schema, 1)
+            .addColumn("data", Types.StringType.get())
+            .updateColumnDefault("data", "unknown")
+            .apply();
+
+    assertThat(result.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
   public void testAddNestedStruct() {
     Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
     Types.StructType struct =
@@ -569,7 +694,7 @@ public class TestSchemaUpdate {
   }
 
   @Test
-  public void testAddRequiredColumn() {
+  public void testAddRequiredColumnWithoutDefault() {
     Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
     Schema expected =
         new Schema(
@@ -577,14 +702,65 @@ public class TestSchemaUpdate {
             required(2, "data", Types.StringType.get()));
 
     assertThatThrownBy(
-            () -> new SchemaUpdate(schema, 1).addRequiredColumn("data", Types.StringType.get()))
+            () ->
+                new SchemaUpdate(schema, 1)
+                    .addRequiredColumn("data", Types.StringType.get())
+                    .apply())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Incompatible change: cannot add required column: data");
+        .hasMessage(
+            "Incompatible change: cannot add required column without a default value: data");
 
     Schema result =
         new SchemaUpdate(schema, 1)
             .allowIncompatibleChanges()
             .addRequiredColumn("data", Types.StringType.get())
+            .apply();
+
+    assertThat(result.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testAddRequiredColumnWithDefault() {
+    Schema schema = new Schema(optional(1, "id", Types.IntegerType.get()));
+    Schema expected =
+        new Schema(
+            optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withDoc("description")
+                .withInitialDefault("unknown")
+                .withWriteDefault("unknown")
+                .build());
+
+    // when default value is passed to add column, both initial and write defaults are set
+    Schema result =
+        new SchemaUpdate(schema, 1)
+            .addRequiredColumn("data", Types.StringType.get(), "description", "unknown")
+            .apply();
+
+    assertThat(result.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testAddRequiredColumnWithUpdateColumnDefault() {
+    Schema schema = new Schema(optional(1, "id", Types.IntegerType.get()));
+    Schema expected =
+        new Schema(
+            optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault("unknown")
+                .withWriteDefault("unknown")
+                .build());
+
+    // changes the initial default, which has not been set and is needed or else this is an
+    // incompatible change. also sets the write default.
+    Schema result =
+        new SchemaUpdate(schema, 1)
+            .addRequiredColumn("data", Types.StringType.get())
+            .updateColumnDefault("data", "unknown")
             .apply();
 
     assertThat(result.asStruct()).isEqualTo(expected.asStruct());
@@ -631,6 +807,44 @@ public class TestSchemaUpdate {
         new SchemaUpdate(schema, 1).allowIncompatibleChanges().requireColumn("id").apply();
 
     assertThat(result.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testAddColumnWithDefaultToRequiredColumn() {
+    Schema schema = new Schema(optional(1, "id", Types.IntegerType.get()));
+    Schema expected =
+        new Schema(
+            optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault("unknown")
+                .withWriteDefault("unknown")
+                .build());
+
+    Schema result =
+        new SchemaUpdate(schema, 1)
+            .addColumn("data", Types.StringType.get(), null, "unknown")
+            .requireColumn("data")
+            .apply();
+
+    assertThat(result.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testAddColumnWithUpdateColumnDefaultToRequiredColumn() {
+    Schema schema = new Schema(optional(1, "id", Types.IntegerType.get()));
+
+    // updateColumnDefault with an optional column does not set the initial default so the column
+    // cannot be set to required
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, 1)
+                    .addColumn("data", Types.StringType.get())
+                    .updateColumnDefault("data", "unknown")
+                    .requireColumn("data"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column nullability: data: optional -> required");
   }
 
   @Test
@@ -902,6 +1116,24 @@ public class TestSchemaUpdate {
   }
 
   @Test
+  public void testUpdateMissingColumnDoc() {
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+                    .updateColumnDoc("col", "description"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot update missing column: col");
+  }
+
+  @Test
+  public void testUpdateMissingColumnDefaultValue() {
+    assertThatThrownBy(
+            () -> new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID).updateColumnDefault("col", 34))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot update missing column: col");
+  }
+
+  @Test
   public void testUpdateDeleteConflict() {
     assertThatThrownBy(
             () -> {
@@ -971,16 +1203,36 @@ public class TestSchemaUpdate {
   }
 
   @Test
+  public void testUpdateAddedColumnType() {
+    Schema schema = new Schema(required(1, "i", Types.IntegerType.get()));
+    Schema expected =
+        new Schema(
+            required(1, "i", Types.IntegerType.get()), optional(2, "value", Types.LongType.get()));
+
+    Schema updated =
+        new SchemaUpdate(schema, 1)
+            .addColumn("value", Types.IntegerType.get())
+            .updateColumn("value", Types.LongType.get())
+            .apply();
+
+    assertThat(updated.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
   public void testUpdateAddedColumnDoc() {
     Schema schema = new Schema(required(1, "i", Types.IntegerType.get()));
-    assertThatThrownBy(
-            () ->
-                new SchemaUpdate(schema, 3)
-                    .addColumn("value", Types.LongType.get())
-                    .updateColumnDoc("value", "a value")
-                    .apply())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot update missing column: value");
+    Schema expected =
+        new Schema(
+            required(1, "i", Types.IntegerType.get()),
+            optional(2, "value", Types.LongType.get(), "a value"));
+
+    Schema updated =
+        new SchemaUpdate(schema, 1)
+            .addColumn("value", Types.LongType.get())
+            .updateColumnDoc("value", "a value")
+            .apply();
+
+    assertThat(updated.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
