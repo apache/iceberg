@@ -283,7 +283,8 @@ Snapshots that are still referenced by branches or tags won't be removed. By def
 | `deleted_position_delete_files_count` | long | Number of position delete files deleted by this operation |
 | `deleted_equality_delete_files_count` | long | Number of equality delete files deleted by this operation |
 | `deleted_manifest_files_count` | long | Number of manifest files deleted by this operation |
-| `deleted_manifest_lists_count` | long | Number of manifest List files deleted by this operation |
+| `deleted_manifest_lists_count` | long | Number of manifest list files deleted by this operation |
+| `deleted_statistics_files_count` | long | Number of statistics files deleted by this operation |
 
 #### Examples
 
