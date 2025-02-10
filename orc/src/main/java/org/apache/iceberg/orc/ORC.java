@@ -41,7 +41,6 @@ import static org.apache.iceberg.TableProperties.ORC_WRITE_BATCH_SIZE_DEFAULT;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -51,24 +50,22 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.MetricsConfig;
-import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SortOrder;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.encryption.NativeEncryptionInputFile;
 import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
@@ -77,10 +74,20 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.io.datafile.AppenderBuilder;
+import org.apache.iceberg.io.datafile.AppenderBuilderBase;
+import org.apache.iceberg.io.datafile.DataWriterBuilder;
+import org.apache.iceberg.io.datafile.DataWriterBuilderBase;
+import org.apache.iceberg.io.datafile.EqualityDeleteWriterBuilder;
+import org.apache.iceberg.io.datafile.EqualityDeleteWriterBuilderBase;
+import org.apache.iceberg.io.datafile.PositionDeleteWriterBuilder;
+import org.apache.iceberg.io.datafile.ReaderBuilder;
+import org.apache.iceberg.io.datafile.ReaderBuilderBase;
+import org.apache.iceberg.io.datafile.ServiceBase;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.orc.CompressionKind;
 import org.apache.orc.OrcConf;
@@ -112,19 +119,19 @@ public class ORC {
     return new WriteBuilder(file.encryptingOutputFile());
   }
 
-  public static class WriteBuilder {
-    private final OutputFile file;
+  public static Schema schemaWithoutConstantAndMetadataFields(
+      Schema target, Map<Integer, ?> idToConstant) {
+    return TypeUtil.selectNot(
+        target, Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
+  }
+
+  public static class WriteBuilder extends AppenderBuilderBase<WriteBuilder> {
     private final Configuration conf;
-    private Schema schema = null;
     private BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc;
-    private final Map<String, byte[]> metadata = Maps.newHashMap();
-    private MetricsConfig metricsConfig;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
-    private final Map<String, String> config = Maps.newLinkedHashMap();
-    private boolean overwrite = false;
 
     private WriteBuilder(OutputFile file) {
-      this.file = file;
+      super(file);
       if (file instanceof HadoopOutputFile) {
         this.conf = new Configuration(((HadoopOutputFile) file).getConf());
       } else {
@@ -132,50 +139,15 @@ public class ORC {
       }
     }
 
-    public WriteBuilder forTable(Table table) {
-      schema(table.schema());
-      setAll(table.properties());
-      metricsConfig(MetricsConfig.forTable(table));
-      return this;
-    }
-
+    @Deprecated
     public WriteBuilder metadata(String property, String value) {
-      metadata.put(property, value.getBytes(StandardCharsets.UTF_8));
-      return this;
-    }
-
-    public WriteBuilder set(String property, String value) {
-      config.put(property, value);
+      meta(property, value);
       return this;
     }
 
     public WriteBuilder createWriterFunc(
         BiFunction<Schema, TypeDescription, OrcRowWriter<?>> writerFunction) {
       this.createWriterFunc = writerFunction;
-      return this;
-    }
-
-    public WriteBuilder setAll(Map<String, String> properties) {
-      config.putAll(properties);
-      return this;
-    }
-
-    public WriteBuilder schema(Schema newSchema) {
-      this.schema = newSchema;
-      return this;
-    }
-
-    public WriteBuilder overwrite() {
-      return overwrite(true);
-    }
-
-    public WriteBuilder overwrite(boolean enabled) {
-      this.overwrite = enabled;
-      return this;
-    }
-
-    public WriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
-      this.metricsConfig = newMetricsConfig;
       return this;
     }
 
@@ -186,37 +158,41 @@ public class ORC {
       return this;
     }
 
+    @Override
     public <D> FileAppender<D> build() {
-      Preconditions.checkNotNull(schema, "Schema is required");
+      Preconditions.checkNotNull(schema(), "Schema is required");
 
-      for (Map.Entry<String, String> entry : config.entrySet()) {
+      for (Map.Entry<String, String> entry : config().entrySet()) {
         this.conf.set(entry.getKey(), entry.getValue());
       }
 
       // for compatibility
-      if (conf.get(VECTOR_ROW_BATCH_SIZE) != null && config.get(ORC_WRITE_BATCH_SIZE) == null) {
-        config.put(ORC_WRITE_BATCH_SIZE, conf.get(VECTOR_ROW_BATCH_SIZE));
+      if (conf.get(VECTOR_ROW_BATCH_SIZE) != null && config().get(ORC_WRITE_BATCH_SIZE) == null) {
+        config().put(ORC_WRITE_BATCH_SIZE, conf.get(VECTOR_ROW_BATCH_SIZE));
       }
 
       // Map Iceberg properties to pass down to the ORC writer
-      Context context = createContextFunc.apply(config);
+      Context context = createContextFunc.apply(config());
 
       OrcConf.STRIPE_SIZE.setLong(conf, context.stripeSize());
       OrcConf.BLOCK_SIZE.setLong(conf, context.blockSize());
       OrcConf.COMPRESS.setString(conf, context.compressionKind().name());
       OrcConf.COMPRESSION_STRATEGY.setString(conf, context.compressionStrategy().name());
-      OrcConf.OVERWRITE_OUTPUT_FILE.setBoolean(conf, overwrite);
+      OrcConf.OVERWRITE_OUTPUT_FILE.setBoolean(conf, isOverwrite());
       OrcConf.BLOOM_FILTER_COLUMNS.setString(conf, context.bloomFilterColumns());
       OrcConf.BLOOM_FILTER_FPP.setDouble(conf, context.bloomFilterFpp());
 
       return new OrcFileAppender<>(
-          schema,
-          this.file,
+          schema(),
+          file(),
           createWriterFunc,
           conf,
-          metadata,
+          metadata().entrySet().stream()
+              .collect(
+                  Collectors.toMap(
+                      Map.Entry::getKey, e -> e.getValue().getBytes(StandardCharsets.UTF_8))),
           context.vectorizedRowBatchSize(),
-          metricsConfig);
+          metricsConfig());
     }
 
     private static class Context {
@@ -399,96 +375,26 @@ public class ORC {
     return new DataWriteBuilder(file.encryptingOutputFile());
   }
 
-  public static class DataWriteBuilder {
-    private final WriteBuilder appenderBuilder;
-    private final String location;
-    private PartitionSpec spec = null;
-    private StructLike partition = null;
-    private EncryptionKeyMetadata keyMetadata = null;
-    private SortOrder sortOrder = null;
+  public static class DataWriteBuilder extends DataWriterBuilderBase<DataWriteBuilder> {
 
     private DataWriteBuilder(OutputFile file) {
-      this.appenderBuilder = write(file);
-      this.location = file.location();
-    }
-
-    public DataWriteBuilder forTable(Table table) {
-      schema(table.schema());
-      withSpec(table.spec());
-      setAll(table.properties());
-      metricsConfig(MetricsConfig.forTable(table));
-      return this;
-    }
-
-    public DataWriteBuilder schema(Schema newSchema) {
-      appenderBuilder.schema(newSchema);
-      return this;
-    }
-
-    public DataWriteBuilder set(String property, String value) {
-      appenderBuilder.set(property, value);
-      return this;
-    }
-
-    public DataWriteBuilder setAll(Map<String, String> properties) {
-      appenderBuilder.setAll(properties);
-      return this;
-    }
-
-    public DataWriteBuilder meta(String property, String value) {
-      appenderBuilder.metadata(property, value);
-      return this;
-    }
-
-    public DataWriteBuilder overwrite() {
-      return overwrite(true);
-    }
-
-    public DataWriteBuilder overwrite(boolean enabled) {
-      appenderBuilder.overwrite(enabled);
-      return this;
-    }
-
-    public DataWriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
-      appenderBuilder.metricsConfig(newMetricsConfig);
-      return this;
+      super(write(file), FileFormat.ORC);
     }
 
     public DataWriteBuilder createWriterFunc(
         BiFunction<Schema, TypeDescription, OrcRowWriter<?>> writerFunction) {
-      appenderBuilder.createWriterFunc(writerFunction);
+      ((WriteBuilder) appenderBuilder()).createWriterFunc(writerFunction);
       return this;
     }
 
-    public DataWriteBuilder withSpec(PartitionSpec newSpec) {
-      this.spec = newSpec;
-      return this;
-    }
-
-    public DataWriteBuilder withPartition(StructLike newPartition) {
-      this.partition = newPartition;
-      return this;
-    }
-
-    public DataWriteBuilder withKeyMetadata(EncryptionKeyMetadata metadata) {
-      this.keyMetadata = metadata;
-      return this;
-    }
-
-    public DataWriteBuilder withSortOrder(SortOrder newSortOrder) {
-      this.sortOrder = newSortOrder;
-      return this;
-    }
-
-    public <T> DataWriter<T> build() {
-      Preconditions.checkArgument(spec != null, "Cannot create data writer without spec");
-      Preconditions.checkArgument(
-          spec.isUnpartitioned() || partition != null,
-          "Partition must not be null when creating data writer for partitioned spec");
-
-      FileAppender<T> fileAppender = appenderBuilder.build();
-      return new DataWriter<>(
-          fileAppender, FileFormat.ORC, location, spec, partition, keyMetadata, sortOrder);
+    @Override
+    public <D> DataWriter<D> build() {
+      try {
+        return super.build();
+      } catch (IOException ioe) {
+        // This should not happen as the WriteBuilder#build doesn't throw an exception
+        throw new RuntimeIOException(ioe, "Failed to create writer: %s", location());
+      }
     }
   }
 
@@ -502,58 +408,13 @@ public class ORC {
     return new DeleteWriteBuilder(file.encryptingOutputFile());
   }
 
-  public static class DeleteWriteBuilder {
-    private final WriteBuilder appenderBuilder;
-    private final String location;
+  public static class DeleteWriteBuilder extends EqualityDeleteWriterBuilderBase<DeleteWriteBuilder>
+      implements PositionDeleteWriterBuilder<DeleteWriteBuilder> {
     private BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc = null;
-    private Schema rowSchema = null;
-    private PartitionSpec spec = null;
-    private StructLike partition = null;
-    private EncryptionKeyMetadata keyMetadata = null;
-    private int[] equalityFieldIds = null;
-    private SortOrder sortOrder;
     private Function<CharSequence, ?> pathTransformFunc = Function.identity();
 
     private DeleteWriteBuilder(OutputFile file) {
-      this.appenderBuilder = write(file);
-      this.location = file.location();
-    }
-
-    public DeleteWriteBuilder forTable(Table table) {
-      rowSchema(table.schema());
-      withSpec(table.spec());
-      setAll(table.properties());
-      metricsConfig(MetricsConfig.forTable(table));
-      return this;
-    }
-
-    public DeleteWriteBuilder set(String property, String value) {
-      appenderBuilder.set(property, value);
-      return this;
-    }
-
-    public DeleteWriteBuilder setAll(Map<String, String> properties) {
-      appenderBuilder.setAll(properties);
-      return this;
-    }
-
-    public DeleteWriteBuilder meta(String property, String value) {
-      appenderBuilder.metadata(property, value);
-      return this;
-    }
-
-    public DeleteWriteBuilder overwrite() {
-      return overwrite(true);
-    }
-
-    public DeleteWriteBuilder overwrite(boolean enabled) {
-      appenderBuilder.overwrite(enabled);
-      return this;
-    }
-
-    public DeleteWriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
-      appenderBuilder.metricsConfig(newMetricsConfig);
-      return this;
+      super(write(file), FileFormat.ORC);
     }
 
     public DeleteWriteBuilder createWriterFunc(
@@ -562,99 +423,71 @@ public class ORC {
       return this;
     }
 
-    public DeleteWriteBuilder rowSchema(Schema newSchema) {
-      this.rowSchema = newSchema;
-      return this;
-    }
-
-    public DeleteWriteBuilder withSpec(PartitionSpec newSpec) {
-      this.spec = newSpec;
-      return this;
-    }
-
-    public DeleteWriteBuilder withPartition(StructLike key) {
-      this.partition = key;
-      return this;
-    }
-
-    public DeleteWriteBuilder withKeyMetadata(EncryptionKeyMetadata metadata) {
-      this.keyMetadata = metadata;
-      return this;
-    }
-
-    public DeleteWriteBuilder equalityFieldIds(List<Integer> fieldIds) {
-      this.equalityFieldIds = ArrayUtil.toIntArray(fieldIds);
-      return this;
-    }
-
-    public DeleteWriteBuilder equalityFieldIds(int... fieldIds) {
-      this.equalityFieldIds = fieldIds;
-      return this;
-    }
-
     public DeleteWriteBuilder transformPaths(Function<CharSequence, ?> newPathTransformFunc) {
       this.pathTransformFunc = newPathTransformFunc;
       return this;
     }
 
-    public DeleteWriteBuilder withSortOrder(SortOrder newSortOrder) {
-      this.sortOrder = newSortOrder;
-      return this;
-    }
-
+    @Override
     public <T> EqualityDeleteWriter<T> buildEqualityWriter() {
       Preconditions.checkState(
-          rowSchema != null, "Cannot create equality delete file without a schema");
+          rowSchema() != null, "Cannot create equality delete file without a schema");
       Preconditions.checkState(
-          equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
+          equalityFieldIds() != null,
+          "Cannot create equality delete file without delete field ids");
       Preconditions.checkState(
           createWriterFunc != null,
           "Cannot create equality delete file unless createWriterFunc is set");
       Preconditions.checkArgument(
-          spec != null, "Spec must not be null when creating equality delete writer");
+          spec() != null, "Spec must not be null when creating equality delete writer");
       Preconditions.checkArgument(
-          spec.isUnpartitioned() || partition != null,
+          spec().isUnpartitioned() || partition() != null,
           "Partition must not be null for partitioned writes");
 
       meta("delete-type", "equality");
       meta(
           "delete-field-ids",
-          IntStream.of(equalityFieldIds)
+          IntStream.of(equalityFieldIds())
               .mapToObj(Objects::toString)
               .collect(Collectors.joining(", ")));
 
+      WriteBuilder appenderBuilder = ((WriteBuilder) appenderBuilder());
+
       // the appender uses the row schema without extra columns
-      appenderBuilder.schema(rowSchema);
+      appenderBuilder.schema(rowSchema());
       appenderBuilder.createWriterFunc(createWriterFunc);
       appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
 
       return new EqualityDeleteWriter<>(
           appenderBuilder.build(),
           FileFormat.ORC,
-          location,
-          spec,
-          partition,
-          keyMetadata,
-          sortOrder,
-          equalityFieldIds);
+          appenderBuilder().location(),
+          spec(),
+          partition(),
+          keyMetadata(),
+          sortOrder(),
+          equalityFieldIds());
     }
 
+    @Override
     public <T> PositionDeleteWriter<T> buildPositionWriter() {
       Preconditions.checkState(
-          equalityFieldIds == null, "Cannot create position delete file using delete field ids");
+          equalityFieldIds() == null, "Cannot create position delete file using delete field ids");
       Preconditions.checkArgument(
-          spec != null, "Spec must not be null when creating position delete writer");
+          spec() != null, "Spec must not be null when creating position delete writer");
       Preconditions.checkArgument(
-          spec.isUnpartitioned() || partition != null,
+          spec().isUnpartitioned() || partition() != null,
           "Partition must not be null for partitioned writes");
       Preconditions.checkArgument(
-          rowSchema == null || createWriterFunc != null,
+          rowSchema() == null || createWriterFunc != null,
           "Create function should be provided if we write row data");
 
       meta("delete-type", "position");
 
-      if (rowSchema != null && createWriterFunc != null) {
-        Schema deleteSchema = DeleteSchemaUtil.posDeleteSchema(rowSchema);
+      WriteBuilder appenderBuilder = ((WriteBuilder) appenderBuilder());
+
+      if (rowSchema() != null && createWriterFunc != null) {
+        Schema deleteSchema = DeleteSchemaUtil.posDeleteSchema(rowSchema());
         appenderBuilder.schema(deleteSchema);
 
         appenderBuilder.createWriterFunc(
@@ -672,10 +505,15 @@ public class ORC {
                     GenericOrcWriter.buildWriter(schema, typeDescription), Function.identity()));
       }
 
-      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
+      ((WriteBuilder) appenderBuilder()).createContextFunc(WriteBuilder.Context::deleteContext);
 
       return new PositionDeleteWriter<>(
-          appenderBuilder.build(), FileFormat.ORC, location, spec, partition, keyMetadata);
+          appenderBuilder.build(),
+          FileFormat.ORC,
+          appenderBuilder().location(),
+          spec(),
+          partition(),
+          keyMetadata());
     }
   }
 
@@ -686,23 +524,13 @@ public class ORC {
     return new ReadBuilder(file);
   }
 
-  public static class ReadBuilder {
-    private final InputFile file;
+  public static class ReadBuilder extends ReaderBuilderBase<ReadBuilder> {
     private final Configuration conf;
-    private Schema schema = null;
-    private Long start = null;
-    private Long length = null;
-    private Expression filter = null;
-    private boolean caseSensitive = true;
-    private NameMapping nameMapping = null;
-
     private Function<TypeDescription, OrcRowReader<?>> readerFunc;
     private Function<TypeDescription, OrcBatchReader<?>> batchedReaderFunc;
-    private int recordsPerBatch = VectorizedRowBatch.DEFAULT_SIZE;
 
-    private ReadBuilder(InputFile file) {
-      Preconditions.checkNotNull(file, "Input file cannot be null");
-      this.file = file;
+    ReadBuilder(InputFile file) {
+      super(file);
       if (file instanceof HadoopInputFile) {
         this.conf = new Configuration(((HadoopInputFile) file).getConf());
       } else {
@@ -712,34 +540,18 @@ public class ORC {
       // We need to turn positional schema evolution off since we use column name based schema
       // evolution for projection
       this.conf.setBoolean(OrcConf.FORCE_POSITIONAL_EVOLUTION.getHiveConfName(), false);
+      this.recordsPerBatch(VectorizedRowBatch.DEFAULT_SIZE);
     }
 
-    /**
-     * Restricts the read to the given range: [start, start + length).
-     *
-     * @param newStart the start position for this read
-     * @param newLength the length of the range this read should scan
-     * @return this builder for method chaining
-     */
-    public ReadBuilder split(long newStart, long newLength) {
-      this.start = newStart;
-      this.length = newLength;
-      return this;
-    }
-
-    public ReadBuilder project(Schema newSchema) {
-      this.schema = newSchema;
-      return this;
-    }
-
-    public ReadBuilder caseSensitive(boolean newCaseSensitive) {
-      OrcConf.IS_SCHEMA_EVOLUTION_CASE_SENSITIVE.setBoolean(this.conf, newCaseSensitive);
-      this.caseSensitive = newCaseSensitive;
-      return this;
-    }
-
+    @Deprecated
     public ReadBuilder config(String property, String value) {
-      conf.set(property, value);
+      return set(property, value);
+    }
+
+    @Override
+    public ReadBuilder set(String key, String value) {
+      super.set(key, value);
+      conf.set(key, value);
       return this;
     }
 
@@ -748,11 +560,6 @@ public class ORC {
           this.batchedReaderFunc == null,
           "Reader function cannot be set since the batched version is already set");
       this.readerFunc = readerFunction;
-      return this;
-    }
-
-    public ReadBuilder filter(Expression newFilter) {
-      this.filter = newFilter;
       return this;
     }
 
@@ -765,30 +572,21 @@ public class ORC {
       return this;
     }
 
-    public ReadBuilder recordsPerBatch(int numRecordsPerBatch) {
-      this.recordsPerBatch = numRecordsPerBatch;
-      return this;
-    }
-
-    public ReadBuilder withNameMapping(NameMapping newNameMapping) {
-      this.nameMapping = newNameMapping;
-      return this;
-    }
-
+    @Override
     public <D> CloseableIterable<D> build() {
-      Preconditions.checkNotNull(schema, "Schema is required");
+      Preconditions.checkNotNull(schema(), "Schema is required");
       return new OrcIterable<>(
-          file,
+          file(),
           conf,
-          schema,
-          nameMapping,
-          start,
-          length,
+          schema(),
+          nameMapping(),
+          start(),
+          length(),
           readerFunc,
-          caseSensitive,
-          filter,
+          isCaseSensitive(),
+          filter(),
           batchedReaderFunc,
-          recordsPerBatch);
+          recordsPerBatch());
     }
   }
 
@@ -828,5 +626,58 @@ public class ORC {
     metadata.forEach((key, value) -> writer.addUserMetadata(key, ByteBuffer.wrap(value)));
 
     return writer;
+  }
+
+  public static class ReaderService extends ServiceBase
+      implements org.apache.iceberg.io.datafile.ReaderService {
+    public ReaderService() {
+      super(FileFormat.ORC, Record.class.getName());
+    }
+
+    @Override
+    public ReaderBuilder<?> builder(
+        InputFile inputFile,
+        ContentScanTask<?> task,
+        Schema readSchema,
+        Table table,
+        org.apache.iceberg.io.datafile.DeleteFilter<?> deleteFilter) {
+      Map<Integer, ?> idToConstant = PartitionUtil.constantsMap(task, readSchema);
+      return new ReadBuilder(inputFile)
+          .project(ORC.schemaWithoutConstantAndMetadataFields(readSchema, idToConstant))
+          .createReaderFunc(
+              fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema, idToConstant));
+    }
+  }
+
+  public static class WriterService extends ServiceBase
+      implements org.apache.iceberg.io.datafile.WriterService<Schema> {
+    public WriterService(FileFormat format, String dataType) {
+      super(FileFormat.ORC, Record.class.getName());
+    }
+
+    @Override
+    public AppenderBuilder<?> appenderBuilder(EncryptedOutputFile outputFile, Schema rowType) {
+      return ORC.write(outputFile).createWriterFunc(GenericOrcWriter::buildWriter);
+    }
+
+    @Override
+    public DataWriterBuilder<?> dataWriterBuilder(EncryptedOutputFile outputFile, Schema rowType) {
+      return new DataWriteBuilder(outputFile.encryptingOutputFile())
+          .createWriterFunc(GenericOrcWriter::buildWriter);
+    }
+
+    @Override
+    public EqualityDeleteWriterBuilder<?> equalityDeleteWriterBuilder(
+        EncryptedOutputFile outputFile, Schema rowType) {
+      return new DeleteWriteBuilder(outputFile.encryptingOutputFile())
+          .createWriterFunc(GenericOrcWriter::buildWriter);
+    }
+
+    @Override
+    public PositionDeleteWriterBuilder<?> positionDeleteWriterBuilder(
+        EncryptedOutputFile outputFile, Schema rowType) {
+      return new DeleteWriteBuilder(outputFile.encryptingOutputFile())
+          .createWriterFunc(GenericOrcWriter::buildWriter);
+    }
   }
 }
