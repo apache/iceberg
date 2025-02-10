@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -35,6 +36,13 @@ public class GenericBlobMetadata implements BlobMetadata {
         puffinMetadata.sequenceNumber(),
         puffinMetadata.inputFields(),
         puffinMetadata.properties());
+  }
+
+  public static List<BlobMetadata> from(
+      Collection<org.apache.iceberg.puffin.BlobMetadata> puffinMetadataList) {
+    return puffinMetadataList.stream()
+        .map(GenericBlobMetadata::from)
+        .collect(ImmutableList.toImmutableList());
   }
 
   private final String type;

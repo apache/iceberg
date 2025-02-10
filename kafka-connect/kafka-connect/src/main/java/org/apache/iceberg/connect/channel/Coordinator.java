@@ -33,6 +33,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.RowDelta;
@@ -53,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.kafka.clients.admin.MemberDescription;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,6 +73,7 @@ class Coordinator extends Channel {
   private final String snapshotOffsetsProp;
   private final ExecutorService exec;
   private final CommitState commitState;
+  private volatile boolean terminated;
 
   Coordinator(
       Catalog catalog,
@@ -88,7 +91,7 @@ class Coordinator extends Channel {
     this.snapshotOffsetsProp =
         String.format(
             "kafka.connect.offsets.%s.%s", config.controlTopic(), config.connectGroupId());
-    this.exec = ThreadPools.newWorkerPool("iceberg-committer", config.commitThreads());
+    this.exec = ThreadPools.newFixedThreadPool("iceberg-committer", config.commitThreads());
     this.commitState = new CommitState(config);
   }
 
@@ -207,7 +210,7 @@ class Coordinator extends Channel {
             .filter(payload -> payload.dataFiles() != null)
             .flatMap(payload -> payload.dataFiles().stream())
             .filter(dataFile -> dataFile.recordCount() > 0)
-            .filter(distinctByKey(dataFile -> dataFile.path().toString()))
+            .filter(distinctByKey(ContentFile::location))
             .collect(Collectors.toList());
 
     List<DeleteFile> deleteFiles =
@@ -215,8 +218,12 @@ class Coordinator extends Channel {
             .filter(payload -> payload.deleteFiles() != null)
             .flatMap(payload -> payload.deleteFiles().stream())
             .filter(deleteFile -> deleteFile.recordCount() > 0)
-            .filter(distinctByKey(deleteFile -> deleteFile.path().toString()))
+            .filter(distinctByKey(ContentFile::location))
             .collect(Collectors.toList());
+
+    if (terminated) {
+      throw new ConnectException("Coordinator is terminated, commit aborted");
+    }
 
     if (dataFiles.isEmpty() && deleteFiles.isEmpty()) {
       LOG.info("Nothing to commit to table {}, skipping", tableIdentifier);
@@ -296,19 +303,18 @@ class Coordinator extends Channel {
     return ImmutableMap.of();
   }
 
-  @Override
-  void stop() {
+  void terminate() {
+    this.terminated = true;
+
     exec.shutdownNow();
 
-    // ensure coordinator tasks are shut down, else cause the sink worker to fail
+    // wait for coordinator termination, else cause the sink task to fail
     try {
       if (!exec.awaitTermination(1, TimeUnit.MINUTES)) {
-        throw new RuntimeException("Timed out waiting for coordinator shutdown");
+        throw new ConnectException("Timed out waiting for coordinator shutdown");
       }
     } catch (InterruptedException e) {
-      throw new RuntimeException("Interrupted while waiting for coordinator shutdown", e);
+      throw new ConnectException("Interrupted while waiting for coordinator shutdown", e);
     }
-
-    super.stop();
   }
 }

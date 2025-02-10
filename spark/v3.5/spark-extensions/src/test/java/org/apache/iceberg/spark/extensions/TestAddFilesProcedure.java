@@ -948,6 +948,26 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
+  @TestTemplate
+  public void testAddFilesPartitionedWithParallelism() {
+    createPartitionedHiveTable();
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.add_files(table => '%s', source_table => '%s', parallelism => 2)",
+            catalogName, tableName, sourceTableName);
+
+    assertOutput(result, 8L, 4L);
+
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
   private static final List<Object[]> EMPTY_QUERY_RESULT = Lists.newArrayList();
 
   private static final StructField[] STRUCT = {

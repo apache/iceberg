@@ -76,7 +76,9 @@ public class DynConstructors {
       return (R) newInstance(args);
     }
 
-    /** @deprecated since 1.7.0, visibility will be reduced in 1.8.0 */
+    /**
+     * @deprecated since 1.7.0, visibility will be reduced in 1.8.0
+     */
     @Deprecated // will become package-private
     @Override
     @SuppressWarnings("unchecked")

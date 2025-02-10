@@ -20,17 +20,14 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.entry;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -38,12 +35,11 @@ import org.junit.jupiter.api.io.TempDir;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestPartitionSpecInfo {
 
-  @TempDir private Path temp;
+  @TempDir private File tableDir;
 
   private final Schema schema =
       new Schema(
           required(1, "id", Types.IntegerType.get()), required(2, "data", Types.StringType.get()));
-  private File tableDir = null;
 
   @Parameters(name = "formatVersion = {0}")
   protected static List<Object> parameters() {
@@ -51,11 +47,6 @@ public class TestPartitionSpecInfo {
   }
 
   @Parameter private int formatVersion;
-
-  @BeforeEach
-  public void setupTableDir() throws IOException {
-    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
-  }
 
   @AfterEach
   public void cleanupTables() {
@@ -93,6 +84,30 @@ public class TestPartitionSpecInfo {
     assertThat(table.specs())
         .containsExactly(entry(spec.specId(), spec))
         .doesNotContainKey(Integer.MAX_VALUE);
+  }
+
+  @TestTemplate
+  public void testSpecInfoPartitionedTableCaseInsensitive() {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(schema).caseSensitive(false).identity("DATA").build();
+    TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
+
+    assertThat(table.spec()).isEqualTo(spec);
+    assertThat(table.spec().lastAssignedFieldId()).isEqualTo(spec.lastAssignedFieldId());
+    assertThat(table.specs())
+        .containsExactly(entry(spec.specId(), spec))
+        .doesNotContainKey(Integer.MAX_VALUE);
+  }
+
+  @TestTemplate
+  public void testSpecInfoPartitionedTableCaseSensitiveFails() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () -> {
+              PartitionSpec spec =
+                  PartitionSpec.builderFor(schema).caseSensitive(true).identity("DATA").build();
+            })
+        .withMessage("Cannot find source column: DATA");
   }
 
   @TestTemplate

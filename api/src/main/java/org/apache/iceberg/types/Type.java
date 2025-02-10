@@ -37,6 +37,7 @@ public interface Type extends Serializable {
     DATE(Integer.class),
     TIME(Long.class),
     TIMESTAMP(Long.class),
+    TIMESTAMP_NANO(Long.class),
     STRING(CharSequence.class),
     UUID(java.util.UUID.class),
     FIXED(ByteBuffer.class),
@@ -44,7 +45,9 @@ public interface Type extends Serializable {
     DECIMAL(BigDecimal.class),
     STRUCT(StructLike.class),
     LIST(List.class),
-    MAP(Map.class);
+    MAP(Map.class),
+    VARIANT(Object.class),
+    UNKNOWN(Object.class);
 
     private final Class<?> javaClass;
 

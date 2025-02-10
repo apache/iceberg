@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.apache.iceberg.rest.TestRESTCatalog.reqMatcher;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -38,7 +39,7 @@ import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.rest.RESTCatalogAdapter.HTTPMethod;
+import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
@@ -52,16 +53,18 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
 public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
 
-  @TempDir private Path temp;
+  @TempDir protected Path temp;
 
-  private RESTCatalog restCatalog;
-  private InMemoryCatalog backendCatalog;
-  private Server httpServer;
+  protected RESTCatalog restCatalog;
+  protected InMemoryCatalog backendCatalog;
+  protected Server httpServer;
 
   @BeforeEach
   public void createCatalog() throws Exception {
@@ -70,23 +73,23 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     this.backendCatalog = new InMemoryCatalog();
     this.backendCatalog.initialize(
         "in-memory",
-        ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath()));
+        ImmutableMap.<String, String>builder()
+            .put(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath())
+            .put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key1", "catalog-default-key1")
+            .put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key2", "catalog-default-key2")
+            .build());
 
     RESTCatalogAdapter adaptor =
         new RESTCatalogAdapter(backendCatalog) {
           @Override
           public <T extends RESTResponse> T execute(
-              HTTPMethod method,
-              String path,
-              Map<String, String> queryParams,
-              Object body,
+              HTTPRequest request,
               Class<T> responseType,
-              Map<String, String> headers,
-              Consumer<ErrorResponse> errorHandler) {
-            Object request = roundTripSerialize(body, "request");
-            T response =
-                super.execute(
-                    method, path, queryParams, request, responseType, headers, errorHandler);
+              Consumer<ErrorResponse> errorHandler,
+              Consumer<Map<String, String>> responseHeaders) {
+            Object body = roundTripSerialize(request.body(), "request");
+            HTTPRequest req = ImmutableHTTPRequest.builder().from(request).body(body).build();
+            T response = super.execute(req, responseType, errorHandler, responseHeaders);
             T responseAfterSerialization = roundTripSerialize(response, "response");
             return responseAfterSerialization;
           }
@@ -153,14 +156,14 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     }
   }
 
-  @Test
-  public void testPaginationForListViews() {
+  @ParameterizedTest
+  @ValueSource(ints = {21, 30})
+  public void testPaginationForListViews(int numberOfItems) {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
 
-    int numberOfItems = 30;
     String namespaceName = "newdb";
     String viewName = "newview";
 
@@ -181,21 +184,11 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     assertThat(views).hasSize(numberOfItems);
 
     Mockito.verify(adapter)
-        .execute(
-            eq(HTTPMethod.GET),
-            eq("v1/config"),
-            any(),
-            any(),
-            eq(ConfigResponse.class),
-            any(),
-            any());
+        .execute(reqMatcher(HTTPMethod.GET, "v1/config"), eq(ConfigResponse.class), any(), any());
 
     Mockito.verify(adapter, times(numberOfItems))
         .execute(
-            eq(HTTPMethod.POST),
-            eq(String.format("v1/namespaces/%s/views", namespaceName)),
-            any(),
-            any(),
+            reqMatcher(HTTPMethod.POST, String.format("v1/namespaces/%s/views", namespaceName)),
             eq(LoadViewResponse.class),
             any(),
             any());
@@ -223,6 +216,31 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
             eq(ImmutableMap.of("pageToken", "20", "pageSize", "10", "namespace", namespaceName)),
             any(),
             eq(ListTablesResponse.class));
+  }
+
+  @Test
+  public void viewExistsViaHEADRequest() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of());
+
+    catalog.createNamespace(Namespace.of("ns"));
+
+    assertThat(catalog.viewExists(TableIdentifier.of("ns", "view"))).isFalse();
+
+    Mockito.verify(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+    Mockito.verify(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.HEAD, "v1/namespaces/ns/views/view", Map.of(), Map.of()),
+            any(),
+            any(),
+            any());
   }
 
   @Override

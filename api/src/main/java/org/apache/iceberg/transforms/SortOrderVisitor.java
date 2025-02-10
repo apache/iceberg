@@ -85,21 +85,26 @@ public interface SortOrderVisitor<T> {
             visitor.truncate(
                 sourceName, field.sourceId(), width, field.direction(), field.nullOrder()));
       } else if (transform == Dates.YEAR
-          || transform == Timestamps.YEAR
+          || transform == Timestamps.MICROS_TO_YEAR
+          || transform == Timestamps.NANOS_TO_YEAR
           || transform instanceof Years) {
         results.add(
             visitor.year(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
       } else if (transform == Dates.MONTH
-          || transform == Timestamps.MONTH
+          || transform == Timestamps.MICROS_TO_MONTH
+          || transform == Timestamps.NANOS_TO_MONTH
           || transform instanceof Months) {
         results.add(
             visitor.month(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
       } else if (transform == Dates.DAY
-          || transform == Timestamps.DAY
+          || transform == Timestamps.MICROS_TO_DAY
+          || transform == Timestamps.NANOS_TO_DAY
           || transform instanceof Days) {
         results.add(
             visitor.day(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
-      } else if (transform == Timestamps.HOUR || transform instanceof Hours) {
+      } else if (transform == Timestamps.MICROS_TO_HOUR
+          || transform == Timestamps.NANOS_TO_HOUR
+          || transform instanceof Hours) {
         results.add(
             visitor.hour(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
       } else if (transform instanceof UnknownTransform) {

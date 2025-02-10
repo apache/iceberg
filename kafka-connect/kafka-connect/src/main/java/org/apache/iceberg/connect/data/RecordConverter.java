@@ -37,9 +37,11 @@ import java.time.temporal.Temporal;
 import java.util.Base64;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -59,8 +61,11 @@ import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimestampType;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.errors.ConnectException;
 
 class RecordConverter {
 
@@ -70,7 +75,7 @@ class RecordConverter {
       new DateTimeFormatterBuilder()
           .append(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
           .appendOffset("+HHmm", "Z")
-          .toFormatter();
+          .toFormatter(Locale.ROOT);
 
   private final Schema tableSchema;
   private final NameMapping nameMapping;
@@ -128,8 +133,9 @@ class RecordConverter {
       case UUID:
         return convertUUID(value);
       case BINARY:
-      case FIXED:
         return convertBase64Binary(value);
+      case FIXED:
+        return ByteBuffers.toByteArray(convertBase64Binary(value));
       case DATE:
         return convertDateValue(value);
       case TIME:
@@ -388,13 +394,24 @@ class RecordConverter {
     throw new IllegalArgumentException("Cannot convert to string: " + value.getClass().getName());
   }
 
-  protected UUID convertUUID(Object value) {
+  protected Object convertUUID(Object value) {
+    UUID uuid;
     if (value instanceof String) {
-      return UUID.fromString((String) value);
+      uuid = UUID.fromString((String) value);
     } else if (value instanceof UUID) {
-      return (UUID) value;
+      uuid = (UUID) value;
+    } else {
+      throw new IllegalArgumentException("Cannot convert to UUID: " + value.getClass().getName());
     }
-    throw new IllegalArgumentException("Cannot convert to UUID: " + value.getClass().getName());
+
+    if (FileFormat.PARQUET
+        .name()
+        .toLowerCase(Locale.ROOT)
+        .equals(config.writeProps().get(TableProperties.DEFAULT_FILE_FORMAT))) {
+      return UUIDUtil.convert(uuid);
+    } else {
+      return uuid;
+    }
   }
 
   protected ByteBuffer convertBase64Binary(Object value) {
@@ -421,7 +438,7 @@ class RecordConverter {
       int days = (int) (((Date) value).getTime() / 1000 / 60 / 60 / 24);
       return DateTimeUtil.dateFromDays(days);
     }
-    throw new RuntimeException("Cannot convert date: " + value);
+    throw new ConnectException("Cannot convert date: " + value);
   }
 
   @SuppressWarnings("JavaUtilDate")
@@ -437,7 +454,7 @@ class RecordConverter {
       long millis = ((Date) value).getTime();
       return DateTimeUtil.timeFromMicros(millis * 1000);
     }
-    throw new RuntimeException("Cannot convert time: " + value);
+    throw new ConnectException("Cannot convert time: " + value);
   }
 
   protected Temporal convertTimestampValue(Object value, TimestampType type) {
@@ -461,7 +478,7 @@ class RecordConverter {
     } else if (value instanceof Date) {
       return DateTimeUtil.timestamptzFromMicros(((Date) value).getTime() * 1000);
     }
-    throw new RuntimeException(
+    throw new ConnectException(
         "Cannot convert timestamptz: " + value + ", type: " + value.getClass());
   }
 
@@ -489,7 +506,7 @@ class RecordConverter {
     } else if (value instanceof Date) {
       return DateTimeUtil.timestampFromMicros(((Date) value).getTime() * 1000);
     }
-    throw new RuntimeException(
+    throw new ConnectException(
         "Cannot convert timestamp: " + value + ", type: " + value.getClass());
   }
 

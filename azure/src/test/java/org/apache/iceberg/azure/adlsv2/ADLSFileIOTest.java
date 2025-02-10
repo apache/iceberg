@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.azure.adlsv2;
 
+import static org.apache.iceberg.azure.AzureProperties.ADLS_SAS_TOKEN_PREFIX;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
@@ -32,6 +33,7 @@ import com.azure.core.http.rest.PagedIterable;
 import com.azure.core.http.rest.Response;
 import com.azure.storage.file.datalake.DataLakeFileClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClient;
+import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import com.azure.storage.file.datalake.models.PathItem;
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,6 +41,7 @@ import java.io.OutputStream;
 import java.time.OffsetDateTime;
 import java.util.Iterator;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
@@ -98,6 +101,21 @@ public class ADLSFileIOTest extends BaseAzuriteTest {
     ADLSFileIO io = createFileIO();
     DataLakeFileSystemClient client = io.client(location);
     assertThat(client.exists()).isTrue();
+  }
+
+  @Test
+  public void testApplyClientConfigurationWithSas() {
+    AzureProperties props =
+        spy(
+            new AzureProperties(
+                ImmutableMap.of(
+                    ADLS_SAS_TOKEN_PREFIX + "account.dfs.core.windows.net", "sasToken")));
+    ADLSFileIO io = spy(new ADLSFileIO(props));
+    String location = AZURITE_CONTAINER.location("path/to/file");
+    io.client(location);
+    verify(props)
+        .applyClientConfiguration(
+            eq("account.dfs.core.windows.net"), any(DataLakeFileSystemClientBuilder.class));
   }
 
   /** Azurite does not support ADLSv2 directory operations yet so use mocks here. */

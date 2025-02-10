@@ -105,6 +105,8 @@ public class UpdateRequirements {
         update((MetadataUpdate.SetDefaultPartitionSpec) update);
       } else if (update instanceof MetadataUpdate.SetDefaultSortOrder) {
         update((MetadataUpdate.SetDefaultSortOrder) update);
+      } else if (update instanceof MetadataUpdate.RemovePartitionSpecs) {
+        update((MetadataUpdate.RemovePartitionSpecs) update);
       }
 
       return this;
@@ -124,7 +126,7 @@ public class UpdateRequirements {
       }
     }
 
-    private void update(MetadataUpdate.AddSchema update) {
+    private void update(MetadataUpdate.AddSchema unused) {
       if (!addedSchema) {
         if (base != null) {
           require(new UpdateRequirement.AssertLastAssignedFieldId(base.lastColumnId()));
@@ -133,7 +135,7 @@ public class UpdateRequirements {
       }
     }
 
-    private void update(MetadataUpdate.SetCurrentSchema update) {
+    private void update(MetadataUpdate.SetCurrentSchema unused) {
       if (!setSchemaId) {
         if (base != null && !isReplace) {
           // require that the current schema has not changed
@@ -143,7 +145,7 @@ public class UpdateRequirements {
       }
     }
 
-    private void update(MetadataUpdate.AddPartitionSpec update) {
+    private void update(MetadataUpdate.AddPartitionSpec unused) {
       if (!addedSpec) {
         if (base != null) {
           require(
@@ -153,7 +155,7 @@ public class UpdateRequirements {
       }
     }
 
-    private void update(MetadataUpdate.SetDefaultPartitionSpec update) {
+    private void update(MetadataUpdate.SetDefaultPartitionSpec unused) {
       if (!setSpecId) {
         if (base != null && !isReplace) {
           // require that the default spec has not changed
@@ -163,13 +165,34 @@ public class UpdateRequirements {
       }
     }
 
-    private void update(MetadataUpdate.SetDefaultSortOrder update) {
+    private void update(MetadataUpdate.SetDefaultSortOrder unused) {
       if (!setOrderId) {
         if (base != null && !isReplace) {
           // require that the default write order has not changed
           require(new UpdateRequirement.AssertDefaultSortOrderID(base.defaultSortOrderId()));
         }
         this.setOrderId = true;
+      }
+    }
+
+    private void update(MetadataUpdate.RemovePartitionSpecs unused) {
+      // require that the default partition spec has not changed
+      if (!setSpecId) {
+        if (base != null && !isReplace) {
+          require(new UpdateRequirement.AssertDefaultSpecID(base.defaultSpecId()));
+        }
+        this.setSpecId = true;
+      }
+
+      // require that no branches have changed, so that old specs won't be written.
+      if (base != null && !isReplace) {
+        base.refs()
+            .forEach(
+                (name, ref) -> {
+                  if (ref.isBranch() && !name.equals(SnapshotRef.MAIN_BRANCH)) {
+                    require(new UpdateRequirement.AssertRefSnapshotID(name, ref.snapshotId()));
+                  }
+                });
       }
     }
 

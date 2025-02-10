@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.puffin.Blob;
@@ -141,7 +142,7 @@ public class TestRemoveSnapshots extends TestBase {
                     .allManifests(table.io())
                     .get(0)
                     .path(), // manifest contained only deletes, was dropped
-                FILE_A.path() // deleted
+                FILE_A.location() // deleted
                 ));
   }
 
@@ -196,7 +197,7 @@ public class TestRemoveSnapshots extends TestBase {
                     .get(0)
                     .path(), // manifest was rewritten for delete
                 secondSnapshot.manifestListLocation(), // snapshot expired
-                FILE_A.path() // deleted
+                FILE_A.location() // deleted
                 ));
   }
 
@@ -292,7 +293,7 @@ public class TestRemoveSnapshots extends TestBase {
                     .findFirst()
                     .get()
                     .path(), // manifest is no longer referenced
-                FILE_B.path()) // added, but rolled back
+                FILE_B.location()) // added, but rolled back
             );
   }
 
@@ -370,7 +371,7 @@ public class TestRemoveSnapshots extends TestBase {
     }
 
     // Retain last 3 snapshots, but explicitly remove the first snapshot
-    removeSnapshots(table).expireSnapshotId(firstSnapshotId).retainLast(3).commit();
+    table.expireSnapshots().expireSnapshotId(firstSnapshotId).retainLast(3).commit();
 
     assertThat(table.snapshots()).hasSize(2);
     assertThat(table.snapshot(firstSnapshotId)).isNull();
@@ -652,7 +653,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     removeSnapshots(table).expireOlderThan(t3).deleteWith(deletedFiles::add).commit();
 
-    assertThat(deletedFiles).contains(FILE_A.path().toString());
+    assertThat(deletedFiles).contains(FILE_A.location().toString());
   }
 
   @TestTemplate
@@ -678,7 +679,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     removeSnapshots(table).expireOlderThan(t3).deleteWith(deletedFiles::add).commit();
 
-    assertThat(deletedFiles).contains(FILE_A.path().toString());
+    assertThat(deletedFiles).contains(FILE_A.location().toString());
   }
 
   @TestTemplate
@@ -715,8 +716,8 @@ public class TestRemoveSnapshots extends TestBase {
 
     removeSnapshots(table).expireOlderThan(t4).deleteWith(deletedFiles::add).commit();
 
-    assertThat(deletedFiles).contains(FILE_A.path().toString());
-    assertThat(deletedFiles).contains(FILE_B.path().toString());
+    assertThat(deletedFiles).contains(FILE_A.location().toString());
+    assertThat(deletedFiles).contains(FILE_B.location().toString());
   }
 
   @TestTemplate
@@ -789,8 +790,8 @@ public class TestRemoveSnapshots extends TestBase {
         .containsExactly(
             "remove-snapshot-3", "remove-snapshot-2", "remove-snapshot-1", "remove-snapshot-0");
 
-    assertThat(deletedFiles).contains(FILE_A.path().toString());
-    assertThat(deletedFiles).contains(FILE_B.path().toString());
+    assertThat(deletedFiles).contains(FILE_A.location().toString());
+    assertThat(deletedFiles).contains(FILE_B.location().toString());
     assertThat(planThreadsIndex.get())
         .as("Thread should be created in provided pool")
         .isGreaterThan(0);
@@ -857,7 +858,7 @@ public class TestRemoveSnapshots extends TestBase {
         .addedDataFiles(table.io())
         .forEach(
             i -> {
-              expectedDeletes.add(i.path().toString());
+              expectedDeletes.add(i.location().toString());
             });
 
     // ManifestList should be deleted too
@@ -923,7 +924,7 @@ public class TestRemoveSnapshots extends TestBase {
               i.addedDataFiles(table.io())
                   .forEach(
                       item -> {
-                        assertThat(deletedFiles).doesNotContain(item.path().toString());
+                        assertThat(deletedFiles).doesNotContain(item.location().toString());
                       });
             });
   }
@@ -956,7 +957,8 @@ public class TestRemoveSnapshots extends TestBase {
     List<String> deletedFiles = Lists.newArrayList();
 
     // Expire `B` commit.
-    removeSnapshots(table)
+    table
+        .expireSnapshots()
         .deleteWith(deletedFiles::add)
         .expireSnapshotId(snapshotB.snapshotId())
         .commit();
@@ -968,7 +970,7 @@ public class TestRemoveSnapshots extends TestBase {
               i.addedDataFiles(table.io())
                   .forEach(
                       item -> {
-                        assertThat(deletedFiles).doesNotContain(item.path().toString());
+                        assertThat(deletedFiles).doesNotContain(item.location().toString());
                       });
             });
 
@@ -985,7 +987,7 @@ public class TestRemoveSnapshots extends TestBase {
               i.addedDataFiles(table.io())
                   .forEach(
                       item -> {
-                        assertThat(deletedFiles).doesNotContain(item.path().toString());
+                        assertThat(deletedFiles).doesNotContain(item.location().toString());
                       });
             });
   }
@@ -1104,8 +1106,8 @@ public class TestRemoveSnapshots extends TestBase {
         .as("Should remove old delete files and delete file manifests")
         .isEqualTo(
             ImmutableSet.builder()
-                .add(FILE_A.path())
-                .add(FILE_A_DELETES.path())
+                .add(FILE_A.location())
+                .add(FILE_A_DELETES.location())
                 .add(firstSnapshot.manifestListLocation())
                 .add(secondSnapshot.manifestListLocation())
                 .add(thirdSnapshot.manifestListLocation())
@@ -1169,6 +1171,26 @@ public class TestRemoveSnapshots extends TestBase {
     assertThat(table.ops().current().ref("branch")).isNull();
     assertThat(table.ops().current().ref("tag")).isNotNull();
     assertThat(table.ops().current().ref(SnapshotRef.MAIN_BRANCH)).isNotNull();
+  }
+
+  @TestTemplate
+  public void testIncrementalCleanupFailsWhenExpiringSnapshotId() {
+    table.newAppend().appendFile(FILE_A).commit();
+    table.newDelete().deleteFile(FILE_A).commit();
+    long snapshotId = table.currentSnapshot().snapshotId();
+    table.newAppend().appendFile(FILE_B).commit();
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+    RemoveSnapshots removeSnapshots = (RemoveSnapshots) table.expireSnapshots();
+
+    assertThatThrownBy(
+            () ->
+                removeSnapshots
+                    .withIncrementalCleanup(true)
+                    .expireSnapshotId(snapshotId)
+                    .cleanExpiredFiles(true)
+                    .commit())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot clean files incrementally when snapshot IDs are specified");
   }
 
   @TestTemplate
@@ -1593,10 +1615,94 @@ public class TestRemoveSnapshots extends TestBase {
     expectedDeletes.addAll(manifestPaths(appendA, table.io()));
     expectedDeletes.add(branchDelete.manifestListLocation());
     expectedDeletes.addAll(manifestPaths(branchDelete, table.io()));
-    expectedDeletes.add(FILE_A.path().toString());
+    expectedDeletes.add(FILE_A.location().toString());
 
     assertThat(table.snapshots()).hasSize(2);
     assertThat(deletedFiles).isEqualTo(expectedDeletes);
+  }
+
+  @TestTemplate
+  public void testRemoveSpecDuringExpiration() {
+    DataFile file =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data-0.parquet")
+            .withPartitionPath("data_bucket=0")
+            .withFileSizeInBytes(10)
+            .withRecordCount(100)
+            .build();
+    table.newAppend().appendFile(file).commit();
+    Snapshot append = table.currentSnapshot();
+    String appendManifest =
+        Iterables.getOnlyElement(
+            table.currentSnapshot().allManifests(table.io()).stream()
+                .map(ManifestFile::path)
+                .collect(Collectors.toList()));
+    table.newDelete().deleteFile(file).commit();
+    Snapshot delete = table.currentSnapshot();
+    String deleteManifest =
+        Iterables.getOnlyElement(
+            table.currentSnapshot().allManifests(table.io()).stream()
+                .map(ManifestFile::path)
+                .collect(Collectors.toList()));
+
+    table.updateSpec().addField("id_bucket", Expressions.bucket("id", 16)).commit();
+    PartitionSpec idAndDataBucketSpec = table.spec();
+    DataFile bucketFile =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data-0-id-0.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(100)
+            .withPartitionPath("data_bucket=0/id_bucket=0")
+            .build();
+    table.newAppend().appendFile(bucketFile).commit();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    // Expiring snapshots should remove the data_bucket partition
+    removeSnapshots(table)
+        .expireOlderThan(System.currentTimeMillis())
+        .cleanExpiredMetadata(true)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles)
+        .containsExactlyInAnyOrder(
+            appendManifest,
+            deleteManifest,
+            file.location(),
+            append.manifestListLocation(),
+            delete.manifestListLocation());
+    assertThat(table.specs().keySet())
+        .as("Only id_bucket + data_bucket transform should exist")
+        .containsExactly(idAndDataBucketSpec.specId());
+  }
+
+  @TestTemplate
+  public void testRemoveSpecsDoesntRemoveDefaultSpec() throws IOException {
+    // The default spec for table is bucketed on data, but write using unpartitioned
+    PartitionSpec dataBucketSpec = table.spec();
+    DataFile file =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath("/path/to/data-0.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(100)
+            .build();
+
+    table.newAppend().appendFile(file).commit();
+    Snapshot append = table.currentSnapshot();
+    table.newDelete().deleteFile(file).commit();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    // Expiring snapshots should remove only the unpartitioned spec
+    removeSnapshots(table)
+        .expireOlderThan(System.currentTimeMillis())
+        .cleanExpiredMetadata(true)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles).containsExactlyInAnyOrder(append.manifestListLocation());
+    assertThat(table.specs().keySet())
+        .as("Only data_bucket transform should exist")
+        .containsExactly(dataBucketSpec.specId());
   }
 
   private Set<String> manifestPaths(Snapshot snapshot, FileIO io) {

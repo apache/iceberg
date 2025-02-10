@@ -27,6 +27,9 @@ public class SparkSQLProperties {
   // Controls whether vectorized reads are enabled
   public static final String VECTORIZATION_ENABLED = "spark.sql.iceberg.vectorization.enabled";
 
+  // Controls which Parquet reader implementation to use
+  public static final String PARQUET_READER_TYPE = "spark.sql.iceberg.parquet.reader-type";
+  public static final ParquetReaderType PARQUET_READER_TYPE_DEFAULT = ParquetReaderType.ICEBERG;
   // Controls whether to perform the nullability check during writes
   public static final String CHECK_NULLABILITY = "spark.sql.iceberg.check-nullability";
   public static final boolean CHECK_NULLABILITY_DEFAULT = true;
@@ -86,6 +89,10 @@ public class SparkSQLProperties {
   public static final String EXECUTOR_CACHE_MAX_TOTAL_SIZE =
       "spark.sql.iceberg.executor-cache.max-total-size";
   public static final long EXECUTOR_CACHE_MAX_TOTAL_SIZE_DEFAULT = 128 * 1024 * 1024; // 128 MB
+
+  // Controls whether to merge schema during write operation
+  public static final String MERGE_SCHEMA = "spark.sql.iceberg.merge-schema";
+  public static final boolean MERGE_SCHEMA_DEFAULT = false;
 
   public static final String EXECUTOR_CACHE_LOCALITY_ENABLED =
       "spark.sql.iceberg.executor-cache.locality.enabled";

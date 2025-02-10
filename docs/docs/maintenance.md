@@ -137,7 +137,7 @@ See the [`RewriteDataFiles` Javadoc](../../javadoc/{{ icebergVersion }}/org/apac
 
 ### Rewrite manifests
 
-Iceberg uses metadata in its manifest list and manifest files speed up query planning and to prune unnecessary data files. The metadata tree functions as an index over a table's data.
+Iceberg uses metadata in its manifest list and manifest files to speed up query planning and to prune unnecessary data files. The metadata tree functions as an index over a table's data.
 
 Manifests in the metadata tree are automatically compacted in the order they are added, which makes queries faster when the write pattern aligns with read filters. For example, writing hourly-partitioned data as it arrives is aligned with time range query filters.
 

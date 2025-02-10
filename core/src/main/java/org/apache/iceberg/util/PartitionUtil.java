@@ -56,7 +56,7 @@ public class PartitionUtil {
     // add _file
     idToConstant.put(
         MetadataColumns.FILE_PATH.fieldId(),
-        convertConstant.apply(Types.StringType.get(), task.file().path()));
+        convertConstant.apply(Types.StringType.get(), task.file().location()));
 
     // add _spec_id
     idToConstant.put(

@@ -24,11 +24,9 @@ import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.BitVectorHelper;
-import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.IntVector;
-import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.ValuesAsBytesReader;
@@ -494,77 +492,6 @@ public final class VectorizedParquetDefinitionLevelReader
     }
   }
 
-  class FixedWidthBinaryReader extends BaseReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector,
-        int idx,
-        ValuesAsBytesReader valuesReader,
-        int typeWidth,
-        byte[] byteArray) {
-      ByteBuffer buffer = valuesReader.getBuffer(typeWidth);
-      ((VarBinaryVector) vector)
-          .setSafe(
-              idx,
-              buffer.array(),
-              buffer.position() + buffer.arrayOffset(),
-              buffer.limit() - buffer.position());
-    }
-
-    @Override
-    protected void nextDictEncodedVal(
-        FieldVector vector,
-        int idx,
-        VectorizedDictionaryEncodedParquetValuesReader reader,
-        int numValuesToRead,
-        Dictionary dict,
-        NullabilityHolder nullabilityHolder,
-        int typeWidth,
-        Mode mode) {
-      if (Mode.RLE.equals(mode)) {
-        reader
-            .fixedWidthBinaryDictEncodedReader()
-            .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
-      } else if (Mode.PACKED.equals(mode)) {
-        ByteBuffer buffer = dict.decodeToBinary(reader.readInteger()).toByteBuffer();
-        vector.getDataBuffer().setBytes((long) idx * typeWidth, buffer);
-      }
-    }
-  }
-
-  class FixedLengthDecimalReader extends BaseReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector,
-        int idx,
-        ValuesAsBytesReader valuesReader,
-        int typeWidth,
-        byte[] byteArray) {
-      valuesReader.getBuffer(typeWidth).get(byteArray, 0, typeWidth);
-      DecimalVectorUtil.setBigEndian((DecimalVector) vector, idx, byteArray);
-    }
-
-    @Override
-    protected void nextDictEncodedVal(
-        FieldVector vector,
-        int idx,
-        VectorizedDictionaryEncodedParquetValuesReader reader,
-        int numValuesToRead,
-        Dictionary dict,
-        NullabilityHolder nullabilityHolder,
-        int typeWidth,
-        Mode mode) {
-      if (Mode.RLE.equals(mode)) {
-        reader
-            .fixedLengthDecimalDictEncodedReader()
-            .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
-      } else if (Mode.PACKED.equals(mode)) {
-        byte[] bytes = dict.decodeToBinary(reader.readInteger()).getBytesUnsafe();
-        DecimalVectorUtil.setBigEndian((DecimalVector) vector, idx, bytes);
-      }
-    }
-  }
-
   class FixedSizeBinaryReader extends BaseReader {
     @Override
     protected void nextVal(
@@ -641,68 +568,6 @@ public final class VectorizedParquetDefinitionLevelReader
       } else if (Mode.PACKED.equals(mode)) {
         ((BaseVariableWidthVector) vector)
             .setSafe(idx, dict.decodeToBinary(reader.readInteger()).getBytesUnsafe());
-      }
-    }
-  }
-
-  class IntBackedDecimalReader extends BaseReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector,
-        int idx,
-        ValuesAsBytesReader valuesReader,
-        int typeWidth,
-        byte[] byteArray) {
-      ((DecimalVector) vector).set(idx, valuesReader.getBuffer(Integer.BYTES).getInt());
-    }
-
-    @Override
-    protected void nextDictEncodedVal(
-        FieldVector vector,
-        int idx,
-        VectorizedDictionaryEncodedParquetValuesReader reader,
-        int numValuesToRead,
-        Dictionary dict,
-        NullabilityHolder nullabilityHolder,
-        int typeWidth,
-        Mode mode) {
-      if (Mode.RLE.equals(mode)) {
-        reader
-            .intBackedDecimalDictEncodedReader()
-            .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
-      } else if (Mode.PACKED.equals(mode)) {
-        ((DecimalVector) vector).set(idx, dict.decodeToInt(reader.readInteger()));
-      }
-    }
-  }
-
-  class LongBackedDecimalReader extends BaseReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector,
-        int idx,
-        ValuesAsBytesReader valuesReader,
-        int typeWidth,
-        byte[] byteArray) {
-      ((DecimalVector) vector).set(idx, valuesReader.getBuffer(Long.BYTES).getLong());
-    }
-
-    @Override
-    protected void nextDictEncodedVal(
-        FieldVector vector,
-        int idx,
-        VectorizedDictionaryEncodedParquetValuesReader reader,
-        int numValuesToRead,
-        Dictionary dict,
-        NullabilityHolder nullabilityHolder,
-        int typeWidth,
-        Mode mode) {
-      if (Mode.RLE.equals(mode)) {
-        reader
-            .longBackedDecimalDictEncodedReader()
-            .nextBatch(vector, idx, numValuesToRead, dict, nullabilityHolder, typeWidth);
-      } else if (Mode.PACKED.equals(mode)) {
-        ((DecimalVector) vector).set(idx, dict.decodeToLong(reader.readInteger()));
       }
     }
   }
@@ -828,28 +693,12 @@ public final class VectorizedParquetDefinitionLevelReader
     return new TimestampInt96Reader();
   }
 
-  FixedWidthBinaryReader fixedWidthBinaryReader() {
-    return new FixedWidthBinaryReader();
-  }
-
-  FixedLengthDecimalReader fixedLengthDecimalReader() {
-    return new FixedLengthDecimalReader();
-  }
-
   FixedSizeBinaryReader fixedSizeBinaryReader() {
     return new FixedSizeBinaryReader();
   }
 
   VarWidthReader varWidthReader() {
     return new VarWidthReader();
-  }
-
-  IntBackedDecimalReader intBackedDecimalReader() {
-    return new IntBackedDecimalReader();
-  }
-
-  LongBackedDecimalReader longBackedDecimalReader() {
-    return new LongBackedDecimalReader();
   }
 
   BooleanReader booleanReader() {

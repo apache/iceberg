@@ -37,12 +37,14 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -98,18 +100,21 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   protected static SparkSession spark = null;
   protected static HiveCatalog catalog = null;
 
-  @Parameter private String format;
-
-  @Parameter(index = 1)
+  @Parameter(index = 2)
   private boolean vectorized;
 
-  @Parameters(name = "format = {0}, vectorized = {1}")
+  @Parameter(index = 3)
+  private PlanningMode planningMode;
+
+  @Parameters(name = "fileFormat = {0}, formatVersion = {1}, vectorized = {2}, planningMode = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
-      new Object[] {"parquet", false},
-      new Object[] {"parquet", true},
-      new Object[] {"orc", false},
-      new Object[] {"avro", false}
+      new Object[] {FileFormat.PARQUET, 2, false, PlanningMode.DISTRIBUTED},
+      new Object[] {FileFormat.PARQUET, 2, true, PlanningMode.LOCAL},
+      new Object[] {FileFormat.ORC, 2, false, PlanningMode.DISTRIBUTED},
+      new Object[] {FileFormat.AVRO, 2, false, PlanningMode.LOCAL},
+      new Object[] {FileFormat.PARQUET, 3, false, PlanningMode.DISTRIBUTED},
+      new Object[] {FileFormat.PARQUET, 3, true, PlanningMode.LOCAL},
     };
   }
 
@@ -163,14 +168,20 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     TableOperations ops = ((BaseTable) table).operations();
     TableMetadata meta = ops.current();
     ops.commit(meta, meta.upgradeToFormatVersion(2));
-    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
-    if (format.equals("parquet") || format.equals("orc")) {
+    table
+        .updateProperties()
+        .set(TableProperties.DEFAULT_FILE_FORMAT, format.name())
+        .set(TableProperties.DATA_PLANNING_MODE, planningMode.modeName())
+        .set(TableProperties.DELETE_PLANNING_MODE, planningMode.modeName())
+        .set(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion))
+        .commit();
+    if (format.equals(FileFormat.PARQUET) || format.equals(FileFormat.ORC)) {
       String vectorizationEnabled =
-          format.equals("parquet")
+          format.equals(FileFormat.PARQUET)
               ? TableProperties.PARQUET_VECTORIZATION_ENABLED
               : TableProperties.ORC_VECTORIZATION_ENABLED;
       String batchSize =
-          format.equals("parquet")
+          format.equals(FileFormat.PARQUET)
               ? TableProperties.PARQUET_BATCH_SIZE
               : TableProperties.ORC_BATCH_SIZE;
       table.updateProperties().set(vectorizationEnabled, String.valueOf(vectorized)).commit();
@@ -332,10 +343,10 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     // deleted.
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
-            Pair.of(dataFile.path(), 0L), // id = 29
-            Pair.of(dataFile.path(), 1L), // id = 43
-            Pair.of(dataFile.path(), 2L), // id = 61
-            Pair.of(dataFile.path(), 3L) // id = 89
+            Pair.of(dataFile.location(), 0L), // id = 29
+            Pair.of(dataFile.location(), 1L), // id = 43
+            Pair.of(dataFile.location(), 2L), // id = 61
+            Pair.of(dataFile.location(), 3L) // id = 89
             );
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
@@ -343,7 +354,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             table,
             Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
             TestHelpers.Row.of(0),
-            deletes);
+            deletes,
+            formatVersion);
 
     table
         .newRowDelta()
@@ -364,10 +376,10 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     // deleted.
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
-            Pair.of(dataFile.path(), 0L), // id = 29
-            Pair.of(dataFile.path(), 1L), // id = 43
-            Pair.of(dataFile.path(), 2L), // id = 61
-            Pair.of(dataFile.path(), 3L) // id = 89
+            Pair.of(dataFile.location(), 0L), // id = 29
+            Pair.of(dataFile.location(), 1L), // id = 43
+            Pair.of(dataFile.location(), 2L), // id = 61
+            Pair.of(dataFile.location(), 3L) // id = 89
             );
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
@@ -375,7 +387,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             table,
             Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
             TestHelpers.Row.of(0),
-            deletes);
+            deletes,
+            formatVersion);
 
     table
         .newRowDelta()
@@ -442,8 +455,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
-            Pair.of(dataFile.path(), 3L), // id = 89
-            Pair.of(dataFile.path(), 5L) // id = 121
+            Pair.of(dataFile.location(), 3L), // id = 89
+            Pair.of(dataFile.location(), 5L) // id = 121
             );
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
@@ -451,7 +464,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             table,
             Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
             TestHelpers.Row.of(0),
-            deletes);
+            deletes,
+            formatVersion);
 
     table
         .newRowDelta()
@@ -472,10 +486,10 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   public void testFilterOnDeletedMetadataColumn() throws IOException {
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
-            Pair.of(dataFile.path(), 0L), // id = 29
-            Pair.of(dataFile.path(), 1L), // id = 43
-            Pair.of(dataFile.path(), 2L), // id = 61
-            Pair.of(dataFile.path(), 3L) // id = 89
+            Pair.of(dataFile.location(), 0L), // id = 29
+            Pair.of(dataFile.location(), 1L), // id = 43
+            Pair.of(dataFile.location(), 2L), // id = 61
+            Pair.of(dataFile.location(), 3L) // id = 89
             );
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
@@ -483,7 +497,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             table,
             Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
             TestHelpers.Row.of(0),
-            deletes);
+            deletes,
+            formatVersion);
 
     table
         .newRowDelta()
@@ -546,7 +561,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @TestTemplate
   public void testPosDeletesOnParquetFileWithMultipleRowGroups() throws IOException {
-    assumeThat(format).isEqualTo("parquet");
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
 
     String tblName = "test3";
     Table tbl = createTable(tblName, SCHEMA, PartitionSpec.unpartitioned());
@@ -596,16 +611,19 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     // Add positional deletes to the table
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
-            Pair.of(dataFile.path(), 97L),
-            Pair.of(dataFile.path(), 98L),
-            Pair.of(dataFile.path(), 99L),
-            Pair.of(dataFile.path(), 101L),
-            Pair.of(dataFile.path(), 103L),
-            Pair.of(dataFile.path(), 107L),
-            Pair.of(dataFile.path(), 109L));
+            Pair.of(dataFile.location(), 97L),
+            Pair.of(dataFile.location(), 98L),
+            Pair.of(dataFile.location(), 99L),
+            Pair.of(dataFile.location(), 101L),
+            Pair.of(dataFile.location(), 103L),
+            Pair.of(dataFile.location(), 107L),
+            Pair.of(dataFile.location(), 109L));
     Pair<DeleteFile, CharSequenceSet> posDeletes =
         FileHelpers.writeDeleteFile(
-            table, Files.localOutput(File.createTempFile("junit", null, temp.toFile())), deletes);
+            table,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            deletes,
+            formatVersion);
     tbl.newRowDelta()
         .addDeletes(posDeletes.first())
         .validateDataFilesExist(posDeletes.second())

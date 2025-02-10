@@ -29,8 +29,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
 
@@ -261,8 +262,12 @@ public class TestRollbackToSnapshotProcedure extends SparkExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.custom.rollback_to_snapshot('n', 't', 1L)", catalogName))
         .as("Should not resolve procedures in arbitrary namespaces")
-        .isInstanceOf(NoSuchProcedureException.class)
-        .hasMessageContaining("not found");
+        .satisfies(
+            exception -> {
+              ParseException parseException = (ParseException) exception;
+              Assert.assertEquals("PARSE_SYNTAX_ERROR", parseException.getErrorClass());
+              Assert.assertEquals("Syntax error at or near 'CALL'", parseException.message());
+            });
 
     assertThatThrownBy(() -> sql("CALL %s.system.rollback_to_snapshot('t')", catalogName))
         .as("Should reject calls without all required args")

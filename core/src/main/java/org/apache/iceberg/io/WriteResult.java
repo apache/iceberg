@@ -31,12 +31,17 @@ public class WriteResult implements Serializable {
   private DataFile[] dataFiles;
   private DeleteFile[] deleteFiles;
   private CharSequence[] referencedDataFiles;
+  private DeleteFile[] rewrittenDeleteFiles;
 
   private WriteResult(
-      List<DataFile> dataFiles, List<DeleteFile> deleteFiles, CharSequenceSet referencedDataFiles) {
+      List<DataFile> dataFiles,
+      List<DeleteFile> deleteFiles,
+      CharSequenceSet referencedDataFiles,
+      List<DeleteFile> rewrittenDeleteFiles) {
     this.dataFiles = dataFiles.toArray(new DataFile[0]);
     this.deleteFiles = deleteFiles.toArray(new DeleteFile[0]);
     this.referencedDataFiles = referencedDataFiles.toArray(new CharSequence[0]);
+    this.rewrittenDeleteFiles = rewrittenDeleteFiles.toArray(new DeleteFile[0]);
   }
 
   public DataFile[] dataFiles() {
@@ -51,6 +56,10 @@ public class WriteResult implements Serializable {
     return referencedDataFiles;
   }
 
+  public DeleteFile[] rewrittenDeleteFiles() {
+    return rewrittenDeleteFiles;
+  }
+
   public static Builder builder() {
     return new Builder();
   }
@@ -59,18 +68,20 @@ public class WriteResult implements Serializable {
     private final List<DataFile> dataFiles;
     private final List<DeleteFile> deleteFiles;
     private final CharSequenceSet referencedDataFiles;
+    private final List<DeleteFile> rewrittenDeleteFiles;
 
     private Builder() {
       this.dataFiles = Lists.newArrayList();
       this.deleteFiles = Lists.newArrayList();
       this.referencedDataFiles = CharSequenceSet.empty();
+      this.rewrittenDeleteFiles = Lists.newArrayList();
     }
 
     public Builder add(WriteResult result) {
       addDataFiles(result.dataFiles);
       addDeleteFiles(result.deleteFiles);
       addReferencedDataFiles(result.referencedDataFiles);
-
+      addRewrittenDeleteFiles(result.rewrittenDeleteFiles);
       return this;
     }
 
@@ -109,8 +120,18 @@ public class WriteResult implements Serializable {
       return this;
     }
 
+    public Builder addRewrittenDeleteFiles(DeleteFile... files) {
+      Collections.addAll(rewrittenDeleteFiles, files);
+      return this;
+    }
+
+    public Builder addRewrittenDeleteFiles(Iterable<DeleteFile> files) {
+      Iterables.addAll(rewrittenDeleteFiles, files);
+      return this;
+    }
+
     public WriteResult build() {
-      return new WriteResult(dataFiles, deleteFiles, referencedDataFiles);
+      return new WriteResult(dataFiles, deleteFiles, referencedDataFiles, rewrittenDeleteFiles);
     }
   }
 }

@@ -20,7 +20,6 @@ package org.apache.iceberg.mr;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -204,34 +203,6 @@ public class TestIcebergInputFormats {
   }
 
   @TestTemplate
-  public void testFailedResidualFiltering() throws Exception {
-    helper.createTable();
-
-    List<Record> expectedRecords = helper.generateRandomRecords(2, 0L);
-    expectedRecords.get(0).set(2, "2020-03-20");
-    expectedRecords.get(1).set(2, "2020-03-20");
-
-    helper.appendToTable(Row.of("2020-03-20", 0), expectedRecords);
-
-    builder
-        .useHiveRows()
-        .filter(
-            Expressions.and(Expressions.equal("date", "2020-03-20"), Expressions.equal("id", 0)));
-
-    assertThatThrownBy(() -> testInputFormat.create(builder.conf()))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage(
-            "Filter expression ref(name=\"id\") == 0 is not completely satisfied. Additional rows can be returned not satisfied by the filter expression");
-
-    builder.usePigTuples();
-
-    assertThatThrownBy(() -> testInputFormat.create(builder.conf()))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage(
-            "Filter expression ref(name=\"id\") == 0 is not completely satisfied. Additional rows can be returned not satisfied by the filter expression");
-  }
-
-  @TestTemplate
   public void testProjection() throws Exception {
     helper.createTable();
     List<Record> inputRecords = helper.generateRandomRecords(1, 0L);
@@ -393,8 +364,10 @@ public class TestIcebergInputFormats {
         UserGroupInformation.createUserForTesting("user1", new String[] {});
     UserGroupInformation user2 =
         UserGroupInformation.createUserForTesting("user2", new String[] {});
-    final ExecutorService workerPool1 = ThreadPools.newWorkerPool("iceberg-plan-worker-pool", 1);
-    final ExecutorService workerPool2 = ThreadPools.newWorkerPool("iceberg-plan-worker-pool", 1);
+    final ExecutorService workerPool1 =
+        ThreadPools.newFixedThreadPool("iceberg-plan-worker-pool", 1);
+    final ExecutorService workerPool2 =
+        ThreadPools.newFixedThreadPool("iceberg-plan-worker-pool", 1);
     try {
       assertThat(getUserFromWorkerPool(user1, table, workerPool1)).isEqualTo("user1");
       assertThat(getUserFromWorkerPool(user2, table, workerPool1)).isEqualTo("user1");

@@ -118,26 +118,4 @@ public abstract class CatalogTestBase extends TestBase {
   static String getURI(HiveConf conf) {
     return conf.get(HiveConf.ConfVars.METASTOREURIS.varname);
   }
-
-  static String toWithClause(Map<String, String> props) {
-    StringBuilder builder = new StringBuilder();
-    builder.append("(");
-    int propCount = 0;
-    for (Map.Entry<String, String> entry : props.entrySet()) {
-      if (propCount > 0) {
-        builder.append(",");
-      }
-      builder
-          .append("'")
-          .append(entry.getKey())
-          .append("'")
-          .append("=")
-          .append("'")
-          .append(entry.getValue())
-          .append("'");
-      propCount++;
-    }
-    builder.append(")");
-    return builder.toString();
-  }
 }

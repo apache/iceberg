@@ -22,6 +22,7 @@ import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import org.apache.flink.api.common.eventtime.Watermark;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.source.Boundedness;
@@ -43,7 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.jetbrains.annotations.Nullable;
 
 /** Testing source implementation for Flink sources which can be triggered manually. */
-class ManualSource<T>
+public class ManualSource<T>
     implements Source<T, ManualSource.DummySplit, ManualSource.DummyCheckpoint>,
         ResultTypeQueryable<T> {
 
@@ -64,7 +65,7 @@ class ManualSource<T>
    * @param env to register the source
    * @param type of the events returned by the source
    */
-  ManualSource(StreamExecutionEnvironment env, TypeInformation<T> type) {
+  public ManualSource(StreamExecutionEnvironment env, TypeInformation<T> type) {
     this.type = type;
     this.env = env;
     this.index = numSources++;
@@ -77,7 +78,7 @@ class ManualSource<T>
    *
    * @param event to emit
    */
-  void sendRecord(T event) {
+  public void sendRecord(T event) {
     this.sendInternal(Tuple2.of(event, null));
   }
 
@@ -87,7 +88,7 @@ class ManualSource<T>
    * @param event to emit
    * @param eventTime of the event
    */
-  void sendRecord(T event, long eventTime) {
+  public void sendRecord(T event, long eventTime) {
     this.sendInternal(Tuple2.of(event, eventTime));
   }
 
@@ -96,7 +97,7 @@ class ManualSource<T>
    *
    * @param timeStamp of the watermark
    */
-  void sendWatermark(long timeStamp) {
+  public void sendWatermark(long timeStamp) {
     this.sendInternal(Tuple2.of(null, timeStamp));
   }
 
@@ -111,7 +112,7 @@ class ManualSource<T>
    *
    * @return the stream emitted by this source
    */
-  DataStream<T> dataStream() {
+  public DataStream<T> dataStream() {
     if (this.stream == null) {
       this.stream =
           this.env
@@ -156,23 +157,26 @@ class ManualSource<T>
 
   @Override
   public SourceReader<T, DummySplit> createReader(SourceReaderContext sourceReaderContext) {
-    return new SourceReader<T, DummySplit>() {
+    return new SourceReader<>() {
       @Override
       public void start() {
         // Do nothing
       }
 
+      @SuppressWarnings("unchecked")
       @Override
       public InputStatus pollNext(ReaderOutput<T> output) {
         Tuple2<T, Long> next = (Tuple2<T, Long>) QUEUES.get(index).poll();
 
         if (next != null) {
           if (next.f0 == null) {
-            // No more input
-            return InputStatus.END_OF_INPUT;
-          }
-
-          if (next.f1 == null) {
+            if (next.f1 == null) {
+              // No more input
+              return InputStatus.END_OF_INPUT;
+            } else {
+              output.emitWatermark(new Watermark(next.f1));
+            }
+          } else if (next.f1 == null) {
             // No event time set
             output.collect(next.f0);
           } else {

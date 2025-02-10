@@ -114,7 +114,7 @@ public class MetricsModes {
 
     @Override
     public String toString() {
-      return String.format("truncate(%d)", length);
+      return String.format(Locale.ROOT, "truncate(%d)", length);
     }
 
     @Override

@@ -101,7 +101,7 @@ public class SmokeTest extends ExtensionsTestBase {
     sql(
         "CREATE TABLE %s (category int, id bigint, data string, ts timestamp) USING iceberg",
         tableName);
-    Table table = getTable();
+    Table table;
     // Add examples
     sql("ALTER TABLE %s ADD PARTITION FIELD bucket(16, id)", tableName);
     sql("ALTER TABLE %s ADD PARTITION FIELD truncate(data, 4)", tableName);
@@ -167,9 +167,9 @@ public class SmokeTest extends ExtensionsTestBase {
 
   @TestTemplate
   public void showView() {
-    sql("DROP VIEW IF EXISTS %s", "test");
     sql("CREATE VIEW %s AS SELECT 1 AS id", "test");
     assertThat(sql("SHOW VIEWS")).contains(row("default", "test", false));
+    sql("DROP VIEW %s", "test");
   }
 
   private Table getTable(String name) {

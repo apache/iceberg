@@ -42,6 +42,8 @@ import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.core5.http.EntityDetails;
 import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpHost;
@@ -50,6 +52,7 @@ import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.junit.jupiter.api.AfterAll;
@@ -82,7 +85,8 @@ public class TestHTTPClient {
   @BeforeAll
   public static void beforeClass() {
     mockServer = startClientAndServer(PORT);
-    restClient = HTTPClient.builder(ImmutableMap.of()).uri(URI).build();
+    restClient =
+        HTTPClient.builder(ImmutableMap.of()).uri(URI).withAuthSession(AuthSession.EMPTY).build();
     icebergBuildGitCommitShort = IcebergBuild.gitCommitShortId();
     icebergBuildFullVersion = IcebergBuild.fullVersion();
   }
@@ -141,6 +145,7 @@ public class TestHTTPClient {
             HTTPClient.builder(ImmutableMap.of())
                 .uri(URI)
                 .withProxy("localhost", proxyPort)
+                .withAuthSession(AuthSession.EMPTY)
                 .build()) {
       String path = "v1/config";
       HttpRequest mockRequest =
@@ -186,18 +191,19 @@ public class TestHTTPClient {
         new AuthScope(proxy),
         new UsernamePasswordCredentials(authorizedUsername, invalidPassword.toCharArray()));
 
-    try (ClientAndServer proxyServer =
-            startClientAndServer(
-                new Configuration()
-                    .proxyAuthenticationUsername(authorizedUsername)
-                    .proxyAuthenticationPassword(authorizedPassword),
-                proxyPort);
-        RESTClient clientWithProxy =
+    try (RESTClient clientWithProxy =
             HTTPClient.builder(ImmutableMap.of())
                 .uri(URI)
                 .withProxy(proxyHostName, proxyPort)
                 .withProxyCredentialsProvider(credentialsProvider)
-                .build()) {
+                .withAuthSession(AuthSession.EMPTY)
+                .build();
+        ClientAndServer proxyServer =
+            startClientAndServer(
+                new Configuration()
+                    .proxyAuthenticationUsername(authorizedUsername)
+                    .proxyAuthenticationPassword(authorizedPassword),
+                proxyPort)) {
 
       ErrorHandler onError =
           new ErrorHandler() {
@@ -250,13 +256,47 @@ public class TestHTTPClient {
   }
 
   @Test
+  public void testMaxConnectionSettingsFromProperties() {
+    int maxConnections = 10;
+    int maxConnectionPerRoute = 5;
+    Map<String, String> properties =
+        ImmutableMap.of(
+            HTTPClient.REST_MAX_CONNECTIONS, String.valueOf(maxConnections),
+            HTTPClient.REST_MAX_CONNECTIONS_PER_ROUTE, String.valueOf(maxConnectionPerRoute));
+
+    HttpClientConnectionManager connectionManager =
+        HTTPClient.configureConnectionManager(properties);
+    assertThat(connectionManager).isInstanceOf(PoolingHttpClientConnectionManager.class);
+    PoolingHttpClientConnectionManager poolingHttpClientConnectionManager =
+        (PoolingHttpClientConnectionManager) connectionManager;
+    assertThat(poolingHttpClientConnectionManager.getMaxTotal()).isEqualTo(maxConnections);
+    assertThat(poolingHttpClientConnectionManager.getDefaultMaxPerRoute())
+        .isEqualTo(maxConnectionPerRoute);
+  }
+
+  @Test
+  public void testMaxConnectionSettingsFromDefaults() {
+    Map<String, String> properties = ImmutableMap.of();
+    HttpClientConnectionManager connectionManager =
+        HTTPClient.configureConnectionManager(properties);
+    assertThat(connectionManager).isInstanceOf(PoolingHttpClientConnectionManager.class);
+    PoolingHttpClientConnectionManager poolingHttpClientConnectionManager =
+        (PoolingHttpClientConnectionManager) connectionManager;
+    assertThat(poolingHttpClientConnectionManager.getMaxTotal())
+        .isEqualTo(HTTPClient.REST_MAX_CONNECTIONS_DEFAULT);
+    assertThat(poolingHttpClientConnectionManager.getDefaultMaxPerRoute())
+        .isEqualTo(HTTPClient.REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT);
+  }
+
+  @Test
   public void testSocketTimeout() throws IOException {
     long socketTimeoutMs = 2000L;
     Map<String, String> properties =
         ImmutableMap.of(HTTPClient.REST_SOCKET_TIMEOUT_MS, String.valueOf(socketTimeoutMs));
     String path = "socket/timeout/path";
 
-    try (HTTPClient client = HTTPClient.builder(properties).uri(URI).build()) {
+    try (HTTPClient client =
+        HTTPClient.builder(properties).uri(URI).withAuthSession(AuthSession.EMPTY).build()) {
       HttpRequest mockRequest =
           request()
               .withPath("/" + path)

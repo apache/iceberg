@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
 
   private static final Logger LOG = LoggerFactory.getLogger(ContinuousIcebergEnumerator.class);
+
   /**
    * This is hardcoded, as {@link ScanContext#maxPlanningSnapshotCount()} could be the knob to
    * control the total number of snapshots worth of splits tracked by assigner.

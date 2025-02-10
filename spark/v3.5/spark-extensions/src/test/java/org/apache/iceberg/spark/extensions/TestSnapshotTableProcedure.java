@@ -38,6 +38,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSnapshotTableProcedure extends ExtensionsTestBase {
   private static final String SOURCE_NAME = "spark_catalog.default.source";
+
   // Currently we can only Snapshot only out of the Spark Session Catalog
 
   @AfterEach
@@ -261,5 +262,23 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
                     catalogName, SOURCE_NAME, tableName, -1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Parallelism should be larger than 0");
+  }
+
+  @TestTemplate
+  public void testSnapshotPartitionedWithParallelism() throws IOException {
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet PARTITIONED BY (id) LOCATION '%s'",
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s (id, data) VALUES (1, 'a'), (2, 'b')", SOURCE_NAME);
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.snapshot(source_table => '%s', table => '%s', parallelism => %d)",
+            catalogName, SOURCE_NAME, tableName, 2);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L)), result);
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row("a", 1L), row("b", 2L)),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 }

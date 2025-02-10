@@ -20,8 +20,12 @@ package org.apache.iceberg.spark.action;
 
 import static org.apache.spark.sql.functions.lit;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.AppendFiles;
@@ -31,7 +35,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.io.Files;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.actions.SparkActions;
@@ -124,7 +127,7 @@ public class DeleteOrphanFilesBenchmark {
     for (int i = 0; i < NUM_SNAPSHOTS; i++) {
       AppendFiles appendFiles = table().newFastAppend();
       for (int j = 0; j < NUM_FILES; j++) {
-        String path = String.format("%s/path/to/data-%d-%d.parquet", location, i, j);
+        String path = String.format(Locale.ROOT, "%s/path/to/data-%d-%d.parquet", location, i, j);
         validAndOrphanPaths.add(path);
         DataFile dataFile =
             DataFiles.builder(partitionSpec)
@@ -160,7 +163,14 @@ public class DeleteOrphanFilesBenchmark {
   }
 
   private String catalogWarehouse() {
-    return Files.createTempDir().getAbsolutePath() + "/" + UUID.randomUUID() + "/";
+    try {
+      return Files.createTempDirectory("benchmark-").toAbsolutePath()
+          + "/"
+          + UUID.randomUUID()
+          + "/";
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   private void setupSpark() {

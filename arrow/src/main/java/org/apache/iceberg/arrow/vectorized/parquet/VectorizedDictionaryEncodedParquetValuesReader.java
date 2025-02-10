@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BitVectorHelper;
-import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.IntVector;
@@ -59,14 +58,10 @@ public class VectorizedDictionaryEncodedParquetValuesReader
         }
         int numValues = Math.min(left, currentCount);
         for (int i = 0; i < numValues; i++) {
-          int index = idx * typeWidth;
-          if (typeWidth == -1) {
-            index = idx;
-          }
           if (Mode.RLE.equals(mode)) {
-            nextVal(vector, dict, index, currentValue, typeWidth);
+            nextVal(vector, dict, idx, currentValue, typeWidth);
           } else if (Mode.PACKED.equals(mode)) {
-            nextVal(vector, dict, index, packedValuesBuffer[packedValuesBufferIdx++], typeWidth);
+            nextVal(vector, dict, idx, packedValuesBuffer[packedValuesBufferIdx++], typeWidth);
           }
           nullabilityHolder.setNotNull(idx);
           if (setArrowValidityVector) {
@@ -95,7 +90,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader
     @Override
     protected void nextVal(
         FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
-      vector.getDataBuffer().setLong(idx, dict.decodeToLong(currentVal));
+      vector.getDataBuffer().setLong((long) idx * typeWidth, dict.decodeToLong(currentVal));
     }
   }
 
@@ -103,7 +98,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader
     @Override
     protected void nextVal(
         FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
-      vector.getDataBuffer().setLong(idx, dict.decodeToLong(currentVal) * 1000);
+      vector.getDataBuffer().setLong((long) idx * typeWidth, dict.decodeToLong(currentVal) * 1000);
     }
   }
 
@@ -114,7 +109,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader
       ByteBuffer buffer =
           dict.decodeToBinary(currentVal).toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
       long timestampInt96 = ParquetUtil.extractTimestampInt96(buffer);
-      vector.getDataBuffer().setLong(idx, timestampInt96);
+      vector.getDataBuffer().setLong((long) idx * typeWidth, timestampInt96);
     }
   }
 
@@ -122,7 +117,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader
     @Override
     protected void nextVal(
         FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
-      vector.getDataBuffer().setInt(idx, dict.decodeToInt(currentVal));
+      vector.getDataBuffer().setInt((long) idx * typeWidth, dict.decodeToInt(currentVal));
     }
   }
 
@@ -130,7 +125,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader
     @Override
     protected void nextVal(
         FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
-      vector.getDataBuffer().setFloat(idx, dict.decodeToFloat(currentVal));
+      vector.getDataBuffer().setFloat((long) idx * typeWidth, dict.decodeToFloat(currentVal));
     }
   }
 
@@ -138,25 +133,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader
     @Override
     protected void nextVal(
         FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
-      vector.getDataBuffer().setDouble(idx, dict.decodeToDouble(currentVal));
-    }
-  }
-
-  class FixedWidthBinaryDictEncodedReader extends BaseDictEncodedReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
-      ByteBuffer buffer = dict.decodeToBinary(currentVal).toByteBuffer();
-      vector.getDataBuffer().setBytes(idx, buffer);
-    }
-  }
-
-  class FixedLengthDecimalDictEncodedReader extends BaseDictEncodedReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
-      byte[] bytes = dict.decodeToBinary(currentVal).getBytesUnsafe();
-      DecimalVectorUtil.setBigEndian((DecimalVector) vector, idx, bytes);
+      vector.getDataBuffer().setDouble((long) idx * typeWidth, dict.decodeToDouble(currentVal));
     }
   }
 
@@ -171,22 +148,6 @@ public class VectorizedDictionaryEncodedParquetValuesReader
               buffer.array(),
               buffer.position() + buffer.arrayOffset(),
               buffer.limit() - buffer.position());
-    }
-  }
-
-  class IntBackedDecimalDictEncodedReader extends BaseDictEncodedReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
-      ((DecimalVector) vector).set(idx, dict.decodeToInt(currentVal));
-    }
-  }
-
-  class LongBackedDecimalDictEncodedReader extends BaseDictEncodedReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
-      ((DecimalVector) vector).set(idx, dict.decodeToLong(currentVal));
     }
   }
 
@@ -229,24 +190,8 @@ public class VectorizedDictionaryEncodedParquetValuesReader
     return new DoubleDictEncodedReader();
   }
 
-  public FixedWidthBinaryDictEncodedReader fixedWidthBinaryDictEncodedReader() {
-    return new FixedWidthBinaryDictEncodedReader();
-  }
-
-  public FixedLengthDecimalDictEncodedReader fixedLengthDecimalDictEncodedReader() {
-    return new FixedLengthDecimalDictEncodedReader();
-  }
-
   public VarWidthBinaryDictEncodedReader varWidthBinaryDictEncodedReader() {
     return new VarWidthBinaryDictEncodedReader();
-  }
-
-  public IntBackedDecimalDictEncodedReader intBackedDecimalDictEncodedReader() {
-    return new IntBackedDecimalDictEncodedReader();
-  }
-
-  public LongBackedDecimalDictEncodedReader longBackedDecimalDictEncodedReader() {
-    return new LongBackedDecimalDictEncodedReader();
   }
 
   public FixedSizeBinaryDictEncodedReader fixedSizeBinaryDictEncodedReader() {

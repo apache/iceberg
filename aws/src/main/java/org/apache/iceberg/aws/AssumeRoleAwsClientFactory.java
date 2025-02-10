@@ -38,6 +38,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private HttpClientProperties httpClientProperties;
   private S3FileIOProperties s3FileIOProperties;
   private String roleSessionName;
+  private AwsClientProperties awsClientProperties;
 
   @Override
   public S3Client s3() {
@@ -47,6 +48,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
         .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
         .applyMutation(s3FileIOProperties::applyServiceConfigurations)
         .applyMutation(s3FileIOProperties::applySignerConfiguration)
+        .applyMutation(s3FileIOProperties::applyRetryConfigurations)
         .build();
   }
 
@@ -63,6 +65,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     return KmsClient.builder()
         .applyMutation(this::applyAssumeRoleConfigurations)
         .applyMutation(httpClientProperties::applyHttpClientConfigurations)
+        .applyMutation(awsClientProperties::applyRetryConfigurations)
         .build();
   }
 
@@ -80,6 +83,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     this.awsProperties = new AwsProperties(properties);
     this.s3FileIOProperties = new S3FileIOProperties(properties);
     this.httpClientProperties = new HttpClientProperties(properties);
+    this.awsClientProperties = new AwsClientProperties(properties);
     this.roleSessionName = genSessionName();
     Preconditions.checkNotNull(
         awsProperties.clientAssumeRoleArn(),
@@ -123,6 +127,10 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
   protected S3FileIOProperties s3FileIOProperties() {
     return s3FileIOProperties;
+  }
+
+  protected AwsClientProperties awsClientProperties() {
+    return awsClientProperties;
   }
 
   private StsClient sts() {

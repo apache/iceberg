@@ -43,6 +43,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.ErrorHandlers;
+import org.apache.iceberg.rest.HTTPHeaders;
+import org.apache.iceberg.rest.HTTPRequest;
+import org.apache.iceberg.rest.ImmutableHTTPRequest;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.ResourcePaths;
@@ -72,7 +75,6 @@ public class OAuth2Util {
   private static final String CLIENT_CREDENTIALS = "client_credentials";
   private static final String TOKEN_EXCHANGE = "urn:ietf:params:oauth:grant-type:token-exchange";
   private static final String SCOPE = "scope";
-  private static final String CATALOG = "catalog";
 
   // Client credentials flow
   private static final String CLIENT_ID = "client_id";
@@ -97,7 +99,6 @@ public class OAuth2Util {
   private static final String TOKEN_TYPE = "token_type";
   private static final String EXPIRES_IN = "expires_in";
   private static final String ISSUED_TOKEN_TYPE = "issued_token_type";
-  private static final String REFRESH_TOKEN = "refresh_token";
 
   public static Map<String, String> authHeaders(String token) {
     if (token != null) {
@@ -453,16 +454,24 @@ public class OAuth2Util {
   }
 
   /** Class to handle authorization headers and token refresh. */
-  public static class AuthSession {
+  public static class AuthSession implements org.apache.iceberg.rest.auth.AuthSession {
     private static int tokenRefreshNumRetries = 5;
     private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes
     private static final long MIN_REFRESH_WAIT_MILLIS = 10;
     private volatile Map<String, String> headers;
     private volatile AuthConfig config;
 
-    public AuthSession(Map<String, String> baseHeaders, AuthConfig config) {
-      this.headers = RESTUtil.merge(baseHeaders, authHeaders(config.token()));
+    public AuthSession(Map<String, String> headers, AuthConfig config) {
+      this.headers = ImmutableMap.copyOf(headers);
       this.config = config;
+    }
+
+    @Override
+    public HTTPRequest authenticate(HTTPRequest request) {
+      HTTPHeaders newHeaders = request.headers().putIfAbsent(HTTPHeaders.of(headers()));
+      return newHeaders.equals(request.headers())
+          ? request
+          : ImmutableHTTPRequest.builder().from(request).headers(newHeaders).build();
     }
 
     public Map<String, String> headers() {
@@ -487,6 +496,11 @@ public class OAuth2Util {
 
     public synchronized void stopRefreshing() {
       this.config = ImmutableAuthConfig.copyOf(config).withKeepRefreshed(false);
+    }
+
+    @Override
+    public void close() {
+      stopRefreshing();
     }
 
     public String credential() {
@@ -649,7 +663,7 @@ public class OAuth2Util {
         AuthSession parent) {
       AuthSession session =
           new AuthSession(
-              parent.headers(),
+              RESTUtil.merge(parent.headers(), authHeaders(token)),
               AuthConfig.builder()
                   .from(parent.config())
                   .token(token)
@@ -729,7 +743,7 @@ public class OAuth2Util {
       }
       AuthSession session =
           new AuthSession(
-              parent.headers(),
+              RESTUtil.merge(parent.headers(), authHeaders(response.token())),
               AuthConfig.builder()
                   .from(parent.config())
                   .token(response.token())

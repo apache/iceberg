@@ -19,6 +19,8 @@
 package org.apache.iceberg.gcp;
 
 import static org.apache.iceberg.gcp.GCPProperties.GCS_NO_AUTH;
+import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED;
+import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
@@ -46,5 +48,33 @@ public class GCPPropertiesTest {
     gcpProperties = new GCPProperties(ImmutableMap.of(GCS_NO_AUTH, "true"));
     assertThat(gcpProperties.noAuth()).isTrue();
     assertThat(gcpProperties.oauth2Token()).isNotPresent();
+  }
+
+  @Test
+  public void refreshCredentialsEndpointSet() {
+    GCPProperties gcpProperties =
+        new GCPProperties(
+            ImmutableMap.of(GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT, "/v1/credentials"));
+    assertThat(gcpProperties.oauth2RefreshCredentialsEnabled()).isTrue();
+    assertThat(gcpProperties.oauth2RefreshCredentialsEndpoint())
+        .isPresent()
+        .get()
+        .isEqualTo("/v1/credentials");
+  }
+
+  @Test
+  public void refreshCredentialsEndpointSetButRefreshDisabled() {
+    GCPProperties gcpProperties =
+        new GCPProperties(
+            ImmutableMap.of(
+                GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT,
+                "/v1/credentials",
+                GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED,
+                "false"));
+    assertThat(gcpProperties.oauth2RefreshCredentialsEnabled()).isFalse();
+    assertThat(gcpProperties.oauth2RefreshCredentialsEndpoint())
+        .isPresent()
+        .get()
+        .isEqualTo("/v1/credentials");
   }
 }

@@ -23,6 +23,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -36,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 
 /** Expression utility methods. */
 public class ExpressionUtil {
@@ -52,6 +54,12 @@ public class ExpressionUtil {
   private static final Pattern TIMESTAMPTZ =
       Pattern.compile(
           "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{1,9})?)?([-+]\\d{2}:\\d{2}|Z)");
+  private static final Pattern TIMESTAMPNS =
+      Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{7,9})?)?");
+  private static final Pattern TIMESTAMPTZNS =
+      Pattern.compile(
+          "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{7,9})?)?([-+]\\d{2}:\\d{2}|Z)");
+
   static final int LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD = 10;
   private static final int LONG_IN_PREDICATE_ABBREVIATION_MIN_GAIN = 5;
 
@@ -329,9 +337,9 @@ public class ExpressionUtil {
               pred.op(), pred.term(), (T) sanitize(pred.literal(), now, today));
         case IN:
         case NOT_IN:
-          Iterable<String> iter =
-              () -> pred.literals().stream().map(lit -> sanitize(lit, now, today)).iterator();
-          return new UnboundPredicate<>(pred.op(), pred.term(), (Iterable<T>) iter);
+          Iterable<T> iter =
+              () -> pred.literals().stream().map(lit -> (T) sanitize(lit, now, today)).iterator();
+          return new UnboundPredicate<>(pred.op(), pred.term(), iter);
         default:
           throw new UnsupportedOperationException(
               "Cannot sanitize unsupported predicate type: " + pred.op());
@@ -493,12 +501,18 @@ public class ExpressionUtil {
         abbreviatedList.addAll(distinctValues);
         abbreviatedList.add(
             String.format(
+                Locale.ROOT,
                 "... (%d values hidden, %d in total)",
-                sanitizedValues.size() - distinctValues.size(), sanitizedValues.size()));
+                sanitizedValues.size() - distinctValues.size(),
+                sanitizedValues.size()));
         return abbreviatedList;
       }
     }
     return sanitizedValues;
+  }
+
+  private static String sanitize(Type type, Literal<?> lit, long now, int today) {
+    return sanitize(type, lit.value(), now, today);
   }
 
   private static String sanitize(Type type, Object value, long now, int today) {
@@ -515,14 +529,19 @@ public class ExpressionUtil {
         return "(time)";
       case TIMESTAMP:
         return sanitizeTimestamp((long) value, now);
+      case TIMESTAMP_NANO:
+        return sanitizeTimestamp(DateTimeUtil.nanosToMicros((long) value / 1000), now);
       case STRING:
         return sanitizeString((CharSequence) value, now, today);
+      case UNKNOWN:
+        return "(unknown)";
       case BOOLEAN:
       case UUID:
       case DECIMAL:
       case FIXED:
       case BINARY:
-        // for boolean, uuid, decimal, fixed, and binary, match the string result
+      case VARIANT:
+        // for boolean, uuid, decimal, fixed, variant, unknown, and binary, match the string result
         return sanitizeSimpleString(value.toString());
     }
     throw new UnsupportedOperationException(
@@ -536,6 +555,9 @@ public class ExpressionUtil {
       return sanitizeDate(((Literals.DateLiteral) literal).value(), today);
     } else if (literal instanceof Literals.TimestampLiteral) {
       return sanitizeTimestamp(((Literals.TimestampLiteral) literal).value(), now);
+    } else if (literal instanceof Literals.TimestampNanoLiteral) {
+      return sanitizeTimestamp(
+          DateTimeUtil.nanosToMicros(((Literals.TimestampNanoLiteral) literal).value()), now);
     } else if (literal instanceof Literals.TimeLiteral) {
       return "(time)";
     } else if (literal instanceof Literals.IntegerLiteral) {
@@ -547,7 +569,7 @@ public class ExpressionUtil {
     } else if (literal instanceof Literals.DoubleLiteral) {
       return sanitizeNumber(((Literals.DoubleLiteral) literal).value(), "float");
     } else {
-      // for uuid, decimal, fixed, and binary, match the string result
+      // for uuid, decimal, fixed, variant, and binary, match the string result
       return sanitizeSimpleString(literal.value().toString());
     }
   }
@@ -594,6 +616,12 @@ public class ExpressionUtil {
       if (DATE.matcher(value).matches()) {
         Literal<Integer> date = Literal.of(value).to(Types.DateType.get());
         return sanitizeDate(date.value(), today);
+      } else if (TIMESTAMPNS.matcher(value).matches()) {
+        Literal<Long> ts = Literal.of(value).to(Types.TimestampNanoType.withoutZone());
+        return sanitizeTimestamp(DateTimeUtil.nanosToMicros(ts.value()), now);
+      } else if (TIMESTAMPTZNS.matcher(value).matches()) {
+        Literal<Long> ts = Literal.of(value).to(Types.TimestampNanoType.withZone());
+        return sanitizeTimestamp(DateTimeUtil.nanosToMicros(ts.value()), now);
       } else if (TIMESTAMP.matcher(value).matches()) {
         Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withoutZone());
         return sanitizeTimestamp(ts.value(), now);
@@ -615,7 +643,7 @@ public class ExpressionUtil {
 
   private static String sanitizeSimpleString(CharSequence value) {
     // hash the value and return the hash as hex
-    return String.format("(hash-%08x)", HASH_FUNC.apply(value));
+    return String.format(Locale.ROOT, "(hash-%08x)", HASH_FUNC.apply(value));
   }
 
   private static PartitionSpec identitySpec(Schema schema, int... ids) {

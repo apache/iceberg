@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg;
 
-import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
@@ -26,11 +25,11 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.DataFileSet;
 
 public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
     implements OverwriteFiles {
-  private final Set<DataFile> deletedDataFiles = Sets.newHashSet();
+  private final DataFileSet deletedDataFiles = DataFileSet.create();
   private boolean validateAddedFilesMatchOverwriteFilter = false;
   private Long startingSnapshotId = null;
   private Expression conflictDetectionFilter = null;
@@ -142,7 +141,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
                 && (strict.eval(file.partition()) || metrics.eval(file)),
             "Cannot append file with rows that do not match filter: %s: %s",
             rowFilter,
-            file.path());
+            file.location());
       }
     }
 

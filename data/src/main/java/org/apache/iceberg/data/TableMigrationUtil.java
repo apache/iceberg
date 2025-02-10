@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -97,7 +98,9 @@ public class TableMigrationUtil {
    * @param conf a Hadoop conf
    * @param metricsSpec a metrics conf
    * @param mapping a name mapping
-   * @param parallelism number of threads to use for file reading
+   * @param parallelism number of threads to use for file reading. If null, file reading will be
+   *     performed on the current thread. If non-null, the provided ExecutorService will be shutdown
+   *     within this method after file reading is complete.
    * @return a List of DataFile
    */
   public static List<DataFile> listPartition(
@@ -137,7 +140,9 @@ public class TableMigrationUtil {
    * @param conf a Hadoop conf
    * @param metricsSpec a metrics conf
    * @param mapping a name mapping
-   * @param service executor service to use for file reading
+   * @param service executor service to use for file reading. If null, file reading will be
+   *     performed on the current thread. If non-null, the provided ExecutorService will be shutdown
+   *     within this method after file reading is complete.
    * @return a List of DataFile
    */
   public static List<DataFile> listPartition(
@@ -250,7 +255,17 @@ public class TableMigrationUtil {
         .build();
   }
 
+  /**
+   * Returns an {@link ExecutorService} for table migration.
+   *
+   * <p>If parallelism is 1, this method returns null, indicating that no executor service is
+   * needed. Otherwise, it returns a fixed-size thread pool with the given parallelism.
+   *
+   * <p><b>Important:</b> Callers are responsible for shutting down the returned executor service
+   * when it is no longer needed to prevent resource leaks.
+   */
+  @Nullable
   public static ExecutorService migrationService(int parallelism) {
-    return parallelism == 1 ? null : ThreadPools.newWorkerPool("table-migration", parallelism);
+    return parallelism == 1 ? null : ThreadPools.newFixedThreadPool("table-migration", parallelism);
   }
 }

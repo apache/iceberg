@@ -24,6 +24,7 @@ import org.apache.iceberg.types.Comparators;
 
 /** Enum of supported file formats. */
 public enum FileFormat {
+  PUFFIN("puffin", false),
   ORC("orc", true),
   PARQUET("parquet", true),
   AVRO("avro", true),

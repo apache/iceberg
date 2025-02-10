@@ -43,7 +43,9 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
     return new Truncate<>(width);
   }
 
-  /** @deprecated will be removed in 2.0.0 */
+  /**
+   * @deprecated will be removed in 2.0.0
+   */
   @Deprecated
   @SuppressWarnings("unchecked")
   static <T, R extends Truncate<T> & SerializableFunction<T, T>> R get(Type type, int width) {

@@ -229,6 +229,11 @@ public class RESTCatalog
   }
 
   @Override
+  public boolean namespaceExists(Namespace namespace) {
+    return nsDelegate.namespaceExists(namespace);
+  }
+
+  @Override
   public Map<String, String> loadNamespaceMetadata(Namespace ns) throws NoSuchNamespaceException {
     return nsDelegate.loadNamespaceMetadata(ns);
   }

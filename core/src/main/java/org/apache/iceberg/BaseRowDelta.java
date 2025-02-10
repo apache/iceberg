@@ -63,6 +63,12 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   }
 
   @Override
+  public RowDelta removeDeletes(DeleteFile deletes) {
+    delete(deletes);
+    return this;
+  }
+
+  @Override
   public RowDelta validateFromSnapshot(long snapshotId) {
     this.startingSnapshotId = snapshotId;
     return this;
@@ -133,6 +139,8 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
       if (validateNewDeleteFiles) {
         validateNoNewDeleteFiles(base, startingSnapshotId, conflictDetectionFilter, parent);
       }
+
+      validateAddedDVs(base, startingSnapshotId, conflictDetectionFilter, parent);
     }
   }
 }

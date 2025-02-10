@@ -53,7 +53,10 @@ class OrcFileAppender<D> implements FileAppender<D> {
   private final int avgRowByteSize;
   private final OrcRowWriter<D> valueWriter;
   private boolean isClosed = false;
+
+  @SuppressWarnings("unused") // Currently used in tests TODO remove this redundant field
   private final Configuration conf;
+
   private final MetricsConfig metricsConfig;
 
   OrcFileAppender(

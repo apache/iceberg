@@ -34,8 +34,6 @@ import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
@@ -50,8 +48,6 @@ import software.amazon.awssdk.services.iam.model.PutRolePolicyRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 public class TestAssumeRoleAwsClientFactory {
-
-  private static final Logger LOG = LoggerFactory.getLogger(TestAssumeRoleAwsClientFactory.class);
 
   private IamClient iam;
   private String roleName;

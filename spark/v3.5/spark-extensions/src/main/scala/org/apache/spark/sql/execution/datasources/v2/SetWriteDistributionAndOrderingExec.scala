@@ -35,7 +35,7 @@ import org.apache.spark.sql.connector.catalog.TableCatalog
 case class SetWriteDistributionAndOrderingExec(
     catalog: TableCatalog,
     ident: Identifier,
-    distributionMode: DistributionMode,
+    distributionMode: Option[DistributionMode],
     sortOrder: Seq[(Term, SortDirection, NullOrder)]) extends LeafV2CommandExec {
 
   import CatalogV2Implicits._
@@ -56,9 +56,11 @@ case class SetWriteDistributionAndOrderingExec(
         }
         orderBuilder.commit()
 
-        txn.updateProperties()
-          .set(WRITE_DISTRIBUTION_MODE, distributionMode.modeName())
-          .commit()
+        distributionMode.foreach { mode =>
+          txn.updateProperties()
+            .set(WRITE_DISTRIBUTION_MODE, mode.modeName())
+            .commit()
+        }
 
         txn.commitTransaction()
 

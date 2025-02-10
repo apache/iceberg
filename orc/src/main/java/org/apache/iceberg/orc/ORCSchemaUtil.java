@@ -73,6 +73,7 @@ public final class ORCSchemaUtil {
    * to an ORC binary type. The values for this attribute are denoted in {@code BinaryType}.
    */
   public static final String ICEBERG_BINARY_TYPE_ATTRIBUTE = "iceberg.binary-type";
+
   /**
    * The name of the ORC {@link TypeDescription} attribute indicating the Iceberg type corresponding
    * to an ORC long type. The values for this attribute are denoted in {@code LongType}.
@@ -262,11 +263,11 @@ public final class ORCSchemaUtil {
   public static TypeDescription buildOrcProjection(
       Schema schema, TypeDescription originalOrcSchema) {
     final Map<Integer, OrcField> icebergToOrc = icebergToOrcMapping("root", originalOrcSchema);
-    return buildOrcProjection(Integer.MIN_VALUE, schema.asStruct(), true, icebergToOrc);
+    return buildOrcProjection(schema, Integer.MIN_VALUE, schema.asStruct(), true, icebergToOrc);
   }
 
   private static TypeDescription buildOrcProjection(
-      Integer fieldId, Type type, boolean isRequired, Map<Integer, OrcField> mapping) {
+      Schema root, Integer fieldId, Type type, boolean isRequired, Map<Integer, OrcField> mapping) {
     final TypeDescription orcType;
 
     switch (type.typeId()) {
@@ -282,6 +283,7 @@ public final class ORCSchemaUtil {
                   .orElseGet(() -> nestedField.name() + "_r" + nestedField.fieldId());
           TypeDescription childType =
               buildOrcProjection(
+                  root,
                   nestedField.fieldId(),
                   nestedField.type(),
                   isRequired && nestedField.isRequired(),
@@ -293,6 +295,7 @@ public final class ORCSchemaUtil {
         Types.ListType list = (Types.ListType) type;
         TypeDescription elementType =
             buildOrcProjection(
+                root,
                 list.elementId(),
                 list.elementType(),
                 isRequired && list.isElementRequired(),
@@ -302,10 +305,10 @@ public final class ORCSchemaUtil {
       case MAP:
         Types.MapType map = (Types.MapType) type;
         TypeDescription keyType =
-            buildOrcProjection(map.keyId(), map.keyType(), isRequired, mapping);
+            buildOrcProjection(root, map.keyId(), map.keyType(), isRequired, mapping);
         TypeDescription valueType =
             buildOrcProjection(
-                map.valueId(), map.valueType(), isRequired && map.isValueRequired(), mapping);
+                root, map.valueId(), map.valueType(), isRequired && map.isValueRequired(), mapping);
         orcType = TypeDescription.createMap(keyType, valueType);
         break;
       default:
@@ -324,9 +327,20 @@ public final class ORCSchemaUtil {
             orcType = originalType.clone();
           }
         } else {
+          Types.NestedField field = root.findField(fieldId);
           if (isRequired) {
-            throw new IllegalArgumentException(
-                String.format("Field %d of type %s is required and was not found.", fieldId, type));
+            Preconditions.checkArgument(
+                field.initialDefault() != null,
+                "Missing required field: %s (%s)",
+                root.findColumnName(fieldId),
+                type);
+          }
+
+          if (field.initialDefault() != null) {
+            throw new UnsupportedOperationException(
+                String.format(
+                    "ORC cannot read default value for field %s (%s): %s",
+                    root.findColumnName(fieldId), type, field.initialDefault()));
           }
 
           orcType = convert(fieldId, type, false);

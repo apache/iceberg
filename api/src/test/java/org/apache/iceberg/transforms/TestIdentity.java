@@ -19,6 +19,7 @@
 package org.apache.iceberg.transforms;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -106,7 +107,7 @@ public class TestIdentity {
     // value will always be in UTC
     assertThat(identity.toHumanString(timestamptz, ts.value()))
         .as("Should produce timestamp with time zone adjusted to UTC")
-        .isEqualTo("2017-12-01T18:12:55.038194Z");
+        .isEqualTo("2017-12-01T18:12:55.038194+00:00");
   }
 
   @Test
@@ -154,5 +155,32 @@ public class TestIdentity {
     assertThat(identity.toHumanString(decimal, bigDecimal))
         .as("Should not modify Strings")
         .isEqualTo(decimalString);
+  }
+
+  @Test
+  public void testUnknownToHumanString() {
+    Types.UnknownType unknownType = Types.UnknownType.get();
+    Transform<Object, Object> identity = Transforms.identity();
+
+    assertThat(identity.toHumanString(unknownType, null))
+        .as("Should produce \"null\" for null")
+        .isEqualTo("null");
+  }
+
+  @Test
+  public void testVariantUnsupported() {
+    assertThatThrownBy(() -> Transforms.identity().bind(Types.VariantType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot bind to unsupported type: variant");
+
+    assertThatThrownBy(() -> Transforms.fromString(Types.VariantType.get(), "identity"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type for identity: variant");
+
+    assertThatThrownBy(() -> Transforms.identity(Types.VariantType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type for identity: variant");
+
+    assertThat(Transforms.identity().canTransform(Types.VariantType.get())).isFalse();
   }
 }

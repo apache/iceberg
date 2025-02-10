@@ -60,7 +60,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     this.specId = spec.specId();
     this.writer = newAppender(spec, this.file);
     this.snapshotId = snapshotId;
-    this.reused = new GenericManifestEntry<>(spec.partitionType());
+    this.reused =
+        new GenericManifestEntry<>(V1Metadata.entrySchema(spec.partitionType()).asStruct());
     this.stats = new PartitionSummary(spec);
     this.keyMetadataBuffer = (file.keyMetadata() == null) ? null : file.keyMetadata().buffer();
   }

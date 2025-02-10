@@ -29,6 +29,7 @@ public interface S3FileIOAwsClientFactory extends Serializable {
    * @return s3 client
    */
   S3Client s3();
+
   /**
    * Initialize AWS client factory from catalog properties.
    *

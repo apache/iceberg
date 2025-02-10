@@ -99,12 +99,12 @@ public class TestTagDDL extends ExtensionsTestBase {
                     "ALTER TABLE %s CREATE TAG %s AS OF VERSION %d RETAIN",
                     tableName, tagName, firstSnapshotId, maxRefAge))
         .isInstanceOf(IcebergParseException.class)
-        .hasMessageContaining("mismatched input");
+        .hasMessageContaining("no viable alternative at input '<EOF>'");
 
     assertThatThrownBy(
             () -> sql("ALTER TABLE %s CREATE TAG %s RETAIN %s DAYS", tableName, tagName, "abc"))
         .isInstanceOf(IcebergParseException.class)
-        .hasMessageContaining("mismatched input");
+        .hasMessageContaining("no viable alternative at input 'abc'");
 
     assertThatThrownBy(
             () ->
@@ -151,7 +151,7 @@ public class TestTagDDL extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE TAG %s", tableName, "123"))
         .isInstanceOf(IcebergParseException.class)
-        .hasMessageContaining("mismatched input '123'");
+        .hasMessageContaining("no viable alternative at input '123'");
 
     table.manageSnapshots().removeTag(tagName).commit();
     List<SimpleRecord> records =
@@ -303,7 +303,7 @@ public class TestTagDDL extends ExtensionsTestBase {
   public void testDropTagNonConformingName() {
     assertThatThrownBy(() -> sql("ALTER TABLE %s DROP TAG %s", tableName, "123"))
         .isInstanceOf(IcebergParseException.class)
-        .hasMessageContaining("mismatched input '123'");
+        .hasMessageContaining("no viable alternative at input '123'");
   }
 
   @TestTemplate

@@ -283,7 +283,8 @@ Snapshots that are still referenced by branches or tags won't be removed. By def
 | `deleted_position_delete_files_count` | long | Number of position delete files deleted by this operation |
 | `deleted_equality_delete_files_count` | long | Number of equality delete files deleted by this operation |
 | `deleted_manifest_files_count` | long | Number of manifest files deleted by this operation |
-| `deleted_manifest_lists_count` | long | Number of manifest List files deleted by this operation |
+| `deleted_manifest_lists_count` | long | Number of manifest list files deleted by this operation |
+| `deleted_statistics_files_count` | long | Number of statistics files deleted by this operation |
 
 #### Examples
 
@@ -312,6 +313,10 @@ Used to remove files which are not referenced in any metadata files of an Iceber
 | `location`    |    | string    | Directory to look for files in (defaults to the table's location) |
 | `dry_run`     |    | boolean   | When true, don't actually remove files (defaults to false) |
 | `max_concurrent_deletes` |    | int       | Size of the thread pool used for delete file actions (by default, no thread pool is used) |
+| `file_list_view` |    | string | Dataset to look for files in (skipping the directory listing) |
+| `equal_schemes` |    | map<string, string> | Mapping of file system schemes to be considered equal. Key is a comma-separated list of schemes and value is a scheme (defaults to `map('s3a,s3n','s3')`). |
+| `equal_authorities` |    | map<string, string> | Mapping of file system authorities to be considered equal. Key is a comma-separated list of authorities and value is an authority. |
+| `prefix_mismatch_mode` |    | string | Action behavior when location prefixes (schemes/authorities) mismatch: <ul><li>ERROR - throw an exception. (default) </li><li>IGNORE - no action.</li><li>DELETE - delete files.</li></ul> |  
 
 #### Output
 
@@ -329,6 +334,40 @@ CALL catalog_name.system.remove_orphan_files(table => 'db.sample', dry_run => tr
 Remove any files in the `tablelocation/data` folder which are not known to the table `db.sample`.
 ```sql
 CALL catalog_name.system.remove_orphan_files(table => 'db.sample', location => 'tablelocation/data');
+```
+
+Remove any files in the `files_view` view which are not known to the table `db.sample`.
+```java
+Dataset<Row> compareToFileList =
+    spark
+        .createDataFrame(allFiles, FilePathLastModifiedRecord.class)
+        .withColumnRenamed("filePath", "file_path")
+        .withColumnRenamed("lastModified", "last_modified");
+String fileListViewName = "files_view";
+compareToFileList.createOrReplaceTempView(fileListViewName);
+```
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', file_list_view => 'files_view');
+```
+
+When a file matches references in metadata files except for location prefix (scheme/authority), an error is thrown by default. 
+The error can be ignored and the file will be skipped by setting `prefix_mismatch_mode` to `IGNORE`.
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', prefix_mismatch_mode => 'IGNORE');
+```
+
+The file can still be deleted by setting `prefix_mismatch_mode` to `DELETE`.
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', prefix_mismatch_mode => 'DELETE');
+```
+
+The file can also be deleted by considering the mismatched prefixes equal.
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', equal_schemes => map('file', 'file1'));
+```
+
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', equal_authorities => map('ns1', 'ns2'));
 ```
 
 ### `rewrite_data_files`
@@ -355,6 +394,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `max-concurrent-file-group-rewrites` | 5 | Maximum number of file groups to be simultaneously rewritten |
 | `partial-progress.enabled` | false | Enable committing groups of files prior to the entire rewrite completing |
 | `partial-progress.max-commits` | 10 | Maximum amount of commits that this rewrite is allowed to produce if partial progress is enabled |
+| `partial-progress.max-failed-commits` | value of `partital-progress.max-commits` | Maximum amount of failed commits allowed before job failure, if partial progress is enabled |
 | `use-starting-sequence-number` | true | Use the sequence number of the snapshot at compaction start time instead of that of the newly produced snapshot |
 | `rewrite-job-order` | none | Force the rewrite job order based on the value. <ul><li>If rewrite-job-order=bytes-asc, then rewrite the smallest job groups first.</li><li>If rewrite-job-order=bytes-desc, then rewrite the largest job groups first.</li><li>If rewrite-job-order=files-asc, then rewrite the job groups with the least files first.</li><li>If rewrite-job-order=files-desc, then rewrite the job groups with the most files first.</li><li>If rewrite-job-order=none, then rewrite job groups in the order they were planned (no specific ordering).</li></ul> |
 | `target-file-size-bytes` | 536870912 (512 MB, default value of `write.target-file-size-bytes` from [table properties](configuration.md#write-properties)) | Target output file size |
@@ -364,7 +404,14 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `rewrite-all` | false | Force rewriting of all provided files overriding other options |
 | `max-file-group-size-bytes` | 107374182400 (100GB) | Largest amount of data that should be rewritten in a single file group. The entire rewrite operation is broken down into pieces based on partitioning and within partitions based on size into file-groups.  This helps with breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the cluster. |
 | `delete-file-threshold` | 2147483647 | Minimum number of deletes that needs to be associated with a data file for it to be considered for rewriting |
+| `delete-ratio-threshold` | 0.3 | Minimum deletion ratio that needs to be associated with a data file for it to be considered for rewriting |
+| `output-spec-id` | current partition spec id | Identifier of the output partition spec. Data will be reorganized during the rewrite to align with the output partitioning. |
+| `remove-dangling-deletes` | false | Remove dangling position and equality deletes after rewriting. A delete file is considered dangling if it does not apply to any live data files. Enabling this will generate an additional commit for the removal. |
 
+!!! info
+    Dangling delete files are removed based solely on data sequence numbers. This action does not apply to global 
+    equality deletes or invalid equality deletes if their delete conditions do not match any data files, 
+    nor to position delete files containing position deletes no longer matching any live data files.
 
 ##### Options for sort strategy
 
@@ -409,9 +456,9 @@ Using the same defaults as bin-pack to determine which files to rewrite.
 CALL catalog_name.system.rewrite_data_files(table => 'db.sample', strategy => 'sort', sort_order => 'zorder(c1,c2)');
 ```
 
-Rewrite the data files in table `db.sample` using bin-pack strategy in any partition where more than 2 or more files need to be rewritten.
+Rewrite the data files in table `db.sample` using bin-pack strategy in any partition where at least two files need rewriting, and then remove any dangling delete files.
 ```sql
-CALL catalog_name.system.rewrite_data_files(table => 'db.sample', options => map('min-input-files','2'));
+CALL catalog_name.system.rewrite_data_files(table => 'db.sample', options => map('min-input-files', '2', 'remove-dangling-deletes', 'true'));
 ```
 
 Rewrite the data files in table `db.sample` and select the files that may contain data matching the filter (id = 3 and name = "foo") to be rewritten.
@@ -548,6 +595,9 @@ See [`migrate`](#migrate) to replace an existing table with an Iceberg table.
 | `properties`  | ️   | map<string, string> | Properties to add to the newly created table |
 | `parallelism` |    | int | Number of threads to use for file reading (defaults to 1) |
 
+!!! warning
+    There's a [known issue with `parallelism > 1`](https://github.com/apache/iceberg/issues/11147) that is scheduled to be fixed in the next release.
+
 #### Output
 
 | Output Name | Type | Description |
@@ -590,6 +640,9 @@ By default, the original table is retained with the name `table_BACKUP_`.
 | `drop_backup` |   | boolean | When true, the original table will not be retained as backup (defaults to false) |
 | `backup_table_name` |  | string | Name of the table that will be retained as backup (defaults to `table_BACKUP_`) |
 | `parallelism` |   | int | Number of threads to use for file reading (defaults to 1) |
+
+!!! warning
+    There's a [known issue with `parallelism > 1`](https://github.com/apache/iceberg/issues/11147) that is scheduled to be fixed in the next release.
 
 #### Output
 
@@ -637,6 +690,9 @@ Warning : Schema is not validated, adding files with different schema to the Ice
 
 Warning : Files added by this method can be physically deleted by Iceberg operations
 
+!!! warning
+    There's a [known issue with `parallelism > 1`](https://github.com/apache/iceberg/issues/11147) that is scheduled to be fixed in the next release.
+
 #### Output
 
 | Output Name               | Type | Description                                       |
@@ -653,9 +709,9 @@ Add the files from table `db.src_table`, a Hive or Spark table registered in the
 `db.tbl`. Only add files that exist within partitions where `part_col_1` is equal to `A`.
 ```sql
 CALL spark_catalog.system.add_files(
-table => 'db.tbl',
-source_table => 'db.src_tbl',
-partition_filter => map('part_col_1', 'A')
+  table => 'db.tbl',
+  source_table => 'db.src_tbl',
+  partition_filter => map('part_col_1', 'A')
 );
 ```
 
@@ -799,7 +855,7 @@ CALL spark_catalog.system.create_changelog_view(
   table => 'db.tbl',
   options => map('start-snapshot-id','1','end-snapshot-id', '2'),
   identifier_columns => array('id', 'name')
-)
+);
 ```
 
 Once the changelog view is created, you can query the view to see the changes that happened between the snapshots.
@@ -819,7 +875,7 @@ that provide additional information about the changes being tracked. These colum
 Here is an example of corresponding results. It shows that the first snapshot inserted 2 records, and the
 second snapshot deleted 1 record. 
 
-|  id	| name	  |_change_type |	_change_ordinal	| _change_snapshot_id |
+|  id	| name	  |_change_type |	_change_ordinal	| _commit_snapshot_id |
 |---|--------|---|---|---|
 |1	| Alice	 |INSERT	|0	|5390529835796506035|
 |2	| Bob	   |INSERT	|0	|5390529835796506035|
@@ -839,7 +895,7 @@ CALL spark_catalog.system.create_changelog_view(
 
 With the net changes, the above changelog view only contains the following row since Alice was inserted in the first snapshot and deleted in the second snapshot.
 
-|  id	| name	  |_change_type |	_change_ordinal	| _change_snapshot_id |
+|  id	| name	  |_change_type |	_change_ordinal	| _commit_snapshot_id |
 |---|--------|---|---|---|
 |2	| Bob	   |INSERT	|0	|5390529835796506035|
 
@@ -882,3 +938,40 @@ as an `UPDATE_AFTER` image, resulting in the following pre/post update images:
 |-----|--------|--------------|
 | 3   | Robert | UPDATE_BEFORE|
 | 3   | Dan    | UPDATE_AFTER |
+
+## Table Statistics
+
+### `compute_table_stats`
+
+This procedure calculates the [Number of Distinct Values (NDV) statistics](../../format/puffin-spec.md) for a specific table.
+By default, statistics are computed for all columns using the table's current snapshot.
+The procedure can be optionally configured to compute statistics for a specific snapshot and/or a subset of columns.
+
+| Argument Name | Required? | Type          | Description                         |
+|---------------|-----------|---------------|-------------------------------------|
+| `table`       | ✔️        | string        | Name of the table                   |
+| `snapshot_id` |           | string        | Id of the snapshot to collect stats |
+| `columns`     |           | array<string> | Columns to collect stats            |
+
+#### Output
+
+| Output Name       | Type   | Description                                     |
+|-------------------|--------|-------------------------------------------------|
+| `statistics_file` | string | Path to stats file created from by this command |
+
+#### Examples
+
+Collect statistics of the latest snapshot of table `my_table`
+```sql
+CALL catalog_name.system.compute_table_stats('my_table');
+```
+
+Collect statistics of the snapshot with id `snap1` of table `my_table`
+```sql
+CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id => 'snap1' );
+```
+
+Collect statistics of the snapshot with id `snap1` of table `my_table` for columns `col1` and `col2`
+```sql
+CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id => 'snap1', columns => array('col1', 'col2'));
+```

@@ -29,6 +29,7 @@ public class CatalogProperties {
   public static final String WAREHOUSE_LOCATION = "warehouse";
   public static final String TABLE_DEFAULT_PREFIX = "table-default.";
   public static final String TABLE_OVERRIDE_PREFIX = "table-override.";
+  public static final String VIEW_DEFAULT_PREFIX = "view-default.";
   public static final String METRICS_REPORTER_IMPL = "metrics-reporter-impl";
 
   /**
@@ -124,6 +125,7 @@ public class CatalogProperties {
       "client.pool.cache.eviction-interval-ms";
   public static final long CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS_DEFAULT =
       TimeUnit.MINUTES.toMillis(5);
+
   /**
    * A comma separated list of elements used, in addition to the {@link #URI}, to compose the key of
    * the client pool cache.

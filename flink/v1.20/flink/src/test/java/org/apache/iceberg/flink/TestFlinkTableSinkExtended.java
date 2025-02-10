@@ -20,6 +20,7 @@ package org.apache.iceberg.flink;
 
 import static org.apache.iceberg.flink.FlinkCatalogFactory.ICEBERG_CATALOG_TYPE_HADOOP;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.util.Arrays;
@@ -30,6 +31,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.sink.v2.DiscardingSink;
+import org.apache.flink.streaming.api.transformations.SinkTransformation;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
@@ -46,14 +49,17 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.flink.sink.IcebergSink;
 import org.apache.iceberg.flink.source.BoundedTableFactory;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -88,11 +94,20 @@ public class TestFlinkTableSinkExtended extends SqlBase {
 
   private TableEnvironment tEnv;
 
-  @Parameter protected boolean isStreamingJob;
+  @Parameter(index = 0)
+  protected boolean isStreamingJob;
 
-  @Parameters(name = "isStreamingJob={0}")
+  @Parameter(index = 1)
+  protected Boolean useV2Sink;
+
+  @Parameters(name = "isStreamingJob={0}, useV2Sink={1}")
   protected static List<Object[]> parameters() {
-    return Arrays.asList(new Boolean[] {true}, new Boolean[] {false});
+    return Arrays.asList(
+        new Object[] {true, false},
+        new Object[] {false, false},
+        new Object[] {true, true},
+        new Object[] {false, true},
+        new Object[] {true, null});
   }
 
   protected synchronized TableEnvironment getTableEnv() {
@@ -112,6 +127,13 @@ public class TestFlinkTableSinkExtended extends SqlBase {
         tEnv = TableEnvironment.create(settingsBuilder.build());
       }
     }
+
+    if (useV2Sink != null) {
+      tEnv.getConfig()
+          .getConfiguration()
+          .set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_V2_SINK, useV2Sink);
+    }
+
     return tEnv;
   }
 
@@ -144,6 +166,32 @@ public class TestFlinkTableSinkExtended extends SqlBase {
   }
 
   @TestTemplate
+  public void testUsedFlinkSinkInterface() {
+    String dataId = BoundedTableFactory.registerDataSet(Collections.emptyList());
+    sql(
+        "CREATE TABLE %s(id INT NOT NULL, data STRING NOT NULL)"
+            + " WITH ('connector'='BoundedSource', 'data-id'='%s')",
+        SOURCE_TABLE, dataId);
+
+    PlannerBase planner = (PlannerBase) ((TableEnvironmentImpl) getTableEnv()).getPlanner();
+    String insertSQL = String.format("INSERT INTO %s SELECT * FROM %s", TABLE, SOURCE_TABLE);
+    ModifyOperation operation = (ModifyOperation) planner.getParser().parse(insertSQL).get(0);
+    Transformation<?> transformation =
+        planner.translate(Collections.singletonList(operation)).get(0);
+    assertThat(transformation).as("Should use SinkV2 API").isInstanceOf(SinkTransformation.class);
+    SinkTransformation<?, ?> sinkTransformation = (SinkTransformation<?, ?>) transformation;
+    if (useV2Sink != null && useV2Sink) {
+      assertThat(sinkTransformation.getSink())
+          .as("Should use SinkV2 API based implementation")
+          .isInstanceOf(IcebergSink.class);
+    } else {
+      assertThat(sinkTransformation.getSink())
+          .as("Should use custom chain of StreamOperators terminated by DiscardingSink")
+          .isInstanceOf(DiscardingSink.class);
+    }
+  }
+
+  @TestTemplate
   public void testWriteParallelism() {
     List<Row> dataSet =
         IntStream.range(1, 1000)
@@ -162,18 +210,25 @@ public class TestFlinkTableSinkExtended extends SqlBase {
             "INSERT INTO %s /*+ OPTIONS('write-parallelism'='1') */ SELECT * FROM %s",
             TABLE, SOURCE_TABLE);
     ModifyOperation operation = (ModifyOperation) planner.getParser().parse(insertSQL).get(0);
-    Transformation<?> dummySink = planner.translate(Collections.singletonList(operation)).get(0);
-    Transformation<?> committer = dummySink.getInputs().get(0);
-    Transformation<?> writer = committer.getInputs().get(0);
+    Transformation<?> sink = planner.translate(Collections.singletonList(operation)).get(0);
+    if (useV2Sink != null && useV2Sink) {
+      assertThat(sink.getParallelism()).as("Should have the expected 1 parallelism.").isEqualTo(1);
+      Transformation<?> writerInput = sink.getInputs().get(0);
+      assertThat(writerInput.getParallelism())
+          .as("Should have the expected parallelism.")
+          .isEqualTo(isStreamingJob ? 2 : 4);
+    } else {
+      Transformation<?> committer = sink.getInputs().get(0);
+      Transformation<?> writer = committer.getInputs().get(0);
 
-    assertThat(writer.getParallelism()).as("Should have the expected 1 parallelism.").isEqualTo(1);
-    writer
-        .getInputs()
-        .forEach(
-            input ->
-                assertThat(input.getParallelism())
-                    .as("Should have the expected parallelism.")
-                    .isEqualTo(isStreamingJob ? 2 : 4));
+      assertThat(writer.getParallelism())
+          .as("Should have the expected 1 parallelism.")
+          .isEqualTo(1);
+      Transformation<?> writerInput = writer.getInputs().get(0);
+      assertThat(writerInput.getParallelism())
+          .as("Should have the expected parallelism.")
+          .isEqualTo(isStreamingJob ? 2 : 4);
+    }
   }
 
   @TestTemplate
@@ -236,6 +291,95 @@ public class TestFlinkTableSinkExtended extends SqlBase {
                 SimpleDataUtil.matchingPartitions(
                     dataFiles, table.spec(), ImmutableMap.of("data", "ccc")))
             .hasSize(1);
+      }
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", FLINK_DATABASE, tableName);
+    }
+  }
+
+  @TestTemplate
+  public void testRangeDistributionPartitionColumn() {
+    // Range partitioner currently only works with streaming writes (with checkpoints)
+    assumeThat(isStreamingJob).isTrue();
+
+    // Initialize a BoundedSource table to precisely emit those rows in only one checkpoint.
+    List<List<Row>> rowsPerCheckpoint =
+        IntStream.range(1, 6)
+            .mapToObj(
+                checkpointId -> {
+                  List<Row> charRows = Lists.newArrayList();
+                  // emit 26x10 rows for each checkpoint cycle
+                  for (int i = 0; i < 10; ++i) {
+                    for (char c = 'a'; c <= 'z'; c++) {
+                      charRows.add(Row.of(c - 'a', String.valueOf(c)));
+                    }
+                  }
+                  return charRows;
+                })
+            .collect(Collectors.toList());
+    List<Row> flattenedRows =
+        rowsPerCheckpoint.stream().flatMap(List::stream).collect(Collectors.toList());
+
+    String dataId = BoundedTableFactory.registerDataSet(rowsPerCheckpoint);
+    sql(
+        "CREATE TABLE %s(id INT NOT NULL, data STRING NOT NULL)"
+            + " WITH ('connector'='BoundedSource', 'data-id'='%s')",
+        SOURCE_TABLE, dataId);
+
+    assertThat(sql("SELECT * FROM %s", SOURCE_TABLE))
+        .as("Should have the expected rows in source table.")
+        .containsExactlyInAnyOrderElementsOf(flattenedRows);
+
+    Map<String, String> tableProps =
+        ImmutableMap.of(
+            "write.format.default",
+            FileFormat.PARQUET.name(),
+            TableProperties.WRITE_DISTRIBUTION_MODE,
+            DistributionMode.RANGE.modeName());
+
+    String tableName = "test_hash_distribution_mode";
+    sql(
+        "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) WITH %s",
+        tableName, toWithClause(tableProps));
+
+    try {
+      // Insert data set.
+      sql("INSERT INTO %s SELECT * FROM %s", tableName, SOURCE_TABLE);
+
+      assertThat(sql("SELECT * FROM %s", tableName))
+          .as("Should have the expected rows in sink table.")
+          .containsExactlyInAnyOrderElementsOf(flattenedRows);
+
+      Table table = catalog.loadTable(TableIdentifier.of(ICEBERG_NAMESPACE, tableName));
+      // ordered in reverse timeline from the newest snapshot to the oldest snapshot
+      List<Snapshot> snapshots = Lists.newArrayList(table.snapshots().iterator());
+      // only keep the snapshots with added data files
+      snapshots =
+          snapshots.stream()
+              .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
+              .collect(Collectors.toList());
+
+      // Sometimes we will have more checkpoints than the bounded source if we pass the
+      // auto checkpoint interval. Thus producing multiple snapshots.
+      assertThat(snapshots).hasSizeGreaterThanOrEqualTo(5);
+
+      // It takes 2 checkpoint cycle for statistics collection and application
+      // of the globally aggregated statistics in the range partitioner.
+      // The last two checkpoints should have range shuffle applied
+      List<Snapshot> rangePartitionedCycles =
+          snapshots.subList(snapshots.size() - 2, snapshots.size());
+
+      for (Snapshot snapshot : rangePartitionedCycles) {
+        List<DataFile> addedDataFiles =
+            Lists.newArrayList(snapshot.addedDataFiles(table.io()).iterator());
+        // range partition results in each partition only assigned to one writer task
+        // maybe less than 26 partitions as BoundedSource doesn't always precisely
+        // control the checkpoint boundary.
+        // It is hard to precisely control the test condition in SQL tests.
+        // Here only minimal safe assertions are applied to avoid flakiness.
+        // If there are no shuffling, the number of data files could be as high as
+        // 26 * 4 as the default parallelism is set to 4 for the mini cluster.
+        assertThat(addedDataFiles).hasSizeLessThanOrEqualTo(26);
       }
     } finally {
       sql("DROP TABLE IF EXISTS %s.%s", FLINK_DATABASE, tableName);

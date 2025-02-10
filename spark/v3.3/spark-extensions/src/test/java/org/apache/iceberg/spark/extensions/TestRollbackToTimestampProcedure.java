@@ -20,6 +20,8 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -29,8 +31,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
 
@@ -253,6 +256,39 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testRollbackToTimestampBeforeOrEqualToOldestSnapshot() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot firstSnapshot = table.currentSnapshot();
+    Timestamp beforeFirstSnapshot =
+        Timestamp.from(Instant.ofEpochMilli(firstSnapshot.timestampMillis() - 1));
+    Timestamp exactFirstSnapshot =
+        Timestamp.from(Instant.ofEpochMilli(firstSnapshot.timestampMillis()));
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rollback_to_timestamp(timestamp => TIMESTAMP '%s', table => '%s')",
+                    catalogName, beforeFirstSnapshot, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot roll back, no valid snapshot older than: %s",
+            beforeFirstSnapshot.toInstant().toEpochMilli());
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rollback_to_timestamp(timestamp => TIMESTAMP '%s', table => '%s')",
+                    catalogName, exactFirstSnapshot, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot roll back, no valid snapshot older than: %s",
+            exactFirstSnapshot.toInstant().toEpochMilli());
+  }
+
+  @Test
   public void testInvalidRollbackToTimestampCases() {
     String timestamp = "TIMESTAMP '2007-12-03T10:15:30'";
 
@@ -268,8 +304,12 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CALL %s.custom.rollback_to_timestamp('n', 't', %s)", catalogName, timestamp))
         .as("Should not resolve procedures in arbitrary namespaces")
-        .isInstanceOf(NoSuchProcedureException.class)
-        .hasMessageContaining("not found");
+        .satisfies(
+            exception -> {
+              ParseException parseException = (ParseException) exception;
+              Assert.assertEquals("PARSE_SYNTAX_ERROR", parseException.getErrorClass());
+              Assert.assertEquals("Syntax error at or near 'CALL'", parseException.message());
+            });
 
     assertThatThrownBy(() -> sql("CALL %s.system.rollback_to_timestamp('t')", catalogName))
         .as("Should reject calls without all required args")

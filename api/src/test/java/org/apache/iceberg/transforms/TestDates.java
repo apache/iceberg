@@ -19,6 +19,7 @@
 package org.apache.iceberg.transforms;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
@@ -26,6 +27,75 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 public class TestDates {
+  @Test
+  public void testSatisfiesOrderOfDates() {
+    assertThat(Dates.DAY.satisfiesOrderOf(Dates.DAY)).isTrue();
+    assertThat(Dates.DAY.satisfiesOrderOf(Dates.MONTH)).isTrue();
+    assertThat(Dates.DAY.satisfiesOrderOf(Dates.YEAR)).isTrue();
+
+    assertThat(Dates.MONTH.satisfiesOrderOf(Dates.DAY)).isFalse();
+    assertThat(Dates.MONTH.satisfiesOrderOf(Dates.MONTH)).isTrue();
+    assertThat(Dates.MONTH.satisfiesOrderOf(Dates.YEAR)).isTrue();
+
+    assertThat(Dates.YEAR.satisfiesOrderOf(Dates.DAY)).isFalse();
+    assertThat(Dates.YEAR.satisfiesOrderOf(Dates.MONTH)).isFalse();
+    assertThat(Dates.YEAR.satisfiesOrderOf(Dates.YEAR)).isTrue();
+  }
+
+  @Test
+  public void testSatisfiesOrderOfTimestamps() {
+    assertThat(Dates.DAY.satisfiesOrderOf(Timestamps.MICROS_TO_HOUR)).isFalse();
+    assertThat(Dates.DAY.satisfiesOrderOf(Timestamps.MICROS_TO_DAY)).isTrue();
+    assertThat(Dates.DAY.satisfiesOrderOf(Timestamps.MICROS_TO_MONTH)).isTrue();
+    assertThat(Dates.DAY.satisfiesOrderOf(Timestamps.MICROS_TO_YEAR)).isTrue();
+
+    assertThat(Dates.MONTH.satisfiesOrderOf(Timestamps.MICROS_TO_HOUR)).isFalse();
+    assertThat(Dates.MONTH.satisfiesOrderOf(Timestamps.MICROS_TO_DAY)).isFalse();
+    assertThat(Dates.MONTH.satisfiesOrderOf(Timestamps.MICROS_TO_MONTH)).isTrue();
+    assertThat(Dates.MONTH.satisfiesOrderOf(Timestamps.MICROS_TO_YEAR)).isTrue();
+
+    assertThat(Dates.YEAR.satisfiesOrderOf(Timestamps.MICROS_TO_HOUR)).isFalse();
+    assertThat(Dates.YEAR.satisfiesOrderOf(Timestamps.MICROS_TO_DAY)).isFalse();
+    assertThat(Dates.YEAR.satisfiesOrderOf(Timestamps.MICROS_TO_MONTH)).isFalse();
+    assertThat(Dates.YEAR.satisfiesOrderOf(Timestamps.MICROS_TO_YEAR)).isTrue();
+  }
+
+  @Test
+  public void testSatisfiesOrderOfTimestampNanos() {
+    assertThat(Dates.DAY.satisfiesOrderOf(Timestamps.NANOS_TO_HOUR)).isFalse();
+    assertThat(Dates.DAY.satisfiesOrderOf(Timestamps.NANOS_TO_DAY)).isTrue();
+    assertThat(Dates.DAY.satisfiesOrderOf(Timestamps.NANOS_TO_MONTH)).isTrue();
+    assertThat(Dates.DAY.satisfiesOrderOf(Timestamps.NANOS_TO_YEAR)).isTrue();
+
+    assertThat(Dates.MONTH.satisfiesOrderOf(Timestamps.NANOS_TO_HOUR)).isFalse();
+    assertThat(Dates.MONTH.satisfiesOrderOf(Timestamps.NANOS_TO_DAY)).isFalse();
+    assertThat(Dates.MONTH.satisfiesOrderOf(Timestamps.NANOS_TO_MONTH)).isTrue();
+    assertThat(Dates.MONTH.satisfiesOrderOf(Timestamps.NANOS_TO_YEAR)).isTrue();
+
+    assertThat(Dates.YEAR.satisfiesOrderOf(Timestamps.NANOS_TO_HOUR)).isFalse();
+    assertThat(Dates.YEAR.satisfiesOrderOf(Timestamps.NANOS_TO_DAY)).isFalse();
+    assertThat(Dates.YEAR.satisfiesOrderOf(Timestamps.NANOS_TO_MONTH)).isFalse();
+    assertThat(Dates.YEAR.satisfiesOrderOf(Timestamps.NANOS_TO_YEAR)).isTrue();
+  }
+
+  @Test
+  public void testSatisfiesOrderOfTimeTransforms() {
+    assertThat(Dates.DAY.satisfiesOrderOf(Hours.get())).isFalse();
+    assertThat(Dates.DAY.satisfiesOrderOf(Days.get())).isTrue();
+    assertThat(Dates.DAY.satisfiesOrderOf(Months.get())).isTrue();
+    assertThat(Dates.DAY.satisfiesOrderOf(Years.get())).isTrue();
+
+    assertThat(Dates.MONTH.satisfiesOrderOf(Hours.get())).isFalse();
+    assertThat(Dates.MONTH.satisfiesOrderOf(Days.get())).isFalse();
+    assertThat(Dates.MONTH.satisfiesOrderOf(Months.get())).isTrue();
+    assertThat(Dates.MONTH.satisfiesOrderOf(Years.get())).isTrue();
+
+    assertThat(Dates.YEAR.satisfiesOrderOf(Hours.get())).isFalse();
+    assertThat(Dates.YEAR.satisfiesOrderOf(Days.get())).isFalse();
+    assertThat(Dates.YEAR.satisfiesOrderOf(Months.get())).isFalse();
+    assertThat(Dates.YEAR.satisfiesOrderOf(Years.get())).isTrue();
+  }
+
   @Test
   @SuppressWarnings("deprecation")
   public void testDeprecatedDateTransform() {
@@ -197,5 +267,47 @@ public class TestDates {
     Transform<Integer, Integer> day = Transforms.day();
     Type dayResultType = day.getResultType(type);
     assertThat(dayResultType).isEqualTo(Types.DateType.get());
+  }
+
+  @Test
+  public void testUnknownUnsupportedYear() {
+    assertThatThrownBy(() -> Transforms.year(Types.UnknownType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type: unknown");
+
+    Transform<Object, Integer> year = Transforms.year();
+    assertThatThrownBy(() -> year.bind(Types.UnknownType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type: unknown");
+
+    assertThat(year.canTransform(Types.UnknownType.get())).isFalse();
+  }
+
+  @Test
+  public void testUnknownUnsupportedMonth() {
+    assertThatThrownBy(() -> Transforms.month(Types.UnknownType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type: unknown");
+
+    Transform<Object, Integer> month = Transforms.month();
+    assertThatThrownBy(() -> month.bind(Types.UnknownType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type: unknown");
+
+    assertThat(month.canTransform(Types.UnknownType.get())).isFalse();
+  }
+
+  @Test
+  public void testUnknownUnsupportedDay() {
+    assertThatThrownBy(() -> Transforms.day(Types.UnknownType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type: unknown");
+
+    Transform<Object, Integer> day = Transforms.day();
+    assertThatThrownBy(() -> day.bind(Types.UnknownType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type: unknown");
+
+    assertThat(day.canTransform(Types.UnknownType.get())).isFalse();
   }
 }

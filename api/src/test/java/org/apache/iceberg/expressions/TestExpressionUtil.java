@@ -42,11 +42,12 @@ public class TestExpressionUtil {
           Types.NestedField.required(2, "val", Types.IntegerType.get()),
           Types.NestedField.required(3, "val2", Types.IntegerType.get()),
           Types.NestedField.required(4, "ts", Types.TimestampType.withoutZone()),
-          Types.NestedField.required(5, "date", Types.DateType.get()),
-          Types.NestedField.required(6, "time", Types.DateType.get()),
-          Types.NestedField.optional(7, "data", Types.StringType.get()),
-          Types.NestedField.optional(8, "measurement", Types.DoubleType.get()),
-          Types.NestedField.optional(9, "test", Types.IntegerType.get()));
+          Types.NestedField.required(5, "tsns", Types.TimestampNanoType.withoutZone()),
+          Types.NestedField.required(6, "date", Types.DateType.get()),
+          Types.NestedField.required(7, "time", Types.DateType.get()),
+          Types.NestedField.optional(8, "data", Types.StringType.get()),
+          Types.NestedField.optional(9, "measurement", Types.DoubleType.get()),
+          Types.NestedField.optional(10, "test", Types.IntegerType.get()));
 
   private static final Types.StructType STRUCT = SCHEMA.asStruct();
 
@@ -418,6 +419,10 @@ public class TestExpressionUtil {
 
     assertEquals(
         Expressions.equal("date", "(date)"),
+        ExpressionUtil.sanitize(Expressions.equal("date", "2022-04-29").bind(STRUCT, true)));
+
+    assertEquals(
+        Expressions.equal("date", "(date)"),
         ExpressionUtil.sanitize(STRUCT, Expressions.equal("date", "2022-04-29"), true));
 
     assertThat(ExpressionUtil.toSanitizedString(Expressions.equal("test", "2022-04-29")))
@@ -460,7 +465,9 @@ public class TestExpressionUtil {
             "2022-04-29T23:49:51",
             "2022-04-29T23:49:51.123456",
             "2022-04-29T23:49:51-07:00",
-            "2022-04-29T23:49:51.123456+01:00")) {
+            "2022-04-29T23:49:51.123456+01:00",
+            "2022-04-29T23:49:51.123456789",
+            "2022-04-29T23:49:51.123456789+01:00")) {
       assertEquals(
           Expressions.equal("test", "(timestamp)"),
           ExpressionUtil.sanitize(Expressions.equal("test", timestamp)));
@@ -496,6 +503,13 @@ public class TestExpressionUtil {
                 Expression.Operation.EQ,
                 "test",
                 Literal.of(nowLocal).to(Types.TimestampType.withoutZone()))));
+    assertEquals(
+        Expressions.equal("test", "(timestamp-about-now)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(nowLocal).to(Types.TimestampNanoType.withoutZone()))));
 
     assertThat(ExpressionUtil.toSanitizedString(Expressions.equal("test", nowLocal)))
         .as("Sanitized string should be identical except for descriptive literal")
@@ -522,6 +536,13 @@ public class TestExpressionUtil {
                 Expression.Operation.EQ,
                 "test",
                 Literal.of(ninetyMinutesAgoLocal).to(Types.TimestampType.withoutZone()))));
+    assertEquals(
+        Expressions.equal("test", "(timestamp-1-hours-ago)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(ninetyMinutesAgoLocal).to(Types.TimestampNanoType.withoutZone()))));
 
     assertThat(ExpressionUtil.toSanitizedString(Expressions.equal("test", ninetyMinutesAgoLocal)))
         .as("Sanitized string should be identical except for descriptive literal")
@@ -548,6 +569,13 @@ public class TestExpressionUtil {
                 Expression.Operation.EQ,
                 "test",
                 Literal.of(lastWeekLocal).to(Types.TimestampType.withoutZone()))));
+    assertEquals(
+        Expressions.equal("test", "(timestamp-7-days-ago)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(lastWeekLocal).to(Types.TimestampNanoType.withoutZone()))));
 
     assertThat(ExpressionUtil.toSanitizedString(Expressions.equal("test", lastWeekLocal)))
         .as("Sanitized string should be identical except for descriptive literal")
@@ -574,6 +602,13 @@ public class TestExpressionUtil {
                 Expression.Operation.EQ,
                 "test",
                 Literal.of(ninetyMinutesFromNowLocal).to(Types.TimestampType.withoutZone()))));
+    assertEquals(
+        Expressions.equal("test", "(timestamp-1-hours-from-now)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(ninetyMinutesFromNowLocal).to(Types.TimestampNanoType.withoutZone()))));
 
     assertThat(
             ExpressionUtil.toSanitizedString(Expressions.equal("test", ninetyMinutesFromNowLocal)))
@@ -597,6 +632,13 @@ public class TestExpressionUtil {
                 Expression.Operation.EQ,
                 "test",
                 Literal.of(nowUtc).to(Types.TimestampType.withZone()))));
+    assertEquals(
+        Expressions.equal("test", "(timestamp-about-now)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(nowUtc).to(Types.TimestampNanoType.withZone()))));
 
     assertThat(ExpressionUtil.toSanitizedString(Expressions.equal("test", nowUtc)))
         .as("Sanitized string should be identical except for descriptive literal")
@@ -618,6 +660,13 @@ public class TestExpressionUtil {
                 Expression.Operation.EQ,
                 "test",
                 Literal.of(ninetyMinutesAgoUtc).to(Types.TimestampType.withZone()))));
+    assertEquals(
+        Expressions.equal("test", "(timestamp-1-hours-ago)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(ninetyMinutesAgoUtc).to(Types.TimestampNanoType.withZone()))));
 
     assertThat(ExpressionUtil.toSanitizedString(Expressions.equal("test", ninetyMinutesAgoUtc)))
         .as("Sanitized string should be identical except for descriptive literal")
@@ -639,6 +688,13 @@ public class TestExpressionUtil {
                 Expression.Operation.EQ,
                 "test",
                 Literal.of(lastWeekUtc).to(Types.TimestampType.withZone()))));
+    assertEquals(
+        Expressions.equal("test", "(timestamp-7-days-ago)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(lastWeekUtc).to(Types.TimestampNanoType.withZone()))));
 
     assertThat(ExpressionUtil.toSanitizedString(Expressions.equal("test", lastWeekUtc)))
         .as("Sanitized string should be identical except for descriptive literal")
@@ -660,6 +716,13 @@ public class TestExpressionUtil {
                 Expression.Operation.EQ,
                 "test",
                 Literal.of(ninetyMinutesFromNowUtc).to(Types.TimestampType.withZone()))));
+    assertEquals(
+        Expressions.equal("test", "(timestamp-1-hours-from-now)"),
+        ExpressionUtil.sanitize(
+            Expressions.predicate(
+                Expression.Operation.EQ,
+                "test",
+                Literal.of(ninetyMinutesFromNowUtc).to(Types.TimestampNanoType.withZone()))));
 
     assertThat(ExpressionUtil.toSanitizedString(Expressions.equal("test", ninetyMinutesFromNowUtc)))
         .as("Sanitized string should be identical except for descriptive literal")

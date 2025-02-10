@@ -309,6 +309,18 @@ public class Expressions {
     return new UnboundTransform<>(ref(name), transform);
   }
 
+  /**
+   * Create a {@link Literal} from an Object.
+   *
+   * @param value a value
+   * @param <T> Java type of value
+   * @return a Literal for the given value
+   * @throws IllegalArgumentException if the value has no literal implementation
+   */
+  public static <T> Literal<T> lit(T value) {
+    return Literals.from(value);
+  }
+
   public static <T> UnboundAggregate<T> count(String name) {
     return new UnboundAggregate<>(Operation.COUNT, ref(name));
   }

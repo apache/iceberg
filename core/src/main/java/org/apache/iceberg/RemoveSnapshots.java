@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -84,6 +85,8 @@ class RemoveSnapshots implements ExpireSnapshots {
   private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
   private ExecutorService planExecutorService = ThreadPools.getWorkerPool();
   private Boolean incrementalCleanup;
+  private boolean specifiedSnapshotId = false;
+  private boolean cleanExpiredMetadata = false;
 
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
@@ -116,6 +119,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   public ExpireSnapshots expireSnapshotId(long expireSnapshotId) {
     LOG.info("Expiring snapshot with id: {}", expireSnapshotId);
     idsToRemove.add(expireSnapshotId);
+    specifiedSnapshotId = true;
     return this;
   }
 
@@ -154,6 +158,12 @@ class RemoveSnapshots implements ExpireSnapshots {
   @Override
   public ExpireSnapshots planWith(ExecutorService executorService) {
     this.planExecutorService = executorService;
+    return this;
+  }
+
+  @Override
+  public ExpireSnapshots cleanExpiredMetadata(boolean clean) {
+    this.cleanExpiredMetadata = clean;
     return this;
   }
 
@@ -206,6 +216,26 @@ class RemoveSnapshots implements ExpireSnapshots {
         .filter(snapshot -> !idsToRetain.contains(snapshot))
         .forEach(idsToRemove::add);
     updatedMetaBuilder.removeSnapshots(idsToRemove);
+
+    if (cleanExpiredMetadata) {
+      // TODO: Support cleaning expired schema as well.
+      Set<Integer> reachableSpecs = Sets.newConcurrentHashSet();
+      reachableSpecs.add(base.defaultSpecId());
+      Tasks.foreach(idsToRetain)
+          .executeWith(planExecutorService)
+          .run(
+              snapshot ->
+                  base.snapshot(snapshot).allManifests(ops.io()).stream()
+                      .map(ManifestFile::partitionSpecId)
+                      .forEach(reachableSpecs::add));
+
+      Set<Integer> specsToRemove =
+          base.specs().stream()
+              .map(PartitionSpec::specId)
+              .filter(specId -> !reachableSpecs.contains(specId))
+              .collect(Collectors.toSet());
+      updatedMetaBuilder.removeSpecs(specsToRemove);
+    }
 
     return updatedMetaBuilder.build();
   }
@@ -320,6 +350,15 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   private void cleanExpiredSnapshots() {
     TableMetadata current = ops.refresh();
+
+    if (specifiedSnapshotId) {
+      if (incrementalCleanup != null && incrementalCleanup) {
+        throw new UnsupportedOperationException(
+            "Cannot clean files incrementally when snapshot IDs are specified");
+      }
+
+      incrementalCleanup = false;
+    }
 
     if (incrementalCleanup == null) {
       incrementalCleanup = current.refs().size() == 1;

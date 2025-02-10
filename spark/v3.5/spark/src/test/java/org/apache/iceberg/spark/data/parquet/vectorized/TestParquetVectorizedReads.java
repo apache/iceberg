@@ -49,7 +49,6 @@ import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 public class TestParquetVectorizedReads extends AvroDataTest {
@@ -60,18 +59,42 @@ public class TestParquetVectorizedReads extends AvroDataTest {
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    writeAndValidate(schema, getNumRows(), 0L, RandomData.DEFAULT_NULL_PERCENTAGE, true);
+    writeAndValidate(schema, schema);
+  }
+
+  @Override
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
+    writeAndValidate(
+        writeSchema,
+        expectedSchema,
+        getNumRows(),
+        29714278L,
+        RandomData.DEFAULT_NULL_PERCENTAGE,
+        true,
+        BATCH_SIZE,
+        IDENTITY);
+  }
+
+  @Override
+  protected boolean supportsDefaultValues() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsNestedTypes() {
+    return false;
   }
 
   private void writeAndValidate(
       Schema schema, int numRecords, long seed, float nullPercentage, boolean reuseContainers)
       throws IOException {
     writeAndValidate(
-        schema, numRecords, seed, nullPercentage, reuseContainers, BATCH_SIZE, IDENTITY);
+        schema, schema, numRecords, seed, nullPercentage, reuseContainers, BATCH_SIZE, IDENTITY);
   }
 
   private void writeAndValidate(
-      Schema schema,
+      Schema writeSchema,
+      Schema expectedSchema,
       int numRecords,
       long seed,
       float nullPercentage,
@@ -82,22 +105,23 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     // Write test data
     assumeThat(
             TypeUtil.find(
-                schema,
+                writeSchema,
                 type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()))
         .as("Parquet Avro cannot write non-string map keys")
         .isNull();
 
     Iterable<GenericData.Record> expected =
-        generateData(schema, numRecords, seed, nullPercentage, transform);
+        generateData(writeSchema, numRecords, seed, nullPercentage, transform);
 
     // write a test parquet file using iceberg writer
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
-    try (FileAppender<GenericData.Record> writer = getParquetWriter(schema, testFile)) {
+    try (FileAppender<GenericData.Record> writer = getParquetWriter(writeSchema, testFile)) {
       writer.addAll(expected);
     }
-    assertRecordsMatch(schema, numRecords, expected, testFile, reuseContainers, batchSize);
+
+    assertRecordsMatch(expectedSchema, numRecords, expected, testFile, reuseContainers, batchSize);
   }
 
   protected int getNumRows() {
@@ -161,41 +185,6 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     }
   }
 
-  @Override
-  @Test
-  @Disabled
-  public void testArray() {}
-
-  @Override
-  @Test
-  @Disabled
-  public void testArrayOfStructs() {}
-
-  @Override
-  @Test
-  @Disabled
-  public void testMap() {}
-
-  @Override
-  @Test
-  @Disabled
-  public void testNumericMapKey() {}
-
-  @Override
-  @Test
-  @Disabled
-  public void testComplexMapKey() {}
-
-  @Override
-  @Test
-  @Disabled
-  public void testMapOfStructs() {}
-
-  @Override
-  @Test
-  @Disabled
-  public void testMixedTypes() {}
-
   @Test
   @Override
   public void testNestedStruct() {
@@ -246,10 +235,13 @@ public class TestParquetVectorizedReads extends AvroDataTest {
   public void testVectorizedReadsWithReallocatedArrowBuffers() throws IOException {
     // With a batch size of 2, 256 bytes are allocated in the VarCharVector. By adding strings of
     // length 512, the vector will need to be reallocated for storing the batch.
-    writeAndValidate(
+    Schema schema =
         new Schema(
             Lists.newArrayList(
-                SUPPORTED_PRIMITIVES.field("id"), SUPPORTED_PRIMITIVES.field("data"))),
+                SUPPORTED_PRIMITIVES.field("id"), SUPPORTED_PRIMITIVES.field("data")));
+    writeAndValidate(
+        schema,
+        schema,
         10,
         0L,
         RandomData.DEFAULT_NULL_PERCENTAGE,

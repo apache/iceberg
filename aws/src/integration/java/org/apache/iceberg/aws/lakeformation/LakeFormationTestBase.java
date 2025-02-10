@@ -20,7 +20,6 @@ package org.apache.iceberg.aws.lakeformation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -78,7 +77,6 @@ import software.amazon.awssdk.services.lakeformation.model.GetDataLakeSettingsRe
 import software.amazon.awssdk.services.lakeformation.model.GrantPermissionsRequest;
 import software.amazon.awssdk.services.lakeformation.model.Permission;
 import software.amazon.awssdk.services.lakeformation.model.PutDataLakeSettingsRequest;
-import software.amazon.awssdk.services.lakeformation.model.PutDataLakeSettingsResponse;
 import software.amazon.awssdk.services.lakeformation.model.RegisterResourceRequest;
 import software.amazon.awssdk.services.lakeformation.model.Resource;
 import software.amazon.awssdk.services.lakeformation.model.TableResource;
@@ -217,10 +215,9 @@ public class LakeFormationTestBase {
     // put lf data lake settings
     GetDataLakeSettingsResponse getDataLakeSettingsResponse =
         lakeformation.getDataLakeSettings(GetDataLakeSettingsRequest.builder().build());
-    PutDataLakeSettingsResponse putDataLakeSettingsResponse =
-        lakeformation.putDataLakeSettings(
-            putDataLakeSettingsRequest(
-                lfRegisterPathRoleArn, getDataLakeSettingsResponse.dataLakeSettings(), true));
+    lakeformation.putDataLakeSettings(
+        putDataLakeSettingsRequest(
+            lfRegisterPathRoleArn, getDataLakeSettingsResponse.dataLakeSettings(), true));
 
     // Build test glueCatalog with lfPrivilegedRole
     glueCatalogPrivilegedRole = new GlueCatalog();
@@ -497,8 +494,7 @@ public class LakeFormationTestBase {
                       .versionId(DEFAULT_IAM_POLICY_VERSION)
                       .build())
               .policyVersion();
-      String currentDocument =
-          URLDecoder.decode(existingPolicy.document(), StandardCharsets.UTF_8.name());
+      String currentDocument = URLDecoder.decode(existingPolicy.document(), StandardCharsets.UTF_8);
       if (Objects.equals(currentDocument, policyDocument)) {
         LOG.info(
             "Policy {} already exists and policy content did not change. Nothing to do.",
@@ -513,8 +509,6 @@ public class LakeFormationTestBase {
       }
     } catch (NoSuchEntityException e) {
       createPolicy(policyName, policyDocument);
-    } catch (UnsupportedEncodingException e) {
-      throw new RuntimeException(e);
     }
   }
 

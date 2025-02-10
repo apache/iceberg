@@ -96,7 +96,7 @@ public class ManifestFiles {
   public static CloseableIterable<String> readPaths(ManifestFile manifest, FileIO io) {
     return CloseableIterable.transform(
         read(manifest, io, null).select(ImmutableList.of("file_path")).liveEntries(),
-        entry -> entry.file().path().toString());
+        entry -> entry.file().location());
   }
 
   /**

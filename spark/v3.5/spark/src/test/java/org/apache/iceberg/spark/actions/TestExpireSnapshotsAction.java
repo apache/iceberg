@@ -21,10 +21,12 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,8 +38,12 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileGenerationUtil;
 import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.Schema;
@@ -53,16 +59,17 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestExpireSnapshotsAction extends TestBase {
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA =
@@ -120,16 +127,26 @@ public class TestExpireSnapshotsAction extends TestBase {
           .build();
 
   @TempDir private Path temp;
+  @Parameter private int formatVersion;
 
-  private File tableDir;
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(2, 3);
+  }
+
+  @TempDir private File tableDir;
   private String tableLocation;
   private Table table;
 
   @BeforeEach
   public void setupTableLocation() throws Exception {
-    this.tableDir = temp.resolve("junit").toFile();
     this.tableLocation = tableDir.toURI().toString();
-    this.table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
+    this.table =
+        TABLES.create(
+            SCHEMA,
+            SPEC,
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            tableLocation);
     spark.conf().set("spark.sql.shuffle.partitions", SHUFFLE_PARTITIONS);
   }
 
@@ -143,6 +160,10 @@ public class TestExpireSnapshotsAction extends TestBase {
       end = System.currentTimeMillis();
     }
     return end;
+  }
+
+  private DeleteFile fileADeletes() {
+    return formatVersion >= 3 ? FileGenerationUtil.generateDV(table, FILE_A) : FILE_A_POS_DELETES;
   }
 
   private void checkExpirationResults(
@@ -174,7 +195,7 @@ public class TestExpireSnapshotsAction extends TestBase {
         .isEqualTo(expectedManifestListsDeleted);
   }
 
-  @Test
+  @TestTemplate
   public void testFilesCleaned() throws Exception {
     table.newFastAppend().appendFile(FILE_A).commit();
 
@@ -192,7 +213,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     checkExpirationResults(1L, 0L, 0L, 1L, 2L, results);
   }
 
-  @Test
+  @TestTemplate
   public void dataFilesCleanupWithParallelTasks() throws IOException {
 
     table.newFastAppend().appendFile(FILE_A).commit();
@@ -240,13 +261,13 @@ public class TestExpireSnapshotsAction extends TestBase {
                 "remove-snapshot-2",
                 "remove-snapshot-3"));
 
-    assertThat(deletedFiles).as("FILE_A should be deleted").contains(FILE_A.path().toString());
-    assertThat(deletedFiles).as("FILE_B should be deleted").contains(FILE_B.path().toString());
+    assertThat(deletedFiles).as("FILE_A should be deleted").contains(FILE_A.location());
+    assertThat(deletedFiles).as("FILE_B should be deleted").contains(FILE_B.location());
 
     checkExpirationResults(2L, 0L, 0L, 3L, 3L, result);
   }
 
-  @Test
+  @TestTemplate
   public void testNoFilesDeletedWhenNoSnapshotsExpired() throws Exception {
     table.newFastAppend().appendFile(FILE_A).commit();
 
@@ -254,7 +275,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     checkExpirationResults(0L, 0L, 0L, 0L, 0L, results);
   }
 
-  @Test
+  @TestTemplate
   public void testCleanupRepeatedOverwrites() throws Exception {
     table.newFastAppend().appendFile(FILE_A).commit();
 
@@ -270,7 +291,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     checkExpirationResults(1L, 0L, 0L, 39L, 20L, results);
   }
 
-  @Test
+  @TestTemplate
   public void testRetainLastWithExpireOlderThan() {
     table
         .newAppend()
@@ -301,7 +322,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     assertThat(table.snapshot(firstSnapshotId)).as("First snapshot should not present.").isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testExpireTwoSnapshotsById() throws Exception {
     table
         .newAppend()
@@ -336,7 +357,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     checkExpirationResults(0L, 0L, 0L, 0L, 2L, result);
   }
 
-  @Test
+  @TestTemplate
   public void testRetainLastWithExpireById() {
     table
         .newAppend()
@@ -367,7 +388,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     checkExpirationResults(0L, 0L, 0L, 0L, 1L, result);
   }
 
-  @Test
+  @TestTemplate
   public void testRetainLastWithTooFewSnapshots() {
     table
         .newAppend()
@@ -394,7 +415,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     checkExpirationResults(0L, 0L, 0L, 0L, 0L, result);
   }
 
-  @Test
+  @TestTemplate
   public void testRetainLastKeepsExpiringSnapshot() {
     table
         .newAppend()
@@ -433,7 +454,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     checkExpirationResults(0L, 0L, 0L, 0L, 1L, result);
   }
 
-  @Test
+  @TestTemplate
   public void testExpireSnapshotsWithDisabledGarbageCollection() {
     table.updateProperties().set(TableProperties.GC_ENABLED, "false").commit();
 
@@ -445,7 +466,7 @@ public class TestExpireSnapshotsAction extends TestBase {
             "Cannot expire snapshots: GC is disabled (deleting files may corrupt other tables)");
   }
 
-  @Test
+  @TestTemplate
   public void testExpireOlderThanMultipleCalls() {
     table
         .newAppend()
@@ -481,7 +502,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     checkExpirationResults(0L, 0L, 0L, 0L, 2L, result);
   }
 
-  @Test
+  @TestTemplate
   public void testRetainLastMultipleCalls() {
     table
         .newAppend()
@@ -518,14 +539,14 @@ public class TestExpireSnapshotsAction extends TestBase {
     checkExpirationResults(0L, 0L, 0L, 0L, 2L, result);
   }
 
-  @Test
+  @TestTemplate
   public void testRetainZeroSnapshots() {
     assertThatThrownBy(() -> SparkActions.get().expireSnapshots(table).retainLast(0).execute())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Number of snapshots to retain must be at least 1, cannot be: 0");
   }
 
-  @Test
+  @TestTemplate
   public void testScanExpiredManifestInValidSnapshotAppend() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -544,11 +565,11 @@ public class TestExpireSnapshotsAction extends TestBase {
             .deleteWith(deletedFiles::add)
             .execute();
 
-    assertThat(deletedFiles).as("FILE_A should be deleted").contains(FILE_A.path().toString());
+    assertThat(deletedFiles).as("FILE_A should be deleted").contains(FILE_A.location());
     checkExpirationResults(1L, 0L, 0L, 1L, 2L, result);
   }
 
-  @Test
+  @TestTemplate
   public void testScanExpiredManifestInValidSnapshotFastAppend() {
     table
         .updateProperties()
@@ -573,7 +594,7 @@ public class TestExpireSnapshotsAction extends TestBase {
             .deleteWith(deletedFiles::add)
             .execute();
 
-    assertThat(deletedFiles).as("FILE_A should be deleted").contains(FILE_A.path().toString());
+    assertThat(deletedFiles).as("FILE_A should be deleted").contains(FILE_A.location());
     checkExpirationResults(1L, 0L, 0L, 1L, 2L, result);
   }
 
@@ -581,7 +602,7 @@ public class TestExpireSnapshotsAction extends TestBase {
    * Test on table below, and expiring the staged commit `B` using `expireOlderThan` API. Table: A -
    * C ` B (staged)
    */
-  @Test
+  @TestTemplate
   public void testWithExpiringDanglingStageCommit() {
     // `A` commit
     table.newAppend().appendFile(FILE_A).commit();
@@ -616,7 +637,7 @@ public class TestExpireSnapshotsAction extends TestBase {
         .addedDataFiles(table.io())
         .forEach(
             i -> {
-              expectedDeletes.add(i.path().toString());
+              expectedDeletes.add(i.location());
             });
 
     // ManifestList should be deleted too
@@ -642,7 +663,7 @@ public class TestExpireSnapshotsAction extends TestBase {
    * Expire cherry-pick the commit as shown below, when `B` is in table's current state Table: A - B
    * - C <--current snapshot `- D (source=B)
    */
-  @Test
+  @TestTemplate
   public void testWithCherryPickTableSnapshot() {
     // `A` commit
     table.newAppend().appendFile(FILE_A).commit();
@@ -686,7 +707,7 @@ public class TestExpireSnapshotsAction extends TestBase {
               i.addedDataFiles(table.io())
                   .forEach(
                       item -> {
-                        assertThat(deletedFiles).doesNotContain(item.path().toString());
+                        assertThat(deletedFiles).doesNotContain(item.location());
                       });
             });
 
@@ -697,7 +718,7 @@ public class TestExpireSnapshotsAction extends TestBase {
    * Test on table below, and expiring `B` which is not in current table state. 1) Expire `B` 2) All
    * commit Table: A - C - D (B) ` B (staged)
    */
-  @Test
+  @TestTemplate
   public void testWithExpiringStagedThenCherrypick() {
     // `A` commit
     table.newAppend().appendFile(FILE_A).commit();
@@ -735,7 +756,7 @@ public class TestExpireSnapshotsAction extends TestBase {
               i.addedDataFiles(table.io())
                   .forEach(
                       item -> {
-                        assertThat(deletedFiles).doesNotContain(item.path().toString());
+                        assertThat(deletedFiles).doesNotContain(item.location());
                       });
             });
     checkExpirationResults(0L, 0L, 0L, 1L, 1L, firstResult);
@@ -755,13 +776,13 @@ public class TestExpireSnapshotsAction extends TestBase {
               i.addedDataFiles(table.io())
                   .forEach(
                       item -> {
-                        assertThat(deletedFiles).doesNotContain(item.path().toString());
+                        assertThat(deletedFiles).doesNotContain(item.location());
                       });
             });
     checkExpirationResults(0L, 0L, 0L, 0L, 2L, secondResult);
   }
 
-  @Test
+  @TestTemplate
   public void testExpireOlderThan() {
     table.newAppend().appendFile(FILE_A).commit();
 
@@ -797,7 +818,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     checkExpirationResults(0, 0, 0, 0, 1, result);
   }
 
-  @Test
+  @TestTemplate
   public void testExpireOlderThanWithDelete() {
     table.newAppend().appendFile(FILE_A).commit();
 
@@ -853,13 +874,13 @@ public class TestExpireSnapshotsAction extends TestBase {
                     .allManifests(table.io())
                     .get(0)
                     .path(), // manifest contained only deletes, was dropped
-                FILE_A.path()) // deleted
+                FILE_A.location()) // deleted
             );
 
     checkExpirationResults(1, 0, 0, 2, 2, result);
   }
 
-  @Test
+  @TestTemplate
   public void testExpireOlderThanWithDeleteInMergedManifests() {
     // merge every commit
     table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "0").commit();
@@ -920,12 +941,12 @@ public class TestExpireSnapshotsAction extends TestBase {
                     .get(0)
                     .path(), // manifest was rewritten for delete
                 secondSnapshot.manifestListLocation(), // snapshot expired
-                FILE_A.path()) // deleted
+                FILE_A.location()) // deleted
             );
     checkExpirationResults(1, 0, 0, 1, 2, result);
   }
 
-  @Test
+  @TestTemplate
   public void testExpireOlderThanWithRollback() {
     // merge every commit
     table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "0").commit();
@@ -983,7 +1004,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     checkExpirationResults(0, 0, 0, 1, 1, result);
   }
 
-  @Test
+  @TestTemplate
   public void testExpireOlderThanWithRollbackAndMergedManifests() {
     table.newAppend().appendFile(FILE_A).commit();
 
@@ -1032,26 +1053,24 @@ public class TestExpireSnapshotsAction extends TestBase {
                 secondSnapshot.manifestListLocation(), // snapshot expired
                 Iterables.getOnlyElement(secondSnapshotManifests)
                     .path(), // manifest is no longer referenced
-                FILE_B.path()) // added, but rolled back
+                FILE_B.location()) // added, but rolled back
             );
 
     checkExpirationResults(1, 0, 0, 1, 1, result);
   }
 
-  @Test
+  @TestTemplate
   public void testExpireOlderThanWithDeleteFile() {
-    table
-        .updateProperties()
-        .set(TableProperties.FORMAT_VERSION, "2")
-        .set(TableProperties.MANIFEST_MERGE_ENABLED, "false")
-        .commit();
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    table.updateProperties().set(TableProperties.MANIFEST_MERGE_ENABLED, "false").commit();
 
     // Add Data File
     table.newAppend().appendFile(FILE_A).commit();
     Snapshot firstSnapshot = table.currentSnapshot();
 
     // Add POS Delete
-    table.newRowDelta().addDeletes(FILE_A_POS_DELETES).commit();
+    DeleteFile fileADeletes = fileADeletes();
+    table.newRowDelta().addDeletes(fileADeletes).commit();
     Snapshot secondSnapshot = table.currentSnapshot();
 
     // Add EQ Delete
@@ -1081,9 +1100,9 @@ public class TestExpireSnapshotsAction extends TestBase {
             secondSnapshot.manifestListLocation(),
             thirdSnapshot.manifestListLocation(),
             fourthSnapshot.manifestListLocation(),
-            FILE_A.path().toString(),
-            FILE_A_POS_DELETES.path().toString(),
-            FILE_A_EQ_DELETES.path().toString());
+            FILE_A.location(),
+            fileADeletes.location(),
+            FILE_A_EQ_DELETES.location());
 
     expectedDeletes.addAll(
         thirdSnapshot.allManifests(table.io()).stream()
@@ -1104,7 +1123,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     checkExpirationResults(1, 1, 1, 6, 4, result);
   }
 
-  @Test
+  @TestTemplate
   public void testExpireOnEmptyTable() {
     Set<String> deletedFiles = Sets.newHashSet();
 
@@ -1119,7 +1138,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     checkExpirationResults(0, 0, 0, 0, 0, result);
   }
 
-  @Test
+  @TestTemplate
   public void testExpireAction() {
     table.newAppend().appendFile(FILE_A).commit();
 
@@ -1168,7 +1187,7 @@ public class TestExpireSnapshotsAction extends TestBase {
         .isEqualTo(pendingDeletes.count());
   }
 
-  @Test
+  @TestTemplate
   public void testUseLocalIterator() {
     table.newFastAppend().appendFile(FILE_A).commit();
 
@@ -1202,7 +1221,7 @@ public class TestExpireSnapshotsAction extends TestBase {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testExpireAfterExecute() {
     table
         .newAppend()
@@ -1237,12 +1256,12 @@ public class TestExpireSnapshotsAction extends TestBase {
     assertThat(untypedExpiredFiles).as("Expired results must match").hasSize(1);
   }
 
-  @Test
+  @TestTemplate
   public void testExpireFileDeletionMostExpired() {
     textExpireAllCheckFilesDeleted(5, 2);
   }
 
-  @Test
+  @TestTemplate
   public void testExpireFileDeletionMostRetained() {
     textExpireAllCheckFilesDeleted(2, 5);
   }
@@ -1258,7 +1277,7 @@ public class TestExpireSnapshotsAction extends TestBase {
               .withPartitionPath("c1=1")
               .withRecordCount(1)
               .build();
-      dataFiles.add(df.path().toString());
+      dataFiles.add(df.location());
       table.newFastAppend().appendFile(df).commit();
     }
 
@@ -1304,7 +1323,7 @@ public class TestExpireSnapshotsAction extends TestBase {
         .isEqualTo(expectedDeletes);
   }
 
-  @Test
+  @TestTemplate
   public void testExpireSomeCheckFilesDeleted() {
 
     table.newAppend().appendFile(FILE_A).commit();
@@ -1332,9 +1351,9 @@ public class TestExpireSnapshotsAction extends TestBase {
     // C, D should be retained (live)
     // B should be retained (previous snapshot points to it)
     // A should be deleted
-    assertThat(deletedFiles).contains(FILE_A.path().toString());
-    assertThat(deletedFiles).doesNotContain(FILE_B.path().toString());
-    assertThat(deletedFiles).doesNotContain(FILE_C.path().toString());
-    assertThat(deletedFiles).doesNotContain(FILE_D.path().toString());
+    assertThat(deletedFiles).contains(FILE_A.location());
+    assertThat(deletedFiles).doesNotContain(FILE_B.location());
+    assertThat(deletedFiles).doesNotContain(FILE_C.location());
+    assertThat(deletedFiles).doesNotContain(FILE_D.location());
   }
 }

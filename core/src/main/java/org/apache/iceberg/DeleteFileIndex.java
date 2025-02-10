@@ -33,6 +33,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ManifestEvaluator;
@@ -51,7 +52,6 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
-import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.PartitionMap;
 import org.apache.iceberg.util.PartitionSet;
@@ -70,25 +70,39 @@ class DeleteFileIndex {
   private final EqualityDeletes globalDeletes;
   private final PartitionMap<EqualityDeletes> eqDeletesByPartition;
   private final PartitionMap<PositionDeletes> posDeletesByPartition;
-  private final CharSequenceMap<PositionDeletes> posDeletesByPath;
+  private final Map<String, PositionDeletes> posDeletesByPath;
+  private final Map<String, DeleteFile> dvByPath;
+  private final boolean hasEqDeletes;
+  private final boolean hasPosDeletes;
   private final boolean isEmpty;
 
   private DeleteFileIndex(
       EqualityDeletes globalDeletes,
       PartitionMap<EqualityDeletes> eqDeletesByPartition,
       PartitionMap<PositionDeletes> posDeletesByPartition,
-      CharSequenceMap<PositionDeletes> posDeletesByPath) {
+      Map<String, PositionDeletes> posDeletesByPath,
+      Map<String, DeleteFile> dvByPath) {
     this.globalDeletes = globalDeletes;
     this.eqDeletesByPartition = eqDeletesByPartition;
     this.posDeletesByPartition = posDeletesByPartition;
     this.posDeletesByPath = posDeletesByPath;
-    boolean noEqDeletes = globalDeletes == null && eqDeletesByPartition == null;
-    boolean noPosDeletes = posDeletesByPartition == null && posDeletesByPath == null;
-    this.isEmpty = noEqDeletes && noPosDeletes;
+    this.dvByPath = dvByPath;
+    this.hasEqDeletes = globalDeletes != null || eqDeletesByPartition != null;
+    this.hasPosDeletes =
+        posDeletesByPartition != null || posDeletesByPath != null || dvByPath != null;
+    this.isEmpty = !hasEqDeletes && !hasPosDeletes;
   }
 
   public boolean isEmpty() {
     return isEmpty;
+  }
+
+  public boolean hasEqualityDeletes() {
+    return hasEqDeletes;
+  }
+
+  public boolean hasPositionDeletes() {
+    return hasPosDeletes;
   }
 
   public Iterable<DeleteFile> referencedDeleteFiles() {
@@ -116,6 +130,10 @@ class DeleteFileIndex {
       }
     }
 
+    if (dvByPath != null) {
+      deleteFiles = Iterables.concat(deleteFiles, dvByPath.values());
+    }
+
     return deleteFiles;
   }
 
@@ -134,9 +152,16 @@ class DeleteFileIndex {
 
     DeleteFile[] global = findGlobalDeletes(sequenceNumber, file);
     DeleteFile[] eqPartition = findEqPartitionDeletes(sequenceNumber, file);
-    DeleteFile[] posPartition = findPosPartitionDeletes(sequenceNumber, file);
-    DeleteFile[] posPath = findPathDeletes(sequenceNumber, file);
-    return concat(global, eqPartition, posPartition, posPath);
+    DeleteFile dv = findDV(sequenceNumber, file);
+    if (dv != null && global == null && eqPartition == null) {
+      return new DeleteFile[] {dv};
+    } else if (dv != null) {
+      return concat(global, eqPartition, new DeleteFile[] {dv});
+    } else {
+      DeleteFile[] posPartition = findPosPartitionDeletes(sequenceNumber, file);
+      DeleteFile[] posPath = findPathDeletes(sequenceNumber, file);
+      return concat(global, eqPartition, posPartition, posPath);
+    }
   }
 
   private DeleteFile[] findGlobalDeletes(long seq, DataFile dataFile) {
@@ -167,8 +192,24 @@ class DeleteFileIndex {
       return EMPTY_DELETES;
     }
 
-    PositionDeletes deletes = posDeletesByPath.get(dataFile.path());
+    PositionDeletes deletes = posDeletesByPath.get(dataFile.location());
     return deletes == null ? EMPTY_DELETES : deletes.filter(seq);
+  }
+
+  private DeleteFile findDV(long seq, DataFile dataFile) {
+    if (dvByPath == null) {
+      return null;
+    }
+
+    DeleteFile dv = dvByPath.get(dataFile.location());
+    if (dv != null) {
+      ValidationException.check(
+          dv.dataSequenceNumber() >= seq,
+          "DV data sequence number (%s) must be greater than or equal to data file sequence number (%s)",
+          dv.dataSequenceNumber(),
+          seq);
+    }
+    return dv;
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
@@ -424,12 +465,17 @@ class DeleteFileIndex {
       EqualityDeletes globalDeletes = new EqualityDeletes();
       PartitionMap<EqualityDeletes> eqDeletesByPartition = PartitionMap.create(specsById);
       PartitionMap<PositionDeletes> posDeletesByPartition = PartitionMap.create(specsById);
-      CharSequenceMap<PositionDeletes> posDeletesByPath = CharSequenceMap.create();
+      Map<String, PositionDeletes> posDeletesByPath = Maps.newHashMap();
+      Map<String, DeleteFile> dvByPath = Maps.newHashMap();
 
       for (DeleteFile file : files) {
         switch (file.content()) {
           case POSITION_DELETES:
-            add(posDeletesByPath, posDeletesByPartition, file);
+            if (ContentFileUtil.isDV(file)) {
+              add(dvByPath, file);
+            } else {
+              add(posDeletesByPath, posDeletesByPartition, file);
+            }
             break;
           case EQUALITY_DELETES:
             add(globalDeletes, eqDeletesByPartition, file);
@@ -444,18 +490,29 @@ class DeleteFileIndex {
           globalDeletes.isEmpty() ? null : globalDeletes,
           eqDeletesByPartition.isEmpty() ? null : eqDeletesByPartition,
           posDeletesByPartition.isEmpty() ? null : posDeletesByPartition,
-          posDeletesByPath.isEmpty() ? null : posDeletesByPath);
+          posDeletesByPath.isEmpty() ? null : posDeletesByPath,
+          dvByPath.isEmpty() ? null : dvByPath);
+    }
+
+    private void add(Map<String, DeleteFile> dvByPath, DeleteFile dv) {
+      String path = dv.referencedDataFile();
+      DeleteFile existingDV = dvByPath.putIfAbsent(path, dv);
+      if (existingDV != null) {
+        throw new ValidationException(
+            "Can't index multiple DVs for %s: %s and %s",
+            path, ContentFileUtil.dvDesc(dv), ContentFileUtil.dvDesc(existingDV));
+      }
     }
 
     private void add(
-        CharSequenceMap<PositionDeletes> deletesByPath,
+        Map<String, PositionDeletes> deletesByPath,
         PartitionMap<PositionDeletes> deletesByPartition,
         DeleteFile file) {
-      CharSequence path = ContentFileUtil.referencedDataFile(file);
+      String path = ContentFileUtil.referencedDataFileLocation(file);
 
       PositionDeletes deletes;
       if (path != null) {
-        deletes = deletesByPath.computeIfAbsent(path, PositionDeletes::new);
+        deletes = deletesByPath.computeIfAbsent(path, ignored -> new PositionDeletes());
       } else {
         int specId = file.specId();
         StructLike partition = file.partition();

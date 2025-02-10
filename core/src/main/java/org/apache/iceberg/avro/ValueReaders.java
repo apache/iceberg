@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
@@ -44,6 +45,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.UUIDUtil;
@@ -179,6 +181,104 @@ public class ValueReaders {
   public static <R extends IndexedRecord> ValueReader<R> record(
       Schema recordSchema, Class<R> recordClass, List<Pair<Integer, ValueReader<?>>> readPlan) {
     return new PlannedIndexedReader<>(recordSchema, recordClass, readPlan);
+  }
+
+  public static ValueReader<Void> skipStruct(List<ValueReader<?>> readers) {
+    return new SkipStructReader(readers);
+  }
+
+  /**
+   * Builds a read plan for record classes that use planned reads instead of a ResolvingDecoder.
+   *
+   * @param expected expected StructType
+   * @param record Avro record schema
+   * @param fieldReaders list of readers for each field in the Avro record schema
+   * @param idToConstant a map of field ID to constants values
+   * @return a read plan that is a list of (position, reader) pairs
+   */
+  public static List<Pair<Integer, ValueReader<?>>> buildReadPlan(
+      Types.StructType expected,
+      Schema record,
+      List<ValueReader<?>> fieldReaders,
+      Map<Integer, ?> idToConstant) {
+    return buildReadPlan(expected, record, fieldReaders, idToConstant, (type, value) -> value);
+  }
+
+  /**
+   * Builds a read plan for record classes that use planned reads instead of a ResolvingDecoder.
+   *
+   * @param expected expected StructType
+   * @param record Avro record schema
+   * @param fieldReaders list of readers for each field in the Avro record schema
+   * @param idToConstant a map of field ID to constants values
+   * @param convert function to convert from internal classes to the target object model
+   * @return a read plan that is a list of (position, reader) pairs
+   */
+  public static List<Pair<Integer, ValueReader<?>>> buildReadPlan(
+      Types.StructType expected,
+      Schema record,
+      List<ValueReader<?>> fieldReaders,
+      Map<Integer, ?> idToConstant,
+      BiFunction<Type, Object, Object> convert) {
+    Map<Integer, Integer> idToPos = idToPos(expected);
+
+    List<Pair<Integer, ValueReader<?>>> readPlan = Lists.newArrayList();
+    List<Schema.Field> fileFields = record.getFields();
+    for (int pos = 0; pos < fileFields.size(); pos += 1) {
+      Schema.Field field = fileFields.get(pos);
+      ValueReader<?> fieldReader = fieldReaders.get(pos);
+      Integer fieldId = AvroSchemaUtil.fieldId(field);
+      Integer projectionPos = idToPos.remove(fieldId);
+
+      Object constant = idToConstant.get(fieldId);
+      if (projectionPos != null && constant != null) {
+        readPlan.add(
+            Pair.of(projectionPos, ValueReaders.replaceWithConstant(fieldReader, constant)));
+      } else {
+        readPlan.add(Pair.of(projectionPos, fieldReader));
+      }
+    }
+
+    // handle any expected columns that are not in the data file
+    for (Map.Entry<Integer, Integer> idAndPos : idToPos.entrySet()) {
+      int fieldId = idAndPos.getKey();
+      int pos = idAndPos.getValue();
+
+      Object constant = idToConstant.get(fieldId);
+      Types.NestedField field = expected.field(fieldId);
+      if (constant != null) {
+        readPlan.add(Pair.of(pos, ValueReaders.constant(constant)));
+      } else if (field.initialDefault() != null) {
+        readPlan.add(
+            Pair.of(
+                pos, ValueReaders.constant(convert.apply(field.type(), field.initialDefault()))));
+      } else if (fieldId == MetadataColumns.IS_DELETED.fieldId()) {
+        readPlan.add(Pair.of(pos, ValueReaders.constant(false)));
+      } else if (fieldId == MetadataColumns.ROW_POSITION.fieldId()) {
+        readPlan.add(Pair.of(pos, ValueReaders.positions()));
+      } else if (field.isOptional()) {
+        readPlan.add(Pair.of(pos, ValueReaders.constant(null)));
+      } else {
+        throw new IllegalArgumentException(
+            String.format("Missing required field: %s", field.name()));
+      }
+    }
+
+    return readPlan;
+  }
+
+  private static Map<Integer, Integer> idToPos(Types.StructType struct) {
+    Map<Integer, Integer> idToPos = Maps.newHashMap();
+
+    if (struct != null) {
+      List<Types.NestedField> fields = struct.fields();
+      for (int pos = 0; pos < fields.size(); pos += 1) {
+        Types.NestedField field = fields.get(pos);
+        idToPos.put(field.fieldId(), pos);
+      }
+    }
+
+    return idToPos;
   }
 
   private static class NullReader implements ValueReader<Object> {
@@ -773,6 +873,27 @@ public class ValueReaders {
           keyReader.skip(decoder);
           valueReader.skip(decoder);
         }
+      }
+    }
+  }
+
+  private static class SkipStructReader implements ValueReader<Void> {
+    private final ValueReader<?>[] readers;
+
+    private SkipStructReader(List<ValueReader<?>> readers) {
+      this.readers = readers.toArray(ValueReader[]::new);
+    }
+
+    @Override
+    public Void read(Decoder decoder, Object reuse) throws IOException {
+      skip(decoder);
+      return null;
+    }
+
+    @Override
+    public void skip(Decoder decoder) throws IOException {
+      for (ValueReader<?> reader : readers) {
+        reader.skip(decoder);
       }
     }
   }

@@ -58,7 +58,6 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
-import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
@@ -72,6 +71,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.auth.AuthConfig;
+import org.apache.iceberg.rest.auth.DefaultAuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
@@ -116,6 +116,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
   private static final String REST_METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
   private static final String REST_SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
+  // for backwards compatibility with older REST servers where it can be assumed that a particular
+  // server supports view endpoints but doesn't send the "endpoints" field in the ConfigResponse
+  static final String VIEW_ENDPOINTS_SUPPORTED = "view-endpoints-supported";
   public static final String REST_PAGE_SIZE = "rest-page-size";
   private static final List<String> TOKEN_PREFERENCE_ORDER =
       ImmutableList.of(
@@ -130,6 +133,37 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       ImmutableSet.<String>builder()
           .add(OAuth2Properties.TOKEN)
           .addAll(TOKEN_PREFERENCE_ORDER)
+          .build();
+
+  private static final Set<Endpoint> DEFAULT_ENDPOINTS =
+      ImmutableSet.<Endpoint>builder()
+          .add(Endpoint.V1_LIST_NAMESPACES)
+          .add(Endpoint.V1_LOAD_NAMESPACE)
+          .add(Endpoint.V1_NAMESPACE_EXISTS)
+          .add(Endpoint.V1_CREATE_NAMESPACE)
+          .add(Endpoint.V1_UPDATE_NAMESPACE)
+          .add(Endpoint.V1_DELETE_NAMESPACE)
+          .add(Endpoint.V1_LIST_TABLES)
+          .add(Endpoint.V1_LOAD_TABLE)
+          .add(Endpoint.V1_TABLE_EXISTS)
+          .add(Endpoint.V1_CREATE_TABLE)
+          .add(Endpoint.V1_UPDATE_TABLE)
+          .add(Endpoint.V1_DELETE_TABLE)
+          .add(Endpoint.V1_RENAME_TABLE)
+          .add(Endpoint.V1_REGISTER_TABLE)
+          .add(Endpoint.V1_REPORT_METRICS)
+          .add(Endpoint.V1_COMMIT_TRANSACTION)
+          .build();
+
+  private static final Set<Endpoint> VIEW_ENDPOINTS =
+      ImmutableSet.<Endpoint>builder()
+          .add(Endpoint.V1_LIST_VIEWS)
+          .add(Endpoint.V1_LOAD_VIEW)
+          .add(Endpoint.V1_VIEW_EXISTS)
+          .add(Endpoint.V1_CREATE_VIEW)
+          .add(Endpoint.V1_UPDATE_VIEW)
+          .add(Endpoint.V1_DELETE_VIEW)
+          .add(Endpoint.V1_RENAME_VIEW)
           .build();
 
   private final Function<Map<String, String>, RESTClient> clientBuilder;
@@ -148,6 +182,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private boolean reportingViaRestEnabled;
   private Integer pageSize = null;
   private CloseableGroup closeables = null;
+  private Set<Endpoint> endpoints;
 
   // a lazy thread pool for token refresh
   private volatile ScheduledExecutorService refreshExecutor = null;
@@ -173,6 +208,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     this.ioBuilder = ioBuilder;
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   public void initialize(String name, Map<String, String> unresolved) {
     Preconditions.checkArgument(unresolved != null, "Invalid configuration: null");
@@ -197,20 +233,21 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         && (hasInitToken || hasCredential)
         && !PropertyUtil.propertyAsBoolean(props, "rest.sigv4-enabled", false)) {
       LOG.warn(
-          "Iceberg REST client is missing the OAuth2 server URI configuration and defaults to {}{}. "
+          "Iceberg REST client is missing the OAuth2 server URI configuration and defaults to {}/{}. "
               + "This automatic fallback will be removed in a future Iceberg release."
               + "It is recommended to configure the OAuth2 endpoint using the '{}' property to be prepared. "
               + "This warning will disappear if the OAuth2 endpoint is explicitly configured. "
               + "See https://github.com/apache/iceberg/issues/10537",
-          props.get(CatalogProperties.URI),
+          RESTUtil.stripTrailingSlash(props.get(CatalogProperties.URI)),
           ResourcePaths.tokens(),
           OAuth2Properties.OAUTH2_SERVER_URI);
     }
     String oauth2ServerUri =
         props.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
-    try (RESTClient initClient = clientBuilder.apply(props)) {
-      Map<String, String> initHeaders =
-          RESTUtil.merge(configHeaders(props), OAuth2Util.authHeaders(initToken));
+    try (DefaultAuthSession initSession =
+            DefaultAuthSession.of(HTTPHeaders.of(OAuth2Util.authHeaders(initToken)));
+        RESTClient initClient = clientBuilder.apply(props).withAuthSession(initSession)) {
+      Map<String, String> initHeaders = configHeaders(props);
       if (hasCredential) {
         authResponse =
             OAuth2Util.fetchToken(
@@ -230,6 +267,18 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     Map<String, String> mergedProps = config.merge(props);
     Map<String, String> baseHeaders = configHeaders(mergedProps);
 
+    if (config.endpoints().isEmpty()) {
+      this.endpoints =
+          PropertyUtil.propertyAsBoolean(mergedProps, VIEW_ENDPOINTS_SUPPORTED, false)
+              ? ImmutableSet.<Endpoint>builder()
+                  .addAll(DEFAULT_ENDPOINTS)
+                  .addAll(VIEW_ENDPOINTS)
+                  .build()
+              : DEFAULT_ENDPOINTS;
+    } else {
+      this.endpoints = ImmutableSet.copyOf(config.endpoints());
+    }
+
     this.sessions = newSessionCache(mergedProps);
     this.tableSessions = newSessionCache(mergedProps);
     this.keepTokenRefreshed =
@@ -237,7 +286,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             mergedProps,
             OAuth2Properties.TOKEN_REFRESH_ENABLED,
             OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
-    this.client = clientBuilder.apply(mergedProps);
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
     String token = mergedProps.get(OAuth2Properties.TOKEN);
@@ -250,14 +298,19 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 .oauth2ServerUri(oauth2ServerUri)
                 .optionalOAuthParams(optionalOAuthParams)
                 .build());
+
+    this.client = clientBuilder.apply(mergedProps).withAuthSession(catalogAuth);
+
     if (authResponse != null) {
       this.catalogAuth =
           AuthSession.fromTokenResponse(
               client, tokenRefreshExecutor(name), authResponse, startTimeMillis, catalogAuth);
+      this.client = client.withAuthSession(catalogAuth);
     } else if (token != null) {
       this.catalogAuth =
           AuthSession.fromAccessToken(
               client, tokenRefreshExecutor(name), token, expiresAtMillis(mergedProps), catalogAuth);
+      this.client = client.withAuthSession(catalogAuth);
     }
 
     this.pageSize = PropertyUtil.propertyAsNullableInt(mergedProps, REST_PAGE_SIZE);
@@ -316,6 +369,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public List<TableIdentifier> listTables(SessionContext context, Namespace ns) {
+    if (!endpoints.contains(Endpoint.V1_LIST_TABLES)) {
+      return ImmutableList.of();
+    }
+
     checkNamespaceIsValid(ns);
     Map<String, String> queryParams = Maps.newHashMap();
     ImmutableList.Builder<TableIdentifier> tables = ImmutableList.builder();
@@ -342,6 +399,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public boolean dropTable(SessionContext context, TableIdentifier identifier) {
+    Endpoint.check(endpoints, Endpoint.V1_DELETE_TABLE);
     checkIdentifierIsValid(identifier);
 
     try {
@@ -355,6 +413,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public boolean purgeTable(SessionContext context, TableIdentifier identifier) {
+    Endpoint.check(endpoints, Endpoint.V1_DELETE_TABLE);
     checkIdentifierIsValid(identifier);
 
     try {
@@ -372,6 +431,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public void renameTable(SessionContext context, TableIdentifier from, TableIdentifier to) {
+    Endpoint.check(endpoints, Endpoint.V1_RENAME_TABLE);
     checkIdentifierIsValid(from);
     checkIdentifierIsValid(to);
 
@@ -382,8 +442,22 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     client.post(paths.rename(), request, null, headers(context), ErrorHandlers.tableErrorHandler());
   }
 
+  @Override
+  public boolean tableExists(SessionContext context, TableIdentifier identifier) {
+    Endpoint.check(endpoints, Endpoint.V1_TABLE_EXISTS);
+
+    try {
+      checkIdentifierIsValid(identifier);
+      client.head(paths.table(identifier), headers(context), ErrorHandlers.tableErrorHandler());
+      return true;
+    } catch (NoSuchTableException e) {
+      return false;
+    }
+  }
+
   private LoadTableResponse loadInternal(
       SessionContext context, TableIdentifier identifier, SnapshotMode mode) {
+    Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     return client.get(
         paths.table(identifier),
         mode.params(),
@@ -394,6 +468,14 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public Table loadTable(SessionContext context, TableIdentifier identifier) {
+    Endpoint.check(
+        endpoints,
+        Endpoint.V1_LOAD_TABLE,
+        () ->
+            new NoSuchTableException(
+                "Unable to load table %s.%s: Server does not support endpoint %s",
+                name(), identifier, Endpoint.V1_LOAD_TABLE));
+
     checkIdentifierIsValid(identifier);
 
     MetadataTableType metadataType;
@@ -448,7 +530,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             paths.table(finalIdentifier),
             session::headers,
             tableFileIO(context, response.config()),
-            tableMetadata);
+            tableMetadata,
+            endpoints);
 
     trackFileIO(ops);
 
@@ -472,7 +555,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   private MetricsReporter metricsReporter(
       String metricsEndpoint, Supplier<Map<String, String>> headers) {
-    if (reportingViaRestEnabled) {
+    if (reportingViaRestEnabled && endpoints.contains(Endpoint.V1_REPORT_METRICS)) {
       RESTMetricsReporter restMetricsReporter =
           new RESTMetricsReporter(client, metricsEndpoint, headers);
       return MetricsReporters.combine(reporter, restMetricsReporter);
@@ -493,6 +576,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public Table registerTable(
       SessionContext context, TableIdentifier ident, String metadataFileLocation) {
+    Endpoint.check(endpoints, Endpoint.V1_REGISTER_TABLE);
     checkIdentifierIsValid(ident);
 
     Preconditions.checkArgument(
@@ -521,7 +605,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             paths.table(ident),
             session::headers,
             tableFileIO(context, response.config()),
-            response.tableMetadata());
+            response.tableMetadata(),
+            endpoints);
 
     trackFileIO(ops);
 
@@ -532,6 +617,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public void createNamespace(
       SessionContext context, Namespace namespace, Map<String, String> metadata) {
+    Endpoint.check(endpoints, Endpoint.V1_CREATE_NAMESPACE);
     CreateNamespaceRequest request =
         CreateNamespaceRequest.builder().withNamespace(namespace).setProperties(metadata).build();
 
@@ -546,9 +632,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public List<Namespace> listNamespaces(SessionContext context, Namespace namespace) {
+    if (!endpoints.contains(Endpoint.V1_LIST_NAMESPACES)) {
+      return ImmutableList.of();
+    }
+
     Map<String, String> queryParams = Maps.newHashMap();
     if (!namespace.isEmpty()) {
-      queryParams.put("parent", RESTUtil.encodeNamespace(namespace));
+      queryParams.put("parent", RESTUtil.NAMESPACE_JOINER.join(namespace.levels()));
     }
 
     ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
@@ -574,7 +664,22 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   @Override
+  public boolean namespaceExists(SessionContext context, Namespace namespace) {
+    Endpoint.check(endpoints, Endpoint.V1_NAMESPACE_EXISTS);
+
+    try {
+      checkNamespaceIsValid(namespace);
+      client.head(
+          paths.namespace(namespace), headers(context), ErrorHandlers.namespaceErrorHandler());
+      return true;
+    } catch (NoSuchNamespaceException e) {
+      return false;
+    }
+  }
+
+  @Override
   public Map<String, String> loadNamespaceMetadata(SessionContext context, Namespace ns) {
+    Endpoint.check(endpoints, Endpoint.V1_LOAD_NAMESPACE);
     checkNamespaceIsValid(ns);
 
     // TODO: rename to LoadNamespaceResponse?
@@ -589,6 +694,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public boolean dropNamespace(SessionContext context, Namespace ns) {
+    Endpoint.check(endpoints, Endpoint.V1_DELETE_NAMESPACE);
     checkNamespaceIsValid(ns);
 
     try {
@@ -603,6 +709,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public boolean updateNamespaceMetadata(
       SessionContext context, Namespace ns, Map<String, String> updates, Set<String> removals) {
+    Endpoint.check(endpoints, Endpoint.V1_UPDATE_NAMESPACE);
     checkNamespaceIsValid(ns);
 
     UpdateNamespacePropertiesRequest request =
@@ -719,6 +826,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     @Override
     public Table create() {
+      Endpoint.check(endpoints, Endpoint.V1_CREATE_TABLE);
       CreateTableRequest request =
           CreateTableRequest.builder()
               .withName(ident.name())
@@ -744,7 +852,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               paths.table(ident),
               session::headers,
               tableFileIO(context, response.config()),
-              response.tableMetadata());
+              response.tableMetadata(),
+              endpoints);
 
       trackFileIO(ops);
 
@@ -754,6 +863,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     @Override
     public Transaction createTransaction() {
+      Endpoint.check(endpoints, Endpoint.V1_CREATE_TABLE);
       LoadTableResponse response = stageCreate();
       String fullName = fullTableName(ident);
 
@@ -768,7 +878,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               tableFileIO(context, response.config()),
               RESTTableOperations.UpdateType.CREATE,
               createChanges(meta),
-              meta);
+              meta,
+              endpoints);
 
       trackFileIO(ops);
 
@@ -778,15 +889,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     @Override
     public Transaction replaceTransaction() {
-      try {
-        if (viewExists(context, ident)) {
-          throw new AlreadyExistsException("View with same name already exists: %s", ident);
-        }
-      } catch (RESTException | UnsupportedOperationException e) {
-        // don't fail if the server doesn't support views, which could be due to:
-        // 1. server or backing catalog doesn't support views
-        // 2. newer client talks to an older server that doesn't support views
-        LOG.debug("Failed to check whether view {} exists", ident, e);
+      Endpoint.check(endpoints, Endpoint.V1_UPDATE_TABLE);
+      if (viewExists(context, ident)) {
+        throw new AlreadyExistsException("View with same name already exists: %s", ident);
       }
 
       LoadTableResponse response = loadInternal(context, ident, snapshotMode);
@@ -832,7 +937,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               tableFileIO(context, response.config()),
               RESTTableOperations.UpdateType.REPLACE,
               changes.build(),
-              base);
+              base,
+              endpoints);
 
       trackFileIO(ops);
 
@@ -885,7 +991,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     changes.add(new MetadataUpdate.UpgradeFormatVersion(meta.formatVersion()));
 
     Schema schema = meta.schema();
-    changes.add(new MetadataUpdate.AddSchema(schema, schema.highestFieldId()));
+    changes.add(new MetadataUpdate.AddSchema(schema));
     changes.add(new MetadataUpdate.SetCurrentSchema(-1));
 
     PartitionSpec spec = meta.spec();
@@ -1085,6 +1191,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   public void commitTransaction(SessionContext context, List<TableCommit> commits) {
+    Endpoint.check(endpoints, Endpoint.V1_COMMIT_TRANSACTION);
     List<UpdateTableRequest> tableChanges = Lists.newArrayListWithCapacity(commits.size());
 
     for (TableCommit commit : commits) {
@@ -1102,6 +1209,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public List<TableIdentifier> listViews(SessionContext context, Namespace namespace) {
+    if (!endpoints.contains(Endpoint.V1_LIST_VIEWS)) {
+      return ImmutableList.of();
+    }
+
     checkNamespaceIsValid(namespace);
     Map<String, String> queryParams = Maps.newHashMap();
     ImmutableList.Builder<TableIdentifier> views = ImmutableList.builder();
@@ -1127,31 +1238,43 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   @Override
+  public boolean viewExists(SessionContext context, TableIdentifier identifier) {
+    Endpoint.check(endpoints, Endpoint.V1_VIEW_EXISTS);
+
+    try {
+      checkViewIdentifierIsValid(identifier);
+      client.head(paths.view(identifier), headers(context), ErrorHandlers.viewErrorHandler());
+      return true;
+    } catch (NoSuchViewException e) {
+      return false;
+    }
+  }
+
+  @Override
   public View loadView(SessionContext context, TableIdentifier identifier) {
+    Endpoint.check(
+        endpoints,
+        Endpoint.V1_LOAD_VIEW,
+        () ->
+            new NoSuchViewException(
+                "Unable to load view %s.%s: Server does not support endpoint %s",
+                name(), identifier, Endpoint.V1_LOAD_VIEW));
+
     checkViewIdentifierIsValid(identifier);
 
-    LoadViewResponse response;
-    try {
-      response =
-          client.get(
-              paths.view(identifier),
-              LoadViewResponse.class,
-              headers(context),
-              ErrorHandlers.viewErrorHandler());
-    } catch (UnsupportedOperationException | RESTException e) {
-      // Normally, copying an exception message is a bad practice but engines may show just the
-      // message and suppress the exception cause when the view does not exist. Since 401 and 403
-      // responses can trigger this case, including the message increases the chances that the "Not
-      // authorized" or "Forbidden" message is preserved and shown.
-      throw new NoSuchViewException(
-          e, "Unable to load view %s.%s: %s", name(), identifier, e.getMessage());
-    }
+    LoadViewResponse response =
+        client.get(
+            paths.view(identifier),
+            LoadViewResponse.class,
+            headers(context),
+            ErrorHandlers.viewErrorHandler());
 
     AuthSession session = tableSession(response.config(), session(context));
     ViewMetadata metadata = response.metadata();
 
     RESTViewOperations ops =
-        new RESTViewOperations(client, paths.view(identifier), session::headers, metadata);
+        new RESTViewOperations(
+            client, paths.view(identifier), session::headers, metadata, endpoints);
 
     return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
   }
@@ -1163,6 +1286,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public boolean dropView(SessionContext context, TableIdentifier identifier) {
+    Endpoint.check(endpoints, Endpoint.V1_DELETE_VIEW);
     checkViewIdentifierIsValid(identifier);
 
     try {
@@ -1176,6 +1300,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public void renameView(SessionContext context, TableIdentifier from, TableIdentifier to) {
+    Endpoint.check(endpoints, Endpoint.V1_RENAME_VIEW);
     checkViewIdentifierIsValid(from);
     checkViewIdentifierIsValid(to);
 
@@ -1200,6 +1325,21 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       checkViewIdentifierIsValid(identifier);
       this.identifier = identifier;
       this.context = context;
+      this.properties.putAll(viewDefaultProperties());
+    }
+
+    /**
+     * Get default view properties set at Catalog level through catalog properties.
+     *
+     * @return default view properties specified in catalog properties
+     */
+    private Map<String, String> viewDefaultProperties() {
+      Map<String, String> viewDefaultProperties =
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.VIEW_DEFAULT_PREFIX);
+      LOG.info(
+          "View properties set at catalog level through catalog properties: {}",
+          viewDefaultProperties);
+      return viewDefaultProperties;
     }
 
     @Override
@@ -1247,6 +1387,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     @Override
     public View create() {
+      Endpoint.check(endpoints, Endpoint.V1_CREATE_VIEW);
       Preconditions.checkState(
           !representations.isEmpty(), "Cannot create view without specifying a query");
       Preconditions.checkState(null != schema, "Cannot create view without specifying schema");
@@ -1284,7 +1425,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       AuthSession session = tableSession(response.config(), session(context));
       RESTViewOperations ops =
           new RESTViewOperations(
-              client, paths.view(identifier), session::headers, response.metadata());
+              client, paths.view(identifier), session::headers, response.metadata(), endpoints);
 
       return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
     }
@@ -1308,6 +1449,14 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     private LoadViewResponse loadView() {
+      Endpoint.check(
+          endpoints,
+          Endpoint.V1_LOAD_VIEW,
+          () ->
+              new NoSuchViewException(
+                  "Unable to load view %s.%s: Server does not support endpoint %s",
+                  name(), identifier, Endpoint.V1_LOAD_VIEW));
+
       return client.get(
           paths.view(identifier),
           LoadViewResponse.class,
@@ -1316,6 +1465,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     private View replace(LoadViewResponse response) {
+      Endpoint.check(endpoints, Endpoint.V1_UPDATE_VIEW);
       Preconditions.checkState(
           !representations.isEmpty(), "Cannot replace view without specifying a query");
       Preconditions.checkState(null != schema, "Cannot replace view without specifying schema");
@@ -1354,7 +1504,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       AuthSession session = tableSession(response.config(), session(context));
       RESTViewOperations ops =
-          new RESTViewOperations(client, paths.view(identifier), session::headers, metadata);
+          new RESTViewOperations(
+              client, paths.view(identifier), session::headers, metadata, endpoints);
 
       ops.commit(metadata, replacement);
 

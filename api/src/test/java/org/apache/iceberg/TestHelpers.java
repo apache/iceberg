@@ -53,6 +53,9 @@ public class TestHelpers {
 
   private TestHelpers() {}
 
+  public static final int MAX_FORMAT_VERSION = 3;
+  public static final int[] ALL_VERSIONS = IntStream.rangeClosed(1, MAX_FORMAT_VERSION).toArray();
+
   /** Wait in a tight check loop until system clock is past {@code timestampMillis} */
   public static long waitUntilAfter(long timestampMillis) {
     long current = System.currentTimeMillis();
@@ -222,6 +225,7 @@ public class TestHelpers {
       return obj;
     }
   }
+
   /**
    * Serializes an {@link Object} to a byte array for storage/serialization.
    *
@@ -645,7 +649,7 @@ public class TestHelpers {
 
     @Override
     public FileFormat format() {
-      return FileFormat.fromFileName(path());
+      return FileFormat.fromFileName(location());
     }
 
     @Override
