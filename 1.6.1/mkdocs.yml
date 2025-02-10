@@ -72,6 +72,6 @@ nav:
     - java-api-quickstart.md
     - api.md
     - custom-catalog.md
-  - Javadoc: ../../javadoc/latest/
+  - Javadoc: ../../javadoc/1.6.1/
   - PyIceberg: https://py.iceberg.apache.org/
   - IcebergRust: https://rust.iceberg.apache.org/
