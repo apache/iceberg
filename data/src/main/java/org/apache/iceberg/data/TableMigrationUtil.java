@@ -164,7 +164,10 @@ public class TableMigrationUtil {
       Path partitionDir = new Path(partitionUri);
       FileSystem fs = partitionDir.getFileSystem(conf);
       List<FileStatus> fileStatus =
-          Arrays.stream(fs.listStatus(partitionDir, HIDDEN_PATH_FILTER))
+          Arrays.stream(
+                  fs.exists(partitionDir)
+                      ? fs.listStatus(partitionDir, HIDDEN_PATH_FILTER)
+                      : new FileStatus[] {})
               .filter(FileStatus::isFile)
               .collect(Collectors.toList());
       DataFile[] datafiles = new DataFile[fileStatus.size()];
