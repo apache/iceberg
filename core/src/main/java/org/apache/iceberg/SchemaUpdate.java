@@ -525,6 +525,7 @@ class SchemaUpdate implements UpdateSchema {
           deletes.stream().map(schema::findColumnName).collect(Collectors.toList());
       Map<String, String> renamedColumns =
           updates.keySet().stream()
+              .filter(id -> !addedNameToId.containsValue(id)) // remove added columns
               .filter(id -> !schema.findColumnName(id).equals(newSchema.findColumnName(id)))
               .collect(Collectors.toMap(schema::findColumnName, newSchema::findColumnName));
       if (!deletedColumns.isEmpty() || !renamedColumns.isEmpty()) {
