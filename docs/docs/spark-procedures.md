@@ -981,7 +981,7 @@ The `rewrite-table-path` procedure prepares an Iceberg table for moving or copyi
 ### `rewrite-table-path`
 
 Stages a copy of the Iceberg table's metadata files where every absolute path source prefix is replaced by the specified target prefix.  
-This can be the starting point to fully or incrementally copy an Iceberg table located under an absolute path under a 
+This can be the starting point to fully or incrementally copy an Iceberg table under a 
 source prefix to another under the target prefix.
 
 !!! info
