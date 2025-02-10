@@ -189,7 +189,10 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    * @return this for method chaining
    * @throws IllegalArgumentException If parent doesn't identify a struct
    */
-  UpdateSchema addColumn(String parent, String name, Type type, String doc, Object defaultValue);
+  default UpdateSchema addColumn(
+      String parent, String name, Type type, String doc, Object defaultValue) {
+    throw new UnsupportedOperationException("Default values are not supported");
+  }
 
   /**
    * Add a new required top-level column.
@@ -346,8 +349,10 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    * @return this for method chaining
    * @throws IllegalArgumentException If parent doesn't identify a struct
    */
-  UpdateSchema addRequiredColumn(
-      String parent, String name, Type type, String doc, Object defaultValue);
+  default UpdateSchema addRequiredColumn(
+      String parent, String name, Type type, String doc, Object defaultValue) {
+    throw new UnsupportedOperationException("Default values are not supported");
+  }
 
   /**
    * Rename a column in the schema.
@@ -455,7 +460,9 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    * @throws IllegalArgumentException If name doesn't identify a column in the schema or if the
    *     column will be deleted
    */
-  UpdateSchema updateColumnDefault(String name, Object newDefault);
+  default UpdateSchema updateColumnDefault(String name, Object newDefault) {
+    throw new UnsupportedOperationException("Default values are not supported");
+  }
 
   /**
    * Update a column to be optional.
