@@ -1011,10 +1011,10 @@ If `start_version` is provided, the procedure will only rewrite metadata files c
 
 #### Output
 
-| Output Name          | Type   | Description                                                                         |
-|----------------------|--------|-------------------------------------------------------------------------------------|
-| `latest_version`     | string | Name of the latest metadata file rewritten by this procedure                        |
-| `file_list_location` | string | Path to a file containing a listing of comma-separated source and destination paths |
+| Output Name          | Type   | Description                                                       |
+|----------------------|--------|-------------------------------------------------------------------|
+| `latest_version`     | string | Name of the latest metadata file rewritten by this procedure      |
+| `file_list_location` | string | Path to a csv file containing a mapping of source to target paths |
 
 ##### File List Copy Plan
 The file list contains the copy plan for all files added to the table between `startVersion` and `endVersion`. 
