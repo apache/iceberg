@@ -26,7 +26,9 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
+import org.apache.iceberg.rest.HTTPHeaders;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.auth.DefaultAuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.credentials.Credential;
@@ -74,7 +76,14 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
     if (null == client) {
       synchronized (this) {
         if (null == client) {
-          client = HTTPClient.builder(properties).uri(properties.get(URI)).build();
+          DefaultAuthSession authSession =
+              DefaultAuthSession.of(
+                  HTTPHeaders.of(OAuth2Util.authHeaders(properties.get(OAuth2Properties.TOKEN))));
+          client =
+              HTTPClient.builder(properties)
+                  .uri(properties.get(URI))
+                  .withAuthSession(authSession)
+                  .build();
         }
       }
     }
@@ -88,7 +97,7 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
             properties.get(URI),
             null,
             LoadCredentialsResponse.class,
-            OAuth2Util.authHeaders(properties.get(OAuth2Properties.TOKEN)),
+            Map.of(),
             ErrorHandlers.defaultErrorHandler());
   }
 

@@ -609,7 +609,8 @@ public class Types {
       }
 
       public NestedField build() {
-        // the constructor validates the fields
+        Preconditions.checkNotNull(id, "Id cannot be null");
+        // the constructor validates the other fields
         return new NestedField(isOptional, id, name, type, doc, initialDefault, writeDefault);
       }
     }

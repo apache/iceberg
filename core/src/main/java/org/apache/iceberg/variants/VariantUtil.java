@@ -165,7 +165,7 @@ class VariantUtil {
   }
 
   static byte primitiveHeader(int primitiveType) {
-    return (byte) (primitiveType << Variants.Primitives.PRIMITIVE_TYPE_SHIFT);
+    return (byte) (primitiveType << Primitives.PRIMITIVE_TYPE_SHIFT);
   }
 
   static byte objectHeader(boolean isLarge, int fieldIdSize, int offsetSize) {

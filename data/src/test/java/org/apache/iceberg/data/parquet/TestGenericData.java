@@ -46,14 +46,25 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.junit.jupiter.api.Test;
 
 public class TestGenericData extends DataTest {
+
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     writeAndValidate(schema, schema);
   }
 
   @Override
+  protected void writeAndValidate(Schema schema, List<Record> expected) throws IOException {
+    writeAndValidate(schema, schema, expected);
+  }
+
+  @Override
   protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
-    List<Record> expected = RandomGenericData.generate(writeSchema, 100, 12228L);
+    List<Record> data = RandomGenericData.generate(writeSchema, 100, 12228L);
+    writeAndValidate(writeSchema, expectedSchema, data);
+  }
+
+  private void writeAndValidate(Schema writeSchema, Schema expectedSchema, List<Record> expected)
+      throws IOException {
 
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).isTrue();

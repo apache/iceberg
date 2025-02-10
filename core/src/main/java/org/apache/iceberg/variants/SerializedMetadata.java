@@ -111,4 +111,21 @@ class SerializedMetadata implements VariantMetadata, Variants.Serialized {
   public ByteBuffer buffer() {
     return metadata;
   }
+
+  @Override
+  public int sizeInBytes() {
+    return buffer().remaining();
+  }
+
+  @Override
+  public int writeTo(ByteBuffer buffer, int offset) {
+    ByteBuffer value = buffer();
+    VariantUtil.writeBufferAbsolute(buffer, offset, value);
+    return value.remaining();
+  }
+
+  @Override
+  public String toString() {
+    return VariantMetadata.asString(this);
+  }
 }

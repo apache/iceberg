@@ -23,8 +23,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.variants.Variants.PhysicalType;
-import org.apache.iceberg.variants.Variants.Primitives;
 
 class PrimitiveWrapper<T> implements VariantPrimitive<T> {
   private static final byte NULL_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_NULL);
@@ -209,5 +207,10 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
     }
 
     throw new UnsupportedOperationException("Unsupported primitive type: " + type());
+  }
+
+  @Override
+  public String toString() {
+    return VariantPrimitive.asString(this);
   }
 }
