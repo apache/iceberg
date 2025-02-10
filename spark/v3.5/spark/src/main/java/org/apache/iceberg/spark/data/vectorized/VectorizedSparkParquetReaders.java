@@ -24,7 +24,7 @@ import java.util.function.Function;
 import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.vectorized.VectorizedReaderBuilder;
-import org.apache.iceberg.data.DeleteFilter;
+import org.apache.iceberg.io.datafile.DeleteFilter;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.spark.SparkUtil;
