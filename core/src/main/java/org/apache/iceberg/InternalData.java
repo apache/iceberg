@@ -42,7 +42,16 @@ public class InternalData {
   private static final Map<FileFormat, Function<InputFile, ReadBuilder>> READ_BUILDERS =
       Maps.newConcurrentMap();
 
-  static {
+  static void register(
+      FileFormat format,
+      Function<OutputFile, WriteBuilder> writeBuilder,
+      Function<InputFile, ReadBuilder> readBuilder) {
+    WRITE_BUILDERS.put(format, writeBuilder);
+    READ_BUILDERS.put(format, readBuilder);
+  }
+
+  @SuppressWarnings("CatchBlockLogException")
+  private static void registerSupportedFormats() {
     InternalData.register(
         FileFormat.AVRO,
         outputFile -> Avro.write(outputFile).createWriterFunc(InternalWriter::create),
@@ -62,12 +71,8 @@ public class InternalData {
     }
   }
 
-  static void register(
-      FileFormat format,
-      Function<OutputFile, WriteBuilder> writeBuilder,
-      Function<InputFile, ReadBuilder> readBuilder) {
-    WRITE_BUILDERS.put(format, writeBuilder);
-    READ_BUILDERS.put(format, readBuilder);
+  static {
+    registerSupportedFormats();
   }
 
   public static WriteBuilder write(FileFormat format, OutputFile file) {
@@ -147,7 +152,7 @@ public class InternalData {
     ReadBuilder project(Schema projectedSchema);
 
     /** Read only the split that is {@code length} bytes starting at {@code start}. */
-    ReadBuilder split(long start, long length);
+    ReadBuilder split(long newStart, long newLength);
 
     /** Reuse container classes, like structs, lists, and maps. */
     ReadBuilder reuseContainers();
