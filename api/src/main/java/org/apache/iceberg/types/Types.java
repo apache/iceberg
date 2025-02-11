@@ -540,10 +540,18 @@ public class Types {
       return new NestedField(false, id, name, type, doc, null, null);
     }
 
+    /**
+     * @deprecated will be removed in 2.0.0; use builder() instead.
+     */
+    @Deprecated
     public static NestedField of(int id, boolean isOptional, String name, Type type) {
       return new NestedField(isOptional, id, name, type, null, null, null);
     }
 
+    /**
+     * @deprecated will be removed in 2.0.0; use builder() instead.
+     */
+    @Deprecated
     public static NestedField of(int id, boolean isOptional, String name, Type type, String doc) {
       return new NestedField(isOptional, id, name, type, doc, null, null);
     }

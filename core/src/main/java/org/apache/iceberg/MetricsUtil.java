@@ -346,18 +346,21 @@ public class MetricsUtil {
         String colName = idToName.get(id);
 
         fields.add(
-            Types.NestedField.of(
-                nextId.incrementAndGet(),
-                true,
-                colName,
-                Types.StructType.of(
-                    READABLE_METRIC_COLS.stream()
-                        .map(
-                            m ->
-                                optional(
-                                    nextId.incrementAndGet(), m.name(), m.colType(field), m.doc()))
-                        .collect(Collectors.toList())),
-                String.format("Metrics for column %s", colName)));
+            Types.NestedField.optional(colName)
+                .withId(nextId.incrementAndGet())
+                .ofType(
+                    Types.StructType.of(
+                        READABLE_METRIC_COLS.stream()
+                            .map(
+                                m ->
+                                    optional(
+                                        nextId.incrementAndGet(),
+                                        m.name(),
+                                        m.colType(field),
+                                        m.doc()))
+                            .collect(Collectors.toList())))
+                .withDoc(String.format("Metrics for column %s", colName))
+                .build());
       }
     }
 
