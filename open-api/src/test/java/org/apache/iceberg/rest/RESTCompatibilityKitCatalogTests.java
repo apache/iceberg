@@ -97,4 +97,10 @@ public class RESTCompatibilityKitCatalogTests extends CatalogTests<RESTCatalog> 
     return PropertyUtil.propertyAsBoolean(
         restCatalog.properties(), RESTCompatibilityKitSuite.RCK_SUPPORTS_NAMES_WITH_DOT, false);
   }
+
+  @Override
+  protected boolean supportsRegisterTableWithOverwrite() {
+    // TODO, follow up with REST spec change to support register with overwrite
+    return false;
+  }
 }
