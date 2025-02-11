@@ -48,7 +48,7 @@ In addition to row-level deletes, version 2 makes some requirements stricter for
 
 Version 3 of the Iceberg spec extends data types and existing metadata structures to add new capabilities:
 
-* New data types: nanosecond timestamp(tz), unknown
+* New data types: nanosecond timestamp(tz), unknown, variant, geometry, geography
 * Default value support for columns
 * Multi-argument transforms for partitioning and sorting
 * Row Lineage tracking
