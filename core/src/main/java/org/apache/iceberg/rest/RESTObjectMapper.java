@@ -29,7 +29,8 @@ import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 class RESTObjectMapper {
   private static final JsonFactory FACTORY =
       new JsonFactoryBuilder()
-          .configure(JsonFactory.Feature.CANONICALIZE_FIELD_NAMES, false)
+          .configure(JsonFactory.Feature.INTERN_FIELD_NAMES, false)
+          .configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false)
           .build();
   private static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
   private static volatile boolean isInitialized = false;
