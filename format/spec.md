@@ -48,7 +48,7 @@ In addition to row-level deletes, version 2 makes some requirements stricter for
 
 Version 3 of the Iceberg spec extends data types and existing metadata structures to add new capabilities:
 
-* New data types: nanosecond timestamp(tz), unknown
+* New data types: nanosecond timestamp(tz), unknown, variant, geometry, geography
 * Default value support for columns
 * Multi-argument transforms for partitioning and sorting
 * Row Lineage tracking
@@ -1599,7 +1599,7 @@ Default values are added to struct fields in v3.
 * The `write-default` is a forward-compatible change because it is only used at write time. Old writers will fail because the field is missing.
 * Tables with `initial-default` will be read correctly by older readers if `initial-default` is always null for optional fields. Otherwise, old readers will default optional columns with null. Old readers will fail to read required fields which are populated by `initial-default` because that default is not supported.
 
-Types `variant`, `unknown`, `timestamp_ns`, and `timestamptz_ns` are added in v3.
+Types `variant`, `geometry`, `geography`, `unknown`, `timestamp_ns`, and `timestamptz_ns` are added in v3.
 
 All readers are required to read tables with unknown partition transforms, ignoring the unsupported partition fields when filtering.
 
