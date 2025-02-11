@@ -185,11 +185,13 @@ public class Parquet {
       return this;
     }
 
+    @Override
     public WriteBuilder schema(Schema newSchema) {
       this.schema = newSchema;
       return this;
     }
 
+    @Override
     public WriteBuilder named(String newName) {
       this.name = newName;
       return this;
@@ -200,6 +202,7 @@ public class Parquet {
       return this;
     }
 
+    @Override
     public WriteBuilder set(String property, String value) {
       config.put(property, value);
       return this;
@@ -210,6 +213,7 @@ public class Parquet {
       return this;
     }
 
+    @Override
     public WriteBuilder meta(String property, String value) {
       metadata.put(property, value);
       return this;
@@ -226,6 +230,7 @@ public class Parquet {
       return this;
     }
 
+    @Override
     public WriteBuilder overwrite() {
       return overwrite(true);
     }
@@ -315,6 +320,7 @@ public class Parquet {
               });
     }
 
+    @Override
     public <D> FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
@@ -1093,12 +1099,14 @@ public class Parquet {
      * @param newLength the length of the range this read should scan
      * @return this builder for method chaining
      */
+    @Override
     public ReadBuilder split(long newStart, long newLength) {
       this.start = newStart;
       this.length = newLength;
       return this;
     }
 
+    @Override
     public ReadBuilder project(Schema newSchema) {
       this.schema = newSchema;
       return this;
@@ -1181,6 +1189,7 @@ public class Parquet {
       return this;
     }
 
+    @Override
     public ReadBuilder reuseContainers() {
       this.reuseContainers = true;
       return this;
@@ -1216,6 +1225,7 @@ public class Parquet {
       return this;
     }
 
+    @Override
     @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
     public <D> CloseableIterable<D> build() {
       FileDecryptionProperties fileDecryptionProperties = null;
