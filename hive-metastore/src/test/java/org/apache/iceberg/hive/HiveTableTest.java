@@ -66,7 +66,6 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -626,8 +625,31 @@ public class HiveTableTest extends HiveTableBaseTest {
     // Try to register an existing table
     assertThatThrownBy(
             () -> catalog.registerTable(TABLE_IDENTIFIER, "file:" + metadataVersionFiles.get(0)))
-        .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Table already exists: hivedb.tbl");
+  }
+
+  @Test
+  public void testRegisterAndOverwriteExistingTable() throws TException {
+    org.apache.hadoop.hive.metastore.api.Table originalTable =
+        HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
+
+    Map<String, String> originalParams = originalTable.getParameters();
+
+    assertThat(originalParams).isNotNull();
+    assertThat(originalParams.get(TABLE_TYPE_PROP)).isEqualToIgnoringCase(ICEBERG_TABLE_TYPE_VALUE);
+    assertThat(originalTable.getTableType()).isEqualToIgnoringCase("EXTERNAL_TABLE");
+
+    List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
+    assertThat(metadataVersionFiles).hasSize(1);
+    String metadataFilePath = "file:" + metadataVersionFiles.get(0);
+
+    catalog.registerTable(TABLE_IDENTIFIER, metadataFilePath, true /* overwrite */);
+    org.apache.hadoop.hive.metastore.api.Table overwritten =
+        HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
+    assertThat(overwritten.getParameters())
+        .containsEntry(TABLE_TYPE_PROP, originalParams.get(TABLE_TYPE_PROP))
+        .containsEntry(PREVIOUS_METADATA_LOCATION_PROP, originalParams.get(METADATA_LOCATION_PROP));
+    assertThat(overwritten.getSd()).isEqualTo(originalTable.getSd());
   }
 
   @Test

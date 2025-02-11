@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.dynamodb;
 
+import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -391,6 +392,31 @@ public class TestDynamoDbCatalog {
     assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageContaining("already exists");
+    assertThat(catalog.dropTable(identifier, true)).isTrue();
+    assertThat(catalog.dropNamespace(namespace)).isTrue();
+  }
+
+  @Test
+  public void testRegisterAndOverwriteExistingTable() {
+    Namespace namespace = Namespace.of(genRandomName());
+    catalog.createNamespace(namespace);
+    TableIdentifier identifier = TableIdentifier.of(namespace, catalogTableName);
+
+    // create an unpartitioned table
+    catalog.createTable(identifier, SCHEMA);
+    Table registeringTable = catalog.loadTable(identifier);
+    TableOperations ops = ((HasTableOperations) registeringTable).operations();
+    String unpartitionedMetadataLocation = ops.current().metadataFileLocation();
+
+    // update table spec
+    registeringTable.updateSpec().addField(bucket("id", 16)).commit();
+    assertThat(registeringTable.spec().isPartitioned()).isTrue();
+
+    // register with overwrite
+    catalog.registerTable(identifier, unpartitionedMetadataLocation, true);
+
+    registeringTable.refresh();
+    assertThat(registeringTable.spec().isPartitioned()).isFalse();
     assertThat(catalog.dropTable(identifier, true)).isTrue();
     assertThat(catalog.dropNamespace(namespace)).isTrue();
   }

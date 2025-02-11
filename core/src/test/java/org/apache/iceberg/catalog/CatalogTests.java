@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.catalog;
 
+import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -50,6 +51,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableUtil;
@@ -3164,6 +3167,57 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageStartingWith("Table already exists: a.t1");
     assertThat(catalog.dropTable(identifier)).isTrue();
+  }
+
+  @Test
+  public void testRegisterAndOverwriteExistingTable() {
+    C catalog = catalog();
+
+    TableIdentifier ident1 = TableIdentifier.of("a", "t1");
+    TableIdentifier ident2 = TableIdentifier.of("a", "t2");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(ident1.namespace());
+    }
+
+    Table table1 = catalog.createTable(ident1, SCHEMA);
+    Table table2 =
+        catalog.createTable(
+            ident2, SCHEMA, PartitionSpec.builderFor(SCHEMA).bucket("id", 16).build());
+    assertThat(table1.spec().isPartitioned()).isFalse();
+
+    TableOperations ops1 = ((BaseTable) table1).operations();
+    TableOperations ops2 = ((BaseTable) table2).operations();
+    TableMetadata metadata1 = ops1.current();
+    String unpartitionedMetadataLocation = metadata1.metadataFileLocation();
+    String metadata1AsJson = TableMetadataParser.toJson(metadata1);
+
+    String metadata2 = ops2.current().metadataFileLocation();
+
+    // register and overwrite metadata of foreign table
+    assertThatThrownBy(() -> catalog.registerTable(ident1, metadata2, true))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Table UUID does not match");
+
+    // update table spec
+    table1.updateSpec().addField(bucket("id", 16)).commit();
+    assertThat(table1.spec().isPartitioned()).isTrue();
+
+    // register and overwrite metadata of same table
+    catalog.registerTable(ident1, unpartitionedMetadataLocation, true);
+    table1.refresh();
+
+    assertThat(table1.spec().isPartitioned()).isFalse();
+    TableMetadata actual = ((BaseTable) table1).operations().current();
+    TableMetadata expected = TableMetadataParser.fromJson(metadata1AsJson);
+
+    assertThat(actual)
+        .usingRecursiveComparison()
+        .ignoringFields("metadataFileLocation")
+        .isEqualTo(expected);
+
+    assertThat(catalog.dropTable(ident1)).isTrue();
+    assertThat(catalog.dropTable(ident2)).isTrue();
   }
 
   @Test
