@@ -25,6 +25,8 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 
 public class InternalParquet {
+  private InternalParquet() {}
+
   public static void register() {
     InternalData.register(
         FileFormat.PARQUET, InternalParquet::writeInternal, InternalParquet::readInternal);
