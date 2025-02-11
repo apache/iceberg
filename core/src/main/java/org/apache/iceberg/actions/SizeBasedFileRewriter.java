@@ -91,16 +91,10 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
 
   public static final boolean REWRITE_ALL_DEFAULT = false;
 
-  /**
-   * This option controls the largest amount of data that should be rewritten in a single file
-   * group. It helps with breaking down the rewriting of very large partitions which may not be
-   * rewritable otherwise due to the resource constraints of the cluster. For example, a sort-based
-   * rewrite may not scale to TB-sized partitions, and those partitions need to be worked on in
-   * small subsections to avoid exhaustion of resources.
-   */
-  public static final String MAX_FILE_GROUP_SIZE_BYTES = "max-file-group-size-bytes";
+  public static final String MAX_FILE_GROUP_SIZE_BYTES = RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES;
 
-  public static final long MAX_FILE_GROUP_SIZE_BYTES_DEFAULT = 100L * 1024 * 1024 * 1024; // 100 GB
+  public static final long MAX_FILE_GROUP_SIZE_BYTES_DEFAULT =
+      RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES_DEFAULT;
 
   private static final long SPLIT_OVERHEAD = 5 * 1024;
 
