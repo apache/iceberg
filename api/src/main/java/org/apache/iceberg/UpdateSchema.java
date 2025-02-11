@@ -255,6 +255,7 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    * @param name name for the new column
    * @param type type for the new column
    * @param doc documentation string for the new column
+   * @param defaultValue a default value for the column in existing rows
    * @return this for method chaining
    * @throws IllegalArgumentException If name contains "."
    */
@@ -408,30 +409,6 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    */
   default UpdateSchema updateColumn(String name, Type.PrimitiveType newType, String newDoc) {
     return updateColumn(name, newType).updateColumnDoc(name, newDoc);
-  }
-
-  /**
-   * Update a column in the schema to a new primitive type.
-   *
-   * <p>The name is used to find the column to update using {@link Schema#findField(String)}.
-   *
-   * <p>Only updates that widen types are allowed.
-   *
-   * <p>Columns may be updated and renamed in the same schema update.
-   *
-   * @param name name of the column to rename
-   * @param newType replacement type for the column
-   * @param newDoc replacement documentation string for the column
-   * @return this for method chaining
-   * @throws IllegalArgumentException If name doesn't identify a column in the schema or if this
-   *     change introduces a type incompatibility or if it conflicts with other additions, renames,
-   *     or updates.
-   */
-  default UpdateSchema updateColumn(
-      String name, Type.PrimitiveType newType, String newDoc, Object newDefaultValue) {
-    return updateColumn(name, newType)
-        .updateColumnDoc(name, newDoc)
-        .updateColumnDefault(name, newDefaultValue);
   }
 
   /**
