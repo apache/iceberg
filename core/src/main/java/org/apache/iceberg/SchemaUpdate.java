@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
@@ -320,14 +321,13 @@ class SchemaUpdate implements UpdateSchema {
 
     boolean isAdded = isAdded(name);
 
-    try {
-      if (!isAdded
-          && Objects.equals(
-              field.writeDefault(), Expressions.lit(newDefault).to(field.type()).value())) {
+    if (!isAdded) {
+      // if the value can be converted to the expected type, check if it is already set
+      // if it can't be converted, the builder will throw an exception
+      Literal<?> converted = Expressions.lit(newDefault).to(field.type());
+      if (converted != null && Objects.equals(field.writeDefault(), converted.value())) {
         return this;
       }
-    } catch (RuntimeException ignored) {
-      // if the comparison failed, try to set the new default
     }
 
     // write default is always set and initial default is only set if the field requires one
