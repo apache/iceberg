@@ -20,6 +20,7 @@ package org.apache.iceberg.hadoop;
 
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.ASC;
+import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -676,6 +677,28 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Table already exists: a.t1");
+    assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation, false))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("Table already exists: a.t1");
+    assertThat(catalog.dropTable(identifier)).isTrue();
+  }
+
+  @Test
+  public void testRegisterAndOverwriteExistingTable() throws IOException {
+    TableIdentifier identifier = TableIdentifier.of("a", "t1");
+    HadoopCatalog catalog = hadoopCatalog();
+    catalog.createTable(identifier, SCHEMA);
+    Table registeringTable = catalog.loadTable(identifier);
+    TableOperations ops = ((HasTableOperations) registeringTable).operations();
+    String unpartitionedMetadataLocation = ops.current().metadataFileLocation();
+    // update table spec
+    registeringTable.updateSpec().addField(bucket("id", 16)).commit();
+    assertThat(registeringTable.spec().isPartitioned()).isTrue();
+    // register with overwrite
+    assertThatThrownBy(() -> catalog.registerTable(identifier, unpartitionedMetadataLocation, true))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Overwrite table metadata on registration is not supported in hadoop catalog");
+
     assertThat(catalog.dropTable(identifier)).isTrue();
   }
 }

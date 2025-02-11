@@ -85,8 +85,9 @@ public abstract class BaseSessionCatalog implements SessionCatalog {
     }
 
     @Override
-    public Table registerTable(TableIdentifier ident, String metadataFileLocation) {
-      return BaseSessionCatalog.this.registerTable(context, ident, metadataFileLocation);
+    public Table registerTable(
+        TableIdentifier ident, String metadataFileLocation, boolean overwrite) {
+      return BaseSessionCatalog.this.registerTable(context, ident, metadataFileLocation, overwrite);
     }
 
     @Override

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.catalog;
 
+import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -50,6 +51,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableUtil;
@@ -189,6 +192,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   protected boolean supportsEmptyNamespace() {
+    return false;
+  }
+
+  protected boolean supportsOverwriteRegistration() {
     return false;
   }
 
@@ -3139,6 +3146,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     TestHelpers.assertSameSchemaMap(registeredTable.schemas(), originalTable.schemas());
     assertFiles(registeredTable, FILE_B, FILE_C);
 
+    assertThat(ops.refresh().metadataFileLocation())
+        .as("metadataFileLocation must match")
+        .isEqualTo(metadataLocation);
+
     registeredTable.newFastAppend().appendFile(FILE_A).commit();
     assertFiles(registeredTable, FILE_B, FILE_C, FILE_A);
 
@@ -3164,7 +3175,104 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageStartingWith("Table already exists: a.t1");
+    assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation, false))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageStartingWith("Table already exists: a.t1");
     assertThat(catalog.dropTable(identifier)).isTrue();
+  }
+
+  @Test
+  public void testRegisterAndOverwriteForeignTable() {
+    assumeThat(supportsOverwriteRegistration()).isTrue();
+    C catalog = catalog();
+
+    TableIdentifier identT1 = TableIdentifier.of("a", "t1");
+    TableIdentifier identT2 = TableIdentifier.of("a", "t2");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identT1.namespace());
+    }
+
+    Table t1 = catalog.createTable(identT1, SCHEMA);
+    UUID t1UUID = t1.uuid();
+    Table t2 =
+        catalog.createTable(
+            identT2, SCHEMA, PartitionSpec.builderFor(SCHEMA).bucket("id", 16).build());
+    assertThat(t1.spec().isPartitioned()).isFalse();
+    assertThat(t2.spec().isPartitioned()).isTrue();
+
+    TableOperations opsT2 = operation(t2);
+
+    // register table t1 with metadata from table t2
+    Table registered = catalog.registerTable(identT1, opsT2.current().metadataFileLocation(), true);
+
+    assertThat(registered.uuid())
+        .as("table UUID should differ when registering with foreign metadata")
+        .isNotEqualTo(t1UUID);
+    assertThat(registered.spec().isPartitioned())
+        .as("table is expected to be partitioned after registration with t2’s metadata")
+        .isEqualTo(t2.spec().isPartitioned())
+        .isTrue();
+    assertThat(operation(registered).refresh())
+        .usingRecursiveComparison()
+        .as("TableMetadata fields must match")
+        .isEqualTo(opsT2.current());
+
+    // Both tables now point to the same metadata location, so we only need to purge once.
+    assertThat(catalog.dropTable(identT1, true)).isTrue();
+    assertThat(catalog.dropTable(identT2, false)).isTrue();
+  }
+
+  private TableOperations operation(Table table) {
+    return ((BaseTable) table).operations();
+  }
+
+  @Test
+  public void testRegisterAndOverwriteExistingTable() {
+    assumeThat(supportsOverwriteRegistration()).isTrue();
+    C catalog = catalog();
+
+    TableIdentifier ident = TableIdentifier.of("a", "e1");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(ident.namespace());
+    }
+
+    Table table = catalog.createTable(ident, SCHEMA);
+    UUID tableUUID = table.uuid();
+    TableMetadata metadata = operation(table).current();
+    String originalMetadataLocation = metadata.metadataFileLocation();
+    // Serialize the table’s current (unpartitioned) metadata to JSON for later comparison.
+    String metadataAsJson = TableMetadataParser.toJson(metadata);
+
+    // update table spec
+    table.updateSpec().addField(bucket("id", 16)).commit();
+    assertThat(table.spec().isPartitioned()).isTrue();
+
+    // overwrite the table’s metadata with its original unpartitioned version.
+    Table overwritten = catalog.registerTable(ident, originalMetadataLocation, true);
+
+    assertThat(overwritten.uuid())
+        .as("UUID should remain the same when overwriting an existing table's own metadata")
+        .isEqualTo(tableUUID);
+    assertThat(overwritten.spec().isPartitioned())
+        .as("table is expected to be unpartitioned")
+        .isFalse();
+
+    TableMetadata actual = operation(overwritten).refresh();
+    TableMetadata expected = TableMetadataParser.fromJson(metadataAsJson);
+    assertThat(actual.metadataFileLocation())
+        .as("metadataFileLocation must match")
+        .isEqualTo(originalMetadataLocation);
+    assertThat(actual)
+        .usingRecursiveComparison()
+        // reason to ignore:
+        // TableMetadataParser to/fromJson skips recording of metadataFileLocation in TableMetadata
+        .ignoringFields("metadataFileLocation")
+        .as("tableMetadata fields must match")
+        .isEqualTo(expected);
+
+    assertThat(catalog.dropTable(ident)).isTrue();
   }
 
   @Test

@@ -294,7 +294,9 @@ public class CatalogHandlers {
     request.validate();
 
     TableIdentifier identifier = TableIdentifier.of(namespace, request.name());
-    Table table = catalog.registerTable(identifier, request.metadataLocation());
+    Table table =
+        catalog.registerTable(
+            identifier, request.metadataLocation(), Boolean.TRUE.equals(request.overwrite()));
     if (table instanceof BaseTable) {
       return LoadTableResponse.builder()
           .withTableMetadata(((BaseTable) table).operations().current())

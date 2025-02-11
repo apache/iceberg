@@ -108,6 +108,13 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
         defaultNamespaceLocation(tableIdentifier.namespace()), tableIdentifier.name());
   }
 
+  @Override
+  protected void setAsCurrent(TableIdentifier identifier, String metadataLocation) {
+    synchronized (this) {
+      tables.put(identifier, metadataLocation);
+    }
+  }
+
   private String defaultNamespaceLocation(Namespace namespace) {
     if (namespace.isEmpty()) {
       return warehouseLocation;

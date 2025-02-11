@@ -62,12 +62,14 @@ public class TestRegisterTableRequestParser {
             .name("table_1")
             .metadataLocation(
                 "file://tmp/NS/test_tbl/metadata/00000-d4f60d2f-2ad2-408b-8832-0ed7fbd851ee.metadata.json")
+            .overwrite(true)
             .build();
 
     String expectedJson =
         "{\n"
             + "  \"name\" : \"table_1\",\n"
-            + "  \"metadata-location\" : \"file://tmp/NS/test_tbl/metadata/00000-d4f60d2f-2ad2-408b-8832-0ed7fbd851ee.metadata.json\"\n"
+            + "  \"metadata-location\" : \"file://tmp/NS/test_tbl/metadata/00000-d4f60d2f-2ad2-408b-8832-0ed7fbd851ee.metadata.json\",\n"
+            + "  \"overwrite\" : true\n"
             + "}";
 
     String json = RegisterTableRequestParser.toJson(request, true);
@@ -75,5 +77,24 @@ public class TestRegisterTableRequestParser {
 
     assertThat(RegisterTableRequestParser.toJson(RegisterTableRequestParser.fromJson(json), true))
         .isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void serdeOnDefaultAndExplicitOverwriteField() {
+    String defaultJson =
+        "{\n"
+            + "  \"name\" : \"table_1\",\n"
+            + "  \"metadata-location\" : \"file://tmp/NS/test_tbl/metadata/00000-d4f60d2f-2ad2-408b-8832-0ed7fbd851ee.metadata.json\"\n"
+            + "}";
+    RegisterTableRequest defaultRequest = RegisterTableRequestParser.fromJson(defaultJson);
+    assertThat(defaultRequest.overwrite()).isFalse();
+    String explicitJson =
+        "{\n"
+            + "  \"name\" : \"table_1\",\n"
+            + "  \"metadata-location\" : \"file://tmp/NS/test_tbl/metadata/00000-d4f60d2f-2ad2-408b-8832-0ed7fbd851ee.metadata.json\",\n"
+            + "  \"overwrite\" :false\n"
+            + "}";
+    RegisterTableRequest explicitRequest = RegisterTableRequestParser.fromJson(explicitJson);
+    assertThat(explicitRequest.overwrite()).isFalse();
   }
 }

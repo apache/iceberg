@@ -72,6 +72,11 @@ public class TestJdbcCatalogWithV1Schema extends CatalogTests<JdbcCatalog> {
   }
 
   @Override
+  protected boolean supportsOverwriteRegistration() {
+    return true;
+  }
+
+  @Override
   protected boolean supportsNestedNamespaces() {
     return true;
   }

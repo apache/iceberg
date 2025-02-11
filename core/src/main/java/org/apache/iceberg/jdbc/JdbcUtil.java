@@ -122,6 +122,57 @@ final class JdbcUtil {
           + " = ? AND "
           + JdbcTableOperations.METADATA_LOCATION_PROP
           + " = ?";
+  private static final String V1_SET_METADATA_TABLE_SQL =
+      "UPDATE "
+          + CATALOG_TABLE_VIEW_NAME
+          + " SET "
+          + JdbcTableOperations.METADATA_LOCATION_PROP
+          + " = ?"
+          + " WHERE "
+          + CATALOG_NAME
+          + " = ? AND "
+          + TABLE_NAMESPACE
+          + " = ? AND "
+          + TABLE_NAME
+          + " = ? AND ("
+          + RECORD_TYPE
+          + " = '"
+          + TABLE_RECORD_TYPE
+          + "'"
+          + " OR "
+          + RECORD_TYPE
+          + " IS NULL)";
+  private static final String V1_SET_METADATA_VIEW_SQL =
+      "UPDATE "
+          + CATALOG_TABLE_VIEW_NAME
+          + " SET "
+          + JdbcTableOperations.METADATA_LOCATION_PROP
+          + " = ?"
+          + " WHERE "
+          + CATALOG_NAME
+          + " = ? AND "
+          + TABLE_NAMESPACE
+          + " = ? AND "
+          + TABLE_NAME
+          + " = ? AND "
+          + RECORD_TYPE
+          + " = "
+          + "'"
+          + VIEW_RECORD_TYPE
+          + "'";
+  private static final String V0_SET_METADATA_SQL =
+      "UPDATE "
+          + CATALOG_TABLE_VIEW_NAME
+          + " SET "
+          + JdbcTableOperations.METADATA_LOCATION_PROP
+          + " = ?"
+          + " WHERE "
+          + CATALOG_NAME
+          + " = ? AND "
+          + TABLE_NAMESPACE
+          + " = ? AND "
+          + TABLE_NAME
+          + " = ?";
   static final String V0_CREATE_CATALOG_SQL =
       "CREATE TABLE "
           + CATALOG_TABLE_VIEW_NAME
@@ -527,6 +578,32 @@ final class JdbcUtil {
     return result;
   }
 
+  private static int setMetadataLocation(
+      boolean isTable,
+      SchemaVersion schemaVersion,
+      JdbcClientPool connections,
+      String catalogName,
+      TableIdentifier identifier,
+      String newMetadataLocation)
+      throws SQLException, InterruptedException {
+    return connections.run(
+        conn -> {
+          try (PreparedStatement sql =
+              conn.prepareStatement(
+                  (schemaVersion == SchemaVersion.V1)
+                      ? (isTable ? V1_SET_METADATA_TABLE_SQL : V1_SET_METADATA_VIEW_SQL)
+                      : V0_SET_METADATA_SQL)) {
+            // UPDATE
+            sql.setString(1, newMetadataLocation);
+            // WHERE
+            sql.setString(2, catalogName);
+            sql.setString(3, namespaceToString(identifier.namespace()));
+            sql.setString(4, identifier.name());
+            return sql.executeUpdate();
+          }
+        });
+  }
+
   private static int update(
       boolean isTable,
       SchemaVersion schemaVersion,
@@ -555,6 +632,17 @@ final class JdbcUtil {
             return sql.executeUpdate();
           }
         });
+  }
+
+  static int setMetadataLocationTable(
+      SchemaVersion schemaVersion,
+      JdbcClientPool connections,
+      String catalogName,
+      TableIdentifier tableIdentifier,
+      String metadataLocation)
+      throws SQLException, InterruptedException {
+    return setMetadataLocation(
+        true, schemaVersion, connections, catalogName, tableIdentifier, metadataLocation);
   }
 
   static int updateTable(

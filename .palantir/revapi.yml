@@ -1177,7 +1177,14 @@ acceptedBreaks:
       old: "class org.apache.iceberg.Metrics"
       new: "class org.apache.iceberg.Metrics"
       justification: "Java serialization across versions is not guaranteed"
+    - code: "java.method.addedToInterface"
+      new: "method org.apache.iceberg.Table org.apache.iceberg.catalog.SessionCatalog::registerTable(org.apache.iceberg.catalog.SessionCatalog.SessionContext,\
+        \ org.apache.iceberg.catalog.TableIdentifier, java.lang.String, boolean)"
+      justification: "New API with default implementation provided"
     org.apache.iceberg:iceberg-core:
+    - code: "java.method.addedToInterface"
+      new: "method boolean org.apache.iceberg.rest.requests.RegisterTableRequest::overwrite()"
+      justification: "All subclasses implement the new method"
     - code: "java.method.removed"
       old: "method java.lang.String[] org.apache.iceberg.hadoop.Util::blockLocations(org.apache.iceberg.CombinedScanTask,\
         \ org.apache.hadoop.conf.Configuration)"

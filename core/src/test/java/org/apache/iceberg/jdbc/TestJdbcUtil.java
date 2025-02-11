@@ -33,6 +33,62 @@ import org.sqlite.SQLiteDataSource;
 
 public class TestJdbcUtil {
 
+  private static final String CATALOG_NAME = "TEST";
+  private static final String NAMESPACE1 = "namespace1";
+  private static final Namespace TEST_NAMESPACE = Namespace.of(NAMESPACE1);
+  private static final String OLD_LOCATION = "testLocation";
+  private static final String NEW_LOCATION = "newLocation";
+
+  private String createTempDatabase() throws Exception {
+    java.nio.file.Path dbFile = Files.createTempFile("icebergSchemaUpdate", "db");
+    return "jdbc:sqlite:" + dbFile.toAbsolutePath();
+  }
+
+  private JdbcClientPool setupConnectionPool(String jdbcUrl) {
+    return new JdbcClientPool(jdbcUrl, Maps.newHashMap());
+  }
+
+  // Initializes the database with V0 schema and creates sample tables.
+  private void setupV0SchemaWithTables(JdbcClientPool connections) throws Exception {
+    connections.newClient().prepareStatement(JdbcUtil.V0_CREATE_CATALOG_SQL).executeUpdate();
+
+    // inserting tables
+    JdbcUtil.doCommitCreateTable(
+        JdbcUtil.SchemaVersion.V0,
+        connections,
+        CATALOG_NAME,
+        TEST_NAMESPACE,
+        TableIdentifier.of(TEST_NAMESPACE, "table1"),
+        OLD_LOCATION);
+    JdbcUtil.doCommitCreateTable(
+        JdbcUtil.SchemaVersion.V0,
+        connections,
+        CATALOG_NAME,
+        TEST_NAMESPACE,
+        TableIdentifier.of(TEST_NAMESPACE, "table2"),
+        OLD_LOCATION);
+  }
+
+  private void upgradeSchemaV0ToV1(JdbcClientPool connections) throws Exception {
+    connections.newClient().prepareStatement(JdbcUtil.V1_UPDATE_CATALOG_SQL).execute();
+  }
+
+  /** Verifies that the expected tables exist in the database with the correct metadata. */
+  private void verifyTablesExist(JdbcClientPool connections, String... expectedTableNames)
+      throws Exception {
+    try (PreparedStatement statement =
+        connections.newClient().prepareStatement(JdbcUtil.V0_LIST_TABLE_SQL)) {
+      statement.setString(1, CATALOG_NAME);
+      statement.setString(2, NAMESPACE1);
+      ResultSet tables = statement.executeQuery();
+
+      for (String expectedTableName : expectedTableNames) {
+        assertThat(tables.next()).isTrue();
+        assertThat(tables.getString(JdbcUtil.TABLE_NAME)).isEqualTo(expectedTableName);
+      }
+    }
+  }
+
   @Test
   public void testFilterAndRemovePrefix() {
     Map<String, String> input = Maps.newHashMap();
@@ -54,60 +110,34 @@ public class TestJdbcUtil {
 
   @Test
   public void testV0toV1SqlStatements() throws Exception {
-    java.nio.file.Path dbFile = Files.createTempFile("icebergSchemaUpdate", "db");
-    String jdbcUrl = "jdbc:sqlite:" + dbFile.toAbsolutePath();
-
+    String jdbcUrl = createTempDatabase();
     SQLiteDataSource dataSource = new SQLiteDataSource();
     dataSource.setUrl(jdbcUrl);
 
-    try (JdbcClientPool connections = new JdbcClientPool(jdbcUrl, Maps.newHashMap())) {
+    try (JdbcClientPool connections = setupConnectionPool(jdbcUrl)) {
       // create "old style" SQL schema
-      connections.newClient().prepareStatement(JdbcUtil.V0_CREATE_CATALOG_SQL).executeUpdate();
+      setupV0SchemaWithTables(connections);
 
-      // inserting tables
-      JdbcUtil.doCommitCreateTable(
-          JdbcUtil.SchemaVersion.V0,
-          connections,
-          "TEST",
-          Namespace.of("namespace1"),
-          TableIdentifier.of(Namespace.of("namespace1"), "table1"),
-          "testLocation");
-      JdbcUtil.doCommitCreateTable(
-          JdbcUtil.SchemaVersion.V0,
-          connections,
-          "TEST",
-          Namespace.of("namespace1"),
-          TableIdentifier.of(Namespace.of("namespace1"), "table2"),
-          "testLocation");
-
-      try (PreparedStatement statement =
-          connections.newClient().prepareStatement(JdbcUtil.V0_LIST_TABLE_SQL)) {
-        statement.setString(1, "TEST");
-        statement.setString(2, "namespace1");
-        ResultSet tables = statement.executeQuery();
-        tables.next();
-        assertThat(tables.getString(JdbcUtil.TABLE_NAME)).isEqualTo("table1");
-        tables.next();
-        assertThat(tables.getString(JdbcUtil.TABLE_NAME)).isEqualTo("table2");
-      }
+      // Verify tables exist
+      verifyTablesExist(connections, "table1", "table2");
 
       // updating the schema from V0 to V1
-      connections.newClient().prepareStatement(JdbcUtil.V1_UPDATE_CATALOG_SQL).execute();
+      upgradeSchemaV0ToV1(connections);
 
       // trying to add a table on the updated schema
       JdbcUtil.doCommitCreateTable(
           JdbcUtil.SchemaVersion.V1,
           connections,
-          "TEST",
-          Namespace.of("namespace1"),
-          TableIdentifier.of(Namespace.of("namespace1"), "table3"),
-          "testLocation");
+          CATALOG_NAME,
+          TEST_NAMESPACE,
+          TableIdentifier.of(TEST_NAMESPACE, "table3"),
+          OLD_LOCATION);
 
       // testing the tables after migration and new table added
       try (PreparedStatement statement =
           connections.newClient().prepareStatement(JdbcUtil.V0_LIST_TABLE_SQL)) {
-        statement.setString(1, "TEST");
-        statement.setString(2, "namespace1");
+        statement.setString(1, CATALOG_NAME);
+        statement.setString(2, NAMESPACE1);
         ResultSet tables = statement.executeQuery();
         tables.next();
         assertThat(tables.getString(JdbcUtil.TABLE_NAME)).isEqualTo("table1");
@@ -125,10 +155,10 @@ public class TestJdbcUtil {
           JdbcUtil.updateTable(
               JdbcUtil.SchemaVersion.V1,
               connections,
-              "TEST",
-              TableIdentifier.of(Namespace.of("namespace1"), "table3"),
-              "newLocation",
-              "testLocation");
+              CATALOG_NAME,
+              TableIdentifier.of(TEST_NAMESPACE, "table3"),
+              NEW_LOCATION,
+              OLD_LOCATION);
       assertThat(updated).isEqualTo(1);
 
       // update a table (commit) migrated from V0 schema
@@ -136,11 +166,80 @@ public class TestJdbcUtil {
           JdbcUtil.updateTable(
               JdbcUtil.SchemaVersion.V1,
               connections,
-              "TEST",
-              TableIdentifier.of(Namespace.of("namespace1"), "table1"),
-              "newLocation",
-              "testLocation");
+              CATALOG_NAME,
+              TableIdentifier.of(TEST_NAMESPACE, "table1"),
+              NEW_LOCATION,
+              OLD_LOCATION);
       assertThat(updated).isEqualTo(1);
+    }
+  }
+
+  @Test
+  public void testSetMetadataLocationTable() throws Exception {
+    String jdbcUrl = createTempDatabase();
+
+    try (JdbcClientPool connections = setupConnectionPool(jdbcUrl)) {
+      // Test with V0 schema
+      setupV0SchemaWithTables(connections);
+
+      TableIdentifier table1 = TableIdentifier.of(TEST_NAMESPACE, "table1");
+      TableIdentifier table2 = TableIdentifier.of(TEST_NAMESPACE, "table2");
+
+      // Test setMetadataLocationTable with V0 schema
+      int updated =
+          JdbcUtil.setMetadataLocationTable(
+              JdbcUtil.SchemaVersion.V0, connections, CATALOG_NAME, table1, NEW_LOCATION);
+      assertThat(updated).isEqualTo(1);
+
+      // Verify the metadata location was updated
+      Map<String, String> tableData =
+          JdbcUtil.loadTable(JdbcUtil.SchemaVersion.V0, connections, CATALOG_NAME, table1);
+      assertThat(tableData.get("metadata_location")).isEqualTo(NEW_LOCATION);
+
+      // Upgrade to V1 schema
+      upgradeSchemaV0ToV1(connections);
+
+      // Add a new table in V1 schema
+      TableIdentifier table3 = TableIdentifier.of(TEST_NAMESPACE, "table3");
+      JdbcUtil.doCommitCreateTable(
+          JdbcUtil.SchemaVersion.V1,
+          connections,
+          CATALOG_NAME,
+          TEST_NAMESPACE,
+          table3,
+          OLD_LOCATION);
+
+      // Test setMetadataLocationTable with V1 schema
+      String anotherNewLocation = "anotherNewLocation";
+      updated =
+          JdbcUtil.setMetadataLocationTable(
+              JdbcUtil.SchemaVersion.V1, connections, CATALOG_NAME, table3, anotherNewLocation);
+      assertThat(updated).isEqualTo(1);
+
+      // Verify the metadata location was updated for V1 table
+      tableData = JdbcUtil.loadTable(JdbcUtil.SchemaVersion.V1, connections, CATALOG_NAME, table3);
+      assertThat(tableData.get("metadata_location")).isEqualTo(anotherNewLocation);
+
+      // Test setMetadataLocationTable on a migrated table (table2) with V1 schema
+      updated =
+          JdbcUtil.setMetadataLocationTable(
+              JdbcUtil.SchemaVersion.V1, connections, CATALOG_NAME, table2, anotherNewLocation);
+      assertThat(updated).isEqualTo(1);
+
+      // Verify the metadata location was updated for migrated table
+      tableData = JdbcUtil.loadTable(JdbcUtil.SchemaVersion.V1, connections, CATALOG_NAME, table2);
+      assertThat(tableData.get("metadata_location")).isEqualTo(anotherNewLocation);
+
+      // Test set metadata location for non-existent table
+      TableIdentifier nonExistentTable = TableIdentifier.of(TEST_NAMESPACE, "nonexistent");
+      updated =
+          JdbcUtil.setMetadataLocationTable(
+              JdbcUtil.SchemaVersion.V1,
+              connections,
+              CATALOG_NAME,
+              nonExistentTable,
+              "someLocation");
+      assertThat(updated).isEqualTo(0);
     }
   }
 

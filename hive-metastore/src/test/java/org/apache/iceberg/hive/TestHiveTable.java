@@ -37,6 +37,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -66,7 +67,6 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -624,10 +624,47 @@ public class TestHiveTable extends HiveTableTestBase {
     assertThat(metadataVersionFiles).hasSize(1);
 
     // Try to register an existing table
-    assertThatThrownBy(
-            () -> catalog.registerTable(TABLE_IDENTIFIER, "file:" + metadataVersionFiles.get(0)))
-        .isInstanceOf(AlreadyExistsException.class)
+    String metadataLocation = "file:" + metadataVersionFiles.get(0);
+    assertThatThrownBy(() -> catalog.registerTable(TABLE_IDENTIFIER, metadataLocation))
         .hasMessage("Table already exists: hivedb.tbl");
+    assertThatThrownBy(() -> catalog.registerTable(TABLE_IDENTIFIER, metadataLocation, false))
+        .hasMessage("Table already exists: hivedb.tbl");
+  }
+
+  @Test
+  public void testRegisterAndOverwriteExistingTable() throws TException {
+    org.apache.hadoop.hive.metastore.api.Table originalTable =
+        HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
+    Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
+    String originalMetadataFilePath =
+        ((BaseTable) icebergTable).operations().refresh().metadataFileLocation();
+
+    assertThat(originalTable.getParameters())
+        .isNotNull()
+        .containsEntry(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ROOT))
+        .doesNotContainKey(PREVIOUS_METADATA_LOCATION_PROP)
+        .containsEntry(METADATA_LOCATION_PROP, originalMetadataFilePath);
+    assertThat(originalTable.getTableType()).isEqualToIgnoringCase("EXTERNAL_TABLE");
+
+    // drop the partition field
+    icebergTable.updateSpec().removeField("id").commit();
+    org.apache.hadoop.hive.metastore.api.Table unpartitionedTable =
+        HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
+    String unpartitionedMetadataFilePath =
+        ((BaseTable) icebergTable).operations().refresh().metadataFileLocation();
+    assertThat(unpartitionedTable.getParameters())
+        .isNotNull()
+        .containsEntry(METADATA_LOCATION_PROP, unpartitionedMetadataFilePath)
+        .containsEntry(PREVIOUS_METADATA_LOCATION_PROP, originalMetadataFilePath);
+
+    // register original
+    catalog.registerTable(TABLE_IDENTIFIER, originalMetadataFilePath, true /* overwrite */);
+    org.apache.hadoop.hive.metastore.api.Table overwrittenTable =
+        HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
+    assertThat(overwrittenTable.getParameters())
+        .containsEntry(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ROOT))
+        .containsEntry(METADATA_LOCATION_PROP, originalMetadataFilePath);
+    assertThat(overwrittenTable.getSd()).isEqualTo(originalTable.getSd());
   }
 
   @Test
