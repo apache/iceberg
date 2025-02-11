@@ -50,11 +50,9 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.orc.GenericOrcReader;
@@ -575,6 +573,7 @@ public class ORC {
     @Override
     public <D> CloseableIterable<D> build() {
       Preconditions.checkNotNull(schema(), "Schema is required");
+      initMethod().accept(this);
       return new OrcIterable<>(
           file(),
           conf,
@@ -635,17 +634,16 @@ public class ORC {
     }
 
     @Override
-    public ReaderBuilder<?> builder(
-        InputFile inputFile,
-        ContentScanTask<?> task,
-        Schema readSchema,
-        Table table,
-        org.apache.iceberg.io.datafile.DeleteFilter<?> deleteFilter) {
-      Map<Integer, ?> idToConstant = PartitionUtil.constantsMap(task, readSchema);
+    public ReaderBuilder<?> builder(InputFile inputFile) {
       return new ReadBuilder(inputFile)
-          .project(ORC.schemaWithoutConstantAndMetadataFields(readSchema, idToConstant))
-          .createReaderFunc(
-              fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema, idToConstant));
+          .initMethod(
+              b -> {
+                Map<Integer, ?> idToConstant = PartitionUtil.constantsMap(b.task(), b.schema());
+                b.project(ORC.schemaWithoutConstantAndMetadataFields(b.schema(), idToConstant));
+                b.createReaderFunc(
+                    fileSchema ->
+                        GenericOrcReader.buildReader(b.schema(), fileSchema, idToConstant));
+              });
     }
   }
 

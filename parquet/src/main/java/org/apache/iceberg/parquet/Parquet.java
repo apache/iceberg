@@ -59,13 +59,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SystemConfigs;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
@@ -87,7 +85,6 @@ import org.apache.iceberg.io.datafile.AppenderBuilder;
 import org.apache.iceberg.io.datafile.AppenderBuilderBase;
 import org.apache.iceberg.io.datafile.DataWriterBuilder;
 import org.apache.iceberg.io.datafile.DataWriterBuilderBase;
-import org.apache.iceberg.io.datafile.DeleteFilter;
 import org.apache.iceberg.io.datafile.EqualityDeleteWriterBuilder;
 import org.apache.iceberg.io.datafile.EqualityDeleteWriterBuilderBase;
 import org.apache.iceberg.io.datafile.PositionDeleteWriterBuilder;
@@ -914,6 +911,7 @@ public class Parquet {
     @Override
     @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
     public <D> CloseableIterable<D> build() {
+      initMethod().accept(this);
       FileDecryptionProperties fileDecryptionProperties = null;
       if (fileEncryptionKey() != null) {
         byte[] encryptionKeyArray = ByteBuffers.toByteArray(fileEncryptionKey());
@@ -1133,18 +1131,16 @@ public class Parquet {
     }
 
     @Override
-    public ReaderBuilder<?> builder(
-        InputFile inputFile,
-        ContentScanTask<?> task,
-        Schema readSchema,
-        Table table,
-        DeleteFilter<?> deleteFilter) {
+    public ReaderBuilder<?> builder(InputFile inputFile) {
       return new ReadBuilder(inputFile)
-          .project(readSchema)
-          .createReaderFunc(
-              fileSchema ->
-                  GenericParquetReaders.buildReader(
-                      readSchema, fileSchema, PartitionUtil.constantsMap(task, readSchema)));
+          .initMethod(
+              b ->
+                  b.createReaderFunc(
+                      fileSchema ->
+                          GenericParquetReaders.buildReader(
+                              b.schema(),
+                              fileSchema,
+                              PartitionUtil.constantsMap(b.task(), b.schema()))));
     }
   }
 

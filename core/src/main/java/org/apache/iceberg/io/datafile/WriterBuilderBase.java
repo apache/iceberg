@@ -31,8 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
  *
  * @param <T> the type of the builder for chaining
  */
-abstract class WriterBuilderBase<T extends WriterBuilderBase<T>>
-    implements AppenderBuilder<T> {
+abstract class WriterBuilderBase<T extends WriterBuilderBase<T>> implements AppenderBuilder<T> {
   private final OutputFile file;
   private final String location;
   private final Map<String, String> config = Maps.newHashMap();

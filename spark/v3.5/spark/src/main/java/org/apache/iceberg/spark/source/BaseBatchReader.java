@@ -66,13 +66,11 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
                 task.file().format(),
                 InternalRow.class.getName(),
                 parquetConf != null ? parquetConf.readerType().name() : null,
-                inputFile,
-                task,
-                expectedSchema(),
-                table,
-                deleteFilter)
-            .split(task.start(), task.length())
-            .filter(task.residual())
+                inputFile)
+            .forTask(task)
+            .forTable(table)
+            .project(expectedSchema())
+            .deleteFilter(deleteFilter)
             .caseSensitive(caseSensitive())
             // Spark eagerly consumes the batches. So the underlying memory allocated could be
             // reused
@@ -97,23 +95,22 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
     }
 
     @Override
-    public ReaderBuilder<?> builder(
-        InputFile inputFile,
-        ContentScanTask<?> task,
-        Schema readSchema,
-        Table table,
-        DeleteFilter<?> deleteFilter) {
-      // get required schema if there are deletes
-      Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : readSchema;
+    public ReaderBuilder<?> builder(InputFile inputFile) {
       return Parquet.read(inputFile)
-          .project(requiredSchema)
-          .createBatchedReaderFunc(
-              fileSchema ->
-                  VectorizedSparkParquetReaders.buildReader(
-                      requiredSchema,
-                      fileSchema,
-                      constantsMap(task, readSchema, table),
-                      (DeleteFilter<InternalRow>) deleteFilter));
+          .initMethod(
+              b -> {
+                // get required schema if there are deletes
+                Schema requiredSchema =
+                    b.deleteFilter() != null ? b.deleteFilter().requiredSchema() : b.schema();
+                b.project(requiredSchema)
+                    .createBatchedReaderFunc(
+                        fileSchema ->
+                            VectorizedSparkParquetReaders.buildReader(
+                                requiredSchema,
+                                fileSchema,
+                                constantsMap(b.task(), b.schema(), b.table()),
+                                (DeleteFilter<InternalRow>) b.deleteFilter()));
+              });
     }
   }
 
@@ -124,23 +121,24 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
     }
 
     @Override
-    public ReaderBuilder<?> builder(
-        InputFile inputFile,
-        ContentScanTask<?> task,
-        Schema readSchema,
-        Table table,
-        DeleteFilter<?> deleteFilter) {
-      // get required schema if there are deletes
-      Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : readSchema;
+    public ReaderBuilder<?> builder(InputFile inputFile) {
       return Parquet.read(inputFile)
-          .project(requiredSchema)
-          .createBatchedReaderFunc(
-              fileSchema ->
-                  VectorizedSparkParquetReaders.buildCometReader(
-                      requiredSchema,
-                      fileSchema,
-                      constantsMap(task, readSchema, table),
-                      (DeleteFilter<InternalRow>) deleteFilter));
+          .initMethod(
+              b -> {
+                // get required schema if there are deletes
+                Schema requiredSchema =
+                    b.deleteFilter() != null ? b.deleteFilter().requiredSchema() : b.schema();
+                Schema projectedSchema = b.schema();
+
+                b.project(requiredSchema)
+                    .createBatchedReaderFunc(
+                        fileSchema ->
+                            VectorizedSparkParquetReaders.buildCometReader(
+                                requiredSchema,
+                                fileSchema,
+                                constantsMap(b.task(), projectedSchema, b.table()),
+                                (DeleteFilter<InternalRow>) b.deleteFilter()));
+              });
     }
   }
 
@@ -151,18 +149,18 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
     }
 
     @Override
-    public ReaderBuilder<?> builder(
-        InputFile inputFile,
-        ContentScanTask<?> task,
-        Schema readSchema,
-        Table table,
-        DeleteFilter<?> deleteFilter) {
-      Map<Integer, ?> idToConstant = constantsMap(task, readSchema, table);
+    public ReaderBuilder<?> builder(InputFile inputFile) {
       return ORC.read(inputFile)
-          .project(ORC.schemaWithoutConstantAndMetadataFields(readSchema, idToConstant))
-          .createBatchedReaderFunc(
-              fileSchema ->
-                  VectorizedSparkOrcReaders.buildReader(readSchema, fileSchema, idToConstant));
+          .initMethod(
+              b -> {
+                Map<Integer, ?> idToConstant = constantsMap(b.task(), b.schema(), b.table());
+                Schema projectedSchema = b.schema();
+                b.project(ORC.schemaWithoutConstantAndMetadataFields(projectedSchema, idToConstant))
+                    .createBatchedReaderFunc(
+                        fileSchema ->
+                            VectorizedSparkOrcReaders.buildReader(
+                                projectedSchema, fileSchema, idToConstant));
+              });
     }
   }
 }

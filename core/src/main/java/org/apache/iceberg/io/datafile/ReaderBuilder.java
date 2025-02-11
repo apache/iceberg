@@ -19,7 +19,10 @@
 package org.apache.iceberg.io.datafile;
 
 import java.nio.ByteBuffer;
+import java.util.function.Consumer;
+import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.mapping.NameMapping;
@@ -30,6 +33,15 @@ import org.apache.iceberg.mapping.NameMapping;
  * @param <T> the type of the builder for chaining
  */
 public interface ReaderBuilder<T extends ReaderBuilder<T>> {
+  /** Sets the {@link Table} specific parameters like schema. */
+  T forTable(Table table);
+
+  /**
+   * Sets the {@link ContentScanTask} specific parameters like split start, length, filters,
+   * metadata column values, etc. all at once.
+   */
+  T forTask(ContentScanTask<?> task);
+
   /**
    * Restricts the read to the given range: [start, start + length).
    *
@@ -72,6 +84,12 @@ public interface ReaderBuilder<T extends ReaderBuilder<T>> {
   T withFileEncryptionKey(ByteBuffer encryptionKey);
 
   T withAADPrefix(ByteBuffer aadPrefix);
+
+  /** Sets the delete filter to remove delete rows during read. */
+  T deleteFilter(DeleteFilter<?> newDeleteFilter);
+
+  /** Enables {@link ReaderService}s to configure the builders before the reader is created. */
+  T initMethod(Consumer<T> newInitMethod);
 
   <D> CloseableIterable<D> build();
 }

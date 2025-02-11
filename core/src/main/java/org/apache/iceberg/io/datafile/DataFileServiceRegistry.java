@@ -20,10 +20,7 @@ package org.apache.iceberg.io.datafile;
 
 import java.util.Map;
 import java.util.ServiceLoader;
-import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -80,50 +77,8 @@ public final class DataFileServiceRegistry {
    * returnType.
    */
   public static ReaderBuilder<?> read(
-      FileFormat format, String returnType, InputFile inputFile, Schema readSchema) {
-    return read(format, returnType, null, inputFile, null, readSchema, null, null);
-  }
-
-  /**
-   * Provides a reader for the given {@link ContentScanTask} which returns objects with a given
-   * returnType.
-   */
-  public static ReaderBuilder<?> read(
-      FileFormat format,
-      String returnType,
-      InputFile inputFile,
-      ContentScanTask<?> task,
-      Schema readSchema) {
-    return read(format, returnType, null, inputFile, task, readSchema, null, null);
-  }
-
-  /**
-   * Provides a reader for the given input file which returns objects with a given returnType.
-   *
-   * @param format of the file to read
-   * @param returnType returned by the reader
-   * @param builderType selects the builder when there are multiple builders for the same format and
-   *     return type
-   * @param inputFile to read
-   * @param task to provide the values for metadata columns (_file_path, _spec_id, _partition)
-   * @param readSchema to use when reading the data file
-   * @param table to provide old partition specifications. Used for calculating values for
-   *     _partition column after specification changes
-   * @param deleteFilter is used when the delete record filtering is pushed down to the reader
-   * @return {@link ReaderBuilder} for building the actual reader
-   */
-  public static ReaderBuilder<?> read(
-      FileFormat format,
-      String returnType,
-      String builderType,
-      InputFile inputFile,
-      ContentScanTask<?> task,
-      Schema readSchema,
-      Table table,
-      DeleteFilter<?> deleteFilter) {
-    return READ_BUILDERS
-        .get(new Key(format, returnType, builderType))
-        .builder(inputFile, task, readSchema, table, deleteFilter);
+      FileFormat format, String returnType, String builderType, InputFile inputFile) {
+    return READ_BUILDERS.get(new Key(format, returnType, builderType)).builder(inputFile);
   }
 
   /**

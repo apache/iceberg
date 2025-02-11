@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg.io.datafile;
 
-import org.apache.iceberg.ContentScanTask;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.io.InputFile;
 
 /**
@@ -33,17 +30,7 @@ public interface ReaderService extends DataFileServiceRegistry.TypedService {
    * Provides a reader for the given input file which returns objects with a given type.
    *
    * @param inputFile to read
-   * @param task to provide the values for metadata columns (_file_path, _spec_id, _partition)
-   * @param readSchema to use when reading the data file
-   * @param table to provide old partition specifications. Used for calculating values for
-   *     _partition column after specification changes
-   * @param deleteFilter is used when the delete record filtering is pushed down to the reader
    * @return {@link ReaderBuilder} for building the actual reader
    */
-  ReaderBuilder<?> builder(
-      InputFile inputFile,
-      ContentScanTask<?> task,
-      Schema readSchema,
-      Table table,
-      DeleteFilter<?> deleteFilter);
+  ReaderBuilder<?> builder(InputFile inputFile);
 }

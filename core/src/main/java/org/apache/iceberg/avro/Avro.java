@@ -43,11 +43,9 @@ import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.specific.SpecificData;
-import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.avro.PlannedDataReader;
@@ -63,7 +61,6 @@ import org.apache.iceberg.io.datafile.AppenderBuilder;
 import org.apache.iceberg.io.datafile.AppenderBuilderBase;
 import org.apache.iceberg.io.datafile.DataWriterBuilder;
 import org.apache.iceberg.io.datafile.DataWriterBuilderBase;
-import org.apache.iceberg.io.datafile.DeleteFilter;
 import org.apache.iceberg.io.datafile.EqualityDeleteWriterBuilder;
 import org.apache.iceberg.io.datafile.EqualityDeleteWriterBuilderBase;
 import org.apache.iceberg.io.datafile.PositionDeleteWriterBuilder;
@@ -470,6 +467,8 @@ public class Avro {
     public <D> AvroIterable<D> build() {
       Preconditions.checkNotNull(schema(), "Schema is required");
 
+      initMethod().accept(this);
+
       NameMapping nameMapping =
           nameMapping() != null ? nameMapping() : MappingUtil.create(schema());
 
@@ -520,18 +519,14 @@ public class Avro {
     }
 
     @Override
-    public ReaderBuilder<?> builder(
-        InputFile inputFile,
-        ContentScanTask<?> task,
-        org.apache.iceberg.Schema readSchema,
-        Table table,
-        DeleteFilter<?> deleteFilter) {
+    public ReaderBuilder<?> builder(InputFile inputFile) {
       return Avro.read(inputFile)
-          .project(readSchema)
-          .createResolvingReader(
-              fileSchema ->
-                  PlannedDataReader.create(
-                      fileSchema, PartitionUtil.constantsMap(task, readSchema)));
+          .initMethod(
+              b ->
+                  b.createResolvingReader(
+                      fileSchema ->
+                          PlannedDataReader.create(
+                              fileSchema, PartitionUtil.constantsMap(b.task(), b.schema()))));
     }
   }
 

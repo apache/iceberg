@@ -20,7 +20,10 @@ package org.apache.iceberg.io.datafile;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
+import java.util.function.Consumer;
+import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
@@ -38,6 +41,8 @@ public abstract class ReaderBuilderBase<T extends ReaderBuilderBase<T>>
     implements ReaderBuilder<T> {
   private final InputFile file;
   private final Map<String, String> properties = Maps.newHashMap();
+  private Table table;
+  private ContentScanTask<?> task;
   private Long start = null;
   private Long length = null;
   private Schema schema = null;
@@ -49,10 +54,27 @@ public abstract class ReaderBuilderBase<T extends ReaderBuilderBase<T>>
   private NameMapping nameMapping = null;
   private ByteBuffer fileEncryptionKey = null;
   private ByteBuffer fileAADPrefix = null;
+  private DeleteFilter<?> deleteFilter = null;
+  private Consumer<T> initMethod = T -> {};
 
   protected ReaderBuilderBase(InputFile file) {
     Preconditions.checkNotNull(file, "Input file cannot be null");
     this.file = file;
+  }
+
+  @Override
+  public T forTable(Table newTable) {
+    this.table = newTable;
+    project(table.schema());
+    return (T) this;
+  }
+
+  @Override
+  public T forTask(ContentScanTask<?> newTask) {
+    this.task = newTask;
+    split(task.start(), task.length());
+    filter(task.residual());
+    return (T) this;
   }
 
   @Override
@@ -133,8 +155,28 @@ public abstract class ReaderBuilderBase<T extends ReaderBuilderBase<T>>
     return (T) this;
   }
 
+  @Override
+  public T initMethod(Consumer<T> newInitMethod) {
+    this.initMethod = newInitMethod;
+    return (T) this;
+  }
+
+  @Override
+  public T deleteFilter(DeleteFilter<?> newDeleteFilter) {
+    this.deleteFilter = newDeleteFilter;
+    return (T) this;
+  }
+
   protected InputFile file() {
     return file;
+  }
+
+  public Table table() {
+    return table;
+  }
+
+  public ContentScanTask<?> task() {
+    return task;
   }
 
   protected Map<String, String> properties() {
@@ -149,7 +191,7 @@ public abstract class ReaderBuilderBase<T extends ReaderBuilderBase<T>>
     return length;
   }
 
-  protected Schema schema() {
+  public Schema schema() {
     return schema;
   }
 
@@ -183,5 +225,13 @@ public abstract class ReaderBuilderBase<T extends ReaderBuilderBase<T>>
 
   protected ByteBuffer fileAADPrefix() {
     return fileAADPrefix;
+  }
+
+  public DeleteFilter<?> deleteFilter() {
+    return deleteFilter;
+  }
+
+  protected Consumer<T> initMethod() {
+    return initMethod;
   }
 }
