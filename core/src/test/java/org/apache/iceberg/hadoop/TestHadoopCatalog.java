@@ -20,6 +20,7 @@ package org.apache.iceberg.hadoop;
 
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.ASC;
+import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -671,11 +672,19 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     HadoopCatalog catalog = hadoopCatalog();
     catalog.createTable(identifier, SCHEMA);
     Table registeringTable = catalog.loadTable(identifier);
+    assertThat(registeringTable.spec().isPartitioned()).isFalse();
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
-    String metadataLocation = ops.current().metadataFileLocation();
-    assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
+    String oldMetadataLocation = ops.current().metadataFileLocation();
+    // update table spec
+    registeringTable.updateSpec().addField(bucket("id", 16)).commit();
+    String newMetadataLocation = ops.refresh().metadataFileLocation();
+    // register w/o overwrite
+    assertThatThrownBy(() -> catalog.registerTable(identifier, oldMetadataLocation, false))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Table already exists: a.t1");
+    // register with overwrite
+    catalog.registerTable(identifier, newMetadataLocation, true);
+    assertThat(catalog.loadTable(identifier).spec().isPartitioned()).isTrue();
     assertThat(catalog.dropTable(identifier)).isTrue();
   }
 }
