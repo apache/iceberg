@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
@@ -42,8 +43,12 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
+import org.apache.parquet.ParquetReadOptions;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.schema.MessageType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -52,7 +57,9 @@ public class TestParquetDeleteWriters {
   private static final Schema SCHEMA =
       new Schema(
           NestedField.required(1, "id", Types.LongType.get()),
-          NestedField.optional(2, "data", Types.StringType.get()));
+          NestedField.optional(2, "data", Types.StringType.get()),
+          NestedField.optional(3, "unknown", Types.UnknownType.get()),
+          NestedField.optional(4, "test", Types.BooleanType.get()));
 
   private List<Record> records;
 
@@ -63,7 +70,7 @@ public class TestParquetDeleteWriters {
     GenericRecord record = GenericRecord.create(SCHEMA);
 
     ImmutableList.Builder<Record> builder = ImmutableList.builder();
-    builder.add(record.copy(ImmutableMap.of("id", 1L, "data", "a")));
+    builder.add(record.copy(ImmutableMap.of("id", 1L, "data", "a", "test", true)));
     builder.add(record.copy(ImmutableMap.of("id", 2L, "data", "b")));
     builder.add(record.copy(ImmutableMap.of("id", 3L, "data", "c")));
     builder.add(record.copy(ImmutableMap.of("id", 4L, "data", "d")));
@@ -109,6 +116,20 @@ public class TestParquetDeleteWriters {
     }
 
     assertThat(deletedRecords).as("Deleted records should match expected").isEqualTo(records);
+
+    ParquetFileReader schemaReader =
+            ParquetFileReader.open(
+                    ParquetIO.file(out.toInputFile()), ParquetReadOptions.builder().build());
+    MessageType parquetSchema = schemaReader.getFileMetaData().getSchema();
+    assertThat(parquetSchema)
+            .as("UNKNOWN type should not be written to data file.")
+            .isEqualTo(
+                    ParquetSchemaUtil.convert(
+                            new Schema(
+                                    SCHEMA.columns().stream()
+                                            .filter(field -> field.type().typeId() != Type.TypeID.UNKNOWN)
+                                            .collect(Collectors.toList())),
+                            "table"));
   }
 
   @Test

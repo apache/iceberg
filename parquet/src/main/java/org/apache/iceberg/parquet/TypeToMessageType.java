@@ -61,10 +61,23 @@ public class TypeToMessageType {
   // This maps to UNKNOWN
   private static final LogicalTypeAnnotation UNKNOWN = LogicalTypeAnnotation.intervalType();
 
+  private final boolean ignoreUnknownFields;
+
+  public TypeToMessageType() {
+    this(false);
+  }
+
+  public TypeToMessageType(boolean ignoreUnknownFields) {
+    this.ignoreUnknownFields = ignoreUnknownFields;
+  }
+
   public MessageType convert(Schema schema, String name) {
     Types.MessageTypeBuilder builder = Types.buildMessage();
 
     for (NestedField field : schema.columns()) {
+      if (ignoreUnknownFields && field.type().typeId() == org.apache.iceberg.types.Type.TypeID.UNKNOWN) {
+        continue;
+      }
       builder.addField(field(field));
     }
 
@@ -75,6 +88,9 @@ public class TypeToMessageType {
     Types.GroupBuilder<GroupType> builder = Types.buildGroup(repetition);
 
     for (NestedField field : struct.fields()) {
+      if (ignoreUnknownFields && field.type().typeId() == org.apache.iceberg.types.Type.TypeID.UNKNOWN) {
+        continue;
+      }
       builder.addField(field(field));
     }
 
