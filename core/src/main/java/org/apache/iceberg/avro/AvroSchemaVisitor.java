@@ -28,6 +28,10 @@ public abstract class AvroSchemaVisitor<T> {
   public static <T> T visit(Schema schema, AvroSchemaVisitor<T> visitor) {
     switch (schema.getType()) {
       case RECORD:
+        if (schema.getLogicalType() instanceof Variant) {
+          return visitor.variant(schema);
+        }
+
         // check to make sure this hasn't been visited before
         String name = schema.getFullName();
         Preconditions.checkState(
@@ -101,6 +105,10 @@ public abstract class AvroSchemaVisitor<T> {
 
   public T map(Schema map, T value) {
     return null;
+  }
+
+  public T variant(Schema variant) {
+    throw new UnsupportedOperationException("Unsupported type: variant");
   }
 
   public T primitive(Schema primitive) {

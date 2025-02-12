@@ -188,6 +188,21 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   }
 
   @Override
+  public Schema variant() {
+    String recordName = "r" + fieldIds.peek();
+    Schema schema =
+        Schema.createRecord(
+            recordName,
+            null,
+            null,
+            false,
+            List.of(
+                new Schema.Field("metadata", BINARY_SCHEMA),
+                new Schema.Field("value", BINARY_SCHEMA)));
+    return Variant.get().addToSchema(schema);
+  }
+
+  @Override
   public Schema primitive(Type.PrimitiveType primitive) {
     Schema primitiveSchema;
     switch (primitive.typeId()) {

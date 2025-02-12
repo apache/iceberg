@@ -150,4 +150,58 @@ public class TestAvroSchemaProjection {
         .as("Result of buildAvroProjection is missing some IDs")
         .isFalse();
   }
+
+  @Test
+  public void projectWithVariantSchemaChanged() {
+    final org.apache.avro.Schema currentAvroSchema =
+        SchemaBuilder.record("myrecord")
+            .fields()
+            .name("f11")
+            .type()
+            .nullable()
+            .intType()
+            .noDefault()
+            .endRecord();
+
+    final org.apache.avro.Schema variantSchema =
+        SchemaBuilder.record("v")
+            .fields()
+            .name("metadata")
+            .type()
+            .bytesType()
+            .noDefault()
+            .name("value")
+            .type()
+            .bytesType()
+            .noDefault()
+            .endRecord();
+    Variant.get().addToSchema(variantSchema);
+
+    final org.apache.avro.Schema updatedAvroSchema =
+        SchemaBuilder.record("myrecord")
+            .fields()
+            .name("f11")
+            .type()
+            .nullable()
+            .intType()
+            .noDefault()
+            .name("f12")
+            .type(variantSchema)
+            .noDefault()
+            .endRecord();
+
+    final Schema currentIcebergSchema = AvroSchemaUtil.toIceberg(currentAvroSchema);
+
+    // Getting the node ID in updatedAvroSchema allocated by converting into iceberg schema and back
+    final org.apache.avro.Schema idAllocatedUpdatedAvroSchema =
+        AvroSchemaUtil.convert(AvroSchemaUtil.toIceberg(updatedAvroSchema).asStruct());
+
+    final org.apache.avro.Schema projectedAvroSchema =
+        AvroSchemaUtil.buildAvroProjection(
+            idAllocatedUpdatedAvroSchema, currentIcebergSchema, Collections.emptyMap());
+
+    assertThat(AvroSchemaUtil.missingIds(projectedAvroSchema))
+        .as("Result of buildAvroProjection is missing some IDs")
+        .isFalse();
+  }
 }
