@@ -3463,6 +3463,10 @@ components:
           type: string
         metadata-location:
           type: string
+        overwriteRequested:
+          description: Whether to overwrite table metadata if table already exists
+          type: boolean
+          default: false
 
     CreateViewRequest:
       type: object
