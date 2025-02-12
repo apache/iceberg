@@ -87,8 +87,7 @@ public class TestParquetDataWriter {
   public void testDataWriter() throws IOException {
     OutputFile file = Files.localOutput(createTempFile(temp));
 
-    SortOrder sortOrder =
-        SortOrder.builderFor(SCHEMA).withOrderId(10).asc("id").build();
+    SortOrder sortOrder = SortOrder.builderFor(SCHEMA).withOrderId(10).asc("id").build();
 
     DataWriter<Record> dataWriter =
         Parquet.writeData(file)
@@ -125,8 +124,7 @@ public class TestParquetDataWriter {
     try (CloseableIterable<Record> reader =
         Parquet.read(file.toInputFile())
             .project(SCHEMA)
-            .createReaderFunc(
-                fileSchema -> GenericParquetReaders.buildReader(SCHEMA, fileSchema))
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(SCHEMA, fileSchema))
             .build()) {
       writtenRecords = Lists.newArrayList(reader);
     }

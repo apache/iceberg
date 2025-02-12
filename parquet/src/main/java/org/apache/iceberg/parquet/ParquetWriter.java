@@ -24,7 +24,6 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
@@ -33,7 +32,6 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.types.Type;
 import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.crypto.FileEncryptionProperties;
@@ -91,7 +89,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.compressor =
         new ParquetCodecFactory(conf, props.getPageSizeThreshold()).getCompressor(codec);
     this.parquetSchema = ParquetSchemaUtil.convert(schema, "table", true);
-    this.model = (ParquetValueWriter<T>) createWriterFunc.apply(ParquetSchemaUtil.convert(schema, "table"));
+    this.model =
+        (ParquetValueWriter<T>) createWriterFunc.apply(ParquetSchemaUtil.convert(schema, "table"));
     this.metricsConfig = metricsConfig;
     this.columnIndexTruncateLength =
         conf.getInt(COLUMN_INDEX_TRUNCATE_LENGTH, DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);

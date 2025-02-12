@@ -118,18 +118,18 @@ public class TestParquetDeleteWriters {
     assertThat(deletedRecords).as("Deleted records should match expected").isEqualTo(records);
 
     ParquetFileReader schemaReader =
-            ParquetFileReader.open(
-                    ParquetIO.file(out.toInputFile()), ParquetReadOptions.builder().build());
+        ParquetFileReader.open(
+            ParquetIO.file(out.toInputFile()), ParquetReadOptions.builder().build());
     MessageType parquetSchema = schemaReader.getFileMetaData().getSchema();
     assertThat(parquetSchema)
-            .as("UNKNOWN type should not be written to data file.")
-            .isEqualTo(
-                    ParquetSchemaUtil.convert(
-                            new Schema(
-                                    SCHEMA.columns().stream()
-                                            .filter(field -> field.type().typeId() != Type.TypeID.UNKNOWN)
-                                            .collect(Collectors.toList())),
-                            "table"));
+        .as("UNKNOWN type should not be written to data file.")
+        .isEqualTo(
+            ParquetSchemaUtil.convert(
+                new Schema(
+                    SCHEMA.columns().stream()
+                        .filter(field -> field.type().typeId() != Type.TypeID.UNKNOWN)
+                        .collect(Collectors.toList())),
+                "table"));
   }
 
   @Test

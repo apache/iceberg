@@ -75,7 +75,8 @@ public class TypeToMessageType {
     Types.MessageTypeBuilder builder = Types.buildMessage();
 
     for (NestedField field : schema.columns()) {
-      if (ignoreUnknownFields && field.type().typeId() == org.apache.iceberg.types.Type.TypeID.UNKNOWN) {
+      if (ignoreUnknownFields
+          && field.type().typeId() == org.apache.iceberg.types.Type.TypeID.UNKNOWN) {
         continue;
       }
       builder.addField(field(field));
@@ -88,7 +89,8 @@ public class TypeToMessageType {
     Types.GroupBuilder<GroupType> builder = Types.buildGroup(repetition);
 
     for (NestedField field : struct.fields()) {
-      if (ignoreUnknownFields && field.type().typeId() == org.apache.iceberg.types.Type.TypeID.UNKNOWN) {
+      if (ignoreUnknownFields
+          && field.type().typeId() == org.apache.iceberg.types.Type.TypeID.UNKNOWN) {
         continue;
       }
       builder.addField(field(field));
