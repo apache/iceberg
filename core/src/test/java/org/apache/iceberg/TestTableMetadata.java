@@ -1860,6 +1860,22 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void testMetadataWithRemoveSpecs() {
+    TableMetadata meta =
+        TableMetadata.buildFrom(
+                TableMetadata.newTableMetadata(
+                    TestBase.SCHEMA, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
+            .removeSpecs(Sets.newHashSet())
+            .build();
+
+    assertThat(meta.changes()).noneMatch(u -> u instanceof MetadataUpdate.RemovePartitionSpecs);
+
+    meta = TableMetadata.buildFrom(meta).removeSpecs(Sets.newHashSet(1, 2)).build();
+
+    assertThat(meta.changes()).anyMatch(u -> u instanceof MetadataUpdate.RemovePartitionSpecs);
+  }
+
+  @Test
   public void testMetadataWithRemoveSchemas() {
     TableMetadata meta =
         TableMetadata.buildFrom(
