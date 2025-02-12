@@ -98,7 +98,7 @@ Each version in `versions` is a struct with the following fields:
 | _required_  | `representations`   | A list of [representations](#representations) for the view definition         |
 | _optional_  | `default-catalog`   | Catalog name to use when a reference in the SELECT does not contain a catalog |
 | _required_  | `default-namespace` | Namespace to use when a reference in the SELECT is a single identifier        |
-| _optional_  | `storage-table`     | A [full identifier](#full-identifier) of the storage table |
+| _optional_  | `storage-table`     | A [table identifier](#table-identifier) of the storage table |
 
 When `default-catalog` is `null` or not set, the catalog in which the view is stored must be used as the default catalog.
 
@@ -181,7 +181,7 @@ Each entry in `version-log` is a struct with the following fields:
 
 #### Table Identifier
 
-The full identifier holds a reference, containing a namespace and a name, of a table or view in the catalog.
+The table identifier holds a reference, containing a namespace and a name, of a table or view in the catalog.
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
