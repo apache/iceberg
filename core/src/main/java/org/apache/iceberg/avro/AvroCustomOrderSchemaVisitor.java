@@ -37,6 +37,10 @@ abstract class AvroCustomOrderSchemaVisitor<T, F> {
 
         visitor.recordLevels.push(name);
 
+        if (schema.getLogicalType() instanceof Variant) {
+          return visitor.variant(schema);
+        }
+
         List<Schema.Field> fields = schema.getFields();
         List<String> names = Lists.newArrayListWithExpectedSize(fields.size());
         List<Supplier<F>> results = Lists.newArrayListWithExpectedSize(fields.size());
@@ -88,6 +92,10 @@ abstract class AvroCustomOrderSchemaVisitor<T, F> {
 
   public T map(Schema map, Supplier<T> value) {
     return null;
+  }
+
+  public T variant(Schema variant) {
+    throw new UnsupportedOperationException("Unsupported type: variant");
   }
 
   public T primitive(Schema primitive) {
