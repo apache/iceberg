@@ -51,7 +51,14 @@ public interface Tables {
         this.getClass().getName() + " does not implement create with a sort order");
   }
 
-  Table load(String tableIdentifier);
+  default Table load(String tableIdentifier) {
+    return load(tableIdentifier, null);
+  }
+
+  default Table load(String tableIdentifier, Map<String, String> properties) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement load with properties");
+  }
 
   boolean exists(String tableIdentifier);
 }
