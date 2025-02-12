@@ -116,9 +116,9 @@ public class TestParquetDataWriter {
         .as("Sort order should match")
         .isEqualTo(sortOrder.orderId());
     assertThat(dataFile.keyMetadata()).as("Key metadata should be null").isNull();
-    assertThat(dataFile.nullValueCounts().containsKey(4))
+    assertThat(dataFile.nullValueCounts())
         .as("Unknown type field should not appear in metrics")
-        .isFalse();
+        .doesNotContainKey(4);
 
     List<Record> writtenRecords;
     try (CloseableIterable<Record> reader =
