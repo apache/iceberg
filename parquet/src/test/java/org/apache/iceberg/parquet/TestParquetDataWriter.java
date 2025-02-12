@@ -61,12 +61,6 @@ public class TestParquetDataWriter {
       new Schema(
           Types.NestedField.required(1, "id", Types.LongType.get()),
           Types.NestedField.optional(2, "data", Types.StringType.get()),
-          Types.NestedField.optional(3, "binary", Types.BinaryType.get()));
-
-  private static final Schema SCHEMA_WITH_UNKNOWN =
-      new Schema(
-          Types.NestedField.required(1, "id", Types.LongType.get()),
-          Types.NestedField.optional(2, "data", Types.StringType.get()),
           Types.NestedField.optional(3, "binary", Types.BinaryType.get()),
           Types.NestedField.optional(4, "unknown", Types.UnknownType.get()),
           Types.NestedField.optional(5, "test", Types.BooleanType.get()));
@@ -77,7 +71,7 @@ public class TestParquetDataWriter {
 
   @BeforeEach
   public void createRecords() {
-    GenericRecord record = GenericRecord.create(SCHEMA_WITH_UNKNOWN);
+    GenericRecord record = GenericRecord.create(SCHEMA);
 
     ImmutableList.Builder<Record> builder = ImmutableList.builder();
     builder.add(record.copy(ImmutableMap.of("id", 1L, "data", "a", "test", true)));
@@ -94,11 +88,11 @@ public class TestParquetDataWriter {
     OutputFile file = Files.localOutput(createTempFile(temp));
 
     SortOrder sortOrder =
-        SortOrder.builderFor(SCHEMA_WITH_UNKNOWN).withOrderId(10).asc("id").build();
+        SortOrder.builderFor(SCHEMA).withOrderId(10).asc("id").build();
 
     DataWriter<Record> dataWriter =
         Parquet.writeData(file)
-            .schema(SCHEMA_WITH_UNKNOWN)
+            .schema(SCHEMA)
             .createWriterFunc(GenericParquetWriter::buildWriter)
             .overwrite()
             .withSpec(PartitionSpec.unpartitioned())
@@ -130,9 +124,9 @@ public class TestParquetDataWriter {
     List<Record> writtenRecords;
     try (CloseableIterable<Record> reader =
         Parquet.read(file.toInputFile())
-            .project(SCHEMA_WITH_UNKNOWN)
+            .project(SCHEMA)
             .createReaderFunc(
-                fileSchema -> GenericParquetReaders.buildReader(SCHEMA_WITH_UNKNOWN, fileSchema))
+                fileSchema -> GenericParquetReaders.buildReader(SCHEMA, fileSchema))
             .build()) {
       writtenRecords = Lists.newArrayList(reader);
     }
@@ -146,7 +140,7 @@ public class TestParquetDataWriter {
         .isEqualTo(
             ParquetSchemaUtil.convert(
                 new Schema(
-                    SCHEMA_WITH_UNKNOWN.columns().stream()
+                    SCHEMA.columns().stream()
                         .filter(field -> field.type().typeId() != Type.TypeID.UNKNOWN)
                         .collect(Collectors.toList())),
                 "table"));
@@ -166,7 +160,7 @@ public class TestParquetDataWriter {
             SCHEMA,
             PartitionSpec.unpartitioned(),
             SortOrder.unsorted(),
-            2);
+            3);
     testTable
         .updateProperties()
         .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "truncate(16)")
@@ -239,7 +233,7 @@ public class TestParquetDataWriter {
             SCHEMA,
             PartitionSpec.unpartitioned(),
             SortOrder.unsorted(),
-            2);
+            3);
     testTable
         .updateProperties()
         .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "truncate(16)")
