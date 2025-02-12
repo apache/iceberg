@@ -40,7 +40,6 @@ Iceberg tables support table properties to configure table behavior, like the de
 | read.data-planning-mode           | auto               | Controls local planning(driver) vs distributed planning: auto, local, distributed               |
 | read.delete-planning-mode         | auto               | Controls local planning(driver) vs distributed planning: auto, local, distributed               |
 
-
 ### Write properties
 
 | Property                                             | Default                     | Description                                                                                                                                                                                       |
