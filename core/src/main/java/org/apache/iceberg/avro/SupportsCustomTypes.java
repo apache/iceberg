@@ -19,10 +19,10 @@
 package org.apache.iceberg.avro;
 
 import java.util.Map;
+import org.apache.iceberg.StructLike;
 
-/** An interface for Avro DatumReaders to support custom record classes by name. */
-interface SupportsCustomRecords {
-  void setClassLoader(ClassLoader loader);
-
-  void setRenames(Map<String, String> renames);
+/** An interface to support custom record types by ID. */
+public interface SupportsCustomTypes {
+  void setCustomTypes(
+      Class<? extends StructLike> rootType, Map<Integer, Class<? extends StructLike>> typesById);
 }

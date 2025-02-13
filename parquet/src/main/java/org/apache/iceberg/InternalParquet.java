@@ -16,13 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.avro;
+package org.apache.iceberg;
 
-import java.util.Map;
+import org.apache.iceberg.data.parquet.InternalReader;
+import org.apache.iceberg.data.parquet.InternalWriter;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.parquet.Parquet;
 
-/** An interface for Avro DatumReaders to support custom record classes by name. */
-interface SupportsCustomRecords {
-  void setClassLoader(ClassLoader loader);
+public class InternalParquet {
+  private InternalParquet() {}
 
-  void setRenames(Map<String, String> renames);
+  public static void register() {
+    InternalData.register(
+        FileFormat.PARQUET, InternalParquet::writeInternal, InternalParquet::readInternal);
+  }
+
+  private static Parquet.WriteBuilder writeInternal(OutputFile outputFile) {
+    return Parquet.write(outputFile).createWriterFunc(InternalWriter::create);
+  }
+
+  private static Parquet.ReadBuilder readInternal(InputFile inputFile) {
+    return Parquet.read(inputFile).createReaderFunc(InternalReader::create);
+  }
 }
