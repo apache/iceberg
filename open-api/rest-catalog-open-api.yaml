@@ -3463,7 +3463,7 @@ components:
           type: string
         metadata-location:
           type: string
-        overwriteRequested:
+        overwrite:
           description: Whether to overwrite table metadata if table already exists
           type: boolean
           default: false
