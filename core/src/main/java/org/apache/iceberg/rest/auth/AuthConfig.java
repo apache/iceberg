@@ -37,6 +37,10 @@ public interface AuthConfig {
   String token();
 
   @Nullable
+  @Value.Redacted
+  String refreshToken();
+
+  @Nullable
   String tokenType();
 
   @Nullable
@@ -75,6 +79,7 @@ public interface AuthConfig {
     return builder()
         .credential(properties.get(OAuth2Properties.CREDENTIAL))
         .token(properties.get(OAuth2Properties.TOKEN))
+        .refreshToken(properties.get(OAuth2Properties.REFRESH_TOKEN))
         .scope(properties.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE))
         .oauth2ServerUri(
             properties.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens()))

@@ -227,17 +227,19 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     OAuthTokenResponse authResponse;
     String credential = props.get(OAuth2Properties.CREDENTIAL);
     boolean hasCredential = credential != null && !credential.isEmpty();
+    String refreshToken = props.get(OAuth2Properties.REFRESH_TOKEN);
+    boolean hasRefreshToken = refreshToken != null;
     String scope = props.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE);
     Map<String, String> optionalOAuthParams = OAuth2Util.buildOptionalParam(props);
     if (!props.containsKey(OAuth2Properties.OAUTH2_SERVER_URI)
-        && (hasInitToken || hasCredential)
+        && (hasInitToken || hasCredential || hasRefreshToken)
         && !PropertyUtil.propertyAsBoolean(props, "rest.sigv4-enabled", false)) {
       LOG.warn(
-          "Iceberg REST client is missing the OAuth2 server URI configuration and defaults to {}/{}. "
-              + "This automatic fallback will be removed in a future Iceberg release."
-              + "It is recommended to configure the OAuth2 endpoint using the '{}' property to be prepared. "
-              + "This warning will disappear if the OAuth2 endpoint is explicitly configured. "
-              + "See https://github.com/apache/iceberg/issues/10537",
+          "Iceberg REST client is missing the OAuth2 server URI configuration and defaults to"
+              + " {}/{}. This automatic fallback will be removed in a future Iceberg release.It is"
+              + " recommended to configure the OAuth2 endpoint using the '{}' property to be"
+              + " prepared. This warning will disappear if the OAuth2 endpoint is explicitly"
+              + " configured. See https://github.com/apache/iceberg/issues/10537",
           RESTUtil.stripTrailingSlash(props.get(CatalogProperties.URI)),
           ResourcePaths.tokens(),
           OAuth2Properties.OAUTH2_SERVER_URI);
@@ -294,6 +296,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             baseHeaders,
             AuthConfig.builder()
                 .credential(credential)
+                .refreshToken(refreshToken)
                 .scope(scope)
                 .oauth2ServerUri(oauth2ServerUri)
                 .optionalOAuthParams(optionalOAuthParams)

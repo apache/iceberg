@@ -61,7 +61,8 @@ public class OAuth2Util {
 
   private static final Logger LOG = LoggerFactory.getLogger(OAuth2Util.class);
 
-  // valid scope tokens are from ascii 0x21 to 0x7E, excluding 0x22 (") and 0x5C (\)
+  // valid scope tokens are from ascii 0x21 to 0x7E, excluding 0x22 (") and 0x5C
+  // (\)
   private static final Pattern VALID_SCOPE_TOKEN = Pattern.compile("^[!-~&&[^\"\\\\]]+$");
   private static final Splitter SCOPE_DELIMITER = Splitter.on(" ");
   private static final Joiner SCOPE_JOINER = Joiner.on(" ");
@@ -79,6 +80,15 @@ public class OAuth2Util {
   // Client credentials flow
   private static final String CLIENT_ID = "client_id";
   private static final String CLIENT_SECRET = "client_secret";
+
+  // Refresh token flow (https://datatracker.ietf.org/doc/html/rfc6749#section-6)
+  // The string refresh_token/refreshToken is overloaded:
+  // - The refresh token as a method is named refreshTokenFlow.
+  // - The auth config property is named/keyed refresh-token.
+  // - Everywhere else:
+  // - when used as a plain text value, it means the grant type.
+  // - when used as class properties, used to retrieve the actual token.
+  private static final String REFRESH_TOKEN = "refresh_token";
 
   // Token exchange flow
   private static final String SUBJECT_TOKEN = "subject_token";
@@ -133,7 +143,8 @@ public class OAuth2Util {
 
   public static Map<String, String> buildOptionalParam(Map<String, String> properties) {
     // these are some options oauth params based on specification
-    // for any new optional oauth param, define the constant and add the constant to this list
+    // for any new optional oauth param, define the constant and add the constant to
+    // this list
     Set<String> optionalParamKeys =
         ImmutableSet.of(OAuth2Properties.AUDIENCE, OAuth2Properties.RESOURCE);
     ImmutableMap.Builder<String, String> optionalParamBuilder = ImmutableMap.builder();
@@ -151,7 +162,23 @@ public class OAuth2Util {
     return optionalParamBuilder.buildKeepingLast();
   }
 
-  private static OAuthTokenResponse refreshToken(
+  private static OAuthTokenResponse refreshTokenFlow(
+      RESTClient client, Map<String, String> headers, String refreshToken, String oauth2ServerUri) {
+    Map<String, String> request = refreshTokenRequest(refreshToken);
+
+    OAuthTokenResponse response =
+        client.postForm(
+            oauth2ServerUri,
+            request,
+            OAuthTokenResponse.class,
+            headers,
+            ErrorHandlers.oauthErrorHandler());
+    response.validate();
+
+    return response;
+  }
+
+  private static OAuthTokenResponse exchangeToken(
       RESTClient client,
       Map<String, String> headers,
       String subjectToken,
@@ -290,6 +317,16 @@ public class OAuth2Util {
       String oauth2ServerUri) {
 
     return fetchToken(client, headers, credential, scope, oauth2ServerUri, ImmutableMap.of());
+  }
+
+  private static Map<String, String> refreshTokenRequest(String refreshToken) {
+    Preconditions.checkArgument(
+        refreshToken == null || !refreshToken.isEmpty(), "Refresh token provided but it is empty.");
+    ImmutableMap.Builder<String, String> formData = ImmutableMap.builder();
+    formData.put(GRANT_TYPE, REFRESH_TOKEN);
+    formData.put(REFRESH_TOKEN, refreshToken);
+
+    return formData.buildKeepingLast();
   }
 
   private static Map<String, String> tokenExchangeRequest(
@@ -482,6 +519,10 @@ public class OAuth2Util {
       return config.token();
     }
 
+    public String refreshToken() {
+      return config.refreshToken();
+    }
+
     public String tokenType() {
       return config.tokenType();
     }
@@ -587,9 +628,9 @@ public class OAuth2Util {
       if (null != expiresAtMillis() && expiresAtMillis() <= System.currentTimeMillis()) {
         // the token has already expired, attempt to refresh using the credential
         return refreshExpiredToken(client);
-      } else {
+      } else if (refreshToken() == null) {
         // attempt a normal refresh
-        return refreshToken(
+        return exchangeToken(
             client,
             headers(),
             token(),
@@ -597,21 +638,30 @@ public class OAuth2Util {
             scope(),
             oauth2ServerUri(),
             optionalOAuthParams());
+      } else if (credential() != null) {
+        Map<String, String> basicHeaders =
+            RESTUtil.merge(headers(), basicAuthHeaders(credential()));
+        return refreshTokenFlow(client, basicHeaders, refreshToken(), oauth2ServerUri());
       }
+      return null;
     }
 
     private OAuthTokenResponse refreshExpiredToken(RESTClient client) {
       if (credential() != null) {
         Map<String, String> basicHeaders =
             RESTUtil.merge(headers(), basicAuthHeaders(credential()));
-        return refreshToken(
-            client,
-            basicHeaders,
-            token(),
-            tokenType(),
-            scope(),
-            oauth2ServerUri(),
-            optionalOAuthParams());
+        if (refreshToken() == null) {
+          return exchangeToken(
+              client,
+              basicHeaders,
+              token(),
+              tokenType(),
+              scope(),
+              oauth2ServerUri(),
+              optionalOAuthParams());
+        } else {
+          return refreshTokenFlow(client, basicHeaders, refreshToken(), oauth2ServerUri());
+        }
       }
 
       return null;

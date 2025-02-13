@@ -1235,6 +1235,10 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.data.parquet.BaseParquetWriter<T>::<init>()"
       new: "method void org.apache.iceberg.data.parquet.BaseParquetWriter<T>::<init>()"
       justification: "Changing deprecated code"
+    - code: "java.method.addedToInterface"
+      new: "method java.lang.String org.apache.iceberg.rest.auth.AuthConfig::refreshToken()"
+      justification: "Adding an additional refresh token config to support the refresh\
+        \ token OAuth flow."
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

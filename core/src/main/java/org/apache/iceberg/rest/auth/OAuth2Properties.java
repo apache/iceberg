@@ -24,6 +24,9 @@ public class OAuth2Properties {
   /** A Bearer token which will be used for interaction with the server. */
   public static final String TOKEN = "token";
 
+  /** A refresh token which could be used to refresh access tokens. */
+  public static final String REFRESH_TOKEN = "refresh-token";
+
   /** A credential to exchange for a token in the OAuth2 client credentials flow. */
   public static final String CREDENTIAL = "credential";
 

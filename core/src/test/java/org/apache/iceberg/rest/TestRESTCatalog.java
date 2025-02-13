@@ -820,7 +820,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         ImmutableMap.of("Authorization", "Bearer token-exchange-token:sub=id-token,act=catalog"),
         ImmutableMap.of(
             "Authorization",
-            "Bearer token-exchange-token:sub=table-id-token,act=token-exchange-token:sub=id-token,act=catalog"),
+            "Bearer"
+                + " token-exchange-token:sub=table-id-token,act=token-exchange-token:sub=id-token,act=catalog"),
         oauth2ServerUri);
   }
 
@@ -1382,6 +1383,108 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                           HTTPMethod.POST,
                           oauth2ServerUri,
                           secondRefreshHeaders,
+                          Map.of(),
+                          secondRefreshRequest),
+                      eq(OAuthTokenResponse.class),
+                      any(),
+                      any());
+            });
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"v1/oauth/tokens", "https://auth-server.com/token"})
+  public void testCatalogTokenRefreshByRefreshTokenFlow(String oauth2ServerUri) {
+    Map<String, String> emptyHeaders = ImmutableMap.of();
+    // Catalog headers are used to send requests to the Catalog REST endpoint.
+    Map<String, String> catalogHeaders =
+        ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=catalog");
+    // Basic headers are used to send requests to the oauth2 server enepoint.
+    Map<String, String> basicHeaders = OAuth2Util.basicAuthHeaders("catalog:secret");
+
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    Answer<OAuthTokenResponse> addOneSecondExpiration =
+        invocation -> {
+          OAuthTokenResponse response = (OAuthTokenResponse) invocation.callRealMethod();
+          return OAuthTokenResponse.builder()
+              .withToken(response.token())
+              .withTokenType(response.tokenType())
+              .withIssuedTokenType(response.issuedTokenType())
+              .addScopes(response.scopes())
+              .setExpirationInSeconds(1)
+              .build();
+        };
+
+    Mockito.doAnswer(addOneSecondExpiration)
+        .when(adapter)
+        .postForm(eq(oauth2ServerUri), anyMap(), eq(OAuthTokenResponse.class), anyMap(), any());
+
+    Map<String, String> contextCredentials = ImmutableMap.of();
+    SessionCatalog.SessionContext context =
+        new SessionCatalog.SessionContext(
+            UUID.randomUUID().toString(), "user", contextCredentials, ImmutableMap.of());
+
+    RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
+    catalog.initialize(
+        "prod",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "ignored",
+            "credential",
+            "catalog:secret",
+            "refresh-token", // the property triggers the refresh token flow
+            "refreshToken",
+            OAuth2Properties.OAUTH2_SERVER_URI,
+            oauth2ServerUri));
+
+    Awaitility.await()
+        .atMost(5, TimeUnit.SECONDS)
+        .untilAsserted(
+            () -> {
+              // call client credentials with no initial auth
+              Mockito.verify(adapter)
+                  .execute(
+                      reqMatcher(HTTPMethod.POST, oauth2ServerUri, emptyHeaders),
+                      eq(OAuthTokenResponse.class),
+                      any(),
+                      any());
+
+              // use the client credential token for config
+              Mockito.verify(adapter)
+                  .execute(
+                      reqMatcher(HTTPMethod.GET, "v1/config", catalogHeaders),
+                      eq(ConfigResponse.class),
+                      any(),
+                      any());
+
+              // verify the first token refresh
+              Map<String, String> firstRefreshRequest =
+                  ImmutableMap.of(
+                      "grant_type", "refresh_token",
+                      "refresh_token", "refreshToken");
+              Mockito.verify(adapter)
+                  .execute(
+                      reqMatcher(
+                          HTTPMethod.POST,
+                          oauth2ServerUri,
+                          basicHeaders,
+                          Map.of(),
+                          firstRefreshRequest),
+                      eq(OAuthTokenResponse.class),
+                      any(),
+                      any());
+
+              // verify that a second refresh occurs
+              Map<String, String> secondRefreshRequest =
+                  ImmutableMap.of(
+                      "grant_type", "refresh_token",
+                      "refresh_token", "refreshToken");
+              Mockito.verify(adapter)
+                  .execute(
+                      reqMatcher(
+                          HTTPMethod.POST,
+                          oauth2ServerUri,
+                          basicHeaders,
                           Map.of(),
                           secondRefreshRequest),
                       eq(OAuthTokenResponse.class),
