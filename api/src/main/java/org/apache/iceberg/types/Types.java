@@ -541,7 +541,9 @@ public class Types {
     }
 
     /**
-     * @deprecated will be removed in 2.0.0; use builder() instead.
+     * Create a nested field.
+     *
+     * @deprecated will be removed in 2.0.0; use {@link #builder()} instead.
      */
     @Deprecated
     public static NestedField of(int id, boolean isOptional, String name, Type type) {
@@ -549,7 +551,9 @@ public class Types {
     }
 
     /**
-     * @deprecated will be removed in 2.0.0; use builder() instead.
+     * Create a nested field.
+     *
+     * @deprecated will be removed in 2.0.0; use {@link #builder()} instead.
      */
     @Deprecated
     public static NestedField of(int id, boolean isOptional, String name, Type type, String doc) {
