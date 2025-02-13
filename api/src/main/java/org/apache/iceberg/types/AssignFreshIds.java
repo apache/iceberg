@@ -125,8 +125,8 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   }
 
   @Override
-  public Type variant() {
-    return Types.VariantType.get();
+  public Type variant(Types.VariantType variant) {
+    return variant;
   }
 
   @Override

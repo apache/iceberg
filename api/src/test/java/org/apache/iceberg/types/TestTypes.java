@@ -69,10 +69,10 @@ public class TestTypes {
 
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("variant"))
-        .withMessage("Cannot parse type string to primitive: variant");
+        .withMessage("Cannot parse type string: variant is not a primitive type");
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("Variant"))
-        .withMessage("Cannot parse type string to primitive: Variant");
+        .withMessage("Cannot parse type string: variant is not a primitive type");
 
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("abcdefghij"))

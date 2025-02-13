@@ -233,7 +233,7 @@ public class Accessors {
     }
 
     @Override
-    public Map<Integer, Accessor<StructLike>> variant() {
+    public Map<Integer, Accessor<StructLike>> variant(Types.VariantType variant) {
       return null;
     }
 

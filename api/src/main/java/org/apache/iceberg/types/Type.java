@@ -82,6 +82,10 @@ public interface Type extends Serializable {
     throw new IllegalArgumentException("Not a map type: " + this);
   }
 
+  default Types.VariantType asVariantType() {
+    throw new IllegalArgumentException("Not a variant type: " + this);
+  }
+
   default boolean isNestedType() {
     return false;
   }

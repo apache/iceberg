@@ -616,7 +616,7 @@ public class TypeUtil {
       return null;
     }
 
-    public T variant() {
+    public T variant(Types.VariantType variant) {
       throw new UnsupportedOperationException("Unsupported type: variant");
     }
 
@@ -684,7 +684,7 @@ public class TypeUtil {
         return visitor.map(map, keyResult, valueResult);
 
       case VARIANT:
-        return visitor.variant();
+        return visitor.variant(type.asVariantType());
 
       default:
         return visitor.primitive(type.asPrimitiveType());
@@ -712,8 +712,8 @@ public class TypeUtil {
       return null;
     }
 
-    public T variant() {
-      return null;
+    public T variant(Types.VariantType variant) {
+      throw new UnsupportedOperationException("Unsupported type: variant");
     }
 
     public T primitive(Type.PrimitiveType primitive) {
@@ -793,7 +793,7 @@ public class TypeUtil {
             new VisitFuture<>(map.valueType(), visitor));
 
       case VARIANT:
-        return visitor.variant();
+        return visitor.variant(type.asVariantType());
 
       default:
         return visitor.primitive(type.asPrimitiveType());

@@ -85,10 +85,10 @@ public class Types {
   public static PrimitiveType fromPrimitiveString(String typeString) {
     Type type = fromTypeName(typeString);
     if (type.isPrimitiveType()) {
-      return (PrimitiveType) type;
+      return type.asPrimitiveType();
     }
 
-    throw new IllegalArgumentException("Cannot parse type string to primitive: " + typeString);
+    throw new IllegalArgumentException("Cannot parse type string: variant is not a primitive type");
   }
 
   public static class BooleanType extends PrimitiveType {
@@ -443,6 +443,11 @@ public class Types {
     @Override
     public boolean isVariantType() {
       return true;
+    }
+
+    @Override
+    public VariantType asVariantType() {
+      return this;
     }
 
     @Override

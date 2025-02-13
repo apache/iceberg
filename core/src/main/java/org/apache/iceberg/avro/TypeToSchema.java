@@ -188,7 +188,7 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   }
 
   @Override
-  public Schema variant() {
+  public Schema variant(Types.VariantType variant) {
     String recordName = "r" + fieldIds.peek();
     return Schema.createRecord(
         recordName,

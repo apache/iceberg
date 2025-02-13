@@ -160,7 +160,7 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   }
 
   @Override
-  public Type variant() {
+  public Type variant(Types.VariantType variant) {
     return null;
   }
 
