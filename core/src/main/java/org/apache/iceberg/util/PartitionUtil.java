@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.util;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -25,10 +26,14 @@ import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.data.IdentityPartitionConverters;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 public class PartitionUtil {
@@ -36,6 +41,22 @@ public class PartitionUtil {
 
   public static Map<Integer, ?> constantsMap(ContentScanTask<?> task) {
     return constantsMap(task, null, (type, constant) -> constant);
+  }
+
+  public static Map<Integer, ?> constantsMap(ContentScanTask<?> task, Schema schema) {
+    if (task == null) {
+      return Collections.emptyMap();
+    }
+
+    Schema projectedConstantFields =
+        TypeUtil.select(
+            schema,
+            Sets.union(task.spec().identitySourceIds(), MetadataColumns.metadataFieldIds()));
+    if (!projectedConstantFields.columns().isEmpty()) {
+      return PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
+    } else {
+      return Collections.emptyMap();
+    }
   }
 
   public static Map<Integer, ?> constantsMap(

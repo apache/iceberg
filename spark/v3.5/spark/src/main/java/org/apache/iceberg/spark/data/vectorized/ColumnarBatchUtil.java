@@ -20,8 +20,8 @@ package org.apache.iceberg.spark.data.vectorized;
 
 import java.util.Arrays;
 import java.util.function.Predicate;
-import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
+import org.apache.iceberg.io.datafile.DeleteFilter;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnVector;
