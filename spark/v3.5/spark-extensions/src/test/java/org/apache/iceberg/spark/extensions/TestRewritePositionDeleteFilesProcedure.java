@@ -88,7 +88,7 @@ public class TestRewritePositionDeleteFilesProcedure extends ExtensionsTestBase 
   public void testExpireDeleteFilesAll() throws Exception {
     createTable();
 
-    sql("DELETE FROM %s WHERE id=1", tableName);
+    sql("DELETE FROM %s  WHERE id=1", tableName);
     sql("DELETE FROM %s WHERE id=2", tableName);
 
     Table table = validationCatalog.loadTable(tableIdent);
