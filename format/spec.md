@@ -686,8 +686,7 @@ A snapshot consists of the following fields:
 | _optional_ | _optional_ | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created                                                                     |
 |            |            | _optional_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage)        |
 |            |            | _optional_ | **`added-rows`**             | Sum of the [`added_rows_count`](#manifest-lists) from all manifests added in this snapshot. Required if [Row Lineage](#row-lineage) is enabled | 
-|            |            | _optional_ | **`encrypted-key-metadata`** | Base64-encoded key metadata of the manifest list file in an encrypted table. The key metadata is encrypted by a metadata encryption key before encoding |
-|            |            | _optional_ | **`key-metadata-key-id`**    | The ID of the encryption key that encrypts the manifest list key metadata                                                      |
+|            |            | _optional_ | **`key-metadata-id`**        | ID of the manifest list key metadata in the encryption-keys table ([Encryption Keys](#encryption-keys))                            |
 
 
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
@@ -892,9 +891,7 @@ Table metadata consists of the following fields:
 | _optional_ | _optional_ | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics).                                                                                                                                                                                                                                                                                                                              |
 |            |            | _optional_ | **`row-lineage`**           | A boolean, defaulting to false, setting whether or not to track the creation and updates to rows in the table. See [Row Lineage](#row-lineage).                                                                                                                                                                                                                                                  |
 |            |            | _optional_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot's `first-row-id`. See [Row Lineage](#row-lineage).                                                                                                                                                                                                                                                                                  |
-|            |            | _optional_ | **`key-cache`**             | A list of encryption keys (key-id/key-wrap pairs), used to encrypt the manifest list file key metadata. See [Snapshot](#key-metadata-key-id).                                                                                                                                                                                                                                                    |
-|            |            | _optional_ | **`key-id`**                | The ID of the encryption key that encrypts the manifest list key metadata. See [Snapshot](#key-metadata-key-id).                                                                                                                                                                                                                                                                                 |
-|            |            | _optional_ | **`key-wrap`**              | Wrapped (encrypted) metadata encryption key. Wrapping can for example be done in a Mey Management Service (KMS).                                                                                                                                                                                                                                                                                 |
+|            |            | _optional_ | **`current-key-id`**        | ID of the encryption key that encrypts the manifest list key metadata.                                                                                                                                                                                                                                                                                  |
 
 For serialization details, see Appendix C.
 
@@ -980,6 +977,23 @@ The unified partition type looks like `Struct<field#1, field#2, field#3>`.
 2. `spec#0` has two fields `{field#1, field#2}`
 and then the table has evolved into `spec#1` which has just one field `{field#2}`.
 The unified partition type looks like `Struct<field#1, field#2>`.
+
+#### Encryption Keys
+
+Encryption keys and metadata required for decrypting the manifest list files in encrypted tables.
+There are two types of entries:
+1. `key-metadata`: serialized key-metadata of the encrypted manifest list files. The key-metadata objects include encryption keys and other fields required to decrypt a file. Since these objects are sensitive, the serialized key-metadata byte arrays are encrypted by another key. The encryption is done via the integrity-preserving AES GCM cipher, using the snapshot ID as the AAD (additional authentication data) parameter. The result of the encryption is converted to a string via base64 encoding.
+2. `key`: the AES GCM key that encrypts the manifest list key-metadata. Since these keys are sensitive, they are wrapped/encrypted in a Key Management Service (KMS), using the table master key. The result of the wrapping is converted to a string via base64 encoding.
+
+`encryption-keys` field of table metadata is an optional list of structs with the following fields:
+
+| v1 | v2 |     v3     |     Field name          |   Type.  |                             Description                                                                  |
+|----|----|------------|-------------------------|----------|----------------------------------------------------------------------------------------------------------|
+|    |    | _required_ | **`id`**                | `string` | ID of the encryption key.                                                                                |
+|    |    | _required_ | **`type`**              | `string` | `key-metadata` for manifest list encryption key metadata, or `key` for keys that encrypt `key-metadata`. |
+|    |    | _required_ | **`key-metadata`**.     | `string` | Encrypted `key-metadata` or wrapped `key`. Base64-encoded.                                               |
+|    |    | _optional_ | **`encryption-key-id`** | `string` | ID of the key in this table that encrypted this entry. Omitted for KMS-wrapped keys.                     |
+
 
 ### Commit Conflict Resolution and Retry
 
