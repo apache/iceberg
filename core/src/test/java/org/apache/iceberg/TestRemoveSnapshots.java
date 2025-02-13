@@ -31,6 +31,7 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -54,6 +55,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
@@ -1122,6 +1124,84 @@ public class TestRemoveSnapshots extends TestBase {
                     .commit())
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot incrementally clean files for tables with more than 1 ref");
+  }
+
+  @TestTemplate
+  public void testExpireWithDiscontinuousSnapshots() {
+    String tagName = "tagA";
+    String branchName = "branchB";
+    // S1-> ManifestList(ML) 1-> Manifest File(MF) 1 -> File_A(added), File_B(added)
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    // S2-> ML2 -> MF2 -> File_A (deleted), File_B
+    table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot secondSnapshot = table.currentSnapshot();
+    // S3-> ML3 -> MF2, MF3 -> File_B, File_C(added)
+    table.newAppend().appendFile(FILE_C).commit();
+    Snapshot thirdSnapshot = table.currentSnapshot();
+    // set longer ref age ensure it not get expired by the test
+    long tagRefMaxAgeMs = 3600000;
+    // tagA -> S3-> ML3-> MF2, MF3 -> File_B, File_C(added)
+    table.manageSnapshots()
+            .createTag(tagName, table.currentSnapshot().snapshotId())
+            .setMaxRefAgeMs(tagName, tagRefMaxAgeMs)
+            .commit();
+    // S4-> ML4 -> MF3, MF4 -> File_B(deleted), File_C
+    table.newDelete().deleteFile(FILE_B).commit();
+    Snapshot fourthSnapshot = table.currentSnapshot();
+    // branchB -> S4-> ML4-> MF3, MF4 -> File_C, File_B(deleted)
+    long branchRefMaxAgeMs = 10;
+    table.manageSnapshots()
+            .createBranch(branchName, table.currentSnapshot().snapshotId())
+            .setMaxRefAgeMs(branchName, branchRefMaxAgeMs)
+            .commit();
+    // S5-> ML5 -> MF3, MF5 -> File_C, File_D(added)
+    table.newAppend().appendFile(FILE_D).commit();
+    long snapshotId = table.currentSnapshot().snapshotId();
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+    long expirationTime = branchRefMaxAgeMs + tAfterCommits;
+    RemoveSnapshots removeSnapshots = (RemoveSnapshots) table.expireSnapshots();
+
+    // Expected Snapshots after expire
+    // tagA -> S3-> ML3-> MF2, MF3 -> File_B, File_C(added)
+    // S5-> ML5 -> MF3, MF5 -> File_C, File_D(added)
+    Set<String> expectedDeletes = Sets.newHashSet();
+    expectedDeletes.add(firstSnapshot.manifestListLocation()); // ML1
+    expectedDeletes.add(secondSnapshot.manifestListLocation()); // ML2
+    expectedDeletes.add(fourthSnapshot.manifestListLocation()); // ML4
+    expectedDeletes.addAll(manifestPaths(firstSnapshot, table.io())); // MF1
+    expectedDeletes.addAll(manifestPaths(fourthSnapshot, table.io())); // MF3, MF4
+    expectedDeletes.add(FILE_A.location()); // File_A
+    // remove files(MF3) shared by snapshot S3
+    expectedDeletes.removeAll(manifestPaths(thirdSnapshot, table.io()));
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    removeSnapshots.expireOlderThan(expirationTime).deleteWith(deletedFiles::add).commit();
+
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(snapshotId);
+    assertThat(table.snapshot(firstSnapshot.snapshotId())).isNull();
+    assertThat(table.snapshot(secondSnapshot.snapshotId())).isNull();
+    assertThat(table.snapshot(fourthSnapshot.snapshotId())).isNull();
+    assertThat(table.snapshot(thirdSnapshot.snapshotId())).isNotNull();
+    assertThat(deletedFiles).isEqualTo(expectedDeletes);
+    deletedFiles.clear();
+    expectedDeletes.clear();
+
+    table.manageSnapshots().removeTag(tagName).commit();
+    tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+    removeSnapshots = (RemoveSnapshots) table.expireSnapshots();
+
+    // Expected Snapshots after expire
+    // S5-> ML5 -> MF3, MF5 -> File_C, File_D(added)
+    expectedDeletes.add(thirdSnapshot.manifestListLocation()); // ML3
+    expectedDeletes.addAll(manifestPaths(secondSnapshot, table.io())); // MF2
+    expectedDeletes.add(FILE_B.location()); // File_B
+
+    removeSnapshots.expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
+
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(snapshotId);
+    assertThat(table.snapshot(thirdSnapshot.snapshotId())).isNull();
+    assertThat(deletedFiles).isEqualTo(expectedDeletes);
   }
 
   @TestTemplate

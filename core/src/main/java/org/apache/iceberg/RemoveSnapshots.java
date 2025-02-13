@@ -36,6 +36,7 @@ import static org.apache.iceberg.TableProperties.MIN_SNAPSHOTS_TO_KEEP;
 import static org.apache.iceberg.TableProperties.MIN_SNAPSHOTS_TO_KEEP_DEFAULT;
 
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -374,6 +375,10 @@ class RemoveSnapshots implements ExpireSnapshots {
 
     if (incrementalCleanup == null) {
       incrementalCleanup = current.refs().size() == 1;
+    }
+
+    if (SnapshotUtil.hasDiscontinuousSnapshots(base)) {
+      incrementalCleanup = false;
     }
 
     LOG.info(
