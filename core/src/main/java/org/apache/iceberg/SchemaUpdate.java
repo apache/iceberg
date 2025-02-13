@@ -240,7 +240,7 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private void internalUpdateColumnRequirement(String name, boolean isOptional) {
-    Types.NestedField field = findField(name);
+    Types.NestedField field = findFieldFromUpdateFirst(name);
     Preconditions.checkArgument(field != null, "Cannot update missing column: %s", name);
 
     if ((!isOptional && field.isRequired()) || (isOptional && field.isOptional())) {
@@ -273,7 +273,7 @@ class SchemaUpdate implements UpdateSchema {
 
   @Override
   public UpdateSchema updateColumn(String name, Type.PrimitiveType newType) {
-    Types.NestedField field = findField(name);
+    Types.NestedField field = findFieldFromUpdateFirst(name);
     Preconditions.checkArgument(field != null, "Cannot update missing column: %s", name);
     Preconditions.checkArgument(
         !deletes.contains(field.fieldId()),
@@ -309,7 +309,7 @@ class SchemaUpdate implements UpdateSchema {
 
   @Override
   public UpdateSchema updateColumnDoc(String name, String doc) {
-    Types.NestedField field = findField(name);
+    Types.NestedField field = findFieldFromUpdateFirst(name);
     Preconditions.checkArgument(field != null, "Cannot update missing column: %s", name);
     Preconditions.checkArgument(
         !deletes.contains(field.fieldId()),
@@ -391,13 +391,19 @@ class SchemaUpdate implements UpdateSchema {
     if (addedId != null) {
       return addedId;
     }
+    Types.NestedField field = findFieldFromUpdateFirst(name);
+    return field != null ? field.fieldId() : null;
+  }
 
-    Types.NestedField field = findField(name);
-    if (field != null) {
-      return field.fieldId();
-    }
-
-    return null;
+  private Types.NestedField findFieldFromUpdateFirst(String name) {
+    List<Types.NestedField> updatedFields =
+        updates.values().stream().filter(f -> f.name().equals(name)).collect(Collectors.toList());
+    Preconditions.checkArgument(
+        updatedFields.size() <= 1,
+        "Find duplicated field of name %s in id %s",
+        name,
+        updatedFields.stream().map(Types.NestedField::fieldId).toArray());
+    return !updatedFields.isEmpty() ? updatedFields.get(0) : findField(name);
   }
 
   private void internalMove(String name, Move move) {

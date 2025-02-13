@@ -2193,4 +2193,52 @@ public class TestSchemaUpdate {
 
     assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
+
+  @Test
+  public void testUpdateDocAfterRename() {
+    Schema schema =
+        new Schema(
+            required(1, "b", Types.IntegerType.get()), required(2, "c", Types.IntegerType.get()));
+
+    Schema actual =
+        new SchemaUpdate(schema, 2).renameColumn("c", "a").updateColumnDoc("a", "doc of a").apply();
+
+    Schema expected =
+        new Schema(
+            required(1, "b", Types.IntegerType.get()),
+            required(2, "a", Types.IntegerType.get(), "doc of a"));
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testUpdateAfterRename() {
+    Schema schema =
+        new Schema(
+            required(1, "b", Types.IntegerType.get()), required(2, "c", Types.IntegerType.get()));
+
+    Schema actual =
+        new SchemaUpdate(schema, 2)
+            .renameColumn("c", "a")
+            .updateColumn("a", Types.LongType.get())
+            .apply();
+
+    Schema expected =
+        new Schema(
+            required(1, "b", Types.IntegerType.get()), required(2, "a", Types.LongType.get()));
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testMoveAfterRename() {
+    Schema schema =
+        new Schema(
+            required(1, "b", Types.IntegerType.get()), required(2, "c", Types.IntegerType.get()));
+
+    Schema actual = new SchemaUpdate(schema, 2).renameColumn("c", "a").moveBefore("a", "b").apply();
+
+    Schema expected =
+        new Schema(
+            required(2, "a", Types.IntegerType.get()), required(1, "b", Types.IntegerType.get()));
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
 }
