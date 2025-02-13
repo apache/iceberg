@@ -16,12 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark;
+package org.apache.iceberg.io;
 
-import java.io.Serializable;
-import org.immutables.value.Value;
+import java.io.IOException;
 
-@Value.Immutable
-public interface OrcBatchReadConf extends Serializable {
-  int batchSize();
+public interface FileFormatDataWriterBuilder<T extends FileFormatDataWriterBuilder<T>>
+    extends FileFormatWriterBuilder<T> {
+  <D> DataWriter<D> build() throws IOException;
 }

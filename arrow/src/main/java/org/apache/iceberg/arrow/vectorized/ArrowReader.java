@@ -33,16 +33,22 @@ import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.Types.MinorType;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.ContentScanTask;
+import org.apache.iceberg.DataFileReaderService;
+import org.apache.iceberg.DataFileReaderServiceRegistry;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileFormatReadBuilder;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMappingParser;
@@ -322,16 +328,10 @@ public class ArrowReader extends CloseableGroup {
       InputFile location = getInputFile(task);
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
       if (task.file().format() == FileFormat.PARQUET) {
-        Parquet.ReadBuilder builder =
-            Parquet.read(location)
-                .project(expectedSchema)
+        FileFormatReadBuilder<?> builder =
+            DataFileReaderServiceRegistry.read(
+                    FileFormat.PARQUET, ColumnarBatch.class, location, expectedSchema)
                 .split(task.start(), task.length())
-                .createBatchedReaderFunc(
-                    fileSchema ->
-                        buildReader(
-                            expectedSchema,
-                            fileSchema, /* setArrowValidityVector */
-                            NullCheckingForGet.NULL_CHECKING_ENABLED))
                 .recordsPerBatch(batchSize)
                 .filter(task.residual())
                 .caseSensitive(caseSensitive);
@@ -386,6 +386,35 @@ public class ArrowReader extends CloseableGroup {
                   setArrowValidityVector,
                   ImmutableMap.of(),
                   ArrowBatchReader::new));
+    }
+  }
+
+  public static class ReaderService implements DataFileReaderService {
+    @Override
+    public FileFormat format() {
+      return FileFormat.PARQUET;
+    }
+
+    @Override
+    public Class<?> returnType() {
+      return ColumnarBatch.class;
+    }
+
+    @Override
+    public FileFormatReadBuilder<?> builder(
+        InputFile inputFile,
+        ContentScanTask<?> task,
+        Schema readSchema,
+        Table table,
+        DeleteFilter<?> deleteFilter) {
+      return Parquet.read(inputFile)
+          .project(readSchema)
+          .createBatchedReaderFunc(
+              fileSchema ->
+                  VectorizedCombinedScanIterator.buildReader(
+                      readSchema,
+                      fileSchema, /* setArrowValidityVector */
+                      NullCheckingForGet.NULL_CHECKING_ENABLED));
     }
   }
 }

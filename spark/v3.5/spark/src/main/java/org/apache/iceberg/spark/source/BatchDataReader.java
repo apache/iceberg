@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.FileScanTask;
@@ -28,8 +27,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.spark.OrcBatchReadConf;
-import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -47,18 +44,14 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
 
   private final long numSplits;
 
-  BatchDataReader(
-      SparkInputPartition partition,
-      ParquetBatchReadConf parquetBatchReadConf,
-      OrcBatchReadConf orcBatchReadConf) {
+  BatchDataReader(SparkInputPartition partition, int batchSize) {
     this(
         partition.table(),
         partition.taskGroup(),
         SnapshotUtil.schemaFor(partition.table(), partition.branch()),
         partition.expectedSchema(),
         partition.isCaseSensitive(),
-        parquetBatchReadConf,
-        orcBatchReadConf);
+        batchSize);
   }
 
   BatchDataReader(
@@ -67,9 +60,8 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
       Schema tableSchema,
       Schema expectedSchema,
       boolean caseSensitive,
-      ParquetBatchReadConf parquetConf,
-      OrcBatchReadConf orcConf) {
-    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive, parquetConf, orcConf);
+      int size) {
+    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive, size);
 
     numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
@@ -95,8 +87,6 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(filePath, task.start(), task.length());
 
-    Map<Integer, ?> idToConstant = constantsMap(task, expectedSchema());
-
     InputFile inputFile = getInputFile(filePath);
     Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with FileScanTask");
 
@@ -105,14 +95,6 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
             ? null
             : new SparkDeleteFilter(filePath, task.deletes(), counter(), false);
 
-    return newBatchIterable(
-            inputFile,
-            task.file().format(),
-            task.start(),
-            task.length(),
-            task.residual(),
-            idToConstant,
-            deleteFilter)
-        .iterator();
+    return newBatchIterable(inputFile, task, deleteFilter).iterator();
   }
 }

@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataTask;
@@ -88,30 +87,21 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
 
     // schema or rows returned by readers
     Schema requiredSchema = deleteFilter.requiredSchema();
-    Map<Integer, ?> idToConstant = constantsMap(task, requiredSchema);
 
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(filePath, task.start(), task.length());
 
-    return deleteFilter.filter(open(task, requiredSchema, idToConstant)).iterator();
+    return deleteFilter.filter(open(task, requiredSchema)).iterator();
   }
 
-  protected CloseableIterable<InternalRow> open(
-      FileScanTask task, Schema readSchema, Map<Integer, ?> idToConstant) {
+  protected CloseableIterable<InternalRow> open(FileScanTask task, Schema readSchema) {
     if (task.isDataTask()) {
       return newDataIterable(task.asDataTask(), readSchema);
     } else {
       InputFile inputFile = getInputFile(task.file().location());
       Preconditions.checkNotNull(
           inputFile, "Could not find InputFile associated with FileScanTask");
-      return newIterable(
-          inputFile,
-          task.file().format(),
-          task.start(),
-          task.length(),
-          task.residual(),
-          readSchema,
-          idToConstant);
+      return newIterable(inputFile, task, task.residual(), readSchema);
     }
   }
 

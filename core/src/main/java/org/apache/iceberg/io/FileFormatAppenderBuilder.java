@@ -16,14 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark;
+package org.apache.iceberg.io;
 
-import java.io.Serializable;
-import org.immutables.value.Value;
+import java.io.IOException;
+import org.apache.iceberg.Schema;
 
-@Value.Immutable
-public interface ParquetBatchReadConf extends Serializable {
-  int batchSize();
+public interface FileFormatAppenderBuilder<T extends FileFormatAppenderBuilder<T>>
+    extends FileFormatWriterCommonBuilder<T> {
+  T named(String newName);
 
-  ParquetReaderType readerType();
+  String location();
+
+  Schema schema();
+
+  <D> FileAppender<D> build() throws IOException;
 }

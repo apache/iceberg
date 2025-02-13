@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.util.Map;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
@@ -45,12 +44,11 @@ public class EqualityDeleteRowReader extends RowDataReader {
 
     // schema or rows returned by readers
     Schema requiredSchema = matches.requiredSchema();
-    Map<Integer, ?> idToConstant = constantsMap(task, expectedSchema());
     DataFile file = task.file();
 
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(file.location(), task.start(), task.length());
 
-    return matches.findEqualityDeleteRows(open(task, requiredSchema, idToConstant)).iterator();
+    return matches.findEqualityDeleteRows(open(task, requiredSchema)).iterator();
   }
 }
