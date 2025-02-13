@@ -2890,14 +2890,17 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     catalog.createTable(identifier, SCHEMA);
     Table table = catalog.loadTable(identifier);
     TableOperations ops = ((BaseTable) table).operations();
-    assertThat(table.spec().isPartitioned()).isFalse();
+    String unpartitionedMetadataLocation = ops.current().metadataFileLocation();
+
     // update table spec
     table.updateSpec().addField(bucket("id", 16)).commit();
-    String newMetadataLocation = ops.refresh().metadataFileLocation();
-    // register and overwrite
-    catalog.registerTable(identifier, newMetadataLocation, true);
-    table.refresh();
     assertThat(table.spec().isPartitioned()).isTrue();
+
+    // register and overwrite
+    catalog.registerTable(identifier, unpartitionedMetadataLocation, true);
+
+    table.refresh();
+    assertThat(table.spec().isPartitioned()).isFalse();
     assertThat(catalog.dropTable(identifier)).isTrue();
   }
 

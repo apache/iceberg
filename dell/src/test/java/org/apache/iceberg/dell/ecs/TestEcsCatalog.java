@@ -195,19 +195,19 @@ public class TestEcsCatalog {
     TableIdentifier identifier = TableIdentifier.of("a", "t1");
     ecsCatalog.createTable(identifier, SCHEMA);
     Table registeringTable = ecsCatalog.loadTable(identifier);
-    assertThat(registeringTable.spec().isPartitioned()).isFalse();
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
-    String oldMetadataLocation = ops.current().metadataFileLocation();
+    String unpartitionedMetadataLocation = ops.current().metadataFileLocation();
     // update table spec
     registeringTable.updateSpec().addField(bucket("id", 16)).commit();
-    String newMetadataLocation = ops.refresh().metadataFileLocation();
+    assertThat(registeringTable.spec().isPartitioned()).isTrue();
     // register w/o overwrite
-    assertThatThrownBy(() -> ecsCatalog.registerTable(identifier, oldMetadataLocation, false))
+    assertThatThrownBy(
+            () -> ecsCatalog.registerTable(identifier, unpartitionedMetadataLocation, false))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Table already exists: a.t1");
     // register with overwrite
-    ecsCatalog.registerTable(identifier, newMetadataLocation, true);
-    assertThat(ecsCatalog.loadTable(identifier).spec().isPartitioned()).isTrue();
+    ecsCatalog.registerTable(identifier, unpartitionedMetadataLocation, true);
+    assertThat(ecsCatalog.loadTable(identifier).spec().isPartitioned()).isFalse();
     assertThat(ecsCatalog.dropTable(identifier, true)).isTrue();
   }
 }

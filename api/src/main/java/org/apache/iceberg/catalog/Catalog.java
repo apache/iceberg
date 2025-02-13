@@ -360,7 +360,7 @@ public interface Catalog {
    */
   default Table registerTable(
       TableIdentifier identifier, String metadataFileLocation, boolean overwrite) {
-    throw new UnsupportedOperationException("Registering tables with overwrite is not supported");
+    throw new UnsupportedOperationException("Registering tables is not supported");
   }
 
   /**

@@ -82,13 +82,13 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
     // Throw an exception if this table already exists in the catalog.
     if (tableExists(identifier) && !overwrite) {
       throw new AlreadyExistsException("Table already exists: %s", identifier);
-    } else {
-      TableOperations ops = newTableOps(identifier);
-      InputFile metadataFile = ops.io().newInputFile(metadataFileLocation);
-      TableMetadata currentMetadata = tableExists(identifier) ? ops.current() : null;
-      ops.commit(currentMetadata, TableMetadataParser.read(ops.io(), metadataFile));
-      return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
     }
+
+    TableOperations ops = newTableOps(identifier);
+    InputFile metadataFile = ops.io().newInputFile(metadataFileLocation);
+    TableMetadata currentMetadata = tableExists(identifier) ? ops.current() : null;
+    ops.commit(currentMetadata, TableMetadataParser.read(ops.io(), metadataFile));
+    return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
   }
 
   @Override

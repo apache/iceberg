@@ -672,19 +672,19 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     HadoopCatalog catalog = hadoopCatalog();
     catalog.createTable(identifier, SCHEMA);
     Table registeringTable = catalog.loadTable(identifier);
-    assertThat(registeringTable.spec().isPartitioned()).isFalse();
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
-    String oldMetadataLocation = ops.current().metadataFileLocation();
+    String unpartitionedMetadataLocation = ops.current().metadataFileLocation();
     // update table spec
     registeringTable.updateSpec().addField(bucket("id", 16)).commit();
-    String newMetadataLocation = ops.refresh().metadataFileLocation();
+    assertThat(registeringTable.spec().isPartitioned()).isTrue();
     // register w/o overwrite
-    assertThatThrownBy(() -> catalog.registerTable(identifier, oldMetadataLocation, false))
+    assertThatThrownBy(
+            () -> catalog.registerTable(identifier, unpartitionedMetadataLocation, false))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Table already exists: a.t1");
     // register with overwrite
-    catalog.registerTable(identifier, newMetadataLocation, true);
-    assertThat(catalog.loadTable(identifier).spec().isPartitioned()).isTrue();
+    catalog.registerTable(identifier, unpartitionedMetadataLocation, true);
+    assertThat(catalog.loadTable(identifier).spec().isPartitioned()).isFalse();
     assertThat(catalog.dropTable(identifier)).isTrue();
   }
 }
