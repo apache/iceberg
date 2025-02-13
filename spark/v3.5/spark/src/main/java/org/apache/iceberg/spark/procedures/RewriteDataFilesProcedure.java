@@ -29,7 +29,10 @@ import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.ExtendedParser;
+import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -116,13 +119,25 @@ class RewriteDataFilesProcedure extends BaseProcedure {
           if (strategy != null || sortOrderString != null) {
             action = checkAndApplyStrategy(action, strategy, sortOrderString, table.schema());
           }
-
+          String branchIdent = Spark3Util.extractBranch(tableIdent);
+          SparkWriteConf writeConf =
+              new SparkWriteConf(spark(), table, branchIdent, Maps.newHashMap());
+          action = checkAndApplyBranch(action, writeConf);
           action = checkAndApplyFilter(action, where, tableIdent);
 
           RewriteDataFiles.Result result = action.execute();
 
           return toOutputRows(result);
         });
+  }
+
+  private RewriteDataFiles checkAndApplyBranch(RewriteDataFiles action, SparkWriteConf writeConf) {
+
+    String targetBranch = writeConf.branch();
+    if (targetBranch != null) {
+      action.targetBranch(targetBranch);
+    }
+    return action;
   }
 
   private RewriteDataFiles checkAndApplyFilter(
