@@ -77,6 +77,7 @@ To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:
 Apache Iceberg 1.8.0 was released on February 13, 2025.
 
 The 1.8.0 release contains bug fixes and new features. For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.8.0)
+
 * Deprecation / End of Support
     - Spark 3.3
     - Removed Hive Runtime
