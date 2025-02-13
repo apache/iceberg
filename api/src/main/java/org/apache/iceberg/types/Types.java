@@ -28,6 +28,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -569,8 +570,8 @@ public class Types {
       private Integer id = null;
       private Type type = null;
       private String doc = null;
-      private Object initialDefault = null;
-      private Object writeDefault = null;
+      private Literal<?> initialDefault = null;
+      private Literal<?> writeDefault = null;
 
       private Builder() {}
 
@@ -624,12 +625,23 @@ public class Types {
         return this;
       }
 
+      /** @deprecated will be removed in 2.0.0; use {@link #withInitialDefault(Literal)} instead. */
       public Builder withInitialDefault(Object fieldInitialDefault) {
+        return withInitialDefault(Expressions.lit(fieldInitialDefault));
+      }
+
+      public Builder withInitialDefault(Literal<?> fieldInitialDefault) {
         initialDefault = fieldInitialDefault;
         return this;
       }
 
+      /** @deprecated will be removed in 2.0.0; use {@link #withWriteDefault(Literal)} instead. */
+      @Deprecated
       public Builder withWriteDefault(Object fieldWriteDefault) {
+        return withWriteDefault(Expressions.lit(fieldWriteDefault));
+      }
+
+      public Builder withWriteDefault(Literal<?> fieldWriteDefault) {
         writeDefault = fieldWriteDefault;
         return this;
       }
@@ -646,8 +658,8 @@ public class Types {
     private final String name;
     private final Type type;
     private final String doc;
-    private final Object initialDefault;
-    private final Object writeDefault;
+    private final Literal<?> initialDefault;
+    private final Literal<?> writeDefault;
 
     private NestedField(
         boolean isOptional,
@@ -655,8 +667,8 @@ public class Types {
         String name,
         Type type,
         String doc,
-        Object initialDefault,
-        Object writeDefault) {
+        Literal<?> initialDefault,
+        Literal<?> writeDefault) {
       Preconditions.checkNotNull(name, "Name cannot be null");
       Preconditions.checkNotNull(type, "Type cannot be null");
       this.isOptional = isOptional;
@@ -668,12 +680,12 @@ public class Types {
       this.writeDefault = castDefault(writeDefault, type);
     }
 
-    private static Object castDefault(Object defaultValue, Type type) {
+    private static Literal<?> castDefault(Literal<?> defaultValue, Type type) {
       if (type.isNestedType() && defaultValue != null) {
         throw new IllegalArgumentException(
             String.format("Invalid default value for %s: %s (must be null)", type, defaultValue));
       } else if (defaultValue != null) {
-        return Expressions.lit(defaultValue).to(type).value();
+        return defaultValue.to(type);
       }
 
       return null;
@@ -725,12 +737,20 @@ public class Types {
       return doc;
     }
 
-    public Object initialDefault() {
+    public Literal<?> initialDefaultLiteral() {
       return initialDefault;
     }
 
-    public Object writeDefault() {
+    public Object initialDefault() {
+      return initialDefault != null ? initialDefault.value() : null;
+    }
+
+    public Literal<?> writeDefaultLiteral() {
       return writeDefault;
+    }
+
+    public Object writeDefault() {
+      return writeDefault != null ? writeDefault.value() : null;
     }
 
     @Override

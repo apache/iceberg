@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
@@ -97,23 +96,25 @@ class SchemaUpdate implements UpdateSchema {
 
   @Override
   public UpdateSchema addColumn(
-      String parent, String name, Type type, String doc, Object defaultValue) {
+      String parent, String name, Type type, String doc, Literal<?> defaultValue) {
     internalAddColumn(parent, name, true, type, doc, defaultValue);
     return this;
   }
 
   @Override
   public UpdateSchema addRequiredColumn(
-      String parent, String name, Type type, String doc, Object defaultValue) {
-    // checking whether the initial default is set for a required field is done in apply, so that
-    // the updateColumnDefault method can be used in the style of a builder. this allows chaining
-    // calls to set the initial default using updateColumnDefault.
+      String parent, String name, Type type, String doc, Literal<?> defaultValue) {
     internalAddColumn(parent, name, false, type, doc, defaultValue);
     return this;
   }
 
   private void internalAddColumn(
-      String parent, String name, boolean isOptional, Type type, String doc, Object defaultValue) {
+      String parent,
+      String name,
+      boolean isOptional,
+      Type type,
+      String doc,
+      Literal<?> defaultValue) {
     int parentId = TABLE_ROOT_ID;
     String fullName;
     if (parent != null) {
@@ -153,6 +154,11 @@ class SchemaUpdate implements UpdateSchema {
           name);
       fullName = name;
     }
+
+    Preconditions.checkArgument(
+        defaultValue != null || isOptional || allowIncompatibleChanges,
+        "Incompatible change: cannot add required column without a default value: %s",
+        fullName);
 
     // assign new IDs in order
     int newId = assignNewColumnId();
@@ -311,7 +317,7 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   @Override
-  public UpdateSchema updateColumnDefault(String name, Object newDefault) {
+  public UpdateSchema updateColumnDefault(String name, Literal<?> newDefault) {
     Types.NestedField field = findForUpdate(name);
     Preconditions.checkArgument(field != null, "Cannot update missing column: %s", name);
     Preconditions.checkArgument(
@@ -319,28 +325,17 @@ class SchemaUpdate implements UpdateSchema {
         "Cannot update a column that will be deleted: %s",
         field.name());
 
-    boolean isAdded = isAdded(name);
-
-    if (!isAdded) {
-      // if the value can be converted to the expected type, check if it is already set
-      // if it can't be converted, the builder will throw an exception
-      Literal<?> converted = Expressions.lit(newDefault).to(field.type());
-      if (converted != null && Objects.equals(field.writeDefault(), converted.value())) {
-        return this;
-      }
+    // if the value can be converted to the expected type, check if it is already set
+    // if it can't be converted, the builder will throw an exception
+    Literal<?> converted = newDefault != null ? newDefault.to(field.type()) : null;
+    if (converted != null && Objects.equals(field.writeDefault(), converted.value())) {
+      return this;
     }
 
     // write default is always set and initial default is only set if the field requires one
     int fieldId = field.fieldId();
-    Types.NestedField.Builder builder = Types.NestedField.from(field).withWriteDefault(newDefault);
-
-    if (isAdded && field.isRequired() && null == field.initialDefault()) {
-      // if this update is used in the style of a builder, update the initial default.
-      // for instance, addRequiredColumn("name", LongType.get()).updateColumnDefault("name", 0);
-      builder.withInitialDefault(newDefault);
-    }
-
-    updates.put(fieldId, builder.build());
+    Types.NestedField newField = Types.NestedField.from(field).withWriteDefault(newDefault).build();
+    updates.put(fieldId, newField);
 
     return this;
   }
@@ -468,17 +463,6 @@ class SchemaUpdate implements UpdateSchema {
    */
   @Override
   public Schema apply() {
-    // validate that new required fields have initial defaults
-    if (!allowIncompatibleChanges) {
-      for (Map.Entry<String, Integer> added : addedNameToId.entrySet()) {
-        Types.NestedField newField = updates.get(added.getValue());
-        Preconditions.checkArgument(
-            newField.isOptional() || newField.initialDefault() != null,
-            "Incompatible change: cannot add required column without a default value: %s",
-            added.getKey());
-      }
-    }
-
     return applyChanges(
         schema, deletes, updates, parentToAddedIds, moves, identifierFieldNames, caseSensitive);
   }

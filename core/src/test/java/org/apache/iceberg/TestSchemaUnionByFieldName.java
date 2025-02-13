@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.Types;
@@ -94,8 +95,8 @@ public class TestSchemaUnionByFieldName {
                 .withId(1)
                 .ofType(LongType.get())
                 .withDoc("description")
-                .withInitialDefault(34)
-                .withWriteDefault(35)
+                .withInitialDefault(Literal.of(34))
+                .withWriteDefault(Literal.of(35))
                 .build());
     Schema applied = new SchemaUpdate(new Schema(), 0).unionByNameWith(newSchema).apply();
     assertThat(applied.asStruct()).isEqualTo(newSchema.asStruct());
@@ -311,14 +312,18 @@ public class TestSchemaUnionByFieldName {
             required("aCol")
                 .withId(1)
                 .ofType(IntegerType.get())
-                .withInitialDefault(34)
-                .withWriteDefault(35)
+                .withInitialDefault(Literal.of(34))
+                .withWriteDefault(Literal.of(35))
                 .build());
 
     // the initial default is not modified for existing columns
     Schema expected =
         new Schema(
-            required("aCol").withId(1).ofType(IntegerType.get()).withWriteDefault(35).build());
+            required("aCol")
+                .withId(1)
+                .ofType(IntegerType.get())
+                .withWriteDefault(Literal.of(35))
+                .build());
 
     Schema applied = new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
     assertThat(applied.asStruct()).isEqualTo(expected.asStruct());

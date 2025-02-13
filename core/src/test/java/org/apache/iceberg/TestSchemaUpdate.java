@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -211,8 +212,8 @@ public class TestSchemaUpdate {
                 .withId(1)
                 .ofType(Types.IntegerType.get())
                 .withDoc("description")
-                .withInitialDefault(34)
-                .withWriteDefault(35)
+                .withInitialDefault(Literal.of(34))
+                .withWriteDefault(Literal.of(35))
                 .build());
     Schema expected =
         new Schema(
@@ -220,8 +221,8 @@ public class TestSchemaUpdate {
                 .withId(1)
                 .withDoc("description")
                 .ofType(Types.LongType.get())
-                .withInitialDefault(34)
-                .withWriteDefault(35)
+                .withInitialDefault(Literal.of(34))
+                .withWriteDefault(Literal.of(35))
                 .build());
 
     Schema updated = new SchemaUpdate(schema, 1).updateColumn("i", Types.LongType.get()).apply();
@@ -237,8 +238,8 @@ public class TestSchemaUpdate {
                 .withId(1)
                 .ofType(Types.IntegerType.get())
                 .withDoc("description")
-                .withInitialDefault(34)
-                .withWriteDefault(35)
+                .withInitialDefault(Literal.of(34))
+                .withWriteDefault(Literal.of(35))
                 .build());
     Schema expected =
         new Schema(
@@ -246,8 +247,8 @@ public class TestSchemaUpdate {
                 .withId(1)
                 .ofType(Types.IntegerType.get())
                 .withDoc("longer description")
-                .withInitialDefault(34)
-                .withWriteDefault(35)
+                .withInitialDefault(Literal.of(34))
+                .withWriteDefault(Literal.of(35))
                 .build());
 
     Schema updated = new SchemaUpdate(schema, 1).updateColumnDoc("i", "longer description").apply();
@@ -263,8 +264,8 @@ public class TestSchemaUpdate {
                 .withId(1)
                 .ofType(Types.IntegerType.get())
                 .withDoc("description")
-                .withInitialDefault(34)
-                .withWriteDefault(35)
+                .withInitialDefault(Literal.of(34))
+                .withWriteDefault(Literal.of(35))
                 .build());
     Schema expected =
         new Schema(
@@ -272,11 +273,12 @@ public class TestSchemaUpdate {
                 .withId(1)
                 .ofType(Types.IntegerType.get())
                 .withDoc("description")
-                .withInitialDefault(34)
-                .withWriteDefault(123456)
+                .withInitialDefault(Literal.of(34))
+                .withWriteDefault(Literal.of(123456))
                 .build());
 
-    Schema updated = new SchemaUpdate(schema, 1).updateColumnDefault("i", 123456).apply();
+    Schema updated =
+        new SchemaUpdate(schema, 1).updateColumnDefault("i", Literal.of(123456)).apply();
 
     assertThat(updated.asStruct()).isEqualTo(expected.asStruct());
   }
@@ -567,14 +569,14 @@ public class TestSchemaUpdate {
                 .withId(2)
                 .ofType(Types.StringType.get())
                 .withDoc("description")
-                .withInitialDefault("unknown")
-                .withWriteDefault("unknown")
+                .withInitialDefault(Literal.of("unknown"))
+                .withWriteDefault(Literal.of("unknown"))
                 .build());
 
     // when default value is passed to add column, both initial and write defaults are set
     Schema result =
         new SchemaUpdate(schema, 1)
-            .addColumn("data", Types.StringType.get(), "description", "unknown")
+            .addColumn("data", Types.StringType.get(), "description", Literal.of("unknown"))
             .apply();
 
     assertThat(result.asStruct()).isEqualTo(expected.asStruct());
@@ -590,7 +592,7 @@ public class TestSchemaUpdate {
                 .withId(2)
                 .ofType(Types.StringType.get())
                 .withInitialDefault(null)
-                .withWriteDefault("unknown")
+                .withWriteDefault(Literal.of("unknown"))
                 .build());
 
     // changes only the write default because the initial default is null when adding an optional
@@ -598,7 +600,7 @@ public class TestSchemaUpdate {
     Schema result =
         new SchemaUpdate(schema, 1)
             .addColumn("data", Types.StringType.get())
-            .updateColumnDefault("data", "unknown")
+            .updateColumnDefault("data", Literal.of("unknown"))
             .apply();
 
     assertThat(result.asStruct()).isEqualTo(expected.asStruct());
@@ -729,14 +731,14 @@ public class TestSchemaUpdate {
                 .withId(2)
                 .ofType(Types.StringType.get())
                 .withDoc("description")
-                .withInitialDefault("unknown")
-                .withWriteDefault("unknown")
+                .withInitialDefault(Literal.of("unknown"))
+                .withWriteDefault(Literal.of("unknown"))
                 .build());
 
     // when default value is passed to add column, both initial and write defaults are set
     Schema result =
         new SchemaUpdate(schema, 1)
-            .addRequiredColumn("data", Types.StringType.get(), "description", "unknown")
+            .addRequiredColumn("data", Types.StringType.get(), "description", Literal.of("unknown"))
             .apply();
 
     assertThat(result.asStruct()).isEqualTo(expected.asStruct());
@@ -745,25 +747,16 @@ public class TestSchemaUpdate {
   @Test
   public void testAddRequiredColumnWithUpdateColumnDefault() {
     Schema schema = new Schema(optional(1, "id", Types.IntegerType.get()));
-    Schema expected =
-        new Schema(
-            optional(1, "id", Types.IntegerType.get()),
-            Types.NestedField.required("data")
-                .withId(2)
-                .ofType(Types.StringType.get())
-                .withInitialDefault("unknown")
-                .withWriteDefault("unknown")
-                .build());
 
-    // changes the initial default, which has not been set and is needed or else this is an
-    // incompatible change. also sets the write default.
-    Schema result =
-        new SchemaUpdate(schema, 1)
-            .addRequiredColumn("data", Types.StringType.get())
-            .updateColumnDefault("data", "unknown")
-            .apply();
-
-    assertThat(result.asStruct()).isEqualTo(expected.asStruct());
+    // fails because the initial default is only set when adding
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, 1)
+                    .addRequiredColumn("data", Types.StringType.get())
+                    .updateColumnDefault("data", Literal.of("unknown")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Incompatible change: cannot add required column without a default value: data");
   }
 
   @Test
@@ -818,13 +811,13 @@ public class TestSchemaUpdate {
             Types.NestedField.required("data")
                 .withId(2)
                 .ofType(Types.StringType.get())
-                .withInitialDefault("unknown")
-                .withWriteDefault("unknown")
+                .withInitialDefault(Literal.of("unknown"))
+                .withWriteDefault(Literal.of("unknown"))
                 .build());
 
     Schema result =
         new SchemaUpdate(schema, 1)
-            .addColumn("data", Types.StringType.get(), null, "unknown")
+            .addColumn("data", Types.StringType.get(), Literal.of("unknown"))
             .requireColumn("data")
             .apply();
 
@@ -835,13 +828,12 @@ public class TestSchemaUpdate {
   public void testAddColumnWithUpdateColumnDefaultToRequiredColumn() {
     Schema schema = new Schema(optional(1, "id", Types.IntegerType.get()));
 
-    // updateColumnDefault with an optional column does not set the initial default so the column
-    // cannot be set to required
+    // updateColumnDefault does not set the initial default so the column cannot be set to required
     assertThatThrownBy(
             () ->
                 new SchemaUpdate(schema, 1)
                     .addColumn("data", Types.StringType.get())
-                    .updateColumnDefault("data", "unknown")
+                    .updateColumnDefault("data", Literal.of("unknown"))
                     .requireColumn("data"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot change column nullability: data: optional -> required");
@@ -1128,7 +1120,9 @@ public class TestSchemaUpdate {
   @Test
   public void testUpdateMissingColumnDefaultValue() {
     assertThatThrownBy(
-            () -> new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID).updateColumnDefault("col", 34))
+            () ->
+                new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+                    .updateColumnDefault("col", Literal.of(34)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot update missing column: col");
   }
