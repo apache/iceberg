@@ -626,8 +626,11 @@ public class Types {
       }
 
       /**
+       * Set the initial default using an Object.
+       *
        * @deprecated will be removed in 2.0.0; use {@link #withInitialDefault(Literal)} instead.
        */
+      @Deprecated
       public Builder withInitialDefault(Object fieldInitialDefault) {
         return withInitialDefault(Expressions.lit(fieldInitialDefault));
       }
@@ -638,6 +641,8 @@ public class Types {
       }
 
       /**
+       * Set the write default using an Object.
+       *
        * @deprecated will be removed in 2.0.0; use {@link #withWriteDefault(Literal)} instead.
        */
       @Deprecated
