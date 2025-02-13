@@ -102,7 +102,8 @@ public class TestSchemaParser extends AvroDataTest {
         Arguments.of(Types.StringType.get(), Literal.of("iceberg")),
         Arguments.of(Types.UUIDType.get(), Literal.of(UUID.randomUUID())),
         Arguments.of(
-            Types.FixedType.ofLength(4), Literal.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d}))),
+            Types.FixedType.ofLength(4),
+            Literal.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d}))),
         Arguments.of(Types.BinaryType.get(), Literal.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b}))),
         Arguments.of(Types.DecimalType.of(9, 2), Literal.of(new BigDecimal("12.34"))));
   }
@@ -121,7 +122,9 @@ public class TestSchemaParser extends AvroDataTest {
                 .build());
 
     Schema serialized = SchemaParser.fromJson(SchemaParser.toJson(schema));
-    assertThat(serialized.findField("col_with_default").initialDefault()).isEqualTo(defaultValue.value());
-    assertThat(serialized.findField("col_with_default").writeDefault()).isEqualTo(defaultValue.value());
+    assertThat(serialized.findField("col_with_default").initialDefault())
+        .isEqualTo(defaultValue.value());
+    assertThat(serialized.findField("col_with_default").writeDefault())
+        .isEqualTo(defaultValue.value());
   }
 }
