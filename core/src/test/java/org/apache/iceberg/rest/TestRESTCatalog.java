@@ -66,6 +66,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -2500,6 +2501,127 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .execute(
             reqMatcher(HTTPMethod.HEAD, "v1/namespaces/non-existing", Map.of(), Map.of()),
+            any(),
+            any(),
+            any());
+  }
+
+  @Test
+  public void testNamespaceExistsFallbackToGETRequest() {
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders) {
+                if ("v1/config".equals(request.path())) {
+                  return castResponse(
+                      responseType,
+                      ConfigResponse.builder()
+                          // server indicates support of loading a namespace only via GET, which is
+                          // what older REST servers would send back too
+                          .withEndpoints(ImmutableList.of(Endpoint.V1_LOAD_NAMESPACE))
+                          .build());
+                }
+
+                return super.execute(request, responseType, errorHandler, responseHeaders);
+              }
+            });
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of());
+
+    assertThat(catalog.namespaceExists(Namespace.of("non-existing"))).isFalse();
+
+    Mockito.verify(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+
+    // verifies that the namespace is loaded via a GET instead of HEAD (V1_NAMESPACE_EXISTS)
+    Mockito.verify(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.GET, "v1/namespaces/non-existing", Map.of(), Map.of()),
+            any(),
+            any(),
+            any());
+  }
+
+  @Test
+  public void testTableExistsViaHEADRequest() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of());
+
+    assertThat(catalog.tableExists(TABLE)).isFalse();
+
+    Mockito.verify(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+    Mockito.verify(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.HEAD, "v1/namespaces/newdb/tables/table", Map.of(), Map.of()),
+            any(),
+            any(),
+            any());
+  }
+
+  @Test
+  public void testTableExistsFallbackToGETRequest() {
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders) {
+                if ("v1/config".equals(request.path())) {
+                  return castResponse(
+                      responseType,
+                      ConfigResponse.builder()
+                          // server indicates support of loading a table only via GET, which is
+                          // what older REST servers would send back too
+                          .withEndpoints(ImmutableList.of(Endpoint.V1_LOAD_TABLE))
+                          .build());
+                }
+
+                return super.execute(request, responseType, errorHandler, responseHeaders);
+              }
+            });
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of());
+
+    assertThat(catalog.tableExists(TABLE)).isFalse();
+
+    Mockito.verify(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+
+    // verifies that the table is loaded via a GET instead of HEAD (V1_LOAD_TABLE)
+    Mockito.verify(adapter)
+        .execute(
+            reqMatcher(
+                HTTPMethod.GET,
+                "v1/namespaces/newdb/tables/table",
+                Map.of(),
+                Map.of("snapshots", "all")),
             any(),
             any(),
             any());

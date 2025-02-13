@@ -444,12 +444,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public boolean tableExists(SessionContext context, TableIdentifier identifier) {
-    Endpoint.check(endpoints, Endpoint.V1_TABLE_EXISTS);
-
     try {
       checkIdentifierIsValid(identifier);
-      client.head(paths.table(identifier), headers(context), ErrorHandlers.tableErrorHandler());
-      return true;
+      if (endpoints.contains(Endpoint.V1_TABLE_EXISTS)) {
+        client.head(paths.table(identifier), headers(context), ErrorHandlers.tableErrorHandler());
+        return true;
+      } else {
+        // fallback in order to work with 1.7.x and older servers
+        return super.tableExists(context, identifier);
+      }
     } catch (NoSuchTableException e) {
       return false;
     }
@@ -665,13 +668,16 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public boolean namespaceExists(SessionContext context, Namespace namespace) {
-    Endpoint.check(endpoints, Endpoint.V1_NAMESPACE_EXISTS);
-
     try {
       checkNamespaceIsValid(namespace);
-      client.head(
-          paths.namespace(namespace), headers(context), ErrorHandlers.namespaceErrorHandler());
-      return true;
+      if (endpoints.contains(Endpoint.V1_NAMESPACE_EXISTS)) {
+        client.head(
+            paths.namespace(namespace), headers(context), ErrorHandlers.namespaceErrorHandler());
+        return true;
+      } else {
+        // fallback in order to work with 1.7.x and older servers
+        return super.namespaceExists(context, namespace);
+      }
     } catch (NoSuchNamespaceException e) {
       return false;
     }
@@ -1239,12 +1245,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public boolean viewExists(SessionContext context, TableIdentifier identifier) {
-    Endpoint.check(endpoints, Endpoint.V1_VIEW_EXISTS);
-
     try {
       checkViewIdentifierIsValid(identifier);
-      client.head(paths.view(identifier), headers(context), ErrorHandlers.viewErrorHandler());
-      return true;
+      if (endpoints.contains(Endpoint.V1_VIEW_EXISTS)) {
+        client.head(paths.view(identifier), headers(context), ErrorHandlers.viewErrorHandler());
+        return true;
+      } else {
+        // fallback in order to work with 1.7.x and older servers
+        return super.viewExists(context, identifier);
+      }
     } catch (NoSuchViewException e) {
       return false;
     }
