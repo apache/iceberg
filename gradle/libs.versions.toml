@@ -71,7 +71,6 @@ mockito = "4.11.0"
 mockserver = "5.15.0"
 nessie = "0.102.5"
 netty-buffer = "4.1.117.Final"
-netty-buffer-compat = "4.1.117.Final"
 object-client-bundle = "3.3.2"
 orc = "1.9.5"
 parquet = "1.15.0"
@@ -84,7 +83,6 @@ spark-hive34 = "3.4.4"
 spark-hive35 = "3.5.4"
 sqlite-jdbc = "3.49.0.0"
 testcontainers = "1.20.4"
-tez010 = "0.10.4"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
 
 [libraries]
@@ -136,7 +134,6 @@ hadoop3-client = { module = "org.apache.hadoop:hadoop-client", version.ref = "ha
 hadoop3-common = { module = "org.apache.hadoop:hadoop-common", version.ref = "hadoop3" }
 hive2-exec = { module = "org.apache.hive:hive-exec", version.ref = "hive2" }
 hive2-metastore = { module = "org.apache.hive:hive-metastore", version.ref = "hive2" }
-hive2-serde = { module = "org.apache.hive:hive-serde", version.ref = "hive2" }
 hive2-service = { module = "org.apache.hive:hive-service", version.ref = "hive2" }
 httpcomponents-httpclient5 = { module = "org.apache.httpcomponents.client5:httpclient5", version.ref = "httpcomponents-httpclient5" }
 immutables-value = { module = "org.immutables:value", version.ref = "immutables-value" }
@@ -157,7 +154,6 @@ kafka-connect-json = { module = "org.apache.kafka:connect-json", version.ref = "
 microprofile-openapi-api = { module = "org.eclipse.microprofile.openapi:microprofile-openapi-api", version.ref = "microprofile-openapi-api" }
 nessie-client = { module = "org.projectnessie.nessie:nessie-client", version.ref = "nessie" }
 netty-buffer = { module = "io.netty:netty-buffer", version.ref = "netty-buffer" }
-netty-buffer-compat = { module = "io.netty:netty-buffer", version.ref = "netty-buffer-compat" }
 object-client-bundle = { module = "com.emc.ecs:object-client-bundle", version.ref = "object-client-bundle" }
 orc-core = { module = "org.apache.orc:orc-core", version.ref = "orc" }
 parquet-avro = { module = "org.apache.parquet:parquet-avro", version.ref = "parquet" }
@@ -214,7 +210,5 @@ sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
 testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
 testcontainers-junit-jupiter = { module = "org.testcontainers:junit-jupiter", version.ref = "testcontainers" }
 testcontainers-minio = { module = "org.testcontainers:minio", version.ref = "testcontainers" }
-tez010-dag = { module = "org.apache.tez:tez-dag", version.ref = "tez010" }
-tez010-mapreduce = { module = "org.apache.tez:tez-mapreduce", version.ref = "tez010" }
 tez08-dag = { module = "org.apache.tez:tez-dag", version.ref = "tez08" }
 tez08-mapreduce = { module = "org.apache.tez:tez-mapreduce", version.ref = "tez08" }
