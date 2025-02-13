@@ -389,16 +389,20 @@ public class TestDynamoDbCatalog {
     Table registeringTable = catalog.loadTable(identifier);
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
     String unpartitionedMetadataLocation = ops.current().metadataFileLocation();
+
     // update table spec
     registeringTable.updateSpec().addField(bucket("id", 16)).commit();
     assertThat(registeringTable.spec().isPartitioned()).isTrue();
+
     // register w/o overwrite
     assertThatThrownBy(
             () -> catalog.registerTable(identifier, unpartitionedMetadataLocation, false))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageContaining("already exists");
+
     // register with overwrite
     catalog.registerTable(identifier, unpartitionedMetadataLocation, true);
+
     registeringTable.refresh();
     assertThat(registeringTable.spec().isPartitioned()).isFalse();
     assertThat(catalog.dropTable(identifier, true)).isTrue();
