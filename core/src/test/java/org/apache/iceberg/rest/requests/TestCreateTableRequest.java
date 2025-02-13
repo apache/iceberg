@@ -32,6 +32,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.SortOrderParser;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RequestResponseTestBase;
@@ -47,7 +48,11 @@ public class TestCreateTableRequest extends RequestResponseTestBase<CreateTableR
   private static final String SAMPLE_LOCATION = "file://tmp/location/";
   private static final Schema SAMPLE_SCHEMA =
       new Schema(
-          required("id").withId(1).ofType(Types.IntegerType.get()).withWriteDefault(1).build(),
+          required("id")
+              .withId(1)
+              .ofType(Types.IntegerType.get())
+              .withWriteDefault(Literal.of(1))
+              .build(),
           optional("data").withId(2).ofType(Types.StringType.get()).build());
   private static final String SAMPLE_SCHEMA_JSON = SchemaParser.toJson(SAMPLE_SCHEMA);
   private static final PartitionSpec SAMPLE_SPEC =

@@ -321,7 +321,7 @@ public abstract class AvroDataTest {
             Types.NestedField.optional("data")
                 .withId(2)
                 .ofType(Types.StringType.get())
-                .withInitialDefault("wrong!")
+                .withInitialDefault(Literal.of("wrong!"))
                 .withDoc("Should not produce default value")
                 .build());
 
@@ -331,17 +331,17 @@ public abstract class AvroDataTest {
             Types.NestedField.optional("data")
                 .withId(2)
                 .ofType(Types.StringType.get())
-                .withInitialDefault("wrong!")
+                .withInitialDefault(Literal.of("wrong!"))
                 .build(),
             Types.NestedField.required("missing_str")
                 .withId(6)
                 .ofType(Types.StringType.get())
-                .withInitialDefault("orange")
+                .withInitialDefault(Literal.of("orange"))
                 .build(),
             Types.NestedField.optional("missing_int")
                 .withId(7)
                 .ofType(Types.IntegerType.get())
-                .withInitialDefault(34)
+                .withInitialDefault(Literal.of(34))
                 .build());
 
     writeAndValidate(writeSchema, expectedSchema);
@@ -357,7 +357,7 @@ public abstract class AvroDataTest {
             Types.NestedField.optional("data")
                 .withId(2)
                 .ofType(Types.StringType.get())
-                .withInitialDefault("wrong!")
+                .withInitialDefault(Literal.of("wrong!"))
                 .withDoc("Should not produce default value")
                 .build());
 
@@ -367,7 +367,7 @@ public abstract class AvroDataTest {
             Types.NestedField.optional("data")
                 .withId(2)
                 .ofType(Types.StringType.get())
-                .withInitialDefault("wrong!")
+                .withInitialDefault(Literal.of("wrong!"))
                 .build(),
             Types.NestedField.optional("missing_date")
                 .withId(3)
@@ -388,7 +388,7 @@ public abstract class AvroDataTest {
             Types.NestedField.optional("data")
                 .withId(2)
                 .ofType(Types.StringType.get())
-                .withInitialDefault("wrong!")
+                .withInitialDefault(Literal.of("wrong!"))
                 .withDoc("Should not produce default value")
                 .build(),
             Types.NestedField.optional("nested")
@@ -403,7 +403,7 @@ public abstract class AvroDataTest {
             Types.NestedField.optional("data")
                 .withId(2)
                 .ofType(Types.StringType.get())
-                .withInitialDefault("wrong!")
+                .withInitialDefault(Literal.of("wrong!"))
                 .build(),
             Types.NestedField.optional("nested")
                 .withId(3)
@@ -413,7 +413,7 @@ public abstract class AvroDataTest {
                         Types.NestedField.optional("missing_inner_float")
                             .withId(5)
                             .ofType(Types.FloatType.get())
-                            .withInitialDefault(-0.0F)
+                            .withInitialDefault(Literal.of(-0.0F))
                             .build()))
                 .withDoc("Used to test nested field defaults")
                 .build());
@@ -432,7 +432,7 @@ public abstract class AvroDataTest {
             Types.NestedField.optional("data")
                 .withId(2)
                 .ofType(Types.StringType.get())
-                .withInitialDefault("wrong!")
+                .withInitialDefault(Literal.of("wrong!"))
                 .withDoc("Should not produce default value")
                 .build(),
             Types.NestedField.optional("nested_map")
@@ -452,7 +452,7 @@ public abstract class AvroDataTest {
             Types.NestedField.optional("data")
                 .withId(2)
                 .ofType(Types.StringType.get())
-                .withInitialDefault("wrong!")
+                .withInitialDefault(Literal.of("wrong!"))
                 .build(),
             Types.NestedField.optional("nested_map")
                 .withId(3)
@@ -466,7 +466,7 @@ public abstract class AvroDataTest {
                             Types.NestedField.optional("value_int")
                                 .withId(7)
                                 .ofType(Types.IntegerType.get())
-                                .withInitialDefault(34)
+                                .withInitialDefault(Literal.of(34))
                                 .build())))
                 .withDoc("Used to test nested field defaults")
                 .build());
@@ -485,7 +485,7 @@ public abstract class AvroDataTest {
             Types.NestedField.optional("data")
                 .withId(2)
                 .ofType(Types.StringType.get())
-                .withInitialDefault("wrong!")
+                .withInitialDefault(Literal.of("wrong!"))
                 .withDoc("Should not produce default value")
                 .build(),
             Types.NestedField.optional("nested_list")
@@ -502,7 +502,7 @@ public abstract class AvroDataTest {
             Types.NestedField.optional("data")
                 .withId(2)
                 .ofType(Types.StringType.get())
-                .withInitialDefault("wrong!")
+                .withInitialDefault(Literal.of("wrong!"))
                 .build(),
             Types.NestedField.optional("nested_list")
                 .withId(3)
@@ -514,7 +514,7 @@ public abstract class AvroDataTest {
                             Types.NestedField.optional("element_int")
                                 .withId(7)
                                 .ofType(Types.IntegerType.get())
-                                .withInitialDefault(34)
+                                .withInitialDefault(Literal.of(34))
                                 .build())))
                 .withDoc("Used to test nested field defaults")
                 .build());
@@ -524,30 +524,30 @@ public abstract class AvroDataTest {
 
   private static Stream<Arguments> primitiveTypesAndDefaults() {
     return Stream.of(
-        Arguments.of(Types.BooleanType.get(), false),
-        Arguments.of(Types.IntegerType.get(), 34),
-        Arguments.of(Types.LongType.get(), 4900000000L),
-        Arguments.of(Types.FloatType.get(), 12.21F),
-        Arguments.of(Types.DoubleType.get(), -0.0D),
-        Arguments.of(Types.DateType.get(), DateTimeUtil.isoDateToDays("2024-12-17")),
+        Arguments.of(Types.BooleanType.get(), Literal.of(false)),
+        Arguments.of(Types.IntegerType.get(), Literal.of(34)),
+        Arguments.of(Types.LongType.get(), Literal.of(4900000000L)),
+        Arguments.of(Types.FloatType.get(), Literal.of(12.21F)),
+        Arguments.of(Types.DoubleType.get(), Literal.of(-0.0D)),
+        Arguments.of(Types.DateType.get(), Literal.of(DateTimeUtil.isoDateToDays("2024-12-17"))),
         // Arguments.of(Types.TimeType.get(), DateTimeUtil.isoTimeToMicros("23:59:59.999999")),
         Arguments.of(
             Types.TimestampType.withZone(),
-            DateTimeUtil.isoTimestamptzToMicros("2024-12-17T23:59:59.999999+00:00")),
+            Literal.of(DateTimeUtil.isoTimestamptzToMicros("2024-12-17T23:59:59.999999+00:00"))),
         // Arguments.of(
         //     Types.TimestampType.withoutZone(),
-        //     DateTimeUtil.isoTimestampToMicros("2024-12-17T23:59:59.999999")),
-        Arguments.of(Types.StringType.get(), "iceberg"),
-        Arguments.of(Types.UUIDType.get(), UUID.randomUUID()),
+        //     Literal.of(DateTimeUtil.isoTimestampToMicros("2024-12-17T23:59:59.999999"))),
+        Arguments.of(Types.StringType.get(), Literal.of("iceberg")),
+        Arguments.of(Types.UUIDType.get(), Literal.of(UUID.randomUUID())),
         Arguments.of(
-            Types.FixedType.ofLength(4), ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d})),
-        Arguments.of(Types.BinaryType.get(), ByteBuffer.wrap(new byte[] {0x0a, 0x0b})),
-        Arguments.of(Types.DecimalType.of(9, 2), new BigDecimal("12.34")));
+            Types.FixedType.ofLength(4), Literal.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d}))),
+        Arguments.of(Types.BinaryType.get(), Literal.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b}))),
+        Arguments.of(Types.DecimalType.of(9, 2), Literal.of(new BigDecimal("12.34"))));
   }
 
   @ParameterizedTest
   @MethodSource("primitiveTypesAndDefaults")
-  public void testPrimitiveTypeDefaultValues(Type.PrimitiveType type, Object defaultValue)
+  public void testPrimitiveTypeDefaultValues(Type.PrimitiveType type, Literal<?> defaultValue)
       throws IOException {
     Assumptions.assumeThat(supportsDefaultValues()).isTrue();
 
