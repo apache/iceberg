@@ -159,11 +159,7 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
     String parentName = partnerSchema.findColumnName(parentId);
     String fullName = (parentName != null ? parentName + "." : "") + field.name();
     api.addColumn(
-            parentName,
-            field.name(),
-            field.type(),
-            field.doc(),
-            field.initialDefaultLiteral())
+            parentName, field.name(), field.type(), field.doc(), field.initialDefaultLiteral())
         .updateColumnDefault(fullName, field.writeDefaultLiteral());
   }
 

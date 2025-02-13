@@ -625,7 +625,9 @@ public class Types {
         return this;
       }
 
-      /** @deprecated will be removed in 2.0.0; use {@link #withInitialDefault(Literal)} instead. */
+      /**
+       * @deprecated will be removed in 2.0.0; use {@link #withInitialDefault(Literal)} instead.
+       */
       public Builder withInitialDefault(Object fieldInitialDefault) {
         return withInitialDefault(Expressions.lit(fieldInitialDefault));
       }
@@ -635,7 +637,9 @@ public class Types {
         return this;
       }
 
-      /** @deprecated will be removed in 2.0.0; use {@link #withWriteDefault(Literal)} instead. */
+      /**
+       * @deprecated will be removed in 2.0.0; use {@link #withWriteDefault(Literal)} instead.
+       */
       @Deprecated
       public Builder withWriteDefault(Object fieldWriteDefault) {
         return withWriteDefault(Expressions.lit(fieldWriteDefault));
