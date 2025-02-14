@@ -29,10 +29,10 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Conversions;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
 
 /**
@@ -52,9 +52,8 @@ import org.apache.iceberg.util.NaNUtil;
  */
 public class StrictMetricsEvaluator {
   private final Schema schema;
+  private final StructType struct;
   private final Expression expr;
-  private final Map<Integer, Integer> idToParent;
-  private final Map<Integer, Boolean> canEvaluate = Maps.newHashMap();
 
   public StrictMetricsEvaluator(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -62,8 +61,8 @@ public class StrictMetricsEvaluator {
 
   public StrictMetricsEvaluator(Schema schema, Expression unbound, boolean caseSensitive) {
     this.schema = schema;
-    this.expr = Binder.bind(schema.asStruct(), rewriteNot(unbound), caseSensitive);
-    this.idToParent = TypeUtil.indexParents(schema.asStruct());
+    this.struct = schema.asStruct();
+    this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
   }
 
   /**
@@ -145,9 +144,8 @@ public class StrictMetricsEvaluator {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has any non-null values, the expression does not match
       int id = ref.fieldId();
-      if (!supportsEvaluate(id)) {
-        return ROWS_MIGHT_NOT_MATCH;
-      }
+      Preconditions.checkNotNull(
+          struct.field(id), "Cannot filter by nested column: %s", schema.findField(id));
 
       if (containsNullsOnly(id)) {
         return ROWS_MUST_MATCH;
@@ -161,9 +159,8 @@ public class StrictMetricsEvaluator {
       // no need to check whether the field is required because binding evaluates that case
       // if the column has any null values, the expression does not match
       int id = ref.fieldId();
-      if (!supportsEvaluate(id)) {
-        return ROWS_MIGHT_NOT_MATCH;
-      }
+      Preconditions.checkNotNull(
+          struct.field(id), "Cannot filter by nested column: %s", schema.findField(id));
 
       if (nullCounts != null && nullCounts.containsKey(id) && nullCounts.get(id) == 0) {
         return ROWS_MUST_MATCH;
@@ -202,16 +199,15 @@ public class StrictMetricsEvaluator {
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when: <----------Min----Max---X------->
       Integer id = ref.fieldId();
-      if (!supportsEvaluate(id)) {
-        return ROWS_MIGHT_NOT_MATCH;
-      }
+      Types.NestedField field = struct.field(id);
+      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       if (canContainNulls(id) || canContainNaNs(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
       if (upperBounds != null && upperBounds.containsKey(id)) {
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
+        T upper = Conversions.fromByteBuffer(field.type(), upperBounds.get(id));
 
         int cmp = lit.comparator().compare(upper, lit.value());
         if (cmp < 0) {
@@ -226,16 +222,15 @@ public class StrictMetricsEvaluator {
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when: <----------Min----Max---X------->
       Integer id = ref.fieldId();
-      if (!supportsEvaluate(id)) {
-        return ROWS_MIGHT_NOT_MATCH;
-      }
+      Types.NestedField field = struct.field(id);
+      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       if (canContainNulls(id) || canContainNaNs(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
       if (upperBounds != null && upperBounds.containsKey(id)) {
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
+        T upper = Conversions.fromByteBuffer(field.type(), upperBounds.get(id));
 
         int cmp = lit.comparator().compare(upper, lit.value());
         if (cmp <= 0) {
@@ -250,16 +245,15 @@ public class StrictMetricsEvaluator {
     public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when: <-------X---Min----Max---------->
       Integer id = ref.fieldId();
-      if (!supportsEvaluate(id)) {
-        return ROWS_MIGHT_NOT_MATCH;
-      }
+      Types.NestedField field = struct.field(id);
+      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       if (canContainNulls(id) || canContainNaNs(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+        T lower = Conversions.fromByteBuffer(field.type(), lowerBounds.get(id));
 
         if (NaNUtil.isNaN(lower)) {
           // NaN indicates unreliable bounds. See the StrictMetricsEvaluator docs for more.
@@ -279,16 +273,15 @@ public class StrictMetricsEvaluator {
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when: <-------X---Min----Max---------->
       Integer id = ref.fieldId();
-      if (!supportsEvaluate(id)) {
-        return ROWS_MIGHT_NOT_MATCH;
-      }
+      Types.NestedField field = struct.field(id);
+      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       if (canContainNulls(id) || canContainNaNs(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+        T lower = Conversions.fromByteBuffer(field.type(), lowerBounds.get(id));
 
         if (NaNUtil.isNaN(lower)) {
           // NaN indicates unreliable bounds. See the StrictMetricsEvaluator docs for more.
@@ -308,9 +301,8 @@ public class StrictMetricsEvaluator {
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when Min == X == Max
       Integer id = ref.fieldId();
-      if (!supportsEvaluate(id)) {
-        return ROWS_MIGHT_NOT_MATCH;
-      }
+      Types.NestedField field = struct.field(id);
+      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       if (canContainNulls(id) || canContainNaNs(id)) {
         return ROWS_MIGHT_NOT_MATCH;
@@ -320,14 +312,14 @@ public class StrictMetricsEvaluator {
           && lowerBounds.containsKey(id)
           && upperBounds != null
           && upperBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+        T lower = Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
 
         int cmp = lit.comparator().compare(lower, lit.value());
         if (cmp != 0) {
           return ROWS_MIGHT_NOT_MATCH;
         }
 
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
+        T upper = Conversions.fromByteBuffer(field.type(), upperBounds.get(id));
 
         cmp = lit.comparator().compare(upper, lit.value());
         if (cmp != 0) {
@@ -344,16 +336,15 @@ public class StrictMetricsEvaluator {
     public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when X < Min or Max < X because it is not in the range
       Integer id = ref.fieldId();
-      if (!supportsEvaluate(id)) {
-        return ROWS_MIGHT_NOT_MATCH;
-      }
+      Types.NestedField field = struct.field(id);
+      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       if (containsNullsOnly(id) || containsNaNsOnly(id)) {
         return ROWS_MUST_MATCH;
       }
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+        T lower = Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
 
         if (NaNUtil.isNaN(lower)) {
           // NaN indicates unreliable bounds. See the StrictMetricsEvaluator docs for more.
@@ -367,7 +358,7 @@ public class StrictMetricsEvaluator {
       }
 
       if (upperBounds != null && upperBounds.containsKey(id)) {
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
+        T upper = Conversions.fromByteBuffer(field.type(), upperBounds.get(id));
 
         int cmp = lit.comparator().compare(upper, lit.value());
         if (cmp < 0) {
@@ -381,9 +372,8 @@ public class StrictMetricsEvaluator {
     @Override
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
       Integer id = ref.fieldId();
-      if (!supportsEvaluate(id)) {
-        return ROWS_MIGHT_NOT_MATCH;
-      }
+      Types.NestedField field = struct.field(id);
+      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       if (canContainNulls(id) || canContainNaNs(id)) {
         return ROWS_MIGHT_NOT_MATCH;
@@ -394,13 +384,13 @@ public class StrictMetricsEvaluator {
           && upperBounds != null
           && upperBounds.containsKey(id)) {
         // similar to the implementation in eq, first check if the lower bound is in the set
-        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+        T lower = Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
         if (!literalSet.contains(lower)) {
           return ROWS_MIGHT_NOT_MATCH;
         }
 
         // check if the upper bound is in the set
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
+        T upper = Conversions.fromByteBuffer(field.type(), upperBounds.get(id));
         if (!literalSet.contains(upper)) {
           return ROWS_MIGHT_NOT_MATCH;
         }
@@ -421,9 +411,8 @@ public class StrictMetricsEvaluator {
     @Override
     public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
       Integer id = ref.fieldId();
-      if (!supportsEvaluate(id)) {
-        return ROWS_MIGHT_NOT_MATCH;
-      }
+      Types.NestedField field = struct.field(id);
+      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
       if (containsNullsOnly(id) || containsNaNsOnly(id)) {
         return ROWS_MUST_MATCH;
@@ -432,7 +421,7 @@ public class StrictMetricsEvaluator {
       Collection<T> literals = literalSet;
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+        T lower = Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
 
         if (NaNUtil.isNaN(lower)) {
           // NaN indicates unreliable bounds. See the StrictMetricsEvaluator docs for more.
@@ -450,7 +439,7 @@ public class StrictMetricsEvaluator {
       }
 
       if (upperBounds != null && upperBounds.containsKey(id)) {
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
+        T upper = Conversions.fromByteBuffer(field.type(), upperBounds.get(id));
         literals =
             literals.stream()
                 .filter(v -> ref.comparator().compare(upper, v) >= 0)
@@ -499,33 +488,6 @@ public class StrictMetricsEvaluator {
           && nanCounts.containsKey(id)
           && valueCounts != null
           && nanCounts.get(id).equals(valueCounts.get(id));
-    }
-
-    private boolean supportsEvaluate(int fieldId) {
-      Boolean evaluable = canEvaluate.get(fieldId);
-      if (evaluable != null) {
-        return evaluable;
-      }
-
-      evaluable = true;
-      // Cannot evaluate on complex types or repeated primitive types.
-      if (!schema.findType(fieldId).isPrimitiveType()) {
-        evaluable = false;
-      } else {
-        Integer parent = idToParent.get(fieldId);
-        while (parent != null) {
-          Type type = schema.findType(parent);
-          if (type.isListType() || type.isMapType()) {
-            evaluable = false;
-            break;
-          }
-
-          parent = idToParent.get(parent);
-        }
-      }
-
-      canEvaluate.put(fieldId, evaluable);
-      return evaluable;
     }
   }
 }
