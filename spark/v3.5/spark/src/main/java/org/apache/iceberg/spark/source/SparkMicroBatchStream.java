@@ -322,8 +322,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
       // In fact, it should only be a composite of two or more of ReadMinRows, ReadMaxRows and
       // ReadMaxFiles, with no more than one of each.
       ReadLimit[] limits = ((CompositeReadLimit) readLimit).getReadLimits();
-      for (int i = 0; i < limits.length; i++) {
-        ReadLimit limit = limits[i];
+      for (ReadLimit limit : limits) {
         if (limit instanceof ReadMaxFiles) {
           return ((ReadMaxFiles) limit).maxFiles();
         }
@@ -342,8 +341,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
 
     if (readLimit instanceof CompositeReadLimit) {
       ReadLimit[] limits = ((CompositeReadLimit) readLimit).getReadLimits();
-      for (int i = 0; i < limits.length; i++) {
-        ReadLimit limit = limits[i];
+      for (ReadLimit limit : limits) {
         if (limit instanceof ReadMaxRows) {
           long maxRows = ((ReadMaxRows) limit).maxRows();
           return Math.toIntExact(maxRows);
