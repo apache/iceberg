@@ -36,7 +36,7 @@ public class TestColumnarBatchUtil {
   private DeleteFilter deleteFilter;
 
   @BeforeEach
-  public void setup() {
+  public void before() {
     columnVectors = new ColumnVector[2];
     columnVectors[0] = mock(ColumnVector.class);
     columnVectors[1] = mock(ColumnVector.class);
