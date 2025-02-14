@@ -22,17 +22,14 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.ClusteredPositionDeleteWriter;
@@ -82,6 +79,7 @@ public class SparkPositionDeletesRewrite implements Write {
   private final int specId;
   private final StructLike partition;
   private final Map<String, String> writeProperties;
+  private final int formatVersion;
 
   /**
    * Constructs a {@link SparkPositionDeletesRewrite}.
@@ -94,6 +92,7 @@ public class SparkPositionDeletesRewrite implements Write {
    * @param dsSchema schema of original incoming position deletes dataset
    * @param specId spec id of position deletes
    * @param partition partition value of position deletes
+   * @param formatVersion The format version of the underlying table
    */
   SparkPositionDeletesRewrite(
       SparkSession spark,
@@ -103,7 +102,8 @@ public class SparkPositionDeletesRewrite implements Write {
       Schema writeSchema,
       StructType dsSchema,
       int specId,
-      StructLike partition) {
+      StructLike partition,
+      int formatVersion) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.queryId = writeInfo.queryId();
@@ -116,6 +116,7 @@ public class SparkPositionDeletesRewrite implements Write {
     this.specId = specId;
     this.partition = partition;
     this.writeProperties = writeConf.writeProperties();
+    this.formatVersion = formatVersion;
   }
 
   @Override
@@ -141,7 +142,8 @@ public class SparkPositionDeletesRewrite implements Write {
           dsSchema,
           specId,
           partition,
-          writeProperties);
+          writeProperties,
+          formatVersion);
     }
 
     @Override
@@ -193,6 +195,7 @@ public class SparkPositionDeletesRewrite implements Write {
     private final int specId;
     private final StructLike partition;
     private final Map<String, String> writeProperties;
+    private final int formatVersion;
 
     PositionDeletesWriterFactory(
         Broadcast<Table> tableBroadcast,
@@ -204,7 +207,8 @@ public class SparkPositionDeletesRewrite implements Write {
         StructType dsSchema,
         int specId,
         StructLike partition,
-        Map<String, String> writeProperties) {
+        Map<String, String> writeProperties,
+        int formatVersion) {
       this.tableBroadcast = tableBroadcast;
       this.queryId = queryId;
       this.format = format;
@@ -215,24 +219,13 @@ public class SparkPositionDeletesRewrite implements Write {
       this.specId = specId;
       this.partition = partition;
       this.writeProperties = writeProperties;
-    }
-
-    private Table underlyingTable(Table table) {
-      if (table instanceof SerializableTable.SerializableMetadataTable) {
-        return underlyingTable(
-            ((SerializableTable.SerializableMetadataTable) table).underlyingTable());
-      } else if (table instanceof BaseMetadataTable) {
-        return ((BaseMetadataTable) table).table();
-      }
-
-      return table;
+      this.formatVersion = formatVersion;
     }
 
     @Override
     public DataWriter<InternalRow> createWriter(int partitionId, long taskId) {
       Table table = tableBroadcast.value();
 
-      int formatVersion = TableUtil.formatVersion(underlyingTable(table));
       OutputFileFactory deleteFileFactory =
           OutputFileFactory.builderFor(table, partitionId, taskId)
               .format(formatVersion >= 3 ? FileFormat.PUFFIN : format)

@@ -758,9 +758,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     assertThat(dvRecords(table)).hasSize(2);
 
     // rewriting DVs via rewritePositionDeletes shouldn't be possible anymore
-    assertThatThrownBy(() -> SparkActions.get(spark).rewritePositionDeletes(table).execute())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot rewrite DVs: v2 deletes have already been rewritten to v3 DVs");
+    assertThat(SparkActions.get(spark).rewritePositionDeletes(table).execute().rewriteResults())
+        .isEmpty();
   }
 
   private List<Row> dvRecords(Table table) {

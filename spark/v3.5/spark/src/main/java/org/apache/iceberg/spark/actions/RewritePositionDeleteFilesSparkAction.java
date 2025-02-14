@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -31,7 +30,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataTableType;
@@ -54,6 +52,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -127,6 +126,11 @@ public class RewritePositionDeleteFilesSparkAction
 
     validateAndInitOptions();
 
+    if (hasDeletionVectors()) {
+      LOG.info("v2 deletes in {} have already been rewritten to v3 DVs", table.name());
+      return EMPTY_RESULT;
+    }
+
     StructLikeMap<List<List<PositionDeletesScanTask>>> fileGroupsByPartition = planFileGroups();
     RewriteExecutionContext ctx = new RewriteExecutionContext(fileGroupsByPartition);
 
@@ -142,6 +146,33 @@ public class RewritePositionDeleteFilesSparkAction
     } else {
       return doExecute(ctx, groupStream, commitManager());
     }
+  }
+
+  private boolean hasDeletionVectors() {
+    if (TableUtil.formatVersion(table) >= 3) {
+      PositionDeletesBatchScan scan =
+          (PositionDeletesBatchScan)
+              MetadataTableUtils.createMetadataTableInstance(
+                      table, MetadataTableType.POSITION_DELETES)
+                  .newBatchScan();
+      try (CloseableIterator<PositionDeletesScanTask> it =
+          CloseableIterable.filter(
+                  CloseableIterable.transform(
+                      scan.baseTableFilter(filter)
+                          .caseSensitive(caseSensitive)
+                          .select(PositionDeletesTable.DELETE_FILE_PATH)
+                          .ignoreResiduals()
+                          .planFiles(),
+                      task -> (PositionDeletesScanTask) task),
+                  t -> t.file().format() == FileFormat.PUFFIN)
+              .iterator()) {
+        return it.hasNext();
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    return false;
   }
 
   private StructLikeMap<List<List<PositionDeletesScanTask>>> planFileGroups() {
@@ -407,32 +438,6 @@ public class RewritePositionDeleteFilesSparkAction
         PARTIAL_PROGRESS_MAX_COMMITS,
         maxCommits,
         PARTIAL_PROGRESS_ENABLED);
-
-    if (TableUtil.formatVersion(table) >= 3) {
-      PositionDeletesBatchScan scan =
-          (PositionDeletesBatchScan)
-              MetadataTableUtils.createMetadataTableInstance(
-                      table, MetadataTableType.POSITION_DELETES)
-                  .newBatchScan();
-      Optional<PositionDeletesScanTask> foundPuffinFiles =
-          StreamSupport.stream(
-                  CloseableIterable.transform(
-                          scan.baseTableFilter(filter)
-                              .caseSensitive(caseSensitive)
-                              .select(PositionDeletesTable.DELETE_FILE_PATH)
-                              .ignoreResiduals()
-                              .planFiles(),
-                          task -> (PositionDeletesScanTask) task)
-                      .spliterator(),
-                  false)
-              .filter(t -> t.file().format() == FileFormat.PUFFIN)
-              .findAny();
-
-      if (foundPuffinFiles.isPresent()) {
-        throw new IllegalArgumentException(
-            "Cannot rewrite DVs: v2 deletes have already been rewritten to v3 DVs");
-      }
-    }
   }
 
   private String jobDesc(RewritePositionDeletesGroup group, RewriteExecutionContext ctx) {
