@@ -1067,6 +1067,31 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         DeleteOrphanFiles.PrefixMismatchMode.DELETE);
   }
 
+  @TestTemplate
+  public void testRemoveOrphansFileInTableLocation() {
+    Table table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
+
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+
+    // add a file to root table location
+    df.write().mode("append").parquet(tableLocation);
+
+    long timestamp = System.currentTimeMillis();
+
+    waitUntilAfter(System.currentTimeMillis() + 1000L);
+
+    SparkActions actions = SparkActions.get();
+
+    DeleteOrphanFiles.Result result =
+        actions.deleteOrphanFiles(table).olderThan(timestamp).execute();
+
+    assertThat(Iterables.size(result.orphanFileLocations())).isZero();
+  }
+
   protected String randomName(String prefix) {
     return prefix + UUID.randomUUID().toString().replace("-", "");
   }

@@ -26,6 +26,7 @@ import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -44,6 +45,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.actions.ImmutableDeleteOrphanFiles;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -57,6 +59,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
@@ -84,11 +87,11 @@ import scala.Tuple2;
  * comparing the actual files in that location with content and metadata files referenced by all
  * valid snapshots. The location must be accessible for listing via the Hadoop {@link FileSystem}.
  *
- * <p>By default, this action cleans up the table location returned by {@link Table#location()} and
- * removes unreachable files that are older than 3 days using {@link Table#io()}. The behavior can
- * be modified by passing a custom location to {@link #location} and a custom timestamp to {@link
- * #olderThan(long)}. For example, someone might point this action to the data folder to clean up
- * only orphan data files.
+ * <p>By default, this action cleans up data and metadata directory under the table location
+ * returned by {@link Table#location()} and removes unreachable files that are older than 3 days
+ * using {@link Table#io()}. The behavior can be modified by passing a custom location to {@link
+ * #location} and a custom timestamp to {@link #olderThan(long)}. For example, someone might point
+ * this action to the data folder to clean up only orphan data files.
  *
  * <p>Configure an alternative delete method using {@link #deleteWith(Consumer)}.
  *
@@ -301,24 +304,33 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
   private Dataset<String> listedFileDS() {
     List<String> subDirs = Lists.newArrayList();
-    List<String> matchingFiles = Lists.newArrayList();
+    Set<String> matchingFiles = Sets.newHashSet();
 
     Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
     PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(table.specs());
 
+    List<String> locationsToList = Lists.newArrayList();
+    if (location.equals(table.location())) {
+      locationsToList.add(dataLocation());
+      locationsToList.add(metadataFileLocation());
+    } else {
+      locationsToList.add(location);
+    }
+
     // list at most MAX_DRIVER_LISTING_DEPTH levels and only dirs that have
     // less than MAX_DRIVER_LISTING_DIRECT_SUB_DIRS direct sub dirs on the driver
-    listDirRecursively(
-        location,
-        predicate,
-        hadoopConf.value(),
-        MAX_DRIVER_LISTING_DEPTH,
-        MAX_DRIVER_LISTING_DIRECT_SUB_DIRS,
-        subDirs,
-        pathFilter,
-        matchingFiles);
-
-    JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
+    locationsToList.forEach(
+        listLocation ->
+            listDirRecursively(
+                listLocation,
+                predicate,
+                hadoopConf.value(),
+                MAX_DRIVER_LISTING_DEPTH,
+                MAX_DRIVER_LISTING_DIRECT_SUB_DIRS,
+                subDirs,
+                pathFilter,
+                matchingFiles));
+    JavaRDD<String> matchingFileRDD = sparkContext().parallelize(new ArrayList<>(matchingFiles), 1);
 
     if (subDirs.isEmpty()) {
       return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
@@ -335,6 +347,21 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING());
   }
 
+  private String dataLocation() {
+    return table
+        .properties()
+        .getOrDefault(
+            TableProperties.WRITE_DATA_LOCATION, String.format("%s/data", table.location()));
+  }
+
+  private String metadataFileLocation() {
+    return table
+        .properties()
+        .getOrDefault(
+            TableProperties.WRITE_METADATA_LOCATION,
+            String.format("%s/metadata", table.location()));
+  }
+
   private static void listDirRecursively(
       String dir,
       Predicate<FileStatus> predicate,
@@ -343,7 +370,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       int maxDirectSubDirs,
       List<String> remainingSubDirs,
       PathFilter pathFilter,
-      List<String> matchingFiles) {
+      Set<String> matchingFiles) {
 
     // stop listing whenever we reach the max depth
     if (maxDepth <= 0) {
@@ -357,11 +384,13 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
       List<String> subDirs = Lists.newArrayList();
 
-      for (FileStatus file : fs.listStatus(path, pathFilter)) {
-        if (file.isDirectory()) {
-          subDirs.add(file.getPath().toString());
-        } else if (file.isFile() && predicate.test(file)) {
-          matchingFiles.add(file.getPath().toString());
+      if (fs.exists(path)) {
+        for (FileStatus file : fs.listStatus(path, pathFilter)) {
+          if (file.isDirectory()) {
+            subDirs.add(file.getPath().toString());
+          } else if (file.isFile() && predicate.test(file)) {
+            matchingFiles.add(file.getPath().toString());
+          }
         }
       }
 
@@ -453,7 +482,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     @Override
     public Iterator<String> call(Iterator<String> dirs) throws Exception {
       List<String> subDirs = Lists.newArrayList();
-      List<String> files = Lists.newArrayList();
+      Set<String> files = Sets.newHashSet();
 
       Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
 
