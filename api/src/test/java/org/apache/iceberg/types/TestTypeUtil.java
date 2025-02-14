@@ -710,9 +710,16 @@ public class TestTypeUtil {
     Schema schema =
         new Schema(required(0, "v", testType), required(1, "A", Types.IntegerType.get()));
 
-    Schema expectedSchema = new Schema(Lists.newArrayList(required(0, "v", testType)));
+    Schema expectedSchema = new Schema(required(0, "v", testType));
     Schema projectedSchema = TypeUtil.project(schema, Sets.newHashSet(0));
     assertThat(projectedSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
+  }
+
+  @ParameterizedTest
+  @MethodSource("testTypes")
+  public void testGetProjectedIdsWithType(Type testType) {
+    Schema schema =
+        new Schema(required(0, "v", testType), required(1, "A", Types.IntegerType.get()));
 
     Set<Integer> projectedIds = TypeUtil.getProjectedIds(schema);
     assertThat(Set.of(0, 1)).isEqualTo(projectedIds);

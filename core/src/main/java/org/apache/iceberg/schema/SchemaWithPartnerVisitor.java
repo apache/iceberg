@@ -106,8 +106,10 @@ public abstract class SchemaWithPartnerVisitor<P, R> {
         }
 
         return visitor.map(map, partner, keyResult, valueResult);
+
       case VARIANT:
         return visitor.variant(type.asVariantType(), partner);
+
       default:
         return visitor.primitive(type.asPrimitiveType(), partner);
     }
