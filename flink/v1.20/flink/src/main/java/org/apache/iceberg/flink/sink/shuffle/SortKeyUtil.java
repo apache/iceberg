@@ -45,12 +45,11 @@ class SortKeyUtil {
       // case. To resolve the collision, field id is set to transform index and field name is set to
       // sourceFieldName_transformIndex
       Types.NestedField transformedField =
-          Types.NestedField.of(
-              i,
-              sourceField.isOptional(),
-              sourceField.name() + '_' + i,
-              transformedType,
-              sourceField.doc());
+          Types.NestedField.from(sourceField)
+              .withId(i)
+              .withName(sourceField.name() + '_' + i)
+              .ofType(transformedType)
+              .build();
       transformedFields.add(transformedField);
     }
 
