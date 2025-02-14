@@ -616,6 +616,14 @@ public class TypeUtil {
       return null;
     }
 
+    /**
+     * @deprecated will be removed in 2.0.0; use {@link #variant(Types.VariantType)} instead.
+     */
+    @Deprecated
+    public T variant() {
+      return variant(Types.VariantType.get());
+    }
+
     public T variant(Types.VariantType variant) {
       throw new UnsupportedOperationException("Unsupported type: variant");
     }

@@ -303,6 +303,11 @@ public class MappingUtil {
     }
 
     @Override
+    public MappedFields variant(Types.VariantType variant) {
+      return null; // no mapping because variant no nested fields
+    }
+
+    @Override
     public MappedFields primitive(Type.PrimitiveType primitive) {
       return null; // no mapping because primitives have no nested fields
     }

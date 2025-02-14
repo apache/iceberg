@@ -22,6 +22,8 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type.PrimitiveType;
@@ -110,6 +112,34 @@ public class TestReadabilityChecks {
     assertThat(errors.get(0))
         .as("Should complain that primitive to struct is not allowed")
         .contains("cannot be read as a struct");
+  }
+
+  @Test
+  public void testVariantType() {
+    Schema fromSchema = new Schema(required(1, "from_field", Types.VariantType.get()));
+    List<String> errors =
+        CheckCompatibility.writeCompatibilityErrors(
+            new Schema(required(1, "to_field", Types.VariantType.get())), fromSchema);
+    assertThat(errors).as("Should produce 0 error messages").isEmpty();
+
+    List<Type> incompatibleTypes = new ArrayList<>();
+    incompatibleTypes.addAll(
+        List.of(
+            Types.StructType.of(required(1, "from", Types.IntegerType.get())),
+            Types.MapType.ofRequired(1, 2, Types.StringType.get(), Types.IntegerType.get()),
+            Types.ListType.ofRequired(1, Types.StringType.get())));
+    incompatibleTypes.addAll(Arrays.asList(PRIMITIVES));
+
+    for (Type from : incompatibleTypes) {
+      fromSchema = new Schema(required(3, "from_field", from));
+      errors =
+          CheckCompatibility.writeCompatibilityErrors(
+              new Schema(required(3, "to_field", Types.VariantType.get())), fromSchema);
+      assertThat(errors).hasSize(1);
+      assertThat(errors.get(0))
+          .as("Should complain that other type to variant is not allowed")
+          .contains("cannot be read as a variant");
+    }
   }
 
   @Test
