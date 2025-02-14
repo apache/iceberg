@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg;
 
+import org.apache.iceberg.FileContent;
 import java.util.List;
+
 
 /** A scan task over a range of bytes in a single data file. */
 public interface FileScanTask extends ContentScanTask<DataFile>, SplittableScanTask<FileScanTask> {
@@ -37,6 +39,26 @@ public interface FileScanTask extends ContentScanTask<DataFile>, SplittableScanT
   @Override
   default long sizeBytes() {
     return length() + deletes().stream().mapToLong(ContentFile::fileSizeInBytes).sum();
+  }
+
+  default long positionDeleteCount() {
+      long positionDeletesRows = 0;
+      for (DeleteFile deleteFile : deletes()) {
+          if (deleteFile.content() == FileContent.POSITION_DELETES) {
+              positionDeletesRows += deleteFile.recordCount();
+          }
+      }
+      return positionDeletesRows;
+  }
+
+  default long equalityDeleteCount() {
+      long equalityDeletesRows = 0;
+      for (DeleteFile deleteFile : deletes()) {
+          if (deleteFile.content() == FileContent.EQUALITY_DELETES) {
+              equalityDeletesRows += deleteFile.recordCount();
+          }
+      }
+      return equalityDeletesRows;
   }
 
   @Override

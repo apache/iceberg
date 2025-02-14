@@ -29,8 +29,12 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.PropertyUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 
 public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileScanTask, DataFile> {
+    private static final Logger LOG = LoggerFactory.getLogger(SizeBasedDataRewriter.class);
 
   /**
    * The minimum number of deletes that needs to be associated with a data file for it to be
@@ -48,6 +52,25 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
 
   private int deleteFileThreshold;
 
+
+  /**
+ * The threshold for the minimum number of deleted rows that a data file must have to be considered for rewriting.
+ * If a data file has a row count greater than or equal to the specified threshold, the file will be considered
+ * for rewriting regardless of other size or delete-based criteria.
+ *
+ * <p>This property allows for controlling the rewrite of files based on deleted row count, which can be useful when
+ * the size of a file isn't the sole criterion, and large files with excessive rows should also be rewritten
+ * for performance reasons or other optimization goals.
+ *
+ * <p>Defaults to 0, meaning this feature is disabled unless a specific threshold is set.
+ */
+  public static final String DELETED_ROW_COUNT_THRESHOLD = "deleted-row-count-threshold";
+
+  public static final int DELETED_ROW_COUNT_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
+
+  private int deletedRowCountThreshold;
+
+
   protected SizeBasedDataRewriter(Table table) {
     super(table);
   }
@@ -57,6 +80,7 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
     return ImmutableSet.<String>builder()
         .addAll(super.validOptions())
         .add(DELETE_FILE_THRESHOLD)
+        .add(DELETED_ROW_COUNT_THRESHOLD)
         .build();
   }
 
@@ -64,11 +88,28 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
   public void init(Map<String, String> options) {
     super.init(options);
     this.deleteFileThreshold = deleteFileThreshold(options);
+    this.deletedRowCountThreshold = deletedRowCountThreshold(options);
   }
 
   @Override
   protected Iterable<FileScanTask> filterFiles(Iterable<FileScanTask> tasks) {
-    return Iterables.filter(tasks, task -> wronglySized(task) || tooManyDeletes(task));
+    return Iterables.filter(tasks, task -> wronglySized(task)
+        || tooManyDeletes(task)
+        || tooManyDeletedRows(task));
+  }
+
+  private boolean tooManyDeletedRows(FileScanTask task) {
+      long positionDeletes = task.positionDeleteCount();
+      long equalityDeletes = task.equalityDeleteCount();
+
+      // Equality deletes are 10x more resource-intensive
+      long totalWeightedDeletes = positionDeletes + (equalityDeletes * 10);
+      boolean exceedsThreshold = totalWeightedDeletes >= deletedRowCountThreshold;
+
+      LOG.debug("Task delete counts: file={}, position_deletes={}, equality_deletes={}, weighted_total={}, threshold={}, exceeds={}",
+          task.file().path(), positionDeletes, equalityDeletes, totalWeightedDeletes, deletedRowCountThreshold, exceedsThreshold);
+
+      return exceedsThreshold;
   }
 
   private boolean tooManyDeletes(FileScanTask task) {
@@ -84,7 +125,27 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
     return enoughInputFiles(group)
         || enoughContent(group)
         || tooMuchContent(group)
-        || anyTaskHasTooManyDeletes(group);
+        || anyTaskHasTooManyDeletes(group)
+        || combinedTasksHasTooManyDeletedRows(group);
+  }
+
+  private boolean combinedTasksHasTooManyDeletedRows(List<FileScanTask> group) {
+      long totalPositionDeletes = group.stream()
+          .mapToLong(FileScanTask::positionDeleteCount)
+          .sum();
+
+      long totalEqualityDeletes = group.stream()
+          .mapToLong(FileScanTask::equalityDeleteCount)
+          .sum();
+
+      // Equality deletes are 10x more resource-intensive
+      long totalWeightedDeletes = totalPositionDeletes + (totalEqualityDeletes * 10);
+      boolean exceedsThreshold = totalWeightedDeletes >= deletedRowCountThreshold;
+
+      LOG.debug("Group delete counts: position_deletes={}, equality_deletes={}, weighted_total={}, threshold={}, exceeds={}",
+          totalPositionDeletes, totalEqualityDeletes, totalWeightedDeletes, deletedRowCountThreshold, exceedsThreshold);
+
+      return exceedsThreshold;
   }
 
   private boolean anyTaskHasTooManyDeletes(List<FileScanTask> group) {
@@ -104,6 +165,14 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
         PropertyUtil.propertyAsInt(options, DELETE_FILE_THRESHOLD, DELETE_FILE_THRESHOLD_DEFAULT);
     Preconditions.checkArgument(
         value >= 0, "'%s' is set to %s but must be >= 0", DELETE_FILE_THRESHOLD, value);
+    return value;
+  }
+
+  private int deletedRowCountThreshold(Map<String, String> options) {
+    int value =
+        PropertyUtil.propertyAsInt(options, DELETED_ROW_COUNT_THRESHOLD, DELETED_ROW_COUNT_THRESHOLD_DEFAULT);
+    Preconditions.checkArgument(
+        value >= 0, "'%s' is set to %s but must be >= 0", DELETED_ROW_COUNT_THRESHOLD, value);
     return value;
   }
 }
