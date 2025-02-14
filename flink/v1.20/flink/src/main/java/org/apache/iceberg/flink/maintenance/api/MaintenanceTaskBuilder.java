@@ -195,9 +195,9 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
 
   DataStream<TaskResult> append(
       DataStream<Trigger> sourceStream,
-      int taskIndex,
-      String newTaskName,
       String newTableName,
+      String newTaskName,
+      int taskIndex,
       TableLoader newTableLoader,
       String defaultUidSuffix,
       String defaultSlotSharingGroup,
