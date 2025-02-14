@@ -24,6 +24,7 @@ import static org.apache.iceberg.avro.AvroTestHelpers.addValueId;
 import static org.apache.iceberg.avro.AvroTestHelpers.optionalField;
 import static org.apache.iceberg.avro.AvroTestHelpers.record;
 import static org.apache.iceberg.avro.AvroTestHelpers.requiredField;
+import static org.apache.iceberg.avro.AvroTestHelpers.variant;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -57,7 +58,8 @@ public class TestSchemaConversions {
             Types.UUIDType.get(),
             Types.FixedType.ofLength(12),
             Types.BinaryType.get(),
-            Types.DecimalType.of(9, 4));
+            Types.DecimalType.of(9, 4),
+            Types.VariantType.get());
 
     List<Schema> avroPrimitives =
         Lists.newArrayList(
@@ -77,7 +79,8 @@ public class TestSchemaConversions {
             Schema.createFixed("fixed_12", null, null, 12),
             Schema.create(Schema.Type.BYTES),
             LogicalTypes.decimal(9, 4)
-                .addToSchema(Schema.createFixed("decimal_9_4", null, null, 4)));
+                .addToSchema(Schema.createFixed("decimal_9_4", null, null, 4)),
+            variant("rnull"));
 
     for (int i = 0; i < primitives.size(); i += 1) {
       Type type = primitives.get(i);
@@ -125,7 +128,8 @@ public class TestSchemaConversions {
             optional(31, "uuid", Types.UUIDType.get()),
             optional(32, "fixed", Types.FixedType.ofLength(16)),
             optional(33, "binary", Types.BinaryType.get()),
-            optional(34, "decimal", Types.DecimalType.of(14, 2)));
+            optional(34, "decimal", Types.DecimalType.of(14, 2)),
+            optional(35, "variant", Types.VariantType.get()));
 
     Schema schema =
         record(
@@ -162,7 +166,8 @@ public class TestSchemaConversions {
                 34,
                 "decimal",
                 LogicalTypes.decimal(14, 2)
-                    .addToSchema(Schema.createFixed("decimal_14_2", null, null, 6))));
+                    .addToSchema(Schema.createFixed("decimal_14_2", null, null, 6))),
+            optionalField(35, "variant", variant("r35")));
 
     assertThat(AvroSchemaUtil.convert(schema))
         .as("Test conversion from Avro schema")
