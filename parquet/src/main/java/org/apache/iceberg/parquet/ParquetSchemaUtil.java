@@ -41,6 +41,10 @@ public class ParquetSchemaUtil {
     return new TypeToMessageType().convert(schema, name);
   }
 
+  public static MessageType convert(Schema schema, String name, boolean ignoreUnknownFields) {
+    return new TypeToMessageType(ignoreUnknownFields).convert(schema, name);
+  }
+
   /**
    * Converts a Parquet schema to an Iceberg schema. Fields without IDs are kept and assigned
    * fallback IDs.
