@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -104,6 +105,31 @@ public class TestSelect extends CatalogTestBase {
         ImmutableList.of(row(1L, "a", 1.0F), row(2L, "b", 2.0F), row(3L, "c", Float.NaN));
 
     assertEquals("Should return all expected rows", expected, sql("SELECT * FROM %s", tableName));
+  }
+
+  @TestTemplate
+  public void testSelectWithSpecifiedTargetSplitSize() {
+    List<Object[]> expected =
+        ImmutableList.of(row(1L, "a", 1.0F), row(2L, "b", 2.0F), row(3L, "c", Float.NaN));
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.updateProperties().set("read.split.target-size", "1024").commit();
+    spark.sql("REFRESH TABLE " + tableName);
+    assertEquals("Should return all expected rows", expected, sql("SELECT * FROM %s", tableName));
+
+    // Query failed when `SPLIT_SIZE` < 0
+    table.updateProperties().set(SPLIT_SIZE, "-1").commit();
+    spark.sql("REFRESH TABLE " + tableName);
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", tableName))
+        .hasMessageContaining("Split size must be > 0: -1")
+        .isInstanceOf(IllegalArgumentException.class);
+
+    // Query failed when `SPLIT_SIZE` == 0
+    table.updateProperties().set(SPLIT_SIZE, "0").commit();
+    spark.sql("REFRESH TABLE " + tableName);
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", tableName))
+        .hasMessageContaining("Split size must be > 0: 0")
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @TestTemplate

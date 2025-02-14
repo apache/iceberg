@@ -26,6 +26,8 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
@@ -197,9 +199,9 @@ public class SchemaParser {
     throw new IllegalArgumentException("Cannot parse type from json: " + json);
   }
 
-  private static Object defaultFromJson(String defaultField, Type type, JsonNode json) {
+  private static Literal<?> defaultFromJson(String defaultField, Type type, JsonNode json) {
     if (json.has(defaultField)) {
-      return SingleValueParser.fromJson(type, json.get(defaultField));
+      return Expressions.lit(SingleValueParser.fromJson(type, json.get(defaultField)));
     }
 
     return null;
@@ -229,8 +231,8 @@ public class SchemaParser {
       String name = JsonUtil.getString(NAME, field);
       Type type = typeFromJson(JsonUtil.get(TYPE, field));
 
-      Object initialDefault = defaultFromJson(INITIAL_DEFAULT, type, field);
-      Object writeDefault = defaultFromJson(WRITE_DEFAULT, type, field);
+      Literal<?> initialDefault = defaultFromJson(INITIAL_DEFAULT, type, field);
+      Literal<?> writeDefault = defaultFromJson(WRITE_DEFAULT, type, field);
 
       String doc = JsonUtil.getStringOrNull(DOC, field);
       boolean isRequired = JsonUtil.getBool(REQUIRED, field);

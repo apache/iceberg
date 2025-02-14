@@ -19,7 +19,6 @@
 package org.apache.iceberg.variants;
 
 import java.nio.ByteBuffer;
-import org.apache.iceberg.variants.Variants.PhysicalType;
 
 /** A variant value. */
 public interface VariantValue {
