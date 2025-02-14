@@ -26,7 +26,6 @@ import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.sql.Timestamp;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -330,7 +329,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
                 subDirs,
                 pathFilter,
                 matchingFiles));
-    JavaRDD<String> matchingFileRDD = sparkContext().parallelize(new ArrayList<>(matchingFiles), 1);
+    JavaRDD<String> matchingFileRDD =
+        sparkContext().parallelize(Lists.newArrayList(matchingFiles), 1);
 
     if (subDirs.isEmpty()) {
       return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
