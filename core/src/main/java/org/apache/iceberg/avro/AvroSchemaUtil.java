@@ -219,7 +219,7 @@ public class AvroSchemaUtil {
     return schema.getType() == RECORD && schema.getFields().size() == 2;
   }
 
-  public static boolean isVariantSchema(Schema schema) {
+  static boolean isVariantSchema(Schema schema) {
     return schema.getType() == RECORD
         && schema.getFields().size() == 2
         && schema.getField("metadata") != null
