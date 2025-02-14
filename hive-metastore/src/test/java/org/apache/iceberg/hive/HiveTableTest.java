@@ -622,12 +622,20 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     List<String> metadataVersionFiles = metadataVersionFiles(TABLE_NAME);
     assertThat(metadataVersionFiles).hasSize(1);
+    String metadataFilePath = "file:" + metadataVersionFiles.get(0);
 
     // Try to register an existing table
-    assertThatThrownBy(
-            () -> catalog.registerTable(TABLE_IDENTIFIER, "file:" + metadataVersionFiles.get(0)))
+    assertThatThrownBy(() -> catalog.registerTable(TABLE_IDENTIFIER, metadataFilePath))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Table already exists: hivedb.tbl");
+
+    catalog.registerTable(TABLE_IDENTIFIER, metadataFilePath, true);
+    org.apache.hadoop.hive.metastore.api.Table overwritten =
+        HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
+    assertThat(overwritten.getParameters())
+        .containsEntry(TABLE_TYPE_PROP, originalParams.get(TABLE_TYPE_PROP))
+        .containsEntry(PREVIOUS_METADATA_LOCATION_PROP, originalParams.get(METADATA_LOCATION_PROP));
+    assertThat(overwritten.getSd()).isEqualTo(originalTable.getSd());
   }
 
   @Test

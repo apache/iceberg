@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.catalog;
 
+import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -186,6 +187,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   protected boolean supportsEmptyNamespace() {
     return false;
+  }
+
+  protected boolean supportsRegisterTableWithOverwrite() {
+    return true;
   }
 
   @Test
@@ -2868,6 +2873,34 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageStartingWith("Table already exists: a.t1");
+    assertThat(catalog.dropTable(identifier)).isTrue();
+  }
+
+  @Test
+  public void testRegisterAndOverwriteExistingTable() {
+    Assumptions.assumeTrue(supportsRegisterTableWithOverwrite());
+    C catalog = catalog();
+
+    TableIdentifier identifier = TableIdentifier.of("a", "t1");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    catalog.createTable(identifier, SCHEMA);
+    Table table = catalog.loadTable(identifier);
+    TableOperations ops = ((BaseTable) table).operations();
+    String unpartitionedMetadataLocation = ops.current().metadataFileLocation();
+
+    // update table spec
+    table.updateSpec().addField(bucket("id", 16)).commit();
+    assertThat(table.spec().isPartitioned()).isTrue();
+
+    // register and overwrite
+    catalog.registerTable(identifier, unpartitionedMetadataLocation, true);
+
+    table.refresh();
+    assertThat(table.spec().isPartitioned()).isFalse();
     assertThat(catalog.dropTable(identifier)).isTrue();
   }
 

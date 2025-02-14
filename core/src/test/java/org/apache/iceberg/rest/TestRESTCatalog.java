@@ -252,6 +252,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     return true;
   }
 
+  @Override
+  protected boolean supportsRegisterTableWithOverwrite() {
+    // TODO, follow up with REST spec change to support register with overwrite
+    return false;
+  }
+
   /* RESTCatalog specific tests */
 
   @Test
