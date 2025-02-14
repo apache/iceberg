@@ -31,7 +31,6 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -1142,19 +1141,21 @@ public class TestRemoveSnapshots extends TestBase {
     // set longer ref age ensure it not get expired by the test
     long tagRefMaxAgeMs = 3600000;
     // tagA -> S3-> ML3-> MF2, MF3 -> File_B, File_C(added)
-    table.manageSnapshots()
-            .createTag(tagName, table.currentSnapshot().snapshotId())
-            .setMaxRefAgeMs(tagName, tagRefMaxAgeMs)
-            .commit();
+    table
+        .manageSnapshots()
+        .createTag(tagName, table.currentSnapshot().snapshotId())
+        .setMaxRefAgeMs(tagName, tagRefMaxAgeMs)
+        .commit();
     // S4-> ML4 -> MF3, MF4 -> File_B(deleted), File_C
     table.newDelete().deleteFile(FILE_B).commit();
     Snapshot fourthSnapshot = table.currentSnapshot();
     // branchB -> S4-> ML4-> MF3, MF4 -> File_C, File_B(deleted)
     long branchRefMaxAgeMs = 10;
-    table.manageSnapshots()
-            .createBranch(branchName, table.currentSnapshot().snapshotId())
-            .setMaxRefAgeMs(branchName, branchRefMaxAgeMs)
-            .commit();
+    table
+        .manageSnapshots()
+        .createBranch(branchName, table.currentSnapshot().snapshotId())
+        .setMaxRefAgeMs(branchName, branchRefMaxAgeMs)
+        .commit();
     // S5-> ML5 -> MF3, MF5 -> File_C, File_D(added)
     table.newAppend().appendFile(FILE_D).commit();
     long snapshotId = table.currentSnapshot().snapshotId();

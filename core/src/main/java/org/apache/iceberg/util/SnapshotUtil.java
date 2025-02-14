@@ -506,17 +506,18 @@ public class SnapshotUtil {
   /**
    * Checks if the table metadata has discontinuous snapshots.
    *
-   * This method counts the number of ancestor snapshots starting from the current snapshot
-   * and compares it with the total number of snapshots in the metadata. If the counts are
-   * not equal, it indicates that there are discontinuous snapshots in the given metadata.
+   * <p>This method counts the number of ancestor snapshots starting from the current snapshot and
+   * compares it with the total number of snapshots in the metadata. If the counts are not equal, it
+   * indicates that there are discontinuous snapshots in the given metadata.
    *
    * @param metadata a {@link TableMetadata}
    * @return true if there are discontinuous snapshots, false otherwise
    */
-  public static boolean hasDiscontinuousSnapshots(TableMetadata metadata){
-    Iterator<Snapshot> ancestorsIterator= ancestorsOf(metadata.currentSnapshot().snapshotId(), metadata::snapshot).iterator();
+  public static boolean hasDiscontinuousSnapshots(TableMetadata metadata) {
+    Iterator<Snapshot> ancestorsIterator =
+        ancestorsOf(metadata.currentSnapshot().snapshotId(), metadata::snapshot).iterator();
     int ancestorCount = 0;
-    while(ancestorsIterator.hasNext()) {
+    while (ancestorsIterator.hasNext()) {
       ancestorCount++;
       ancestorsIterator.next();
     }

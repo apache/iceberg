@@ -36,7 +36,6 @@ import static org.apache.iceberg.TableProperties.MIN_SNAPSHOTS_TO_KEEP;
 import static org.apache.iceberg.TableProperties.MIN_SNAPSHOTS_TO_KEEP_DEFAULT;
 
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
