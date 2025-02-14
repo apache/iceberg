@@ -103,38 +103,38 @@ public class TestColumnarBatchUtil {
     assertThat(isDeleted[97]).isFalse();
   }
 
-    @Test
-    void testBuildIsDeletedNoDeletes() {
-        var result = ColumnarBatchUtil.buildIsDeleted(columnVectors, null, 0, 5);
-        assertThat(result).isNotNull();
-        for (int i = 0; i < 5; i++) {
-            assertThat(result[i]).isFalse();
-        }
+  @Test
+  void testBuildIsDeletedNoDeletes() {
+    var result = ColumnarBatchUtil.buildIsDeleted(columnVectors, null, 0, 5);
+    assertThat(result).isNotNull();
+    for (int i = 0; i < 5; i++) {
+      assertThat(result[i]).isFalse();
     }
+  }
 
-    @Test
-    void testRemoveExtraColumns() {
-        ColumnVector[] vectors = new ColumnVector[5];
-        for (int i = 0; i < 5; i++) {
-            vectors[i] = mock(ColumnVector.class);
-        }
-        when(deleteFilter.expectedSchema()).thenReturn(mock(Schema.class));
-        when(deleteFilter.expectedSchema().columns()).thenReturn(nCopies(3, null));
-
-        ColumnVector[] result = ColumnarBatchUtil.removeExtraColumns(deleteFilter, vectors);
-        assertThat(result.length).isEqualTo(3);
+  @Test
+  void testRemoveExtraColumns() {
+    ColumnVector[] vectors = new ColumnVector[5];
+    for (int i = 0; i < 5; i++) {
+      vectors[i] = mock(ColumnVector.class);
     }
+    when(deleteFilter.expectedSchema()).thenReturn(mock(Schema.class));
+    when(deleteFilter.expectedSchema().columns()).thenReturn(nCopies(3, null));
 
-    @Test
-    void testRemoveExtraColumnsNotNeeded() {
-        ColumnVector[] vectors = new ColumnVector[3];
-        for (int i = 0; i < 3; i++) {
-            vectors[i] = mock(ColumnVector.class);
-        }
-        when(deleteFilter.expectedSchema()).thenReturn(mock(Schema.class));
-        when(deleteFilter.expectedSchema().columns()).thenReturn(nCopies(3, null));
+    ColumnVector[] result = ColumnarBatchUtil.removeExtraColumns(deleteFilter, vectors);
+    assertThat(result.length).isEqualTo(3);
+  }
 
-        ColumnVector[] result = ColumnarBatchUtil.removeExtraColumns(deleteFilter, vectors);
-        assertThat( result.length).isEqualTo(3);
+  @Test
+  void testRemoveExtraColumnsNotNeeded() {
+    ColumnVector[] vectors = new ColumnVector[3];
+    for (int i = 0; i < 3; i++) {
+      vectors[i] = mock(ColumnVector.class);
     }
+    when(deleteFilter.expectedSchema()).thenReturn(mock(Schema.class));
+    when(deleteFilter.expectedSchema().columns()).thenReturn(nCopies(3, null));
+
+    ColumnVector[] result = ColumnarBatchUtil.removeExtraColumns(deleteFilter, vectors);
+    assertThat(result.length).isEqualTo(3);
+  }
 }
