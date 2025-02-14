@@ -25,9 +25,11 @@ import static org.apache.iceberg.TableProperties.PLANNING_MODE_DEFAULT;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expression;
@@ -38,6 +40,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.ScanMetricsUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.TableScanUtil;
@@ -269,13 +272,91 @@ abstract class BaseDistributedDataScan
 
   @SuppressWarnings("unchecked")
   private CloseableIterable<ScanTask> planFileTasksLocally(
-      List<ManifestFile> dataManifests, List<ManifestFile> deleteManifests) {
-    LOG.info("Planning file tasks locally for table {}", table().name());
-    ManifestGroup manifestGroup = newManifestGroup(dataManifests, deleteManifests);
-    CloseableIterable<? extends ScanTask> fileTasks = manifestGroup.planFiles();
-    return (CloseableIterable<ScanTask>) fileTasks;
-  }
+      List<ManifestFile> dataManifests,
+      List<ManifestFile> deleteManifests) {
 
+      LOG.info("Planning file tasks locally for table {}", table().name());
+      ManifestGroup manifestGroup = newManifestGroup(dataManifests, deleteManifests);
+      CloseableIterable<? extends ScanTask> fileTasks = manifestGroup.planFiles();
+
+      // Collect metrics in one pass
+      AtomicLong totalDataRecords = new AtomicLong(0);
+      AtomicLong dataRecordsWithNoDeletes = new AtomicLong(0);
+      AtomicLong dataRecordsWithEqDeletes = new AtomicLong(0);
+      AtomicLong dataRecordsWithPosDeletes = new AtomicLong(0);
+      AtomicLong dataRecordsWithBothDeletes = new AtomicLong(0);
+
+      // Use Sets to track unique delete files
+      Set<String> processedEqDeleteFiles = Sets.newHashSet();
+      Set<String> processedPosDeleteFiles = Sets.newHashSet();
+      AtomicLong totalEqDeleteRecords = new AtomicLong(0);
+      AtomicLong totalPosDeleteRecords = new AtomicLong(0);
+
+      for (ScanTask task : fileTasks) {
+          if (task instanceof BaseFileScanTask) {
+              BaseFileScanTask fileTask = (BaseFileScanTask) task;
+              DataFile dataFile = fileTask.file();
+              List<DeleteFile> deleteFiles = fileTask.deletes();
+
+              // Count both files and records
+              long eqDeleteFileCount = 0;
+              long posDeleteFileCount = 0;
+              long eqDeleteRecordCount = 0;
+              long posDeleteRecordCount = 0;
+
+              for (DeleteFile deleteFile : deleteFiles) {
+                  if (deleteFile.content() == FileContent.EQUALITY_DELETES) {
+                      eqDeleteFileCount++;
+                      // Only count records from files we haven't seen before
+                      if (processedEqDeleteFiles.add(deleteFile.path().toString())) {
+                          totalEqDeleteRecords.addAndGet(deleteFile.recordCount());
+                      }
+                  } else if (deleteFile.content() == FileContent.POSITION_DELETES) {
+                      posDeleteFileCount++;
+                      // Only count records from files we haven't seen before
+                      if (processedPosDeleteFiles.add(deleteFile.path().toString())) {
+                          totalPosDeleteRecords.addAndGet(deleteFile.recordCount());
+                      }
+                  }
+              }
+
+              // Update totals
+              long dataRecordCount = dataFile.recordCount();
+              totalDataRecords.addAndGet(dataRecordCount);
+
+              // Categorize records
+              if (eqDeleteFileCount == 0 && posDeleteFileCount == 0) {
+                  dataRecordsWithNoDeletes.addAndGet(dataRecordCount);
+              } else if (eqDeleteFileCount > 0 && posDeleteFileCount == 0) {
+                  dataRecordsWithEqDeletes.addAndGet(dataRecordCount);
+              } else if (eqDeleteFileCount == 0 && posDeleteFileCount > 0) {
+                  dataRecordsWithPosDeletes.addAndGet(dataRecordCount);
+              } else {
+                  dataRecordsWithBothDeletes.addAndGet(dataRecordCount);
+              }
+          }
+      }
+
+      // Log final totals
+      LOG.debug("Total Scan Metrics:" +
+               "\nTotal Data Records: {}" +
+               "\n  Records with no deletes: {}" +
+               "\n  Records with only equality deletes: {}" +
+               "\n  Records with only position deletes: {}" +
+               "\n  Records with both delete types: {}" +
+               "\nUnique Delete Files:" +
+               "\n  Equality delete files: {}, total records: {}" +
+               "\n  Position delete files: {}, total records: {}",
+               totalDataRecords.get(),
+               dataRecordsWithNoDeletes.get(),
+               dataRecordsWithEqDeletes.get(),
+               dataRecordsWithPosDeletes.get(),
+               dataRecordsWithBothDeletes.get(),
+               processedEqDeleteFiles.size(), totalEqDeleteRecords.get(),
+               processedPosDeleteFiles.size(), totalPosDeleteRecords.get());
+
+      return (CloseableIterable<ScanTask>) fileTasks;
+  }
   private CompletableFuture<DeleteFileIndex> newDeletesFuture(
       List<ManifestFile> deleteManifests, boolean planLocally, ExecutorService monitorPool) {
 
