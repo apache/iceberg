@@ -20,6 +20,8 @@ package org.apache.iceberg.aws.s3;
 
 import java.util.Locale;
 import java.util.function.Function;
+import software.amazon.awssdk.auth.signer.AwsS3V4Signer;
+import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
@@ -148,5 +150,11 @@ public class S3RequestUtil {
       S3FileIOProperties s3FileIOProperties,
       Function<ObjectCannedACL, S3Request.Builder> aclSetter) {
     aclSetter.apply(s3FileIOProperties.acl());
+  }
+
+  // TODO Remove me once all of the S3-compatible storage support strong integrity checks
+  @SuppressWarnings("deprecation")
+  static AwsRequestOverrideConfiguration disableStrongIntegrityChecksums() {
+    return AwsRequestOverrideConfiguration.builder().signer(AwsS3V4Signer.create()).build();
   }
 }
