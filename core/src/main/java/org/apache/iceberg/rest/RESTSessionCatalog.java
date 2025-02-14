@@ -1239,7 +1239,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public boolean viewExists(SessionContext context, TableIdentifier identifier) {
-    Endpoint.check(endpoints, Endpoint.V1_VIEW_EXISTS);
+    if (!endpoints.contains(Endpoint.V1_VIEW_EXISTS)) {
+      return false;
+    }
 
     try {
       checkViewIdentifierIsValid(identifier);
