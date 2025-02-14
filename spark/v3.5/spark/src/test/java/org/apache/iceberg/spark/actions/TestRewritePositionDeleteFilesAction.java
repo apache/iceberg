@@ -385,7 +385,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testRemoveDanglingDeletesAfterCompaction() {
+  public void testRemoveDanglingDVsAfterCompaction() {
     sql(
         "create table IF NOT EXISTS %s (s string, id string) PARTITIONED BY (bucket(8, id)) "
             + "tblproperties ('format-version'='3',"

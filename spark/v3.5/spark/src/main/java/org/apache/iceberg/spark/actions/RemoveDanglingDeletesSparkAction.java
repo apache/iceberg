@@ -132,30 +132,13 @@ class RemoveDanglingDeletesSparkAction
             .toDF(
                 "grouped_partition",
                 "grouped_spec_id",
-                "min_data_sequence_number",
-                "data_file_path");
-
-    List<Row> rows = minSequenceNumberByPartition.collectAsList();
+                "data_file_path",
+                "min_data_sequence_number");
 
     Dataset<Row> deleteEntries =
         loadMetadataTable(table, MetadataTableType.ENTRIES)
             // find live delete files
             .filter("data_file.content != 0 AND status < 2");
-
-    List<Row> rows1 = deleteEntries.collectAsList();
-    System.out.println("rows = " + rows);
-    System.out.println("rows1 = " + rows1);
-
-    Dataset<Row> danglingDvs =
-        deleteEntries
-            .join(
-                minSequenceNumberByPartition,
-                col("data_file.referenced_data_file")
-                    .notEqual(minSequenceNumberByPartition.col("data_file_path")),
-                "leftouter")
-            .where(col("data_file.file_format").equalTo(FileFormat.PUFFIN.name()));
-    List<Row> rows3 = danglingDvs.collectAsList();
-    System.out.println("rows3 = " + rows3);
 
     Column joinOnPartition =
         deleteEntries
@@ -184,15 +167,14 @@ class RemoveDanglingDeletesSparkAction
             .or(
                 col("data_file.file_format")
                     .equalTo(FileFormat.PUFFIN.name())
-                    .and(col("data_file.referenced_data_file").notEqual("data_file_path")));
+                    .and(col("data_file.referenced_data_file").notEqual(col("data_file_path"))));
 
     Dataset<Row> danglingDeletes =
         deleteEntries
             .join(minSequenceNumberByPartition, joinOnPartition, "left")
             .filter(filterOnDanglingDeletes)
             .select("data_file.*");
-    List<Row> rows2 = danglingDeletes.collectAsList();
-    return rows2.stream()
+    return danglingDeletes.collectAsList().stream()
         // map on driver because SparkDeleteFile is not serializable
         .map(row -> deleteFileWrapper(danglingDeletes.schema(), row))
         .collect(Collectors.toList());
