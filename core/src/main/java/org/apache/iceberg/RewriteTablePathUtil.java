@@ -139,9 +139,6 @@ public class RewriteTablePathUtil {
   private static Map<String, String> updateProperties(
       Map<String, String> tableProperties, String sourcePrefix, String targetPrefix) {
     Map<String, String> properties = Maps.newHashMap(tableProperties);
-    updatePathInProperty(properties, sourcePrefix, targetPrefix, TableProperties.OBJECT_STORE_PATH);
-    updatePathInProperty(
-        properties, sourcePrefix, targetPrefix, TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
     updatePathInProperty(
         properties, sourcePrefix, targetPrefix, TableProperties.WRITE_DATA_LOCATION);
     updatePathInProperty(

@@ -381,11 +381,6 @@ the end.
 s3://my-table-data-bucket/my_ns.db/my_table/0101/0110/1001/10110010/category=orders/00000-0-5affc076-96a4-48f2-9cd2-d5efbc9f0c94-00001.parquet
 ```
 
-Note, the path resolution logic for `ObjectStoreLocationProvider` is `write.data.path` then `<tableLocation>/data`.
-However, for the older versions up to 0.12.0, the logic is as follows:
-- before 0.12.0, `write.object-storage.path` must be set.
-- at 0.12.0, `write.object-storage.path` then `write.folder-storage.path` then `<tableLocation>/data`.
-
 For more details, please refer to the [LocationProvider Configuration](custom-catalog.md#custom-location-provider-implementation) section.  
 
 We have also added a new table property `write.object-storage.partitioned-paths` that if set to false(default=true), this will
