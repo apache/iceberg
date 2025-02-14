@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.RewriteFiles;
@@ -124,15 +125,37 @@ class RemoveDanglingDeletesSparkAction
             .selectExpr(
                 "data_file.partition as partition",
                 "data_file.spec_id as spec_id",
-                "sequence_number")
-            .groupBy("partition", "spec_id")
+                "sequence_number",
+                "data_file.file_path as file_path")
+            .groupBy("partition", "spec_id", "file_path")
             .agg(min("sequence_number"))
-            .toDF("grouped_partition", "grouped_spec_id", "min_data_sequence_number");
+            .toDF(
+                "grouped_partition",
+                "grouped_spec_id",
+                "min_data_sequence_number",
+                "data_file_path");
+
+    List<Row> rows = minSequenceNumberByPartition.collectAsList();
 
     Dataset<Row> deleteEntries =
         loadMetadataTable(table, MetadataTableType.ENTRIES)
             // find live delete files
             .filter("data_file.content != 0 AND status < 2");
+
+    List<Row> rows1 = deleteEntries.collectAsList();
+    System.out.println("rows = " + rows);
+    System.out.println("rows1 = " + rows1);
+
+    Dataset<Row> danglingDvs =
+        deleteEntries
+            .join(
+                minSequenceNumberByPartition,
+                col("data_file.referenced_data_file")
+                    .notEqual(minSequenceNumberByPartition.col("data_file_path")),
+                "leftouter")
+            .where(col("data_file.file_format").equalTo(FileFormat.PUFFIN.name()));
+    List<Row> rows3 = danglingDvs.collectAsList();
+    System.out.println("rows3 = " + rows3);
 
     Column joinOnPartition =
         deleteEntries
@@ -156,14 +179,20 @@ class RemoveDanglingDeletesSparkAction
             .or(
                 col("data_file.content")
                     .equalTo("2")
-                    .and(col("sequence_number").$less$eq(col("min_data_sequence_number"))));
+                    .and(col("sequence_number").$less$eq(col("min_data_sequence_number"))))
+            // dvs pointing to non-existing data files
+            .or(
+                col("data_file.file_format")
+                    .equalTo(FileFormat.PUFFIN.name())
+                    .and(col("data_file.referenced_data_file").notEqual("data_file_path")));
 
     Dataset<Row> danglingDeletes =
         deleteEntries
             .join(minSequenceNumberByPartition, joinOnPartition, "left")
             .filter(filterOnDanglingDeletes)
             .select("data_file.*");
-    return danglingDeletes.collectAsList().stream()
+    List<Row> rows2 = danglingDeletes.collectAsList();
+    return rows2.stream()
         // map on driver because SparkDeleteFile is not serializable
         .map(row -> deleteFileWrapper(danglingDeletes.schema(), row))
         .collect(Collectors.toList());
