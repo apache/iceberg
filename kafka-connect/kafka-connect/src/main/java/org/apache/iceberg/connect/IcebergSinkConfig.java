@@ -87,6 +87,8 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final int COMMIT_TIMEOUT_MS_DEFAULT = 30_000;
   private static final String COMMIT_THREADS_PROP = "iceberg.control.commit.threads";
   private static final String CONNECT_GROUP_ID_PROP = "iceberg.connect.group-id";
+  private static final String TRANSACTIONAL_PREFIX_PROP =
+      "iceberg.coordinator.transactional.prefix";
   private static final String HADOOP_CONF_DIR_PROP = "iceberg.hadoop-conf-dir";
 
   private static final String NAME_PROP = "name";
@@ -95,6 +97,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String DEFAULT_CATALOG_NAME = "iceberg";
   private static final String DEFAULT_CONTROL_TOPIC = "control-iceberg";
   public static final String DEFAULT_CONTROL_GROUP_PREFIX = "cg-control-";
+  private static final String DEFAULT_TRANSACTIONAL_PREFIX = "";
 
   public static final int SCHEMA_UPDATE_RETRIES = 2; // 3 total attempts
   public static final int CREATE_TABLE_RETRIES = 2; // 3 total attempts
@@ -211,6 +214,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         Runtime.getRuntime().availableProcessors() * 2,
         Importance.MEDIUM,
         "Coordinator threads to use for table commits, default is (cores * 2)");
+    configDef.define(
+        TRANSACTIONAL_PREFIX_PROP,
+        ConfigDef.Type.STRING,
+        DEFAULT_TRANSACTIONAL_PREFIX,
+        Importance.LOW,
+        "Optional prefix of the transactional id for the coordinator");
     configDef.define(
         HADOOP_CONF_DIR_PROP,
         ConfigDef.Type.STRING,
@@ -391,6 +400,10 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public int commitThreads() {
     return getInt(COMMIT_THREADS_PROP);
+  }
+
+  public String transactionalPrefix() {
+    return originalProps.get(TRANSACTIONAL_PREFIX_PROP);
   }
 
   public String hadoopConfDir() {
