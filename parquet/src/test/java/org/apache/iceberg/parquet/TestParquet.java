@@ -44,6 +44,9 @@ import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetReaders;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -258,5 +261,145 @@ public class TestParquet {
             createWriterFunc,
             records.toArray(new GenericData.Record[] {}));
     return Pair.of(file, size);
+  }
+
+  @Test
+  public void testReadNestedStructWithoutId() throws IOException {
+    Schema icebergSchema =
+        new Schema(
+            Types.NestedField.required(
+                1,
+                "outer_struct",
+                Types.StructType.of(
+                    Types.NestedField.optional(
+                        2,
+                        "middle_struct",
+                        Types.StructType.of(
+                            Types.NestedField.optional(
+                                3,
+                                "inner_struct",
+                                Types.StructType.of(
+                                    Types.NestedField.optional(
+                                        4, "value_field", Types.StringType.get()))))))));
+
+    // Create Avro schema without IDs.
+    org.apache.avro.Schema avroSchema = createAvroSchemaWithoutIds();
+
+    // Write test data to Parquet file.
+    File file = createTempFile(temp);
+    writeParquetFile(file, avroSchema);
+
+    // Read and verify the data.
+    try (CloseableIterable<Record> reader =
+        Parquet.read(Files.localInput(file))
+            .project(icebergSchema)
+            .createReaderFunc(
+                fileSchema -> GenericParquetReaders.buildReader(icebergSchema, fileSchema))
+            .build()) {
+
+      org.apache.iceberg.data.Record readRecord = Iterables.getOnlyElement(reader);
+      verifyNestedStructData(readRecord);
+    }
+  }
+
+  private org.apache.avro.Schema createAvroSchemaWithoutIds() {
+    org.apache.avro.Schema innerStructSchema =
+        org.apache.avro.Schema.createRecord("inner_struct_type", null, null, false);
+    innerStructSchema.setFields(
+        List.of(
+            new org.apache.avro.Schema.Field(
+                "value_field",
+                org.apache.avro.Schema.createUnion(
+                    List.of(
+                        org.apache.avro.Schema.create(org.apache.avro.Schema.Type.NULL),
+                        org.apache.avro.Schema.create(org.apache.avro.Schema.Type.STRING))),
+                null,
+                org.apache.avro.JsonProperties.NULL_VALUE)));
+
+    org.apache.avro.Schema middleStructSchema =
+        org.apache.avro.Schema.createRecord("middle_struct_type", null, null, false);
+    middleStructSchema.setFields(
+        List.of(
+            new org.apache.avro.Schema.Field(
+                "inner_struct",
+                org.apache.avro.Schema.createUnion(
+                    List.of(
+                        org.apache.avro.Schema.create(org.apache.avro.Schema.Type.NULL),
+                        innerStructSchema)),
+                null,
+                org.apache.avro.JsonProperties.NULL_VALUE)));
+
+    org.apache.avro.Schema outerStructSchema =
+        org.apache.avro.Schema.createRecord("outer_struct_type", null, null, false);
+    outerStructSchema.setFields(
+        List.of(
+            new org.apache.avro.Schema.Field(
+                "middle_struct",
+                org.apache.avro.Schema.createUnion(
+                    List.of(
+                        org.apache.avro.Schema.create(org.apache.avro.Schema.Type.NULL),
+                        middleStructSchema)),
+                null,
+                org.apache.avro.JsonProperties.NULL_VALUE)));
+
+    org.apache.avro.Schema recordSchema =
+        org.apache.avro.Schema.createRecord("test_record", null, null, false);
+    recordSchema.setFields(
+        List.of(new org.apache.avro.Schema.Field("outer_struct", outerStructSchema, null, null)));
+
+    return recordSchema;
+  }
+
+  private void writeParquetFile(File file, org.apache.avro.Schema avroSchema) throws IOException {
+    // Create test data.
+    GenericData.Record record = createNestedRecord(avroSchema);
+
+    // Write to Parquet file.
+    try (ParquetWriter<GenericRecord> writer =
+        AvroParquetWriter.<GenericRecord>builder(new org.apache.hadoop.fs.Path(file.toURI()))
+            .withSchema(avroSchema)
+            .withDataModel(GenericData.get())
+            .build()) {
+      writer.write(record);
+    }
+  }
+
+  private GenericData.Record createNestedRecord(org.apache.avro.Schema avroSchema) {
+    org.apache.avro.Schema outerSchema = avroSchema.getField("outer_struct").schema();
+    org.apache.avro.Schema middleSchema =
+        outerSchema.getField("middle_struct").schema().getTypes().get(1);
+    org.apache.avro.Schema innerSchema =
+        middleSchema.getField("inner_struct").schema().getTypes().get(1);
+
+    GenericRecordBuilder innerBuilder = new GenericRecordBuilder(innerSchema);
+    innerBuilder.set("value_field", "test_value");
+
+    GenericRecordBuilder middleBuilder = new GenericRecordBuilder(middleSchema);
+    middleBuilder.set("inner_struct", innerBuilder.build());
+
+    GenericRecordBuilder outerBuilder = new GenericRecordBuilder(outerSchema);
+    outerBuilder.set("middle_struct", middleBuilder.build());
+
+    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(avroSchema);
+    recordBuilder.set("outer_struct", outerBuilder.build());
+
+    return recordBuilder.build();
+  }
+
+  private void verifyNestedStructData(org.apache.iceberg.data.Record record) {
+    org.apache.iceberg.data.Record outerStruct = (org.apache.iceberg.data.Record) record.get(0);
+    assertThat(outerStruct).isNotNull().withFailMessage("Outer struct should not be null");
+
+    org.apache.iceberg.data.Record middleStruct =
+        (org.apache.iceberg.data.Record) outerStruct.get(0);
+    assertThat(middleStruct).isNotNull().withFailMessage("Middle struct should not be null");
+
+    org.apache.iceberg.data.Record innerStruct =
+        (org.apache.iceberg.data.Record) middleStruct.get(0);
+    assertThat(innerStruct).isNotNull().withFailMessage("Inner struct should not be null");
+
+    assertThat(innerStruct.get(0).toString())
+        .isEqualTo("test_value")
+        .withFailMessage("Inner value field should match expected value");
   }
 }
