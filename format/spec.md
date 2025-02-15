@@ -392,7 +392,7 @@ In v3 and later, an Iceberg table can track row lineage fields for all newly cre
 
 These fields are assigned and updated by inheritance because the commit sequence number and starting row ID are not assigned until the snapshot is successfully committed. Inheritance is used to allow writing data and manifest files before values are known so that it is not necessary to rewrite data and manifest files when an optimistic commit is retried.
 
-When row lineage is enabled, new snapshots cannot include [Equality Deletes](#equality-delete-files). Row lineage is incompatible with equality deletes because lineage values must be maintained, but equality deletes are used to avoid reading existing data before writing changes.
+Row lineage does not track lineage for rows updated via [Equality Deletes](#equality-delete-files), because equality deletes avoid reading existing data before writing changes. An update via equality delete should always be treated as if the existing row was completely removed and a unique new row was added.
 
 
 ##### Row lineage assignment
