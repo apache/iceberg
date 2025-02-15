@@ -18,9 +18,10 @@
 from __future__ import annotations
 
 from datetime import date
-from pydantic import BaseModel, Extra, Field
 from typing import Any, Dict, List, Literal, Optional, Union
 from uuid import UUID
+
+from pydantic import BaseModel, Extra, Field
 
 
 class ErrorModel(BaseModel):
