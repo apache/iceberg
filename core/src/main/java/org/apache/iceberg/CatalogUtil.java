@@ -97,6 +97,10 @@ public class CatalogUtil {
 
     Set<String> manifestListsToDelete = Sets.newHashSet();
     Set<ManifestFile> manifestsToDelete = Sets.newHashSet();
+    Set<String> metadataToDelete = Sets.newHashSet();
+    Set<StatisticsFile> statisticsToDelete = Sets.newHashSet();
+    Set<PartitionStatisticsFile> partitionStatsToDelete = Sets.newHashSet();
+
     for (Snapshot snapshot : metadata.snapshots()) {
       // add all manifests to the delete set because both data and delete files should be removed
       Iterables.addAll(manifestsToDelete, snapshot.allManifests(io));
@@ -107,6 +111,31 @@ public class CatalogUtil {
     }
 
     LOG.info("Manifests to delete: {}", Joiner.on(", ").join(manifestsToDelete));
+
+    // Collect all metadata files and extract historical statistics files
+    for (TableMetadata.MetadataLogEntry previousFile : metadata.previousFiles()) {
+      metadataToDelete.add(previousFile.file());
+
+      // Skip missing metadata files
+      if (!io.newInputFile(previousFile.file()).exists()) {
+        LOG.warn("Skipping missing metadata file: {}", previousFile.file());
+        continue;
+      }
+
+      TableMetadata previousMetadata = TableMetadataParser.read(io, previousFile.file());
+      statisticsToDelete.addAll(previousMetadata.statisticsFiles());
+      partitionStatsToDelete.addAll(previousMetadata.partitionStatisticsFiles());
+    }
+
+    // Process the latest metadata file
+    metadataToDelete.add(metadata.metadataFileLocation());
+    if (io.newInputFile(metadata.metadataFileLocation()).exists()) {
+      TableMetadata latestMetadata = TableMetadataParser.read(io, metadata.metadataFileLocation());
+      statisticsToDelete.addAll(latestMetadata.statisticsFiles());
+      partitionStatsToDelete.addAll(latestMetadata.partitionStatisticsFiles());
+    } else {
+      LOG.warn("Skipping missing latest metadata file: {}", metadata.metadataFileLocation());
+    }
 
     // run all of the deletes
 
@@ -120,22 +149,14 @@ public class CatalogUtil {
 
     deleteFiles(io, Iterables.transform(manifestsToDelete, ManifestFile::path), "manifest", true);
     deleteFiles(io, manifestListsToDelete, "manifest list", true);
+    deleteFiles(io, metadataToDelete, "metadata", true);
+    deleteFiles(
+        io, Iterables.transform(statisticsToDelete, StatisticsFile::path), "statistics", true);
     deleteFiles(
         io,
-        Iterables.transform(metadata.previousFiles(), TableMetadata.MetadataLogEntry::file),
-        "previous metadata",
-        true);
-    deleteFiles(
-        io,
-        Iterables.transform(metadata.statisticsFiles(), StatisticsFile::path),
-        "statistics",
-        true);
-    deleteFiles(
-        io,
-        Iterables.transform(metadata.partitionStatisticsFiles(), PartitionStatisticsFile::path),
+        Iterables.transform(partitionStatsToDelete, PartitionStatisticsFile::path),
         "partition statistics",
         true);
-    deleteFile(io, metadata.metadataFileLocation(), "metadata");
   }
 
   /**
