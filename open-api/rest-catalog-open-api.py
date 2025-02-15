@@ -18,10 +18,9 @@
 from __future__ import annotations
 
 from datetime import date
+from pydantic import BaseModel, Extra, Field
 from typing import Any, Dict, List, Literal, Optional, Union
 from uuid import UUID
-
-from pydantic import BaseModel, Extra, Field
 
 
 class ErrorModel(BaseModel):
@@ -503,7 +502,8 @@ class RegisterTableRequest(BaseModel):
     name: str
     metadata_location: str = Field(..., alias='metadata-location')
     overwrite: Optional[bool] = Field(
-        False, description='Whether to overwrite table metadata if table already exists'
+        False,
+        description='Whether to overwrite table metadata if the table already exists',
     )
 
 
