@@ -97,6 +97,10 @@ class RCKUtils {
         CatalogProperties.URI, String.format("http://localhost:%s/", port));
     catalogProperties.putIfAbsent(CatalogProperties.WAREHOUSE_LOCATION, "rck_warehouse");
     catalogProperties.putIfAbsent(
+        CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key1", "catalog-default-key1");
+    catalogProperties.putIfAbsent(
+        CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key2", "catalog-default-key2");
+    catalogProperties.putIfAbsent(
         CatalogProperties.VIEW_DEFAULT_PREFIX + "key1", "catalog-default-key1");
     catalogProperties.putIfAbsent(
         CatalogProperties.VIEW_DEFAULT_PREFIX + "key2", "catalog-default-key2");
