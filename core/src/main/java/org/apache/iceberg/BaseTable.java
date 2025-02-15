@@ -216,6 +216,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public RemoveMissingFiles newRemoveFiles() {
+    return new BaseRemoveFiles(name, ops).reportWith(reporter);
+  }
+
+  @Override
   public UpdateStatistics updateStatistics() {
     return new SetStatistics(ops);
   }
