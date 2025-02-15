@@ -60,6 +60,17 @@ public class TestTables {
       SortOrder sortOrder,
       int formatVersion) {
     TestTableOperations ops = new TestTableOperations(name, temp);
+    return create(temp, name, schema, spec, sortOrder, formatVersion, ops);
+  }
+
+  public static TestTable create(
+      File temp,
+      String name,
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      int formatVersion,
+      TestTableOperations ops) {
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
