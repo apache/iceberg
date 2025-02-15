@@ -981,12 +981,10 @@ The `rewrite-table-path` procedure prepares an Iceberg table for moving or copyi
 ### `rewrite-table-path`
 
 Stages a copy of the Iceberg table's metadata files where every absolute path source prefix is replaced by the specified target prefix.  
-This can be the starting point to fully or incrementally copy an Iceberg table under a 
-source prefix to another under the target prefix.
+This can be the starting point to fully or incrementally move or copy an Iceberg table to a new location.
 
 !!! info
-    This procedure only prepares metadata or/and data files for an existing Iceberg table for copying or moving to a new location.
-    Copying/Moving metadata and data files to the new location is not part of this procedure.
+    This procedure only stages rewritten metadata files and prepares a list of files to copy. The actual file copy is not part of this procedure.
 
 
 | Argument Name      | Required? | default                                        | Type   | Description                                                             |
@@ -1065,7 +1063,7 @@ Once the rewrite is completed, third-party tools (
 eg. [Distcp](https://hadoop.apache.org/docs/current/hadoop-distcp/DistCp.html)) can be used to copy the newly created
 metadata files and data files to the target location.
 
-Lastly, [register_table](#register_table) procedure can be used to register copied table in the target location with catalog.
+Lastly, [register_table](#register_table) procedure can be used to register the copied table in the target location with a catalog.
 
 !!! warning
     Iceberg table with partition statistics files are not currently supported for path rewrite.
