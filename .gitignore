@@ -31,8 +31,6 @@ site/docs/.asf.yaml
 site/docs/javadoc/
 
 # benchmark output
-spark/v3.3/spark/benchmark/*
-spark/v3.3/spark-extensions/benchmark/*
 spark/v3.4/spark/benchmark/*
 spark/v3.4/spark-extensions/benchmark/*
 spark/v3.5/spark/benchmark/*
