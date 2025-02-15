@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableMetadata.newTableMetadata;
 
 import java.io.File;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -220,6 +221,7 @@ public class TestTables {
     private TableMetadata current = null;
     private long lastSnapshotId = 0;
     private int failCommits = 0;
+    private final AtomicInteger metadataFetchCount = new AtomicInteger();
 
     public TestTableOperations(String tableName, File location) {
       this.tableName = tableName;
@@ -255,8 +257,13 @@ public class TestTables {
       this.failCommits = numFailures;
     }
 
+    int getMetadataFetchCount() {
+      return metadataFetchCount.get();
+    }
+
     @Override
     public TableMetadata current() {
+      metadataFetchCount.incrementAndGet();
       return current;
     }
 
@@ -265,6 +272,7 @@ public class TestTables {
       synchronized (METADATA) {
         this.current = METADATA.get(tableName);
       }
+      metadataFetchCount.incrementAndGet();
       return current;
     }
 

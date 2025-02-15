@@ -114,7 +114,10 @@ public class TestReachableFileUtil {
     // delete v3.metadata.json making v2.metadata.json and v1.metadata.json inaccessible
     table.io().deleteFile(location);
 
-    Set<String> metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, true);
+    // original hadoop table will not see the file deletion
+    Table refreshedTable = TABLES.load(tableDir.toURI().toString());
+    Set<String> metadataFileLocations =
+        ReachableFileUtil.metadataFileLocations(refreshedTable, true);
     assertThat(metadataFileLocations).hasSize(2);
   }
 
