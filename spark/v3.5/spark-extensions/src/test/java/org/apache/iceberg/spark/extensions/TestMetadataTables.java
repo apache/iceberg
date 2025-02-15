@@ -973,4 +973,101 @@ public class TestMetadataTables extends ExtensionsTestBase {
     assertThat(sql("SELECT * FROM %s.metadata_log_entries", tableName))
         .containsExactly(firstEntry, secondEntry, thirdEntry, fourthEntry, fifthEntry);
   }
+
+  @TestTemplate
+  public void metadataLogEntriesAfterExpireSnapshots() throws Exception {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) "
+            + "USING iceberg "
+            + "TBLPROPERTIES "
+            + "('format-version'='2')",
+        tableName);
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    TableMetadata tableMetadata = ((HasTableOperations) table).operations().current();
+    assertThat(tableMetadata.snapshots()).isEmpty();
+    assertThat(tableMetadata.snapshotLog()).isEmpty();
+    assertThat(tableMetadata.currentSnapshot()).isNull();
+
+    Object[] firstEntry =
+        row(
+            DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
+            tableMetadata.metadataFileLocation(),
+            null,
+            null,
+            null);
+
+    assertThat(sql("SELECT * FROM %s.metadata_log_entries", tableName)).containsExactly(firstEntry);
+
+    sql("INSERT INTO %s (id, data) VALUES (1, 'a')", tableName);
+    tableMetadata = ((HasTableOperations) table).operations().refresh();
+    assertThat(tableMetadata.snapshots()).hasSize(1);
+    assertThat(tableMetadata.snapshotLog()).hasSize(1);
+    Snapshot currentSnapshot = tableMetadata.currentSnapshot();
+    Object[] secondEntry =
+        row(
+            DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
+            tableMetadata.metadataFileLocation(),
+            currentSnapshot.snapshotId(),
+            currentSnapshot.schemaId(),
+            currentSnapshot.sequenceNumber());
+
+    sql("INSERT INTO %s (id, data) VALUES (2, 'b')", tableName);
+    tableMetadata = ((HasTableOperations) table).operations().refresh();
+    assertThat(tableMetadata.snapshots()).hasSize(2);
+    assertThat(tableMetadata.snapshotLog()).hasSize(2);
+    currentSnapshot = tableMetadata.currentSnapshot();
+    long toBeExpiredId = currentSnapshot.snapshotId();
+    Object[] thirdEntry =
+        row(
+            DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
+            tableMetadata.metadataFileLocation(),
+            toBeExpiredId,
+            currentSnapshot.schemaId(),
+            currentSnapshot.sequenceNumber());
+
+    sql("INSERT INTO %s (id, data) VALUES (3, 'c')", tableName);
+    tableMetadata = ((HasTableOperations) table).operations().refresh();
+    assertThat(tableMetadata.snapshots()).hasSize(3);
+    assertThat(tableMetadata.snapshotLog()).hasSize(3);
+    currentSnapshot = tableMetadata.currentSnapshot();
+    Object[] fourthEntry =
+        row(
+            DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
+            tableMetadata.metadataFileLocation(),
+            currentSnapshot.snapshotId(),
+            currentSnapshot.schemaId(),
+            currentSnapshot.sequenceNumber());
+
+    // query metadata log entries before expire specified snapshot
+    assertThat(sql("SELECT * FROM %s.metadata_log_entries", tableName))
+        .containsExactly(firstEntry, secondEntry, thirdEntry, fourthEntry);
+
+    // expire snapshot by specifying snapshot id
+    sql(
+        "CALL %s.system.expire_snapshots(" + "table => '%s'," + "snapshot_ids => ARRAY(%d))",
+        catalogName, tableIdent, toBeExpiredId);
+
+    tableMetadata = ((HasTableOperations) table).operations().refresh();
+    currentSnapshot = tableMetadata.currentSnapshot();
+    assertThat(tableMetadata.snapshots()).hasSize(2);
+    assertThat(tableMetadata.snapshotLog()).hasSize(1);
+
+    secondEntry = row(secondEntry[0], secondEntry[1], null, null, null);
+
+    thirdEntry = row(thirdEntry[0], thirdEntry[1], null, null, null);
+
+    // a new log entry is created by `call expire_snapshots(...)`
+    Object[] fifthEntry =
+        row(
+            DateTimeUtils.toJavaTimestamp(tableMetadata.lastUpdatedMillis() * 1000),
+            tableMetadata.metadataFileLocation(),
+            currentSnapshot.snapshotId(),
+            currentSnapshot.schemaId(),
+            currentSnapshot.sequenceNumber());
+
+    // query metadata log entries after expire specified snapshot
+    assertThat(sql("SELECT * FROM %s.metadata_log_entries", tableName))
+        .containsExactly(firstEntry, secondEntry, thirdEntry, fourthEntry, fifthEntry);
+  }
 }

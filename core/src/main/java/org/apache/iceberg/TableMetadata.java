@@ -1898,7 +1898,7 @@ public class TableMetadata implements Serializable {
           // any invalid entry causes the history before it to be removed. otherwise, there could be
           // history gaps that cause time-travel queries to produce incorrect results. for example,
           // if history is [(t1, s1), (t2, s2), (t3, s3)] and s2 is removed, the history cannot be
-          // [(t1, s1), (t3, s3)] because it appears that s3 was current during the time between t2
+          // [(t1, s1), (t3, s3)] because it appears that s1 was current during the time between t2
           // and t3 when in fact s2 was the current snapshot.
           newSnapshotLog.clear();
         }
