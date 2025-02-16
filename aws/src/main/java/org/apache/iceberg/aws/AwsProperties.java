@@ -206,6 +206,28 @@ public class AwsProperties implements Serializable {
    */
   public static final String REST_SESSION_TOKEN = "rest.session-token";
 
+  /**
+   * Configure the AWS credentials provider used for SigV4. A fully qualified concrete class with
+   * package that implements the {@link AwsCredentialsProvider} interface is required.
+   *
+   * <p>Additionally, the implementation class must also have a create() or create(Map) method
+   * implemented, which returns an instance of the class that provides aws credentials provider.
+   *
+   * <p>Example:
+   * rest.credentials-provider=software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider
+   *
+   * <p>When set, it takes precedence over setting other rest credential properties
+   * rest.access-key-id, rest.secret-access-key and rest.session-token.
+   */
+  public static final String REST_CREDENTIALS_PROVIDER = "rest.credentials-provider";
+
+  /**
+   * Used by the rest.credentials-provider configured value that will be used by {@link
+   * org.apache.iceberg.aws.AwsProperties#restCredentialsProvider()} to pass rest credential
+   * provider-specific properties. Each property consists of a key name and an associated value.
+   */
+  public static final String REST_CREDENTIALS_PROVIDER_PREFIX = "rest.credentials-provider.";
+
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
 
   private final String clientAssumeRoleArn;
@@ -230,6 +252,8 @@ public class AwsProperties implements Serializable {
   private String restAccessKeyId;
   private String restSecretAccessKey;
   private String restSessionToken;
+  private String restCredentialsProvider;
+  private Map<String, String> restCredentialsProviderProperties;
 
   public AwsProperties() {
     this.stsClientAssumeRoleTags = Sets.newHashSet();
@@ -293,6 +317,9 @@ public class AwsProperties implements Serializable {
     this.restAccessKeyId = properties.get(REST_ACCESS_KEY_ID);
     this.restSecretAccessKey = properties.get(REST_SECRET_ACCESS_KEY);
     this.restSessionToken = properties.get(REST_SESSION_TOKEN);
+    this.restCredentialsProvider = properties.get(REST_CREDENTIALS_PROVIDER);
+    this.restCredentialsProviderProperties =
+        PropertyUtil.propertiesWithPrefix(properties, REST_CREDENTIALS_PROVIDER_PREFIX);
   }
 
   public Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags() {
@@ -399,7 +426,11 @@ public class AwsProperties implements Serializable {
 
   public AwsCredentialsProvider restCredentialsProvider() {
     return credentialsProvider(
-        this.restAccessKeyId, this.restSecretAccessKey, this.restSessionToken);
+        this.restCredentialsProvider,
+        this.restCredentialsProviderProperties,
+        this.restAccessKeyId,
+        this.restSecretAccessKey,
+        this.restSessionToken);
   }
 
   private Set<software.amazon.awssdk.services.sts.model.Tag> toStsTags(
@@ -415,8 +446,14 @@ public class AwsProperties implements Serializable {
   }
 
   private AwsCredentialsProvider credentialsProvider(
-      String accessKeyId, String secretAccessKey, String sessionToken) {
-    if (accessKeyId != null) {
+      String credentialsProvider,
+      Map<String, String> credentialsProviderProperties,
+      String accessKeyId,
+      String secretAccessKey,
+      String sessionToken) {
+    if (credentialsProvider != null) {
+      return credentialsProvider(credentialsProvider, credentialsProviderProperties);
+    } else if (accessKeyId != null) {
       if (sessionToken == null) {
         return StaticCredentialsProvider.create(
             AwsBasicCredentials.create(accessKeyId, secretAccessKey));
@@ -427,14 +464,16 @@ public class AwsProperties implements Serializable {
     }
 
     if (!Strings.isNullOrEmpty(this.clientCredentialsProvider)) {
-      return credentialsProvider(this.clientCredentialsProvider);
+      return credentialsProvider(
+          this.clientCredentialsProvider, this.clientCredentialsProviderProperties);
     }
 
     // Create a new credential provider for each client
     return DefaultCredentialsProvider.builder().build();
   }
 
-  private AwsCredentialsProvider credentialsProvider(String credentialsProviderClass) {
+  private AwsCredentialsProvider credentialsProvider(
+      String credentialsProviderClass, Map<String, String> credentialsProviderProperties) {
     Class<?> providerClass;
     try {
       providerClass = DynClasses.builder().impl(credentialsProviderClass).buildChecked();
@@ -458,7 +497,7 @@ public class AwsProperties implements Serializable {
             DynMethods.builder("create")
                 .hiddenImpl(providerClass, Map.class)
                 .buildStaticChecked()
-                .invoke(clientCredentialsProviderProperties);
+                .invoke(credentialsProviderProperties);
       } catch (NoSuchMethodException e) {
         provider =
             DynMethods.builder("create").hiddenImpl(providerClass).buildStaticChecked().invoke();
