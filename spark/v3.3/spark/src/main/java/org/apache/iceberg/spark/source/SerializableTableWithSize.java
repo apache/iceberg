@@ -22,30 +22,22 @@ import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.spark.util.KnownSizeEstimation;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * This class provides a serializable table with a known size estimate. Spark calls its
  * SizeEstimator class when broadcasting variables and this can be an expensive operation, so
  * providing a known size estimate allows that operation to be skipped.
  *
- * <p>This class also implements AutoCloseable to avoid leaking resources upon broadcasting.
- * Broadcast variables are destroyed and cleaned up on the driver and executors once they are
- * garbage collected on the driver. The implementation ensures only resources used by copies of the
- * main table are released.
+ * <p>This class explicitly does *not* close IO objects, because broadcast variables can be removed
+ * from memory and persisted to disk by Spark in the case that memory is needed, even if associated
+ * IO objects are still in use.
  */
-public class SerializableTableWithSize extends SerializableTable
-    implements KnownSizeEstimation, AutoCloseable {
+public class SerializableTableWithSize extends SerializableTable implements KnownSizeEstimation {
 
-  private static final Logger LOG = LoggerFactory.getLogger(SerializableTableWithSize.class);
   private static final long SIZE_ESTIMATE = 32_768L;
-
-  private final transient Object serializationMarker;
 
   protected SerializableTableWithSize(Table table) {
     super(table);
-    this.serializationMarker = new Object();
   }
 
   @Override
@@ -61,38 +53,16 @@ public class SerializableTableWithSize extends SerializableTable
     }
   }
 
-  @Override
-  public void close() throws Exception {
-    if (serializationMarker == null) {
-      LOG.info("Releasing resources");
-      io().close();
-    }
-  }
-
   public static class SerializableMetadataTableWithSize extends SerializableMetadataTable
-      implements KnownSizeEstimation, AutoCloseable {
-
-    private static final Logger LOG =
-        LoggerFactory.getLogger(SerializableMetadataTableWithSize.class);
-
-    private final transient Object serializationMarker;
+      implements KnownSizeEstimation {
 
     protected SerializableMetadataTableWithSize(BaseMetadataTable metadataTable) {
       super(metadataTable);
-      this.serializationMarker = new Object();
     }
 
     @Override
     public long estimatedSize() {
       return SIZE_ESTIMATE;
-    }
-
-    @Override
-    public void close() throws Exception {
-      if (serializationMarker == null) {
-        LOG.info("Releasing resources");
-        io().close();
-      }
     }
   }
 }
