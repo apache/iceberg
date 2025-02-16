@@ -270,7 +270,8 @@ the `expire_snapshots` procedure will never remove files which are still require
 | `retain_last` |    | int       | Number of ancestor snapshots to preserve regardless of `older_than` (defaults to 1) |
 | `max_concurrent_deletes` |    | int       | Size of the thread pool used for delete file actions (by default, no thread pool is used) |
 | `stream_results` |    | boolean       | When true, deletion files will be sent to Spark driver by RDD partition (by default, all the files will be sent to Spark driver). This option is recommended to set to `true` to prevent Spark driver OOM from large file size |
-| `snapshot_ids` |   | array of long       | Array of snapshot IDs to expire. |
+| `snapshot_ids` |   | array of long       | Array of snapshot IDs to expire (note that the table's expiration properties will still be applied to remove all expired snapshots, unless `older_than` or `retain_last` arguments are also given). |
+) |
 
 If `older_than` and `retain_last` are omitted, the table's [expiration properties](configuration.md#table-behavior-properties) will be used.
 Snapshots that are still referenced by branches or tags won't be removed. By default, branches and tags never expire, but their retention policy can be changed with the table property `history.expire.max-ref-age-ms`. The `main` branch never expires.
@@ -294,7 +295,7 @@ Remove snapshots older than specific day and time, but retain the last 100 snaps
 CALL hive_prod.system.expire_snapshots('db.sample', TIMESTAMP '2021-06-30 00:00:00.000', 100);
 ```
 
-Remove snapshots with snapshot ID `123` (note that this snapshot ID should not be the current snapshot):
+Remove expired snapshots, as well as snapshots with snapshot ID `123` (note that this snapshot ID should not be the current snapshot):
 
 ```sql
 CALL hive_prod.system.expire_snapshots(table => 'db.sample', snapshot_ids => ARRAY(123));
