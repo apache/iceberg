@@ -28,6 +28,30 @@ import org.junit.jupiter.api.Test;
 public class TestTypes {
 
   @Test
+  public void fromTypeName() {
+    assertThat(Types.fromTypeName("boolean")).isSameAs(Types.BooleanType.get());
+    assertThat(Types.fromTypeName("BooLean")).isSameAs(Types.BooleanType.get());
+
+    assertThat(Types.fromTypeName("timestamp")).isSameAs(Types.TimestampType.withoutZone());
+    assertThat(Types.fromTypeName("timestamptz")).isSameAs(Types.TimestampType.withZone());
+    assertThat(Types.fromTypeName("timestamp_ns")).isSameAs(Types.TimestampNanoType.withoutZone());
+    assertThat(Types.fromTypeName("timestamptz_ns")).isSameAs(Types.TimestampNanoType.withZone());
+
+    assertThat(Types.fromTypeName("Fixed[ 3 ]")).isEqualTo(Types.FixedType.ofLength(3));
+
+    assertThat(Types.fromTypeName("Decimal( 2 , 3 )")).isEqualTo(Types.DecimalType.of(2, 3));
+
+    assertThat(Types.fromTypeName("Decimal(2,3)")).isEqualTo(Types.DecimalType.of(2, 3));
+
+    assertThat(Types.fromTypeName("variant")).isSameAs(Types.VariantType.get());
+    assertThat(Types.fromTypeName("Variant")).isSameAs(Types.VariantType.get());
+
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.fromTypeName("abcdefghij"))
+        .withMessage("Cannot parse type string to primitive: abcdefghij");
+  }
+
+  @Test
   public void fromPrimitiveString() {
     assertThat(Types.fromPrimitiveString("boolean")).isSameAs(Types.BooleanType.get());
     assertThat(Types.fromPrimitiveString("BooLean")).isSameAs(Types.BooleanType.get());
@@ -44,6 +68,13 @@ public class TestTypes {
     assertThat(Types.fromPrimitiveString("Decimal( 2 , 3 )")).isEqualTo(Types.DecimalType.of(2, 3));
 
     assertThat(Types.fromPrimitiveString("Decimal(2,3)")).isEqualTo(Types.DecimalType.of(2, 3));
+
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.fromPrimitiveString("variant"))
+        .withMessage("Cannot parse type string: variant is not a primitive type");
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.fromPrimitiveString("Variant"))
+        .withMessage("Cannot parse type string: variant is not a primitive type");
 
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("abcdefghij"))
