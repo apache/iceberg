@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.variants;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
@@ -27,9 +29,54 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class VariantTestUtil {
   private VariantTestUtil() {}
+
+  public static void assertEqual(VariantMetadata expected, VariantMetadata actual) {
+    assertThat(actual).isNotNull();
+    assertThat(expected).isNotNull();
+    assertThat(actual.dictionarySize())
+        .as("Dictionary size should match")
+        .isEqualTo(expected.dictionarySize());
+
+    for (int i = 0; i < expected.dictionarySize(); i += 1) {
+      assertThat(actual.get(i)).isEqualTo(expected.get(i));
+    }
+  }
+
+  public static void assertEqual(VariantValue expected, VariantValue actual) {
+    assertThat(actual).isNotNull();
+    assertThat(expected).isNotNull();
+    assertThat(actual.type()).as("Variant type should match").isEqualTo(expected.type());
+
+    if (expected.type() == PhysicalType.OBJECT) {
+      VariantObject expectedObject = expected.asObject();
+      VariantObject actualObject = actual.asObject();
+      assertThat(actualObject.numFields())
+          .as("Variant object num fields should match")
+          .isEqualTo(expectedObject.numFields());
+      for (String fieldName : expectedObject.fieldNames()) {
+        assertEqual(expectedObject.get(fieldName), actualObject.get(fieldName));
+      }
+
+    } else if (expected.type() == PhysicalType.ARRAY) {
+      VariantArray expectedArray = expected.asArray();
+      VariantArray actualArray = actual.asArray();
+      assertThat(actualArray.numElements())
+          .as("Variant array num element should match")
+          .isEqualTo(expectedArray.numElements());
+      for (int i = 0; i < expectedArray.numElements(); i += 1) {
+        assertEqual(expectedArray.get(i), actualArray.get(i));
+      }
+
+    } else {
+      assertThat(actual.asPrimitive().get())
+          .as("Variant primitive value should match")
+          .isEqualTo(expected.asPrimitive().get());
+    }
+  }
 
   private static byte primitiveHeader(int primitiveType) {
     return (byte) (primitiveType << 2);
@@ -60,7 +107,11 @@ public class VariantTestUtil {
     return SerializedPrimitive.from(buffer, buffer.get(0));
   }
 
-  static ByteBuffer createMetadata(Collection<String> fieldNames, boolean sortNames) {
+  public static ByteBuffer emptyMetadata() {
+    return createMetadata(ImmutableList.of(), true);
+  }
+
+  public static ByteBuffer createMetadata(Collection<String> fieldNames, boolean sortNames) {
     if (fieldNames.isEmpty()) {
       return SerializedMetadata.EMPTY_V1_BUFFER;
     }
@@ -108,7 +159,7 @@ public class VariantTestUtil {
     return buffer;
   }
 
-  static ByteBuffer createObject(ByteBuffer metadataBuffer, Map<String, VariantValue> data) {
+  public static ByteBuffer createObject(ByteBuffer metadataBuffer, Map<String, VariantValue> data) {
     // create the metadata to look up field names
     VariantMetadata metadata = Variants.metadata(metadataBuffer);
 

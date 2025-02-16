@@ -47,7 +47,9 @@ class GetProjectedIds extends TypeUtil.SchemaVisitor<Set<Integer>> {
 
   @Override
   public Set<Integer> field(Types.NestedField field, Set<Integer> fieldResult) {
-    if ((includeStructIds && field.type().isStructType()) || field.type().isPrimitiveType()) {
+    if ((includeStructIds && field.type().isStructType())
+        || field.type().isPrimitiveType()
+        || field.type() instanceof Types.VariantType) {
       fieldIds.add(field.fieldId());
     }
     return fieldIds;
@@ -71,5 +73,10 @@ class GetProjectedIds extends TypeUtil.SchemaVisitor<Set<Integer>> {
       }
     }
     return fieldIds;
+  }
+
+  @Override
+  public Set<Integer> variant() {
+    return null;
   }
 }
