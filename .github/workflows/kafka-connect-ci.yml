@@ -90,6 +90,7 @@ jobs:
     - run: |
         ./gradlew -DsparkVersions= -DflinkVersions= -DkafkaVersions=3 \
           :iceberg-kafka-connect:iceberg-kafka-connect-events:check \
+          :iceberg-kafka-connect:iceberg-kafka-connect-transforms:check \
           :iceberg-kafka-connect:iceberg-kafka-connect:check \
           :iceberg-kafka-connect:iceberg-kafka-connect-runtime:check \
           -Pquick=true -x javadoc
