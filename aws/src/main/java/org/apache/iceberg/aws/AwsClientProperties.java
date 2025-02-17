@@ -40,6 +40,7 @@ import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3CrtAsyncClientBuilder;
 
 public class AwsClientProperties implements Serializable {
   /**
@@ -75,6 +76,14 @@ public class AwsClientProperties implements Serializable {
   public static final String CLIENT_REGION = "client.region";
 
   /**
+   * Used to set the maxConcurrency field in the {@link S3CrtAsyncClientBuilder} when building async
+   * s3 clients.
+   */
+  public static final String CLIENT_MAX_CONCURRENCY = "client.max-concurrency";
+
+  public static final int CLIENT_MAX_CONCURRENCY_DEFAULT = 500;
+
+  /**
    * When set, the {@link VendedCredentialsProvider} will be used to fetch and refresh vended
    * credentials from this endpoint.
    */
@@ -84,6 +93,7 @@ public class AwsClientProperties implements Serializable {
   public static final String REFRESH_CREDENTIALS_ENABLED = "client.refresh-credentials-enabled";
 
   private String clientRegion;
+  private final Integer clientMaxConcurrency;
   private final String clientCredentialsProvider;
   private final Map<String, String> clientCredentialsProviderProperties;
   private final String refreshCredentialsEndpoint;
@@ -92,6 +102,7 @@ public class AwsClientProperties implements Serializable {
 
   public AwsClientProperties() {
     this.clientRegion = null;
+    this.clientMaxConcurrency = CLIENT_MAX_CONCURRENCY_DEFAULT;
     this.clientCredentialsProvider = null;
     this.clientCredentialsProviderProperties = null;
     this.refreshCredentialsEndpoint = null;
@@ -102,6 +113,9 @@ public class AwsClientProperties implements Serializable {
   public AwsClientProperties(Map<String, String> properties) {
     this.allProperties = SerializableMap.copyOf(properties);
     this.clientRegion = properties.get(CLIENT_REGION);
+    this.clientMaxConcurrency =
+        PropertyUtil.propertyAsInt(
+            properties, CLIENT_MAX_CONCURRENCY, CLIENT_MAX_CONCURRENCY_DEFAULT);
     this.clientCredentialsProvider = properties.get(CLIENT_CREDENTIALS_PROVIDER);
     this.clientCredentialsProviderProperties =
         PropertyUtil.propertiesWithPrefix(properties, CLIENT_CREDENTIAL_PROVIDER_PREFIX);
@@ -133,6 +147,19 @@ public class AwsClientProperties implements Serializable {
     if (clientRegion != null) {
       builder.region(Region.of(clientRegion));
     }
+  }
+
+  /**
+   * Configure async client settings.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3AsyncClient.crtBuilder().applyMutation(awsClientProperties::applyAsyncConfigurations)
+   * </pre>
+   */
+  public <T extends S3CrtAsyncClientBuilder> void applyAsyncConfigurations(T builder) {
+    builder.maxConcurrency(clientMaxConcurrency);
   }
 
   /**
