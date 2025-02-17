@@ -518,6 +518,7 @@ project(':iceberg-aws') {
     classpath = sourceSets.integration.runtimeClasspath
     jvmArgs += project.property('extraJvmArgs')
   }
+  check.dependsOn integrationTest
 
   def s3SignerSpec = "$projectDir/src/main/resources/s3-signer-open-api.yaml"
   tasks.register('validateS3SignerSpec', org.openapitools.generator.gradle.plugin.tasks.ValidateTask) {
@@ -567,6 +568,7 @@ project(':iceberg-azure') {
     classpath = sourceSets.integration.runtimeClasspath
     jvmArgs += project.property('extraJvmArgs')
   }
+  check.dependsOn integrationTest
 }
 
 project(':iceberg-delta-lake') {
