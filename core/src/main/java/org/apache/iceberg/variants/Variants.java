@@ -20,106 +20,10 @@ package org.apache.iceberg.variants;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.util.DateTimeUtil;
 
 public class Variants {
   private Variants() {}
-
-  enum LogicalType {
-    NULL,
-    BOOLEAN,
-    EXACT_NUMERIC,
-    FLOAT,
-    DOUBLE,
-    DATE,
-    TIMESTAMPTZ,
-    TIMESTAMPNTZ,
-    BINARY,
-    STRING,
-    ARRAY,
-    OBJECT
-  }
-
-  public enum PhysicalType {
-    NULL(LogicalType.NULL, Void.class),
-    BOOLEAN_TRUE(LogicalType.BOOLEAN, Boolean.class),
-    BOOLEAN_FALSE(LogicalType.BOOLEAN, Boolean.class),
-    INT8(LogicalType.EXACT_NUMERIC, Byte.class),
-    INT16(LogicalType.EXACT_NUMERIC, Short.class),
-    INT32(LogicalType.EXACT_NUMERIC, Integer.class),
-    INT64(LogicalType.EXACT_NUMERIC, Long.class),
-    DOUBLE(LogicalType.DOUBLE, Double.class),
-    DECIMAL4(LogicalType.EXACT_NUMERIC, BigDecimal.class),
-    DECIMAL8(LogicalType.EXACT_NUMERIC, BigDecimal.class),
-    DECIMAL16(LogicalType.EXACT_NUMERIC, BigDecimal.class),
-    DATE(LogicalType.DATE, Integer.class),
-    TIMESTAMPTZ(LogicalType.TIMESTAMPTZ, Long.class),
-    TIMESTAMPNTZ(LogicalType.TIMESTAMPNTZ, Long.class),
-    FLOAT(LogicalType.FLOAT, Float.class),
-    BINARY(LogicalType.BINARY, ByteBuffer.class),
-    STRING(LogicalType.STRING, String.class),
-    ARRAY(LogicalType.ARRAY, List.class),
-    OBJECT(LogicalType.OBJECT, Map.class);
-
-    private final LogicalType logicalType;
-    private final Class<?> javaClass;
-
-    PhysicalType(LogicalType logicalType, Class<?> javaClass) {
-      this.logicalType = logicalType;
-      this.javaClass = javaClass;
-    }
-
-    LogicalType toLogicalType() {
-      return logicalType;
-    }
-
-    public Class<?> javaClass() {
-      return javaClass;
-    }
-
-    public static PhysicalType from(int primitiveType) {
-      switch (primitiveType) {
-        case Primitives.TYPE_NULL:
-          return NULL;
-        case Primitives.TYPE_TRUE:
-          return BOOLEAN_TRUE;
-        case Primitives.TYPE_FALSE:
-          return BOOLEAN_FALSE;
-        case Primitives.TYPE_INT8:
-          return INT8;
-        case Primitives.TYPE_INT16:
-          return INT16;
-        case Primitives.TYPE_INT32:
-          return INT32;
-        case Primitives.TYPE_INT64:
-          return INT64;
-        case Primitives.TYPE_DATE:
-          return DATE;
-        case Primitives.TYPE_TIMESTAMPTZ:
-          return TIMESTAMPTZ;
-        case Primitives.TYPE_TIMESTAMPNTZ:
-          return TIMESTAMPNTZ;
-        case Primitives.TYPE_FLOAT:
-          return FLOAT;
-        case Primitives.TYPE_DOUBLE:
-          return DOUBLE;
-        case Primitives.TYPE_DECIMAL4:
-          return DECIMAL4;
-        case Primitives.TYPE_DECIMAL8:
-          return DECIMAL8;
-        case Primitives.TYPE_DECIMAL16:
-          return DECIMAL16;
-        case Primitives.TYPE_BINARY:
-          return BINARY;
-        case Primitives.TYPE_STRING:
-          return STRING;
-      }
-
-      throw new UnsupportedOperationException("Unknown primitive physical type: " + primitiveType);
-    }
-  }
 
   interface Serialized {
     ByteBuffer buffer();
@@ -139,30 +43,6 @@ public class Variants {
     }
   }
 
-  static class Primitives {
-    static final int TYPE_NULL = 0;
-    static final int TYPE_TRUE = 1;
-    static final int TYPE_FALSE = 2;
-    static final int TYPE_INT8 = 3;
-    static final int TYPE_INT16 = 4;
-    static final int TYPE_INT32 = 5;
-    static final int TYPE_INT64 = 6;
-    static final int TYPE_DOUBLE = 7;
-    static final int TYPE_DECIMAL4 = 8;
-    static final int TYPE_DECIMAL8 = 9;
-    static final int TYPE_DECIMAL16 = 10;
-    static final int TYPE_DATE = 11;
-    static final int TYPE_TIMESTAMPTZ = 12; // equivalent to timestamptz
-    static final int TYPE_TIMESTAMPNTZ = 13; // equivalent to timestamp
-    static final int TYPE_FLOAT = 14;
-    static final int TYPE_BINARY = 15;
-    static final int TYPE_STRING = 16;
-
-    static final int PRIMITIVE_TYPE_SHIFT = 2;
-
-    private Primitives() {}
-  }
-
   static final int HEADER_SIZE = 1;
 
   enum BasicType {
@@ -172,11 +52,11 @@ public class Variants {
     ARRAY
   }
 
-  public static VariantValue from(ByteBuffer metadata, ByteBuffer value) {
-    return from(SerializedMetadata.from(metadata), value);
+  public static VariantMetadata metadata(ByteBuffer metadata) {
+    return SerializedMetadata.from(metadata);
   }
 
-  static VariantValue from(SerializedMetadata metadata, ByteBuffer value) {
+  public static VariantValue value(VariantMetadata metadata, ByteBuffer value) {
     int header = VariantUtil.readByte(value, 0);
     BasicType basicType = VariantUtil.basicType(header);
     switch (basicType) {
@@ -193,16 +73,24 @@ public class Variants {
     throw new UnsupportedOperationException("Unsupported basic type: " + basicType);
   }
 
-  static VariantPrimitive<Void> ofNull() {
+  public static ShreddedObject object(VariantMetadata metadata, VariantObject object) {
+    return new ShreddedObject(metadata, object);
+  }
+
+  public static ShreddedObject object(VariantMetadata metadata) {
+    return new ShreddedObject(metadata);
+  }
+
+  public static <T> VariantPrimitive<T> of(PhysicalType type, T value) {
+    return new PrimitiveWrapper<>(type, value);
+  }
+
+  public static VariantPrimitive<Void> ofNull() {
     return new PrimitiveWrapper<>(PhysicalType.NULL, null);
   }
 
   static VariantPrimitive<Boolean> of(boolean value) {
-    if (value) {
-      return new PrimitiveWrapper<>(PhysicalType.BOOLEAN_TRUE, true);
-    } else {
-      return new PrimitiveWrapper<>(PhysicalType.BOOLEAN_FALSE, false);
-    }
+    return new PrimitiveWrapper<>(PhysicalType.BOOLEAN_TRUE, value);
   }
 
   static VariantPrimitive<Byte> of(byte value) {

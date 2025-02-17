@@ -59,6 +59,11 @@ public class TestParquetEncryptionWithWriteSupport extends DataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomGenericData.generate(schema, 100, 0L);
+    writeAndValidate(schema, expected);
+  }
+
+  @Override
+  protected void writeAndValidate(Schema schema, List<Record> expected) throws IOException {
 
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).isTrue();

@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -27,6 +28,10 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.RowLevelOperationMode;
@@ -39,9 +44,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSQLProperties;
+import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.TestSparkCatalog;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -61,7 +68,8 @@ public class TestMergeOnReadDelete extends TestDelete {
       String distributionMode,
       boolean fanoutEnabled,
       String branch,
-      PlanningMode planningMode) {
+      PlanningMode planningMode,
+      int formatVersion) {
     super(
         catalogName,
         implementation,
@@ -71,16 +79,14 @@ public class TestMergeOnReadDelete extends TestDelete {
         distributionMode,
         fanoutEnabled,
         branch,
-        planningMode);
+        planningMode,
+        formatVersion);
   }
 
   @Override
   protected Map<String, String> extraTableProperties() {
     return ImmutableMap.of(
-        TableProperties.FORMAT_VERSION,
-        "2",
-        TableProperties.DELETE_MODE,
-        RowLevelOperationMode.MERGE_ON_READ.modeName());
+        TableProperties.DELETE_MODE, RowLevelOperationMode.MERGE_ON_READ.modeName());
   }
 
   @Parameterized.AfterParam
@@ -114,11 +120,13 @@ public class TestMergeOnReadDelete extends TestDelete {
 
   @Test
   public void testDeleteFileGranularity() throws NoSuchTableException {
+    assumeThat(formatVersion).isEqualTo(2);
     checkDeleteFileGranularity(DeleteGranularity.FILE);
   }
 
   @Test
   public void testDeletePartitionGranularity() throws NoSuchTableException {
+    assumeThat(formatVersion).isEqualTo(2);
     checkDeleteFileGranularity(DeleteGranularity.PARTITION);
   }
 
@@ -203,9 +211,58 @@ public class TestMergeOnReadDelete extends TestDelete {
         sql("SELECT * FROM %s ORDER BY id ASC", selectTarget()));
   }
 
+  @Test
+  public void testDeleteWithDVAndHistoricalPositionDeletes() {
+    assumeThat(formatVersion).isEqualTo(2);
+    createTableWithDeleteGranularity(
+        "id INT, dep STRING", "PARTITIONED BY (dep)", DeleteGranularity.PARTITION);
+    createBranchIfNeeded();
+    append(
+        commitTarget(),
+        "{ \"id\": 1, \"dep\": \"hr\" }\n"
+            + "{ \"id\": 2, \"dep\": \"hr\" }\n"
+            + "{ \"id\": 3, \"dep\": \"hr\" }");
+    append(
+        commitTarget(),
+        "{ \"id\": 4, \"dep\": \"hr\" }\n"
+            + "{ \"id\": 5, \"dep\": \"hr\" }\n"
+            + "{ \"id\": 6, \"dep\": \"hr\" }");
+
+    // Produce partition scoped deletes for the two modified files
+    sql("DELETE FROM %s WHERE id = 1 or id = 4", commitTarget());
+
+    // Produce 1 file-scoped deletes for the second update
+    Map<String, String> fileGranularityProps =
+        ImmutableMap.of(TableProperties.DELETE_GRANULARITY, DeleteGranularity.FILE.toString());
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(fileGranularityProps));
+    sql("DELETE FROM %s WHERE id = 5", commitTarget());
+
+    // Produce a DV which will contain 3 positions from the second data file
+    // 2 existing deleted positions from the earlier file-scoped and partition-scoped deletes
+    // and 1 new deleted position
+    Map<String, String> updateFormatProperties =
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, "3");
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(updateFormatProperties));
+    sql("DELETE FROM %s where id = 6", commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Set<DeleteFile> deleteFiles =
+        TestHelpers.deleteFiles(table, SnapshotUtil.latestSnapshot(table, branch));
+    List<DeleteFile> dvs =
+        deleteFiles.stream().filter(ContentFileUtil::isDV).collect(Collectors.toList());
+    assertThat(dvs).hasSize(1);
+    assertThat(dvs).allMatch(dv -> dv.recordCount() == 3);
+    assertThat(dvs).allMatch(dv -> FileFormat.fromFileName(dv.location()) == FileFormat.PUFFIN);
+  }
+
   private void checkDeleteFileGranularity(DeleteGranularity deleteGranularity)
       throws NoSuchTableException {
-    createAndInitPartitionedTable();
+    createTableWithDeleteGranularity(
+        "id INT, dep STRING", "PARTITIONED BY (dep)", deleteGranularity);
 
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s' '%s')",

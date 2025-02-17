@@ -25,6 +25,7 @@ import static org.apache.iceberg.SnapshotSummary.ADDED_DVS_PROP;
 import static org.apache.iceberg.SnapshotSummary.ADD_POS_DELETE_FILES_PROP;
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.TableProperties.DELETE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.DELETE_MODE;
@@ -1154,14 +1155,16 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createOrReplaceView("deleted_id", Collections.singletonList(1), Encoders.INT());
 
     sql(
-        "ALTER TABLE %s SET TBLPROPERTIES('%s'='%s', '%s'='%s', '%s'='%s')",
+        "ALTER TABLE %s SET TBLPROPERTIES('%s'='%s', '%s'='%s', '%s'='%s', '%s'='%s')",
         tableName,
         DELETE_ISOLATION_LEVEL,
         "snapshot",
         COMMIT_MIN_RETRY_WAIT_MS,
         "10",
         COMMIT_MAX_RETRY_WAIT_MS,
-        "1000");
+        "1000",
+        COMMIT_NUM_RETRIES,
+        "7");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
     createBranchIfNeeded();

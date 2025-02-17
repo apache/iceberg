@@ -111,6 +111,8 @@ paths:
 
           - GET /v1/{prefix}/namespaces/{namespace}
 
+          - HEAD /v1/{prefix}/namespaces/{namespace}
+
           - DELETE /v1/{prefix}/namespaces/{namespace}
 
           - POST /v1/{prefix}/namespaces/{namespace}/properties
@@ -120,6 +122,8 @@ paths:
           - POST /v1/{prefix}/namespaces/{namespace}/tables
 
           - GET /v1/{prefix}/namespaces/{namespace}/tables/{table}
+
+          - HEAD /v1/{prefix}/namespaces/{namespace}/tables/{table}
 
           - POST /v1/{prefix}/namespaces/{namespace}/tables/{table}
 
@@ -930,6 +934,15 @@ paths:
         key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
       parameters:
         - $ref: '#/components/parameters/data-access'
+        - name: If-None-Match
+          in: header
+          description:
+            An optional header that allows the server to return 304 (Not Modified) if the metadata
+            is current. The content is the value of the ETag received in a CreateTableResponse or
+            LoadTableResponse.
+          required: false
+          schema:
+            type: string
         - in: query
           name: snapshots
           description:
@@ -945,6 +958,10 @@ paths:
       responses:
         200:
           $ref: '#/components/responses/LoadTableResponse'
+        304:
+          description:
+            Not Modified - Based on the content of the 'If-None-Match' header the table metadata has
+            not changed since.
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -1873,6 +1890,14 @@ components:
         type: integer
         minimum: 1
 
+    etag:
+      name: ETag
+      in: header
+      description: Identifies a unique version of the table metadata.
+      required: false
+      schema:
+        type: string
+
   ##############################
   # Application Schema Objects #
   ##############################
@@ -2048,6 +2073,10 @@ components:
           type: boolean
         doc:
           type: string
+        initial-default:
+          $ref: "#/components/schemas/PrimitiveTypeValue"
+        write-default:
+          $ref: "#/components/schemas/PrimitiveTypeValue"
 
     StructType:
       type: object
@@ -2644,6 +2673,8 @@ components:
           set-partition-statistics: '#/components/schemas/SetPartitionStatisticsUpdate'
           remove-partition-statistics: '#/components/schemas/RemovePartitionStatisticsUpdate'
           remove-partition-specs: '#/components/schemas/RemovePartitionSpecsUpdate'
+          remove-schemas: '#/components/schemas/RemoveSchemasUpdate'
+          enable-row-lineage: '#/components/schemas/EnableRowLineageUpdate'
       type: object
       required:
         - action
@@ -2881,7 +2912,6 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
-        - snapshot-id
         - statistics
       properties:
         action:
@@ -2890,6 +2920,10 @@ components:
         snapshot-id:
           type: integer
           format: int64
+          deprecated: true
+          description:
+            This optional field is **DEPRECATED for REMOVAL** since it contains redundant information.
+            Clients should use the `statistics.snapshot-id` field instead.
         statistics:
           $ref: '#/components/schemas/StatisticsFile'
 
@@ -2945,6 +2979,29 @@ components:
           items:
             type: integer
 
+    RemoveSchemasUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - schema-ids
+      properties:
+        action:
+          type: string
+          const: "remove-schemas"
+        schema-ids:
+          type: array
+          items:
+            type: integer
+
+    # Disabling Row Lineage is Forbidden
+    EnableRowLineageUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      properties:
+        action:
+          type: string
+          const: "enable-row-lineage"
+
     TableUpdate:
       anyOf:
         - $ref: '#/components/schemas/AssignUUIDUpdate'
@@ -2965,6 +3022,8 @@ components:
         - $ref: '#/components/schemas/SetStatisticsUpdate'
         - $ref: '#/components/schemas/RemoveStatisticsUpdate'
         - $ref: '#/components/schemas/RemovePartitionSpecsUpdate'
+        - $ref: '#/components/schemas/RemoveSchemasUpdate'
+        - $ref: '#/components/schemas/EnableRowLineageUpdate'
 
     ViewUpdate:
       anyOf:
@@ -4573,6 +4632,9 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/LoadTableResult'
+      headers:
+        etag:
+          $ref: '#/components/parameters/etag'
 
     PlanTableScanResponse:
       description: Result of submitting a table scan to plan
@@ -4601,6 +4663,9 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/LoadTableResult'
+      headers:
+        etag:
+          $ref: '#/components/parameters/etag'
 
     LoadViewResponse:
       description: View metadata result when loading a view

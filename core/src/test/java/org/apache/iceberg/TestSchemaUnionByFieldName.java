@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.Types;
@@ -82,6 +83,21 @@ public class TestSchemaUnionByFieldName {
   @Test
   public void testAddTopLevelPrimitives() {
     Schema newSchema = new Schema(primitiveFields(0, primitiveTypes()));
+    Schema applied = new SchemaUpdate(new Schema(), 0).unionByNameWith(newSchema).apply();
+    assertThat(applied.asStruct()).isEqualTo(newSchema.asStruct());
+  }
+
+  @Test
+  public void testAddFieldWithDefault() {
+    Schema newSchema =
+        new Schema(
+            optional("test")
+                .withId(1)
+                .ofType(LongType.get())
+                .withDoc("description")
+                .withInitialDefault(Literal.of(34))
+                .withWriteDefault(Literal.of(35))
+                .build());
     Schema applied = new SchemaUpdate(new Schema(), 0).unionByNameWith(newSchema).apply();
     assertThat(applied.asStruct()).isEqualTo(newSchema.asStruct());
   }
@@ -277,6 +293,40 @@ public class TestSchemaUnionByFieldName {
     assertThatThrownBy(() -> new SchemaUpdate(currentSchema, 3).unionByNameWith(newSchema).apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot change column type: aMap.key: string -> uuid");
+  }
+
+  @Test
+  public void testUpdateColumnDoc() {
+    Schema currentSchema = new Schema(required(1, "aCol", IntegerType.get()));
+    Schema newSchema = new Schema(required(1, "aCol", IntegerType.get(), "description"));
+
+    Schema applied = new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
+    assertThat(applied.asStruct()).isEqualTo(newSchema.asStruct());
+  }
+
+  @Test
+  public void testUpdateColumnDefaults() {
+    Schema currentSchema = new Schema(required(1, "aCol", IntegerType.get()));
+    Schema newSchema =
+        new Schema(
+            required("aCol")
+                .withId(1)
+                .ofType(IntegerType.get())
+                .withInitialDefault(Literal.of(34))
+                .withWriteDefault(Literal.of(35))
+                .build());
+
+    // the initial default is not modified for existing columns
+    Schema expected =
+        new Schema(
+            required("aCol")
+                .withId(1)
+                .ofType(IntegerType.get())
+                .withWriteDefault(Literal.of(35))
+                .build());
+
+    Schema applied = new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
+    assertThat(applied.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test

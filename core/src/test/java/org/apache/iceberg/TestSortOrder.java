@@ -36,6 +36,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SortOrderUtil;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -340,6 +341,18 @@ public class TestSortOrder {
     assertThatThrownBy(() -> SortOrder.builderFor(v3Schema).withOrderId(10).asc("struct.v").build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Unsupported type for identity: variant");
+  }
+
+  @Test
+  public void testUnknownSupported() {
+    int fieldId = 22;
+    Schema v3Schema = new Schema(Types.NestedField.optional(fieldId, "u", Types.UnknownType.get()));
+
+    SortOrder sortOrder = SortOrder.builderFor(v3Schema).asc("u").build();
+
+    assertThat(sortOrder.orderId()).isEqualTo(TableMetadata.INITIAL_SORT_ORDER_ID);
+    assertThat(sortOrder.fields()).hasSize(1);
+    assertThat(sortOrder.fields().get(0).sourceId()).isEqualTo(fieldId);
   }
 
   @TestTemplate

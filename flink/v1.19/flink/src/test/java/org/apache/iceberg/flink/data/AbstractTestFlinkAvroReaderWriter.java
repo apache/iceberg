@@ -67,13 +67,13 @@ public abstract class AbstractTestFlinkAvroReaderWriter extends DataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expectedRecords = RandomGenericData.generate(schema, NUM_RECORDS, 1991L);
-    writeAndValidate(schema, expectedRecords, NUM_RECORDS);
+    writeAndValidate(schema, expectedRecords);
   }
 
   protected abstract Avro.ReadBuilder createAvroReadBuilder(File recordsFile, Schema schema);
 
-  private void writeAndValidate(Schema schema, List<Record> expectedRecords, int numRecord)
-      throws IOException {
+  @Override
+  protected void writeAndValidate(Schema schema, List<Record> expectedRecords) throws IOException {
     RowType flinkSchema = FlinkSchemaUtil.convert(schema);
     List<RowData> expectedRows = Lists.newArrayList(RandomRowData.convert(schema, expectedRecords));
 
@@ -93,7 +93,7 @@ public abstract class AbstractTestFlinkAvroReaderWriter extends DataTest {
     try (CloseableIterable<RowData> reader = createAvroReadBuilder(recordsFile, schema).build()) {
       Iterator<Record> expected = expectedRecords.iterator();
       Iterator<RowData> rows = reader.iterator();
-      for (int i = 0; i < numRecord; i++) {
+      for (int i = 0; i < expectedRecords.size(); i++) {
         assertThat(rows).hasNext();
         TestHelpers.assertRowData(schema.asStruct(), flinkSchema, expected.next(), rows.next());
       }
@@ -120,7 +120,7 @@ public abstract class AbstractTestFlinkAvroReaderWriter extends DataTest {
             .build()) {
       Iterator<RowData> expected = expectedRows.iterator();
       Iterator<Record> records = reader.iterator();
-      for (int i = 0; i < numRecord; i += 1) {
+      for (int i = 0; i < expectedRecords.size(); i += 1) {
         assertThat(records).hasNext();
         TestHelpers.assertRowData(schema.asStruct(), flinkSchema, records.next(), expected.next());
       }
@@ -177,6 +177,6 @@ public abstract class AbstractTestFlinkAvroReaderWriter extends DataTest {
                 1643811742000L,
                 10.24d));
 
-    writeAndValidate(SCHEMA_NUM_TYPE, expected, 2);
+    writeAndValidate(SCHEMA_NUM_TYPE, expected);
   }
 }

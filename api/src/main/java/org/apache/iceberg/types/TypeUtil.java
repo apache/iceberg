@@ -536,6 +536,9 @@ public class TypeUtil {
       case BINARY:
       case VARIANT:
         return 80;
+      case UNKNOWN:
+        // Consider Unknown as null
+        return 0;
       case DECIMAL:
         // 12 (header) + (12 + 12 + 4) (BigInteger) + 4 (scale) = 44 bytes
         return 44;
