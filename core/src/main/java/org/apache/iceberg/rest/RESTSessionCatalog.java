@@ -362,6 +362,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     return session(context)::headers;
   }
 
+  public Set<Endpoint> endpoints() {
+    return endpoints;
+  }
+
   @Override
   public void setConf(Object newConf) {
     this.conf = newConf;
