@@ -28,6 +28,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.metrics.MetricsContext;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamFactory;
 
 public class S3OutputFile extends BaseS3File implements OutputFile, NativelyEncryptedFile {
   private NativeFileCryptoParameters nativeEncryptionParameters;
@@ -35,18 +36,24 @@ public class S3OutputFile extends BaseS3File implements OutputFile, NativelyEncr
   public static S3OutputFile fromLocation(
       String location,
       S3Client client,
+      S3SeekableInputStreamFactory streamFactory,
       S3FileIOProperties s3FileIOProperties,
       MetricsContext metrics) {
     return new S3OutputFile(
         client,
+        streamFactory,
         new S3URI(location, s3FileIOProperties.bucketToAccessPointMapping()),
         s3FileIOProperties,
         metrics);
   }
 
   S3OutputFile(
-      S3Client client, S3URI uri, S3FileIOProperties s3FileIOProperties, MetricsContext metrics) {
-    super(client, uri, s3FileIOProperties, metrics);
+      S3Client client,
+      S3SeekableInputStreamFactory streamFactory,
+      S3URI uri,
+      S3FileIOProperties s3FileIOProperties,
+      MetricsContext metrics) {
+    super(client, streamFactory, uri, s3FileIOProperties, metrics);
   }
 
   /**
@@ -75,7 +82,7 @@ public class S3OutputFile extends BaseS3File implements OutputFile, NativelyEncr
 
   @Override
   public InputFile toInputFile() {
-    return new S3InputFile(client(), uri(), null, s3FileIOProperties(), metrics());
+    return new S3InputFile(client(), streamFactory(), uri(), null, s3FileIOProperties(), metrics());
   }
 
   @Override
