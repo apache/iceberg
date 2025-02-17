@@ -304,7 +304,7 @@ public class MappingUtil {
 
     @Override
     public MappedFields variant(Types.VariantType variant) {
-      return null; // no mapping because variant no nested fields
+      return null; // no mapping because variant has no nested fields with IDs
     }
 
     @Override

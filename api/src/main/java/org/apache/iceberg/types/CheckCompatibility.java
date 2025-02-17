@@ -257,10 +257,7 @@ public class CheckCompatibility extends TypeUtil.CustomOrderSchemaVisitor<List<S
     }
 
     // Currently promotion is not allowed to variant type
-    return ImmutableList.of(
-        String.format(
-            ": %s cannot be read as a %s",
-            currentType.typeId().toString().toLowerCase(Locale.ENGLISH), readVariant));
+    return ImmutableList.of(String.format(": %s cannot be read as a %s", currentType, readVariant));
   }
 
   @Override
