@@ -999,15 +999,12 @@ This can be the starting point to fully or incrementally copy an Iceberg table t
 
 #### Modes of operation
 
-- Full Rewrite
+* Full Rewrite: 
+A full rewrite will rewrite all reachable metadata files
+(this includes metadata.json, manifest lists, manifests, and position delete files), and will return all reachable files in the `file_list_location`. This is the default mode of operation for this procedure.
 
-By default, the procedure operates in full rewrite mode. It will rewrite all reachable metadata files
-(this includes metadata.json, manifest lists, manifests, and position delete files), and will return all reachable files in the `file_list_location`.
-
-- Incremental Rewrite
-
-The `start_version` and/or `end_version` arguments may be provided to limit the scope of the procedure.  
-It will only rewrite metadata files added between `start_version` and `end_version`, and will only return files added in this range in the `file_list_location`.
+* Incremental Rewrite: 
+An incremental rewrite will only rewrite metadata files added between `start_version` and `end_version`, and will only return files added in this range in the `file_list_location`. Optional `start_version` and `end_version` can be provided to limit the scope of this procedure.
 
 
 #### Output
@@ -1022,13 +1019,9 @@ The file contains the copy plan for all files added to the table between `start_
 
 For each file, it specifies:
 
-- Source Path
- 
-The original file path in the table, or the staging location if the file has been rewritten.
+* Source Path: The original file path in the table, or the staging location if the file has been rewritten
 
-- Target Path
- 
-The path with the replacement prefix.
+* Target Path: The path with the replacement prefix
 
 The following example shows a copy plan for three files:
 
