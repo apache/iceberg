@@ -127,7 +127,7 @@ public class TestS3FileIO {
 
   @BeforeEach
   public void before() {
-    s3FileIO = new S3FileIO(() -> s3mock);
+    s3FileIO = S3FileIO.builder().s3(() -> s3mock).build();
     s3FileIO.initialize(properties);
     createBucket(S3_GENERAL_PURPOSE_BUCKET);
     for (int i = 1; i <= numBucketsForBatchDeletion; i++) {
@@ -328,7 +328,7 @@ public class TestS3FileIO {
         .thenReturn(mockedResponse);
 
     // Initialize S3FileIO with the mocked client
-    S3FileIO localS3FileIo = new S3FileIO(() -> localMockedClient);
+    S3FileIO localS3FileIo = S3FileIO.builder().s3(() -> localMockedClient).build();
     localS3FileIo.initialize(props);
 
     // Perform the listing
