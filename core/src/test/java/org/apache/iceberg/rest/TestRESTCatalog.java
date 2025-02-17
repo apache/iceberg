@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.apache.iceberg.rest.RESTCatalogAdapter.Route.CONFIG;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -41,6 +42,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
@@ -2503,6 +2505,101 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any(),
             any(),
             any());
+  }
+
+  @Test
+  public void testNamespaceExistsWithoutHEADRequest() {
+    RESTCatalogAdapter adapter = Mockito.spy(adapterWithoutHeadEndpoints());
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of());
+
+    assertThat(catalog.namespaceExists(Namespace.of("non-existing"))).isFalse();
+
+    Mockito.verify(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+    Mockito.verify(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.GET, "v1/namespaces/non-existing", Map.of(), Map.of()),
+            any(),
+            any(),
+            any());
+  }
+
+  @Test
+  public void testTableExistsWithoutHEADRequest() {
+    RESTCatalogAdapter adapter = Mockito.spy(adapterWithoutHeadEndpoints());
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of());
+
+    assertThat(catalog.tableExists(TableIdentifier.of("ns", "non-existing"))).isFalse();
+
+    Mockito.verify(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+    Mockito.verify(adapter)
+        .execute(
+            reqMatcher(
+                HTTPMethod.GET,
+                "v1/namespaces/ns/tables/non-existing",
+                Map.of(),
+                Map.of("snapshots", "all")),
+            any(),
+            any(),
+            any());
+  }
+
+  @Test
+  public void testViewExistsWithoutHEADRequest() {
+    RESTCatalogAdapter adapter = Mockito.spy(adapterWithoutHeadEndpoints());
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of());
+
+    assertThat(catalog.viewExists(TableIdentifier.of("ns", "non-existing"))).isFalse();
+
+    Mockito.verify(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+    Mockito.verify(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.GET, "v1/namespaces/ns/views/non-existing", Map.of(), Map.of()),
+            any(),
+            any(),
+            any());
+  }
+
+  private RESTCatalogAdapter adapterWithoutHeadEndpoints() {
+    return new RESTCatalogAdapter(backendCatalog) {
+      @Override
+      public <T extends RESTResponse> T handleRequest(
+          Route route, Map<String, String> vars, Object body, Class<T> responseType) {
+        if (CONFIG == route) {
+          // simulate a legacy server that doesn't send back HEAD endpoints
+          ConfigResponse response =
+              (ConfigResponse) super.handleRequest(route, vars, body, responseType);
+          List<Endpoint> endpoints =
+              response.endpoints().stream()
+                  .filter(endpoint -> !endpoint.httpMethod().equals("HEAD"))
+                  .collect(Collectors.toList());
+          return castResponse(
+              responseType, ConfigResponse.builder().withEndpoints(endpoints).build());
+        }
+
+        return super.handleRequest(route, vars, body, responseType);
+      }
+    };
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
