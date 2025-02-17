@@ -30,9 +30,10 @@ public interface Variant {
    * Query the value with a given path.
    *
    * <p>The path format is a subset of JSON path that supports:
+   *
    * <ul>
-   *   <li><code>$</code> the root value</li>
-   *   <li><code>.name</code> accesses a field by name</li>
+   *   <li><code>$</code> the root value
+   *   <li><code>.name</code> accesses a field by name
    * </ul>
    *
    * <p>If the query result is a list, the value is a variant array of results.
