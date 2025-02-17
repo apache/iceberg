@@ -24,12 +24,33 @@ import static org.junit.jupiter.params.provider.Arguments.arguments;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.FieldSource;
 
 class FileFormatTest {
 
+  private static final Object[][] FILE_NAMES =
+      new Object[][] {
+        // Files with format
+        {"file.puffin", FileFormat.PUFFIN},
+        {"dir/file.puffin", FileFormat.PUFFIN},
+        {"file.orc", FileFormat.ORC},
+        {"dir/file.orc", FileFormat.ORC},
+        {"file.parquet", FileFormat.PARQUET},
+        {"dir/file.parquet", FileFormat.PARQUET},
+        {"file.avro", FileFormat.AVRO},
+        {"dir/file.avro", FileFormat.AVRO},
+        {"v1.metadata.json", FileFormat.METADATA},
+        {"dir/v1.metadata.json", FileFormat.METADATA},
+        // Unsupported formats
+        {"file.csv", null},
+        {"dir/file.csv", null},
+        // No format
+        {"file", null},
+        {"dir", null},
+      };
+
   @ParameterizedTest
-  @MethodSource
+  @FieldSource("FILE_NAMES")
   void fromFileName(String fileName, FileFormat expected) {
     FileFormat actual = FileFormat.fromFileName(fileName);
 
