@@ -507,6 +507,10 @@ class PlanStatus(BaseModel):
 class RegisterTableRequest(BaseModel):
     name: str
     metadata_location: str = Field(..., alias='metadata-location')
+    overwrite: Optional[bool] = Field(
+        False,
+        description='Whether to overwrite table metadata if the table already exists',
+    )
 
 
 class TokenType(BaseModel):
