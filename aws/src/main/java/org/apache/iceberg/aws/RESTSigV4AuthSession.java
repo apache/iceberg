@@ -31,14 +31,16 @@ import org.apache.iceberg.rest.HTTPRequest;
 import org.apache.iceberg.rest.ImmutableHTTPHeaders;
 import org.apache.iceberg.rest.ImmutableHTTPRequest;
 import org.apache.iceberg.rest.auth.AuthSession;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.signer.Aws4Signer;
-import software.amazon.awssdk.auth.signer.internal.SignerConstant;
-import software.amazon.awssdk.auth.signer.params.Aws4SignerParams;
-import software.amazon.awssdk.auth.signer.params.SignerChecksumParams;
-import software.amazon.awssdk.core.checksums.Algorithm;
-import software.amazon.awssdk.http.SdkHttpFullRequest;
+import software.amazon.awssdk.checksums.DefaultChecksumAlgorithm;
+import software.amazon.awssdk.http.ContentStreamProvider;
 import software.amazon.awssdk.http.SdkHttpMethod;
+import software.amazon.awssdk.http.SdkHttpRequest;
+import software.amazon.awssdk.http.auth.aws.signer.AwsV4FamilyHttpSigner;
+import software.amazon.awssdk.http.auth.aws.signer.AwsV4HttpSigner;
+import software.amazon.awssdk.http.auth.spi.signer.SignRequest;
+import software.amazon.awssdk.http.auth.spi.signer.SignedRequest;
 import software.amazon.awssdk.regions.Region;
 
 /**
@@ -57,14 +59,14 @@ public class RESTSigV4AuthSession implements AuthSession {
       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
   static final String RELOCATED_HEADER_PREFIX = "Original-";
 
-  private final Aws4Signer signer;
+  private final AwsV4HttpSigner signer;
   private final AuthSession delegate;
   private final Region signingRegion;
   private final String signingName;
   private final AwsCredentialsProvider credentialsProvider;
 
   public RESTSigV4AuthSession(
-      Aws4Signer aws4Signer, AuthSession delegateAuthSession, AwsProperties awsProperties) {
+      AwsV4HttpSigner aws4Signer, AuthSession delegateAuthSession, AwsProperties awsProperties) {
     this.signer = Preconditions.checkNotNull(aws4Signer, "Invalid signer: null");
     this.delegate = Preconditions.checkNotNull(delegateAuthSession, "Invalid delegate: null");
     Preconditions.checkNotNull(awsProperties, "Invalid AWS properties: null");
@@ -84,40 +86,34 @@ public class RESTSigV4AuthSession implements AuthSession {
   }
 
   private HTTPRequest sign(HTTPRequest request) {
-    Aws4SignerParams params =
-        Aws4SignerParams.builder()
-            .signingName(signingName)
-            .signingRegion(signingRegion)
-            .awsCredentials(credentialsProvider.resolveCredentials())
-            .checksumParams(
-                SignerChecksumParams.builder()
-                    .algorithm(Algorithm.SHA256)
-                    .isStreamingRequest(false)
-                    .checksumHeaderName(SignerConstant.X_AMZ_CONTENT_SHA256)
-                    .build())
+    URI uri = request.requestUri();
+    String body = request.encodedBody();
+
+    SdkHttpRequest sdkHttpRequest =
+        SdkHttpRequest.builder()
+            .method(SdkHttpMethod.fromValue(request.method().name()))
+            .protocol(uri.getScheme())
+            .uri(uri)
+            .headers(convertHeaders(request.headers()))
             .build();
 
-    SdkHttpFullRequest.Builder sdkRequestBuilder = SdkHttpFullRequest.builder();
+    SignRequest.Builder<AwsCredentials> signRequestBuilder =
+        SignRequest.builder(credentialsProvider.resolveCredentials())
+            .request(sdkHttpRequest)
+            .putProperty(AwsV4FamilyHttpSigner.CHECKSUM_ALGORITHM, DefaultChecksumAlgorithm.SHA256)
+            .putProperty(AwsV4FamilyHttpSigner.SERVICE_SIGNING_NAME, signingName)
+            .putProperty(AwsV4HttpSigner.REGION_NAME, signingRegion.toString());
 
-    URI uri = request.requestUri();
-    sdkRequestBuilder
-        .method(SdkHttpMethod.fromValue(request.method().name()))
-        .protocol(uri.getScheme())
-        .uri(uri)
-        .headers(convertHeaders(request.headers()));
-
-    String body = request.encodedBody();
     if (body == null) {
-      // This is a workaround for the signer implementation incorrectly producing
-      // an invalid content checksum for empty body requests.
-      sdkRequestBuilder.putHeader(SignerConstant.X_AMZ_CONTENT_SHA256, EMPTY_BODY_SHA256);
+      signRequestBuilder.payload(null);
     } else {
-      sdkRequestBuilder.contentStreamProvider(
-          () -> IOUtils.toInputStream(body, StandardCharsets.UTF_8));
+      signRequestBuilder.payload(
+          ContentStreamProvider.fromInputStream(
+              IOUtils.toInputStream(body, StandardCharsets.UTF_8)));
     }
-
-    SdkHttpFullRequest signedSdkRequest = signer.sign(sdkRequestBuilder.build(), params);
-    HTTPHeaders newHeaders = updateRequestHeaders(request.headers(), signedSdkRequest.headers());
+    SignedRequest signedRequest = signer.sign(signRequestBuilder.build());
+    HTTPHeaders newHeaders =
+        updateRequestHeaders(request.headers(), signedRequest.request().headers());
     return ImmutableHTTPRequest.builder().from(request).headers(newHeaders).build();
   }
 
