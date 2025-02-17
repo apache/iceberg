@@ -250,4 +250,9 @@ public class TestFlinkParquetReader extends DataTest {
   protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
     writeAndValidate(RandomGenericData.generate(writeSchema, 100, 0L), writeSchema, expectedSchema);
   }
+
+  @Override
+  protected void writeAndValidate(Schema schema, List<Record> expectedData) throws IOException {
+    writeAndValidate(expectedData, schema, schema);
+  }
 }

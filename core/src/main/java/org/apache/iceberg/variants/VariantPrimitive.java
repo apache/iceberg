@@ -18,6 +18,11 @@
  */
 package org.apache.iceberg.variants;
 
+import java.nio.ByteBuffer;
+import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
+import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.DateTimeUtil;
+
 /** A primitive variant value. */
 public interface VariantPrimitive<T> extends VariantValue {
   T get();
@@ -25,5 +30,24 @@ public interface VariantPrimitive<T> extends VariantValue {
   @Override
   default VariantPrimitive<?> asPrimitive() {
     return this;
+  }
+
+  private String valueAsString() {
+    switch (type()) {
+      case DATE:
+        return DateTimeUtil.daysToIsoDate((Integer) get());
+      case TIMESTAMPTZ:
+        return DateTimeUtil.microsToIsoTimestamptz((Long) get());
+      case TIMESTAMPNTZ:
+        return DateTimeUtil.microsToIsoTimestamp((Long) get());
+      case BINARY:
+        return BaseEncoding.base16().encode(ByteBuffers.toByteArray((ByteBuffer) get()));
+      default:
+        return String.valueOf(get());
+    }
+  }
+
+  static String asString(VariantPrimitive<?> primitive) {
+    return "Variant(type=" + primitive.type() + ", value=" + primitive.valueAsString() + ")";
   }
 }

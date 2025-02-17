@@ -27,8 +27,8 @@ public interface VariantArray extends VariantValue {
   int numElements();
 
   @Override
-  default Variants.PhysicalType type() {
-    return Variants.PhysicalType.ARRAY;
+  default PhysicalType type() {
+    return PhysicalType.ARRAY;
   }
 
   @Override

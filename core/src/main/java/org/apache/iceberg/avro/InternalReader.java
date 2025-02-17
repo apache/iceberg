@@ -42,7 +42,7 @@ import org.apache.iceberg.util.Pair;
  *
  * @param <T> Java type returned by the reader
  */
-public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition {
+public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition, SupportsCustomTypes {
   private static final int ROOT_ID = -1;
 
   private final Types.StructType expectedType;
@@ -74,6 +74,15 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition {
   public void setSchema(Schema schema) {
     this.fileSchema = schema;
     initReader();
+  }
+
+  @Override
+  public void setCustomTypes(
+      Class<? extends StructLike> rootType, Map<Integer, Class<? extends StructLike>> typesById) {
+    setRootType(rootType);
+    for (Map.Entry<Integer, Class<? extends StructLike>> entry : typesById.entrySet()) {
+      setCustomType(entry.getKey(), entry.getValue());
+    }
   }
 
   public InternalReader<T> setRootType(Class<? extends StructLike> rootClass) {

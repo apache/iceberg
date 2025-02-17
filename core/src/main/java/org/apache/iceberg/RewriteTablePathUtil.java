@@ -128,8 +128,8 @@ public class RewriteTablePathUtil {
         metadata.snapshotLog(),
         metadataLogEntries,
         metadata.refs(),
-        // TODO: update statistic file paths
-        metadata.statisticsFiles(),
+        updatePathInStatisticsFiles(metadata.statisticsFiles(), sourcePrefix, targetPrefix),
+        // TODO: update partition statistics file paths
         metadata.partitionStatisticsFiles(),
         metadata.changes(),
         metadata.rowLineageEnabled(),
@@ -156,6 +156,20 @@ public class RewriteTablePathUtil {
       properties.put(
           propertyName, newPath(properties.get(propertyName), sourcePrefix, targetPrefix));
     }
+  }
+
+  private static List<StatisticsFile> updatePathInStatisticsFiles(
+      List<StatisticsFile> statisticsFiles, String sourcePrefix, String targetPrefix) {
+    return statisticsFiles.stream()
+        .map(
+            existing ->
+                new GenericStatisticsFile(
+                    existing.snapshotId(),
+                    newPath(existing.path(), sourcePrefix, targetPrefix),
+                    existing.fileSizeInBytes(),
+                    existing.fileFooterSizeInBytes(),
+                    existing.blobMetadata()))
+        .collect(Collectors.toList());
   }
 
   private static List<TableMetadata.MetadataLogEntry> updatePathInMetadataLogs(
@@ -222,11 +236,7 @@ public class RewriteTablePathUtil {
     OutputFile outputFile = io.newOutputFile(outputPath);
 
     List<ManifestFile> manifestFiles = manifestFilesInSnapshot(io, snapshot);
-    List<ManifestFile> manifestFilesToRewrite =
-        manifestFiles.stream()
-            .filter(mf -> manifestsToRewrite.contains(mf.path()))
-            .collect(Collectors.toList());
-    manifestFilesToRewrite.forEach(
+    manifestFiles.forEach(
         mf ->
             Preconditions.checkArgument(
                 mf.path().startsWith(sourcePrefix),
@@ -242,13 +252,15 @@ public class RewriteTablePathUtil {
             snapshot.parentId(),
             snapshot.sequenceNumber())) {
 
-      for (ManifestFile file : manifestFilesToRewrite) {
+      for (ManifestFile file : manifestFiles) {
         ManifestFile newFile = file.copy();
         ((StructLike) newFile).set(0, newPath(newFile.path(), sourcePrefix, targetPrefix));
         writer.add(newFile);
 
-        result.toRewrite().add(file);
-        result.copyPlan().add(Pair.of(stagingPath(file.path(), stagingDir), newFile.path()));
+        if (manifestsToRewrite.contains(file.path())) {
+          result.toRewrite().add(file);
+          result.copyPlan().add(Pair.of(stagingPath(file.path(), stagingDir), newFile.path()));
+        }
       }
       return result;
     } catch (IOException e) {
@@ -357,7 +369,10 @@ public class RewriteTablePathUtil {
     DataFile newDataFile =
         DataFiles.builder(spec).copy(entry.file()).withPath(targetDataFilePath).build();
     appendEntryWithFile(entry, writer, newDataFile);
-    result.copyPlan().add(Pair.of(sourceDataFilePath, newDataFile.location()));
+    // keep deleted data file entries but exclude them from copyPlan
+    if (entry.isLive()) {
+      result.copyPlan().add(Pair.of(sourceDataFilePath, newDataFile.location()));
+    }
     return result;
   }
 
@@ -384,16 +399,22 @@ public class RewriteTablePathUtil {
                 .withMetrics(metricsWithTargetPath)
                 .build();
         appendEntryWithFile(entry, writer, movedFile);
-        result
-            .copyPlan()
-            .add(Pair.of(stagingPath(file.location(), stagingLocation), movedFile.location()));
+        // keep deleted position delete entries but exclude them from copyPlan
+        if (entry.isLive()) {
+          result
+              .copyPlan()
+              .add(Pair.of(stagingPath(file.location(), stagingLocation), movedFile.location()));
+        }
         result.toRewrite().add(file);
         return result;
       case EQUALITY_DELETES:
         DeleteFile eqDeleteFile = newEqualityDeleteEntry(file, spec, sourcePrefix, targetPrefix);
         appendEntryWithFile(entry, writer, eqDeleteFile);
-        // No need to rewrite equality delete files as they do not contain absolute file paths.
-        result.copyPlan().add(Pair.of(file.location(), eqDeleteFile.location()));
+        // keep deleted equality delete entries but exclude them from copyPlan
+        if (entry.isLive()) {
+          // No need to rewrite equality delete files as they do not contain absolute file paths.
+          result.copyPlan().add(Pair.of(file.location(), eqDeleteFile.location()));
+        }
         return result;
 
       default:

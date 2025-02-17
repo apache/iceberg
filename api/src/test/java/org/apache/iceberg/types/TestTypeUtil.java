@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Set;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types.IntegerType;
@@ -598,8 +599,8 @@ public class TestTypeUtil {
                 Types.NestedField.required("c")
                     .withId(11)
                     .ofType(Types.IntegerType.get())
-                    .withInitialDefault(23)
-                    .withWriteDefault(34)
+                    .withInitialDefault(Literal.of(23))
+                    .withWriteDefault(Literal.of(34))
                     .build(),
                 required(12, "B", Types.IntegerType.get())),
             Sets.newHashSet(10));
@@ -617,8 +618,8 @@ public class TestTypeUtil {
                 Types.NestedField.required("c")
                     .withId(16)
                     .ofType(Types.IntegerType.get())
-                    .withInitialDefault(23)
-                    .withWriteDefault(34)
+                    .withInitialDefault(Literal.of(23))
+                    .withWriteDefault(Literal.of(34))
                     .build(),
                 required(15, "B", Types.IntegerType.get())));
 

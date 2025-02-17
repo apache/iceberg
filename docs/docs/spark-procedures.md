@@ -283,7 +283,8 @@ Snapshots that are still referenced by branches or tags won't be removed. By def
 | `deleted_position_delete_files_count` | long | Number of position delete files deleted by this operation |
 | `deleted_equality_delete_files_count` | long | Number of equality delete files deleted by this operation |
 | `deleted_manifest_files_count` | long | Number of manifest files deleted by this operation |
-| `deleted_manifest_lists_count` | long | Number of manifest List files deleted by this operation |
+| `deleted_manifest_lists_count` | long | Number of manifest list files deleted by this operation |
+| `deleted_statistics_files_count` | long | Number of statistics files deleted by this operation |
 
 #### Examples
 
@@ -708,9 +709,9 @@ Add the files from table `db.src_table`, a Hive or Spark table registered in the
 `db.tbl`. Only add files that exist within partitions where `part_col_1` is equal to `A`.
 ```sql
 CALL spark_catalog.system.add_files(
-table => 'db.tbl',
-source_table => 'db.src_tbl',
-partition_filter => map('part_col_1', 'A')
+  table => 'db.tbl',
+  source_table => 'db.src_tbl',
+  partition_filter => map('part_col_1', 'A')
 );
 ```
 
@@ -854,7 +855,7 @@ CALL spark_catalog.system.create_changelog_view(
   table => 'db.tbl',
   options => map('start-snapshot-id','1','end-snapshot-id', '2'),
   identifier_columns => array('id', 'name')
-)
+);
 ```
 
 Once the changelog view is created, you can query the view to see the changes that happened between the snapshots.

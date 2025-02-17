@@ -26,7 +26,7 @@ buildscript {
     gradlePluginPortal()
   }
   dependencies {
-    classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.5'
+    classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.6'
     classpath 'com.palantir.baseline:gradle-baseline-java:5.72.0'
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.25.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
@@ -135,7 +135,7 @@ subprojects {
     revapi {
       oldGroup = project.group
       oldName = project.name
-      oldVersion = "1.7.0"
+      oldVersion = "1.8.0"
     }
 
     tasks.register('showDeprecationRulesOnRevApiFailure') {

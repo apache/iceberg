@@ -352,7 +352,7 @@ public class TestDeleteFiles extends TestBase {
 
   @TestTemplate
   public void testDeleteWithCollision() {
-    Schema schema = new Schema(Types.NestedField.of(0, false, "x", Types.StringType.get()));
+    Schema schema = new Schema(Types.NestedField.required(0, "x", Types.StringType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).identity("x").build();
     Table collisionTable =
         TestTables.create(tableDir, "hashcollision", schema, spec, formatVersion);

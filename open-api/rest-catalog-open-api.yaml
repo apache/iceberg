@@ -2673,6 +2673,7 @@ components:
           set-partition-statistics: '#/components/schemas/SetPartitionStatisticsUpdate'
           remove-partition-statistics: '#/components/schemas/RemovePartitionStatisticsUpdate'
           remove-partition-specs: '#/components/schemas/RemovePartitionSpecsUpdate'
+          remove-schemas: '#/components/schemas/RemoveSchemasUpdate'
           enable-row-lineage: '#/components/schemas/EnableRowLineageUpdate'
       type: object
       required:
@@ -2978,6 +2979,20 @@ components:
           items:
             type: integer
 
+    RemoveSchemasUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - schema-ids
+      properties:
+        action:
+          type: string
+          const: "remove-schemas"
+        schema-ids:
+          type: array
+          items:
+            type: integer
+
     # Disabling Row Lineage is Forbidden
     EnableRowLineageUpdate:
       allOf:
@@ -3007,6 +3022,7 @@ components:
         - $ref: '#/components/schemas/SetStatisticsUpdate'
         - $ref: '#/components/schemas/RemoveStatisticsUpdate'
         - $ref: '#/components/schemas/RemovePartitionSpecsUpdate'
+        - $ref: '#/components/schemas/RemoveSchemasUpdate'
         - $ref: '#/components/schemas/EnableRowLineageUpdate'
 
     ViewUpdate:
@@ -3463,6 +3479,10 @@ components:
           type: string
         metadata-location:
           type: string
+        overwrite:
+          description: Whether to overwrite table metadata if the table already exists
+          type: boolean
+          default: false
 
     CreateViewRequest:
       type: object
