@@ -32,10 +32,12 @@ public class S3InputFile extends BaseS3File implements InputFile, NativelyEncryp
   public static S3InputFile fromLocation(
       String location,
       S3Client client,
+      S3InputStreamFactory inputStreamFactory,
       S3FileIOProperties s3FileIOProperties,
       MetricsContext metrics) {
     return new S3InputFile(
         client,
+        inputStreamFactory,
         new S3URI(location, s3FileIOProperties.bucketToAccessPointMapping()),
         null,
         s3FileIOProperties,
@@ -46,10 +48,12 @@ public class S3InputFile extends BaseS3File implements InputFile, NativelyEncryp
       String location,
       long length,
       S3Client client,
+      S3InputStreamFactory inputStreamFactory,
       S3FileIOProperties s3FileIOProperties,
       MetricsContext metrics) {
     return new S3InputFile(
         client,
+        inputStreamFactory,
         new S3URI(location, s3FileIOProperties.bucketToAccessPointMapping()),
         length > 0 ? length : null,
         s3FileIOProperties,
@@ -58,11 +62,12 @@ public class S3InputFile extends BaseS3File implements InputFile, NativelyEncryp
 
   S3InputFile(
       S3Client client,
+      S3InputStreamFactory inputStreamFactory,
       S3URI uri,
       Long length,
       S3FileIOProperties s3FileIOProperties,
       MetricsContext metrics) {
-    super(client, uri, s3FileIOProperties, metrics);
+    super(client, inputStreamFactory, uri, s3FileIOProperties, metrics);
     this.length = length;
   }
 
@@ -82,7 +87,7 @@ public class S3InputFile extends BaseS3File implements InputFile, NativelyEncryp
 
   @Override
   public SeekableInputStream newStream() {
-    return new S3InputStream(client(), uri(), s3FileIOProperties(), metrics());
+    return inputStreamFactory().createStream(client(), uri(), s3FileIOProperties(), metrics());
   }
 
   @Override
