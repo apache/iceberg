@@ -33,6 +33,6 @@ class PrimitiveHolder implements Serializable {
   }
 
   Object readResolve() throws ObjectStreamException {
-    return Types.fromPrimitiveString(typeAsString);
+    return Types.fromTypeName(typeAsString);
   }
 }

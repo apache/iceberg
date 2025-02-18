@@ -143,6 +143,11 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
   }
 
   @Override
+  public Boolean variant(Types.VariantType variant, Integer partnerId) {
+    return partnerId == null;
+  }
+
+  @Override
   public Boolean primitive(Type.PrimitiveType primitive, Integer partnerId) {
     return partnerId == null;
   }

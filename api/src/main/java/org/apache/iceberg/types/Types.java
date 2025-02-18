@@ -40,8 +40,8 @@ public class Types {
 
   private Types() {}
 
-  private static final ImmutableMap<String, PrimitiveType> TYPES =
-      ImmutableMap.<String, PrimitiveType>builder()
+  private static final ImmutableMap<String, Type> TYPES =
+      ImmutableMap.<String, Type>builder()
           .put(BooleanType.get().toString(), BooleanType.get())
           .put(IntegerType.get().toString(), IntegerType.get())
           .put(LongType.get().toString(), LongType.get())
@@ -57,13 +57,14 @@ public class Types {
           .put(UUIDType.get().toString(), UUIDType.get())
           .put(BinaryType.get().toString(), BinaryType.get())
           .put(UnknownType.get().toString(), UnknownType.get())
+          .put(VariantType.get().toString(), VariantType.get())
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
   private static final Pattern DECIMAL =
       Pattern.compile("decimal\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)");
 
-  public static PrimitiveType fromPrimitiveString(String typeString) {
+  public static Type fromTypeName(String typeString) {
     String lowerTypeString = typeString.toLowerCase(Locale.ROOT);
     if (TYPES.containsKey(lowerTypeString)) {
       return TYPES.get(lowerTypeString);
@@ -80,6 +81,15 @@ public class Types {
     }
 
     throw new IllegalArgumentException("Cannot parse type string to primitive: " + typeString);
+  }
+
+  public static PrimitiveType fromPrimitiveString(String typeString) {
+    Type type = fromTypeName(typeString);
+    if (type.isPrimitiveType()) {
+      return type.asPrimitiveType();
+    }
+
+    throw new IllegalArgumentException("Cannot parse type string: variant is not a primitive type");
   }
 
   public static class BooleanType extends PrimitiveType {
@@ -429,6 +439,16 @@ public class Types {
     @Override
     public String toString() {
       return "variant";
+    }
+
+    @Override
+    public boolean isVariantType() {
+      return true;
+    }
+
+    @Override
+    public VariantType asVariantType() {
+      return this;
     }
 
     @Override
