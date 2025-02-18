@@ -38,7 +38,12 @@ import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 
-/** A base writer factory to be extended by query engine integrations. */
+/**
+ * A base writer factory to be extended by query engine integrations.
+ *
+ * @deprecated use {@link RegistryBasedFileWriterFactory}
+ */
+@Deprecated
 public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
   private final Table table;
   private final FileFormat dataFileFormat;

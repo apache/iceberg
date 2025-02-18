@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.source;
 
-import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 import static org.apache.iceberg.TableProperties.DELETE_DEFAULT_FILE_FORMAT;
@@ -28,27 +27,14 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.BaseFileWriterFactory;
+import org.apache.iceberg.data.RegistryBasedFileWriterFactory;
 import org.apache.iceberg.io.DeleteSchemaUtil;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.spark.data.SparkAvroWriter;
-import org.apache.iceberg.spark.data.SparkOrcWriter;
-import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.unsafe.types.UTF8String;
 
-class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
-  private StructType dataSparkType;
-  private StructType equalityDeleteSparkType;
-  private StructType positionDeleteSparkType;
-  private final Map<String, String> writeProperties;
+class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow, StructType> {
 
   SparkFileWriterFactory(
       Table table,
@@ -68,117 +54,32 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
     super(
         table,
         dataFileFormat,
+        SparkObjectModels.SPARK_OBJECT_MODEL,
         dataSchema,
         dataSortOrder,
         deleteFileFormat,
         equalityFieldIds,
         equalityDeleteRowSchema,
         equalityDeleteSortOrder,
-        positionDeleteRowSchema);
-
-    this.dataSparkType = dataSparkType;
-    this.equalityDeleteSparkType = equalityDeleteSparkType;
-    this.positionDeleteSparkType = positionDeleteSparkType;
-    this.writeProperties = writeProperties != null ? writeProperties : ImmutableMap.of();
+        positionDeleteRowSchema,
+        writeProperties,
+        dataSparkType == null
+            ? dataSchema == null ? null : SparkSchemaUtil.convert(dataSchema)
+            : dataSparkType,
+        equalityDeleteSparkType == null
+            ? equalityDeleteRowSchema == null
+                ? null
+                : SparkSchemaUtil.convert(equalityDeleteRowSchema)
+            : equalityDeleteSparkType,
+        positionDeleteSparkType == null
+            ? positionDeleteRowSchema == null
+                ? null
+                : SparkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(positionDeleteRowSchema))
+            : positionDeleteSparkType);
   }
 
   static Builder builderFor(Table table) {
     return new Builder(table);
-  }
-
-  @Override
-  protected void configureDataWrite(Avro.DataWriteBuilder builder) {
-    builder.createWriterFunc(ignored -> new SparkAvroWriter(dataSparkType()));
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configureEqualityDelete(Avro.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(ignored -> new SparkAvroWriter(equalityDeleteSparkType()));
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configurePositionDelete(Avro.DeleteWriteBuilder builder) {
-    boolean withRow =
-        positionDeleteSparkType().getFieldIndex(DELETE_FILE_ROW_FIELD_NAME).isDefined();
-    if (withRow) {
-      // SparkAvroWriter accepts just the Spark type of the row ignoring the path and pos
-      StructField rowField = positionDeleteSparkType().apply(DELETE_FILE_ROW_FIELD_NAME);
-      StructType positionDeleteRowSparkType = (StructType) rowField.dataType();
-      builder.createWriterFunc(ignored -> new SparkAvroWriter(positionDeleteRowSparkType));
-    }
-
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configureDataWrite(Parquet.DataWriteBuilder builder) {
-    builder.createWriterFunc(msgType -> SparkParquetWriters.buildWriter(dataSparkType(), msgType));
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configureEqualityDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(
-        msgType -> SparkParquetWriters.buildWriter(equalityDeleteSparkType(), msgType));
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configurePositionDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(
-        msgType -> SparkParquetWriters.buildWriter(positionDeleteSparkType(), msgType));
-    builder.transformPaths(path -> UTF8String.fromString(path.toString()));
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configureDataWrite(ORC.DataWriteBuilder builder) {
-    builder.createWriterFunc(SparkOrcWriter::new);
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configureEqualityDelete(ORC.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(SparkOrcWriter::new);
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configurePositionDelete(ORC.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(SparkOrcWriter::new);
-    builder.transformPaths(path -> UTF8String.fromString(path.toString()));
-    builder.setAll(writeProperties);
-  }
-
-  private StructType dataSparkType() {
-    if (dataSparkType == null) {
-      Preconditions.checkNotNull(dataSchema(), "Data schema must not be null");
-      this.dataSparkType = SparkSchemaUtil.convert(dataSchema());
-    }
-
-    return dataSparkType;
-  }
-
-  private StructType equalityDeleteSparkType() {
-    if (equalityDeleteSparkType == null) {
-      Preconditions.checkNotNull(
-          equalityDeleteRowSchema(), "Equality delete schema must not be null");
-      this.equalityDeleteSparkType = SparkSchemaUtil.convert(equalityDeleteRowSchema());
-    }
-
-    return equalityDeleteSparkType;
-  }
-
-  private StructType positionDeleteSparkType() {
-    if (positionDeleteSparkType == null) {
-      // wrap the optional row schema into the position delete schema containing path and position
-      Schema positionDeleteSchema = DeleteSchemaUtil.posDeleteSchema(positionDeleteRowSchema());
-      this.positionDeleteSparkType = SparkSchemaUtil.convert(positionDeleteSchema);
-    }
-
-    return positionDeleteSparkType;
   }
 
   static class Builder {
