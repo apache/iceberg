@@ -45,10 +45,10 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final InputFile file;
   private final Long start;
   private final Long length;
-  private final Function<TypeDescription, OrcRowReader<?>> readerFunction;
+  private final Function<TypeDescription, OrcRowReader<T>> readerFunction;
   private final Expression filter;
-  private final boolean caseSensitive;
-  private final Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction;
+  private final boolean filterCaseSensitive;
+  private final Function<TypeDescription, OrcBatchReader<T>> batchReaderFunction;
   private final int recordsPerBatch;
   private NameMapping nameMapping;
 
@@ -59,10 +59,10 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
       NameMapping nameMapping,
       Long start,
       Long length,
-      Function<TypeDescription, OrcRowReader<?>> readerFunction,
-      boolean caseSensitive,
+      Function<TypeDescription, OrcRowReader<T>> readerFunction,
+      boolean filterCaseSensitive,
       Expression filter,
-      Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction,
+      Function<TypeDescription, OrcBatchReader<T>> batchReaderFunction,
       int recordsPerBatch) {
     this.schema = schema;
     this.readerFunction = readerFunction;
@@ -71,7 +71,7 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
     this.start = start;
     this.length = length;
     this.config = config;
-    this.caseSensitive = caseSensitive;
+    this.filterCaseSensitive = filterCaseSensitive;
     this.filter = (filter == Expressions.alwaysTrue()) ? null : filter;
     this.batchReaderFunction = batchReaderFunction;
     this.recordsPerBatch = recordsPerBatch;
@@ -97,7 +97,7 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
 
     SearchArgument sarg = null;
     if (filter != null) {
-      Expression boundFilter = Binder.bind(schema.asStruct(), filter, caseSensitive);
+      Expression boundFilter = Binder.bind(schema.asStruct(), filter, filterCaseSensitive);
       sarg = ExpressionToSearchArgument.convert(boundFilter, readOrcSchema);
     }
 

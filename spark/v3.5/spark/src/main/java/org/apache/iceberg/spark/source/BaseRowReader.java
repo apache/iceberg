@@ -20,22 +20,15 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.FileAccessFactoryRegistry;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.spark.data.SparkOrcReader;
-import org.apache.iceberg.spark.data.SparkParquetReaders;
-import org.apache.iceberg.spark.data.SparkPlannedAvroReader;
-import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.io.ReadBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow, T> {
@@ -56,70 +49,15 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Expression residual,
       Schema projection,
       Map<Integer, ?> idToConstant) {
-    switch (format) {
-      case PARQUET:
-        return newParquetIterable(file, start, length, residual, projection, idToConstant);
-
-      case AVRO:
-        return newAvroIterable(file, start, length, projection, idToConstant);
-
-      case ORC:
-        return newOrcIterable(file, start, length, residual, projection, idToConstant);
-
-      default:
-        throw new UnsupportedOperationException("Cannot read unknown format: " + format);
-    }
-  }
-
-  private CloseableIterable<InternalRow> newAvroIterable(
-      InputFile file, long start, long length, Schema projection, Map<Integer, ?> idToConstant) {
-    return Avro.read(file)
-        .reuseContainers()
+    ReadBuilder<?, InternalRow> reader =
+        FileAccessFactoryRegistry.readBuilder(format, SparkObjectModels.SPARK_OBJECT_MODEL, file);
+    return reader
         .project(projection)
-        .split(start, length)
-        .createResolvingReader(schema -> SparkPlannedAvroReader.create(schema, idToConstant))
-        .withNameMapping(nameMapping())
-        .build();
-  }
-
-  private CloseableIterable<InternalRow> newParquetIterable(
-      InputFile file,
-      long start,
-      long length,
-      Expression residual,
-      Schema readSchema,
-      Map<Integer, ?> idToConstant) {
-    return Parquet.read(file)
+        .constantFieldAccessors(idToConstant)
         .reuseContainers()
         .split(start, length)
-        .project(readSchema)
-        .createReaderFunc(
-            fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema, idToConstant))
-        .filter(residual)
-        .caseSensitive(caseSensitive())
-        .withNameMapping(nameMapping())
-        .build();
-  }
-
-  private CloseableIterable<InternalRow> newOrcIterable(
-      InputFile file,
-      long start,
-      long length,
-      Expression residual,
-      Schema readSchema,
-      Map<Integer, ?> idToConstant) {
-    Schema readSchemaWithoutConstantAndMetadataFields =
-        TypeUtil.selectNot(
-            readSchema, Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
-
-    return ORC.read(file)
-        .project(readSchemaWithoutConstantAndMetadataFields)
-        .split(start, length)
-        .createReaderFunc(
-            readOrcSchema -> new SparkOrcReader(readSchema, readOrcSchema, idToConstant))
-        .filter(residual)
-        .caseSensitive(caseSensitive())
-        .withNameMapping(nameMapping())
+        .filter(residual, caseSensitive())
+        .nameMapping(nameMapping())
         .build();
   }
 }
