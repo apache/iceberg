@@ -19,14 +19,11 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.params.provider.Arguments.arguments;
 
-import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.FieldSource;
 
-class FileFormatTest {
+class TestFileFormat {
 
   private static final Object[][] FILE_NAMES =
       new Object[][] {
@@ -55,32 +52,5 @@ class FileFormatTest {
     FileFormat actual = FileFormat.fromFileName(fileName);
 
     assertThat(actual).isEqualTo(expected);
-  }
-
-  static Stream<Arguments> fromFileName() {
-    return Stream.of(
-        // Files with format
-        arguments("file.puffin", FileFormat.PUFFIN),
-        arguments("dir/file.puffin", FileFormat.PUFFIN),
-        arguments("file.orc", FileFormat.ORC),
-        arguments("dir/file.orc", FileFormat.ORC),
-        arguments("file.parquet", FileFormat.PARQUET),
-        arguments("dir/file.parquet", FileFormat.PARQUET),
-        arguments("file.avro", FileFormat.AVRO),
-        arguments("dir/file.avro", FileFormat.AVRO),
-        arguments("v1.metadata.json", FileFormat.METADATA),
-        arguments("dir/v1.metadata.json", FileFormat.METADATA),
-        // Unsupported formats
-        arguments("file.csv", null),
-        arguments("dir/file.csv", null),
-        // No format
-        arguments("file", null),
-        arguments("dir", null),
-        // File names match format names but no extension
-        arguments("puffin", null),
-        arguments("orc", null),
-        arguments("parquet", null),
-        arguments("avro", null),
-        arguments("metadata.json", null));
   }
 }
