@@ -182,8 +182,7 @@ public class Avro {
     }
 
     // supposed to always be a private method used strictly by data and delete write builders
-    private WriteBuilder createContextFunc(
-        Function<Map<String, String>, Context> newCreateContextFunc) {
+    WriteBuilder createContextFunc(Function<Map<String, String>, Context> newCreateContextFunc) {
       this.createContextFunc = newCreateContextFunc;
       return this;
     }
@@ -217,7 +216,7 @@ public class Avro {
           overwrite);
     }
 
-    private static class Context {
+    static class Context {
       private final CodecFactory codec;
 
       private Context(CodecFactory codec) {
@@ -568,7 +567,7 @@ public class Avro {
   }
 
   /** A {@link DatumWriter} implementation that wraps another to produce position deletes. */
-  private static class PositionDatumWriter implements MetricsAwareDatumWriter<PositionDelete<?>> {
+  static class PositionDatumWriter implements MetricsAwareDatumWriter<PositionDelete<?>> {
     private static final ValueWriter<Object> PATH_WRITER = ValueWriters.strings();
     private static final ValueWriter<Long> POS_WRITER = ValueWriters.longs();
 
