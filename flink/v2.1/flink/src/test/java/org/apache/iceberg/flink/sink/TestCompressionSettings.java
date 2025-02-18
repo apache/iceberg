@@ -35,7 +35,7 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynFields;
-import org.apache.iceberg.data.BaseFileWriterFactory;
+import org.apache.iceberg.data.RegistryBasedFileWriterFactory;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -252,7 +252,7 @@ public class TestCompressionSettings {
               .build(writerField.get());
       DynFields.BoundField<Map<String, String>> propsField =
           DynFields.builder()
-              .hiddenImpl(BaseFileWriterFactory.class, "writerProperties")
+              .hiddenImpl(RegistryBasedFileWriterFactory.class, "writerProperties")
               .build(writerFactoryField.get());
       return propsField.get();
     }
