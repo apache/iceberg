@@ -98,7 +98,7 @@ Each version in `versions` is a struct with the following fields:
 | _required_  | `representations`   | A list of [representations](#representations) for the view definition         |
 | _optional_  | `default-catalog`   | Catalog name to use when a reference in the SELECT does not contain a catalog |
 | _required_  | `default-namespace` | Namespace to use when a reference in the SELECT is a single identifier        |
-| _optional_  | `storage-table`     | A [table identifier](#table-identifier) of the storage table |
+| _optional_  | `storage-table`     | A [storage table identifier](#storage-table-identifier) of the storage table |
 
 When `default-catalog` is `null` or not set, the catalog in which the view is stored must be used as the default catalog.
 
@@ -179,19 +179,20 @@ Each entry in `version-log` is a struct with the following fields:
 | _required_  | `timestamp-ms` | Timestamp when the view's `current-version-id` was updated (ms from epoch) |
 | _required_  | `version-id`   | ID that `current-version-id` was set to |
 
-#### Table Identifier
+#### Storage Table Identifier
 
-The table identifier holds a reference, containing a namespace and a name, of a table or view in the catalog.
+The table identifier for the storage table that stores the precomputed results.
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
 | _optional_  | `catalog`      | A string specifying the name of the catalog. If set to `null`, the catalog is the same as the view's catalog |
-| _required_  | `namespace`    | A list of namespace levels |
+| _required_  | `namespace`    | A list of strings for namespace levels |
 | _required_  | `name`         | A string specifying the name of the table/view |
 
-### Materialized View Metadata stored as part of the Table Metadata
+### Storage table metadata
 
-A property "refresh-state" is set on the table [snapshot summary](https://iceberg.apache.org/spec/#snapshots) to determine the freshness of the precomputed data of the storage table.
+This section describes additional metadata for the storage table that supplements the regular table metadata and is required for materialzied views.
+The property "refresh-state" is set on the table [snapshot summary](https://iceberg.apache.org/spec/#snapshots) to determine the freshness of the precomputed data of the storage table.
 
 | Requirement | Field name      | Description |
 |-------------|-----------------|-------------|
