@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.types;
 
+import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
@@ -449,6 +450,10 @@ public class Types {
     @Override
     public VariantType asVariantType() {
       return this;
+    }
+
+    Object writeReplace() throws ObjectStreamException {
+      return new PrimitiveHolder(toString());
     }
 
     @Override
