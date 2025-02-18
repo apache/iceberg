@@ -22,7 +22,6 @@ import java.util.ArrayDeque;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -62,9 +61,9 @@ public class TypeWithSchemaVisitor<T> {
         return visitList(iType, group, visitor);
       } else if (annotation instanceof MapLogicalTypeAnnotation) {
         return visitMap(iType, group, visitor);
-      } else if (iType != null && iType.typeId() == TypeID.VARIANT) {
+      } else if (iType != null && iType.isVariantType()) {
         // when Parquet has a VARIANT logical type, use it here
-        return visitVariant((Types.VariantType) iType, group, visitor);
+        return visitVariant(iType.asVariantType(), group, visitor);
       }
 
       Types.StructType struct = iType != null ? iType.asStructType() : null;

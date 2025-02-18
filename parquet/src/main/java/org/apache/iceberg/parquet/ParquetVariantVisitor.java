@@ -178,7 +178,7 @@ public abstract class ParquetVariantVisitor<R> {
     return visitor.variant(type, metadataResult, valueResult);
   }
 
-  public static <R> R visitValue(GroupType valueGroup, ParquetVariantVisitor<R> visitor) {
+  private static <R> R visitValue(GroupType valueGroup, ParquetVariantVisitor<R> visitor) {
     R valueResult;
     if (ParquetSchemaUtil.hasField(valueGroup, VALUE)) {
       Type valueType = valueGroup.getType(VALUE);
@@ -264,7 +264,7 @@ public abstract class ParquetVariantVisitor<R> {
   }
 
   @FunctionalInterface
-  interface Action<R> {
+  private interface Action<R> {
     R invoke();
   }
 

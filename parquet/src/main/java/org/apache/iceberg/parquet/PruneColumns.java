@@ -169,9 +169,7 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
   }
 
   private boolean isStruct(Type field, NestedField expected) {
-    if (field.isPrimitive()) {
-      return false;
-    } else if (expected.type() == org.apache.iceberg.types.Types.VariantType.get()) {
+    if (field.isPrimitive() || expected.type().isVariantType()) {
       return false;
     } else {
       GroupType groupType = field.asGroupType();

@@ -86,7 +86,7 @@ public class TypeToMessageType {
     if (field.type().isPrimitiveType()) {
       return primitive(field.type().asPrimitiveType(), repetition, id, name);
 
-    } else if (field.type() instanceof org.apache.iceberg.types.Types.VariantType) {
+    } else if (field.type().isVariantType()) {
       return variant(repetition, id, name);
 
     } else {
