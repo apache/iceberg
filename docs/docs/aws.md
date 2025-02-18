@@ -385,6 +385,7 @@ Note, the path resolution logic for `ObjectStoreLocationProvider` is `write.data
 However, for the older versions up to 0.12.0, the logic is as follows:
 - before 0.12.0, `write.object-storage.path` must be set.
 - at 0.12.0, `write.object-storage.path` then `write.folder-storage.path` then `<tableLocation>/data`.
+- at 2.0.0 `write.object-storage.path` and `write.folder-storage.path` will be removed
 
 For more details, please refer to the [LocationProvider Configuration](custom-catalog.md#custom-location-provider-implementation) section.  
 
