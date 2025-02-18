@@ -24,12 +24,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.ByteBuffer;
 import java.util.Random;
 import org.apache.iceberg.util.RandomUtil;
-import org.apache.iceberg.variants.Variants.PhysicalType;
 import org.junit.jupiter.api.Test;
 
 public class TestSerializedArray {
-  private static final SerializedMetadata EMPTY_METADATA =
-      SerializedMetadata.from(SerializedMetadata.EMPTY_V1_BUFFER);
+  private static final VariantMetadata EMPTY_METADATA = SerializedMetadata.EMPTY_V1_METADATA;
   private static final SerializedPrimitive NULL = SerializedPrimitive.from(new byte[] {0x00});
   private static final SerializedPrimitive TRUE = SerializedPrimitive.from(new byte[] {0b100});
   private static final SerializedPrimitive FALSE = SerializedPrimitive.from(new byte[] {0b1000});

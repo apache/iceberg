@@ -22,6 +22,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.setMaxStackTraceElementsDisplayed;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -183,6 +184,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     return true;
   }
 
+  protected boolean supportsEmptyNamespace() {
+    return false;
+  }
+
   @Test
   public void testCreateNamespace() {
     C catalog = catalog();
@@ -239,7 +244,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     assertThatThrownBy(() -> catalog.loadNamespaceMetadata(NS))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessageStartingWith("Namespace does not exist: newdb");
+        .hasMessageStartingWith("Namespace does not exist: %s", NS);
 
     catalog.createNamespace(NS);
     assertThat(catalog.namespaceExists(NS)).as("Namespace should exist").isTrue();
@@ -326,7 +331,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     assertThatThrownBy(() -> catalog.setProperties(NS, ImmutableMap.of("test", "value")))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessageStartingWith("Namespace does not exist: newdb");
+        .hasMessageStartingWith("Namespace does not exist: %s", NS);
   }
 
   @Test
@@ -358,7 +363,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     assertThatThrownBy(() -> catalog.removeProperties(NS, ImmutableSet.of("a", "b")))
         .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessageStartingWith("Namespace does not exist: newdb");
+        .hasMessageStartingWith("Namespace does not exist: %s", NS);
   }
 
   @Test
@@ -494,6 +499,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     catalog.createNamespace(withDot);
     assertThat(catalog.namespaceExists(withDot)).as("Namespace should exist").isTrue();
 
+    assertThat(catalog.listNamespaces()).contains(withDot);
+
     Map<String, String> properties = catalog.loadNamespaceMetadata(withDot);
     assertThat(properties).as("Properties should be accessible").isNotNull();
     assertThat(catalog.dropNamespace(withDot)).as("Dropping the namespace should succeed").isTrue();
@@ -560,15 +567,17 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     C catalog = catalog();
 
-    TableIdentifier ident = TableIdentifier.of("ns", "ta.ble");
+    Namespace namespace = Namespace.of("ns");
+    TableIdentifier ident = TableIdentifier.of(namespace, "ta.ble");
     if (requiresNamespaceCreate()) {
-      catalog.createNamespace(Namespace.of("ns"));
+      catalog.createNamespace(namespace);
     }
 
     assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
 
     catalog.buildTable(ident, SCHEMA).create();
     assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
+    assertThat(catalog.listTables(namespace)).contains(ident);
 
     Table loaded = catalog.loadTable(ident);
     assertThat(loaded.schema().asStruct())
@@ -976,6 +985,74 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     catalog.dropTable(ns2Table1);
     assertEmpty("Should not contain ns_2.table_1 after drop", catalog, ns2);
+  }
+
+  @Test
+  public void listNamespacesWithEmptyNamespace() {
+    catalog().createNamespace(NS);
+
+    assertThat(catalog().namespaceExists(Namespace.empty())).isFalse();
+    assertThat(catalog().listNamespaces()).contains(NS).doesNotContain(Namespace.empty());
+    assertThat(catalog().listNamespaces(Namespace.empty()))
+        .contains(NS)
+        .doesNotContain(Namespace.empty());
+  }
+
+  @Test
+  public void createAndDropEmptyNamespace() {
+    assumeThat(supportsEmptyNamespace())
+        .as("Only valid for catalogs that support creating/dropping empty namespaces")
+        .isTrue();
+
+    assertThat(catalog().namespaceExists(Namespace.empty())).isFalse();
+    catalog().createNamespace(Namespace.empty());
+    assertThat(catalog().namespaceExists(Namespace.empty())).isTrue();
+
+    // TODO: if a catalog supports creating an empty namespace, what should be the expected behavior
+    // when listing all namespaces?
+    assertThat(catalog().listNamespaces()).isEmpty();
+    assertThat(catalog().listNamespaces(Namespace.empty())).isEmpty();
+
+    catalog().dropNamespace(Namespace.empty());
+    assertThat(catalog().namespaceExists(Namespace.empty())).isFalse();
+  }
+
+  @Test
+  public void namespacePropertiesOnEmptyNamespace() {
+    assumeThat(supportsEmptyNamespace())
+        .as("Only valid for catalogs that support properties on empty namespaces")
+        .isTrue();
+
+    catalog().createNamespace(Namespace.empty());
+
+    Map<String, String> properties = ImmutableMap.of("owner", "user", "created-at", "sometime");
+    catalog().setProperties(Namespace.empty(), properties);
+
+    assertThat(catalog().loadNamespaceMetadata(Namespace.empty())).containsAllEntriesOf(properties);
+
+    catalog().removeProperties(Namespace.empty(), ImmutableSet.of("owner"));
+    assertThat(catalog().loadNamespaceMetadata(Namespace.empty()))
+        .containsAllEntriesOf(ImmutableMap.of("created-at", "sometime"));
+  }
+
+  @Test
+  public void listTablesInEmptyNamespace() {
+    assumeThat(supportsEmptyNamespace())
+        .as("Only valid for catalogs that support listing tables in empty namespaces")
+        .isTrue();
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(Namespace.empty());
+      catalog().createNamespace(NS);
+    }
+
+    TableIdentifier table1 = TableIdentifier.of(Namespace.empty(), "table_1");
+    TableIdentifier table2 = TableIdentifier.of(NS, "table_2");
+
+    catalog().buildTable(table1, SCHEMA).create();
+    catalog().buildTable(table2, SCHEMA).create();
+
+    assertThat(catalog().listTables(Namespace.empty())).containsExactly(table1);
   }
 
   @Test
@@ -2207,7 +2284,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     assertThatThrownBy(() -> catalog.buildTable(TABLE, SCHEMA).replaceTransaction())
         .isInstanceOf(NoSuchTableException.class)
-        .hasMessageStartingWith("Table does not exist: newdb.table");
+        .hasMessageStartingWith("Table does not exist: %s", TABLE);
   }
 
   @Test

@@ -28,6 +28,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -55,6 +56,7 @@ public class Types {
           .put(StringType.get().toString(), StringType.get())
           .put(UUIDType.get().toString(), UUIDType.get())
           .put(BinaryType.get().toString(), BinaryType.get())
+          .put(UnknownType.get().toString(), UnknownType.get())
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
@@ -447,6 +449,24 @@ public class Types {
     }
   }
 
+  public static class UnknownType extends PrimitiveType {
+    private static final UnknownType INSTANCE = new UnknownType();
+
+    public static UnknownType get() {
+      return INSTANCE;
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.UNKNOWN;
+    }
+
+    @Override
+    public String toString() {
+      return "unknown";
+    }
+  }
+
   public static class DecimalType extends PrimitiveType {
     public static DecimalType of(int precision, int scale) {
       return new DecimalType(precision, scale);
@@ -520,10 +540,22 @@ public class Types {
       return new NestedField(false, id, name, type, doc, null, null);
     }
 
+    /**
+     * Create a nested field.
+     *
+     * @deprecated will be removed in 2.0.0; use {@link #builder()} instead.
+     */
+    @Deprecated
     public static NestedField of(int id, boolean isOptional, String name, Type type) {
       return new NestedField(isOptional, id, name, type, null, null, null);
     }
 
+    /**
+     * Create a nested field.
+     *
+     * @deprecated will be removed in 2.0.0; use {@link #builder()} instead.
+     */
+    @Deprecated
     public static NestedField of(int id, boolean isOptional, String name, Type type, String doc) {
       return new NestedField(isOptional, id, name, type, doc, null, null);
     }
@@ -540,14 +572,20 @@ public class Types {
       return new Builder(true, name);
     }
 
+    public static Builder builder() {
+      return new Builder();
+    }
+
     public static class Builder {
-      private final boolean isOptional;
-      private final String name;
+      private boolean isOptional = true;
+      private String name = null;
       private Integer id = null;
       private Type type = null;
       private String doc = null;
-      private Object initialDefault = null;
-      private Object writeDefault = null;
+      private Literal<?> initialDefault = null;
+      private Literal<?> writeDefault = null;
+
+      private Builder() {}
 
       private Builder(boolean isFieldOptional, String fieldName) {
         isOptional = isFieldOptional;
@@ -562,6 +600,26 @@ public class Types {
         this.doc = toCopy.doc;
         this.initialDefault = toCopy.initialDefault;
         this.writeDefault = toCopy.writeDefault;
+      }
+
+      public Builder asRequired() {
+        this.isOptional = false;
+        return this;
+      }
+
+      public Builder asOptional() {
+        this.isOptional = true;
+        return this;
+      }
+
+      public Builder isOptional(boolean fieldIsOptional) {
+        this.isOptional = fieldIsOptional;
+        return this;
+      }
+
+      public Builder withName(String fieldName) {
+        this.name = fieldName;
+        return this;
       }
 
       public Builder withId(int fieldId) {
@@ -579,18 +637,39 @@ public class Types {
         return this;
       }
 
+      /**
+       * Set the initial default using an Object.
+       *
+       * @deprecated will be removed in 2.0.0; use {@link #withInitialDefault(Literal)} instead.
+       */
+      @Deprecated
       public Builder withInitialDefault(Object fieldInitialDefault) {
+        return withInitialDefault(Expressions.lit(fieldInitialDefault));
+      }
+
+      public Builder withInitialDefault(Literal<?> fieldInitialDefault) {
         initialDefault = fieldInitialDefault;
         return this;
       }
 
+      /**
+       * Set the write default using an Object.
+       *
+       * @deprecated will be removed in 2.0.0; use {@link #withWriteDefault(Literal)} instead.
+       */
+      @Deprecated
       public Builder withWriteDefault(Object fieldWriteDefault) {
+        return withWriteDefault(Expressions.lit(fieldWriteDefault));
+      }
+
+      public Builder withWriteDefault(Literal<?> fieldWriteDefault) {
         writeDefault = fieldWriteDefault;
         return this;
       }
 
       public NestedField build() {
-        // the constructor validates the fields
+        Preconditions.checkNotNull(id, "Id cannot be null");
+        // the constructor validates the other fields
         return new NestedField(isOptional, id, name, type, doc, initialDefault, writeDefault);
       }
     }
@@ -600,8 +679,8 @@ public class Types {
     private final String name;
     private final Type type;
     private final String doc;
-    private final Object initialDefault;
-    private final Object writeDefault;
+    private final Literal<?> initialDefault;
+    private final Literal<?> writeDefault;
 
     private NestedField(
         boolean isOptional,
@@ -609,8 +688,8 @@ public class Types {
         String name,
         Type type,
         String doc,
-        Object initialDefault,
-        Object writeDefault) {
+        Literal<?> initialDefault,
+        Literal<?> writeDefault) {
       Preconditions.checkNotNull(name, "Name cannot be null");
       Preconditions.checkNotNull(type, "Type cannot be null");
       this.isOptional = isOptional;
@@ -622,12 +701,12 @@ public class Types {
       this.writeDefault = castDefault(writeDefault, type);
     }
 
-    private static Object castDefault(Object defaultValue, Type type) {
+    private static Literal<?> castDefault(Literal<?> defaultValue, Type type) {
       if (type.isNestedType() && defaultValue != null) {
         throw new IllegalArgumentException(
             String.format("Invalid default value for %s: %s (must be null)", type, defaultValue));
       } else if (defaultValue != null) {
-        return Expressions.lit(defaultValue).to(type).value();
+        return defaultValue.to(type);
       }
 
       return null;
@@ -679,12 +758,20 @@ public class Types {
       return doc;
     }
 
-    public Object initialDefault() {
+    public Literal<?> initialDefaultLiteral() {
       return initialDefault;
     }
 
-    public Object writeDefault() {
+    public Object initialDefault() {
+      return initialDefault != null ? initialDefault.value() : null;
+    }
+
+    public Literal<?> writeDefaultLiteral() {
       return writeDefault;
+    }
+
+    public Object writeDefault() {
+      return writeDefault != null ? writeDefault.value() : null;
     }
 
     @Override

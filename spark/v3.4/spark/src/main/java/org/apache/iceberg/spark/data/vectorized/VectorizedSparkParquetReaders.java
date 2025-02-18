@@ -27,6 +27,7 @@ import org.apache.iceberg.arrow.vectorized.VectorizedReaderBuilder;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.slf4j.Logger;
@@ -66,6 +67,23 @@ public class VectorizedSparkParquetReaders {
                 NullCheckingForGet.NULL_CHECKING_ENABLED,
                 idToConstant,
                 ColumnarBatchReader::new,
+                deleteFilter));
+  }
+
+  public static CometColumnarBatchReader buildCometReader(
+      Schema expectedSchema,
+      MessageType fileSchema,
+      Map<Integer, ?> idToConstant,
+      DeleteFilter<InternalRow> deleteFilter) {
+    return (CometColumnarBatchReader)
+        TypeWithSchemaVisitor.visit(
+            expectedSchema.asStruct(),
+            fileSchema,
+            new CometVectorizedReaderBuilder(
+                expectedSchema,
+                fileSchema,
+                idToConstant,
+                readers -> new CometColumnarBatchReader(readers, expectedSchema),
                 deleteFilter));
   }
 
@@ -112,7 +130,13 @@ public class VectorizedSparkParquetReaders {
         Map<Integer, ?> idToConstant,
         Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory,
         DeleteFilter<InternalRow> deleteFilter) {
-      super(expectedSchema, parquetSchema, setArrowValidityVector, idToConstant, readerFactory);
+      super(
+          expectedSchema,
+          parquetSchema,
+          setArrowValidityVector,
+          idToConstant,
+          readerFactory,
+          SparkUtil::internalToSpark);
       this.deleteFilter = deleteFilter;
     }
 

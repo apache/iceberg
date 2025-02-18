@@ -50,8 +50,8 @@ class SerializedShortString extends Variants.SerializedValue implements VariantP
   }
 
   @Override
-  public Variants.PhysicalType type() {
-    return Variants.PhysicalType.STRING;
+  public PhysicalType type() {
+    return PhysicalType.STRING;
   }
 
   @Override
@@ -65,5 +65,10 @@ class SerializedShortString extends Variants.SerializedValue implements VariantP
   @Override
   public ByteBuffer buffer() {
     return value;
+  }
+
+  @Override
+  public String toString() {
+    return VariantPrimitive.asString(this);
   }
 }

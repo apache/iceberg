@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.types;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
@@ -44,7 +46,18 @@ public class TestTypes {
     assertThat(Types.fromPrimitiveString("Decimal(2,3)")).isEqualTo(Types.DecimalType.of(2, 3));
 
     assertThatExceptionOfType(IllegalArgumentException.class)
-        .isThrownBy(() -> Types.fromPrimitiveString("Unknown"))
-        .withMessageContaining("Unknown");
+        .isThrownBy(() -> Types.fromPrimitiveString("abcdefghij"))
+        .withMessage("Cannot parse type string to primitive: abcdefghij");
+  }
+
+  @Test
+  public void testNestedFieldBuilderIdCheck() {
+    assertThatExceptionOfType(NullPointerException.class)
+        .isThrownBy(() -> optional("field").ofType(Types.StringType.get()).build())
+        .withMessage("Id cannot be null");
+
+    assertThatExceptionOfType(NullPointerException.class)
+        .isThrownBy(() -> required("field").ofType(Types.StringType.get()).build())
+        .withMessage("Id cannot be null");
   }
 }

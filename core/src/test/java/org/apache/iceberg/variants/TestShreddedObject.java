@@ -31,7 +31,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.RandomUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -51,7 +50,7 @@ public class TestShreddedObject {
 
   @Test
   public void testShreddedFields() {
-    ShreddedObject object = createShreddedObject(FIELDS).second();
+    ShreddedObject object = createShreddedObject(FIELDS);
 
     assertThat(object.get("a")).isInstanceOf(VariantPrimitive.class);
     assertThat(object.get("a").asPrimitive().get()).isEqualTo(34);
@@ -63,16 +62,15 @@ public class TestShreddedObject {
 
   @Test
   public void testShreddedSerializationMinimalBuffer() {
-    Pair<SerializedMetadata, ShreddedObject> pair = createShreddedObject(FIELDS);
-    SerializedMetadata metadata = pair.first();
-    ShreddedObject object = pair.second();
+    ShreddedObject object = createShreddedObject(FIELDS);
+    VariantMetadata metadata = object.metadata();
 
     VariantValue value = roundTripMinimalBuffer(object, metadata);
 
     assertThat(value).isInstanceOf(SerializedObject.class);
     SerializedObject actual = (SerializedObject) value;
 
-    assertThat(actual.numElements()).isEqualTo(3);
+    assertThat(actual.numFields()).isEqualTo(3);
     assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
     assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
     assertThat(actual.get("b")).isInstanceOf(VariantPrimitive.class);
@@ -83,16 +81,15 @@ public class TestShreddedObject {
 
   @Test
   public void testShreddedSerializationLargeBuffer() {
-    Pair<SerializedMetadata, ShreddedObject> pair = createShreddedObject(FIELDS);
-    SerializedMetadata metadata = pair.first();
-    ShreddedObject object = pair.second();
+    ShreddedObject object = createShreddedObject(FIELDS);
+    VariantMetadata metadata = object.metadata();
 
     VariantValue value = roundTripLargeBuffer(object, metadata);
 
     assertThat(value).isInstanceOf(SerializedObject.class);
     SerializedObject actual = (SerializedObject) value;
 
-    assertThat(actual.numElements()).isEqualTo(3);
+    assertThat(actual.numFields()).isEqualTo(3);
     assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
     assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
     assertThat(actual.get("b")).isInstanceOf(VariantPrimitive.class);
@@ -103,16 +100,15 @@ public class TestShreddedObject {
 
   @Test
   public void testUnshreddedObjectSerializationMinimalBuffer() {
-    Pair<SerializedMetadata, ShreddedObject> pair = createUnshreddedObject(FIELDS);
-    SerializedMetadata metadata = pair.first();
-    ShreddedObject object = pair.second();
+    ShreddedObject object = createUnshreddedObject(FIELDS);
+    VariantMetadata metadata = object.metadata();
 
     VariantValue value = roundTripMinimalBuffer(object, metadata);
 
     assertThat(value).isInstanceOf(SerializedObject.class);
     SerializedObject actual = (SerializedObject) value;
 
-    assertThat(actual.numElements()).isEqualTo(3);
+    assertThat(actual.numFields()).isEqualTo(3);
     assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
     assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
     assertThat(actual.get("b")).isInstanceOf(VariantPrimitive.class);
@@ -123,16 +119,15 @@ public class TestShreddedObject {
 
   @Test
   public void testUnshreddedObjectSerializationLargeBuffer() {
-    Pair<SerializedMetadata, ShreddedObject> pair = createUnshreddedObject(FIELDS);
-    SerializedMetadata metadata = pair.first();
-    ShreddedObject object = pair.second();
+    ShreddedObject object = createUnshreddedObject(FIELDS);
+    VariantMetadata metadata = object.metadata();
 
     VariantValue value = roundTripLargeBuffer(object, metadata);
 
     assertThat(value).isInstanceOf(SerializedObject.class);
     SerializedObject actual = (SerializedObject) value;
 
-    assertThat(actual.numElements()).isEqualTo(3);
+    assertThat(actual.numFields()).isEqualTo(3);
     assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
     assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
     assertThat(actual.get("b")).isInstanceOf(VariantPrimitive.class);
@@ -143,24 +138,26 @@ public class TestShreddedObject {
 
   @Test
   public void testPartiallyShreddedObjectReplacement() {
-    ShreddedObject partial = createUnshreddedObject(FIELDS).second();
+    ShreddedObject partial = createUnshreddedObject(FIELDS);
 
     // replace field c with a new value
     partial.put("c", Variants.ofIsoDate("2024-10-12"));
+    assertThat(partial.numFields()).isEqualTo(3);
+
+    partial.remove("b");
+    assertThat(partial.numFields()).isEqualTo(2);
 
     assertThat(partial.get("a")).isInstanceOf(VariantPrimitive.class);
     assertThat(partial.get("a").asPrimitive().get()).isEqualTo(34);
-    assertThat(partial.get("b")).isInstanceOf(VariantPrimitive.class);
-    assertThat(partial.get("b").asPrimitive().get()).isEqualTo("iceberg");
     assertThat(partial.get("c")).isInstanceOf(VariantPrimitive.class);
-    assertThat(partial.get("c").type()).isEqualTo(Variants.PhysicalType.DATE);
+    assertThat(partial.get("c").type()).isEqualTo(PhysicalType.DATE);
     assertThat(partial.get("c").asPrimitive().get())
         .isEqualTo(DateTimeUtil.isoDateToDays("2024-10-12"));
   }
 
   @Test
   public void testPartiallyShreddedObjectGetMissingField() {
-    ShreddedObject partial = createUnshreddedObject(FIELDS).second();
+    ShreddedObject partial = createUnshreddedObject(FIELDS);
 
     // missing fields are returned as null
     assertThat(partial.get("d")).isNull();
@@ -168,7 +165,7 @@ public class TestShreddedObject {
 
   @Test
   public void testPartiallyShreddedObjectPutMissingFieldFailure() {
-    ShreddedObject partial = createUnshreddedObject(FIELDS).second();
+    ShreddedObject partial = createUnshreddedObject(FIELDS);
 
     // d is not defined in the variant metadata and will fail
     assertThatThrownBy(() -> partial.put("d", Variants.ofIsoDate("2024-10-12")))
@@ -178,12 +175,12 @@ public class TestShreddedObject {
 
   @Test
   public void testPartiallyShreddedObjectSerializationMinimalBuffer() {
-    Pair<SerializedMetadata, ShreddedObject> pair = createUnshreddedObject(FIELDS);
-    SerializedMetadata metadata = pair.first();
-    ShreddedObject partial = pair.second();
+    ShreddedObject partial = createUnshreddedObject(FIELDS);
+    VariantMetadata metadata = partial.metadata();
 
     // replace field c with a new value
     partial.put("c", Variants.ofIsoDate("2024-10-12"));
+    partial.remove("b");
 
     VariantValue value = roundTripMinimalBuffer(partial, metadata);
 
@@ -192,22 +189,20 @@ public class TestShreddedObject {
 
     assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
     assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
-    assertThat(actual.get("b")).isInstanceOf(VariantPrimitive.class);
-    assertThat(actual.get("b").asPrimitive().get()).isEqualTo("iceberg");
     assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
-    assertThat(actual.get("c").type()).isEqualTo(Variants.PhysicalType.DATE);
+    assertThat(actual.get("c").type()).isEqualTo(PhysicalType.DATE);
     assertThat(actual.get("c").asPrimitive().get())
         .isEqualTo(DateTimeUtil.isoDateToDays("2024-10-12"));
   }
 
   @Test
   public void testPartiallyShreddedObjectSerializationLargeBuffer() {
-    Pair<SerializedMetadata, ShreddedObject> pair = createUnshreddedObject(FIELDS);
-    SerializedMetadata metadata = pair.first();
-    ShreddedObject partial = pair.second();
+    ShreddedObject partial = createUnshreddedObject(FIELDS);
+    VariantMetadata metadata = partial.metadata();
 
     // replace field c with a new value
     partial.put("c", Variants.ofIsoDate("2024-10-12"));
+    partial.remove("b");
 
     VariantValue value = roundTripLargeBuffer(partial, metadata);
 
@@ -216,10 +211,8 @@ public class TestShreddedObject {
 
     assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
     assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
-    assertThat(actual.get("b")).isInstanceOf(VariantPrimitive.class);
-    assertThat(actual.get("b").asPrimitive().get()).isEqualTo("iceberg");
     assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
-    assertThat(actual.get("c").type()).isEqualTo(Variants.PhysicalType.DATE);
+    assertThat(actual.get("c").type()).isEqualTo(PhysicalType.DATE);
     assertThat(actual.get("c").asPrimitive().get())
         .isEqualTo(DateTimeUtil.isoDateToDays("2024-10-12"));
   }
@@ -234,20 +227,20 @@ public class TestShreddedObject {
     data.putAll(FIELDS);
     data.put("big", bigString);
 
-    Pair<SerializedMetadata, ShreddedObject> pair = createShreddedObject(data);
-    VariantValue value = roundTripLargeBuffer(pair.second(), pair.first());
+    ShreddedObject shredded = createShreddedObject(data);
+    VariantValue value = roundTripLargeBuffer(shredded, shredded.metadata());
 
-    assertThat(value.type()).isEqualTo(Variants.PhysicalType.OBJECT);
+    assertThat(value.type()).isEqualTo(PhysicalType.OBJECT);
     SerializedObject object = (SerializedObject) value;
-    assertThat(object.numElements()).isEqualTo(4);
+    assertThat(object.numFields()).isEqualTo(4);
 
-    assertThat(object.get("a").type()).isEqualTo(Variants.PhysicalType.INT32);
+    assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT32);
     assertThat(object.get("a").asPrimitive().get()).isEqualTo(34);
-    assertThat(object.get("b").type()).isEqualTo(Variants.PhysicalType.STRING);
+    assertThat(object.get("b").type()).isEqualTo(PhysicalType.STRING);
     assertThat(object.get("b").asPrimitive().get()).isEqualTo("iceberg");
-    assertThat(object.get("c").type()).isEqualTo(Variants.PhysicalType.DECIMAL4);
+    assertThat(object.get("c").type()).isEqualTo(PhysicalType.DECIMAL4);
     assertThat(object.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
-    assertThat(object.get("big").type()).isEqualTo(Variants.PhysicalType.STRING);
+    assertThat(object.get("big").type()).isEqualTo(PhysicalType.STRING);
     assertThat(object.get("big").asPrimitive().get()).isEqualTo(randomString);
   }
 
@@ -261,20 +254,20 @@ public class TestShreddedObject {
     data.putAll(FIELDS);
     data.put("really-big", reallyBigString);
 
-    Pair<SerializedMetadata, ShreddedObject> pair = createShreddedObject(data);
-    VariantValue value = roundTripLargeBuffer(pair.second(), pair.first());
+    ShreddedObject shredded = createShreddedObject(data);
+    VariantValue value = roundTripLargeBuffer(shredded, shredded.metadata());
 
-    assertThat(value.type()).isEqualTo(Variants.PhysicalType.OBJECT);
+    assertThat(value.type()).isEqualTo(PhysicalType.OBJECT);
     SerializedObject object = (SerializedObject) value;
-    assertThat(object.numElements()).isEqualTo(4);
+    assertThat(object.numFields()).isEqualTo(4);
 
-    assertThat(object.get("a").type()).isEqualTo(Variants.PhysicalType.INT32);
+    assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT32);
     assertThat(object.get("a").asPrimitive().get()).isEqualTo(34);
-    assertThat(object.get("b").type()).isEqualTo(Variants.PhysicalType.STRING);
+    assertThat(object.get("b").type()).isEqualTo(PhysicalType.STRING);
     assertThat(object.get("b").asPrimitive().get()).isEqualTo("iceberg");
-    assertThat(object.get("c").type()).isEqualTo(Variants.PhysicalType.DECIMAL4);
+    assertThat(object.get("c").type()).isEqualTo(PhysicalType.DECIMAL4);
     assertThat(object.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
-    assertThat(object.get("really-big").type()).isEqualTo(Variants.PhysicalType.STRING);
+    assertThat(object.get("really-big").type()).isEqualTo(PhysicalType.STRING);
     assertThat(object.get("really-big").asPrimitive().get()).isEqualTo(randomString);
   }
 
@@ -288,20 +281,20 @@ public class TestShreddedObject {
     data.putAll(FIELDS);
     data.put("really-big", reallyBigString);
 
-    Pair<SerializedMetadata, ShreddedObject> pair = createShreddedObject(data);
-    VariantValue value = roundTripLargeBuffer(pair.second(), pair.first());
+    ShreddedObject shredded = createShreddedObject(data);
+    VariantValue value = roundTripLargeBuffer(shredded, shredded.metadata());
 
-    assertThat(value.type()).isEqualTo(Variants.PhysicalType.OBJECT);
+    assertThat(value.type()).isEqualTo(PhysicalType.OBJECT);
     SerializedObject object = (SerializedObject) value;
-    assertThat(object.numElements()).isEqualTo(4);
+    assertThat(object.numFields()).isEqualTo(4);
 
-    assertThat(object.get("a").type()).isEqualTo(Variants.PhysicalType.INT32);
+    assertThat(object.get("a").type()).isEqualTo(PhysicalType.INT32);
     assertThat(object.get("a").asPrimitive().get()).isEqualTo(34);
-    assertThat(object.get("b").type()).isEqualTo(Variants.PhysicalType.STRING);
+    assertThat(object.get("b").type()).isEqualTo(PhysicalType.STRING);
     assertThat(object.get("b").asPrimitive().get()).isEqualTo("iceberg");
-    assertThat(object.get("c").type()).isEqualTo(Variants.PhysicalType.DECIMAL4);
+    assertThat(object.get("c").type()).isEqualTo(PhysicalType.DECIMAL4);
     assertThat(object.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
-    assertThat(object.get("really-big").type()).isEqualTo(Variants.PhysicalType.STRING);
+    assertThat(object.get("really-big").type()).isEqualTo(PhysicalType.STRING);
     assertThat(object.get("really-big").asPrimitive().get()).isEqualTo(randomString);
   }
 
@@ -316,19 +309,19 @@ public class TestShreddedObject {
           Variants.of(RandomUtil.generateString(10, random)));
     }
 
-    SerializedMetadata metadata =
-        SerializedMetadata.from(VariantTestUtil.createMetadata(fields.keySet(), sortFieldNames));
+    VariantMetadata metadata =
+        Variants.metadata(VariantTestUtil.createMetadata(fields.keySet(), sortFieldNames));
 
     ShreddedObject shredded = createShreddedObject(metadata, (Map) fields);
     VariantValue value = roundTripLargeBuffer(shredded, metadata);
 
-    assertThat(value.type()).isEqualTo(Variants.PhysicalType.OBJECT);
+    assertThat(value.type()).isEqualTo(PhysicalType.OBJECT);
     SerializedObject object = (SerializedObject) value;
-    assertThat(object.numElements()).isEqualTo(10_000);
+    assertThat(object.numFields()).isEqualTo(10_000);
 
     for (Map.Entry<String, VariantPrimitive<String>> entry : fields.entrySet()) {
       VariantValue fieldValue = object.get(entry.getKey());
-      assertThat(fieldValue.type()).isEqualTo(Variants.PhysicalType.STRING);
+      assertThat(fieldValue.type()).isEqualTo(PhysicalType.STRING);
       assertThat(fieldValue.asPrimitive().get()).isEqualTo(entry.getValue().get());
     }
   }
@@ -346,21 +339,21 @@ public class TestShreddedObject {
 
     // create metadata from the large key set and the actual keys
     keySet.addAll(data.keySet());
-    SerializedMetadata metadata =
-        SerializedMetadata.from(VariantTestUtil.createMetadata(keySet, sortFieldNames));
+    VariantMetadata metadata =
+        Variants.metadata(VariantTestUtil.createMetadata(keySet, sortFieldNames));
 
     ShreddedObject shredded = createShreddedObject(metadata, data);
     VariantValue value = roundTripLargeBuffer(shredded, metadata);
 
-    assertThat(value.type()).isEqualTo(Variants.PhysicalType.OBJECT);
+    assertThat(value.type()).isEqualTo(PhysicalType.OBJECT);
     SerializedObject object = (SerializedObject) value;
-    assertThat(object.numElements()).isEqualTo(3);
+    assertThat(object.numFields()).isEqualTo(3);
 
-    assertThat(object.get("aa").type()).isEqualTo(Variants.PhysicalType.INT32);
+    assertThat(object.get("aa").type()).isEqualTo(PhysicalType.INT32);
     assertThat(object.get("aa").asPrimitive().get()).isEqualTo(34);
-    assertThat(object.get("AA").type()).isEqualTo(Variants.PhysicalType.STRING);
+    assertThat(object.get("AA").type()).isEqualTo(PhysicalType.STRING);
     assertThat(object.get("AA").asPrimitive().get()).isEqualTo("iceberg");
-    assertThat(object.get("ZZ").type()).isEqualTo(Variants.PhysicalType.DECIMAL4);
+    assertThat(object.get("ZZ").type()).isEqualTo(PhysicalType.DECIMAL4);
     assertThat(object.get("ZZ").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
   }
 
@@ -377,35 +370,35 @@ public class TestShreddedObject {
 
     // create metadata from the large key set and the actual keys
     keySet.addAll(data.keySet());
-    SerializedMetadata metadata =
-        SerializedMetadata.from(VariantTestUtil.createMetadata(keySet, sortFieldNames));
+    VariantMetadata metadata =
+        Variants.metadata(VariantTestUtil.createMetadata(keySet, sortFieldNames));
 
     ShreddedObject shredded = createShreddedObject(metadata, data);
     VariantValue value = roundTripLargeBuffer(shredded, metadata);
 
-    assertThat(value.type()).isEqualTo(Variants.PhysicalType.OBJECT);
+    assertThat(value.type()).isEqualTo(PhysicalType.OBJECT);
     SerializedObject object = (SerializedObject) value;
-    assertThat(object.numElements()).isEqualTo(3);
+    assertThat(object.numFields()).isEqualTo(3);
 
-    assertThat(object.get("aa").type()).isEqualTo(Variants.PhysicalType.INT32);
+    assertThat(object.get("aa").type()).isEqualTo(PhysicalType.INT32);
     assertThat(object.get("aa").asPrimitive().get()).isEqualTo(34);
-    assertThat(object.get("AA").type()).isEqualTo(Variants.PhysicalType.STRING);
+    assertThat(object.get("AA").type()).isEqualTo(PhysicalType.STRING);
     assertThat(object.get("AA").asPrimitive().get()).isEqualTo("iceberg");
-    assertThat(object.get("ZZ").type()).isEqualTo(Variants.PhysicalType.DECIMAL4);
+    assertThat(object.get("ZZ").type()).isEqualTo(PhysicalType.DECIMAL4);
     assertThat(object.get("ZZ").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
   }
 
   private static VariantValue roundTripMinimalBuffer(
-      ShreddedObject object, SerializedMetadata metadata) {
+      ShreddedObject object, VariantMetadata metadata) {
     ByteBuffer serialized =
         ByteBuffer.allocate(object.sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
     object.writeTo(serialized, 0);
 
-    return Variants.from(metadata, serialized);
+    return Variants.value(metadata, serialized);
   }
 
   private static VariantValue roundTripLargeBuffer(
-      ShreddedObject object, SerializedMetadata metadata) {
+      ShreddedObject object, VariantMetadata metadata) {
     ByteBuffer serialized =
         ByteBuffer.allocate(1000 + object.sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
     object.writeTo(serialized, 300);
@@ -414,11 +407,12 @@ public class TestShreddedObject {
     slice.position(300);
     slice.limit(300 + object.sizeInBytes());
 
-    return Variants.from(metadata, slice);
+    return Variants.value(metadata, slice);
   }
 
+  /** Creates a ShreddedObject with fields in its shredded map, using the given metadata */
   private static ShreddedObject createShreddedObject(
-      SerializedMetadata metadata, Map<String, VariantValue> fields) {
+      VariantMetadata metadata, Map<String, VariantValue> fields) {
     ShreddedObject object = new ShreddedObject(metadata);
     for (Map.Entry<String, VariantValue> field : fields.entrySet()) {
       object.put(field.getKey(), field.getValue());
@@ -427,22 +421,24 @@ public class TestShreddedObject {
     return object;
   }
 
-  private static Pair<SerializedMetadata, ShreddedObject> createShreddedObject(
-      Map<String, VariantValue> fields) {
+  /** Creates a ShreddedObject with fields in its shredded map */
+  private static ShreddedObject createShreddedObject(Map<String, VariantValue> fields) {
     ByteBuffer metadataBuffer = VariantTestUtil.createMetadata(fields.keySet(), false);
-    SerializedMetadata metadata = SerializedMetadata.from(metadataBuffer);
-    return Pair.of(metadata, createShreddedObject(metadata, fields));
+    VariantMetadata metadata = Variants.metadata(metadataBuffer);
+    return createShreddedObject(metadata, fields);
   }
 
-  private static Pair<SerializedMetadata, ShreddedObject> createUnshreddedObject(
-      Map<String, VariantValue> fields) {
+  /** Creates a ShreddedObject with fields in its unshredded base object */
+  private static ShreddedObject createUnshreddedObject(Map<String, VariantValue> fields) {
     SerializedObject serialized = createSerializedObject(fields);
-    return Pair.of(serialized.metadata(), new ShreddedObject(serialized));
+    return new ShreddedObject(serialized.metadata(), serialized);
   }
 
   private static SerializedObject createSerializedObject(Map<String, VariantValue> fields) {
     ByteBuffer metadataBuffer = VariantTestUtil.createMetadata(fields.keySet(), false);
     return (SerializedObject)
-        Variants.from(metadataBuffer, VariantTestUtil.createObject(metadataBuffer, fields));
+        Variants.value(
+            Variants.metadata(metadataBuffer),
+            VariantTestUtil.createObject(metadataBuffer, fields));
   }
 }

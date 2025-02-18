@@ -47,6 +47,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.server.TServer;
@@ -273,13 +274,17 @@ public class TestHiveMetastore {
   }
 
   private static void setupMetastoreDB(String dbURL) throws SQLException, IOException {
-    Connection connection = DriverManager.getConnection(dbURL);
-    ScriptRunner scriptRunner = new ScriptRunner(connection, true, true);
-
-    ClassLoader classLoader = ClassLoader.getSystemClassLoader();
-    InputStream inputStream = classLoader.getResourceAsStream("hive-schema-3.1.0.derby.sql");
-    try (Reader reader = new InputStreamReader(inputStream)) {
-      scriptRunner.runScript(reader);
+    try (Connection connection = DriverManager.getConnection(dbURL)) {
+      ScriptRunner scriptRunner = new ScriptRunner(connection, true, true);
+      try (InputStream inputStream =
+              TestHiveMetastore.class
+                  .getClassLoader()
+                  .getResourceAsStream("hive-schema-3.1.0.derby.sql");
+          Reader reader =
+              new InputStreamReader(
+                  Preconditions.checkNotNull(inputStream, "Invalid input stream: null"))) {
+        scriptRunner.runScript(reader);
+      }
     }
   }
 }

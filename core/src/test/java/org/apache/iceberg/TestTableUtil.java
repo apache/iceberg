@@ -31,11 +31,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestTableUtil {
   private static final Namespace NS = Namespace.of("ns");
   private static final TableIdentifier IDENTIFIER = TableIdentifier.of(NS, "test");
+  private static final Schema SCHEMA =
+      new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get()));
 
   @TempDir private File tmp;
 
@@ -53,6 +56,10 @@ public class TestTableUtil {
     assertThatThrownBy(() -> TableUtil.formatVersion(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid table: null");
+
+    assertThatThrownBy(() -> TableUtil.metadataFileLocation(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid table: null");
   }
 
   @ParameterizedTest
@@ -61,7 +68,7 @@ public class TestTableUtil {
     Table table =
         catalog.createTable(
             IDENTIFIER,
-            new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get())),
+            SCHEMA,
             PartitionSpec.unpartitioned(),
             ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)));
 
@@ -69,24 +76,43 @@ public class TestTableUtil {
     assertThat(TableUtil.formatVersion(SerializableTable.copyOf(table))).isEqualTo(formatVersion);
   }
 
+  @ParameterizedTest
+  @EnumSource(MetadataTableType.class)
+  public void formatVersionForMetadataTables(MetadataTableType type) {
+    Table table = catalog.createTable(IDENTIFIER, SCHEMA);
+
+    Table metadataTable = MetadataTableUtils.createMetadataTableInstance(table, type);
+    assertThatThrownBy(() -> TableUtil.formatVersion(metadataTable))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("%s does not have a format version", metadataTable.getClass().getSimpleName());
+
+    assertThatThrownBy(() -> TableUtil.formatVersion(SerializableTable.copyOf(metadataTable)))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(
+            "%s does not have a format version",
+            SerializableTable.SerializableMetadataTable.class.getName());
+  }
+
   @Test
-  public void formatVersionForMetadataTables() {
-    Table table =
-        catalog.createTable(
-            IDENTIFIER, new Schema(Types.NestedField.required(1, "id", Types.IntegerType.get())));
+  public void metadataFileLocationForBaseTable() {
+    Table table = catalog.createTable(IDENTIFIER, SCHEMA);
 
-    for (MetadataTableType type : MetadataTableType.values()) {
-      Table metadataTable = MetadataTableUtils.createMetadataTableInstance(table, type);
-      assertThatThrownBy(() -> TableUtil.formatVersion(metadataTable))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessage(
-              "%s does not have a format version", metadataTable.getClass().getSimpleName());
+    TableMetadata metadata = ((HasTableOperations) table).operations().current();
+    assertThat(TableUtil.metadataFileLocation(table)).isEqualTo(metadata.metadataFileLocation());
+    assertThat(TableUtil.metadataFileLocation(SerializableTable.copyOf(table)))
+        .isEqualTo(metadata.metadataFileLocation());
+  }
 
-      assertThatThrownBy(() -> TableUtil.formatVersion(SerializableTable.copyOf(metadataTable)))
-          .isInstanceOf(UnsupportedOperationException.class)
-          .hasMessage(
-              "%s does not have a format version",
-              SerializableTable.SerializableMetadataTable.class.getName());
-    }
+  @ParameterizedTest
+  @EnumSource(MetadataTableType.class)
+  public void metadataFileLocationForMetadataTables(MetadataTableType type) {
+    Table table = catalog.createTable(IDENTIFIER, SCHEMA);
+
+    Table metadataTable = MetadataTableUtils.createMetadataTableInstance(table, type);
+    TableMetadata metadata = ((HasTableOperations) table).operations().current();
+    assertThat(TableUtil.metadataFileLocation(metadataTable))
+        .isEqualTo(metadata.metadataFileLocation());
+    assertThat(TableUtil.metadataFileLocation(SerializableTable.copyOf(metadataTable)))
+        .isEqualTo(metadata.metadataFileLocation());
   }
 }

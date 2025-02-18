@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
@@ -1561,45 +1562,39 @@ public class TestViews extends ExtensionsTestBase {
 
     // spark stores temp views case-insensitive by default
     Object[] tempView = row("", tempViewForListing.toLowerCase(Locale.ROOT), true);
-    assertThat(sql("SHOW VIEWS"))
-        .contains(
-            row(NAMESPACE.toString(), prefixV2, false),
-            row(NAMESPACE.toString(), prefixV3, false),
-            row(NAMESPACE.toString(), v1, false),
-            tempView);
+    Object[] v1Row = row(NAMESPACE.toString(), v1, false);
+    Object[] v2Row = row(NAMESPACE.toString(), prefixV2, false);
+    Object[] v3Row = row(NAMESPACE.toString(), prefixV3, false);
+    assertThat(sql("SHOW VIEWS")).contains(v2Row, v3Row, v1Row, tempView);
 
     if (!"rest".equals(catalogConfig.get(CatalogUtil.ICEBERG_CATALOG_TYPE))) {
       // REST catalog requires a namespace
       assertThat(sql("SHOW VIEWS IN %s", catalogName))
-          .contains(
-              row(NAMESPACE.toString(), prefixV2, false),
-              row(NAMESPACE.toString(), prefixV3, false),
-              row(NAMESPACE.toString(), v1, false),
-              tempView);
+          .contains(tempView)
+          .doesNotContain(v1Row, v2Row, v3Row);
     }
 
     assertThat(sql("SHOW VIEWS IN %s.%s", catalogName, NAMESPACE))
-        .contains(
-            row(NAMESPACE.toString(), prefixV2, false),
-            row(NAMESPACE.toString(), prefixV3, false),
-            row(NAMESPACE.toString(), v1, false),
-            tempView);
+        .contains(v2Row, v3Row, v1Row, tempView);
 
     assertThat(sql("SHOW VIEWS LIKE 'pref*'"))
-        .contains(
-            row(NAMESPACE.toString(), prefixV2, false), row(NAMESPACE.toString(), prefixV3, false));
+        .contains(v2Row, v3Row)
+        .doesNotContain(v1Row, tempView);
 
     assertThat(sql("SHOW VIEWS LIKE 'non-existing'")).isEmpty();
 
     if (!catalogName.equals(SPARK_CATALOG)) {
       sql("CREATE NAMESPACE IF NOT EXISTS spark_catalog.%s", NAMESPACE);
-      assertThat(sql("SHOW VIEWS IN spark_catalog.%s", NAMESPACE)).contains(tempView);
+      assertThat(sql("SHOW VIEWS IN spark_catalog.%s", NAMESPACE))
+          .contains(tempView)
+          .doesNotContain(v1Row, v2Row, v3Row);
     }
 
     assertThat(sql("SHOW VIEWS IN global_temp"))
         .contains(
             // spark stores temp views case-insensitive by default
-            row("global_temp", globalViewForListing.toLowerCase(Locale.ROOT), true), tempView);
+            row("global_temp", globalViewForListing.toLowerCase(Locale.ROOT), true), tempView)
+        .doesNotContain(v1Row, v2Row, v3Row);
 
     sql("USE spark_catalog");
     assertThat(sql("SHOW VIEWS")).contains(tempView);
@@ -2097,6 +2092,26 @@ public class TestViews extends ExtensionsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             String.format("Recursive cycle in view detected: %s (cycle: %s)", view1, cycle));
+  }
+
+  @TestTemplate
+  public void createViewWithCustomMetadataLocation() {
+    String viewName = viewName("v");
+    String customMetadataLocation =
+        Paths.get(temp.toUri().toString(), "custom-metadata-location").toString();
+    sql(
+        "CREATE VIEW %s TBLPROPERTIES ('%s'='%s') AS SELECT * FROM %s",
+        viewName, ViewProperties.WRITE_METADATA_LOCATION, customMetadataLocation, tableName);
+    String location = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName)).location();
+
+    assertThat(sql("DESCRIBE EXTENDED %s", viewName))
+        .contains(
+            row(
+                "View Properties",
+                String.format(
+                    "['format-version' = '1', 'location' = '%s', 'provider' = 'iceberg', 'write.metadata.path' = '%s']",
+                    location, customMetadataLocation),
+                ""));
   }
 
   private void insertRows(int numRows) throws NoSuchTableException {

@@ -71,6 +71,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.auth.AuthConfig;
+import org.apache.iceberg.rest.auth.DefaultAuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
@@ -151,6 +152,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           .add(Endpoint.V1_RENAME_TABLE)
           .add(Endpoint.V1_REGISTER_TABLE)
           .add(Endpoint.V1_REPORT_METRICS)
+          .add(Endpoint.V1_COMMIT_TRANSACTION)
           .build();
 
   private static final Set<Endpoint> VIEW_ENDPOINTS =
@@ -242,9 +244,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
     String oauth2ServerUri =
         props.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
-    try (RESTClient initClient = clientBuilder.apply(props)) {
-      Map<String, String> initHeaders =
-          RESTUtil.merge(configHeaders(props), OAuth2Util.authHeaders(initToken));
+    try (DefaultAuthSession initSession =
+            DefaultAuthSession.of(HTTPHeaders.of(OAuth2Util.authHeaders(initToken)));
+        RESTClient initClient = clientBuilder.apply(props).withAuthSession(initSession)) {
+      Map<String, String> initHeaders = configHeaders(props);
       if (hasCredential) {
         authResponse =
             OAuth2Util.fetchToken(
@@ -283,7 +286,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             mergedProps,
             OAuth2Properties.TOKEN_REFRESH_ENABLED,
             OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
-    this.client = clientBuilder.apply(mergedProps);
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
     String token = mergedProps.get(OAuth2Properties.TOKEN);
@@ -296,14 +298,19 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 .oauth2ServerUri(oauth2ServerUri)
                 .optionalOAuthParams(optionalOAuthParams)
                 .build());
+
+    this.client = clientBuilder.apply(mergedProps).withAuthSession(catalogAuth);
+
     if (authResponse != null) {
       this.catalogAuth =
           AuthSession.fromTokenResponse(
               client, tokenRefreshExecutor(name), authResponse, startTimeMillis, catalogAuth);
+      this.client = client.withAuthSession(catalogAuth);
     } else if (token != null) {
       this.catalogAuth =
           AuthSession.fromAccessToken(
               client, tokenRefreshExecutor(name), token, expiresAtMillis(mergedProps), catalogAuth);
+      this.client = client.withAuthSession(catalogAuth);
     }
 
     this.pageSize = PropertyUtil.propertyAsNullableInt(mergedProps, REST_PAGE_SIZE);
@@ -438,9 +445,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public boolean tableExists(SessionContext context, TableIdentifier identifier) {
     Endpoint.check(endpoints, Endpoint.V1_TABLE_EXISTS);
-    checkIdentifierIsValid(identifier);
 
     try {
+      checkIdentifierIsValid(identifier);
       client.head(paths.table(identifier), headers(context), ErrorHandlers.tableErrorHandler());
       return true;
     } catch (NoSuchTableException e) {
@@ -659,9 +666,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public boolean namespaceExists(SessionContext context, Namespace namespace) {
     Endpoint.check(endpoints, Endpoint.V1_NAMESPACE_EXISTS);
-    checkNamespaceIsValid(namespace);
 
     try {
+      checkNamespaceIsValid(namespace);
       client.head(
           paths.namespace(namespace), headers(context), ErrorHandlers.namespaceErrorHandler());
       return true;
@@ -1233,9 +1240,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public boolean viewExists(SessionContext context, TableIdentifier identifier) {
     Endpoint.check(endpoints, Endpoint.V1_VIEW_EXISTS);
-    checkViewIdentifierIsValid(identifier);
 
     try {
+      checkViewIdentifierIsValid(identifier);
       client.head(paths.view(identifier), headers(context), ErrorHandlers.viewErrorHandler());
       return true;
     } catch (NoSuchViewException e) {

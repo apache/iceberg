@@ -158,6 +158,16 @@ public class TestIdentity {
   }
 
   @Test
+  public void testUnknownToHumanString() {
+    Types.UnknownType unknownType = Types.UnknownType.get();
+    Transform<Object, Object> identity = Transforms.identity();
+
+    assertThat(identity.toHumanString(unknownType, null))
+        .as("Should produce \"null\" for null")
+        .isEqualTo("null");
+  }
+
+  @Test
   public void testVariantUnsupported() {
     assertThatThrownBy(() -> Transforms.identity().bind(Types.VariantType.get()))
         .isInstanceOf(IllegalArgumentException.class)

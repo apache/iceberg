@@ -23,13 +23,38 @@ public interface VariantObject extends VariantValue {
   /** Returns the {@link VariantValue} for the field named {@code name} in this object. */
   VariantValue get(String name);
 
+  /** Returns the names of fields stored in this object. */
+  Iterable<String> fieldNames();
+
+  /** Returns the number of fields stored in this object. */
+  int numFields();
+
   @Override
-  default Variants.PhysicalType type() {
-    return Variants.PhysicalType.OBJECT;
+  default PhysicalType type() {
+    return PhysicalType.OBJECT;
   }
 
   @Override
   default VariantObject asObject() {
     return this;
+  }
+
+  static String asString(VariantObject object) {
+    StringBuilder builder = new StringBuilder();
+
+    builder.append("VariantObject(fields={");
+    boolean first = true;
+    for (String field : object.fieldNames()) {
+      if (first) {
+        first = false;
+      } else {
+        builder.append(", ");
+      }
+
+      builder.append(field).append(": ").append(object.get(field));
+    }
+    builder.append("})");
+
+    return builder.toString();
   }
 }

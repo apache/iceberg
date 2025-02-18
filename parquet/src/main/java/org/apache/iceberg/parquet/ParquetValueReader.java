@@ -33,7 +33,9 @@ public interface ParquetValueReader<T> {
    *     instead.
    */
   @Deprecated
-  void setPageSource(PageReadStore pageStore, long rowPosition);
+  default void setPageSource(PageReadStore pageStore, long rowPosition) {
+    setPageSource(pageStore);
+  }
 
   default void setPageSource(PageReadStore pageStore) {
     throw new UnsupportedOperationException(

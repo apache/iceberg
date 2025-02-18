@@ -20,29 +20,56 @@ package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkSQLProperties;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.internal.SQLConf;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.assertj.core.api.Assumptions;
+import org.assertj.core.api.Condition;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public abstract class AvroDataTest {
 
   protected abstract void writeAndValidate(Schema schema) throws IOException;
+
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
+    throw new UnsupportedEncodingException(
+        "Cannot run test, writeAndValidate(Schema, Schema) is not implemented");
+  }
+
+  protected boolean supportsDefaultValues() {
+    return false;
+  }
+
+  protected boolean supportsNestedTypes() {
+    return true;
+  }
 
   protected static final StructType SUPPORTED_PRIMITIVES =
       StructType.of(
@@ -65,7 +92,7 @@ public abstract class AvroDataTest {
           required(117, "dec_38_10", Types.DecimalType.of(38, 10)) // Spark's maximum precision
           );
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir protected Path temp;
 
   @Test
   public void testSimpleStruct() throws IOException {
@@ -90,12 +117,16 @@ public abstract class AvroDataTest {
 
   @Test
   public void testNestedStruct() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     writeAndValidate(
         TypeUtil.assignIncreasingFreshIds(new Schema(required(1, "struct", SUPPORTED_PRIMITIVES))));
   }
 
   @Test
   public void testArray() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     Schema schema =
         new Schema(
             required(0, "id", LongType.get()),
@@ -106,6 +137,8 @@ public abstract class AvroDataTest {
 
   @Test
   public void testArrayOfStructs() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     Schema schema =
         TypeUtil.assignIncreasingFreshIds(
             new Schema(
@@ -117,6 +150,8 @@ public abstract class AvroDataTest {
 
   @Test
   public void testMap() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     Schema schema =
         new Schema(
             required(0, "id", LongType.get()),
@@ -130,6 +165,8 @@ public abstract class AvroDataTest {
 
   @Test
   public void testNumericMapKey() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     Schema schema =
         new Schema(
             required(0, "id", LongType.get()),
@@ -141,6 +178,8 @@ public abstract class AvroDataTest {
 
   @Test
   public void testComplexMapKey() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     Schema schema =
         new Schema(
             required(0, "id", LongType.get()),
@@ -160,6 +199,8 @@ public abstract class AvroDataTest {
 
   @Test
   public void testMapOfStructs() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     Schema schema =
         TypeUtil.assignIncreasingFreshIds(
             new Schema(
@@ -174,6 +215,8 @@ public abstract class AvroDataTest {
 
   @Test
   public void testMixedTypes() throws IOException {
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
     StructType structType =
         StructType.of(
             required(0, "id", LongType.get()),
@@ -242,6 +285,286 @@ public abstract class AvroDataTest {
 
           writeAndValidate(schema);
         });
+  }
+
+  @Test
+  public void testMissingRequiredWithoutDefault() {
+    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+
+    Schema writeSchema = new Schema(required(1, "id", Types.LongType.get()));
+
+    Schema expectedSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            Types.NestedField.required("missing_str")
+                .withId(6)
+                .ofType(Types.StringType.get())
+                .withDoc("Missing required field with no default")
+                .build());
+
+    assertThatThrownBy(() -> writeAndValidate(writeSchema, expectedSchema))
+        .has(
+            new Condition<>(
+                t ->
+                    IllegalArgumentException.class.isInstance(t)
+                        || IllegalArgumentException.class.isInstance(t.getCause()),
+                "Expecting a throwable or cause that is an instance of IllegalArgumentException"))
+        .hasMessageContaining("Missing required field: missing_str");
+  }
+
+  @Test
+  public void testDefaultValues() throws IOException {
+    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+
+    Schema writeSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault(Literal.of("wrong!"))
+                .withDoc("Should not produce default value")
+                .build());
+
+    Schema expectedSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault(Literal.of("wrong!"))
+                .build(),
+            Types.NestedField.required("missing_str")
+                .withId(6)
+                .ofType(Types.StringType.get())
+                .withInitialDefault(Literal.of("orange"))
+                .build(),
+            Types.NestedField.optional("missing_int")
+                .withId(7)
+                .ofType(Types.IntegerType.get())
+                .withInitialDefault(Literal.of(34))
+                .build());
+
+    writeAndValidate(writeSchema, expectedSchema);
+  }
+
+  @Test
+  public void testNullDefaultValue() throws IOException {
+    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+
+    Schema writeSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault(Literal.of("wrong!"))
+                .withDoc("Should not produce default value")
+                .build());
+
+    Schema expectedSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault(Literal.of("wrong!"))
+                .build(),
+            Types.NestedField.optional("missing_date")
+                .withId(3)
+                .ofType(Types.DateType.get())
+                .build());
+
+    writeAndValidate(writeSchema, expectedSchema);
+  }
+
+  @Test
+  public void testNestedDefaultValue() throws IOException {
+    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
+    Schema writeSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault(Literal.of("wrong!"))
+                .withDoc("Should not produce default value")
+                .build(),
+            Types.NestedField.optional("nested")
+                .withId(3)
+                .ofType(Types.StructType.of(required(4, "inner", Types.StringType.get())))
+                .withDoc("Used to test nested field defaults")
+                .build());
+
+    Schema expectedSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault(Literal.of("wrong!"))
+                .build(),
+            Types.NestedField.optional("nested")
+                .withId(3)
+                .ofType(
+                    Types.StructType.of(
+                        required(4, "inner", Types.StringType.get()),
+                        Types.NestedField.optional("missing_inner_float")
+                            .withId(5)
+                            .ofType(Types.FloatType.get())
+                            .withInitialDefault(Literal.of(-0.0F))
+                            .build()))
+                .withDoc("Used to test nested field defaults")
+                .build());
+
+    writeAndValidate(writeSchema, expectedSchema);
+  }
+
+  @Test
+  public void testMapNestedDefaultValue() throws IOException {
+    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
+    Schema writeSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault(Literal.of("wrong!"))
+                .withDoc("Should not produce default value")
+                .build(),
+            Types.NestedField.optional("nested_map")
+                .withId(3)
+                .ofType(
+                    Types.MapType.ofOptional(
+                        4,
+                        5,
+                        Types.StringType.get(),
+                        Types.StructType.of(required(6, "value_str", Types.StringType.get()))))
+                .withDoc("Used to test nested map value field defaults")
+                .build());
+
+    Schema expectedSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault(Literal.of("wrong!"))
+                .build(),
+            Types.NestedField.optional("nested_map")
+                .withId(3)
+                .ofType(
+                    Types.MapType.ofOptional(
+                        4,
+                        5,
+                        Types.StringType.get(),
+                        Types.StructType.of(
+                            required(6, "value_str", Types.StringType.get()),
+                            Types.NestedField.optional("value_int")
+                                .withId(7)
+                                .ofType(Types.IntegerType.get())
+                                .withInitialDefault(Literal.of(34))
+                                .build())))
+                .withDoc("Used to test nested field defaults")
+                .build());
+
+    writeAndValidate(writeSchema, expectedSchema);
+  }
+
+  @Test
+  public void testListNestedDefaultValue() throws IOException {
+    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+    Assumptions.assumeThat(supportsNestedTypes()).isTrue();
+
+    Schema writeSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault(Literal.of("wrong!"))
+                .withDoc("Should not produce default value")
+                .build(),
+            Types.NestedField.optional("nested_list")
+                .withId(3)
+                .ofType(
+                    Types.ListType.ofOptional(
+                        4, Types.StructType.of(required(5, "element_str", Types.StringType.get()))))
+                .withDoc("Used to test nested field defaults")
+                .build());
+
+    Schema expectedSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("data")
+                .withId(2)
+                .ofType(Types.StringType.get())
+                .withInitialDefault(Literal.of("wrong!"))
+                .build(),
+            Types.NestedField.optional("nested_list")
+                .withId(3)
+                .ofType(
+                    Types.ListType.ofOptional(
+                        4,
+                        Types.StructType.of(
+                            required(5, "element_str", Types.StringType.get()),
+                            Types.NestedField.optional("element_int")
+                                .withId(7)
+                                .ofType(Types.IntegerType.get())
+                                .withInitialDefault(Literal.of(34))
+                                .build())))
+                .withDoc("Used to test nested field defaults")
+                .build());
+
+    writeAndValidate(writeSchema, expectedSchema);
+  }
+
+  private static Stream<Arguments> primitiveTypesAndDefaults() {
+    return Stream.of(
+        Arguments.of(Types.BooleanType.get(), Literal.of(false)),
+        Arguments.of(Types.IntegerType.get(), Literal.of(34)),
+        Arguments.of(Types.LongType.get(), Literal.of(4900000000L)),
+        Arguments.of(Types.FloatType.get(), Literal.of(12.21F)),
+        Arguments.of(Types.DoubleType.get(), Literal.of(-0.0D)),
+        Arguments.of(Types.DateType.get(), Literal.of(DateTimeUtil.isoDateToDays("2024-12-17"))),
+        // Arguments.of(Types.TimeType.get(), DateTimeUtil.isoTimeToMicros("23:59:59.999999")),
+        Arguments.of(
+            Types.TimestampType.withZone(),
+            Literal.of(DateTimeUtil.isoTimestamptzToMicros("2024-12-17T23:59:59.999999+00:00"))),
+        // Arguments.of(
+        //     Types.TimestampType.withoutZone(),
+        //     Literal.of(DateTimeUtil.isoTimestampToMicros("2024-12-17T23:59:59.999999"))),
+        Arguments.of(Types.StringType.get(), Literal.of("iceberg")),
+        Arguments.of(Types.UUIDType.get(), Literal.of(UUID.randomUUID())),
+        Arguments.of(
+            Types.FixedType.ofLength(4),
+            Literal.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d}))),
+        Arguments.of(Types.BinaryType.get(), Literal.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b}))),
+        Arguments.of(Types.DecimalType.of(9, 2), Literal.of(new BigDecimal("12.34"))));
+  }
+
+  @ParameterizedTest
+  @MethodSource("primitiveTypesAndDefaults")
+  public void testPrimitiveTypeDefaultValues(Type.PrimitiveType type, Literal<?> defaultValue)
+      throws IOException {
+    Assumptions.assumeThat(supportsDefaultValues()).isTrue();
+
+    Schema writeSchema = new Schema(required(1, "id", Types.LongType.get()));
+
+    Schema readSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional("col_with_default")
+                .withId(2)
+                .ofType(type)
+                .withInitialDefault(defaultValue)
+                .build());
+
+    writeAndValidate(writeSchema, readSchema);
   }
 
   protected void withSQLConf(Map<String, String> conf, Action action) throws IOException {

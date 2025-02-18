@@ -27,6 +27,10 @@ public class SparkSQLProperties {
   // Controls whether vectorized reads are enabled
   public static final String VECTORIZATION_ENABLED = "spark.sql.iceberg.vectorization.enabled";
 
+  // Controls which Parquet reader implementation to use
+  public static final String PARQUET_READER_TYPE = "spark.sql.iceberg.parquet.reader-type";
+  public static final ParquetReaderType PARQUET_READER_TYPE_DEFAULT = ParquetReaderType.ICEBERG;
+
   // Controls whether reading/writing timestamps without timezones is allowed
   @Deprecated
   public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =

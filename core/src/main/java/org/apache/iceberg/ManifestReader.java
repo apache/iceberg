@@ -25,10 +25,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.avro.io.DatumReader;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
-import org.apache.iceberg.avro.InternalReader;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
@@ -258,29 +256,18 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     fields.addAll(projection.asStruct().fields());
     fields.add(MetadataColumns.ROW_POSITION);
 
-    switch (format) {
-      case AVRO:
-        AvroIterable<ManifestEntry<F>> reader =
-            Avro.read(file)
-                .project(ManifestEntry.wrapFileSchema(Types.StructType.of(fields)))
-                .createResolvingReader(this::newReader)
-                .reuseContainers()
-                .build();
+    CloseableIterable<ManifestEntry<F>> reader =
+        InternalData.read(format, file)
+            .project(ManifestEntry.wrapFileSchema(Types.StructType.of(fields)))
+            .setRootType(GenericManifestEntry.class)
+            .setCustomType(ManifestEntry.DATA_FILE_ID, content.fileClass())
+            .setCustomType(DataFile.PARTITION_ID, PartitionData.class)
+            .reuseContainers()
+            .build();
 
-        addCloseable(reader);
+    addCloseable(reader);
 
-        return CloseableIterable.transform(reader, inheritableMetadata::apply);
-
-      default:
-        throw new UnsupportedOperationException("Invalid format for manifest file: " + format);
-    }
-  }
-
-  private DatumReader<?> newReader(Schema schema) {
-    return InternalReader.create(schema)
-        .setRootType(GenericManifestEntry.class)
-        .setCustomType(ManifestEntry.DATA_FILE_ID, content.fileClass())
-        .setCustomType(DataFile.PARTITION_ID, PartitionData.class);
+    return CloseableIterable.transform(reader, inheritableMetadata::apply);
   }
 
   CloseableIterable<ManifestEntry<F>> liveEntries() {

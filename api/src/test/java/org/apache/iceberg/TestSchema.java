@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -41,7 +42,8 @@ public class TestSchema {
       ImmutableList.of(
           Types.TimestampNanoType.withoutZone(),
           Types.TimestampNanoType.withZone(),
-          Types.VariantType.get());
+          Types.VariantType.get(),
+          Types.UnknownType.get());
 
   private static final Schema INITIAL_DEFAULT_SCHEMA =
       new Schema(
@@ -49,8 +51,8 @@ public class TestSchema {
           Types.NestedField.required("has_default")
               .withId(2)
               .ofType(Types.StringType.get())
-              .withInitialDefault("--")
-              .withWriteDefault("--")
+              .withInitialDefault(Literal.of("--"))
+              .withWriteDefault(Literal.of("--"))
               .build());
 
   private static final Schema WRITE_DEFAULT_SCHEMA =
@@ -59,7 +61,7 @@ public class TestSchema {
           Types.NestedField.required("has_default")
               .withId(2)
               .ofType(Types.StringType.get())
-              .withWriteDefault("--")
+              .withWriteDefault(Literal.of("--"))
               .build());
 
   private Schema generateTypeSchema(Type type) {
