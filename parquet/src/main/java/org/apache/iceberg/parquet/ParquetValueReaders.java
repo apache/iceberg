@@ -63,6 +63,14 @@ public class ParquetValueReaders {
     return new UnboxedReader<>(desc);
   }
 
+  public static ParquetValueReader<Byte> intsAsByte(ColumnDescriptor desc) {
+    return new IntAsByteReader(desc);
+  }
+
+  public static ParquetValueReader<Short> intsAsShort(ColumnDescriptor desc) {
+    return new IntAsShortReader(desc);
+  }
+
   public static ParquetValueReader<String> strings(ColumnDescriptor desc) {
     return new StringReader(desc);
   }
@@ -387,6 +395,28 @@ public class ParquetValueReaders {
     @Override
     public String read(String reuse) {
       return column.nextBinary().toStringUsingUTF8();
+    }
+  }
+
+  private static class IntAsByteReader extends UnboxedReader<Byte> {
+    private IntAsByteReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Byte read(Byte ignored) {
+      return (byte) readInteger();
+    }
+  }
+
+  private static class IntAsShortReader extends UnboxedReader<Short> {
+    private IntAsShortReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Short read(Short ignored) {
+      return (short) readInteger();
     }
   }
 

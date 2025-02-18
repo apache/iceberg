@@ -26,6 +26,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.MapType;
+import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -57,7 +58,7 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
           hasChange = true;
           builder.addField(field);
         } else {
-          if (isStruct(originalField)) {
+          if (isStruct(originalField, expected.field(fieldId))) {
             hasChange = true;
             builder.addField(originalField.asGroupType().withNewFields(Collections.emptyList()));
           } else {
@@ -153,6 +154,11 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
   }
 
   @Override
+  public Type variant(org.apache.iceberg.types.Types.VariantType expected, Type variant) {
+    return variant;
+  }
+
+  @Override
   public Type primitive(
       org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
     return null;
@@ -162,8 +168,8 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
     return type.getId() == null ? null : type.getId().intValue();
   }
 
-  private boolean isStruct(Type field) {
-    if (field.isPrimitive()) {
+  private boolean isStruct(Type field, NestedField expected) {
+    if (field.isPrimitive() || expected.type().isVariantType()) {
       return false;
     } else {
       GroupType groupType = field.asGroupType();
