@@ -126,7 +126,7 @@ public class RewritePositionDeleteFilesSparkAction
 
     validateAndInitOptions();
 
-    if (hasDeletionVectors()) {
+    if (TableUtil.formatVersion(table) >= 3 && !requiresRewriteToDVs()) {
       LOG.info("v2 deletes in {} have already been rewritten to v3 DVs", table.name());
       return EMPTY_RESULT;
     }
@@ -148,31 +148,27 @@ public class RewritePositionDeleteFilesSparkAction
     }
   }
 
-  private boolean hasDeletionVectors() {
-    if (TableUtil.formatVersion(table) >= 3) {
-      PositionDeletesBatchScan scan =
-          (PositionDeletesBatchScan)
-              MetadataTableUtils.createMetadataTableInstance(
-                      table, MetadataTableType.POSITION_DELETES)
-                  .newBatchScan();
-      try (CloseableIterator<PositionDeletesScanTask> it =
-          CloseableIterable.filter(
-                  CloseableIterable.transform(
-                      scan.baseTableFilter(filter)
-                          .caseSensitive(caseSensitive)
-                          .select(PositionDeletesTable.DELETE_FILE_PATH)
-                          .ignoreResiduals()
-                          .planFiles(),
-                      task -> (PositionDeletesScanTask) task),
-                  t -> t.file().format() == FileFormat.PUFFIN)
-              .iterator()) {
-        return it.hasNext();
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
+  private boolean requiresRewriteToDVs() {
+    PositionDeletesBatchScan scan =
+        (PositionDeletesBatchScan)
+            MetadataTableUtils.createMetadataTableInstance(
+                    table, MetadataTableType.POSITION_DELETES)
+                .newBatchScan();
+    try (CloseableIterator<PositionDeletesScanTask> it =
+        CloseableIterable.filter(
+                CloseableIterable.transform(
+                    scan.baseTableFilter(filter)
+                        .caseSensitive(caseSensitive)
+                        .select(PositionDeletesTable.DELETE_FILE_PATH)
+                        .ignoreResiduals()
+                        .planFiles(),
+                    task -> (PositionDeletesScanTask) task),
+                t -> t.file().format() != FileFormat.PUFFIN)
+            .iterator()) {
+      return it.hasNext();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
     }
-
-    return false;
   }
 
   private StructLikeMap<List<List<PositionDeletesScanTask>>> planFileGroups() {
