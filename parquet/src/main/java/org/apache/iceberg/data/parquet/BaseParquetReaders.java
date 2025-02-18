@@ -277,7 +277,7 @@ public abstract class BaseParquetReaders<T> {
         if (fieldReader != null) {
           Type fieldType = fields.get(i);
           int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName())) - 1;
-          int id = fieldType.getId().intValue();
+          int id = findIdFromStruct(expected, fieldType);
           readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReader));
           typesById.put(id, fieldType);
           if (idToConstant.containsKey(id)) {
@@ -328,6 +328,13 @@ public abstract class BaseParquetReaders<T> {
       }
 
       return createStructReader(types, reorderedFields, expected);
+    }
+
+    private int findIdFromStruct(Types.StructType expected, Type field) {
+      if (field.getId() != null) {
+        return field.getId().intValue();
+      }
+      return expected.field(field.getName()).fieldId();
     }
 
     @Override
