@@ -58,6 +58,10 @@ public enum FileFormat {
   }
 
   public static FileFormat fromFileName(CharSequence filename) {
+    if (filename == null) {
+      return null;
+    }
+
     for (FileFormat format : VALUES) {
       int extStart = filename.length() - format.ext.length();
       if (extStart > 0

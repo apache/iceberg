@@ -44,6 +44,10 @@ class TestFileFormat {
         // No format
         {"file", null},
         {"dir", null},
+        // Blank strings
+        {"", null},
+        {" ", null},
+        {null, null},
       };
 
   @ParameterizedTest
