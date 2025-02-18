@@ -43,15 +43,8 @@ nav:
   - Project: 
     - Community: community.md
     - Contributing: contribute.md
-    - REST Catalog Spec: https://editor-next.swagger.io/?url=https://raw.githubusercontent.com/apache/iceberg/main/open-api/rest-catalog-open-api.yaml
-    - Table Spec: spec.md
-    - View spec: view-spec.md
-    - Puffin spec: puffin-spec.md
-    - AES GCM Stream spec: gcm-stream-spec.md
-    - Implementation status: status.md
     - Multi-engine support: multi-engine-support.md
     - How to release: how-to-release.md
-    - Terms: terms.md
     - ASF:
       - Sponsorship: https://www.apache.org/foundation/thanks.html
       - Events: https://www.apache.org/events/current-event.html
@@ -59,5 +52,11 @@ nav:
       - License: https://www.apache.org/licenses/
       - Security: https://www.apache.org/security/
       - Sponsors: https://www.apache.org/foundation/thanks.html
-  - Concepts: 
-    - Catalogs: concepts/catalog.md
+  - Specification:
+    - Terms: terms.md
+    - REST Catalog Spec: https://editor-next.swagger.io/?url=https://raw.githubusercontent.com/apache/iceberg/main/open-api/rest-catalog-open-api.yaml
+    - Table Spec: spec.md
+    - View spec: view-spec.md
+    - Puffin spec: puffin-spec.md
+    - AES GCM Stream spec: gcm-stream-spec.md
+    - Implementation status: status.md
