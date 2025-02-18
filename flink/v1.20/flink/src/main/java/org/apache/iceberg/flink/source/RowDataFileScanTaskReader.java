@@ -23,8 +23,8 @@ import java.util.Map;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
@@ -43,11 +43,12 @@ import org.apache.iceberg.flink.data.RowDataUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
+import org.apache.iceberg.io.datafile.ReaderBuilder;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
 
@@ -119,95 +120,29 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     if (task.isDataTask()) {
       throw new UnsupportedOperationException("Cannot read data task.");
     } else {
-      switch (task.file().format()) {
-        case PARQUET:
-          iter = newParquetIterable(task, schema, idToConstant, inputFilesDecryptor);
-          break;
+      ReaderBuilder builder =
+          DataFileServiceRegistry.read(
+                  task.file().format(),
+                  RowData.class.getName(),
+                  inputFilesDecryptor.getInputFile(task),
+                  schema,
+                  idToConstant)
+              .split(task.start(), task.length())
+              .filter(task.residual())
+              .caseSensitive(caseSensitive)
+              .reuseContainers();
 
-        case AVRO:
-          iter = newAvroIterable(task, schema, idToConstant, inputFilesDecryptor);
-          break;
-
-        case ORC:
-          iter = newOrcIterable(task, schema, idToConstant, inputFilesDecryptor);
-          break;
-
-        default:
-          throw new UnsupportedOperationException(
-              "Cannot read unknown format: " + task.file().format());
+      if (nameMapping != null) {
+        builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
       }
+
+      iter = builder.build();
     }
 
     if (rowFilter != null) {
       return CloseableIterable.filter(iter, rowFilter::filter);
     }
     return iter;
-  }
-
-  private CloseableIterable<RowData> newAvroIterable(
-      FileScanTask task,
-      Schema schema,
-      Map<Integer, ?> idToConstant,
-      InputFilesDecryptor inputFilesDecryptor) {
-    Avro.ReadBuilder builder =
-        Avro.read(inputFilesDecryptor.getInputFile(task))
-            .reuseContainers()
-            .project(schema)
-            .split(task.start(), task.length())
-            .createReaderFunc(readSchema -> FlinkPlannedAvroReader.create(schema, idToConstant));
-
-    if (nameMapping != null) {
-      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
-    }
-
-    return builder.build();
-  }
-
-  private CloseableIterable<RowData> newParquetIterable(
-      FileScanTask task,
-      Schema schema,
-      Map<Integer, ?> idToConstant,
-      InputFilesDecryptor inputFilesDecryptor) {
-    Parquet.ReadBuilder builder =
-        Parquet.read(inputFilesDecryptor.getInputFile(task))
-            .split(task.start(), task.length())
-            .project(schema)
-            .createReaderFunc(
-                fileSchema -> FlinkParquetReaders.buildReader(schema, fileSchema, idToConstant))
-            .filter(task.residual())
-            .caseSensitive(caseSensitive)
-            .reuseContainers();
-
-    if (nameMapping != null) {
-      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
-    }
-
-    return builder.build();
-  }
-
-  private CloseableIterable<RowData> newOrcIterable(
-      FileScanTask task,
-      Schema schema,
-      Map<Integer, ?> idToConstant,
-      InputFilesDecryptor inputFilesDecryptor) {
-    Schema readSchemaWithoutConstantAndMetadataFields =
-        TypeUtil.selectNot(
-            schema, Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
-
-    ORC.ReadBuilder builder =
-        ORC.read(inputFilesDecryptor.getInputFile(task))
-            .project(readSchemaWithoutConstantAndMetadataFields)
-            .split(task.start(), task.length())
-            .createReaderFunc(
-                readOrcSchema -> new FlinkOrcReader(schema, readOrcSchema, idToConstant))
-            .filter(task.residual())
-            .caseSensitive(caseSensitive);
-
-    if (nameMapping != null) {
-      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
-    }
-
-    return builder.build();
   }
 
   private static class FlinkDeleteFilter extends DeleteFilter<RowData> {
@@ -238,6 +173,62 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     @Override
     protected InputFile getInputFile(String location) {
       return inputFilesDecryptor.getInputFile(location);
+    }
+  }
+
+  public static class ParquetReaderService implements DataFileServiceRegistry.ReaderService {
+    @Override
+    public DataFileServiceRegistry.Key key() {
+      return new DataFileServiceRegistry.Key(FileFormat.PARQUET, RowData.class.getName());
+    }
+
+    @Override
+    public ReaderBuilder builder(
+        InputFile inputFile,
+        Schema readSchema,
+        Map<Integer, ?> idToConstant,
+        org.apache.iceberg.io.datafile.DeleteFilter<?> deleteFilter) {
+      return Parquet.read(inputFile)
+          .project(readSchema)
+          .createReaderFunc(
+              fileSchema -> FlinkParquetReaders.buildReader(readSchema, fileSchema, idToConstant));
+    }
+  }
+
+  public static class ORCReaderService implements DataFileServiceRegistry.ReaderService {
+    @Override
+    public DataFileServiceRegistry.Key key() {
+      return new DataFileServiceRegistry.Key(FileFormat.ORC, RowData.class.getName());
+    }
+
+    @Override
+    public ReaderBuilder builder(
+        InputFile inputFile,
+        Schema readSchema,
+        Map<Integer, ?> idToConstant,
+        org.apache.iceberg.io.datafile.DeleteFilter<?> deleteFilter) {
+      return ORC.read(inputFile)
+          .project(ORC.schemaWithoutConstantAndMetadataFields(readSchema, idToConstant))
+          .createReaderFunc(
+              readOrcSchema -> new FlinkOrcReader(readSchema, readOrcSchema, idToConstant));
+    }
+  }
+
+  public static class AvroReaderService implements DataFileServiceRegistry.ReaderService {
+    @Override
+    public DataFileServiceRegistry.Key key() {
+      return new DataFileServiceRegistry.Key(FileFormat.AVRO, RowData.class.getName());
+    }
+
+    @Override
+    public ReaderBuilder builder(
+        InputFile inputFile,
+        Schema readSchema,
+        Map<Integer, ?> idToConstant,
+        org.apache.iceberg.io.datafile.DeleteFilter<?> deleteFilter) {
+      return Avro.read(inputFile)
+          .project(readSchema)
+          .createReaderFunc(fileSchema -> FlinkPlannedAvroReader.create(readSchema, idToConstant));
     }
   }
 }
