@@ -59,17 +59,16 @@ class ReadConf<T> {
   // List of column chunk metadata for each row group
   private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetaDataForRowGroups;
 
-  @SuppressWarnings("unchecked")
   ReadConf(
       InputFile file,
       ParquetReadOptions options,
       Schema expectedSchema,
       Expression filter,
-      Function<MessageType, ParquetValueReader<?>> readerFunc,
-      Function<MessageType, VectorizedReader<?>> batchedReaderFunc,
+      Function<MessageType, ParquetValueReader<T>> readerFunc,
+      Function<MessageType, VectorizedReader<T>> batchedReaderFunc,
       NameMapping nameMapping,
       boolean reuseContainers,
-      boolean caseSensitive,
+      boolean filterCaseSensitive,
       Integer bSize) {
     this.file = file;
     this.options = options;
@@ -95,9 +94,9 @@ class ReadConf<T> {
     ParquetDictionaryRowGroupFilter dictFilter = null;
     ParquetBloomRowGroupFilter bloomFilter = null;
     if (filter != null) {
-      statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive);
-      dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
-      bloomFilter = new ParquetBloomRowGroupFilter(expectedSchema, filter, caseSensitive);
+      statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, filterCaseSensitive);
+      dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, filterCaseSensitive);
+      bloomFilter = new ParquetBloomRowGroupFilter(expectedSchema, filter, filterCaseSensitive);
     }
 
     long computedTotalValues = 0L;
@@ -118,12 +117,12 @@ class ReadConf<T> {
 
     this.totalValues = computedTotalValues;
     if (readerFunc != null) {
-      this.model = (ParquetValueReader<T>) readerFunc.apply(typeWithIds);
+      this.model = readerFunc.apply(typeWithIds);
       this.vectorizedModel = null;
       this.columnChunkMetaDataForRowGroups = null;
     } else {
       this.model = null;
-      this.vectorizedModel = (VectorizedReader<T>) batchedReaderFunc.apply(typeWithIds);
+      this.vectorizedModel = batchedReaderFunc.apply(typeWithIds);
       this.columnChunkMetaDataForRowGroups = getColumnChunkMetadataForRowGroups();
     }
 

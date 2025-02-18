@@ -43,10 +43,10 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   private final InputFile input;
   private final Schema expectedSchema;
   private final ParquetReadOptions options;
-  private final Function<MessageType, VectorizedReader<?>> batchReaderFunc;
+  private final Function<MessageType, VectorizedReader<T>> batchReaderFunc;
   private final Expression filter;
   private final boolean reuseContainers;
-  private final boolean caseSensitive;
+  private final boolean filterCaseSensitive;
   private final int batchSize;
   private final NameMapping nameMapping;
 
@@ -54,11 +54,11 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       InputFile input,
       Schema expectedSchema,
       ParquetReadOptions options,
-      Function<MessageType, VectorizedReader<?>> readerFunc,
+      Function<MessageType, VectorizedReader<T>> readerFunc,
       NameMapping nameMapping,
       Expression filter,
       boolean reuseContainers,
-      boolean caseSensitive,
+      boolean filterCaseSensitive,
       int maxRecordsPerBatch) {
     this.input = input;
     this.expectedSchema = expectedSchema;
@@ -67,7 +67,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     // replace alwaysTrue with null to avoid extra work evaluating a trivial filter
     this.filter = filter == Expressions.alwaysTrue() ? null : filter;
     this.reuseContainers = reuseContainers;
-    this.caseSensitive = caseSensitive;
+    this.filterCaseSensitive = filterCaseSensitive;
     this.batchSize = maxRecordsPerBatch;
     this.nameMapping = nameMapping;
   }
@@ -86,7 +86,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
               batchReaderFunc,
               nameMapping,
               reuseContainers,
-              caseSensitive,
+              filterCaseSensitive,
               batchSize);
       this.conf = readConf.copy();
       return readConf;
