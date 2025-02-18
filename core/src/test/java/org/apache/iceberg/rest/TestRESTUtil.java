@@ -79,7 +79,9 @@ public class TestRESTUtil {
           new Object[] {
             new String[] {"dogs.and.cats", "named", "hank.or.james-westfall"},
             "dogs.and.cats%1Fnamed%1Fhank.or.james-westfall"
-          }
+          },
+          new Object[] {new String[] {"dogs named hank"}, "dogs%20named%20hank"},
+          new Object[] {new String[] {"dogs+named+hank"}, "dogs%2Bnamed%2Bhank"}
         };
 
     for (Object[] namespaceWithEncoding : testCases) {
@@ -106,16 +108,6 @@ public class TestRESTUtil {
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> RESTUtil.decodeNamespace(null))
         .withMessage("Invalid namespace: null");
-  }
-
-  @Test
-  @SuppressWarnings("checkstyle:AvoidEscapedUnicodeCharacters")
-  public void testOAuth2URLEncoding() {
-    // from OAuth2, RFC 6749 Appendix B.
-    String utf8 = "\u0020\u0025\u0026\u002B\u00A3\u20AC";
-    String expected = "+%25%26%2B%C2%A3%E2%82%AC";
-
-    assertThat(RESTUtil.encodeString(utf8)).isEqualTo(expected);
   }
 
   @Test
