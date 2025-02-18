@@ -124,7 +124,7 @@ public class TestSchema {
 
   @Test
   public void testUnknownSupport() {
-    // this needs a different schema becuase it cannot be used in required fields
+    // this needs a different schema because it cannot be used in required fields
     Schema schemaWithUnknown =
         new Schema(
             Types.NestedField.required(1, "id", Types.LongType.get()),
