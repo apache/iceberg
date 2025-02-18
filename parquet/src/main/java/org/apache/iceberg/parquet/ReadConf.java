@@ -59,7 +59,6 @@ class ReadConf<T> {
   // List of column chunk metadata for each row group
   private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetaDataForRowGroups;
 
-  @SuppressWarnings("unchecked")
   ReadConf(
       InputFile file,
       ParquetReadOptions options,
@@ -69,7 +68,7 @@ class ReadConf<T> {
       Function<MessageType, VectorizedReader<?>> batchedReaderFunc,
       NameMapping nameMapping,
       boolean reuseContainers,
-      boolean caseSensitive,
+      boolean filterCaseSensitive,
       Integer bSize) {
     this.file = file;
     this.options = options;
@@ -95,9 +94,9 @@ class ReadConf<T> {
     ParquetDictionaryRowGroupFilter dictFilter = null;
     ParquetBloomRowGroupFilter bloomFilter = null;
     if (filter != null) {
-      statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive);
-      dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
-      bloomFilter = new ParquetBloomRowGroupFilter(expectedSchema, filter, caseSensitive);
+      statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, filterCaseSensitive);
+      dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, filterCaseSensitive);
+      bloomFilter = new ParquetBloomRowGroupFilter(expectedSchema, filter, filterCaseSensitive);
     }
 
     long computedTotalValues = 0L;
