@@ -62,6 +62,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.InternalData;
@@ -76,6 +77,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
@@ -136,6 +138,12 @@ public class Parquet {
           "parquet.read.support.class",
           "parquet.crypto.factory.class");
 
+  public static final String WRITER_VERSION_KEY = "parquet.writer.version";
+
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
+   */
+  @Deprecated
   public static WriteBuilder write(OutputFile file) {
     if (file instanceof EncryptedOutputFile) {
       return write((EncryptedOutputFile) file);
@@ -144,6 +152,10 @@ public class Parquet {
     return new WriteBuilder(file);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
+   */
+  @Deprecated
   public static WriteBuilder write(EncryptedOutputFile file) {
     if (file instanceof NativeEncryptionOutputFile) {
       NativeEncryptionOutputFile nativeFile = (NativeEncryptionOutputFile) file;
@@ -155,25 +167,121 @@ public class Parquet {
     }
   }
 
-  public static class WriteBuilder implements InternalData.WriteBuilder {
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
+   */
+  @Deprecated
+  public static class WriteBuilder extends AppenderBuilderInternal<WriteBuilder, Object, Object> {
+    private WriteBuilder(OutputFile file) {
+      super(file, null);
+    }
+  }
+
+  public static class FileAccessFactory<D, F, E>
+      implements org.apache.iceberg.io.FileAccessFactory<E, D> {
+    private final String objectModelName;
+    private final ReaderFunction<D> readerFunction;
+    private final BatchReaderFunction<D, F> batchReaderFunction;
+    private final WriterFunction<D, E> writerFunction;
+    private final Function<CharSequence, ?> pathTransformFunc;
+
+    private FileAccessFactory(
+        String objectModelName,
+        ReaderFunction<D> readerFunction,
+        BatchReaderFunction<D, F> batchReaderFunction,
+        WriterFunction<D, E> writerFunction,
+        Function<CharSequence, ?> pathTransformFunc) {
+      this.objectModelName = objectModelName;
+      this.readerFunction = readerFunction;
+      this.batchReaderFunction = batchReaderFunction;
+      this.writerFunction = writerFunction;
+      this.pathTransformFunc = pathTransformFunc;
+    }
+
+    public FileAccessFactory(
+        String objectModelName,
+        ReaderFunction<D> readerFunction,
+        WriterFunction<D, E> writerFunction,
+        Function<CharSequence, ?> pathTransformFunc) {
+      this(objectModelName, readerFunction, null, writerFunction, pathTransformFunc);
+    }
+
+    public FileAccessFactory(
+        String objectModelName, BatchReaderFunction<D, F> batchReaderFunction) {
+      this(objectModelName, null, batchReaderFunction, null, null);
+    }
+
+    @Override
+    public FileFormat format() {
+      return FileFormat.PARQUET;
+    }
+
+    @Override
+    public String objectModelName() {
+      return objectModelName;
+    }
+
+    @Override
+    public <B extends org.apache.iceberg.io.WriteBuilder<B, E, D>> B dataWriteBuilder(
+        OutputFile outputFile) {
+      AppenderBuilderInternal<?, E, D> internal =
+          new AppenderBuilderInternal<>(outputFile, FileContent.DATA);
+      return (B) internal.writerFunction(writerFunction).pathTransformFunc(pathTransformFunc);
+    }
+
+    @Override
+    public <B extends org.apache.iceberg.io.WriteBuilder<B, E, D>> B equalityDeleteWriteBuilder(
+        OutputFile outputFile) {
+      AppenderBuilderInternal<?, E, D> internal =
+          new AppenderBuilderInternal<>(outputFile, FileContent.EQUALITY_DELETES);
+      return (B) internal.writerFunction(writerFunction).pathTransformFunc(pathTransformFunc);
+    }
+
+    @Override
+    public <B extends org.apache.iceberg.io.WriteBuilder<B, E, PositionDelete<D>>>
+        B positionDeleteWriteBuilder(OutputFile outputFile) {
+      AppenderBuilderInternal<?, E, D> internal =
+          new AppenderBuilderInternal<>(outputFile, FileContent.POSITION_DELETES);
+      return (B) internal.writerFunction(writerFunction).pathTransformFunc(pathTransformFunc);
+    }
+
+    @Override
+    public <B extends org.apache.iceberg.io.ReadBuilder<B, D>> B readBuilder(InputFile inputFile) {
+      if (batchReaderFunction != null) {
+        return (B)
+            new ReadBuilder(inputFile)
+                .batchReaderFunction((BatchReaderFunction<Object, Object>) batchReaderFunction);
+      } else {
+        return (B) new ReadBuilder(inputFile).readerFunction(readerFunction);
+      }
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  static class AppenderBuilderInternal<B extends AppenderBuilderInternal<B, E, D>, E, D>
+      implements InternalData.WriteBuilder, org.apache.iceberg.io.WriteBuilder<B, E, D> {
     private final OutputFile file;
+    private final FileContent content;
     private final Configuration conf;
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
     private final Map<String, String> config = Maps.newLinkedHashMap();
     private Schema schema = null;
+    private E engineSchema = null;
     private VariantShreddingFunction variantShreddingFunc = null;
     private String name = "table";
     private WriteSupport<?> writeSupport = null;
     private BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc = null;
+    private WriterFunction<?, E> writerFunction = null;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
-    private WriterVersion writerVersion = WriterVersion.PARQUET_1_0;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
+    private Function<CharSequence, ?> pathTransformFunc = null;
 
-    private WriteBuilder(OutputFile file) {
+    private AppenderBuilderInternal(OutputFile file, FileContent content) {
       this.file = file;
+      this.content = content;
       if (file instanceof HadoopOutputFile) {
         this.conf = new Configuration(((HadoopOutputFile) file).getConf());
       } else {
@@ -181,17 +289,32 @@ public class Parquet {
       }
     }
 
-    public WriteBuilder forTable(Table table) {
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use specific methods {@link
+     *     #schema(org.apache.iceberg.Schema)}, {@link #set(String, String)}, {@link
+     *     #metricsConfig(MetricsConfig)} instead.
+     */
+    @Deprecated
+    public B forTable(Table table) {
       schema(table.schema());
       setAll(table.properties());
       metricsConfig(MetricsConfig.forTable(table));
-      return this;
+      return (B) this;
+    }
+
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #fileSchema(Schema)} instead.
+     */
+    @Deprecated
+    @Override
+    public B schema(Schema newSchema) {
+      return fileSchema(newSchema);
     }
 
     @Override
-    public WriteBuilder schema(Schema newSchema) {
+    public B fileSchema(Schema newSchema) {
       this.schema = newSchema;
-      return this;
+      return (B) this;
     }
 
     /**
@@ -202,81 +325,142 @@ public class Parquet {
      * @param func {@link VariantShreddingFunction} that produces a shredded {@code typed_value}
      * @return this for method chaining
      */
-    public WriteBuilder variantShreddingFunc(VariantShreddingFunction func) {
+    public B variantShreddingFunc(VariantShreddingFunction func) {
       this.variantShreddingFunc = func;
-      return this;
+      return (B) this;
     }
 
     @Override
-    public WriteBuilder named(String newName) {
+    public B dataSchema(E newEngineSchema) {
+      this.engineSchema = newEngineSchema;
+      return (B) this;
+    }
+
+    @Override
+    public B named(String newName) {
       this.name = newName;
-      return this;
+      return (B) this;
     }
 
-    public WriteBuilder writeSupport(WriteSupport<?> newWriteSupport) {
+    /** Sets the writer support. Should only be used for testing. */
+    public B writeSupport(WriteSupport<?> newWriteSupport) {
       this.writeSupport = newWriteSupport;
-      return this;
+      return (B) this;
     }
 
     @Override
-    public WriteBuilder set(String property, String value) {
+    public B set(String property, String value) {
       config.put(property, value);
-      return this;
+      return (B) this;
     }
 
-    public WriteBuilder setAll(Map<String, String> properties) {
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #set(String, String)}
+     *     instead.
+     */
+    @Deprecated
+    public B setAll(Map<String, String> properties) {
       config.putAll(properties);
-      return this;
+      return (B) this;
     }
 
     @Override
-    public WriteBuilder meta(String property, String value) {
+    public B meta(String property, String value) {
       metadata.put(property, value);
-      return this;
+      return (B) this;
     }
 
-    public WriteBuilder createWriterFunc(
-        Function<MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
+    @Override
+    public B meta(Map<String, String> properties) {
+      metadata.putAll(properties);
+      return (B) this;
+    }
+
+    public B createWriterFunc(Function<MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
+      Preconditions.checkState(
+          writerFunction == null, "Cannot set multiple writer builder functions");
       if (newCreateWriterFunc != null) {
         this.createWriterFunc = (icebergSchema, type) -> newCreateWriterFunc.apply(type);
       }
-      return this;
+      return (B) this;
     }
 
-    public WriteBuilder createWriterFunc(
+    public B createWriterFunc(
         BiFunction<Schema, MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
       this.createWriterFunc = newCreateWriterFunc;
-      return this;
+      return (B) this;
     }
 
-    public WriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
-      this.metricsConfig = newMetricsConfig;
-      return this;
+    public <D> B writerFunction(WriterFunction<D, E> newWriterFunction) {
+      Preconditions.checkState(
+          createWriterFunc == null, "Cannot set multiple writer builder functions");
+      this.writerFunction = newWriterFunction;
+      return (B) this;
+    }
+
+    public B pathTransformFunc(Function<CharSequence, ?> newPathTransformFunc) {
+      this.pathTransformFunc = newPathTransformFunc;
+      return (B) this;
     }
 
     @Override
-    public WriteBuilder overwrite() {
+    public B metricsConfig(MetricsConfig newMetricsConfig) {
+      this.metricsConfig = newMetricsConfig;
+      return (B) this;
+    }
+
+    @Override
+    public B overwrite() {
       return overwrite(true);
     }
 
-    public WriteBuilder overwrite(boolean enabled) {
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #overwrite()} instead.
+     */
+    @Override
+    @Deprecated
+    public B overwrite(boolean enabled) {
       this.writeMode = enabled ? ParquetFileWriter.Mode.OVERWRITE : ParquetFileWriter.Mode.CREATE;
-      return this;
+      return (B) this;
     }
 
-    public WriteBuilder writerVersion(WriterVersion version) {
-      this.writerVersion = version;
-      return this;
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #set(String, String)} with
+     *     {@link #WRITER_VERSION_KEY} instead.
+     */
+    @Deprecated
+    public B writerVersion(WriterVersion version) {
+      return set(WRITER_VERSION_KEY, version.name());
     }
 
-    public WriteBuilder withFileEncryptionKey(ByteBuffer encryptionKey) {
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+     *     #fileEncryptionKey(ByteBuffer)} instead.
+     */
+    @Deprecated
+    public B withFileEncryptionKey(ByteBuffer encryptionKey) {
+      return fileEncryptionKey(encryptionKey);
+    }
+
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #fileAADPrefix(ByteBuffer)}
+     *     instead.
+     */
+    @Deprecated
+    public B withAADPrefix(ByteBuffer aadPrefix) {
+      return fileAADPrefix(aadPrefix);
+    }
+
+    @Override
+    public B fileEncryptionKey(ByteBuffer encryptionKey) {
       this.fileEncryptionKey = encryptionKey;
-      return this;
+      return (B) this;
     }
 
-    public WriteBuilder withAADPrefix(ByteBuffer aadPrefix) {
+    @Override
+    public B fileAADPrefix(ByteBuffer aadPrefix) {
       this.fileAADPrefix = aadPrefix;
-      return this;
+      return (B) this;
     }
 
     @SuppressWarnings("unchecked")
@@ -293,18 +477,19 @@ public class Parquet {
 
     /*
      * Sets the writer version. Default value is PARQUET_1_0 (v1).
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #set(String, String)} with {@link #WRITER_VERSION_KEY} instead.
      */
+    @Deprecated
     @VisibleForTesting
-    WriteBuilder withWriterVersion(WriterVersion version) {
-      this.writerVersion = version;
-      return this;
+    B withWriterVersion(WriterVersion version) {
+      return set(WRITER_VERSION_KEY, version.name());
     }
 
     // supposed to always be a private method used strictly by data and delete write builders
-    private WriteBuilder createContextFunc(
-        Function<Map<String, String>, Context> newCreateContextFunc) {
+    // package-protected because of inheritance until deprecation of the WriteBuilder
+    B createContextFunc(Function<Map<String, String>, Context> newCreateContextFunc) {
       this.createContextFunc = newCreateContextFunc;
-      return this;
+      return (B) this;
     }
 
     private void setBloomFilterConfig(
@@ -349,13 +534,63 @@ public class Parquet {
               });
     }
 
+    private <D> void initWriterFunctionAndContext() {
+      Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
+      switch (content) {
+        case DATA:
+          this.createWriterFunc =
+              (icebergSchema, messageType) ->
+                  writerFunction.write(engineSchema, icebergSchema, messageType);
+          this.createContextFunc = Context::dataContext;
+          break;
+        case EQUALITY_DELETES:
+          this.createWriterFunc =
+              (icebergSchema, messageType) ->
+                  writerFunction.write(engineSchema, icebergSchema, messageType);
+          this.createContextFunc = Context::deleteContext;
+          break;
+        case POSITION_DELETES:
+          this.createContextFunc = Context::deleteContext;
+          if (schema.columns().size() == DeleteSchemaUtil.pathPosSchema().columns().size()) {
+            // this is a position delete without rows
+
+            this.createWriterFunc =
+                (icebergSchema, messageType) ->
+                    new PositionDeleteStructWriter<D>(
+                        (StructWriter<?>) GenericParquetWriter.create(icebergSchema, messageType),
+                        Function.identity());
+          } else {
+            // this is a position delete with rows
+            Preconditions.checkState(
+                pathTransformFunc != null, "Path transformation function has to be set.");
+            this.createWriterFunc =
+                (icebergSchema, messageType) ->
+                    new PositionDeleteStructWriter<D>(
+                        (StructWriter<?>)
+                            writerFunction.write(engineSchema, icebergSchema, messageType),
+                        pathTransformFunc);
+          }
+          break;
+        default:
+          throw new IllegalArgumentException("Not supported content: " + content);
+      }
+    }
+
     @Override
-    public <D> FileAppender<D> build() throws IOException {
+    public FileAppender build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
 
+      if (content != null) {
+        initWriterFunctionAndContext();
+      }
+
       // add the Iceberg schema to keyValueMetadata
       meta("iceberg.schema", SchemaParser.toJson(schema));
+
+      String version = config.get(WRITER_VERSION_KEY);
+      WriterVersion writerVersion =
+          version != null ? WriterVersion.valueOf(version) : WriterVersion.PARQUET_1_0;
 
       // Map Iceberg properties to pass down to the Parquet writer
       Context context = createContextFunc.apply(config);
@@ -490,7 +725,8 @@ public class Parquet {
       }
     }
 
-    private static class Context {
+    // protected because of inheritance until deprecation of the WriteBuilder
+    static class Context {
       private final int rowGroupSize;
       private final int pageSize;
       private final int pageRowLimit;
@@ -745,10 +981,20 @@ public class Parquet {
     }
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use ObjectModelRegistry.writerBuilder
+   *     instead.
+   */
+  @Deprecated
   public static DataWriteBuilder writeData(OutputFile file) {
     return new DataWriteBuilder(file);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use ObjectModelRegistry.writerBuilder
+   *     instead.
+   */
+  @Deprecated
   public static DataWriteBuilder writeData(EncryptedOutputFile file) {
     if (file instanceof NativeEncryptionOutputFile) {
       NativeEncryptionOutputFile nativeFile = (NativeEncryptionOutputFile) file;
@@ -760,6 +1006,11 @@ public class Parquet {
     }
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use ObjectModelRegistry.writerBuilder
+   *     instead.
+   */
+  @Deprecated
   public static class DataWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
@@ -863,16 +1114,28 @@ public class Parquet {
           spec.isUnpartitioned() || partition != null,
           "Partition must not be null when creating data writer for partitioned spec");
 
-      FileAppender<T> fileAppender = appenderBuilder.build();
+      FileAppender<T> fileAppender = (FileAppender<T>) appenderBuilder.build();
       return new DataWriter<>(
           fileAppender, FileFormat.PARQUET, location, spec, partition, keyMetadata, sortOrder);
     }
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
+   *     ObjectModelRegistry.positionDeleteWriterBuilder and
+   *     ObjectModelRegistry.equalityDeleteWriterBuilder instead.
+   */
+  @Deprecated
   public static DeleteWriteBuilder writeDeletes(OutputFile file) {
     return new DeleteWriteBuilder(file);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
+   *     ObjectModelRegistry.positionDeleteWriterBuilder and
+   *     ObjectModelRegistry.equalityDeleteWriterBuilder instead.
+   */
+  @Deprecated
   public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
     if (file instanceof NativeEncryptionOutputFile) {
       NativeEncryptionOutputFile nativeFile = (NativeEncryptionOutputFile) file;
@@ -884,6 +1147,12 @@ public class Parquet {
     }
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
+   *     ObjectModelRegistry.positionDeleteWriterBuilder and
+   *     ObjectModelRegistry.equalityDeleteWriterBuilder instead.
+   */
+  @Deprecated
   public static class DeleteWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
@@ -1024,10 +1293,10 @@ public class Parquet {
       // the appender uses the row schema without extra columns
       appenderBuilder.schema(rowSchema);
       appenderBuilder.createWriterFunc(createWriterFunc);
-      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
+      appenderBuilder.createContextFunc(AppenderBuilderInternal.Context::deleteContext);
 
-      return new EqualityDeleteWriter<>(
-          appenderBuilder.build(),
+      return new EqualityDeleteWriter<T>(
+          (FileAppender<T>) appenderBuilder.build(),
           FileFormat.PARQUET,
           location,
           spec,
@@ -1079,10 +1348,15 @@ public class Parquet {
                     Function.identity()));
       }
 
-      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
+      appenderBuilder.createContextFunc(AppenderBuilderInternal.Context::deleteContext);
 
       return new PositionDeleteWriter<>(
-          appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata);
+          (FileAppender) appenderBuilder.build(),
+          FileFormat.PARQUET,
+          location,
+          spec,
+          partition,
+          keyMetadata);
     }
   }
 
@@ -1131,18 +1405,41 @@ public class Parquet {
     }
   }
 
+  /**
+   * Old reader API.
+   *
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use ObjectModelRegistry.readerBuilder
+   *     instead.
+   */
+  @Deprecated
   public static ReadBuilder read(InputFile file) {
     if (file instanceof NativeEncryptionInputFile) {
       NativeEncryptionInputFile nativeFile = (NativeEncryptionInputFile) file;
       return new ReadBuilder(nativeFile.encryptedInputFile())
           .withFileEncryptionKey(nativeFile.keyMetadata().encryptionKey())
-          .withAADPrefix(nativeFile.keyMetadata().aadPrefix());
+          .withAadPrefix(nativeFile.keyMetadata().aadPrefix());
     } else {
       return new ReadBuilder(file);
     }
   }
 
-  public static class ReadBuilder implements InternalData.ReadBuilder {
+  /**
+   * Old reader API.
+   *
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
+   */
+  @Deprecated
+  public static class ReadBuilder extends ReadBuilderInternal<ReadBuilder, Object, Object> {
+    private ReadBuilder(InputFile file) {
+      super(file);
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  private static class ReadBuilderInternal<B extends ReadBuilderInternal<B, D, F>, D, F>
+      implements InternalData.ReadBuilder,
+          org.apache.iceberg.io.ReadBuilder<B, D>,
+          SupportsDeleteFilter<F> {
     private final InputFile file;
     private final Map<String, String> properties = Maps.newHashMap();
     private Long start = null;
@@ -1153,16 +1450,20 @@ public class Parquet {
     private Function<MessageType, VectorizedReader<?>> batchedReaderFunc = null;
     private Function<MessageType, ParquetValueReader<?>> readerFunc = null;
     private BiFunction<Schema, MessageType, ParquetValueReader<?>> readerFuncWithSchema = null;
+    private BatchReaderFunction<?, F> batchReaderFunction = null;
+    private ReaderFunction<?> readerFunction = null;
     private boolean filterRecords = true;
-    private boolean caseSensitive = true;
+    private boolean filterCaseSensitive = true;
     private boolean callInit = false;
     private boolean reuseContainers = false;
     private int maxRecordsPerBatch = 10000;
     private NameMapping nameMapping = null;
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
+    private Map<Integer, ?> constantFieldAccessors = ImmutableMap.of();
+    private F deleteFilter = null;
 
-    private ReadBuilder(InputFile file) {
+    private ReadBuilderInternal(InputFile file) {
       this.file = file;
     }
 
@@ -1174,134 +1475,236 @@ public class Parquet {
      * @return this builder for method chaining
      */
     @Override
-    public ReadBuilder split(long newStart, long newLength) {
+    public B split(long newStart, long newLength) {
       this.start = newStart;
       this.length = newLength;
-      return this;
+      return (B) this;
     }
 
     @Override
-    public ReadBuilder project(Schema newSchema) {
+    public B project(Schema newSchema) {
       this.schema = newSchema;
-      return this;
+      return (B) this;
     }
 
-    public ReadBuilder caseInsensitive() {
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #filter(Expression, boolean)}
+     *     instead.
+     */
+    @Deprecated
+    public B caseInsensitive() {
       return caseSensitive(false);
     }
 
-    public ReadBuilder caseSensitive(boolean newCaseSensitive) {
-      this.caseSensitive = newCaseSensitive;
-      return this;
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #filter(Expression, boolean)}
+     *     instead.
+     */
+    @Deprecated
+    public B caseSensitive(boolean newCaseSensitive) {
+      this.filterCaseSensitive = newCaseSensitive;
+      return (B) this;
     }
 
-    public ReadBuilder filterRecords(boolean newFilterRecords) {
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #filter(Expression, boolean)}
+     *     instead.
+     */
+    @Deprecated
+    public B filterRecords(boolean newFilterRecords) {
       this.filterRecords = newFilterRecords;
-      return this;
+      return (B) this;
     }
 
-    public ReadBuilder filter(Expression newFilter) {
+    @Override
+    public B filter(Expression newFilter, boolean newFilterCaseSensitive) {
       this.filter = newFilter;
-      return this;
+      this.filterCaseSensitive = newFilterCaseSensitive;
+      return (B) this;
     }
 
     /**
-     * @deprecated will be removed in 2.0.0; use {@link #createReaderFunc(Function)} instead
+     * @deprecated will be removed in 1.11.0; use {@link #readerFunction(ReaderFunction)} instead.
      */
     @Deprecated
-    public ReadBuilder readSupport(ReadSupport<?> newFilterSupport) {
+    public B readSupport(ReadSupport<?> newFilterSupport) {
       this.readSupport = newFilterSupport;
-      return this;
-    }
-
-    public ReadBuilder createReaderFunc(
-        Function<MessageType, ParquetValueReader<?>> newReaderFunction) {
-      Preconditions.checkArgument(
-          this.batchedReaderFunc == null,
-          "Cannot set reader function: batched reader function already set");
-      Preconditions.checkArgument(
-          this.readerFuncWithSchema == null,
-          "Cannot set reader function: 2-argument reader function already set");
-      this.readerFunc = newReaderFunction;
-      return this;
-    }
-
-    public ReadBuilder createReaderFunc(
-        BiFunction<Schema, MessageType, ParquetValueReader<?>> newReaderFunction) {
-      Preconditions.checkArgument(
-          this.readerFunc == null,
-          "Cannot set 2-argument reader function: reader function already set");
-      Preconditions.checkArgument(
-          this.batchedReaderFunc == null,
-          "Cannot set 2-argument reader function: batched reader function already set");
-      this.readerFuncWithSchema = newReaderFunction;
-      return this;
-    }
-
-    public ReadBuilder createBatchedReaderFunc(Function<MessageType, VectorizedReader<?>> func) {
-      Preconditions.checkArgument(
-          this.readerFunc == null,
-          "Cannot set batched reader function: reader function already set");
-      Preconditions.checkArgument(
-          this.readerFuncWithSchema == null,
-          "Cannot set batched reader function: 2-argument reader function already set");
-      this.batchedReaderFunc = func;
-      return this;
-    }
-
-    public ReadBuilder set(String key, String value) {
-      properties.put(key, value);
-      return this;
+      return (B) this;
     }
 
     /**
-     * @deprecated will be removed in 2.0.0; use {@link #createReaderFunc(Function)} instead
+     * @deprecated will be removed in 1.11.0; use {@link #readerFunction(ReaderFunction)} instead.
      */
     @Deprecated
-    public ReadBuilder callInit() {
+    public B createReaderFunc(Function<MessageType, ParquetValueReader<?>> newReaderFunction) {
+      Preconditions.checkState(
+          readerFuncWithSchema == null
+              && readerFunction == null
+              && batchedReaderFunc == null
+              && batchReaderFunction == null,
+          "Cannot set multiple read builder functions");
+      this.readerFunc = newReaderFunction;
+      return (B) this;
+    }
+
+    public B createReaderFunc(
+        BiFunction<Schema, MessageType, ParquetValueReader<?>> newReaderFunction) {
+      Preconditions.checkState(
+          readerFunc == null
+              && readerFunction == null
+              && batchedReaderFunc == null
+              && batchReaderFunction == null,
+          "Cannot set multiple read builder functions");
+      this.readerFuncWithSchema = newReaderFunction;
+      return (B) this;
+    }
+
+    /**
+     * @deprecated will be removed in 1.11.0; use {@link #batchReaderFunction(BatchReaderFunction)}
+     *     instead.
+     */
+    @Deprecated
+    public B createBatchedReaderFunc(Function<MessageType, VectorizedReader<?>> func) {
+      Preconditions.checkState(
+          readerFunc == null
+              && readerFuncWithSchema == null
+              && readerFunction == null
+              && batchReaderFunction == null,
+          "Cannot set multiple read builder functions");
+      this.batchedReaderFunc = func;
+      return (B) this;
+    }
+
+    public <D> B readerFunction(ReaderFunction<D> newReaderFunction) {
+      Preconditions.checkState(
+          readerFunc == null
+              && readerFuncWithSchema == null
+              && batchedReaderFunc == null
+              && batchReaderFunction == null,
+          "Cannot set multiple read builder functions");
+      this.readerFunction = newReaderFunction;
+      return (B) this;
+    }
+
+    public <D> B batchReaderFunction(BatchReaderFunction<D, F> func) {
+      Preconditions.checkState(
+          readerFunc == null
+              && readerFuncWithSchema == null
+              && readerFunction == null
+              && batchedReaderFunc == null,
+          "Cannot set multiple read builder functions");
+      this.batchReaderFunction = func;
+      return (B) this;
+    }
+
+    @Override
+    public B set(String key, String value) {
+      properties.put(key, value);
+      return (B) this;
+    }
+
+    /**
+     * @deprecated will be removed in 1.11.0; use {@link #readerFunction(ReaderFunction)} instead.
+     */
+    @Deprecated
+    public B callInit() {
       this.callInit = true;
-      return this;
+      return (B) this;
     }
 
     @Override
-    public ReadBuilder reuseContainers() {
+    public B reuseContainers() {
       this.reuseContainers = true;
-      return this;
+      return (B) this;
     }
 
-    public ReadBuilder recordsPerBatch(int numRowsPerBatch) {
-      this.maxRecordsPerBatch = numRowsPerBatch;
-      return this;
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #set(String, String)} with
+     *     {@link #RECORDS_PER_BATCH_KEY} instead.
+     */
+    @Deprecated
+    public B recordsPerBatch(int numRowsPerBatch) {
+      return set(RECORDS_PER_BATCH_KEY, String.valueOf(numRowsPerBatch));
     }
 
-    public ReadBuilder withNameMapping(NameMapping newNameMapping) {
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #nameMapping(NameMapping)}
+     *     with {@link #RECORDS_PER_BATCH_KEY} instead.
+     */
+    @Deprecated
+    public B withNameMapping(NameMapping newNameMapping) {
+      return nameMapping(newNameMapping);
+    }
+
+    @Override
+    public B nameMapping(NameMapping newNameMapping) {
       this.nameMapping = newNameMapping;
-      return this;
+      return (B) this;
     }
 
     @Override
-    public ReadBuilder setRootType(Class<? extends StructLike> rootClass) {
+    public B setRootType(Class<? extends StructLike> rootClass) {
       throw new UnsupportedOperationException("Custom types are not yet supported");
     }
 
     @Override
-    public ReadBuilder setCustomType(int fieldId, Class<? extends StructLike> structClass) {
+    public B setCustomType(int fieldId, Class<? extends StructLike> structClass) {
       throw new UnsupportedOperationException("Custom types are not yet supported");
     }
 
-    public ReadBuilder withFileEncryptionKey(ByteBuffer encryptionKey) {
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+     *     #withFileEncryptionKey(ByteBuffer)} with {@link #RECORDS_PER_BATCH_KEY} instead.
+     */
+    @Deprecated
+    public B withFileEncryptionKey(ByteBuffer encryptionKey) {
+      return fileEncryptionKey(encryptionKey);
+    }
+
+    @Override
+    public B fileEncryptionKey(ByteBuffer encryptionKey) {
       this.fileEncryptionKey = encryptionKey;
-      return this;
+      return (B) this;
     }
 
-    public ReadBuilder withAADPrefix(ByteBuffer aadPrefix) {
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #fileAADPrefix(ByteBuffer)}
+     *     with {@link #RECORDS_PER_BATCH_KEY} instead.
+     */
+    @Deprecated
+    public B withAadPrefix(ByteBuffer aadPrefix) {
+      return fileAADPrefix(aadPrefix);
+    }
+
+    @Override
+    public B fileAADPrefix(ByteBuffer aadPrefix) {
       this.fileAADPrefix = aadPrefix;
-      return this;
+      return (B) this;
+    }
+
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #withAadPrefix(ByteBuffer)}
+     *     instead.
+     */
+    @Deprecated
+    public B withAADPrefix(ByteBuffer aadPrefix) {
+      return withAadPrefix(aadPrefix);
+    }
+
+    @Override
+    public B constantFieldAccessors(Map<Integer, ?> newConstantFieldAccessors) {
+      this.constantFieldAccessors = newConstantFieldAccessors;
+      return (B) this;
+    }
+
+    @Override
+    public void deleteFilter(F newDeleteFilter) {
+      this.deleteFilter = newDeleteFilter;
     }
 
     @Override
     @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
-    public <D> CloseableIterable<D> build() {
+    public CloseableIterable build() {
       FileDecryptionProperties fileDecryptionProperties = null;
       if (fileEncryptionKey != null) {
         byte[] encryptionKeyArray = ByteBuffers.toByteArray(fileEncryptionKey);
@@ -1315,61 +1718,12 @@ public class Parquet {
         Preconditions.checkState(fileAADPrefix == null, "AAD prefix set with null encryption key");
       }
 
-      if (readerFunc != null || readerFuncWithSchema != null || batchedReaderFunc != null) {
-        ParquetReadOptions.Builder optionsBuilder;
-        if (file instanceof HadoopInputFile) {
-          // remove read properties already set that may conflict with this read
-          Configuration conf = new Configuration(((HadoopInputFile) file).getConf());
-          for (String property : READ_PROPERTIES_TO_REMOVE) {
-            conf.unset(property);
-          }
-          optionsBuilder = HadoopReadOptions.builder(conf);
-        } else {
-          optionsBuilder = ParquetReadOptions.builder(new PlainParquetConfiguration());
-        }
-
-        for (Map.Entry<String, String> entry : properties.entrySet()) {
-          optionsBuilder.set(entry.getKey(), entry.getValue());
-        }
-
-        if (start != null) {
-          optionsBuilder.withRange(start, start + length);
-        }
-
-        if (fileDecryptionProperties != null) {
-          optionsBuilder.withDecryption(fileDecryptionProperties);
-        }
-
-        ParquetReadOptions options = optionsBuilder.build();
-
-        NameMapping mapping;
-        if (nameMapping != null) {
-          mapping = nameMapping;
-        } else if (SystemConfigs.NETFLIX_UNSAFE_PARQUET_ID_FALLBACK_ENABLED.value()) {
-          mapping = null;
-        } else {
-          mapping = NameMapping.empty();
-        }
-
-        if (batchedReaderFunc != null) {
-          return new VectorizedParquetReader<>(
-              file,
-              schema,
-              options,
-              batchedReaderFunc,
-              mapping,
-              filter,
-              reuseContainers,
-              caseSensitive,
-              maxRecordsPerBatch);
-        } else {
-          Function<MessageType, ParquetValueReader<?>> readBuilder =
-              readerFuncWithSchema != null
-                  ? fileType -> readerFuncWithSchema.apply(schema, fileType)
-                  : readerFunc;
-          return new org.apache.iceberg.parquet.ParquetReader<>(
-              file, schema, options, readBuilder, mapping, filter, reuseContainers, caseSensitive);
-        }
+      if (readerFunc != null
+          || readerFuncWithSchema != null
+          || batchedReaderFunc != null
+          || readerFunction != null
+          || batchReaderFunction != null) {
+        return buildFunctionBasedReader(options(fileDecryptionProperties));
       }
 
       ParquetReadBuilder<D> builder = new ParquetReadBuilder<>(ParquetIO.file(file));
@@ -1414,7 +1768,7 @@ public class Parquet {
             .useDictionaryFilter()
             .useRecordFilter(filterRecords)
             .useBloomFilter()
-            .withFilter(ParquetFilters.convert(fileSchema, filter, caseSensitive));
+            .withFilter(ParquetFilters.convert(fileSchema, filter, filterCaseSensitive));
       } else {
         // turn off filtering
         builder
@@ -1441,6 +1795,81 @@ public class Parquet {
       }
 
       return new ParquetIterable<>(builder);
+    }
+
+    private <D> CloseableIterable<D> buildFunctionBasedReader(ParquetReadOptions options) {
+      NameMapping mapping;
+      if (nameMapping != null) {
+        mapping = nameMapping;
+      } else if (SystemConfigs.NETFLIX_UNSAFE_PARQUET_ID_FALLBACK_ENABLED.value()) {
+        mapping = null;
+      } else {
+        mapping = NameMapping.empty();
+      }
+
+      if (batchedReaderFunc != null || batchReaderFunction != null) {
+        return new VectorizedParquetReader<>(
+            file,
+            schema,
+            options,
+            batchedReaderFunc != null
+                ? batchedReaderFunc
+                : fileType ->
+                    batchReaderFunction.read(
+                        schema, fileType, constantFieldAccessors, deleteFilter, properties),
+            mapping,
+            filter,
+            reuseContainers,
+            filterCaseSensitive,
+            properties.containsKey(RECORDS_PER_BATCH_KEY)
+                ? Integer.parseInt(properties.get(RECORDS_PER_BATCH_KEY))
+                : maxRecordsPerBatch);
+      } else {
+        Function<MessageType, ParquetValueReader<?>> readBuilder =
+            readerFuncWithSchema != null
+                ? fileType -> readerFuncWithSchema.apply(schema, fileType)
+                : readerFunc != null
+                    ? readerFunc
+                    : fileType -> readerFunction.read(schema, fileType, constantFieldAccessors);
+        return new org.apache.iceberg.parquet.ParquetReader<>(
+            file,
+            schema,
+            options,
+            readBuilder,
+            mapping,
+            filter,
+            reuseContainers,
+            filterCaseSensitive);
+      }
+    }
+
+    private ParquetReadOptions options(FileDecryptionProperties fileDecryptionProperties) {
+      ParquetReadOptions.Builder optionsBuilder;
+      if (file instanceof HadoopInputFile) {
+        // remove read properties already set that may conflict with this read
+        Configuration conf = new Configuration(((HadoopInputFile) file).getConf());
+        for (String property : READ_PROPERTIES_TO_REMOVE) {
+          conf.unset(property);
+        }
+
+        optionsBuilder = HadoopReadOptions.builder(conf);
+      } else {
+        optionsBuilder = ParquetReadOptions.builder(new PlainParquetConfiguration());
+      }
+
+      for (Map.Entry<String, String> entry : properties.entrySet()) {
+        optionsBuilder.set(entry.getKey(), entry.getValue());
+      }
+
+      if (start != null) {
+        optionsBuilder.withRange(start, start + length);
+      }
+
+      if (fileDecryptionProperties != null) {
+        optionsBuilder.withDecryption(fileDecryptionProperties);
+      }
+
+      return optionsBuilder.build();
     }
   }
 
@@ -1510,5 +1939,27 @@ public class Parquet {
       writer.appendFile(ParquetIO.file(Files.localInput(inputFile)));
     }
     writer.end(metadata);
+  }
+
+  public interface ReaderFunction<D> {
+    ParquetValueReader<D> read(
+        Schema schema, MessageType messageType, Map<Integer, ?> constantFieldAccessors);
+  }
+
+  public interface BatchReaderFunction<D, F> {
+    VectorizedReader<D> read(
+        Schema schema,
+        MessageType messageType,
+        Map<Integer, ?> constantFieldAccessors,
+        F deleteFilter,
+        Map<String, String> config);
+  }
+
+  public interface WriterFunction<D, E> {
+    ParquetValueWriter<D> write(E engineSchema, Schema icebergSchema, MessageType messageType);
+  }
+
+  public interface SupportsDeleteFilter<F> {
+    void deleteFilter(F deleteFilter);
   }
 }
