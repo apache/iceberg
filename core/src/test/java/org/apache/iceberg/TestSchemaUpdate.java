@@ -2439,4 +2439,47 @@ public class TestSchemaUpdate {
 
     assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
+
+  @Test
+  public void testAddUnknown() {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "unk", Types.UnknownType.get()));
+
+    Schema actual =
+        new SchemaUpdate(schema, schema.highestFieldId())
+            .addColumn("unk", Types.UnknownType.get())
+            .apply();
+
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testAddUnknownNonNullDefault() {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, schema.highestFieldId())
+                    .allowIncompatibleChanges()
+                    .addColumn("unk", Types.UnknownType.get(), Literal.of("string!"))
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot cast default value to unknown: \"string!\"");
+  }
+
+  @Test
+  public void testAddRequiredUnknown() {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, schema.highestFieldId())
+                    .allowIncompatibleChanges()
+                    .addRequiredColumn("unk", Types.UnknownType.get())
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot create required field with unknown type: unk");
+  }
 }

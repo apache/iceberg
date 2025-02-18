@@ -692,6 +692,10 @@ public class Types {
         Literal<?> writeDefault) {
       Preconditions.checkNotNull(name, "Name cannot be null");
       Preconditions.checkNotNull(type, "Type cannot be null");
+      Preconditions.checkArgument(
+          isOptional || !type.equals(UnknownType.get()),
+          "Cannot create required field with unknown type: %s",
+          name);
       this.isOptional = isOptional;
       this.id = id;
       this.name = name;
@@ -706,7 +710,10 @@ public class Types {
         throw new IllegalArgumentException(
             String.format("Invalid default value for %s: %s (must be null)", type, defaultValue));
       } else if (defaultValue != null) {
-        return defaultValue.to(type);
+        Literal<?> typedDefault = defaultValue.to(type);
+        Preconditions.checkArgument(
+            typedDefault != null, "Cannot cast default value to %s: %s", type, defaultValue);
+        return typedDefault;
       }
 
       return null;

@@ -31,6 +31,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.FieldSource;
@@ -42,8 +43,7 @@ public class TestSchema {
       ImmutableList.of(
           Types.TimestampNanoType.withoutZone(),
           Types.TimestampNanoType.withZone(),
-          Types.VariantType.get(),
-          Types.UnknownType.get());
+          Types.VariantType.get());
 
   private static final Schema INITIAL_DEFAULT_SCHEMA =
       new Schema(
@@ -121,6 +121,56 @@ public class TestSchema {
             type ->
                 IntStream.rangeClosed(MIN_FORMAT_VERSIONS.get(type.typeId()), MAX_FORMAT_VERSION)
                     .mapToObj(supportedVersion -> Arguments.of(type, supportedVersion)));
+  }
+
+  @Test
+  public void testUnknownSupport() {
+    // this needs a different schema because it cannot be used in required fields
+    Schema schemaWithUnknown =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "top", Types.UnknownType.get()),
+            Types.NestedField.optional(
+                3, "arr", Types.ListType.ofOptional(4, Types.UnknownType.get())),
+            Types.NestedField.required(
+                5,
+                "struct",
+                Types.StructType.of(
+                    Types.NestedField.optional(6, "inner_op", Types.UnknownType.get()),
+                    Types.NestedField.optional(
+                        7,
+                        "inner_map",
+                        Types.MapType.ofOptional(
+                            8, 9, Types.StringType.get(), Types.UnknownType.get())),
+                    Types.NestedField.optional(
+                        10,
+                        "struct_arr",
+                        Types.StructType.of(
+                            Types.NestedField.optional(11, "deep", Types.UnknownType.get()))))));
+
+    assertThatThrownBy(() -> Schema.checkCompatibility(schemaWithUnknown, 2))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Invalid schema for v%s:\n"
+                + "- Invalid type for top: %s is not supported until v%s\n"
+                + "- Invalid type for arr.element: %s is not supported until v%s\n"
+                + "- Invalid type for struct.inner_op: %s is not supported until v%s\n"
+                + "- Invalid type for struct.inner_map.value: %s is not supported until v%s\n"
+                + "- Invalid type for struct.struct_arr.deep: %s is not supported until v%s",
+            2,
+            Types.UnknownType.get(),
+            MIN_FORMAT_VERSIONS.get(Type.TypeID.UNKNOWN),
+            Types.UnknownType.get(),
+            MIN_FORMAT_VERSIONS.get(Type.TypeID.UNKNOWN),
+            Types.UnknownType.get(),
+            MIN_FORMAT_VERSIONS.get(Type.TypeID.UNKNOWN),
+            Types.UnknownType.get(),
+            MIN_FORMAT_VERSIONS.get(Type.TypeID.UNKNOWN),
+            Types.UnknownType.get(),
+            MIN_FORMAT_VERSIONS.get(Type.TypeID.UNKNOWN));
+
+    assertThatCode(() -> Schema.checkCompatibility(schemaWithUnknown, 3))
+        .doesNotThrowAnyException();
   }
 
   @ParameterizedTest
