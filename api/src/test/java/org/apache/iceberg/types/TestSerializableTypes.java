@@ -46,6 +46,7 @@ public class TestSerializableTypes {
           Types.StringType.get(),
           Types.UUIDType.get(),
           Types.BinaryType.get(),
+          Types.UnknownType.get()
         };
 
     for (Type type : identityPrimitives) {
@@ -134,15 +135,6 @@ public class TestSerializableTypes {
     assertThat(copy)
         .as("Variant serialization should be equal to starting type")
         .isEqualTo(variant);
-  }
-
-  @Test
-  public void testUnknown() throws Exception {
-    Types.UnknownType unknown = Types.UnknownType.get();
-    Type copy = TestHelpers.roundTripSerialize(unknown);
-    assertThat(copy)
-        .as("Unknown serialization should be equal to starting type")
-        .isEqualTo(unknown);
   }
 
   @Test

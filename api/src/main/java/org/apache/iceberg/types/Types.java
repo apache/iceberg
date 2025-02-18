@@ -28,6 +28,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -39,8 +40,8 @@ public class Types {
 
   private Types() {}
 
-  private static final ImmutableMap<String, PrimitiveType> TYPES =
-      ImmutableMap.<String, PrimitiveType>builder()
+  private static final ImmutableMap<String, Type> TYPES =
+      ImmutableMap.<String, Type>builder()
           .put(BooleanType.get().toString(), BooleanType.get())
           .put(IntegerType.get().toString(), IntegerType.get())
           .put(LongType.get().toString(), LongType.get())
@@ -56,13 +57,14 @@ public class Types {
           .put(UUIDType.get().toString(), UUIDType.get())
           .put(BinaryType.get().toString(), BinaryType.get())
           .put(UnknownType.get().toString(), UnknownType.get())
+          .put(VariantType.get().toString(), VariantType.get())
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
   private static final Pattern DECIMAL =
       Pattern.compile("decimal\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)");
 
-  public static PrimitiveType fromPrimitiveString(String typeString) {
+  public static Type fromTypeName(String typeString) {
     String lowerTypeString = typeString.toLowerCase(Locale.ROOT);
     if (TYPES.containsKey(lowerTypeString)) {
       return TYPES.get(lowerTypeString);
@@ -79,6 +81,15 @@ public class Types {
     }
 
     throw new IllegalArgumentException("Cannot parse type string to primitive: " + typeString);
+  }
+
+  public static PrimitiveType fromPrimitiveString(String typeString) {
+    Type type = fromTypeName(typeString);
+    if (type.isPrimitiveType()) {
+      return type.asPrimitiveType();
+    }
+
+    throw new IllegalArgumentException("Cannot parse type string: variant is not a primitive type");
   }
 
   public static class BooleanType extends PrimitiveType {
@@ -431,6 +442,16 @@ public class Types {
     }
 
     @Override
+    public boolean isVariantType() {
+      return true;
+    }
+
+    @Override
+    public VariantType asVariantType() {
+      return this;
+    }
+
+    @Override
     public boolean equals(Object o) {
       if (this == o) {
         return true;
@@ -539,10 +560,22 @@ public class Types {
       return new NestedField(false, id, name, type, doc, null, null);
     }
 
+    /**
+     * Create a nested field.
+     *
+     * @deprecated will be removed in 2.0.0; use {@link #builder()} instead.
+     */
+    @Deprecated
     public static NestedField of(int id, boolean isOptional, String name, Type type) {
       return new NestedField(isOptional, id, name, type, null, null, null);
     }
 
+    /**
+     * Create a nested field.
+     *
+     * @deprecated will be removed in 2.0.0; use {@link #builder()} instead.
+     */
+    @Deprecated
     public static NestedField of(int id, boolean isOptional, String name, Type type, String doc) {
       return new NestedField(isOptional, id, name, type, doc, null, null);
     }
@@ -559,14 +592,20 @@ public class Types {
       return new Builder(true, name);
     }
 
+    public static Builder builder() {
+      return new Builder();
+    }
+
     public static class Builder {
-      private final boolean isOptional;
-      private final String name;
+      private boolean isOptional = true;
+      private String name = null;
       private Integer id = null;
       private Type type = null;
       private String doc = null;
-      private Object initialDefault = null;
-      private Object writeDefault = null;
+      private Literal<?> initialDefault = null;
+      private Literal<?> writeDefault = null;
+
+      private Builder() {}
 
       private Builder(boolean isFieldOptional, String fieldName) {
         isOptional = isFieldOptional;
@@ -581,6 +620,26 @@ public class Types {
         this.doc = toCopy.doc;
         this.initialDefault = toCopy.initialDefault;
         this.writeDefault = toCopy.writeDefault;
+      }
+
+      public Builder asRequired() {
+        this.isOptional = false;
+        return this;
+      }
+
+      public Builder asOptional() {
+        this.isOptional = true;
+        return this;
+      }
+
+      public Builder isOptional(boolean fieldIsOptional) {
+        this.isOptional = fieldIsOptional;
+        return this;
+      }
+
+      public Builder withName(String fieldName) {
+        this.name = fieldName;
+        return this;
       }
 
       public Builder withId(int fieldId) {
@@ -598,12 +657,32 @@ public class Types {
         return this;
       }
 
+      /**
+       * Set the initial default using an Object.
+       *
+       * @deprecated will be removed in 2.0.0; use {@link #withInitialDefault(Literal)} instead.
+       */
+      @Deprecated
       public Builder withInitialDefault(Object fieldInitialDefault) {
+        return withInitialDefault(Expressions.lit(fieldInitialDefault));
+      }
+
+      public Builder withInitialDefault(Literal<?> fieldInitialDefault) {
         initialDefault = fieldInitialDefault;
         return this;
       }
 
+      /**
+       * Set the write default using an Object.
+       *
+       * @deprecated will be removed in 2.0.0; use {@link #withWriteDefault(Literal)} instead.
+       */
+      @Deprecated
       public Builder withWriteDefault(Object fieldWriteDefault) {
+        return withWriteDefault(Expressions.lit(fieldWriteDefault));
+      }
+
+      public Builder withWriteDefault(Literal<?> fieldWriteDefault) {
         writeDefault = fieldWriteDefault;
         return this;
       }
@@ -620,8 +699,8 @@ public class Types {
     private final String name;
     private final Type type;
     private final String doc;
-    private final Object initialDefault;
-    private final Object writeDefault;
+    private final Literal<?> initialDefault;
+    private final Literal<?> writeDefault;
 
     private NestedField(
         boolean isOptional,
@@ -629,10 +708,14 @@ public class Types {
         String name,
         Type type,
         String doc,
-        Object initialDefault,
-        Object writeDefault) {
+        Literal<?> initialDefault,
+        Literal<?> writeDefault) {
       Preconditions.checkNotNull(name, "Name cannot be null");
       Preconditions.checkNotNull(type, "Type cannot be null");
+      Preconditions.checkArgument(
+          isOptional || !type.equals(UnknownType.get()),
+          "Cannot create required field with unknown type: %s",
+          name);
       this.isOptional = isOptional;
       this.id = id;
       this.name = name;
@@ -642,12 +725,15 @@ public class Types {
       this.writeDefault = castDefault(writeDefault, type);
     }
 
-    private static Object castDefault(Object defaultValue, Type type) {
+    private static Literal<?> castDefault(Literal<?> defaultValue, Type type) {
       if (type.isNestedType() && defaultValue != null) {
         throw new IllegalArgumentException(
             String.format("Invalid default value for %s: %s (must be null)", type, defaultValue));
       } else if (defaultValue != null) {
-        return Expressions.lit(defaultValue).to(type).value();
+        Literal<?> typedDefault = defaultValue.to(type);
+        Preconditions.checkArgument(
+            typedDefault != null, "Cannot cast default value to %s: %s", type, defaultValue);
+        return typedDefault;
       }
 
       return null;
@@ -699,12 +785,20 @@ public class Types {
       return doc;
     }
 
-    public Object initialDefault() {
+    public Literal<?> initialDefaultLiteral() {
       return initialDefault;
     }
 
-    public Object writeDefault() {
+    public Object initialDefault() {
+      return initialDefault != null ? initialDefault.value() : null;
+    }
+
+    public Literal<?> writeDefaultLiteral() {
       return writeDefault;
+    }
+
+    public Object writeDefault() {
+      return writeDefault != null ? writeDefault.value() : null;
     }
 
     @Override

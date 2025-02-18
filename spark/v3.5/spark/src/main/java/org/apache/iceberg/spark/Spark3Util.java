@@ -578,6 +578,11 @@ public class Spark3Util {
     }
 
     @Override
+    public String variant(Types.VariantType variant) {
+      return "variant";
+    }
+
+    @Override
     public String primitive(Type.PrimitiveType primitive) {
       switch (primitive.typeId()) {
         case BOOLEAN:

@@ -16,23 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.types;
+package org.apache.iceberg;
 
-import java.io.ObjectStreamException;
-import java.io.Serializable;
+import org.apache.iceberg.data.parquet.InternalReader;
+import org.apache.iceberg.data.parquet.InternalWriter;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.parquet.Parquet;
 
-/** Replacement for primitive types in Java Serialization. */
-class PrimitiveHolder implements Serializable {
-  private String typeAsString = null;
+public class InternalParquet {
+  private InternalParquet() {}
 
-  /** Constructor for Java serialization. */
-  PrimitiveHolder() {}
-
-  PrimitiveHolder(String typeAsString) {
-    this.typeAsString = typeAsString;
+  public static void register() {
+    InternalData.register(
+        FileFormat.PARQUET, InternalParquet::writeInternal, InternalParquet::readInternal);
   }
 
-  Object readResolve() throws ObjectStreamException {
-    return Types.fromTypeName(typeAsString);
+  private static Parquet.WriteBuilder writeInternal(OutputFile outputFile) {
+    return Parquet.write(outputFile).createWriterFunc(InternalWriter::create);
+  }
+
+  private static Parquet.ReadBuilder readInternal(InputFile inputFile) {
+    return Parquet.read(inputFile).createReaderFunc(InternalReader::create);
   }
 }

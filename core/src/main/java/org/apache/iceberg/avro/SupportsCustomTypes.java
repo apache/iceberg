@@ -16,23 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.types;
+package org.apache.iceberg.avro;
 
-import java.io.ObjectStreamException;
-import java.io.Serializable;
+import java.util.Map;
+import org.apache.iceberg.StructLike;
 
-/** Replacement for primitive types in Java Serialization. */
-class PrimitiveHolder implements Serializable {
-  private String typeAsString = null;
-
-  /** Constructor for Java serialization. */
-  PrimitiveHolder() {}
-
-  PrimitiveHolder(String typeAsString) {
-    this.typeAsString = typeAsString;
-  }
-
-  Object readResolve() throws ObjectStreamException {
-    return Types.fromTypeName(typeAsString);
-  }
+/** An interface to support custom record types by ID. */
+public interface SupportsCustomTypes {
+  void setCustomTypes(
+      Class<? extends StructLike> rootType, Map<Integer, Class<? extends StructLike>> typesById);
 }
