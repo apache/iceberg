@@ -122,6 +122,12 @@ public class TestSchemaUnionByFieldName {
   @Test
   public void testAddTopLevelMapOfPrimitives() {
     for (Type primitiveType : primitiveTypes()) {
+      if (primitiveType.equals(UnknownType.get())) {
+        // The UnknownType has to be optional, and this conflicts with the map key that must be
+        // required
+        continue;
+      }
+
       Schema newSchema =
           new Schema(
               optional(1, "aMap", Types.MapType.ofOptional(2, 3, primitiveType, primitiveType)));
