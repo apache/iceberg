@@ -21,13 +21,9 @@ package org.apache.iceberg.mr.mapreduce;
 import java.io.IOException;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.function.BiFunction;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.InputSplit;
@@ -39,8 +35,6 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataTableScan;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SerializableTable;
@@ -49,14 +43,11 @@ import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.DeleteFilter;
+import org.apache.iceberg.data.FileAccessFactoryRegistry;
 import org.apache.iceberg.data.GenericDeleteFilter;
-import org.apache.iceberg.data.IdentityPartitionConverters;
+import org.apache.iceberg.data.GenericObjectModels;
 import org.apache.iceberg.data.InternalRecordWrapper;
-import org.apache.iceberg.data.avro.PlannedDataReader;
-import org.apache.iceberg.data.orc.GenericOrcReader;
-import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Evaluator;
@@ -67,16 +58,11 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.ReadBuilder;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.SerializationUtil;
 import org.apache.iceberg.util.ThreadPools;
 
@@ -326,23 +312,26 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           encryptionManager.decrypt(
               EncryptedFiles.encryptedInput(io.newInputFile(file.location()), file.keyMetadata()));
 
-      CloseableIterable<T> iterable;
-      switch (file.format()) {
-        case AVRO:
-          iterable = newAvroIterable(inputFile, currentTask, readSchema);
-          break;
-        case ORC:
-          iterable = newOrcIterable(inputFile, currentTask, readSchema);
-          break;
-        case PARQUET:
-          iterable = newParquetIterable(inputFile, currentTask, readSchema);
-          break;
-        default:
-          throw new UnsupportedOperationException(
-              String.format("Cannot read %s file: %s", file.format().name(), file.location()));
+      ReadBuilder<?, T> readBuilder =
+          FileAccessFactoryRegistry.readBuilder(
+              file.format(), GenericObjectModels.GENERIC_OBJECT_MODEL, inputFile);
+
+      if (reuseContainers) {
+        readBuilder = readBuilder.reuseContainers();
       }
 
-      return iterable;
+      if (nameMapping != null) {
+        readBuilder = readBuilder.nameMapping(NameMappingParser.fromJson(nameMapping));
+      }
+
+      return applyResidualFiltering(
+          readBuilder
+              .project(readSchema)
+              .split(currentTask.start(), currentTask.length())
+              .filter(currentTask.residual(), caseSensitive)
+              .build(),
+          currentTask.residual(),
+          readSchema);
     }
 
     @SuppressWarnings("unchecked")
@@ -366,86 +355,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
             iter, record -> filter.eval(wrapper.wrap((StructLike) record)));
       } else {
         return iter;
-      }
-    }
-
-    private CloseableIterable<T> newAvroIterable(
-        InputFile inputFile, FileScanTask task, Schema readSchema) {
-      Avro.ReadBuilder avroReadBuilder =
-          Avro.read(inputFile).project(readSchema).split(task.start(), task.length());
-      if (reuseContainers) {
-        avroReadBuilder.reuseContainers();
-      }
-      if (nameMapping != null) {
-        avroReadBuilder.withNameMapping(NameMappingParser.fromJson(nameMapping));
-      }
-
-      avroReadBuilder.createResolvingReader(
-          schema ->
-              PlannedDataReader.create(
-                  schema, constantsMap(task, IdentityPartitionConverters::convertConstant)));
-      return applyResidualFiltering(avroReadBuilder.build(), task.residual(), readSchema);
-    }
-
-    private CloseableIterable<T> newParquetIterable(
-        InputFile inputFile, FileScanTask task, Schema readSchema) {
-      Parquet.ReadBuilder parquetReadBuilder =
-          Parquet.read(inputFile)
-              .project(readSchema)
-              .filter(task.residual())
-              .caseSensitive(caseSensitive)
-              .split(task.start(), task.length());
-      if (reuseContainers) {
-        parquetReadBuilder.reuseContainers();
-      }
-      if (nameMapping != null) {
-        parquetReadBuilder.withNameMapping(NameMappingParser.fromJson(nameMapping));
-      }
-      parquetReadBuilder.createReaderFunc(
-          fileSchema ->
-              GenericParquetReaders.buildReader(
-                  readSchema,
-                  fileSchema,
-                  constantsMap(task, IdentityPartitionConverters::convertConstant)));
-      CloseableIterable<T> parquetIterator = parquetReadBuilder.build();
-      return applyResidualFiltering(parquetIterator, task.residual(), readSchema);
-    }
-
-    private CloseableIterable<T> newOrcIterable(
-        InputFile inputFile, FileScanTask task, Schema readSchema) {
-      Map<Integer, ?> idToConstant =
-          constantsMap(task, IdentityPartitionConverters::convertConstant);
-      Schema readSchemaWithoutConstantAndMetadataFields =
-          TypeUtil.selectNot(
-              readSchema, Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
-
-      // ORC does not support reuse containers yet
-      ORC.ReadBuilder orcReadBuilder =
-          ORC.read(inputFile)
-              .project(readSchemaWithoutConstantAndMetadataFields)
-              .filter(task.residual())
-              .caseSensitive(caseSensitive)
-              .split(task.start(), task.length());
-      orcReadBuilder.createReaderFunc(
-          fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema, idToConstant));
-
-      if (nameMapping != null) {
-        orcReadBuilder.withNameMapping(NameMappingParser.fromJson(nameMapping));
-      }
-      CloseableIterable<T> orcIterator = orcReadBuilder.build();
-      return applyResidualFiltering(orcIterator, task.residual(), readSchema);
-    }
-
-    private Map<Integer, ?> constantsMap(
-        FileScanTask task, BiFunction<Type, Object, Object> converter) {
-      PartitionSpec spec = task.spec();
-      Set<Integer> idColumns = spec.identitySourceIds();
-      Schema partitionSchema = TypeUtil.select(expectedSchema, idColumns);
-      boolean projectsIdentityPartitionColumns = !partitionSchema.columns().isEmpty();
-      if (projectsIdentityPartitionColumns) {
-        return PartitionUtil.constantsMap(task, converter);
-      } else {
-        return Collections.emptyMap();
       }
     }
 

@@ -478,7 +478,7 @@ public class TestManifestListVersions {
 
   private GenericData.Record readGeneric(InputFile manifestList, Schema schema) throws IOException {
     try (CloseableIterable<GenericData.Record> files =
-        Avro.read(manifestList).project(schema).reuseContainers(false).build()) {
+        Avro.read(manifestList).project(schema).build()) {
       List<GenericData.Record> records = Lists.newLinkedList(files);
       assertThat(records).hasSize(1);
       return records.get(0);
