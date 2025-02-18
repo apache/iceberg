@@ -179,7 +179,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
             .reuseContainers();
 
     if (nameMapping != null) {
-      builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+      builder = builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
     }
 
     return builder.build();

@@ -45,6 +45,7 @@ import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.FieldMetrics;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.InternalData;
 import org.apache.iceberg.MetricsConfig;
@@ -66,6 +67,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ArrayUtil;
 
@@ -92,6 +94,10 @@ public class Avro {
     DEFAULT_MODEL.addLogicalTypeConversion(new VariantConversion());
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
+   */
+  @Deprecated
   public static WriteBuilder write(OutputFile file) {
     if (file instanceof EncryptedOutputFile) {
       return write((EncryptedOutputFile) file);
@@ -100,74 +106,74 @@ public class Avro {
     return new WriteBuilder(file);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
+   */
+  @Deprecated
   public static WriteBuilder write(EncryptedOutputFile file) {
     return new WriteBuilder(file.encryptingOutputFile());
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
+   */
+  @Deprecated
   public static class WriteBuilder implements InternalData.WriteBuilder {
-    private final OutputFile file;
-    private final Map<String, String> config = Maps.newHashMap();
-    private final Map<String, String> metadata = Maps.newLinkedHashMap();
-    private org.apache.iceberg.Schema schema = null;
-    private String name = "table";
-    private Function<Schema, DatumWriter<?>> createWriterFunc = null;
-    private boolean overwrite;
-    private MetricsConfig metricsConfig;
-    private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
+    private final WriteBuilderImpl<?, ?> impl;
 
     private WriteBuilder(OutputFile file) {
-      this.file = file;
+      this.impl = new WriteBuilderImpl<>(file, null);
     }
 
     public WriteBuilder forTable(Table table) {
-      schema(table.schema());
-      setAll(table.properties());
-      metricsConfig(MetricsConfig.forTable(table));
+      impl.fileSchema(table.schema())
+          .set(table.properties())
+          .metricsConfig(MetricsConfig.forTable(table));
       return this;
     }
 
     @Override
     public WriteBuilder schema(org.apache.iceberg.Schema newSchema) {
-      this.schema = newSchema;
+      impl.fileSchema(newSchema);
       return this;
     }
 
     @Override
     public WriteBuilder named(String newName) {
-      this.name = newName;
+      impl.named(newName);
       return this;
     }
 
     public WriteBuilder createWriterFunc(Function<Schema, DatumWriter<?>> writerFunction) {
-      this.createWriterFunc = writerFunction;
+      impl.createWriterFunc(writerFunction);
       return this;
     }
 
     @Override
     public WriteBuilder set(String property, String value) {
-      config.put(property, value);
+      impl.set(property, value);
       return this;
     }
 
     public WriteBuilder setAll(Map<String, String> properties) {
-      config.putAll(properties);
+      impl.set(properties);
       return this;
     }
 
     @Override
     public WriteBuilder meta(String property, String value) {
-      metadata.put(property, value);
+      impl.meta(property, value);
       return this;
     }
 
     @Override
     public WriteBuilder meta(Map<String, String> properties) {
-      metadata.putAll(properties);
+      properties.forEach(impl::meta);
       return this;
     }
 
     public WriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
-      this.metricsConfig = newMetricsConfig;
+      impl.metricsConfig(newMetricsConfig);
       return this;
     }
 
@@ -177,21 +183,162 @@ public class Avro {
     }
 
     public WriteBuilder overwrite(boolean enabled) {
-      this.overwrite = enabled;
+      impl.overwrite(enabled);
       return this;
     }
 
     // supposed to always be a private method used strictly by data and delete write builders
-    private WriteBuilder createContextFunc(
-        Function<Map<String, String>, Context> newCreateContextFunc) {
-      this.createContextFunc = newCreateContextFunc;
+    private void createContextFunc(
+        Function<Map<String, String>, WriteBuilderImpl.Context> newCreateContextFunc) {
+      impl.createContextFunc(newCreateContextFunc);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <D> FileAppender<D> build() throws IOException {
+      return (FileAppender<D>) impl.build();
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  static class WriteBuilderImpl<E, D>
+      implements org.apache.iceberg.io.WriteBuilder<WriteBuilderImpl<E, D>, E, D> {
+    private final OutputFile file;
+    private final FileContent content;
+    private final Map<String, String> config = Maps.newHashMap();
+    private final Map<String, String> metadata = Maps.newLinkedHashMap();
+    private org.apache.iceberg.Schema schema = null;
+    private String name = "table";
+    private Function<Schema, DatumWriter<?>> createWriterFunc = null;
+    private BiFunction<Schema, E, DatumWriter<?>> writerFunction = null;
+    private BiFunction<Schema, E, DatumWriter<?>> deleteRowWriterFunction = null;
+    private boolean overwrite;
+    private MetricsConfig metricsConfig;
+    private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
+    private E engineSchema;
+
+    WriteBuilderImpl(OutputFile file, FileContent content) {
+      this.file = file;
+      this.content = content;
+    }
+
+    WriteBuilderImpl<E, D> writerFunction(BiFunction<Schema, E, DatumWriter<?>> newWriterFunction) {
+      Preconditions.checkState(
+          createWriterFunc == null, "Cannot set multiple writer builder functions");
+      this.writerFunction = newWriterFunction;
+      return this;
+    }
+
+    WriteBuilderImpl<E, D> deleteRowWriterFunction(
+        BiFunction<Schema, E, DatumWriter<?>> newWriterFunction) {
+      Preconditions.checkState(
+          createWriterFunc == null, "Cannot set multiple writer builder functions");
+      this.deleteRowWriterFunction = newWriterFunction;
       return this;
     }
 
     @Override
-    public <D> FileAppender<D> build() throws IOException {
+    public WriteBuilderImpl<E, D> fileSchema(org.apache.iceberg.Schema newSchema) {
+      this.schema = newSchema;
+      return this;
+    }
+
+    @Override
+    public WriteBuilderImpl<E, D> set(String property, String value) {
+      config.put(property, value);
+      return this;
+    }
+
+    @Override
+    public WriteBuilderImpl<E, D> meta(String property, String value) {
+      metadata.put(property, value);
+      return this;
+    }
+
+    @Override
+    public WriteBuilderImpl<E, D> metricsConfig(MetricsConfig newMetricsConfig) {
+      this.metricsConfig = newMetricsConfig;
+      return this;
+    }
+
+    @Override
+    public WriteBuilderImpl<E, D> overwrite() {
+      overwrite(true);
+      return this;
+    }
+
+    @Override
+    public WriteBuilderImpl<E, D> dataSchema(E newEngineSchema) {
+      this.engineSchema = newEngineSchema;
+      return this;
+    }
+
+    // supposed to always be a private method used strictly by data and delete write builders
+    // package-private because of inheritance until deprecation of the WriteBuilder
+    private void createContextFunc(Function<Map<String, String>, Context> newCreateContextFunc) {
+      this.createContextFunc = newCreateContextFunc;
+    }
+
+    private void named(String newName) {
+      this.name = newName;
+    }
+
+    private void createWriterFunc(Function<Schema, DatumWriter<?>> newWriterFunction) {
+      Preconditions.checkState(
+          writerFunction == null && deleteRowWriterFunction == null,
+          "Cannot set multiple writer builder functions");
+      this.createWriterFunc = newWriterFunction;
+    }
+
+    private void overwrite(boolean enabled) {
+      this.overwrite = enabled;
+    }
+
+    private void initWriterFunctionAndContext() {
+      switch (content) {
+        case DATA:
+          Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
+          this.createWriterFunc = avroSchema -> writerFunction.apply(avroSchema, engineSchema);
+          this.createContextFunc = Context::dataContext;
+          break;
+        case EQUALITY_DELETES:
+          Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
+          this.createWriterFunc = avroSchema -> writerFunction.apply(avroSchema, engineSchema);
+          this.createContextFunc = Context::deleteContext;
+          break;
+        case POSITION_DELETES:
+          this.createContextFunc = Context::deleteContext;
+          if (schema.columns().size() == DeleteSchemaUtil.pathPosSchema().columns().size()) {
+            // this is a position delete without rows
+            this.createWriterFunc = ignored -> new PositionDatumWriter();
+          } else {
+            // this is a position delete with rows
+            Preconditions.checkState(
+                deleteRowWriterFunction != null || writerFunction != null,
+                "Writer function has to be set.");
+            this.createWriterFunc =
+                deleteRowWriterFunction != null
+                    ? avroSchema ->
+                        new PositionAndRowDatumWriter<>(
+                            deleteRowWriterFunction.apply(avroSchema, engineSchema))
+                    : avroSchema ->
+                        new PositionAndRowDatumWriter<>(
+                            writerFunction.apply(avroSchema, engineSchema));
+          }
+          break;
+        default:
+          throw new IllegalArgumentException("Not supported content: " + content);
+      }
+    }
+
+    @Override
+    public FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
+
+      if (content != null) {
+        initWriterFunctionAndContext();
+      }
 
       Function<Schema, DatumWriter<?>> writerFunc;
       if (createWriterFunc != null) {
@@ -217,7 +364,9 @@ public class Avro {
           overwrite);
     }
 
-    private static class Context {
+    // supposed to always be a private method used strictly by data and delete write builders
+    // package-protected because of inheritance until deprecation of the WriteBuilder
+    static class Context {
       private final CodecFactory codec;
 
       private Context(CodecFactory codec) {
@@ -288,14 +437,29 @@ public class Avro {
     }
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use ObjectModelRegistry.writerBuilder
+   *     instead.
+   */
+  @Deprecated
   public static DataWriteBuilder writeData(OutputFile file) {
     return new DataWriteBuilder(file);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use ObjectModelRegistry.writerBuilder
+   *     instead.
+   */
+  @Deprecated
   public static DataWriteBuilder writeData(EncryptedOutputFile file) {
     return new DataWriteBuilder(file.encryptingOutputFile());
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use ObjectModelRegistry.writerBuilder
+   *     instead.
+   */
+  @Deprecated
   public static class DataWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
@@ -388,14 +552,32 @@ public class Avro {
     }
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
+   *     ObjectModelRegistry.positionDeleteWriterBuilder and
+   *     ObjectModelRegistry.equalityDeleteWriterBuilder instead.
+   */
+  @Deprecated
   public static DeleteWriteBuilder writeDeletes(OutputFile file) {
     return new DeleteWriteBuilder(file);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
+   *     ObjectModelRegistry.positionDeleteWriterBuilder and
+   *     ObjectModelRegistry.equalityDeleteWriterBuilder instead.
+   */
+  @Deprecated
   public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
     return new DeleteWriteBuilder(file.encryptingOutputFile());
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
+   *     ObjectModelRegistry.positionDeleteWriterBuilder and
+   *     ObjectModelRegistry.equalityDeleteWriterBuilder instead.
+   */
+  @Deprecated
   public static class DeleteWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
@@ -518,7 +700,7 @@ public class Avro {
       // the appender uses the row schema without extra columns
       appenderBuilder.schema(rowSchema);
       appenderBuilder.createWriterFunc(createWriterFunc);
-      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
+      appenderBuilder.createContextFunc(WriteBuilderImpl.Context::deleteContext);
 
       return new EqualityDeleteWriter<>(
           appenderBuilder.build(),
@@ -560,7 +742,7 @@ public class Avro {
         appenderBuilder.createWriterFunc(ignored -> new PositionDatumWriter());
       }
 
-      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
+      appenderBuilder.createContextFunc(WriteBuilderImpl.Context::deleteContext);
 
       return new PositionDeleteWriter<>(
           appenderBuilder.build(), FileFormat.AVRO, location, spec, partition, keyMetadata);
@@ -629,58 +811,31 @@ public class Avro {
     return new ReadBuilder(file);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the FileAccessFactoryRegistry instead.
+   */
+  @Deprecated
   public static class ReadBuilder implements InternalData.ReadBuilder {
-    private final InputFile file;
-    private final Map<String, String> renames = Maps.newLinkedHashMap();
-    private final Map<Integer, Class<? extends StructLike>> typeMap = Maps.newHashMap();
-    private Class<? extends StructLike> rootType = null;
-    private ClassLoader loader = Thread.currentThread().getContextClassLoader();
-    private NameMapping nameMapping;
-    private boolean reuseContainers = false;
-    private org.apache.iceberg.Schema schema = null;
-    private Function<Schema, DatumReader<?>> createReaderFunc = null;
-    private BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<?>> createReaderBiFunc = null;
-    private Function<org.apache.iceberg.Schema, DatumReader<?>> createResolvingReaderFunc = null;
-
-    @SuppressWarnings("UnnecessaryLambda")
-    private final Function<org.apache.iceberg.Schema, DatumReader<?>> defaultCreateReaderFunc =
-        readSchema -> {
-          GenericAvroReader<?> reader = GenericAvroReader.create(readSchema);
-          reader.setClassLoader(loader);
-          return reader;
-        };
-
-    private Long start = null;
-    private Long length = null;
+    private final ReadBuilderImpl<?, Object> impl;
 
     private ReadBuilder(InputFile file) {
-      Preconditions.checkNotNull(file, "Input file cannot be null");
-      this.file = file;
+      this.impl = new ReadBuilderImpl<>(file);
     }
 
     public ReadBuilder createResolvingReader(
         Function<org.apache.iceberg.Schema, DatumReader<?>> readerFunction) {
-      Preconditions.checkState(
-          createReaderBiFunc == null && createReaderFunc == null,
-          "Cannot set multiple read builder functions");
-      this.createResolvingReaderFunc = readerFunction;
+      impl.createResolvingReader(s -> (DatumReader<Object>) readerFunction.apply(s));
       return this;
     }
 
     public ReadBuilder createReaderFunc(Function<Schema, DatumReader<?>> readerFunction) {
-      Preconditions.checkState(
-          createReaderBiFunc == null && createResolvingReaderFunc == null,
-          "Cannot set multiple read builder functions");
-      this.createReaderFunc = readerFunction;
+      impl.createReaderFunc(s -> (DatumReader<Object>) readerFunction.apply(s));
       return this;
     }
 
     public ReadBuilder createReaderFunc(
         BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<?>> readerFunction) {
-      Preconditions.checkState(
-          createReaderFunc == null && createResolvingReaderFunc == null,
-          "Cannot set multiple read builder functions");
-      this.createReaderBiFunc = readerFunction;
+      impl.createReaderFunc((i, s) -> (DatumReader<Object>) readerFunction.apply(i, s));
       return this;
     }
 
@@ -693,59 +848,197 @@ public class Avro {
      */
     @Override
     public ReadBuilder split(long newStart, long newLength) {
-      this.start = newStart;
-      this.length = newLength;
+      impl.split(newStart, newLength);
       return this;
     }
 
     @Override
     public ReadBuilder project(org.apache.iceberg.Schema projectedSchema) {
-      this.schema = projectedSchema;
+      impl.project(projectedSchema);
       return this;
     }
 
     @Override
     public ReadBuilder reuseContainers() {
-      this.reuseContainers = true;
+      impl.reuseContainers();
       return this;
     }
 
     public ReadBuilder reuseContainers(boolean shouldReuse) {
-      this.reuseContainers = shouldReuse;
+      impl.reuseContainers(shouldReuse);
       return this;
     }
 
     public ReadBuilder rename(String fullName, String newName) {
-      renames.put(fullName, newName);
+      impl.rename(fullName, newName);
       return this;
     }
 
     @Override
     public InternalData.ReadBuilder setRootType(Class<? extends StructLike> rootClass) {
-      this.rootType = rootClass;
+      impl.setRootType(rootClass);
       return this;
     }
 
     @Override
     public InternalData.ReadBuilder setCustomType(
         int fieldId, Class<? extends StructLike> structClass) {
-      typeMap.put(fieldId, structClass);
+      impl.setCustomType(fieldId, structClass);
       return this;
     }
 
     public ReadBuilder withNameMapping(NameMapping newNameMapping) {
-      this.nameMapping = newNameMapping;
+      impl.nameMapping(newNameMapping);
       return this;
     }
 
     public ReadBuilder classLoader(ClassLoader classLoader) {
-      this.loader = classLoader;
+      impl.classLoader(classLoader);
       return this;
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public <D> AvroIterable<D> build() {
+      return (AvroIterable<D>) impl.build();
+    }
+  }
+
+  static class ReadBuilderImpl<B extends ReadBuilderImpl<B, D>, D>
+      implements InternalData.ReadBuilder, org.apache.iceberg.io.ReadBuilder<B, D> {
+    private final InputFile file;
+    private final Map<String, String> renames = Maps.newLinkedHashMap();
+    private final Map<Integer, Class<? extends StructLike>> typeMap = Maps.newHashMap();
+    private Long start = null;
+    private Long length = null;
+    private Class<? extends StructLike> rootType = null;
+    private ClassLoader loader = Thread.currentThread().getContextClassLoader();
+    private NameMapping nameMapping;
+    private boolean reuseContainers = false;
+    private org.apache.iceberg.Schema schema = null;
+    private Function<Schema, DatumReader<D>> createReaderFunc = null;
+    private BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<D>> createReaderBiFunc = null;
+    private Function<org.apache.iceberg.Schema, DatumReader<D>> createResolvingReaderFunc = null;
+    private BiFunction<org.apache.iceberg.Schema, Map<Integer, ?>, DatumReader<D>> readerFunction;
+    private Map<Integer, ?> constantFieldAccessors = ImmutableMap.of();
+
+    @SuppressWarnings("UnnecessaryLambda")
+    private final Function<org.apache.iceberg.Schema, DatumReader<D>> defaultCreateReaderFunc =
+        readSchema -> {
+          GenericAvroReader<D> reader = GenericAvroReader.create(readSchema);
+          reader.setClassLoader(loader);
+          return reader;
+        };
+
+    ReadBuilderImpl(InputFile file) {
+      Preconditions.checkNotNull(file, "Input file cannot be null");
+      this.file = file;
+    }
+
+    private B createResolvingReader(
+        Function<org.apache.iceberg.Schema, DatumReader<D>> newReaderFunction) {
+      Preconditions.checkState(
+          createReaderBiFunc == null && createReaderFunc == null && readerFunction == null,
+          "Cannot set multiple read builder functions");
+      this.createResolvingReaderFunc = newReaderFunction;
+      return (B) this;
+    }
+
+    private B createReaderFunc(Function<Schema, DatumReader<D>> newReaderFunction) {
+      Preconditions.checkState(
+          createReaderBiFunc == null && createResolvingReaderFunc == null && readerFunction == null,
+          "Cannot set multiple read builder functions");
+      this.createReaderFunc = newReaderFunction;
+      return (B) this;
+    }
+
+    private B createReaderFunc(
+        BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<D>> newReaderFunction) {
+      Preconditions.checkState(
+          createReaderFunc == null && createResolvingReaderFunc == null && readerFunction == null,
+          "Cannot set multiple read builder functions");
+      this.createReaderBiFunc = newReaderFunction;
+      return (B) this;
+    }
+
+    B readerFunction(
+        BiFunction<org.apache.iceberg.Schema, Map<Integer, ?>, DatumReader<D>> newReaderFunction) {
+      Preconditions.checkState(
+          createReaderBiFunc == null
+              && createReaderFunc == null
+              && createResolvingReaderFunc == null,
+          "Cannot set multiple read builder functions");
+      this.readerFunction = newReaderFunction;
+      return (B) this;
+    }
+
+    @Override
+    public B split(long newStart, long newLength) {
+      this.start = newStart;
+      this.length = newLength;
+      return (B) this;
+    }
+
+    @Override
+    public B project(org.apache.iceberg.Schema projectedSchema) {
+      this.schema = projectedSchema;
+      return (B) this;
+    }
+
+    @Override
+    public B set(String key, String value) {
+      // Configuration is not used for Avro reader creation
+      return (B) this;
+    }
+
+    @Override
+    public B reuseContainers() {
+      this.reuseContainers = true;
+      return (B) this;
+    }
+
+    private B reuseContainers(boolean shouldReuse) {
+      this.reuseContainers = shouldReuse;
+      return (B) this;
+    }
+
+    @Override
+    public B constantFieldAccessors(Map<Integer, ?> newConstantFieldAccessors) {
+      this.constantFieldAccessors = newConstantFieldAccessors;
+      return (B) this;
+    }
+
+    private B rename(String fullName, String newName) {
+      renames.put(fullName, newName);
+      return (B) this;
+    }
+
+    @Override
+    public B setRootType(Class<? extends StructLike> rootClass) {
+      this.rootType = rootClass;
+      return (B) this;
+    }
+
+    @Override
+    public B setCustomType(int fieldId, Class<? extends StructLike> structClass) {
+      typeMap.put(fieldId, structClass);
+      return (B) this;
+    }
+
+    @Override
+    public B nameMapping(NameMapping newNameMapping) {
+      this.nameMapping = newNameMapping;
+      return (B) this;
+    }
+
+    private B classLoader(ClassLoader classLoader) {
+      this.loader = classLoader;
+      return (B) this;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public AvroIterable<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
 
       if (null == nameMapping) {
@@ -758,11 +1051,13 @@ public class Avro {
             new ProjectionDatumReader<>(
                 avroSchema -> createReaderBiFunc.apply(schema, avroSchema), schema, renames, null);
       } else if (createReaderFunc != null) {
-        reader = new ProjectionDatumReader<>(createReaderFunc, schema, renames, null);
+        reader = new ProjectionDatumReader<>(s -> createReaderFunc.apply(s), schema, renames, null);
       } else if (createResolvingReaderFunc != null) {
-        reader = (DatumReader<D>) createResolvingReaderFunc.apply(schema);
+        reader = createResolvingReaderFunc.apply(schema);
+      } else if (readerFunction != null) {
+        reader = readerFunction.apply(schema, constantFieldAccessors);
       } else {
-        reader = (DatumReader<D>) defaultCreateReaderFunc.apply(schema);
+        reader = defaultCreateReaderFunc.apply(schema);
       }
 
       if (reader instanceof SupportsCustomRecords) {
