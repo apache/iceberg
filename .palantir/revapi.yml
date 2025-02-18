@@ -1449,6 +1449,19 @@ acceptedBreaks:
       - code: "java.class.removed"
         old: "class org.apache.iceberg.data.PartitionStatsHandler"
         justification: "Removing deprecated code for 1.11.0"
+    org.apache.iceberg:iceberg-parquet:
+      - code: "java.method.inheritedMovedToClass"
+        old: "method org.apache.iceberg.InternalData.WriteBuilder org.apache.iceberg.InternalData.WriteBuilder::meta(java.util.Map<java.lang.String,\
+        \ java.lang.String>) @ org.apache.iceberg.parquet.Parquet.WriteBuilder"
+        new: "method org.apache.iceberg.parquet.Parquet.WriteBuilder org.apache.iceberg.parquet.Parquet.WriteBuilder::meta(java.util.Map<java.lang.String,\
+        \ java.lang.String>)"
+        justification: "The implementation is the same"
+      - code: "java.method.returnTypeChangedCovariantly"
+        old: "method org.apache.iceberg.InternalData.WriteBuilder org.apache.iceberg.InternalData.WriteBuilder::meta(java.util.Map<java.lang.String,\
+        \ java.lang.String>) @ org.apache.iceberg.parquet.Parquet.WriteBuilder"
+        new: "method org.apache.iceberg.parquet.Parquet.WriteBuilder org.apache.iceberg.parquet.Parquet.WriteBuilder::meta(java.util.Map<java.lang.String,\
+        \ java.lang.String>)"
+        justification: "The implementation is the same"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

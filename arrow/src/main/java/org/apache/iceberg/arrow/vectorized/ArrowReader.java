@@ -40,13 +40,15 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.formats.FormatModelRegistry;
+import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMappingParser;
-import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.parquet.ParquetFormatModel;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -124,6 +126,18 @@ public class ArrowReader extends CloseableGroup {
   private final int batchSize;
   private final boolean reuseContainers;
 
+  public static void register() {
+    FormatModelRegistry.register(
+        new ParquetFormatModel<>(
+            ColumnarBatch.class,
+            Object.class,
+            (schema, messageType, constantValues, deleteFilter, properties) ->
+                VectorizedCombinedScanIterator.buildReader(
+                    schema,
+                    messageType, /* setArrowValidityVector */
+                    NullCheckingForGet.NULL_CHECKING_ENABLED)));
+  }
+
   /**
    * Create a new instance of the reader.
    *
@@ -196,7 +210,7 @@ public class ArrowReader extends CloseableGroup {
     private final Map<String, InputFile> inputFiles;
     private final Schema expectedSchema;
     private final String nameMapping;
-    private final boolean caseSensitive;
+    private final boolean filterCaseSensitive;
     private final int batchSize;
     private final boolean reuseContainers;
     private CloseableIterator<ColumnarBatch> currentIterator;
@@ -210,8 +224,8 @@ public class ArrowReader extends CloseableGroup {
      * @param nameMapping Mapping from external schema names to Iceberg type IDs.
      * @param io File I/O.
      * @param encryptionManager Encryption manager.
-     * @param caseSensitive If {@code true}, column names are case sensitive. If {@code false},
-     *     column names are not case sensitive.
+     * @param filterCaseSensitive If {@code true}, column names are case-sensitive in the filters.
+     *     If {@code false}, column names are not case-sensitive.
      * @param batchSize Batch size in number of rows. Each Arrow batch contains a maximum of {@code
      *     batchSize} rows.
      * @param reuseContainers If set to {@code false}, every {@link Iterator#next()} call creates
@@ -228,7 +242,7 @@ public class ArrowReader extends CloseableGroup {
         String nameMapping,
         FileIO io,
         EncryptionManager encryptionManager,
-        boolean caseSensitive,
+        boolean filterCaseSensitive,
         int batchSize,
         boolean reuseContainers) {
       List<FileScanTask> fileTasks =
@@ -281,7 +295,7 @@ public class ArrowReader extends CloseableGroup {
       this.currentIterator = CloseableIterator.empty();
       this.expectedSchema = expectedSchema;
       this.nameMapping = nameMapping;
-      this.caseSensitive = caseSensitive;
+      this.filterCaseSensitive = filterCaseSensitive;
       this.batchSize = batchSize;
       this.reuseContainers = reuseContainers;
     }
@@ -324,19 +338,8 @@ public class ArrowReader extends CloseableGroup {
       InputFile location = getInputFile(task);
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
       if (task.file().format() == FileFormat.PARQUET) {
-        Parquet.ReadBuilder builder =
-            Parquet.read(location)
-                .project(expectedSchema)
-                .split(task.start(), task.length())
-                .createBatchedReaderFunc(
-                    fileSchema ->
-                        buildReader(
-                            expectedSchema,
-                            fileSchema, /* setArrowValidityVector */
-                            NullCheckingForGet.NULL_CHECKING_ENABLED))
-                .recordsPerBatch(batchSize)
-                .filter(task.residual())
-                .caseSensitive(caseSensitive);
+        ReadBuilder builder =
+            FormatModelRegistry.readBuilder(FileFormat.PARQUET, ColumnarBatch.class, location);
 
         if (reuseContainers) {
           builder.reuseContainers();
@@ -345,7 +348,14 @@ public class ArrowReader extends CloseableGroup {
           builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
         }
 
-        iter = builder.build();
+        iter =
+            builder
+                .project(expectedSchema)
+                .split(task.start(), task.length())
+                .recordsPerBatch(batchSize)
+                .caseSensitive(filterCaseSensitive)
+                .filter(task.residual())
+                .build();
       } else {
         throw new UnsupportedOperationException(
             "Format: " + task.file().format() + " not supported for batched reads");

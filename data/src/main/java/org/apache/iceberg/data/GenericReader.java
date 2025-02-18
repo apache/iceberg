@@ -22,40 +22,33 @@ import java.io.Serializable;
 import java.util.Map;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.avro.PlannedDataReader;
-import org.apache.iceberg.data.orc.GenericOrcReader;
-import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.formats.FormatModelRegistry;
+import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
 
 class GenericReader implements Serializable {
   private final FileIO io;
   private final Schema tableSchema;
   private final Schema projection;
-  private final boolean caseSensitive;
+  private final boolean filterCaseSensitive;
   private final boolean reuseContainers;
 
   GenericReader(TableScan scan, boolean reuseContainers) {
     this.io = scan.table().io();
     this.tableSchema = scan.table().schema();
     this.projection = scan.schema();
-    this.caseSensitive = scan.isCaseSensitive();
+    this.filterCaseSensitive = scan.isCaseSensitive();
     this.reuseContainers = reuseContainers;
   }
 
@@ -84,7 +77,7 @@ class GenericReader implements Serializable {
       CloseableIterable<Record> records, Schema recordSchema, Expression residual) {
     if (residual != null && residual != Expressions.alwaysTrue()) {
       InternalRecordWrapper wrapper = new InternalRecordWrapper(recordSchema.asStruct());
-      Evaluator filter = new Evaluator(recordSchema.asStruct(), residual, caseSensitive);
+      Evaluator filter = new Evaluator(recordSchema.asStruct(), residual, filterCaseSensitive);
       return CloseableIterable.filter(records, record -> filter.eval(wrapper.wrap(record)));
     }
 
@@ -96,58 +89,19 @@ class GenericReader implements Serializable {
     Map<Integer, ?> partition =
         PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
 
-    switch (task.file().format()) {
-      case AVRO:
-        Avro.ReadBuilder avro =
-            Avro.read(input)
-                .project(fileProjection)
-                .createResolvingReader(schema -> PlannedDataReader.create(schema, partition))
-                .split(task.start(), task.length());
-
-        if (reuseContainers) {
-          avro.reuseContainers();
-        }
-
-        return avro.build();
-
-      case PARQUET:
-        Parquet.ReadBuilder parquet =
-            Parquet.read(input)
-                .project(fileProjection)
-                .createReaderFunc(
-                    fileSchema ->
-                        GenericParquetReaders.buildReader(fileProjection, fileSchema, partition))
-                .split(task.start(), task.length())
-                .caseSensitive(caseSensitive)
-                .filter(task.residual());
-
-        if (reuseContainers) {
-          parquet.reuseContainers();
-        }
-
-        return parquet.build();
-
-      case ORC:
-        Schema projectionWithoutConstantAndMetadataFields =
-            TypeUtil.selectNot(
-                fileProjection, Sets.union(partition.keySet(), MetadataColumns.metadataFieldIds()));
-        ORC.ReadBuilder orc =
-            ORC.read(input)
-                .project(projectionWithoutConstantAndMetadataFields)
-                .createReaderFunc(
-                    fileSchema ->
-                        GenericOrcReader.buildReader(fileProjection, fileSchema, partition))
-                .split(task.start(), task.length())
-                .caseSensitive(caseSensitive)
-                .filter(task.residual());
-
-        return orc.build();
-
-      default:
-        throw new UnsupportedOperationException(
-            String.format(
-                "Cannot read %s file: %s", task.file().format().name(), task.file().location()));
+    ReadBuilder builder =
+        FormatModelRegistry.readBuilder(task.file().format(), Record.class, input);
+    if (reuseContainers) {
+      builder = builder.reuseContainers();
     }
+
+    return builder
+        .project(fileProjection)
+        .constantValues(partition)
+        .split(task.start(), task.length())
+        .caseSensitive(filterCaseSensitive)
+        .filter(task.residual())
+        .build();
   }
 
   private class CombinedTaskIterable extends CloseableGroup implements CloseableIterable<Record> {
