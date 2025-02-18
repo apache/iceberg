@@ -29,8 +29,14 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.BaseFileWriterFactory;
+import org.apache.iceberg.data.RegistryBasedFileWriterFactory;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.DeleteSchemaUtil;
+import org.apache.iceberg.io.datafile.AppenderBuilder;
+import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
+import org.apache.iceberg.io.datafile.DataWriterBuilder;
+import org.apache.iceberg.io.datafile.EqualityDeleteWriterBuilder;
+import org.apache.iceberg.io.datafile.PositionDeleteWriterBuilder;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -44,10 +50,7 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 
-class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
-  private StructType dataSparkType;
-  private StructType equalityDeleteSparkType;
-  private StructType positionDeleteSparkType;
+class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow, StructType> {
   private final Map<String, String> writeProperties;
 
   SparkFileWriterFactory(
@@ -68,17 +71,28 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
     super(
         table,
         dataFileFormat,
+        InternalRow.class.getName(),
         dataSchema,
         dataSortOrder,
         deleteFileFormat,
         equalityFieldIds,
         equalityDeleteRowSchema,
         equalityDeleteSortOrder,
-        positionDeleteRowSchema);
-
-    this.dataSparkType = dataSparkType;
-    this.equalityDeleteSparkType = equalityDeleteSparkType;
-    this.positionDeleteSparkType = positionDeleteSparkType;
+        positionDeleteRowSchema,
+        writeProperties,
+        dataSparkType == null
+            ? dataSchema == null ? null : SparkSchemaUtil.convert(dataSchema)
+            : dataSparkType,
+        equalityDeleteSparkType == null
+            ? equalityDeleteRowSchema == null
+                ? null
+                : SparkSchemaUtil.convert(equalityDeleteRowSchema)
+            : equalityDeleteSparkType,
+        positionDeleteSparkType == null
+            ? positionDeleteRowSchema == null
+                ? null
+                : SparkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(positionDeleteRowSchema))
+            : positionDeleteSparkType);
     this.writeProperties = writeProperties != null ? writeProperties : ImmutableMap.of();
   }
 
@@ -88,23 +102,23 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
 
   @Override
   protected void configureDataWrite(Avro.DataWriteBuilder builder) {
-    builder.createWriterFunc(ignored -> new SparkAvroWriter(dataSparkType()));
+    builder.createWriterFunc(ignored -> new SparkAvroWriter(rowSchemaType()));
     builder.setAll(writeProperties);
   }
 
   @Override
   protected void configureEqualityDelete(Avro.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(ignored -> new SparkAvroWriter(equalityDeleteSparkType()));
+    builder.createWriterFunc(ignored -> new SparkAvroWriter(equalityDeleteRowSchemaType()));
     builder.setAll(writeProperties);
   }
 
   @Override
   protected void configurePositionDelete(Avro.DeleteWriteBuilder builder) {
     boolean withRow =
-        positionDeleteSparkType().getFieldIndex(DELETE_FILE_ROW_FIELD_NAME).isDefined();
+        positionDeleteRowSchemaType().getFieldIndex(DELETE_FILE_ROW_FIELD_NAME).isDefined();
     if (withRow) {
       // SparkAvroWriter accepts just the Spark type of the row ignoring the path and pos
-      StructField rowField = positionDeleteSparkType().apply(DELETE_FILE_ROW_FIELD_NAME);
+      StructField rowField = positionDeleteRowSchemaType().apply(DELETE_FILE_ROW_FIELD_NAME);
       StructType positionDeleteRowSparkType = (StructType) rowField.dataType();
       builder.createWriterFunc(ignored -> new SparkAvroWriter(positionDeleteRowSparkType));
     }
@@ -114,21 +128,21 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
 
   @Override
   protected void configureDataWrite(Parquet.DataWriteBuilder builder) {
-    builder.createWriterFunc(msgType -> SparkParquetWriters.buildWriter(dataSparkType(), msgType));
+    builder.createWriterFunc(msgType -> SparkParquetWriters.buildWriter(rowSchemaType(), msgType));
     builder.setAll(writeProperties);
   }
 
   @Override
   protected void configureEqualityDelete(Parquet.DeleteWriteBuilder builder) {
     builder.createWriterFunc(
-        msgType -> SparkParquetWriters.buildWriter(equalityDeleteSparkType(), msgType));
+        msgType -> SparkParquetWriters.buildWriter(equalityDeleteRowSchemaType(), msgType));
     builder.setAll(writeProperties);
   }
 
   @Override
   protected void configurePositionDelete(Parquet.DeleteWriteBuilder builder) {
     builder.createWriterFunc(
-        msgType -> SparkParquetWriters.buildWriter(positionDeleteSparkType(), msgType));
+        msgType -> SparkParquetWriters.buildWriter(positionDeleteRowSchemaType(), msgType));
     builder.transformPaths(path -> UTF8String.fromString(path.toString()));
     builder.setAll(writeProperties);
   }
@@ -150,35 +164,6 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
     builder.createWriterFunc(SparkOrcWriter::new);
     builder.transformPaths(path -> UTF8String.fromString(path.toString()));
     builder.setAll(writeProperties);
-  }
-
-  private StructType dataSparkType() {
-    if (dataSparkType == null) {
-      Preconditions.checkNotNull(dataSchema(), "Data schema must not be null");
-      this.dataSparkType = SparkSchemaUtil.convert(dataSchema());
-    }
-
-    return dataSparkType;
-  }
-
-  private StructType equalityDeleteSparkType() {
-    if (equalityDeleteSparkType == null) {
-      Preconditions.checkNotNull(
-          equalityDeleteRowSchema(), "Equality delete schema must not be null");
-      this.equalityDeleteSparkType = SparkSchemaUtil.convert(equalityDeleteRowSchema());
-    }
-
-    return equalityDeleteSparkType;
-  }
-
-  private StructType positionDeleteSparkType() {
-    if (positionDeleteSparkType == null) {
-      // wrap the optional row schema into the position delete schema containing path and position
-      Schema positionDeleteSchema = DeleteSchemaUtil.posDeleteSchema(positionDeleteRowSchema());
-      this.positionDeleteSparkType = SparkSchemaUtil.convert(positionDeleteSchema);
-    }
-
-    return positionDeleteSparkType;
   }
 
   static class Builder {
@@ -291,6 +276,120 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
           positionDeleteRowSchema,
           positionDeleteSparkType,
           writeProperties);
+    }
+  }
+
+  public static class AvroWriterService
+      implements DataFileServiceRegistry.WriterService<StructType> {
+    @Override
+    public DataFileServiceRegistry.Key key() {
+      return new DataFileServiceRegistry.Key(FileFormat.AVRO, InternalRow.class.getName());
+    }
+
+    @Override
+    public AppenderBuilder appenderBuilder(EncryptedOutputFile outputFile, StructType rowType) {
+      return Avro.write(outputFile).createWriterFunc(ignore -> new SparkAvroWriter(rowType));
+    }
+
+    @Override
+    public DataWriterBuilder dataWriterBuilder(EncryptedOutputFile outputFile, StructType rowType) {
+      return Avro.writeData(outputFile.encryptingOutputFile())
+          .createWriterFunc(ignore -> new SparkAvroWriter(rowType));
+    }
+
+    @Override
+    public EqualityDeleteWriterBuilder<?> equalityDeleteWriterBuilder(
+        EncryptedOutputFile outputFile, StructType rowType) {
+      return Avro.writeDeletes(outputFile.encryptingOutputFile())
+          .createWriterFunc(ignore -> new SparkAvroWriter(rowType));
+    }
+
+    @Override
+    public PositionDeleteWriterBuilder<?> positionDeleteWriterBuilder(
+        EncryptedOutputFile outputFile, StructType rowType) {
+      Avro.DeleteWriteBuilder builder = Avro.writeDeletes(outputFile.encryptingOutputFile());
+      boolean withRow =
+          rowType != null && rowType.getFieldIndex(DELETE_FILE_ROW_FIELD_NAME).isDefined();
+      if (withRow) {
+        // SparkAvroWriter accepts just the Spark type of the row ignoring the path and pos
+        StructField rowField = rowType.apply(DELETE_FILE_ROW_FIELD_NAME);
+        StructType positionDeleteRowSparkType = (StructType) rowField.dataType();
+        builder.createWriterFunc(ignored -> new SparkAvroWriter(positionDeleteRowSparkType));
+      } else {
+        builder.createWriterFunc(ignore -> new SparkAvroWriter(rowType));
+      }
+
+      return builder;
+    }
+  }
+
+  public static class ORCWriterService
+      implements DataFileServiceRegistry.WriterService<StructType> {
+    @Override
+    public DataFileServiceRegistry.Key key() {
+      return new DataFileServiceRegistry.Key(FileFormat.ORC, InternalRow.class.getName());
+    }
+
+    @Override
+    public AppenderBuilder appenderBuilder(EncryptedOutputFile outputFile, StructType rowType) {
+      return ORC.write(outputFile).createWriterFunc(SparkOrcWriter::new);
+    }
+
+    @Override
+    public DataWriterBuilder dataWriterBuilder(EncryptedOutputFile outputFile, StructType rowType) {
+      return ORC.writeData(outputFile.encryptingOutputFile()).createWriterFunc(SparkOrcWriter::new);
+    }
+
+    @Override
+    public EqualityDeleteWriterBuilder<?> equalityDeleteWriterBuilder(
+        EncryptedOutputFile outputFile, StructType rowType) {
+      return ORC.writeDeletes(outputFile.encryptingOutputFile())
+          .transformPaths(path -> UTF8String.fromString(path.toString()))
+          .createWriterFunc(SparkOrcWriter::new);
+    }
+
+    @Override
+    public PositionDeleteWriterBuilder<?> positionDeleteWriterBuilder(
+        EncryptedOutputFile outputFile, StructType rowType) {
+      return ORC.writeDeletes(outputFile.encryptingOutputFile())
+          .transformPaths(path -> UTF8String.fromString(path.toString()))
+          .createWriterFunc(SparkOrcWriter::new);
+    }
+  }
+
+  public static class ParquetWriterService
+      implements DataFileServiceRegistry.WriterService<StructType> {
+    @Override
+    public DataFileServiceRegistry.Key key() {
+      return new DataFileServiceRegistry.Key(FileFormat.PARQUET, InternalRow.class.getName());
+    }
+
+    @Override
+    public AppenderBuilder appenderBuilder(EncryptedOutputFile outputFile, StructType rowType) {
+      return Parquet.write(outputFile)
+          .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(rowType, msgType));
+    }
+
+    @Override
+    public DataWriterBuilder dataWriterBuilder(EncryptedOutputFile outputFile, StructType rowType) {
+      return Parquet.writeData(outputFile.encryptingOutputFile())
+          .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(rowType, msgType));
+    }
+
+    @Override
+    public EqualityDeleteWriterBuilder<?> equalityDeleteWriterBuilder(
+        EncryptedOutputFile outputFile, StructType rowType) {
+      return Parquet.writeDeletes(outputFile.encryptingOutputFile())
+          .transformPaths(path -> UTF8String.fromString(path.toString()))
+          .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(rowType, msgType));
+    }
+
+    @Override
+    public PositionDeleteWriterBuilder<?> positionDeleteWriterBuilder(
+        EncryptedOutputFile outputFile, StructType rowType) {
+      return Parquet.writeDeletes(outputFile.encryptingOutputFile())
+          .transformPaths(path -> UTF8String.fromString(path.toString()))
+          .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(rowType, msgType));
     }
   }
 }
