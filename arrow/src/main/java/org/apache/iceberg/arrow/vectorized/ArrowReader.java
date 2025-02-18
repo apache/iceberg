@@ -45,6 +45,8 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
+import org.apache.iceberg.io.datafile.ReaderBuilder;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
@@ -322,16 +324,10 @@ public class ArrowReader extends CloseableGroup {
       InputFile location = getInputFile(task);
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
       if (task.file().format() == FileFormat.PARQUET) {
-        Parquet.ReadBuilder builder =
-            Parquet.read(location)
-                .project(expectedSchema)
+        ReaderBuilder builder =
+            DataFileServiceRegistry.read(
+                    FileFormat.PARQUET, ColumnarBatch.class.getName(), location, expectedSchema)
                 .split(task.start(), task.length())
-                .createBatchedReaderFunc(
-                    fileSchema ->
-                        buildReader(
-                            expectedSchema,
-                            fileSchema, /* setArrowValidityVector */
-                            NullCheckingForGet.NULL_CHECKING_ENABLED))
                 .recordsPerBatch(batchSize)
                 .filter(task.residual())
                 .caseSensitive(caseSensitive);
@@ -386,6 +382,29 @@ public class ArrowReader extends CloseableGroup {
                   setArrowValidityVector,
                   ImmutableMap.of(),
                   ArrowBatchReader::new));
+    }
+  }
+
+  public static class ReaderService implements DataFileServiceRegistry.ReaderService {
+    @Override
+    public DataFileServiceRegistry.Key key() {
+      return new DataFileServiceRegistry.Key(FileFormat.PARQUET, ColumnarBatch.class.getName());
+    }
+
+    @Override
+    public ReaderBuilder builder(
+        InputFile inputFile,
+        Schema readSchema,
+        Map<Integer, ?> idToConstant,
+        org.apache.iceberg.io.datafile.DeleteFilter<?> deleteFilter) {
+      return Parquet.read(inputFile)
+          .project(readSchema)
+          .createBatchedReaderFunc(
+              fileSchema ->
+                  VectorizedCombinedScanIterator.buildReader(
+                      readSchema,
+                      fileSchema, /* setArrowValidityVector */
+                      NullCheckingForGet.NULL_CHECKING_ENABLED));
     }
   }
 }
