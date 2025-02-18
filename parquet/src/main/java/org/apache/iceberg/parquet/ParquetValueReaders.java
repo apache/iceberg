@@ -900,14 +900,6 @@ public class ParquetValueReaders {
     private final TripleIterator<?> column;
     private final List<TripleIterator<?>> children;
 
-    /**
-     * @deprecated will be removed in 1.9.0; use {@link #StructReader(List)} instead.
-     */
-    @Deprecated
-    protected StructReader(List<Type> types, List<ParquetValueReader<?>> readers) {
-      this(readers);
-    }
-
     protected StructReader(List<ParquetValueReader<?>> readers) {
       this.readers =
           (ParquetValueReader<?>[]) Array.newInstance(ParquetValueReader.class, readers.size());
