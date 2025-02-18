@@ -129,9 +129,9 @@ public class TestInclusiveMetricsEvaluator {
           Row.of(),
           50,
           // any value counts, including nulls
-          ImmutableMap.of(3, 20L),
+          ImmutableMap.of(3, 50L),
           // null value counts
-          ImmutableMap.of(3, 2L),
+          ImmutableMap.of(3, 0L),
           // nan value counts
           null,
           // lower bounds
@@ -145,9 +145,9 @@ public class TestInclusiveMetricsEvaluator {
           Row.of(),
           50,
           // any value counts, including nulls
-          ImmutableMap.of(3, 20L),
+          ImmutableMap.of(3, 50L),
           // null value counts
-          ImmutableMap.of(3, 2L),
+          ImmutableMap.of(3, 0L),
           // nan value counts
           null,
           // lower bounds
@@ -161,15 +161,31 @@ public class TestInclusiveMetricsEvaluator {
           Row.of(),
           50,
           // any value counts, including nulls
-          ImmutableMap.of(3, 20L),
+          ImmutableMap.of(3, 50L),
           // null value counts
-          ImmutableMap.of(3, 2L),
+          ImmutableMap.of(3, 0L),
           // nan value counts
           null,
           // lower bounds
           ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
           // upper bounds
           ImmutableMap.of(3, toByteBuffer(StringType.get(), "イロハニホヘト")));
+
+  private static final DataFile FILE_5 =
+      new TestDataFile(
+          "file_4.avro",
+          Row.of(),
+          50,
+          // any value counts, including nulls
+          ImmutableMap.of(3, 50L),
+          // null value counts
+          ImmutableMap.of(3, 0L),
+          // nan value counts
+          null,
+          // lower bounds
+          ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
+          // upper bounds
+          ImmutableMap.of(3, toByteBuffer(StringType.get(), "abcdefghi")));
 
   @Test
   public void testAllNulls() {
@@ -731,6 +747,14 @@ public class TestInclusiveMetricsEvaluator {
         new InclusiveMetricsEvaluator(SCHEMA, notStartsWith("required", aboveMax), true)
             .eval(FILE_4);
     assertThat(shouldRead).as("Should read: range matches").isTrue();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, notStartsWith("required", "abc"), true).eval(FILE_5);
+    assertThat(shouldRead).as("Should not read: all strings start with prefix").isFalse();
+
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, notStartsWith("required", "abcd"), true).eval(FILE_5);
+    assertThat(shouldRead).as("Should not read: lower shorter than prefix, cannot match").isTrue();
   }
 
   @Test
