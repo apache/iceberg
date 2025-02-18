@@ -133,6 +133,11 @@ public class TableMetadata implements Serializable {
     int freshSortOrderId = sortOrder.isUnsorted() ? sortOrder.orderId() : INITIAL_SORT_ORDER_ID;
     SortOrder freshSortOrder = freshSortOrder(freshSortOrderId, freshSchema, sortOrder);
 
+    // configure row lineage using table properties
+    Boolean rowLineage =
+        PropertyUtil.propertyAsBoolean(
+            properties, TableProperties.ROW_LINEAGE, DEFAULT_ROW_LINEAGE);
+
     // Validate the metrics configuration. Note: we only do this on new tables to we don't
     // break existing tables.
     MetricsConfig.fromProperties(properties).validateReferencedColumns(schema);
@@ -146,6 +151,7 @@ public class TableMetadata implements Serializable {
         .setDefaultSortOrder(freshSortOrder)
         .setLocation(location)
         .setProperties(properties)
+        .setRowLineage(rowLineage)
         .build();
   }
 

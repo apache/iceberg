@@ -26,6 +26,7 @@ import java.io.File;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
@@ -303,6 +304,20 @@ public class TestRowLineageMetadata {
 
     // No-op
     table.updateProperties().set(TableProperties.ROW_LINEAGE, "true").commit();
+    assertThat(table.ops().current().rowLineageEnabled()).isTrue();
+  }
+
+  @TestTemplate
+  public void testEnableRowLineageViaPropertyAtTableCreation() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+
+    TestTables.TestTable table =
+        TestTables.create(
+            tableDir,
+            "test",
+            TEST_SCHEMA,
+            ImmutableMap.of(TableProperties.ROW_LINEAGE, "true"),
+            formatVersion);
     assertThat(table.ops().current().rowLineageEnabled()).isTrue();
   }
 
