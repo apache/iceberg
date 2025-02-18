@@ -19,7 +19,6 @@
 package org.apache.iceberg.io.datafile;
 
 import java.io.IOException;
-import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 
 /** Builder API for creating {@link PositionDeleteWriter}s. */
