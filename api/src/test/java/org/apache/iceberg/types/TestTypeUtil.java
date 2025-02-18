@@ -665,9 +665,9 @@ public class TestTypeUtil {
   @MethodSource("testTypes")
   public void testAssignIdsWithType(Type testType) {
     Types.StructType sourceType =
-        Types.StructType.of(required(0, "id", IntegerType.get()), required(1, "data", testType));
+        Types.StructType.of(required(0, "id", IntegerType.get()), optional(1, "data", testType));
     Type expectedType =
-        Types.StructType.of(required(10, "id", IntegerType.get()), required(11, "data", testType));
+        Types.StructType.of(required(10, "id", IntegerType.get()), optional(11, "data", testType));
 
     Type assignedType = TypeUtil.assignIds(sourceType, oldId -> oldId + 10);
     assertThat(assignedType).isEqualTo(expectedType);
@@ -676,20 +676,20 @@ public class TestTypeUtil {
   @ParameterizedTest
   @MethodSource("testTypes")
   public void testAssignFreshIdsWithType(Type testType) {
-    Schema schema = new Schema(required(0, "id", IntegerType.get()), required(1, "data", testType));
+    Schema schema = new Schema(required(0, "id", IntegerType.get()), optional(1, "data", testType));
 
     Schema assignedSchema = TypeUtil.assignFreshIds(schema, new AtomicInteger(10)::incrementAndGet);
     Schema expectedSchema =
-        new Schema(required(11, "id", IntegerType.get()), required(12, "data", testType));
+        new Schema(required(11, "id", IntegerType.get()), optional(12, "data", testType));
     assertThat(assignedSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
   }
 
   @ParameterizedTest
   @MethodSource("testTypes")
   public void testReassignIdsWithType(Type testType) {
-    Schema schema = new Schema(required(0, "id", IntegerType.get()), required(1, "data", testType));
+    Schema schema = new Schema(required(0, "id", IntegerType.get()), optional(1, "data", testType));
     Schema sourceSchema =
-        new Schema(required(1, "id", IntegerType.get()), required(2, "data", testType));
+        new Schema(required(1, "id", IntegerType.get()), optional(2, "data", testType));
 
     Schema reassignedSchema = TypeUtil.reassignIds(schema, sourceSchema);
     assertThat(reassignedSchema.asStruct()).isEqualTo(sourceSchema.asStruct());
@@ -698,7 +698,7 @@ public class TestTypeUtil {
   @ParameterizedTest
   @MethodSource("testTypes")
   public void testIndexByIdWithType(Type testType) {
-    Schema schema = new Schema(required(0, "id", IntegerType.get()), required(1, "data", testType));
+    Schema schema = new Schema(required(0, "id", IntegerType.get()), optional(1, "data", testType));
 
     Map<Integer, Types.NestedField> indexByIds = TypeUtil.indexById(schema.asStruct());
     assertThat(indexByIds.get(1).type()).isEqualTo(testType);
@@ -707,7 +707,7 @@ public class TestTypeUtil {
   @ParameterizedTest
   @MethodSource("testTypes")
   public void testIndexNameByIdWithType(Type testType) {
-    Schema schema = new Schema(required(0, "id", IntegerType.get()), required(1, "data", testType));
+    Schema schema = new Schema(required(0, "id", IntegerType.get()), optional(1, "data", testType));
 
     Map<Integer, String> indexNameByIds = TypeUtil.indexNameById(schema.asStruct());
     assertThat(indexNameByIds.get(1)).isEqualTo("data");
@@ -716,9 +716,9 @@ public class TestTypeUtil {
   @ParameterizedTest
   @MethodSource("testTypes")
   public void testProjectWithType(Type testType) {
-    Schema schema = new Schema(required(0, "id", IntegerType.get()), required(1, "data", testType));
+    Schema schema = new Schema(required(0, "id", IntegerType.get()), optional(1, "data", testType));
 
-    Schema expectedSchema = new Schema(required(1, "data", testType));
+    Schema expectedSchema = new Schema(optional(1, "data", testType));
     Schema projectedSchema = TypeUtil.project(schema, Sets.newHashSet(1));
     assertThat(projectedSchema.asStruct()).isEqualTo(expectedSchema.asStruct());
   }
@@ -726,7 +726,7 @@ public class TestTypeUtil {
   @ParameterizedTest
   @MethodSource("testTypes")
   public void testGetProjectedIdsWithType(Type testType) {
-    Schema schema = new Schema(required(0, "id", IntegerType.get()), required(1, "data", testType));
+    Schema schema = new Schema(required(0, "id", IntegerType.get()), optional(1, "data", testType));
 
     Set<Integer> projectedIds = TypeUtil.getProjectedIds(schema);
     assertThat(Set.of(0, 1)).isEqualTo(projectedIds);
@@ -735,10 +735,10 @@ public class TestTypeUtil {
   @ParameterizedTest
   @MethodSource("testTypes")
   public void testReassignDocWithType(Type testType) {
-    Schema schema = new Schema(required(0, "id", IntegerType.get()), required(1, "data", testType));
+    Schema schema = new Schema(required(0, "id", IntegerType.get()), optional(1, "data", testType));
     Schema docSourceSchema =
         new Schema(
-            required(0, "id", IntegerType.get(), "id"), required(1, "data", testType, "data"));
+            required(0, "id", IntegerType.get(), "id"), optional(1, "data", testType, "data"));
 
     Schema reassignedSchema = TypeUtil.reassignDoc(schema, docSourceSchema);
     assertThat(reassignedSchema.asStruct()).isEqualTo(docSourceSchema.asStruct());
