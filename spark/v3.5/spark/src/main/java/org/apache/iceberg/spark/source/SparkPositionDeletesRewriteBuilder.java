@@ -21,11 +21,10 @@ package org.apache.iceberg.spark.source;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.PositionDeletesScanTask;
+import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
@@ -118,11 +117,8 @@ public class SparkPositionDeletesRewriteBuilder implements WriteBuilder {
   }
 
   private Table underlyingTable(Table metadataTable) {
-    if (metadataTable instanceof SerializableTable.SerializableMetadataTable) {
-      return underlyingTable(
-          ((SerializableTable.SerializableMetadataTable) metadataTable).underlyingTable());
-    } else if (metadataTable instanceof BaseMetadataTable) {
-      return ((BaseMetadataTable) metadataTable).table();
+    if (metadataTable instanceof PositionDeletesTable) {
+      return ((PositionDeletesTable) metadataTable).table();
     }
 
     return metadataTable;
