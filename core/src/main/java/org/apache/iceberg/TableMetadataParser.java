@@ -216,11 +216,9 @@ public class TableMetadataParser {
     // write properties map
     JsonUtil.writeStringMap(PROPERTIES, metadata.properties(), generator);
 
-    if (metadata.currentSnapshot() != null) {
-      generator.writeNumberField(CURRENT_SNAPSHOT_ID, metadata.currentSnapshot().snapshotId());
-    } else {
-      generator.writeNullField(CURRENT_SNAPSHOT_ID);
-    }
+    generator.writeNumberField(
+        CURRENT_SNAPSHOT_ID,
+        metadata.currentSnapshot() != null ? metadata.currentSnapshot().snapshotId() : -1);
 
     if (metadata.rowLineageEnabled()) {
       generator.writeBooleanField(ROW_LINEAGE, metadata.rowLineageEnabled());
