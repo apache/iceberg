@@ -153,9 +153,11 @@ subprojects {
           '-Xep:UnicodeEscape:ERROR',
           // Palantir's UnnecessarilyQualified may throw during analysis
           '-Xep:UnnecessarilyQualified:OFF',
+          '-Xep:UnnecessaryLambdaArgumentParentheses:ERROR',
           '-Xep:UnnecessaryLongToIntConversion:ERROR',
           '-Xep:UnnecessaryMethodReference:ERROR',
           '-Xep:UnusedMethod:ERROR',
+          '-Xep:UnusedTypeParameter:ERROR',
           '-Xep:UnusedVariable:ERROR',
           '-Xep:UseEnumSwitch:ERROR',
       )

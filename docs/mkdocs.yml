@@ -58,6 +58,7 @@ nav:
   - Presto: https://prestodb.io/docs/current/connector/iceberg.html
   - Dremio: https://docs.dremio.com/data-formats/apache-iceberg/
   - Starrocks: https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog
+  - Amoro: amoro.md
   - Amazon Athena: https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg.html
   - Amazon EMR: https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-use-cluster.html
   - Amazon Data Firehose: https://docs.aws.amazon.com/firehose/latest/dev/apache-iceberg-destination.html
