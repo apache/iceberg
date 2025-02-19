@@ -976,9 +976,9 @@ CALL catalog_name.system.compute_table_stats(table => 'my_table', snapshot_id =>
 
 ## Table Replication
 
-The `rewrite-table-path` procedure prepares an Iceberg table for copying to another location.
+The `rewrite_table_path` procedure prepares an Iceberg table for copying to another location.
 
-### `rewrite-table-path`
+### `rewrite_table_path`
 
 Stages a copy of the Iceberg table's metadata files where every absolute path source prefix is replaced by the specified target prefix.  
 This can be the starting point to fully or incrementally copy an Iceberg table to a new location.
@@ -993,18 +993,15 @@ This can be the starting point to fully or incrementally copy an Iceberg table t
 | `source_prefix`    | ✔️        |                                                | string | The existing prefix to be replaced                                     |
 | `target_prefix`    | ✔️        |                                                | string | The replacement prefix for `source_prefix`                             |
 | `start_version`    |           | first metadata.json in table's metadata log    | string | The name or path of the chronologically first metadata.json to rewrite |
-| `end_version`      |           | latest metadata.json                           | string | The name or path of the chronologically last metadata.json to rewrite  |
-| `staging_location` |           | new directory under table's metadata directory | string | The output location for newly modified metadata files                  |
+| `end_version`      |           | latest metadata.json in table's metadata log   | string | The name or path of the chronologically last metadata.json to rewrite  |
+| `staging_location` |           | new directory under table's metadata directory | string | The output location for newly rewritten metadata files                 |
 
 
 #### Modes of operation
 
-* Full Rewrite: 
-A full rewrite will rewrite all reachable metadata files
-(this includes metadata.json, manifest lists, manifests, and position delete files), and will return all reachable files in the `file_list_location`. This is the default mode of operation for this procedure.
+* Full Rewrite: A full rewrite will rewrite all reachable metadata files (this includes metadata.json, manifest lists, manifests, and position delete files), and will return all reachable files in the `file_list_location`. This is the default mode of operation for this procedure.
 
-* Incremental Rewrite: 
-An incremental rewrite will only rewrite metadata files added between `start_version` and `end_version`, and will only return files added in this range in the `file_list_location`. Optional `start_version` and `end_version` can be provided to limit the scope of this procedure.
+* Incremental Rewrite: An incremental rewrite will only rewrite metadata files added between `start_version` and `end_version`, and will only return files added in this range in the `file_list_location`. Optionally, `start_version` and `end_version` can be provided to limit the scope of this procedure.
 
 
 #### Output
@@ -1033,8 +1030,8 @@ stagingpath/manifest.avro,targetpath/manifest.avro
 
 #### Examples
 
-This example fully rewrites path of `my_table` from source location in HDFS to a target location in S3.
-It will produce a new set of metadata in the default staging location under table's metadata directory.
+This example fully rewrites metadata paths of `my_table` from source location in HDFS to a target location in S3.
+It will produce a new set of metadata in the default staging location under the table's metadata directory.
 
 ```sql
 CALL catalog_name.system.rewrite_table_path(
@@ -1044,7 +1041,7 @@ CALL catalog_name.system.rewrite_table_path(
 );
 ```
 
-This example incrementally rewrites path of `my_table` between metadata versions `v2.metadata.json` and `v20.metadata.json`,
+This example incrementally rewrites metadata paths of `my_table` between metadata versions `v2.metadata.json` and `v20.metadata.json`,
 with new metadata files written to an explicit staging location.
 
 ```sql
