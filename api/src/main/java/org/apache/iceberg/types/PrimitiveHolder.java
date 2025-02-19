@@ -21,7 +21,7 @@ package org.apache.iceberg.types;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 
-/** Replacement for primitive types in Java Serialization. */
+/** Replacement for primitive types and Variant type in Java Serialization. */
 class PrimitiveHolder implements Serializable {
   private String typeAsString = null;
 
