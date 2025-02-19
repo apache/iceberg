@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ImmutableGenericPartitionStatisticsFile;
@@ -157,9 +158,13 @@ public class PartitionStatsHandler {
   static PartitionStatisticsFile writePartitionStatsFile(
       Table table, long snapshotId, Schema dataSchema, Iterable<PartitionStats> records)
       throws IOException {
-    OutputFile outputFile = newPartitionStatsFile(table, snapshotId);
+    FileFormat fileFormat =
+        FileFormat.fromString(
+            table.properties().getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT));
 
-    try (DataWriter<StructLike> writer = dataWriter(dataSchema, outputFile)) {
+    OutputFile outputFile = newPartitionStatsFile(table, fileFormat, snapshotId);
+
+    try (DataWriter<StructLike> writer = dataWriter(dataSchema, outputFile, fileFormat)) {
       records.iterator().forEachRemaining(writer::write);
     }
 
@@ -188,13 +193,12 @@ public class PartitionStatsHandler {
     return format;
   }
 
-  private static OutputFile newPartitionStatsFile(Table table, long snapshotId) {
+  private static OutputFile newPartitionStatsFile(
+      Table table, FileFormat fileFormat, long snapshotId) {
     Preconditions.checkArgument(
         table instanceof HasTableOperations,
         "Table must have operations to retrieve metadata location");
-    FileFormat fileFormat =
-        FileFormat.fromString(
-            table.properties().getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT));
+
     return table
         .io()
         .newOutputFile(
@@ -202,12 +206,12 @@ public class PartitionStatsHandler {
                 .operations()
                 .metadataFileLocation(
                     fileFormat.addExtension(
-                        String.format(Locale.ROOT, "partition-stats-%d", snapshotId))));
+                        String.format(
+                            Locale.ROOT, "partition-stats-%d-%s", snapshotId, UUID.randomUUID()))));
   }
 
-  private static DataWriter<StructLike> dataWriter(Schema dataSchema, OutputFile outputFile)
-      throws IOException {
-    FileFormat fileFormat = fileFormat(outputFile.location());
+  private static DataWriter<StructLike> dataWriter(
+      Schema dataSchema, OutputFile outputFile, FileFormat fileFormat) throws IOException {
     switch (fileFormat) {
       case PARQUET:
         return Parquet.writeData(outputFile)
