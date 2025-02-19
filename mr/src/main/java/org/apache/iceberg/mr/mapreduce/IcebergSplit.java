@@ -25,7 +25,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.mr.InputFormatConfig;
@@ -74,10 +73,7 @@ public class IcebergSplit extends InputSplit
     // getLocations() won't be accurate when called on worker nodes and will always return "*"
     if (locations == null && conf != null) {
       boolean localityPreferred = conf.getBoolean(InputFormatConfig.LOCALITY, false);
-      locations =
-          localityPreferred
-              ? Util.blockLocations((ScanTaskGroup<FileScanTask>) task, conf)
-              : ANYWHERE.clone();
+      locations = localityPreferred ? Util.blockLocations(task, conf) : ANYWHERE.clone();
     } else {
       locations = ANYWHERE.clone();
     }
