@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import org.apache.flink.configuration.ConfigOption;
@@ -125,7 +126,10 @@ public class FlinkDynamicTableFactory
       String databaseName,
       String tableName) {
     Configuration flinkConf = new Configuration();
-    tableProps.forEach(flinkConf::setString);
+
+    Map<String, String> mergedProps = mergeSrcCatalogProps(tableProps);
+
+    mergedProps.forEach(flinkConf::setString);
 
     String catalogName = flinkConf.getString(FlinkCreateTableOptions.CATALOG_NAME);
     Preconditions.checkNotNull(
@@ -143,7 +147,7 @@ public class FlinkDynamicTableFactory
     org.apache.hadoop.conf.Configuration hadoopConf = FlinkCatalogFactory.clusterHadoopConf();
     FlinkCatalogFactory factory = new FlinkCatalogFactory();
     FlinkCatalog flinkCatalog =
-        (FlinkCatalog) factory.createCatalog(catalogName, tableProps, hadoopConf);
+        (FlinkCatalog) factory.createCatalog(catalogName, mergedProps, hadoopConf);
     ObjectPath objectPath = new ObjectPath(catalogDatabase, catalogTable);
 
     // Create database if not exists in the external catalog.
@@ -176,6 +180,33 @@ public class FlinkDynamicTableFactory
 
     return TableLoader.fromCatalog(
         flinkCatalog.getCatalogLoader(), TableIdentifier.of(catalogDatabase, catalogTable));
+  }
+
+  private static Map<String, String> mergeSrcCatalogProps(Map<String, String> tableProps) {
+    String srcCatalogProps = tableProps.get(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY);
+    if (srcCatalogProps != null) {
+      Map<String, String> mergedProps = Maps.newHashMap();
+      FlinkCreateTableOptions createTableOptions =
+          FlinkCreateTableOptions.fromJson(srcCatalogProps);
+
+      mergedProps.put(FlinkCreateTableOptions.CATALOG_NAME.key(), createTableOptions.catalog_name);
+      mergedProps.put(
+          FlinkCreateTableOptions.CATALOG_DATABASE.key(), createTableOptions.catalog_db);
+      mergedProps.put(
+          FlinkCreateTableOptions.CATALOG_TABLE.key(), createTableOptions.catalog_table);
+      mergedProps.putAll(createTableOptions.catalog_props);
+
+      tableProps.forEach(
+          (k, v) -> {
+            if (!FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY.equals(k)) {
+              mergedProps.put(k, v);
+            }
+          });
+
+      return Collections.unmodifiableMap(mergedProps);
+    }
+
+    return tableProps;
   }
 
   private static TableLoader createTableLoader(FlinkCatalog catalog, ObjectPath objectPath) {

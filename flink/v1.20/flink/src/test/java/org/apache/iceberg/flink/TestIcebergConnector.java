@@ -256,6 +256,43 @@ public class TestIcebergConnector extends TestBase {
         .hasMessageStartingWith("Could not execute CreateTable in path");
   }
 
+  @TestTemplate
+  public void testConnectorTableInIcebergCatalog() {
+    // Create the catalog properties
+    Map<String, String> catalogProps = Maps.newHashMap();
+    catalogProps.put("type", "iceberg");
+    if (isHiveCatalog()) {
+      catalogProps.put("catalog-type", "hive");
+      catalogProps.put(CatalogProperties.URI, CatalogTestBase.getURI(hiveConf));
+    } else {
+      catalogProps.put("catalog-type", "hadoop");
+    }
+    catalogProps.put(CatalogProperties.WAREHOUSE_LOCATION, createWarehouse());
+
+    // Create the table properties
+    Map<String, String> tableProps = createTableProps();
+
+    // Create a connector table in an iceberg catalog.
+    sql("CREATE CATALOG `test_catalog` WITH %s", toWithClause(catalogProps));
+    try {
+      assertThatThrownBy(
+              () ->
+                  sql(
+                      "CREATE TABLE `test_catalog`.`%s`.`%s` (id BIGINT, data STRING) WITH %s",
+                      FlinkCatalogFactory.DEFAULT_DATABASE_NAME,
+                      TABLE_NAME,
+                      toWithClause(tableProps)))
+          .cause()
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage(
+              "Cannot create the table with 'connector'='iceberg' table property in an iceberg catalog, "
+                  + "Please create table with 'connector'='iceberg' property in a non-iceberg catalog or "
+                  + "create table without 'connector'='iceberg' related properties in an iceberg table.");
+    } finally {
+      sql("DROP CATALOG IF EXISTS `test_catalog`");
+    }
+  }
+
   private Map<String, String> createTableProps() {
     Map<String, String> tableProps = Maps.newHashMap(properties);
     tableProps.put("catalog-name", catalogName);

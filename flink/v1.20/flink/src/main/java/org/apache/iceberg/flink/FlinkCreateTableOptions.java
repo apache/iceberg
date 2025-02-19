@@ -18,12 +18,24 @@
  */
 package org.apache.iceberg.flink;
 
+import java.util.Map;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
+import org.apache.iceberg.util.JsonUtil;
 
 public class FlinkCreateTableOptions {
+  String catalog_name;
+  String catalog_db;
+  String catalog_table;
+  Map<String, String> catalog_props;
 
-  private FlinkCreateTableOptions() {}
+  private FlinkCreateTableOptions(
+      String catalog_name, String catalog_db, String catalog_table, Map<String, String> props) {
+    this.catalog_name = catalog_name;
+    this.catalog_db = catalog_db;
+    this.catalog_table = catalog_table;
+    this.catalog_props = props;
+  }
 
   public static final ConfigOption<String> CATALOG_NAME =
       ConfigOptions.key("catalog-name")
@@ -48,4 +60,40 @@ public class FlinkCreateTableOptions {
           .stringType()
           .noDefaultValue()
           .withDescription("Table name managed in the underlying iceberg catalog and database.");
+
+  public static final ConfigOption<Map<String, String>> CATALOG_PROPS =
+      ConfigOptions.key("catalog-props")
+          .mapType()
+          .noDefaultValue()
+          .withDescription("Properties for the underlying catalog for iceberg table.");
+
+  public static final String SRC_CATALOG_PROPS_KEY = "src-catalog";
+
+  static String toJson(
+      String catalog_name, String catalog_db, String catalog_table, Map<String, String> props) {
+    return JsonUtil.generate(
+        gen -> {
+          gen.writeStartObject();
+          gen.writeStringField(CATALOG_NAME.key(), catalog_name);
+          gen.writeStringField(CATALOG_DATABASE.key(), catalog_db);
+          gen.writeStringField(CATALOG_TABLE.key(), catalog_table);
+          JsonUtil.writeStringMap(CATALOG_PROPS.key(), props, gen);
+          gen.writeEndObject();
+        },
+        false);
+  }
+
+  static FlinkCreateTableOptions fromJson(String createTableOptions) {
+    return JsonUtil.parse(
+        createTableOptions,
+        node -> {
+          String catalog_name = JsonUtil.getString(CATALOG_NAME.key(), node);
+          String catalog_db = JsonUtil.getString(CATALOG_DATABASE.key(), node);
+          String catalog_table = JsonUtil.getString(CATALOG_TABLE.key(), node);
+          Map<String, String> catalog_props = JsonUtil.getStringMap(CATALOG_PROPS.key(), node);
+
+          return new FlinkCreateTableOptions(
+              catalog_name, catalog_db, catalog_table, catalog_props);
+        });
+  }
 }

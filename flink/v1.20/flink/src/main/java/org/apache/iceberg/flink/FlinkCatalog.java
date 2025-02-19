@@ -335,15 +335,17 @@ public class FlinkCatalog extends AbstractCatalog {
   public CatalogTable getTable(ObjectPath tablePath)
       throws TableNotExistException, CatalogException {
     Table table = loadIcebergTable(tablePath);
-    Map<String, String> catalogAndTableProps = Maps.newHashMap(catalogProps);
-    catalogAndTableProps.put(FlinkCreateTableOptions.CATALOG_NAME.key(), getName());
-    catalogAndTableProps.put(
-        FlinkCreateTableOptions.CATALOG_DATABASE.key(), tablePath.getDatabaseName());
-    catalogAndTableProps.put(
-        FlinkCreateTableOptions.CATALOG_TABLE.key(), tablePath.getObjectName());
-    catalogAndTableProps.put("connector", FlinkDynamicTableFactory.FACTORY_IDENTIFIER);
-    catalogAndTableProps.putAll(table.properties());
-    return toCatalogTableWithProps(table, catalogAndTableProps);
+
+    String srcCatalogProps =
+        FlinkCreateTableOptions.toJson(
+            getName(), tablePath.getDatabaseName(), tablePath.getObjectName(), catalogProps);
+
+    ImmutableMap.Builder<String, String> mergedProps = ImmutableMap.builder();
+    mergedProps.put("connector", FlinkDynamicTableFactory.FACTORY_IDENTIFIER);
+    mergedProps.put(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY, srcCatalogProps);
+    mergedProps.putAll(table.properties());
+
+    return toCatalogTableWithCustomProps(table, mergedProps.build());
   }
 
   private Table loadIcebergTable(ObjectPath tablePath) throws TableNotExistException {
@@ -395,6 +397,16 @@ public class FlinkCatalog extends AbstractCatalog {
   @Override
   public void createTable(ObjectPath tablePath, CatalogBaseTable table, boolean ignoreIfExists)
       throws CatalogException, TableAlreadyExistException {
+    // Creating Iceberg table using connector is allowed only when table is created using LIKE
+    if (Objects.equals(
+            table.getOptions().get("connector"), FlinkDynamicTableFactory.FACTORY_IDENTIFIER)
+        && table.getOptions().get(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY) == null) {
+      throw new IllegalArgumentException(
+          "Cannot create the table with 'connector'='iceberg' table property in "
+              + "an iceberg catalog, Please create table with 'connector'='iceberg' property in a non-iceberg catalog or "
+              + "create table without 'connector'='iceberg' related properties in an iceberg table.");
+    }
+
     Preconditions.checkArgument(table instanceof ResolvedCatalogTable, "table should be resolved");
     createIcebergTable(tablePath, (ResolvedCatalogTable) table, ignoreIfExists);
   }
@@ -410,7 +422,8 @@ public class FlinkCatalog extends AbstractCatalog {
     for (Map.Entry<String, String> entry : table.getOptions().entrySet()) {
       if ("location".equalsIgnoreCase(entry.getKey())) {
         location = entry.getValue();
-      } else {
+      } else if (!("connector".equalsIgnoreCase(entry.getKey())
+          || FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY.equalsIgnoreCase(entry.getKey()))) {
         properties.put(entry.getKey(), entry.getValue());
       }
     }
@@ -629,7 +642,7 @@ public class FlinkCatalog extends AbstractCatalog {
     return partitionKeysBuilder.build();
   }
 
-  static CatalogTable toCatalogTableWithProps(Table table, Map<String, String> props) {
+  static CatalogTable toCatalogTableWithCustomProps(Table table, Map<String, String> customProps) {
     TableSchema schema = FlinkSchemaUtil.toSchema(table.schema());
     List<String> partitionKeys = toPartitionKeys(table.spec(), table.schema());
 
@@ -638,11 +651,11 @@ public class FlinkCatalog extends AbstractCatalog {
     // CatalogTableImpl to copy a new catalog table.
     // Let's re-loading table from Iceberg catalog when creating source/sink operators.
     // Iceberg does not have Table comment, so pass a null (Default comment value in Flink).
-    return new CatalogTableImpl(schema, partitionKeys, props, null);
+    return new CatalogTableImpl(schema, partitionKeys, customProps, null);
   }
 
   static CatalogTable toCatalogTable(Table table) {
-    return toCatalogTableWithProps(table, table.properties());
+    return toCatalogTableWithCustomProps(table, table.properties());
   }
 
   @Override

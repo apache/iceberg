@@ -162,4 +162,21 @@ public class TestIcebergSourceSql extends TestSqlBase {
         expected,
         SCHEMA_TS);
   }
+
+  /** Test create table using LIKE */
+  @Test
+  public void testFlinkTableUsingLIKE() throws Exception {
+    List<Record> expected = generateExpectedRecords(false);
+    SqlHelpers.sql(
+        getTableEnv(),
+        "create table `default_catalog`.`default_database`.flink_table LIKE iceberg_catalog.`default`.%s",
+        TestFixtures.TABLE);
+
+    // Read from table in flink catalog
+    TestHelpers.assertRecords(
+        SqlHelpers.sql(
+            getTableEnv(), "select * from `default_catalog`.`default_database`.flink_table"),
+        expected,
+        SCHEMA_TS);
+  }
 }
