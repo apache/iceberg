@@ -121,7 +121,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
       throw new UnsupportedOperationException("Cannot read data task.");
     } else {
       ReaderBuilder builder =
-          DataFileServiceRegistry.read(
+          DataFileServiceRegistry.readerBuilder(
                   task.file().format(),
                   RowData.class.getName(),
                   inputFilesDecryptor.getInputFile(task),

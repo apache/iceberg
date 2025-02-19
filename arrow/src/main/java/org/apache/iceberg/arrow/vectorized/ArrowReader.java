@@ -325,7 +325,7 @@ public class ArrowReader extends CloseableGroup {
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
       if (task.file().format() == FileFormat.PARQUET) {
         ReaderBuilder builder =
-            DataFileServiceRegistry.read(
+            DataFileServiceRegistry.readerBuilder(
                     FileFormat.PARQUET, ColumnarBatch.class.getName(), location, expectedSchema)
                 .split(task.start(), task.length())
                 .recordsPerBatch(batchSize)
