@@ -32,11 +32,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
-/**
- * @deprecated since 1.8.0, will be made package-private in 1.9.0
- */
-@Deprecated
-public abstract class BaseParquetWriter<T> {
+abstract class BaseParquetWriter<T> {
 
   @SuppressWarnings("unchecked")
   protected ParquetValueWriter<T> createWriter(MessageType type) {
