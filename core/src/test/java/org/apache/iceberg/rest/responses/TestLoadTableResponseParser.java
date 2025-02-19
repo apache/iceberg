@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest.responses;
 
+import static org.apache.iceberg.TestHelpers.MAX_FORMAT_VERSION;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -34,6 +35,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestLoadTableResponseParser {
+  private static final int FORMAT_V2 = 2;
 
   @Test
   public void nullAndEmptyCheck() {
@@ -59,7 +61,7 @@ public class TestLoadTableResponseParser {
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {2, 3})
+  @ValueSource(ints = {FORMAT_V2, MAX_FORMAT_VERSION})
   public void roundTripSerde(int formatVersion) {
     String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
     TableMetadata metadata =
