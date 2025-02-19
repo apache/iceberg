@@ -68,12 +68,7 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
       Types.NestedField sourceField = schema.findField(sortField.sourceId());
       Type resultType = sortField.transform().getResultType(sourceField.type());
       Types.NestedField transformedField =
-          Types.NestedField.of(
-              sourceField.fieldId(),
-              sourceField.isOptional(),
-              sourceField.name(),
-              resultType,
-              sourceField.doc());
+          Types.NestedField.from(sourceField).ofType(resultType).build();
       transformedFields[i] = transformedField;
     }
   }

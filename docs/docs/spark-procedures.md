@@ -283,7 +283,8 @@ Snapshots that are still referenced by branches or tags won't be removed. By def
 | `deleted_position_delete_files_count` | long | Number of position delete files deleted by this operation |
 | `deleted_equality_delete_files_count` | long | Number of equality delete files deleted by this operation |
 | `deleted_manifest_files_count` | long | Number of manifest files deleted by this operation |
-| `deleted_manifest_lists_count` | long | Number of manifest List files deleted by this operation |
+| `deleted_manifest_lists_count` | long | Number of manifest list files deleted by this operation |
+| `deleted_statistics_files_count` | long | Number of statistics files deleted by this operation |
 
 #### Examples
 
@@ -403,6 +404,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `rewrite-all` | false | Force rewriting of all provided files overriding other options |
 | `max-file-group-size-bytes` | 107374182400 (100GB) | Largest amount of data that should be rewritten in a single file group. The entire rewrite operation is broken down into pieces based on partitioning and within partitions based on size into file-groups.  This helps with breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the cluster. |
 | `delete-file-threshold` | 2147483647 | Minimum number of deletes that needs to be associated with a data file for it to be considered for rewriting |
+| `delete-ratio-threshold` | 0.3 | Minimum deletion ratio that needs to be associated with a data file for it to be considered for rewriting |
 | `output-spec-id` | current partition spec id | Identifier of the output partition spec. Data will be reorganized during the rewrite to align with the output partitioning. |
 | `remove-dangling-deletes` | false | Remove dangling position and equality deletes after rewriting. A delete file is considered dangling if it does not apply to any live data files. Enabling this will generate an additional commit for the removal. |
 
@@ -707,9 +709,9 @@ Add the files from table `db.src_table`, a Hive or Spark table registered in the
 `db.tbl`. Only add files that exist within partitions where `part_col_1` is equal to `A`.
 ```sql
 CALL spark_catalog.system.add_files(
-table => 'db.tbl',
-source_table => 'db.src_tbl',
-partition_filter => map('part_col_1', 'A')
+  table => 'db.tbl',
+  source_table => 'db.src_tbl',
+  partition_filter => map('part_col_1', 'A')
 );
 ```
 
@@ -853,7 +855,7 @@ CALL spark_catalog.system.create_changelog_view(
   table => 'db.tbl',
   options => map('start-snapshot-id','1','end-snapshot-id', '2'),
   identifier_columns => array('id', 'name')
-)
+);
 ```
 
 Once the changelog view is created, you can query the view to see the changes that happened between the snapshots.

@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.apache.iceberg.variants.Variants.PhysicalType;
 import org.junit.jupiter.api.Test;
 
 public class TestSerializedPrimitives {

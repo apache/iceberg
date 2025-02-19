@@ -92,7 +92,7 @@ class GenericReader implements Serializable {
   }
 
   private CloseableIterable<Record> openFile(FileScanTask task, Schema fileProjection) {
-    InputFile input = io.newInputFile(task.file().location());
+    InputFile input = io.newInputFile(task.file());
     Map<Integer, ?> partition =
         PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
 

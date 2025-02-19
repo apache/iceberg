@@ -32,6 +32,7 @@ class SerializedMetadata implements VariantMetadata, Variants.Serialized {
 
   static final ByteBuffer EMPTY_V1_BUFFER =
       ByteBuffer.wrap(new byte[] {0x01, 0x00}).order(ByteOrder.LITTLE_ENDIAN);
+  static final SerializedMetadata EMPTY_V1_METADATA = from(EMPTY_V1_BUFFER);
 
   static SerializedMetadata from(byte[] bytes) {
     return from(ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN));
@@ -63,8 +64,8 @@ class SerializedMetadata implements VariantMetadata, Variants.Serialized {
     this.dataOffset = offsetListOffset + ((1 + dictSize) * offsetSize);
   }
 
-  @VisibleForTesting
-  int dictionarySize() {
+  @Override
+  public int dictionarySize() {
     return dict.length;
   }
 
@@ -109,5 +110,22 @@ class SerializedMetadata implements VariantMetadata, Variants.Serialized {
   @Override
   public ByteBuffer buffer() {
     return metadata;
+  }
+
+  @Override
+  public int sizeInBytes() {
+    return buffer().remaining();
+  }
+
+  @Override
+  public int writeTo(ByteBuffer buffer, int offset) {
+    ByteBuffer value = buffer();
+    VariantUtil.writeBufferAbsolute(buffer, offset, value);
+    return value.remaining();
+  }
+
+  @Override
+  public String toString() {
+    return VariantMetadata.asString(this);
   }
 }

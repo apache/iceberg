@@ -231,16 +231,25 @@ public interface MetadataUpdate extends Serializable {
   }
 
   class SetStatistics implements MetadataUpdate {
-    private final long snapshotId;
     private final StatisticsFile statisticsFile;
 
+    /**
+     * Set statistics for a snapshot.
+     *
+     * @deprecated since 1.8.0, will be removed in 1.9.0 or 2.0.0, use
+     *     SetStatistics(statisticsFile).
+     */
+    @Deprecated
     public SetStatistics(long snapshotId, StatisticsFile statisticsFile) {
-      this.snapshotId = snapshotId;
+      this.statisticsFile = statisticsFile;
+    }
+
+    public SetStatistics(StatisticsFile statisticsFile) {
       this.statisticsFile = statisticsFile;
     }
 
     public long snapshotId() {
-      return snapshotId;
+      return statisticsFile.snapshotId();
     }
 
     public StatisticsFile statisticsFile() {
@@ -249,7 +258,7 @@ public interface MetadataUpdate extends Serializable {
 
     @Override
     public void applyTo(TableMetadata.Builder metadataBuilder) {
-      metadataBuilder.setStatistics(snapshotId, statisticsFile);
+      metadataBuilder.setStatistics(statisticsFile);
     }
   }
 
@@ -515,6 +524,13 @@ public interface MetadataUpdate extends Serializable {
     @Override
     public void applyTo(ViewMetadata.Builder viewMetadataBuilder) {
       viewMetadataBuilder.setCurrentVersionId(versionId);
+    }
+  }
+
+  class EnableRowLineage implements MetadataUpdate {
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.enableRowLineage();
     }
   }
 }

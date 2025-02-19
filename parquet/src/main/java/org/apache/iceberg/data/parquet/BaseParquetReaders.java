@@ -18,38 +18,45 @@
  */
 package org.apache.iceberg.data.parquet;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
+import org.apache.iceberg.parquet.ParquetVariantVisitor;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
+import org.apache.iceberg.parquet.VariantReaderBuilder;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.DateLogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.EnumLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.IntLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.JsonLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.LogicalTypeAnnotationVisitor;
+import org.apache.parquet.schema.LogicalTypeAnnotation.StringLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.TimeLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
+/**
+ * @deprecated since 1.8.0, will be made package-private in 1.9.0
+ */
+@Deprecated
 public abstract class BaseParquetReaders<T> {
   protected BaseParquetReaders() {}
 
@@ -75,6 +82,55 @@ public abstract class BaseParquetReaders<T> {
 
   protected abstract ParquetValueReader<T> createStructReader(
       List<Type> types, List<ParquetValueReader<?>> fieldReaders, Types.StructType structType);
+
+  protected ParquetValueReader<?> fixedReader(ColumnDescriptor desc) {
+    return new GenericParquetReaders.FixedReader(desc);
+  }
+
+  protected ParquetValueReader<?> dateReader(ColumnDescriptor desc) {
+    return new GenericParquetReaders.DateReader(desc);
+  }
+
+  protected ParquetValueReader<?> timeReader(ColumnDescriptor desc) {
+    LogicalTypeAnnotation time = desc.getPrimitiveType().getLogicalTypeAnnotation();
+    Preconditions.checkArgument(
+        time instanceof TimeLogicalTypeAnnotation, "Invalid time logical type: " + time);
+
+    LogicalTypeAnnotation.TimeUnit unit = ((TimeLogicalTypeAnnotation) time).getUnit();
+    switch (unit) {
+      case MICROS:
+        return new GenericParquetReaders.TimeReader(desc);
+      case MILLIS:
+        return new GenericParquetReaders.TimeMillisReader(desc);
+      default:
+        throw new UnsupportedOperationException("Unsupported unit for time: " + unit);
+    }
+  }
+
+  protected ParquetValueReader<?> timestampReader(ColumnDescriptor desc, boolean isAdjustedToUTC) {
+    if (desc.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
+      return new GenericParquetReaders.TimestampInt96Reader(desc);
+    }
+
+    LogicalTypeAnnotation timestamp = desc.getPrimitiveType().getLogicalTypeAnnotation();
+    Preconditions.checkArgument(
+        timestamp instanceof TimestampLogicalTypeAnnotation,
+        "Invalid timestamp logical type: " + timestamp);
+
+    LogicalTypeAnnotation.TimeUnit unit = ((TimestampLogicalTypeAnnotation) timestamp).getUnit();
+    switch (unit) {
+      case MICROS:
+        return isAdjustedToUTC
+            ? new GenericParquetReaders.TimestamptzReader(desc)
+            : new GenericParquetReaders.TimestampReader(desc);
+      case MILLIS:
+        return isAdjustedToUTC
+            ? new GenericParquetReaders.TimestamptzMillisReader(desc)
+            : new GenericParquetReaders.TimestampMillisReader(desc);
+      default:
+        throw new UnsupportedOperationException("Unsupported unit for timestamp: " + unit);
+    }
+  }
 
   protected Object convertConstant(org.apache.iceberg.types.Type type, Object value) {
     return value;
@@ -114,110 +170,85 @@ public abstract class BaseParquetReaders<T> {
     }
   }
 
-  private class LogicalTypeAnnotationParquetValueReaderVisitor
-      implements LogicalTypeAnnotation.LogicalTypeAnnotationVisitor<ParquetValueReader<?>> {
+  private class LogicalTypeReadBuilder
+      implements LogicalTypeAnnotationVisitor<ParquetValueReader<?>> {
 
     private final ColumnDescriptor desc;
     private final org.apache.iceberg.types.Type.PrimitiveType expected;
-    private final PrimitiveType primitive;
 
-    LogicalTypeAnnotationParquetValueReaderVisitor(
-        ColumnDescriptor desc,
-        org.apache.iceberg.types.Type.PrimitiveType expected,
-        PrimitiveType primitive) {
+    LogicalTypeReadBuilder(
+        ColumnDescriptor desc, org.apache.iceberg.types.Type.PrimitiveType expected) {
       this.desc = desc;
       this.expected = expected;
-      this.primitive = primitive;
     }
 
     @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.StringLogicalTypeAnnotation stringLogicalType) {
-      return Optional.of(new ParquetValueReaders.StringReader(desc));
+    public Optional<ParquetValueReader<?>> visit(StringLogicalTypeAnnotation stringLogicalType) {
+      return Optional.of(ParquetValueReaders.strings(desc));
     }
 
     @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.EnumLogicalTypeAnnotation enumLogicalType) {
-      return Optional.of(new ParquetValueReaders.StringReader(desc));
+    public Optional<ParquetValueReader<?>> visit(EnumLogicalTypeAnnotation enumLogicalType) {
+      return Optional.of(ParquetValueReaders.strings(desc));
     }
 
     @Override
     public Optional<ParquetValueReader<?>> visit(DecimalLogicalTypeAnnotation decimalLogicalType) {
-      switch (primitive.getPrimitiveTypeName()) {
-        case BINARY:
-        case FIXED_LEN_BYTE_ARRAY:
-          return Optional.of(
-              new ParquetValueReaders.BinaryAsDecimalReader(desc, decimalLogicalType.getScale()));
-        case INT64:
-          return Optional.of(
-              new ParquetValueReaders.LongAsDecimalReader(desc, decimalLogicalType.getScale()));
-        case INT32:
-          return Optional.of(
-              new ParquetValueReaders.IntegerAsDecimalReader(desc, decimalLogicalType.getScale()));
-        default:
-          throw new UnsupportedOperationException(
-              "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
-      }
+      return Optional.of(ParquetValueReaders.bigDecimals(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueReader<?>> visit(DateLogicalTypeAnnotation dateLogicalType) {
+      return Optional.of(dateReader(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueReader<?>> visit(TimeLogicalTypeAnnotation timeLogicalType) {
+      return Optional.of(timeReader(desc));
     }
 
     @Override
     public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.DateLogicalTypeAnnotation dateLogicalType) {
-      return Optional.of(new DateReader(desc));
+        TimestampLogicalTypeAnnotation timestampLogicalType) {
+      return Optional.of(
+          timestampReader(desc, ((Types.TimestampType) expected).shouldAdjustToUTC()));
     }
 
     @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.TimeLogicalTypeAnnotation timeLogicalType) {
-      if (timeLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS) {
-        return Optional.of(new TimeReader(desc));
-      } else if (timeLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS) {
-        return Optional.of(new TimeMillisReader(desc));
-      }
-
-      return Optional.empty();
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampLogicalType) {
-      if (timestampLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS) {
-        Types.TimestampType tsMicrosType = (Types.TimestampType) expected;
-        return tsMicrosType.shouldAdjustToUTC()
-            ? Optional.of(new TimestamptzReader(desc))
-            : Optional.of(new TimestampReader(desc));
-      } else if (timestampLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS) {
-        Types.TimestampType tsMillisType = (Types.TimestampType) expected;
-        return tsMillisType.shouldAdjustToUTC()
-            ? Optional.of(new TimestamptzMillisReader(desc))
-            : Optional.of(new TimestampMillisReader(desc));
-      }
-
-      return LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(timestampLogicalType);
-    }
-
-    @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogicalType) {
+    public Optional<ParquetValueReader<?>> visit(IntLogicalTypeAnnotation intLogicalType) {
       if (intLogicalType.getBitWidth() == 64) {
+        Preconditions.checkArgument(
+            intLogicalType.isSigned(), "Cannot read UINT64 as a long value");
+
         return Optional.of(new ParquetValueReaders.UnboxedReader<>(desc));
       }
-      return (expected.typeId() == org.apache.iceberg.types.Type.TypeID.LONG)
-          ? Optional.of(new ParquetValueReaders.IntAsLongReader(desc))
-          : Optional.of(new ParquetValueReaders.UnboxedReader<>(desc));
+
+      if (expected.typeId() == TypeID.LONG) {
+        return Optional.of(new ParquetValueReaders.IntAsLongReader(desc));
+      }
+
+      Preconditions.checkArgument(
+          intLogicalType.isSigned() || intLogicalType.getBitWidth() < 32,
+          "Cannot read UINT32 as an int value");
+
+      return Optional.of(new ParquetValueReaders.UnboxedReader<>(desc));
     }
 
     @Override
-    public Optional<ParquetValueReader<?>> visit(
-        LogicalTypeAnnotation.JsonLogicalTypeAnnotation jsonLogicalType) {
-      return Optional.of(new ParquetValueReaders.StringReader(desc));
+    public Optional<ParquetValueReader<?>> visit(JsonLogicalTypeAnnotation jsonLogicalType) {
+      return Optional.of(ParquetValueReaders.strings(desc));
     }
 
     @Override
     public Optional<ParquetValueReader<?>> visit(
         LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonLogicalType) {
-      return Optional.of(new ParquetValueReaders.BytesReader(desc));
+      return Optional.of(ParquetValueReaders.byteBuffers(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueReader<?>> visit(
+        LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
+      return Optional.of(ParquetValueReaders.uuids(desc));
     }
   }
 
@@ -359,10 +390,10 @@ public abstract class BaseParquetReaders<T> {
 
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
 
-      if (primitive.getOriginalType() != null) {
+      if (primitive.getLogicalTypeAnnotation() != null) {
         return primitive
             .getLogicalTypeAnnotation()
-            .accept(new LogicalTypeAnnotationParquetValueReaderVisitor(desc, expected, primitive))
+            .accept(new LogicalTypeReadBuilder(desc, expected))
             .orElseThrow(
                 () ->
                     new UnsupportedOperationException(
@@ -371,160 +402,50 @@ public abstract class BaseParquetReaders<T> {
 
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
-          return new FixedReader(desc);
+          return fixedReader(desc);
         case BINARY:
-          if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.STRING) {
-            return new ParquetValueReaders.StringReader(desc);
+          if (expected.typeId() == TypeID.STRING) {
+            return ParquetValueReaders.strings(desc);
           } else {
-            return new ParquetValueReaders.BytesReader(desc);
+            return ParquetValueReaders.byteBuffers(desc);
           }
         case INT32:
-          if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.LONG) {
-            return new ParquetValueReaders.IntAsLongReader(desc);
+          if (expected.typeId() == TypeID.LONG) {
+            return ParquetValueReaders.intsAsLongs(desc);
           } else {
-            return new ParquetValueReaders.UnboxedReader<>(desc);
+            return ParquetValueReaders.unboxed(desc);
           }
         case FLOAT:
-          if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.DOUBLE) {
-            return new ParquetValueReaders.FloatAsDoubleReader(desc);
+          if (expected.typeId() == TypeID.DOUBLE) {
+            return ParquetValueReaders.floatsAsDoubles(desc);
           } else {
-            return new ParquetValueReaders.UnboxedReader<>(desc);
+            return ParquetValueReaders.unboxed(desc);
           }
         case BOOLEAN:
         case INT64:
         case DOUBLE:
-          return new ParquetValueReaders.UnboxedReader<>(desc);
+          return ParquetValueReaders.unboxed(desc);
         case INT96:
           // Impala & Spark used to write timestamps as INT96 without a logical type. For backwards
           // compatibility we try to read INT96 as timestamps.
-          return new TimestampInt96Reader(desc);
+          return timestampReader(desc, true);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
     }
 
+    @Override
+    public ParquetValueReader<?> variant(Types.VariantType iVariant, ParquetValueReader<?> reader) {
+      return reader;
+    }
+
+    @Override
+    public ParquetVariantVisitor<ParquetValueReader<?>> variantVisitor() {
+      return new VariantReaderBuilder(type, Arrays.asList(currentPath()));
+    }
+
     MessageType type() {
       return type;
-    }
-  }
-
-  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
-  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
-
-  private static class DateReader extends ParquetValueReaders.PrimitiveReader<LocalDate> {
-    private DateReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public LocalDate read(LocalDate reuse) {
-      return EPOCH_DAY.plusDays(column.nextInteger());
-    }
-  }
-
-  private static class TimestampReader extends ParquetValueReaders.PrimitiveReader<LocalDateTime> {
-    private TimestampReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public LocalDateTime read(LocalDateTime reuse) {
-      return EPOCH.plus(column.nextLong(), ChronoUnit.MICROS).toLocalDateTime();
-    }
-  }
-
-  private static class TimestampMillisReader
-      extends ParquetValueReaders.PrimitiveReader<LocalDateTime> {
-    private TimestampMillisReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public LocalDateTime read(LocalDateTime reuse) {
-      return EPOCH.plus(column.nextLong() * 1000, ChronoUnit.MICROS).toLocalDateTime();
-    }
-  }
-
-  private static class TimestampInt96Reader
-      extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
-    private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
-
-    private TimestampInt96Reader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public OffsetDateTime read(OffsetDateTime reuse) {
-      final ByteBuffer byteBuffer =
-          column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
-      final long timeOfDayNanos = byteBuffer.getLong();
-      final int julianDay = byteBuffer.getInt();
-
-      return Instant.ofEpochMilli(TimeUnit.DAYS.toMillis(julianDay - UNIX_EPOCH_JULIAN))
-          .plusNanos(timeOfDayNanos)
-          .atOffset(ZoneOffset.UTC);
-    }
-  }
-
-  private static class TimestamptzReader
-      extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
-    private TimestamptzReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public OffsetDateTime read(OffsetDateTime reuse) {
-      return EPOCH.plus(column.nextLong(), ChronoUnit.MICROS);
-    }
-  }
-
-  private static class TimestamptzMillisReader
-      extends ParquetValueReaders.PrimitiveReader<OffsetDateTime> {
-    private TimestamptzMillisReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public OffsetDateTime read(OffsetDateTime reuse) {
-      return EPOCH.plus(column.nextLong() * 1000, ChronoUnit.MICROS);
-    }
-  }
-
-  private static class TimeMillisReader extends ParquetValueReaders.PrimitiveReader<LocalTime> {
-    private TimeMillisReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public LocalTime read(LocalTime reuse) {
-      return LocalTime.ofNanoOfDay(column.nextLong() * 1000000L);
-    }
-  }
-
-  private static class TimeReader extends ParquetValueReaders.PrimitiveReader<LocalTime> {
-    private TimeReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public LocalTime read(LocalTime reuse) {
-      return LocalTime.ofNanoOfDay(column.nextLong() * 1000L);
-    }
-  }
-
-  private static class FixedReader extends ParquetValueReaders.PrimitiveReader<byte[]> {
-    private FixedReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public byte[] read(byte[] reuse) {
-      if (reuse != null) {
-        column.nextBinary().toByteBuffer().duplicate().get(reuse);
-        return reuse;
-      } else {
-        return column.nextBinary().getBytes();
-      }
     }
   }
 }

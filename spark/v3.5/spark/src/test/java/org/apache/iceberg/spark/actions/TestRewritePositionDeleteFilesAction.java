@@ -1075,49 +1075,49 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
       List<DeleteFile> rewrittenDeletes,
       List<DeleteFile> newDeletes,
       int expectedGroups) {
-    assertThat(rewrittenDeletes.size())
+    assertThat(result.rewrittenDeleteFilesCount())
         .as("Rewritten delete file count")
-        .isEqualTo(result.rewrittenDeleteFilesCount());
+        .isEqualTo(rewrittenDeletes.size());
 
-    assertThat(newDeletes.size())
+    assertThat(result.addedDeleteFilesCount())
         .as("New delete file count")
-        .isEqualTo(result.addedDeleteFilesCount());
+        .isEqualTo(newDeletes.size());
 
-    assertThat(size(rewrittenDeletes))
+    assertThat(result.rewrittenBytesCount())
         .as("Rewritten delete byte count")
-        .isEqualTo(result.rewrittenBytesCount());
+        .isEqualTo(size(rewrittenDeletes));
 
-    assertThat(size(newDeletes)).as("New delete byte count").isEqualTo(result.addedBytesCount());
+    assertThat(result.addedBytesCount()).as("New delete byte count").isEqualTo(size(newDeletes));
 
-    assertThat(expectedGroups).as("Rewrite group count").isEqualTo(result.rewriteResults().size());
+    assertThat(result.rewriteResults()).as("Rewrite group count").hasSize(expectedGroups);
 
-    assertThat(rewrittenDeletes.size())
-        .as("Rewritten delete file count in all groups")
-        .isEqualTo(
+    assertThat(
             result.rewriteResults().stream()
                 .mapToInt(FileGroupRewriteResult::rewrittenDeleteFilesCount)
-                .sum());
+                .sum())
+        .as("Rewritten delete file count in all groups")
+        .isEqualTo(rewrittenDeletes.size());
 
-    assertThat(newDeletes.size())
-        .as("Added delete file count in all groups")
-        .isEqualTo(
+    assertThat(
             result.rewriteResults().stream()
                 .mapToInt(FileGroupRewriteResult::addedDeleteFilesCount)
-                .sum());
+                .sum())
+        .as("Added delete file count in all groups")
+        .isEqualTo(newDeletes.size());
 
-    assertThat(size(rewrittenDeletes))
-        .as("Rewritten delete bytes in all groups")
-        .isEqualTo(
+    assertThat(
             result.rewriteResults().stream()
                 .mapToLong(FileGroupRewriteResult::rewrittenBytesCount)
-                .sum());
+                .sum())
+        .as("Rewritten delete bytes in all groups")
+        .isEqualTo(size(rewrittenDeletes));
 
-    assertThat(size(newDeletes))
-        .as("Added delete bytes in all groups")
-        .isEqualTo(
+    assertThat(
             result.rewriteResults().stream()
                 .mapToLong(FileGroupRewriteResult::addedBytesCount)
-                .sum());
+                .sum())
+        .as("Added delete bytes in all groups")
+        .isEqualTo(size(newDeletes));
   }
 
   private void checkSequenceNumbers(

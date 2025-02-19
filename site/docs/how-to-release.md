@@ -450,8 +450,10 @@ Votes are cast by replying to the release candidate announcement email on the de
 with either `+1`, `0`, or `-1`.
 
 > [ ] +1 Release this as Apache Iceberg {{ icebergVersion }}
-[ ] +0
-[ ] -1 Do not release this because...
+>
+> [ ] +0
+>
+> [ ] -1 Do not release this because...
 
 In addition to your vote, it's customary to specify if your vote is binding or non-binding. Only members
 of the Project Management Committee have formally binding votes. If you're unsure, you can specify that your

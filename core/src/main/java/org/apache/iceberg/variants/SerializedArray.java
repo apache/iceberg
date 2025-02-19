@@ -29,11 +29,11 @@ class SerializedArray extends Variants.SerializedValue implements VariantArray {
   private static final int IS_LARGE = 0b10000;
 
   @VisibleForTesting
-  static SerializedArray from(SerializedMetadata metadata, byte[] bytes) {
+  static SerializedArray from(VariantMetadata metadata, byte[] bytes) {
     return from(metadata, ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN), bytes[0]);
   }
 
-  static SerializedArray from(SerializedMetadata metadata, ByteBuffer value, int header) {
+  static SerializedArray from(VariantMetadata metadata, ByteBuffer value, int header) {
     Preconditions.checkArgument(
         value.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
     Variants.BasicType basicType = VariantUtil.basicType(header);
@@ -42,14 +42,14 @@ class SerializedArray extends Variants.SerializedValue implements VariantArray {
     return new SerializedArray(metadata, value, header);
   }
 
-  private final SerializedMetadata metadata;
+  private final VariantMetadata metadata;
   private final ByteBuffer value;
   private final int offsetSize;
   private final int offsetListOffset;
   private final int dataOffset;
   private final VariantValue[] array;
 
-  private SerializedArray(SerializedMetadata metadata, ByteBuffer value, int header) {
+  private SerializedArray(VariantMetadata metadata, ByteBuffer value, int header) {
     this.metadata = metadata;
     this.value = value;
     this.offsetSize = 1 + ((header & OFFSET_SIZE_MASK) >> OFFSET_SIZE_SHIFT);
@@ -61,8 +61,8 @@ class SerializedArray extends Variants.SerializedValue implements VariantArray {
     this.array = new VariantValue[numElements];
   }
 
-  @VisibleForTesting
-  int numElements() {
+  @Override
+  public int numElements() {
     return array.length;
   }
 
@@ -76,7 +76,7 @@ class SerializedArray extends Variants.SerializedValue implements VariantArray {
           VariantUtil.readLittleEndianUnsigned(
               value, offsetListOffset + (offsetSize * (1 + index)), offsetSize);
       array[index] =
-          Variants.from(metadata, VariantUtil.slice(value, dataOffset + offset, next - offset));
+          Variants.value(metadata, VariantUtil.slice(value, dataOffset + offset, next - offset));
     }
     return array[index];
   }

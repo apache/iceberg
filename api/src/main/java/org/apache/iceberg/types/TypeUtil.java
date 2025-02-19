@@ -616,8 +616,16 @@ public class TypeUtil {
       return null;
     }
 
+    /**
+     * @deprecated will be removed in 2.0.0; use {@link #variant(Types.VariantType)} instead.
+     */
+    @Deprecated
     public T variant() {
-      return null;
+      return variant(Types.VariantType.get());
+    }
+
+    public T variant(Types.VariantType variant) {
+      throw new UnsupportedOperationException("Unsupported type: variant");
     }
 
     public T primitive(Type.PrimitiveType primitive) {
@@ -684,7 +692,7 @@ public class TypeUtil {
         return visitor.map(map, keyResult, valueResult);
 
       case VARIANT:
-        return visitor.variant();
+        return visitor.variant(type.asVariantType());
 
       default:
         return visitor.primitive(type.asPrimitiveType());
@@ -710,6 +718,10 @@ public class TypeUtil {
 
     public T map(Types.MapType map, Supplier<T> keyResult, Supplier<T> valueResult) {
       return null;
+    }
+
+    public T variant(Types.VariantType variant) {
+      throw new UnsupportedOperationException("Unsupported type: variant");
     }
 
     public T primitive(Type.PrimitiveType primitive) {
@@ -787,6 +799,9 @@ public class TypeUtil {
             map,
             new VisitFuture<>(map.keyType(), visitor),
             new VisitFuture<>(map.valueType(), visitor));
+
+      case VARIANT:
+        return visitor.variant(type.asVariantType());
 
       default:
         return visitor.primitive(type.asPrimitiveType());

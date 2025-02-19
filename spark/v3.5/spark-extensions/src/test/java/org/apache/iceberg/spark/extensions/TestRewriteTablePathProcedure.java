@@ -26,6 +26,7 @@ import java.util.List;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.RewriteTablePathUtil;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.spark.sql.AnalysisException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,8 +51,7 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
   public void testRewriteTablePathWithPositionalArgument() {
     String location = targetTableDir.toFile().toURI().toString();
     Table table = validationCatalog.loadTable(tableIdent);
-    String metadataJson =
-        (((HasTableOperations) table).operations()).current().metadataFileLocation();
+    String metadataJson = TableUtil.metadataFileLocation(table);
 
     List<Object[]> result =
         sql(
@@ -72,9 +72,7 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
   @TestTemplate
   public void testRewriteTablePathWithNamedArgument() {
     Table table = validationCatalog.loadTable(tableIdent);
-    String v0Metadata =
-        RewriteTablePathUtil.fileName(
-            (((HasTableOperations) table).operations()).current().metadataFileLocation());
+    String v0Metadata = RewriteTablePathUtil.fileName(TableUtil.metadataFileLocation(table));
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
     String v1Metadata =
         RewriteTablePathUtil.fileName(
@@ -132,9 +130,7 @@ public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
         .hasMessageContaining("Couldn't load table");
 
     Table table = validationCatalog.loadTable(tableIdent);
-    String v0Metadata =
-        RewriteTablePathUtil.fileName(
-            (((HasTableOperations) table).operations()).current().metadataFileLocation());
+    String v0Metadata = RewriteTablePathUtil.fileName(TableUtil.metadataFileLocation(table));
     assertThatThrownBy(
             () ->
                 sql(

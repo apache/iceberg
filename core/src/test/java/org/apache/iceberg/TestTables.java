@@ -53,6 +53,26 @@ public class TestTables {
   }
 
   public static TestTable create(
+      File temp, String name, Schema schema, Map<String, String> properties, int formatVersion) {
+    TestTableOperations ops = new TestTableOperations(name, temp);
+    if (ops.current() != null) {
+      throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
+    }
+
+    ops.commit(
+        null,
+        newTableMetadata(
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            temp.toString(),
+            properties,
+            formatVersion));
+
+    return new TestTable(ops, name);
+  }
+
+  public static TestTable create(
       File temp,
       String name,
       Schema schema,
