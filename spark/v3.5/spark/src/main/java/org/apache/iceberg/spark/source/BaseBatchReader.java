@@ -66,7 +66,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Map<Integer, ?> idToConstant,
       SparkDeleteFilter deleteFilter) {
     ReaderBuilder readerBuilder =
-        DataFileServiceRegistry.read(
+        DataFileServiceRegistry.readerBuilder(
                 format,
                 ColumnarBatch.class.getName(),
                 parquetConf != null ? parquetConf.readerType().name() : null,

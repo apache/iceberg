@@ -56,7 +56,7 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Expression residual,
       Schema projection,
       Map<Integer, ?> idToConstant) {
-    return DataFileServiceRegistry.read(
+    return DataFileServiceRegistry.readerBuilder(
             format, InternalRow.class.getName(), file, projection, idToConstant)
         .reuseContainers()
         .split(start, length)

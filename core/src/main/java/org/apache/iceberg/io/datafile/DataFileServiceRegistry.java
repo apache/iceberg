@@ -79,9 +79,9 @@ public final class DataFileServiceRegistry {
    * @param readSchema to use when reading the data file
    * @return {@link ReaderBuilder} for building the actual reader
    */
-  public static ReaderBuilder read(
+  public static ReaderBuilder readerBuilder(
       FileFormat format, String returnType, InputFile inputFile, Schema readSchema) {
-    return read(format, returnType, null, inputFile, readSchema, ImmutableMap.of(), null);
+    return readerBuilder(format, returnType, null, inputFile, readSchema, ImmutableMap.of(), null);
   }
 
   /**
@@ -94,13 +94,13 @@ public final class DataFileServiceRegistry {
    * @param idToConstant to use for getting value for constant fields
    * @return {@link ReaderBuilder} for building the actual reader
    */
-  public static ReaderBuilder read(
+  public static ReaderBuilder readerBuilder(
       FileFormat format,
       String returnType,
       InputFile inputFile,
       Schema readSchema,
       Map<Integer, ?> idToConstant) {
-    return read(format, returnType, null, inputFile, readSchema, idToConstant, null);
+    return readerBuilder(format, returnType, null, inputFile, readSchema, idToConstant, null);
   }
 
   /**
@@ -116,7 +116,7 @@ public final class DataFileServiceRegistry {
    * @param deleteFilter is used when the delete record filtering is pushed down to the reader
    * @return {@link ReaderBuilder} for building the actual reader
    */
-  public static ReaderBuilder read(
+  public static ReaderBuilder readerBuilder(
       FileFormat format,
       String returnType,
       String builderType,
