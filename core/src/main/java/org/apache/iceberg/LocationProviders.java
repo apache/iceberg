@@ -102,7 +102,8 @@ public class LocationProviders {
     }
 
     private static String dataLocation(Map<String, String> properties, String tableLocation) {
-      String dataLocation = getAndCheckLegacyLocation(properties, TableProperties.WRITE_DATA_LOCATION);
+      String dataLocation =
+          getAndCheckLegacyLocation(properties, TableProperties.WRITE_DATA_LOCATION);
       if (dataLocation == null) {
         dataLocation =
             getAndCheckLegacyLocation(properties, TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
@@ -155,7 +156,8 @@ public class LocationProviders {
     }
 
     private static String dataLocation(Map<String, String> properties, String tableLocation) {
-      String dataLocation = getAndCheckLegacyLocation(properties, TableProperties.WRITE_DATA_LOCATION);
+      String dataLocation =
+          getAndCheckLegacyLocation(properties, TableProperties.WRITE_DATA_LOCATION);
       if (dataLocation == null) {
         dataLocation = getAndCheckLegacyLocation(properties, TableProperties.OBJECT_STORE_PATH);
         if (dataLocation == null) {
