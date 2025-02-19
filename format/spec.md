@@ -1754,6 +1754,10 @@ Snapshot summary can include metrics fields to track numeric stats of the snapsh
 | **`engine-name`**        | "spark"    | Name of the engine that created the snapshot                    |
 | **`engine-version`**     | "3.5.4"    | Version of the engine that created the snapshot                 |
 
+### Encoding of `current-snapshot-id`
+
+For the Java implementation, `-1` has meant "no current snapshot" in the past and is equivalent to missing/null. However, this has never been formalized in the spec. When reading this field, accept `-1` as `null`. For Java, ≥V3 metadata will write `null` instead of `-1` in the case there is no current snapshot.
+
 ## Appendix G: Geospatial Notes
 
 The Geometry and Geography class hierarchy and its Well-known text (WKT) and Well-known binary (WKB) serializations (ISO supporting XY, XYZ, XYM, XYZM) are defined by [OpenGIS Implementation Specification for Geographic information – Simple feature access – Part 1: Common architecture](https://portal.ogc.org/files/?artifact_id=25355), from [OGC (Open Geospatial Consortium)](https://www.ogc.org/standard/sfa/).
