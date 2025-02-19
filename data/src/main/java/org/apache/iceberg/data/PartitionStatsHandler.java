@@ -182,8 +182,10 @@ public class PartitionStatsHandler {
     return CloseableIterable.transform(records, PartitionStatsHandler::recordToPartitionStats);
   }
 
-  private static FileFormat fileFormat(String fileLocation) {
-    return FileFormat.fromString(fileLocation.substring(fileLocation.lastIndexOf(".") + 1));
+  private static FileFormat fileFormat(String fileName) {
+    FileFormat format = FileFormat.fromFileName(fileName);
+    Preconditions.checkArgument(format != null, "Unable to determine format of file: %s", fileName);
+    return format;
   }
 
   private static OutputFile newPartitionStatsFile(Table table, long snapshotId) {
