@@ -28,7 +28,7 @@ import org.apache.iceberg.ContentScanTask;
  *
  * <p>The entire rewrite operation is broken down into pieces. The grouping is based on partitioning
  * and the planning could create multiple groups within a partition. As a result {@link
- * FileRewritePlan} is generated which contains the data need by the {@link FileRewriteExecutor}s
+ * FileRewritePlan} is generated which contains the data need by the {@link FileRewriteRunner}s
  * which execute the actual file rewrite.
  *
  * <p>The lifecycle of the planner is:
@@ -38,25 +38,26 @@ import org.apache.iceberg.ContentScanTask;
  *   <li>{@link #plan()} generates the plan for the given configuration
  * </ul>
  *
- * @param <FGI> the Java type of the plan info like {@link RewriteDataFiles.FileGroupInfo} or {@link
+ * @param <I> the Java type of the plan info like {@link RewriteDataFiles.FileGroupInfo} or {@link
  *     RewritePositionDeleteFiles.FileGroupInfo}
- * @param <T> the Java type of the tasks to read the files which are rewritten
- * @param <F> the Java type of the content files which are rewritten
- * @param <G> the Java type of the planned groups
+ * @param <T> the Java type of the input scan tasks (input)
+ * @param <F> the Java type of the content files (input and output)
+ * @param <G> the Java type of the rewrite file group like {@link RewriteFileGroup} or {@link
+ *     RewritePositionDeletesGroup}
  */
 public interface FileRewritePlanner<
-    FGI,
+    I,
     T extends ContentScanTask<F>,
     F extends ContentFile<F>,
-    G extends FileRewriteGroup<FGI, T, F>> {
+    G extends FileRewriteGroup<I, T, F>> {
 
-  /** Returns a description for this rewriter. */
+  /** Returns a description for this planner. */
   default String description() {
     return getClass().getName();
   }
 
   /**
-   * Returns a set of supported options for this rewriter. Only options specified in this list will
+   * Returns a set of supported options for this planner. Only options specified in this list will
    * be accepted at runtime. Any other options will be rejected.
    */
   Set<String> validOptions();
@@ -64,7 +65,7 @@ public interface FileRewritePlanner<
   /**
    * Initializes this planner using provided options.
    *
-   * @param options options to initialize this rewriter
+   * @param options options to initialize this planner
    */
   void init(Map<String, String> options);
 
@@ -73,5 +74,5 @@ public interface FileRewritePlanner<
    *
    * @return the generated plan which could be executed during the compaction
    */
-  FileRewritePlan<FGI, T, F, G> plan();
+  FileRewritePlan<I, T, F, G> plan();
 }

@@ -25,43 +25,44 @@ import org.apache.iceberg.ContentScanTask;
 
 /**
  * A class for rewriting content file groups ({@link FileRewriteGroup}). The lifecycle for the
- * executor looks like the following:
+ * runner looks like the following:
  *
  * <ul>
- *   <li>{@link #init(Map)} initializes the executor with the configuration parameters
+ *   <li>{@link #init(Map)} initializes the runner with the configuration parameters
  *   <li>{@link #rewrite(FileRewriteGroup)} called for every group in the plan to do the actual
  *       rewrite of the files, and returns the generated new files.
  * </ul>
  *
- * A single executor could be used to rewrite multiple groups for the same plan.
+ * A single runner could be used to rewrite multiple groups for the same plan.
  *
- * @param <FGI> the Java type of the plan info like {@link RewriteDataFiles.FileGroupInfo} or {@link
+ * @param <I> the Java type of the plan info like {@link RewriteDataFiles.FileGroupInfo} or {@link
  *     RewritePositionDeleteFiles.FileGroupInfo}
- * @param <T> the Java type of the tasks to read the files which are rewritten
- * @param <F> the Java type of the content files which are rewritten
- * @param <G> the Java type of the planned groups
+ * @param <T> the Java type of the input scan tasks (input)
+ * @param <F> the Java type of the content files (input and output)
+ * @param <G> the Java type of the rewrite file group like {@link RewriteFileGroup} or {@link
+ *     RewritePositionDeletesGroup}
  */
-public interface FileRewriteExecutor<
-    FGI,
+public interface FileRewriteRunner<
+    I,
     T extends ContentScanTask<F>,
     F extends ContentFile<F>,
-    G extends FileRewriteGroup<FGI, T, F>> {
+    G extends FileRewriteGroup<I, T, F>> {
 
-  /** Returns a description for this rewriter. */
+  /** Returns a description for this runner. */
   default String description() {
     return getClass().getName();
   }
 
   /**
-   * Returns a set of supported options for this rewriter. Only options specified in this list will
-   * be accepted at runtime. Any other options will be rejected.
+   * Returns a set of supported options for this runner. Only options specified in this list will be
+   * accepted at runtime. Any other options will be rejected.
    */
   Set<String> validOptions();
 
   /**
-   * Initializes this rewriter using provided options.
+   * Initializes this runner using provided options.
    *
-   * @param options options to initialize this rewriter
+   * @param options options to initialize this runner
    */
   void init(Map<String, String> options);
 

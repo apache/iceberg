@@ -87,8 +87,8 @@ public class RewriteFileGroup extends FileRewriteGroup<FileGroupInfo, FileScanTa
             "numAddedFiles",
             addedFiles == null ? "Rewrite Incomplete" : Integer.toString(addedFiles.size()))
         .add("numRewrittenBytes", sizeInBytes())
-        .add("writeMaxFileSize", writeMaxFileSize())
-        .add("splitSize", splitSize())
+        .add("maxOutputFileSize", maxOutputFileSize())
+        .add("inputSplitSize", inputSplitSize())
         .add("expectedOutputFiles", expectedOutputFiles())
         .add("outputSpecId", outputSpecId)
         .toString();

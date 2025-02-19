@@ -109,8 +109,8 @@ public class RewritePositionDeletesGroup
                 : Integer.toString(addedDeleteFiles.size()))
         .add("numAddedBytes", addedBytes())
         .add("numRewrittenBytes", rewrittenBytes())
-        .add("writeMaxFileSize", writeMaxFileSize())
-        .add("splitSize", splitSize())
+        .add("maxOutputFileSize", maxOutputFileSize())
+        .add("inputSplitSize", inputSplitSize())
         .add("expectedOutputFiles", expectedOutputFiles())
         .toString();
   }

@@ -23,30 +23,30 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
 
 /**
- * Container class representing a set of files to be rewritten by a {@link FileRewriteExecutor}.
+ * Container class representing a set of files to be rewritten by a {@link FileRewriteRunner}.
  *
  * @param <I> the Java type of the plan info member like {@link RewriteDataFiles.FileGroupInfo} or
  *     {@link RewritePositionDeleteFiles.FileGroupInfo}
- * @param <T> the Java type of the tasks to read the files which are rewritten
- * @param <F> the Java type of the content files which are rewritten
+ * @param <T> the Java type of the input scan tasks (input)
+ * @param <F> the Java type of the content files (input and output)
  */
 public abstract class FileRewriteGroup<I, T extends ContentScanTask<F>, F extends ContentFile<F>> {
   private final I info;
   private final List<T> fileScanTasks;
-  private final long writeMaxFileSize;
-  private final long splitSize;
+  private final long maxOutputFileSize;
+  private final long inputSplitSize;
   private final int expectedOutputFiles;
 
   FileRewriteGroup(
       I info,
       List<T> fileScanTasks,
-      long writeMaxFileSize,
-      long splitSize,
+      long maxOutputFileSize,
+      long inputSplitSize,
       int expectedOutputFiles) {
     this.info = info;
     this.fileScanTasks = fileScanTasks;
-    this.writeMaxFileSize = writeMaxFileSize;
-    this.splitSize = splitSize;
+    this.maxOutputFileSize = maxOutputFileSize;
+    this.inputSplitSize = inputSplitSize;
     this.expectedOutputFiles = expectedOutputFiles;
   }
 
@@ -55,7 +55,7 @@ public abstract class FileRewriteGroup<I, T extends ContentScanTask<F>, F extend
     return info;
   }
 
-  /** Input of the group. {@link ContentScanTask}s to read. */
+  /** Scan tasks for input files. */
   public List<T> fileScans() {
     return fileScanTasks;
   }
@@ -74,8 +74,8 @@ public abstract class FileRewriteGroup<I, T extends ContentScanTask<F>, F extend
    *
    * @return the target size plus one half of the distance between max and target
    */
-  public long writeMaxFileSize() {
-    return writeMaxFileSize;
+  public long maxOutputFileSize() {
+    return maxOutputFileSize;
   }
 
   /**
@@ -83,8 +83,8 @@ public abstract class FileRewriteGroup<I, T extends ContentScanTask<F>, F extend
    * files. The final split size is adjusted to be at least as big as the target file size but less
    * than the max write file size.
    */
-  public long splitSize() {
-    return splitSize;
+  public long inputSplitSize() {
+    return inputSplitSize;
   }
 
   /** Expected number of the output files. */
