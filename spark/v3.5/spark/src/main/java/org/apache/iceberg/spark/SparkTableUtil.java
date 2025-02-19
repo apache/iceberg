@@ -1124,7 +1124,7 @@ public class SparkTableUtil {
     throw new IllegalArgumentException(
         String.format(
             "Cannot find a partition spec in Iceberg table %s that matches the partition"
-                + "columns (%s) in Spark table %s",
+                + " columns (%s) in Spark table %s",
             icebergTable, sparkPartNames, sparkTable));
   }
 }

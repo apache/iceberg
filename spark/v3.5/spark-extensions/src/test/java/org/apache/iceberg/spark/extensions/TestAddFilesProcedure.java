@@ -485,22 +485,9 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s WHERE id < 3 ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
 
-    Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    FileIO io = ((HasTableOperations) table).operations().io();
+    manifestSpecMatchesTableSpec();
 
-    assertThat(
-            table.currentSnapshot().allManifests(io).stream()
-                .map(mf -> ManifestFiles.read(mf, io, null /* force reading spec from file*/))
-                .collect(Collectors.toList()))
-        .allMatch(file -> file.spec().equals(table.spec()));
-
-    // verify manifest file name has uuid pattern
-    String manifestPath = (String) sql("select path from %s.manifests", tableName).get(0)[0];
-
-    Pattern uuidPattern = Pattern.compile("[a-f0-9]{8}(?:-[a-f0-9]{4}){4}[a-f0-9]{8}");
-
-    Matcher matcher = uuidPattern.matcher(manifestPath);
-    assertThat(matcher.find()).as("verify manifest path has uuid").isTrue();
+    verifyUUIDInPath();
   }
 
   @TestTemplate
@@ -521,24 +508,9 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
 
-    Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    FileIO io = ((HasTableOperations) table).operations().io();
+    manifestSpecMatchesTableSpec();
 
-    // Check that the manifest written have the correct partition spec written
-    assertThat(
-            table.currentSnapshot().allManifests(io).stream()
-                .map(mf -> ManifestFiles.read(mf, io, null /* force reading spec from file*/))
-                .map(ManifestReader::spec)
-                .collect(Collectors.toList()))
-        .allSatisfy(spec -> assertThat(spec).isEqualTo(table.spec()));
-
-    // verify manifest file name has uuid pattern
-    String manifestPath = (String) sql("select path from %s.manifests", tableName).get(0)[0];
-
-    Pattern uuidPattern = Pattern.compile("[a-f0-9]{8}(?:-[a-f0-9]{4}){4}[a-f0-9]{8}");
-
-    Matcher matcher = uuidPattern.matcher(manifestPath);
-    assertThat(matcher.find()).as("verify manifest path has uuid").isTrue();
+    verifyUUIDInPath();
   }
 
   @TestTemplate
@@ -1242,5 +1214,28 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
       // the number of changed partitions may not be populated in v2 tables
       assertThat(output[1]).isIn(expectedChangedPartitionCount, null);
     }
+  }
+
+  private void manifestSpecMatchesTableSpec() throws NoSuchTableException, ParseException {
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    FileIO io = ((HasTableOperations) table).operations().io();
+
+    // Check that the manifests have the correct partition spec
+    assertThat(
+            table.currentSnapshot().allManifests(io).stream()
+                .map(mf -> ManifestFiles.read(mf, io, null /* force reading spec from file*/))
+                .map(ManifestReader::spec)
+                .collect(Collectors.toList()))
+        .allSatisfy(spec -> assertThat(spec).isEqualTo(table.spec()));
+  }
+
+  private void verifyUUIDInPath() {
+    // verify manifest file name has uuid pattern
+    String manifestPath = (String) sql("select path from %s.manifests", tableName).get(0)[0];
+
+    Pattern uuidPattern = Pattern.compile("[a-f0-9]{8}(?:-[a-f0-9]{4}){4}[a-f0-9]{8}");
+
+    Matcher matcher = uuidPattern.matcher(manifestPath);
+    assertThat(matcher.find()).as("verify manifest path has uuid").isTrue();
   }
 }
