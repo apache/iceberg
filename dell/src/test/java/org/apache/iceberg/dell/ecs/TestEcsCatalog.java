@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.dell.ecs;
 
+import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -195,10 +196,18 @@ public class TestEcsCatalog {
     ecsCatalog.createTable(identifier, SCHEMA);
     Table registeringTable = ecsCatalog.loadTable(identifier);
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
-    String metadataLocation = ((EcsTableOperations) ops).currentMetadataLocation();
-    assertThatThrownBy(() -> ecsCatalog.registerTable(identifier, metadataLocation))
+    String unpartitionedMetadataLocation = ops.current().metadataFileLocation();
+    // update table spec
+    registeringTable.updateSpec().addField(bucket("id", 16)).commit();
+    assertThat(registeringTable.spec().isPartitioned()).isTrue();
+    // register w/o overwrite
+    assertThatThrownBy(
+            () -> ecsCatalog.registerTable(identifier, unpartitionedMetadataLocation, false))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Table already exists: a.t1");
+    // register with overwrite
+    ecsCatalog.registerTable(identifier, unpartitionedMetadataLocation, true);
+    assertThat(ecsCatalog.loadTable(identifier).spec().isPartitioned()).isFalse();
     assertThat(ecsCatalog.dropTable(identifier, true)).isTrue();
   }
 }

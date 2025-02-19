@@ -1171,6 +1171,16 @@ acceptedBreaks:
         \ java.util.function.Function<T, java.lang.Long>, org.apache.iceberg.io.CloseableIterable<java.lang.Long>,\
         \ java.util.function.Consumer<T>)"
       justification: "Removing deprecated code"
+  "1.8.0":
+    org.apache.iceberg:iceberg-api:
+    - code: "java.method.addedToInterface"
+      new: "method org.apache.iceberg.Table org.apache.iceberg.catalog.SessionCatalog::registerTable(org.apache.iceberg.catalog.SessionCatalog.SessionContext,\
+        \ org.apache.iceberg.catalog.TableIdentifier, java.lang.String, boolean)"
+      justification: "All subclasses implement the new method"
+    org.apache.iceberg:iceberg-core:
+    - code: "java.method.addedToInterface"
+      new: "method java.lang.Boolean org.apache.iceberg.rest.requests.RegisterTableRequest::overwrite()"
+      justification: "All subclasses implement the new method"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

@@ -344,6 +344,22 @@ public interface Catalog {
    * @throws AlreadyExistsException if the table already exists in the catalog.
    */
   default Table registerTable(TableIdentifier identifier, String metadataFileLocation) {
+    return registerTable(
+        identifier, metadataFileLocation, false /* register only if it does not exist */);
+  }
+
+  /**
+   * Register a table with the catalog, optionally overwrite existing table metadata
+   *
+   * @param identifier a table identifier
+   * @param metadataFileLocation the location of a metadata file
+   * @param overwrite if true, overwrite existing table with provided metadata
+   * @return a Table instance
+   * @throws AlreadyExistsException if the table already exists in the catalog and overwrite is
+   *     false.
+   */
+  default Table registerTable(
+      TableIdentifier identifier, String metadataFileLocation, boolean overwrite) {
     throw new UnsupportedOperationException("Registering tables is not supported");
   }
 
