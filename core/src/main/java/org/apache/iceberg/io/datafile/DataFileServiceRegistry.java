@@ -39,34 +39,6 @@ import org.slf4j.LoggerFactory;
  */
 public final class DataFileServiceRegistry {
   private static final Logger LOG = LoggerFactory.getLogger(DataFileServiceRegistry.class);
-  private static final Map<Key, ReaderService> READ_BUILDERS = Maps.newConcurrentMap();
-  private static final Map<Key, WriterService<?>> WRITE_BUILDERS = Maps.newConcurrentMap();
-
-  static {
-    for (ReaderService service : ServiceLoader.load(ReaderService.class)) {
-      if (READ_BUILDERS.containsKey(service.key())) {
-        throw new IllegalArgumentException(
-            String.format(
-                "Read service %s clashes with %s. Both serves %s",
-                service.getClass(), READ_BUILDERS.get(service.key()), service.key()));
-      }
-
-      READ_BUILDERS.putIfAbsent(service.key(), service);
-    }
-
-    for (WriterService<?> service : ServiceLoader.load(WriterService.class)) {
-      if (WRITE_BUILDERS.containsKey(service.key())) {
-        throw new IllegalArgumentException(
-            String.format(
-                "Write service %s clashes with %s. Both serves %s",
-                service.getClass(), WRITE_BUILDERS.get(service.key()), service.key()));
-      }
-
-      WRITE_BUILDERS.putIfAbsent(service.key(), service);
-    }
-
-    LOG.info("DataFileServices found: readers={}, writers={}", READ_BUILDERS, WRITE_BUILDERS);
-  }
 
   private DataFileServiceRegistry() {}
 
@@ -124,8 +96,7 @@ public final class DataFileServiceRegistry {
       Schema readSchema,
       Map<Integer, ?> idToConstant,
       DeleteFilter<?> deleteFilter) {
-    return READ_BUILDERS
-        .get(new Key(format, returnType, builderType))
+    return Registry.readerBuilderFor(format, returnType, builderType)
         .builder(inputFile, readSchema, idToConstant, deleteFilter);
   }
 
@@ -162,7 +133,7 @@ public final class DataFileServiceRegistry {
       String builderType,
       EncryptedOutputFile outputFile,
       S rowType) {
-    return ((WriterService<S>) WRITE_BUILDERS.get(new Key(format, inputType, builderType)))
+    return Registry.writeBuilderFor(format, inputType, builderType)
         .appenderBuilder(outputFile, rowType);
   }
 
@@ -199,7 +170,7 @@ public final class DataFileServiceRegistry {
       String builderType,
       EncryptedOutputFile outputFile,
       S rowType) {
-    return ((WriterService<S>) WRITE_BUILDERS.get(new Key(format, inputType, builderType)))
+    return Registry.writeBuilderFor(format, inputType, builderType)
         .dataWriterBuilder(outputFile, rowType);
   }
 
@@ -238,7 +209,7 @@ public final class DataFileServiceRegistry {
           String builderType,
           EncryptedOutputFile outputFile,
           S rowType) {
-    return ((WriterService<S>) WRITE_BUILDERS.get(new Key(format, inputType, builderType)))
+    return Registry.writeBuilderFor(format, inputType, builderType)
         .equalityDeleteWriterBuilder(outputFile, rowType);
   }
 
@@ -277,8 +248,67 @@ public final class DataFileServiceRegistry {
           String builderType,
           EncryptedOutputFile outputFile,
           S rowType) {
-    return ((WriterService<S>) WRITE_BUILDERS.get(new Key(format, inputType, builderType)))
+    return Registry.writeBuilderFor(format, inputType, builderType)
         .positionDeleteWriterBuilder(outputFile, rowType);
+  }
+
+  /**
+   * Internal class providing the actual registry. This is a separate class to avoid class loader
+   * issues.
+   */
+  private static final class Registry {
+    private static final Map<Key, ReaderService> READ_BUILDERS = Maps.newConcurrentMap();
+    private static final Map<Key, WriterService<?>> WRITE_BUILDERS = Maps.newConcurrentMap();
+
+    static {
+      for (ReaderService service : ServiceLoader.load(ReaderService.class)) {
+        if (READ_BUILDERS.containsKey(service.key())) {
+          throw new IllegalArgumentException(
+              String.format(
+                  "Read service %s clashes with %s. Both serves %s",
+                  service.getClass(), READ_BUILDERS.get(service.key()), service.key()));
+        }
+
+        READ_BUILDERS.putIfAbsent(service.key(), service);
+      }
+
+      for (WriterService<?> service : ServiceLoader.load(WriterService.class)) {
+        if (WRITE_BUILDERS.containsKey(service.key())) {
+          throw new IllegalArgumentException(
+              String.format(
+                  "Write service %s clashes with %s. Both serves %s",
+                  service.getClass(), WRITE_BUILDERS.get(service.key()), service.key()));
+        }
+
+        WRITE_BUILDERS.putIfAbsent(service.key(), service);
+      }
+
+      LOG.info("DataFileServices found: readers={}, writers={}", READ_BUILDERS, WRITE_BUILDERS);
+    }
+
+    private static ReaderService readerBuilderFor(
+        FileFormat format, String inputType, String builderType) {
+      Key key = new Key(format, inputType, builderType);
+      ReaderService service = READ_BUILDERS.get(key);
+      if (service == null) {
+        throw new IllegalArgumentException(
+            String.format("No reader builder registered for key %s", key));
+      }
+
+      return service;
+    }
+
+    private static <S> WriterService<S> writeBuilderFor(
+        FileFormat format, String inputType, String builderType) {
+      Key key = new Key(format, inputType, builderType);
+      WriterService<S> service = (WriterService<S>) WRITE_BUILDERS.get(key);
+      if (service == null) {
+        throw new IllegalArgumentException(
+            String.format("No writer builder registered for key %s", key));
+      }
+
+      return service;
+    }
   }
 
   /**
