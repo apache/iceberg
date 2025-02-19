@@ -30,14 +30,14 @@ import org.apache.iceberg.ContentScanTask;
  * @param <T> the Java type of the input scan tasks (input)
  * @param <F> the Java type of the content files (input and output)
  */
-public abstract class FileRewriteGroup<I, T extends ContentScanTask<F>, F extends ContentFile<F>> {
+public abstract class RewriteGroupBase<I, T extends ContentScanTask<F>, F extends ContentFile<F>> {
   private final I info;
   private final List<T> fileScanTasks;
   private final long maxOutputFileSize;
   private final long inputSplitSize;
   private final int expectedOutputFiles;
 
-  FileRewriteGroup(
+  RewriteGroupBase(
       I info,
       List<T> fileScanTasks,
       long maxOutputFileSize,
@@ -56,8 +56,18 @@ public abstract class FileRewriteGroup<I, T extends ContentScanTask<F>, F extend
   }
 
   /** Scan tasks for input files. */
-  public List<T> fileScans() {
+  public List<T> fileScanTasks() {
     return fileScanTasks;
+  }
+
+  /** Accumulated size for the input files. */
+  public long inputFilesSizeInBytes() {
+    return fileScanTasks.stream().mapToLong(T::length).sum();
+  }
+
+  /** Number of the input files. */
+  public int inputFileNum() {
+    return fileScanTasks.size();
   }
 
   /**
@@ -90,15 +100,5 @@ public abstract class FileRewriteGroup<I, T extends ContentScanTask<F>, F extend
   /** Expected number of the output files. */
   public int expectedOutputFiles() {
     return expectedOutputFiles;
-  }
-
-  /** Accumulated size for the input files. */
-  public long sizeInBytes() {
-    return fileScanTasks.stream().mapToLong(T::length).sum();
-  }
-
-  /** Number of the input files. */
-  public int numFiles() {
-    return fileScanTasks.size();
   }
 }

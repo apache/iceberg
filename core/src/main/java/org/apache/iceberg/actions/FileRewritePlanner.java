@@ -49,7 +49,7 @@ public interface FileRewritePlanner<
     I,
     T extends ContentScanTask<F>,
     F extends ContentFile<F>,
-    G extends FileRewriteGroup<I, T, F>> {
+    G extends RewriteGroupBase<I, T, F>> {
 
   /** Returns a description for this planner. */
   default String description() {

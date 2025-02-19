@@ -24,12 +24,12 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
 
 /**
- * A class for rewriting content file groups ({@link FileRewriteGroup}). The lifecycle for the
+ * A class for rewriting content file groups ({@link RewriteGroupBase}). The lifecycle for the
  * runner looks like the following:
  *
  * <ul>
  *   <li>{@link #init(Map)} initializes the runner with the configuration parameters
- *   <li>{@link #rewrite(FileRewriteGroup)} called for every group in the plan to do the actual
+ *   <li>{@link #rewrite(RewriteGroupBase)} called for every group in the plan to do the actual
  *       rewrite of the files, and returns the generated new files.
  * </ul>
  *
@@ -46,7 +46,7 @@ public interface FileRewriteRunner<
     I,
     T extends ContentScanTask<F>,
     F extends ContentFile<F>,
-    G extends FileRewriteGroup<I, T, F>> {
+    G extends RewriteGroupBase<I, T, F>> {
 
   /** Returns a description for this runner. */
   default String description() {

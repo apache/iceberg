@@ -34,7 +34,7 @@ import org.apache.iceberg.util.DataFileSet;
  * Container class representing a set of files to be rewritten by a RewriteAction and the new files
  * which have been written by the action.
  */
-public class RewriteFileGroup extends FileRewriteGroup<FileGroupInfo, FileScanTask, DataFile> {
+public class RewriteFileGroup extends RewriteGroupBase<FileGroupInfo, FileScanTask, DataFile> {
   private final int outputSpecId;
   private DataFileSet addedFiles = DataFileSet.create();
 
@@ -54,12 +54,20 @@ public class RewriteFileGroup extends FileRewriteGroup<FileGroupInfo, FileScanTa
     this.outputSpecId = outputSpecId;
   }
 
+  /**
+   * @deprecated use {@link #fileScanTasks()}
+   */
+  @Deprecated
+  public List<FileScanTask> fileScans() {
+    return fileScanTasks();
+  }
+
   public void setOutputFiles(Set<DataFile> files) {
     addedFiles = DataFileSet.of(files);
   }
 
   public Set<DataFile> rewrittenFiles() {
-    return fileScans().stream()
+    return fileScanTasks().stream()
         .map(FileScanTask::file)
         .collect(Collectors.toCollection(DataFileSet::create));
   }
@@ -73,8 +81,8 @@ public class RewriteFileGroup extends FileRewriteGroup<FileGroupInfo, FileScanTa
     return ImmutableRewriteDataFiles.FileGroupRewriteResult.builder()
         .info(info())
         .addedDataFilesCount(addedFiles.size())
-        .rewrittenDataFilesCount(fileScans().size())
-        .rewrittenBytesCount(sizeInBytes())
+        .rewrittenDataFilesCount(fileScanTasks().size())
+        .rewrittenBytesCount(inputFilesSizeInBytes())
         .build();
   }
 
@@ -82,16 +90,32 @@ public class RewriteFileGroup extends FileRewriteGroup<FileGroupInfo, FileScanTa
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("info", info())
-        .add("numRewrittenFiles", fileScans().size())
+        .add("numRewrittenFiles", fileScanTasks().size())
         .add(
             "numAddedFiles",
             addedFiles == null ? "Rewrite Incomplete" : Integer.toString(addedFiles.size()))
-        .add("numRewrittenBytes", sizeInBytes())
+        .add("numRewrittenBytes", inputFilesSizeInBytes())
         .add("maxOutputFileSize", maxOutputFileSize())
         .add("inputSplitSize", inputSplitSize())
         .add("expectedOutputFiles", expectedOutputFiles())
         .add("outputSpecId", outputSpecId)
         .toString();
+  }
+
+  /**
+   * @deprecated use {@link #inputFilesSizeInBytes()}
+   */
+  @Deprecated
+  public long sizeInBytes() {
+    return inputFilesSizeInBytes();
+  }
+
+  /**
+   * @deprecated use {@link #inputFileNum()}
+   */
+  @Deprecated
+  public int numFiles() {
+    return inputFileNum();
   }
 
   public int outputSpecId() {
@@ -101,13 +125,14 @@ public class RewriteFileGroup extends FileRewriteGroup<FileGroupInfo, FileScanTa
   public static Comparator<RewriteFileGroup> comparator(RewriteJobOrder rewriteJobOrder) {
     switch (rewriteJobOrder) {
       case BYTES_ASC:
-        return Comparator.comparing(RewriteFileGroup::sizeInBytes);
+        return Comparator.comparing(RewriteFileGroup::inputFilesSizeInBytes);
       case BYTES_DESC:
-        return Comparator.comparing(RewriteFileGroup::sizeInBytes, Comparator.reverseOrder());
+        return Comparator.comparing(
+            RewriteFileGroup::inputFilesSizeInBytes, Comparator.reverseOrder());
       case FILES_ASC:
-        return Comparator.comparing(RewriteFileGroup::numFiles);
+        return Comparator.comparing(RewriteFileGroup::inputFileNum);
       case FILES_DESC:
-        return Comparator.comparing(RewriteFileGroup::numFiles, Comparator.reverseOrder());
+        return Comparator.comparing(RewriteFileGroup::inputFileNum, Comparator.reverseOrder());
       default:
         return (unused, unused2) -> 0;
     }

@@ -46,7 +46,7 @@ public class FileRewritePlan<
     I,
     T extends ContentScanTask<F>,
     F extends ContentFile<F>,
-    G extends FileRewriteGroup<I, T, F>> {
+    G extends RewriteGroupBase<I, T, F>> {
   private final CloseableIterable<G> groups;
   private final int totalGroupCount;
   private final Map<StructLike, Integer> groupsInPartition;
@@ -60,7 +60,7 @@ public class FileRewritePlan<
     this.groupsInPartition = groupsInPartition;
   }
 
-  /** The stream of the generated {@link FileRewriteGroup}s. */
+  /** The stream of the generated {@link RewriteGroupBase}s. */
   public CloseableIterable<G> groups() {
     return groups;
   }

@@ -36,7 +36,7 @@ import org.apache.iceberg.util.DeleteFileSet;
  * RewritePositionDeleteFiles} and the new files which have been written by the action.
  */
 public class RewritePositionDeletesGroup
-    extends FileRewriteGroup<FileGroupInfo, PositionDeletesScanTask, DeleteFile> {
+    extends RewriteGroupBase<FileGroupInfo, PositionDeletesScanTask, DeleteFile> {
   private final long maxRewrittenDataSequenceNumber;
 
   private DeleteFileSet addedDeleteFiles = DeleteFileSet.create();
@@ -59,11 +59,11 @@ public class RewritePositionDeletesGroup
   }
 
   /**
-   * @deprecated use {@link #fileScans()}
+   * @deprecated use {@link #fileScanTasks()}
    */
   @Deprecated
   public List<PositionDeletesScanTask> tasks() {
-    return fileScans();
+    return fileScanTasks();
   }
 
   public void setOutputFiles(Set<DeleteFile> files) {
@@ -75,7 +75,7 @@ public class RewritePositionDeletesGroup
   }
 
   public Set<DeleteFile> rewrittenDeleteFiles() {
-    return fileScans().stream()
+    return fileScanTasks().stream()
         .map(PositionDeletesScanTask::file)
         .collect(Collectors.toCollection(DeleteFileSet::create));
   }
@@ -91,8 +91,8 @@ public class RewritePositionDeletesGroup
     return ImmutableRewritePositionDeleteFiles.FileGroupRewriteResult.builder()
         .info(info())
         .addedDeleteFilesCount(addedDeleteFiles.size())
-        .rewrittenDeleteFilesCount(fileScans().size())
-        .rewrittenBytesCount(rewrittenBytes())
+        .rewrittenDeleteFilesCount(inputFileNum())
+        .rewrittenBytesCount(inputFilesSizeInBytes())
         .addedBytesCount(addedBytes())
         .build();
   }
@@ -101,44 +101,52 @@ public class RewritePositionDeletesGroup
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("info", info())
-        .add("numRewrittenPositionDeleteFiles", fileScans().size())
+        .add("numRewrittenPositionDeleteFiles", fileScanTasks().size())
         .add(
             "numAddedPositionDeleteFiles",
             addedDeleteFiles == null
                 ? "Rewrite Incomplete"
                 : Integer.toString(addedDeleteFiles.size()))
         .add("numAddedBytes", addedBytes())
-        .add("numRewrittenBytes", rewrittenBytes())
+        .add("numRewrittenBytes", inputFilesSizeInBytes())
         .add("maxOutputFileSize", maxOutputFileSize())
         .add("inputSplitSize", inputSplitSize())
         .add("expectedOutputFiles", expectedOutputFiles())
         .toString();
   }
 
+  /**
+   * @deprecated use {@link #inputFilesSizeInBytes()}
+   */
+  @Deprecated
   public long rewrittenBytes() {
-    return fileScans().stream().mapToLong(PositionDeletesScanTask::length).sum();
+    return inputFilesSizeInBytes();
   }
 
   public long addedBytes() {
     return addedDeleteFiles.stream().mapToLong(DeleteFile::fileSizeInBytes).sum();
   }
 
+  /**
+   * @deprecated use {@link #inputFileNum()}
+   */
+  @Deprecated
   public int numRewrittenDeleteFiles() {
-    return fileScans().size();
+    return inputFileNum();
   }
 
   public static Comparator<RewritePositionDeletesGroup> comparator(RewriteJobOrder order) {
     switch (order) {
       case BYTES_ASC:
-        return Comparator.comparing(RewritePositionDeletesGroup::rewrittenBytes);
+        return Comparator.comparing(RewritePositionDeletesGroup::inputFilesSizeInBytes);
       case BYTES_DESC:
         return Comparator.comparing(
-            RewritePositionDeletesGroup::rewrittenBytes, Comparator.reverseOrder());
+            RewritePositionDeletesGroup::inputFilesSizeInBytes, Comparator.reverseOrder());
       case FILES_ASC:
-        return Comparator.comparing(RewritePositionDeletesGroup::numRewrittenDeleteFiles);
+        return Comparator.comparing(RewritePositionDeletesGroup::inputFileNum);
       case FILES_DESC:
         return Comparator.comparing(
-            RewritePositionDeletesGroup::numRewrittenDeleteFiles, Comparator.reverseOrder());
+            RewritePositionDeletesGroup::inputFileNum, Comparator.reverseOrder());
       default:
         return (unused, unused2) -> 0;
     }
