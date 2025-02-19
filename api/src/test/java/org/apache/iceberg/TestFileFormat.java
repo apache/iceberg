@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 
+@SuppressWarnings("unused")
 class TestFileFormat {
 
   private static final Object[][] FILE_NAMES =
@@ -38,6 +39,12 @@ class TestFileFormat {
         {"dir/file.avro", FileFormat.AVRO},
         {"v1.metadata.json", FileFormat.METADATA},
         {"dir/v1.metadata.json", FileFormat.METADATA},
+        // Short file names with format
+        {"x.puffin", FileFormat.PUFFIN},
+        {"x.orc", FileFormat.ORC},
+        {"x.parquet", FileFormat.PARQUET},
+        {"x.avro", FileFormat.AVRO},
+        {"x.metadata.json", FileFormat.METADATA},
         // Unsupported formats
         {"file.csv", null},
         {"dir/file.csv", null},
