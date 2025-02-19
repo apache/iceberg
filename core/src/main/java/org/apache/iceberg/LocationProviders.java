@@ -29,11 +29,8 @@ import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
 import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.PropertyUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class LocationProviders {
-  private static final Logger LOG = LoggerFactory.getLogger(LocationProviders.class);
 
   private LocationProviders() {}
 
@@ -92,10 +89,11 @@ public class LocationProviders {
         if (dataLocation == null) {
           dataLocation = String.format("%s/data", tableLocation);
         } else {
-          LOG.warn(
-              "Property '{}' has been deprecated and will be removed in 2.0, use '{}' instead.",
-              TableProperties.WRITE_FOLDER_STORAGE_LOCATION,
-              TableProperties.WRITE_DATA_LOCATION);
+          throw new UnsupportedOperationException(
+              String.format(
+                  "Property '%s' has been deprecated and will be removed in 2.0, use '%s' instead.",
+                  TableProperties.WRITE_FOLDER_STORAGE_LOCATION,
+                  TableProperties.WRITE_DATA_LOCATION));
         }
       }
       return dataLocation;
@@ -151,16 +149,17 @@ public class LocationProviders {
           if (dataLocation == null) {
             dataLocation = String.format("%s/data", tableLocation);
           } else {
-            LOG.warn(
-                "Property '{}' has been deprecated and will be removed in 2.0, use '{}' instead.",
-                TableProperties.WRITE_FOLDER_STORAGE_LOCATION,
-                TableProperties.WRITE_DATA_LOCATION);
+            throw new UnsupportedOperationException(
+                String.format(
+                    "Property '%s' has been deprecated and will be removed in 2.0, use '%s' instead.",
+                    TableProperties.WRITE_FOLDER_STORAGE_LOCATION,
+                    TableProperties.WRITE_DATA_LOCATION));
           }
         } else {
-          LOG.warn(
-              "Property '{}' has been deprecated and will be removed in 2.0, use '{}' instead.",
-              TableProperties.OBJECT_STORE_PATH,
-              TableProperties.WRITE_DATA_LOCATION);
+          throw new UnsupportedOperationException(
+              String.format(
+                  "Property '%s' has been deprecated and will be removed in 2.0, use '%s' instead.",
+                  TableProperties.OBJECT_STORE_PATH, TableProperties.WRITE_DATA_LOCATION));
         }
       }
       return dataLocation;
