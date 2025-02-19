@@ -283,7 +283,7 @@ public class Parquet {
       return this;
     }
 
-    private <T> void setBloomFilterConfig(
+    private void setBloomFilterConfig(
         Context context,
         MessageType parquetSchema,
         BiConsumer<String, Boolean> withBloomFilterEnabled,
@@ -1291,7 +1291,7 @@ public class Parquet {
         } else {
           Function<MessageType, ParquetValueReader<?>> readBuilder =
               readerFuncWithSchema != null
-                  ? (fileType) -> readerFuncWithSchema.apply(schema, fileType)
+                  ? fileType -> readerFuncWithSchema.apply(schema, fileType)
                   : readerFunc;
           return new org.apache.iceberg.parquet.ParquetReader<>(
               file, schema, options, readBuilder, mapping, filter, reuseContainers, caseSensitive);
