@@ -18,8 +18,11 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import static org.apache.iceberg.spark.Spark3Util.getInferredSpec;
+
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -51,6 +54,7 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import scala.collection.JavaConverters;
 
 class AddFilesProcedure extends BaseProcedure {
 
@@ -64,8 +68,6 @@ class AddFilesProcedure extends BaseProcedure {
       ProcedureParameter.optional("check_duplicate_files", DataTypes.BooleanType);
   private static final ProcedureParameter PARALLELISM =
       ProcedureParameter.optional("parallelism", DataTypes.IntegerType);
-  private static final ProcedureParameter PARTITION_SPEC_VERSION_PARAM =
-      ProcedureParameter.optional("partition_spec_version", DataTypes.IntegerType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -73,8 +75,7 @@ class AddFilesProcedure extends BaseProcedure {
         SOURCE_TABLE_PARAM,
         PARTITION_FILTER_PARAM,
         CHECK_DUPLICATE_FILES_PARAM,
-        PARALLELISM,
-        PARTITION_SPEC_VERSION_PARAM
+        PARALLELISM
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -123,15 +124,8 @@ class AddFilesProcedure extends BaseProcedure {
 
     int parallelism = input.asInt(PARALLELISM, 1);
 
-    Integer partitionSpecVersion = input.asInt(PARTITION_SPEC_VERSION_PARAM, null);
-
     return importToIceberg(
-        tableIdent,
-        sourceIdent,
-        partitionFilter,
-        checkDuplicateFiles,
-        partitionSpecVersion,
-        parallelism);
+        tableIdent, sourceIdent, partitionFilter, checkDuplicateFiles, parallelism);
   }
 
   private InternalRow[] toOutputRows(Snapshot snapshot) {
@@ -162,7 +156,6 @@ class AddFilesProcedure extends BaseProcedure {
       Identifier sourceIdent,
       Map<String, String> partitionFilter,
       boolean checkDuplicateFiles,
-      Integer partitionSpecVersion,
       int parallelism) {
     return modifyIcebergTable(
         destIdent,
@@ -173,20 +166,8 @@ class AddFilesProcedure extends BaseProcedure {
           if (isFileIdentifier(sourceIdent)) {
             Path sourcePath = new Path(sourceIdent.name());
             String format = sourceIdent.namespace()[0];
-            PartitionSpec partitionSpec;
-            if (partitionSpecVersion != null) {
-              partitionSpec = validateAndGetPartitionSpec(table, partitionSpecVersion);
-            } else {
-              partitionSpec = table.spec();
-            }
             importFileTable(
-                table,
-                sourcePath,
-                format,
-                partitionFilter,
-                checkDuplicateFiles,
-                partitionSpec,
-                parallelism);
+                table, sourcePath, format, partitionFilter, checkDuplicateFiles, parallelism);
           } else {
             importCatalogTable(
                 table, sourceIdent, partitionFilter, checkDuplicateFiles, parallelism);
@@ -212,11 +193,36 @@ class AddFilesProcedure extends BaseProcedure {
       String format,
       Map<String, String> partitionFilter,
       boolean checkDuplicateFiles,
-      PartitionSpec spec,
       int parallelism) {
+
+    org.apache.spark.sql.execution.datasources.PartitionSpec inferredSpec =
+        getInferredSpec(spark(), tableLocation);
+
+    List<String> sparkPartNames =
+        JavaConverters.seqAsJavaList(inferredSpec.partitionColumns()).stream()
+            .map(StructField::name)
+            .map(name -> name.toLowerCase(Locale.ROOT))
+            .collect(Collectors.toList());
+    PartitionSpec matchingSpec = null;
+    for (PartitionSpec icebergSpec : table.specs().values()) {
+      List<String> icebergPartNames =
+          icebergSpec.fields().stream()
+              .map(PartitionField::name)
+              .map(name -> name.toLowerCase(Locale.ROOT))
+              .collect(Collectors.toList());
+      if (icebergPartNames.equals(sparkPartNames)) {
+        matchingSpec = icebergSpec;
+        break;
+      }
+    }
+    if (matchingSpec == null) {
+      // If the inferred spec does not match any existing spec, use the Iceberg table's latest spec
+      matchingSpec = table.spec();
+    }
+
     // List Partitions via Spark InMemory file search interface
     List<SparkPartition> partitions =
-        Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter, spec);
+        Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter, matchingSpec);
 
     if (table.spec().isUnpartitioned()) {
       Preconditions.checkArgument(
@@ -228,11 +234,12 @@ class AddFilesProcedure extends BaseProcedure {
       // Build a Global Partition for the source
       SparkPartition partition =
           new SparkPartition(Collections.emptyMap(), tableLocation.toString(), format);
-      importPartitions(table, ImmutableList.of(partition), checkDuplicateFiles, spec, parallelism);
+      importPartitions(
+          table, ImmutableList.of(partition), checkDuplicateFiles, matchingSpec, parallelism);
     } else {
       Preconditions.checkArgument(
           !partitions.isEmpty(), "Cannot find any matching partitions in table %s", table.name());
-      importPartitions(table, partitions, checkDuplicateFiles, spec, parallelism);
+      importPartitions(table, partitions, checkDuplicateFiles, matchingSpec, parallelism);
     }
   }
 
@@ -326,13 +333,5 @@ class AddFilesProcedure extends BaseProcedure {
           "Cannot use partition filter with an unpartitioned table %s",
           table.name());
     }
-  }
-
-  private PartitionSpec validateAndGetPartitionSpec(Table table, int partitionSpecVersion) {
-    Preconditions.checkArgument(
-        table.specs().containsKey(partitionSpecVersion),
-        "Invalid partition spec version: %s",
-        partitionSpecVersion);
-    return table.specs().get(partitionSpecVersion);
   }
 }

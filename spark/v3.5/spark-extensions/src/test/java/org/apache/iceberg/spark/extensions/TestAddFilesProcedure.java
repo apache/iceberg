@@ -636,30 +636,34 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void addFileTableInvalidPartitionSpecVersion() {
+  public void addFileTableOldSpecDataAfterPartitionSpecEvolved() {
     createPartitionedFileTable("parquet");
     createIcebergTable(
-        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id, dept)");
+        "id Integer, name String, dept String, subdept String",
+        "PARTITIONED BY (id, dept, subdept)");
+    sql("ALTER TABLE %s DROP PARTITION FIELD dept", tableName);
+    sql(
+        "ALTER TABLE %s DROP PARTITION FIELD subdept",
+        tableName); // This spec is matching with the input data which is partitioned just by "id"
+    sql("ALTER TABLE %s ADD PARTITION FIELD subdept", tableName);
 
-    assertThatThrownBy(
-            () ->
-                sql(
-                    "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1), true, 1, 1)",
-                    catalogName, tableName, fileTableDir.getAbsolutePath()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid partition spec version: 1");
-  }
-
-  @TestTemplate
-  public void addFileTableWithPartitionSpecVersion() {
-    createPartitionedFileTable("parquet");
-    createIcebergTable(
-        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
-    sql("ALTER TABLE %s ADD PARTITION FIELD dept", tableName);
+    if (formatVersion == 1) {
+      assertThatThrownBy(
+              () ->
+                  scalarSql(
+                      "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+                      catalogName, tableName, fileTableDir.getAbsolutePath()))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining(
+              String.format(
+                  "Cannot add data files to target table %s because that table is partitioned and contains non-identitypartition transforms which will not be compatible.",
+                  tableName));
+      return;
+    }
 
     List<Object[]> result =
         sql(
-            "CALL %s.system.add_files(table => '%s', source_table => '`parquet`.`%s`', partition_spec_version => 0)",
+            "CALL %s.system.add_files(table => '%s', source_table => '`parquet`.`%s`')",
             catalogName, tableName, fileTableDir.getAbsolutePath());
 
     assertOutput(result, 8L, 4L);
@@ -1020,26 +1024,6 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
     List<Object[]> result =
         sql(
             "CALL %s.system.add_files(table => '%s', source_table => '%s', parallelism => 2)",
-            catalogName, tableName, sourceTableName);
-
-    assertOutput(result, 8L, 4L);
-
-    assertEquals(
-        "Iceberg table contains correct data",
-        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
-        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
-  }
-
-  @TestTemplate
-  public void testAddFilesPartitionedWithSpecVersion() {
-    createPartitionedHiveTable();
-    createIcebergTable(
-        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
-
-    // Invalid partition spec version, but we don't check it in case of non-file source tables
-    List<Object[]> result =
-        sql(
-            "CALL %s.system.add_files(table => '%s', source_table => '%s', parallelism => 2, partition_spec_version => 1)",
             catalogName, tableName, sourceTableName);
 
     assertOutput(result, 8L, 4L);
