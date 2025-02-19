@@ -249,18 +249,7 @@ public class TableProperties {
       "write.object-storage.partitioned-paths";
   public static final boolean WRITE_OBJECT_STORE_PARTITIONED_PATHS_DEFAULT = true;
 
-  /**
-   * @deprecated Use {@link #WRITE_DATA_LOCATION} instead.
-   */
-  @Deprecated public static final String OBJECT_STORE_PATH = "write.object-storage.path";
-
   public static final String WRITE_LOCATION_PROVIDER_IMPL = "write.location-provider.impl";
-
-  /**
-   * @deprecated Use {@link #WRITE_DATA_LOCATION} instead.
-   */
-  @Deprecated
-  public static final String WRITE_FOLDER_STORAGE_LOCATION = "write.folder-storage.path";
 
   // This only applies to files written after this property is set. Files previously written aren't
   // relocated to reflect this parameter.

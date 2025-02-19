@@ -1147,6 +1147,12 @@ acceptedBreaks:
       justification: "Removing deprecated code"
   "1.7.0":
     org.apache.iceberg:iceberg-core:
+    - code: "java.field.removedWithConstant"
+      old: "field org.apache.iceberg.TableProperties.OBJECT_STORE_PATH"
+      justification: "Deprecated since 0.12.0"
+    - code: "java.field.removedWithConstant"
+      old: "field org.apache.iceberg.TableProperties.WRITE_FOLDER_STORAGE_LOCATION"
+      justification: "Deprecated since 0.12.0"
     - code: "java.method.removed"
       old: "method <T extends org.apache.iceberg.StructLike> org.apache.iceberg.deletes.PositionDeleteIndex\
         \ org.apache.iceberg.deletes.Deletes::toPositionIndex(java.lang.CharSequence,\
