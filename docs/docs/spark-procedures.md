@@ -1001,7 +1001,7 @@ This can be the starting point to fully or incrementally copy an Iceberg table t
 
 * Full Rewrite: A full rewrite will rewrite all reachable metadata files (this includes metadata.json, manifest lists, manifests, and position delete files), and will return all reachable files in the `file_list_location`. This is the default mode of operation for this procedure.
 
-* Incremental Rewrite: An incremental rewrite will only rewrite metadata files added between `start_version` and `end_version`, and will only return files added in this range in the `file_list_location`. Optionally, `start_version` and `end_version` can be provided to limit the scope of this procedure.
+* Incremental Rewrite: Optionally, `start_version` and `end_version` can be provided to limit the scope to an incremental rewrite. An incremental rewrite will only rewrite metadata files added between `start_version` and `end_version`, and will only return files added in this range in the `file_list_location`.
 
 
 #### Output
