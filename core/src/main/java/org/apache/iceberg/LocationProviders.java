@@ -81,7 +81,7 @@ public class LocationProviders {
       ImmutableSet.of(
           TableProperties.OBJECT_STORE_PATH, TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
 
-  private static String getProperty(Map<String, String> properties, String key) {
+  private static String getAndCheckLegacyLocation(Map<String, String> properties, String key) {
     String value = properties.get(key);
 
     if (value != null && DEPRECATED_PROPERTIES.contains(key)) {
@@ -102,9 +102,10 @@ public class LocationProviders {
     }
 
     private static String dataLocation(Map<String, String> properties, String tableLocation) {
-      String dataLocation = getProperty(properties, TableProperties.WRITE_DATA_LOCATION);
+      String dataLocation = getAndCheckLegacyLocation(properties, TableProperties.WRITE_DATA_LOCATION);
       if (dataLocation == null) {
-        dataLocation = getProperty(properties, TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+        dataLocation =
+            getAndCheckLegacyLocation(properties, TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
         if (dataLocation == null) {
           dataLocation = String.format("%s/data", tableLocation);
         }
@@ -154,11 +155,12 @@ public class LocationProviders {
     }
 
     private static String dataLocation(Map<String, String> properties, String tableLocation) {
-      String dataLocation = getProperty(properties, TableProperties.WRITE_DATA_LOCATION);
+      String dataLocation = getAndCheckLegacyLocation(properties, TableProperties.WRITE_DATA_LOCATION);
       if (dataLocation == null) {
-        dataLocation = getProperty(properties, TableProperties.OBJECT_STORE_PATH);
+        dataLocation = getAndCheckLegacyLocation(properties, TableProperties.OBJECT_STORE_PATH);
         if (dataLocation == null) {
-          dataLocation = getProperty(properties, TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+          dataLocation =
+              getAndCheckLegacyLocation(properties, TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
           if (dataLocation == null) {
             dataLocation = String.format("%s/data", tableLocation);
           }
