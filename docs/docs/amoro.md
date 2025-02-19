@@ -31,7 +31,7 @@ create an out-of-the-box Streaming Lakehouse management service that is as user-
 
 The architecture and working mechanism of Self-optimizing are shown in the figure below:
 
-![Self-optimizing architecture](https://github.com/apache/amoro/blob/master/docs/images/concepts/self-optimizing_arch.png)
+![Self-optimizing architecture](https://amoro.apache.org/docs/latest/images/concepts/self-optimizing_arch.png)
 
 The Optimizer is a component responsible for executing Self-optimizing tasks. It is a resident process managed by [AMS](https://amoro.apache.org/docs/latest/#architecture). AMS is responsible for
 detecting and planning Self-optimizing tasks for tables, and then scheduling them to Optimizers for distributed execution in real-time. Finally, AMS
@@ -46,7 +46,7 @@ The core features of [Amoro Self Optimizing](https://amoro.apache.org/docs/lates
 
 ## Table Format
 
-Apache Amoro supports all catalog types supported by Iceberg, including common catalog: [REST](https://iceberg.apache.org/concepts/catalog/#decoupling-using-the-rest-catalog), Hadoop, Hive, Glue, JDBC, Nessie and other third-party catalog.
+Apache Amoro supports all catalog types supported by Iceberg, including common catalog: [REST](https://editor-next.swagger.io/?url=https://raw.githubusercontent.com/apache/iceberg/main/open-api/rest-catalog-open-api.yaml), Hadoop, Hive, Glue, JDBC, Nessie and other third-party catalog.
 Amoro supports all storage types supported by Iceberg, including common store: Hadoop, S3, GCS, ECS, OSS, and so on.
 
 At the same time, we also provide a unique form based on Apache Iceberg, including mixed-Iceberg Format and mixed-Hive Format, so that you can quickly upgrade to the iceberg+hive Mixed table while compatible with the original Hive data
