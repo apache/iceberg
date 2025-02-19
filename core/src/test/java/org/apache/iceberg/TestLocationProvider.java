@@ -223,7 +223,7 @@ public class TestLocationProvider extends TestBase {
         .commit();
 
     assertThatThrownBy(() -> table.locationProvider().newDataLocation("file"))
-        .isInstanceOf(UnsupportedOperationException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Property 'write.folder-storage.path' has been deprecated and will be removed in 2.0, use 'write.data.path' instead.");
 
@@ -234,7 +234,7 @@ public class TestLocationProvider extends TestBase {
         .commit();
 
     assertThatThrownBy(() -> table.locationProvider().newDataLocation("file"))
-        .isInstanceOf(UnsupportedOperationException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Property 'write.object-storage.path' has been deprecated and will be removed in 2.0, use 'write.data.path' instead.");
   }
@@ -249,7 +249,7 @@ public class TestLocationProvider extends TestBase {
         .commit();
 
     assertThatThrownBy(() -> table.locationProvider().newDataLocation("file"))
-        .isInstanceOf(UnsupportedOperationException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Property 'write.folder-storage.path' has been deprecated and will be removed in 2.0, use 'write.data.path' instead.");
   }

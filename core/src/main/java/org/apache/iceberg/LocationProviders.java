@@ -20,10 +20,12 @@ package org.apache.iceberg;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.Set;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.hash.HashCode;
 import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
 import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
@@ -75,6 +77,23 @@ public class LocationProviders {
     }
   }
 
+  private static final Set<String> DEPRECATED_PROPERTIES =
+      ImmutableSet.of(
+          TableProperties.OBJECT_STORE_PATH, TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+
+  private static String getProperty(Map<String, String> properties, String key) {
+    String value = properties.get(key);
+
+    if (value != null && DEPRECATED_PROPERTIES.contains(key)) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Property '%s' has been deprecated and will be removed in 2.0, use '%s' instead.",
+              key, TableProperties.WRITE_DATA_LOCATION));
+    }
+
+    return value;
+  }
+
   static class DefaultLocationProvider implements LocationProvider {
     private final String dataLocation;
 
@@ -83,17 +102,11 @@ public class LocationProviders {
     }
 
     private static String dataLocation(Map<String, String> properties, String tableLocation) {
-      String dataLocation = properties.get(TableProperties.WRITE_DATA_LOCATION);
+      String dataLocation = getProperty(properties, TableProperties.WRITE_DATA_LOCATION);
       if (dataLocation == null) {
-        dataLocation = properties.get(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+        dataLocation = getProperty(properties, TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
         if (dataLocation == null) {
           dataLocation = String.format("%s/data", tableLocation);
-        } else {
-          throw new UnsupportedOperationException(
-              String.format(
-                  "Property '%s' has been deprecated and will be removed in 2.0, use '%s' instead.",
-                  TableProperties.WRITE_FOLDER_STORAGE_LOCATION,
-                  TableProperties.WRITE_DATA_LOCATION));
         }
       }
       return dataLocation;
@@ -141,25 +154,14 @@ public class LocationProviders {
     }
 
     private static String dataLocation(Map<String, String> properties, String tableLocation) {
-      String dataLocation = properties.get(TableProperties.WRITE_DATA_LOCATION);
+      String dataLocation = getProperty(properties, TableProperties.WRITE_DATA_LOCATION);
       if (dataLocation == null) {
-        dataLocation = properties.get(TableProperties.OBJECT_STORE_PATH);
+        dataLocation = getProperty(properties, TableProperties.OBJECT_STORE_PATH);
         if (dataLocation == null) {
-          dataLocation = properties.get(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+          dataLocation = getProperty(properties, TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
           if (dataLocation == null) {
             dataLocation = String.format("%s/data", tableLocation);
-          } else {
-            throw new UnsupportedOperationException(
-                String.format(
-                    "Property '%s' has been deprecated and will be removed in 2.0, use '%s' instead.",
-                    TableProperties.WRITE_FOLDER_STORAGE_LOCATION,
-                    TableProperties.WRITE_DATA_LOCATION));
           }
-        } else {
-          throw new UnsupportedOperationException(
-              String.format(
-                  "Property '%s' has been deprecated and will be removed in 2.0, use '%s' instead.",
-                  TableProperties.OBJECT_STORE_PATH, TableProperties.WRITE_DATA_LOCATION));
         }
       }
       return dataLocation;
