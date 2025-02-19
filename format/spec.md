@@ -1756,7 +1756,7 @@ Snapshot summary can include metrics fields to track numeric stats of the snapsh
 
 ### Encoding of `current-snapshot-id`
 
-The Java implementation writes `-1` for  "no current snapshot" with V1 and V2 tables and considers this equivalent to missing/null. This has never been formalized in the spec but for compatibility other implementations can accept `-1` as `null`. The Java implementation will no longer write `-1` and will use null for "no current snapshot for all tables with a version greater than or equal to V3
+The Java implementation writes `-1` for "no current snapshot" with V1 and V2 tables and considers this equivalent to omitted or `null`. This has never been formalized in the spec but for compatibility, other implementations can accept `-1` as `null`. The Java implementation will no longer write `-1` and will use `null` for "no current snapshot" for all tables with a version greater than or equal to V3.
 
 ## Appendix G: Geospatial Notes
 
