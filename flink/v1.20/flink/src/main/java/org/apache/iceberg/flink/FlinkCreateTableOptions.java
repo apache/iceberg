@@ -24,17 +24,17 @@ import org.apache.flink.configuration.ConfigOptions;
 import org.apache.iceberg.util.JsonUtil;
 
 public class FlinkCreateTableOptions {
-  String catalog_name;
-  String catalog_db;
-  String catalog_table;
-  Map<String, String> catalog_props;
+  private final String catalogName;
+  private final String catalogDb;
+  private final String catalogTable;
+  private final Map<String, String> catalogProps;
 
   private FlinkCreateTableOptions(
-      String catalog_name, String catalog_db, String catalog_table, Map<String, String> props) {
-    this.catalog_name = catalog_name;
-    this.catalog_db = catalog_db;
-    this.catalog_table = catalog_table;
-    this.catalog_props = props;
+      String catalogName, String catalogDb, String catalogTable, Map<String, String> props) {
+    this.catalogName = catalogName;
+    this.catalogDb = catalogDb;
+    this.catalogTable = catalogTable;
+    this.catalogProps = props;
   }
 
   public static final ConfigOption<String> CATALOG_NAME =
@@ -70,13 +70,13 @@ public class FlinkCreateTableOptions {
   public static final String SRC_CATALOG_PROPS_KEY = "src-catalog";
 
   static String toJson(
-      String catalog_name, String catalog_db, String catalog_table, Map<String, String> props) {
+      String catalogName, String catalogDb, String catalogTable, Map<String, String> props) {
     return JsonUtil.generate(
         gen -> {
           gen.writeStartObject();
-          gen.writeStringField(CATALOG_NAME.key(), catalog_name);
-          gen.writeStringField(CATALOG_DATABASE.key(), catalog_db);
-          gen.writeStringField(CATALOG_TABLE.key(), catalog_table);
+          gen.writeStringField(CATALOG_NAME.key(), catalogName);
+          gen.writeStringField(CATALOG_DATABASE.key(), catalogDb);
+          gen.writeStringField(CATALOG_TABLE.key(), catalogTable);
           JsonUtil.writeStringMap(CATALOG_PROPS.key(), props, gen);
           gen.writeEndObject();
         },
@@ -87,13 +87,28 @@ public class FlinkCreateTableOptions {
     return JsonUtil.parse(
         createTableOptions,
         node -> {
-          String catalog_name = JsonUtil.getString(CATALOG_NAME.key(), node);
-          String catalog_db = JsonUtil.getString(CATALOG_DATABASE.key(), node);
-          String catalog_table = JsonUtil.getString(CATALOG_TABLE.key(), node);
-          Map<String, String> catalog_props = JsonUtil.getStringMap(CATALOG_PROPS.key(), node);
+          String catalogName = JsonUtil.getString(CATALOG_NAME.key(), node);
+          String catalogDb = JsonUtil.getString(CATALOG_DATABASE.key(), node);
+          String catalogTable = JsonUtil.getString(CATALOG_TABLE.key(), node);
+          Map<String, String> catalogProps = JsonUtil.getStringMap(CATALOG_PROPS.key(), node);
 
-          return new FlinkCreateTableOptions(
-              catalog_name, catalog_db, catalog_table, catalog_props);
+          return new FlinkCreateTableOptions(catalogName, catalogDb, catalogTable, catalogProps);
         });
+  }
+
+  String getCatalogName() {
+    return catalogName;
+  }
+
+  String getCatalogDb() {
+    return catalogDb;
+  }
+
+  String getCatalogTable() {
+    return catalogTable;
+  }
+
+  Map<String, String> getCatalogProps() {
+    return catalogProps;
   }
 }

@@ -189,12 +189,13 @@ public class FlinkDynamicTableFactory
       FlinkCreateTableOptions createTableOptions =
           FlinkCreateTableOptions.fromJson(srcCatalogProps);
 
-      mergedProps.put(FlinkCreateTableOptions.CATALOG_NAME.key(), createTableOptions.catalog_name);
       mergedProps.put(
-          FlinkCreateTableOptions.CATALOG_DATABASE.key(), createTableOptions.catalog_db);
+          FlinkCreateTableOptions.CATALOG_NAME.key(), createTableOptions.getCatalogName());
       mergedProps.put(
-          FlinkCreateTableOptions.CATALOG_TABLE.key(), createTableOptions.catalog_table);
-      mergedProps.putAll(createTableOptions.catalog_props);
+          FlinkCreateTableOptions.CATALOG_DATABASE.key(), createTableOptions.getCatalogDb());
+      mergedProps.put(
+          FlinkCreateTableOptions.CATALOG_TABLE.key(), createTableOptions.getCatalogTable());
+      mergedProps.putAll(createTableOptions.getCatalogProps());
 
       tableProps.forEach(
           (k, v) -> {
