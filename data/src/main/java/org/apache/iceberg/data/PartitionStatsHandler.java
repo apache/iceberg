@@ -187,12 +187,6 @@ public class PartitionStatsHandler {
     return CloseableIterable.transform(records, PartitionStatsHandler::recordToPartitionStats);
   }
 
-  private static FileFormat fileFormat(String fileName) {
-    FileFormat format = FileFormat.fromFileName(fileName);
-    Preconditions.checkArgument(format != null, "Unable to determine format of file: %s", fileName);
-    return format;
-  }
-
   private static OutputFile newPartitionStatsFile(
       Table table, FileFormat fileFormat, long snapshotId) {
     Preconditions.checkArgument(
@@ -235,7 +229,10 @@ public class PartitionStatsHandler {
   }
 
   private static CloseableIterable<StructLike> dataReader(Schema schema, InputFile inputFile) {
-    FileFormat fileFormat = fileFormat(inputFile.location());
+    FileFormat fileFormat = FileFormat.fromFileName(inputFile.location());
+    Preconditions.checkArgument(
+        fileFormat != null, "Unable to determine format of file: %s", inputFile.location());
+
     switch (fileFormat) {
       case PARQUET:
         return Parquet.read(inputFile)
