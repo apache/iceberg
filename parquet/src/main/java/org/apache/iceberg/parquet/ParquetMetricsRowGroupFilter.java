@@ -34,12 +34,16 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
+import org.apache.iceberg.geospatial.GeospatialPredicateEvaluators;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
 import org.apache.parquet.column.statistics.Statistics;
+import org.apache.parquet.column.statistics.geospatial.GeospatialStatistics;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.io.api.Binary;
@@ -78,6 +82,7 @@ public class ParquetMetricsRowGroupFilter {
 
   private class MetricsEvalVisitor extends BoundExpressionVisitor<Boolean> {
     private Map<Integer, Statistics<?>> stats = null;
+    private Map<Integer, GeospatialStatistics> geoStats = null;
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Function<Object, Object>> conversions = null;
 
@@ -87,6 +92,7 @@ public class ParquetMetricsRowGroupFilter {
       }
 
       this.stats = Maps.newHashMap();
+      this.geoStats = Maps.newHashMap();
       this.valueCounts = Maps.newHashMap();
       this.conversions = Maps.newHashMap();
       for (ColumnChunkMetaData col : rowGroup.getColumns()) {
@@ -95,6 +101,7 @@ public class ParquetMetricsRowGroupFilter {
           int id = colType.getId().intValue();
           Type icebergType = schema.findType(id);
           stats.put(id, col.getStatistics());
+          geoStats.put(id, col.getGeospatialStatistics());
           valueCounts.put(id, col.getValueCount());
           conversions.put(id, ParquetConversions.converterFromParquet(colType, icebergType));
         }
@@ -546,6 +553,57 @@ public class ParquetMetricsRowGroupFilter {
         }
       }
 
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stIntersects(BoundReference<T> ref, Literal<BoundingBox> lit) {
+      int id = ref.fieldId();
+
+      Long valueCount = valueCounts.get(id);
+      if (valueCount == null) {
+        // the column is not present and is all nulls
+        return ROWS_CANNOT_MATCH;
+      }
+
+      Statistics<?> colStats = stats.get(id);
+      if (colStats != null && !colStats.isEmpty()) {
+        if (allNulls(colStats, valueCount)) {
+          return ROWS_CANNOT_MATCH;
+        }
+      }
+
+      GeospatialStatistics colGeoStats = geoStats.get(id);
+      if (colGeoStats == null) {
+        // No geospatial statistics, we cannot make any assumptions about the geospatial data.
+        return ROWS_MIGHT_MATCH;
+      }
+
+      org.apache.parquet.column.statistics.geospatial.BoundingBox boundingBox =
+          colGeoStats.getBoundingBox();
+      if (boundingBox == null || !boundingBox.isValid()) {
+        // No valid geospatial bounds, we cannot make any assumptions about the geospatial data.
+        return ROWS_MIGHT_MATCH;
+      }
+
+      // Found valid geospatial bounds from statistics, evaluate the spatial predicate to see if we
+      // can
+      // skip this row group.
+      BoundingBox dataBoundingBox =
+          new BoundingBox(
+              GeospatialBound.createXY(boundingBox.getXMin(), boundingBox.getYMin()),
+              GeospatialBound.createXY(boundingBox.getXMax(), boundingBox.getYMax()));
+      GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
+          GeospatialPredicateEvaluators.create(ref.type());
+      if (!evaluator.intersects(dataBoundingBox, lit.value())) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stDisjoint(BoundReference<T> ref, Literal<BoundingBox> lit) {
       return ROWS_MIGHT_MATCH;
     }
 

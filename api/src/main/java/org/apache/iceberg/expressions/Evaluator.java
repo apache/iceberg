@@ -160,14 +160,22 @@ public class Evaluator implements Serializable {
 
     @Override
     public <T> Boolean stIntersects(Bound<T> valueExpr, Literal<BoundingBox> literal) {
-      throw new UnsupportedOperationException(
-          "Evaluation of stIntersects against geometry/geography value is not implemented.");
+      // Evaluation of stIntersects against geometry/geography value is not supported. Spatial
+      // predicates only
+      // supports data skipping but not filtering individual records in iceberg-api. Readers should
+      // expect
+      // false-positives and run the actual spatial filters on their own.
+      return true;
     }
 
     @Override
     public <T> Boolean stDisjoint(Bound<T> valueExpr, Literal<BoundingBox> literal) {
-      throw new UnsupportedOperationException(
-          "Evaluation of stDisjoint against geometry/geography value is not implemented.");
+      // Evaluation of stIntersects against geometry/geography value is not supported. Spatial
+      // predicates only
+      // supports data skipping but not filtering individual records in iceberg-api. Readers should
+      // expect
+      // false-positives and run the actual spatial filters on their own.
+      return true;
     }
   }
 }
