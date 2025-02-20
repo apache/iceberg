@@ -108,16 +108,14 @@ public class SparkParquetReaders {
       // the expected struct is ignored because nested fields are never found when the
       List<ParquetValueReader<?>> newFields =
           Lists.newArrayListWithExpectedSize(fieldReaders.size());
-      List<Type> types = Lists.newArrayListWithExpectedSize(fieldReaders.size());
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
         Type fieldType = fields.get(i);
         int fieldD = type().getMaxDefinitionLevel(path(fieldType.getName())) - 1;
         newFields.add(ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
-        types.add(fieldType);
       }
 
-      return new InternalRowReader(types, newFields);
+      return new InternalRowReader(newFields);
     }
   }
 
@@ -161,7 +159,6 @@ public class SparkParquetReaders {
           expected != null ? expected.fields() : ImmutableList.of();
       List<ParquetValueReader<?>> reorderedFields =
           Lists.newArrayListWithExpectedSize(expectedFields.size());
-      List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
       // Defaulting to parent max definition level
       int defaultMaxDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
       for (Types.NestedField field : expectedFields) {
@@ -173,32 +170,26 @@ public class SparkParquetReaders {
               maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel);
           reorderedFields.add(
               ParquetValueReaders.constant(idToConstant.get(id), fieldMaxDefinitionLevel));
-          types.add(null);
         } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
           reorderedFields.add(ParquetValueReaders.position());
-          types.add(null);
         } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
           reorderedFields.add(ParquetValueReaders.constant(false));
-          types.add(null);
         } else if (reader != null) {
           reorderedFields.add(reader);
-          types.add(typesById.get(id));
         } else if (field.initialDefault() != null) {
           reorderedFields.add(
               ParquetValueReaders.constant(
                   SparkUtil.internalToSpark(field.type(), field.initialDefault()),
                   maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel)));
-          types.add(typesById.get(id));
         } else if (field.isOptional()) {
           reorderedFields.add(ParquetValueReaders.nulls());
-          types.add(null);
         } else {
           throw new IllegalArgumentException(
               String.format("Missing required field: %s", field.name()));
         }
       }
 
-      return new InternalRowReader(types, reorderedFields);
+      return new InternalRowReader(reorderedFields);
     }
 
     @Override
@@ -555,8 +546,8 @@ public class SparkParquetReaders {
   private static class InternalRowReader extends StructReader<InternalRow, GenericInternalRow> {
     private final int numFields;
 
-    InternalRowReader(List<Type> types, List<ParquetValueReader<?>> readers) {
-      super(types, readers);
+    InternalRowReader(List<ParquetValueReader<?>> readers) {
+      super(readers);
       this.numFields = readers.size();
     }
 
