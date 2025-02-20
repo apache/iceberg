@@ -52,7 +52,7 @@ public class ParquetWithFlinkSchemaVisitor<T> {
       // if not a primitive, the typeId must be a group
       GroupType group = type.asGroupType();
       LogicalTypeAnnotation annotation = group.getLogicalTypeAnnotation();
-      if (LogicalTypeAnnotation.listType().equals(annotation)) {
+      if (annotation instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation) {
         Preconditions.checkArgument(
             !group.isRepetition(Type.Repetition.REPEATED),
             "Invalid list: top-level group is repeated: %s",
@@ -90,7 +90,7 @@ public class ParquetWithFlinkSchemaVisitor<T> {
         } finally {
           visitor.fieldNames.pop();
         }
-      } else if (LogicalTypeAnnotation.mapType().equals(annotation)) {
+      } else if (annotation instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation) {
         Preconditions.checkArgument(
             !group.isRepetition(Type.Repetition.REPEATED),
             "Invalid map: top-level group is repeated: %s",
