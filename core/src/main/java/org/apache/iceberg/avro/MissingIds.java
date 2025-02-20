@@ -63,6 +63,11 @@ class MissingIds extends AvroCustomOrderSchemaVisitor<Boolean, Boolean> {
   }
 
   @Override
+  public Boolean variant(Schema variant) {
+    return false;
+  }
+
+  @Override
   public Boolean primitive(Schema primitive) {
     // primitive node cannot be missing ID as Iceberg do not assign primitive node IDs in the first
     // place

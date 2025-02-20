@@ -22,25 +22,21 @@ import org.apache.avro.LogicalType;
 import org.apache.avro.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public class Variant extends LogicalType {
+public class VariantLogicalType extends LogicalType {
   static final String NAME = "variant";
-  private static final Variant INSTANCE = new Variant();
+  private static final VariantLogicalType INSTANCE = new VariantLogicalType();
 
-  static Variant get() {
+  static VariantLogicalType get() {
     return INSTANCE;
   }
 
-  private Variant() {
+  private VariantLogicalType() {
     super(NAME);
   }
 
   @Override
   public void validate(Schema schema) {
     super.validate(schema);
-    Preconditions.checkArgument(
-        schema.getType() == Schema.Type.RECORD,
-        "Invalid type for variant, must be a record: %s",
-        schema);
     Preconditions.checkArgument(
         AvroSchemaUtil.isVariantSchema(schema), "Invalid variant record: %s", schema);
   }

@@ -80,7 +80,7 @@ public class TestSchemaConversions {
             Schema.create(Schema.Type.BYTES),
             LogicalTypes.decimal(9, 4)
                 .addToSchema(Schema.createFixed("decimal_9_4", null, null, 4)),
-            variant("rnull"));
+            variant("variant"));
 
     for (int i = 0; i < primitives.size(); i += 1) {
       Type type = primitives.get(i);
@@ -386,6 +386,7 @@ public class TestSchemaConversions {
 
     for (int id : Lists.newArrayList(1, 2)) {
       org.apache.avro.Schema variantSchema = avroSchema.getField("variantCol" + id).schema();
+      assertThat(variantSchema.getName()).isEqualTo("r" + id);
       assertThat(variantSchema.getType()).isEqualTo(org.apache.avro.Schema.Type.RECORD);
       assertThat(variantSchema.getFields().size()).isEqualTo(2);
       assertThat(variantSchema.getField("metadata").schema().getType())
