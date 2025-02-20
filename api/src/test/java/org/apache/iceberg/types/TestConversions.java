@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import org.apache.iceberg.Geography;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Types.BinaryType;
 import org.apache.iceberg.types.Types.BooleanType;
@@ -41,6 +42,12 @@ import org.apache.iceberg.types.Types.TimestampNanoType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
 import org.junit.jupiter.api.Test;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.CoordinateXY;
+import org.locationtech.jts.geom.CoordinateXYM;
+import org.locationtech.jts.geom.CoordinateXYZM;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 
 public class TestConversions {
 
@@ -189,6 +196,104 @@ public class TestConversions {
     assertConversion(new BigDecimal("0.011"), DecimalType.of(10, 3), new byte[] {11});
     assertThat(Literal.of(new BigDecimal("0.011")).toByteBuffer().array())
         .isEqualTo(new byte[] {11});
+  }
+
+  @Test
+  public void testByteBufferConversionsForGeometryType() {
+    // geometry lower/upper boundaries are stored as 4 8-bytes floating point numbers in little
+    // endian.
+    // The 4 components are [x, y, optional z, optional m]. If z and m are not present, NaN is
+    // filled in.
+    GeometryFactory factory = new GeometryFactory();
+    Geometry pointXY = factory.createPoint(new CoordinateXY(10, 20));
+    assertConversion(
+        pointXY,
+        Types.GeometryType.get(),
+        new byte[] {
+          0, 0, 0, 0, 0, 0, 36, 64, 0, 0, 0, 0, 0, 0, 52, 64, 0, 0, 0, 0, 0, 0, -8, 127, 0, 0, 0, 0,
+          0, 0, -8, 127
+        });
+    pointXY = factory.createPoint(new Coordinate(10, 20));
+    assertConversion(
+        pointXY,
+        Types.GeometryType.get(),
+        new byte[] {
+          0, 0, 0, 0, 0, 0, 36, 64, 0, 0, 0, 0, 0, 0, 52, 64, 0, 0, 0, 0, 0, 0, -8, 127, 0, 0, 0, 0,
+          0, 0, -8, 127
+        });
+    Geometry pointXYZ = factory.createPoint(new Coordinate(10, 20, 30));
+    assertConversion(
+        pointXYZ,
+        Types.GeometryType.get(),
+        new byte[] {
+          0, 0, 0, 0, 0, 0, 36, 64, 0, 0, 0, 0, 0, 0, 52, 64, 0, 0, 0, 0, 0, 0, 62, 64, 0, 0, 0, 0,
+          0, 0, -8, 127
+        });
+    Geometry pointXYM = factory.createPoint(new CoordinateXYM(10, 20, 30));
+    assertConversion(
+        pointXYM,
+        Types.GeometryType.get(),
+        new byte[] {
+          0, 0, 0, 0, 0, 0, 36, 64, 0, 0, 0, 0, 0, 0, 52, 64, 0, 0, 0, 0, 0, 0, -8, 127, 0, 0, 0, 0,
+          0, 0, 62, 64
+        });
+    Geometry pointXYZM = factory.createPoint(new CoordinateXYZM(10, 20, 30, 40));
+    assertConversion(
+        pointXYZM,
+        Types.GeometryType.get(),
+        new byte[] {
+          0, 0, 0, 0, 0, 0, 36, 64, 0, 0, 0, 0, 0, 0, 52, 64, 0, 0, 0, 0, 0, 0, 62, 64, 0, 0, 0, 0,
+          0, 0, 68, 64
+        });
+  }
+
+  @Test
+  public void testByteBufferConversionsForGeographyType() {
+    // geography lower/upper boundaries are stored as 4 8-bytes floating point numbers in little
+    // endian. This is the same as geometry lower/upper boundaries.
+    // The 4 components are [x, y, optional z, optional m]. If z and m are not present, NaN is
+    // filled in.
+    GeometryFactory factory = new GeometryFactory();
+    Geography pointXY = new Geography(factory.createPoint(new CoordinateXY(10, 20)));
+    assertConversion(
+        pointXY,
+        Types.GeographyType.get(),
+        new byte[] {
+          0, 0, 0, 0, 0, 0, 36, 64, 0, 0, 0, 0, 0, 0, 52, 64, 0, 0, 0, 0, 0, 0, -8, 127, 0, 0, 0, 0,
+          0, 0, -8, 127
+        });
+    pointXY = new Geography(factory.createPoint(new Coordinate(10, 20)));
+    assertConversion(
+        pointXY,
+        Types.GeographyType.get(),
+        new byte[] {
+          0, 0, 0, 0, 0, 0, 36, 64, 0, 0, 0, 0, 0, 0, 52, 64, 0, 0, 0, 0, 0, 0, -8, 127, 0, 0, 0, 0,
+          0, 0, -8, 127
+        });
+    Geography pointXYZ = new Geography(factory.createPoint(new Coordinate(10, 20, 30)));
+    assertConversion(
+        pointXYZ,
+        Types.GeographyType.get(),
+        new byte[] {
+          0, 0, 0, 0, 0, 0, 36, 64, 0, 0, 0, 0, 0, 0, 52, 64, 0, 0, 0, 0, 0, 0, 62, 64, 0, 0, 0, 0,
+          0, 0, -8, 127
+        });
+    Geography pointXYM = new Geography(factory.createPoint(new CoordinateXYM(10, 20, 30)));
+    assertConversion(
+        pointXYM,
+        Types.GeographyType.get(),
+        new byte[] {
+          0, 0, 0, 0, 0, 0, 36, 64, 0, 0, 0, 0, 0, 0, 52, 64, 0, 0, 0, 0, 0, 0, -8, 127, 0, 0, 0, 0,
+          0, 0, 62, 64
+        });
+    Geography pointXYZM = new Geography(factory.createPoint(new CoordinateXYZM(10, 20, 30, 40)));
+    assertConversion(
+        pointXYZM,
+        Types.GeographyType.get(),
+        new byte[] {
+          0, 0, 0, 0, 0, 0, 36, 64, 0, 0, 0, 0, 0, 0, 52, 64, 0, 0, 0, 0, 0, 0, 62, 64, 0, 0, 0, 0,
+          0, 0, 68, 64
+        });
   }
 
   private <T> void assertConversion(T value, Type type, byte[] expectedBinary) {

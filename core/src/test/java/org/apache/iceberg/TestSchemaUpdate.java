@@ -364,7 +364,11 @@ public class TestSchemaUpdate {
             Types.FixedType.ofLength(4),
             Types.DecimalType.of(9, 2),
             Types.DecimalType.of(9, 3),
-            Types.DecimalType.of(18, 2));
+            Types.DecimalType.of(18, 2),
+            Types.GeometryType.get(),
+            Types.GeometryType.of("srid:3857"),
+            Types.GeographyType.get(),
+            Types.GeographyType.of("srid:4269", Geography.EdgeInterpolationAlgorithm.KARNEY));
 
     for (Type.PrimitiveType fromType : primitives) {
       for (Type.PrimitiveType toType : primitives) {
