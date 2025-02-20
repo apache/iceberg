@@ -65,6 +65,11 @@ abstract class BaseWriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {
   }
 
   @Override
+  public ValueWriter<?> variant(Schema variant, List<ValueWriter<?>> fields) {
+    return createRecordWriter(fields);
+  }
+
+  @Override
   public ValueWriter<?> primitive(Schema primitive) {
     LogicalType logicalType = primitive.getLogicalType();
     if (logicalType != null) {

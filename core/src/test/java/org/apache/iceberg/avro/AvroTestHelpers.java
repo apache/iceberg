@@ -52,7 +52,7 @@ class AvroTestHelpers {
             name,
             new Schema.Field("metadata", Schema.create(Schema.Type.BYTES), null, null),
             new Schema.Field("value", Schema.create(Schema.Type.BYTES), null, null));
-    return Variant.get().addToSchema(schema);
+    return VariantLogicalType.get().addToSchema(schema);
   }
 
   static Schema.Field addId(int id, Schema.Field field) {

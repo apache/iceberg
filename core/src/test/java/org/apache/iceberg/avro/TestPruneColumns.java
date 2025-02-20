@@ -22,11 +22,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.util.Sets;
 import org.junit.jupiter.api.Test;
 
-public class TestHasIds {
+public class TestPruneColumns {
   @Test
-  public void testRemoveIdsHasIds() {
+  public void testPruneColumns() {
     Schema schema =
         new Schema(
             Types.NestedField.required(0, "id", Types.LongType.get()),
@@ -43,26 +44,39 @@ public class TestHasIds {
             Types.NestedField.required(
                 8, "types", Types.ListType.ofRequired(9, Types.StringType.get())),
             Types.NestedField.required(10, "data", Types.VariantType.get()));
+    Schema expected =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.required(
+                8, "types", Types.ListType.ofRequired(9, Types.StringType.get())));
+    org.apache.avro.Schema prunedSchema =
+        AvroSchemaUtil.pruneColumns(AvroSchemaUtil.convert(schema.asStruct()), Sets.set(0, 9));
+    assertThat(prunedSchema).isEqualTo(AvroSchemaUtil.convert(expected.asStruct()));
+  }
 
-    org.apache.avro.Schema avroSchema = RemoveIds.removeIds(schema);
-    assertThat(AvroSchemaUtil.hasIds(avroSchema)).as("Avro schema should not have IDs").isFalse();
-    avroSchema.getFields().get(0).addProp("field-id", 1);
-    assertThat(AvroSchemaUtil.hasIds(avroSchema)).as("Avro schema should have IDs").isTrue();
+  @Test
+  public void testSelectVariant() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.required(1, "data", Types.VariantType.get()));
+    Schema expected = new Schema(Types.NestedField.required(1, "data", Types.VariantType.get()));
 
-    // Create a fresh copy
-    avroSchema = RemoveIds.removeIds(schema);
-    avroSchema
-        .getFields()
-        .get(1)
-        .schema()
-        .getTypes()
-        .get(1)
-        .getValueType()
-        .getTypes()
-        .get(1)
-        .getFields()
-        .get(1)
-        .addProp("field-id", 1);
-    assertThat(AvroSchemaUtil.hasIds(avroSchema)).as("Avro schema should have IDs").isTrue();
+    org.apache.avro.Schema prunedSchema =
+        AvroSchemaUtil.pruneColumns(AvroSchemaUtil.convert(schema.asStruct()), Sets.set(1));
+    assertThat(prunedSchema).isEqualTo(AvroSchemaUtil.convert(expected.asStruct()));
+  }
+
+  @Test
+  public void testPruneVariant() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.required(1, "data", Types.VariantType.get()));
+    Schema expected = new Schema(Types.NestedField.required(0, "id", Types.LongType.get()));
+
+    org.apache.avro.Schema prunedSchema =
+        AvroSchemaUtil.pruneColumns(AvroSchemaUtil.convert(schema.asStruct()), Sets.set(0));
+    assertThat(prunedSchema).isEqualTo(AvroSchemaUtil.convert(expected.asStruct()));
   }
 }

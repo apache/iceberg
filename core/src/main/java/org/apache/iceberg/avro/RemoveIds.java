@@ -61,6 +61,11 @@ public class RemoveIds extends AvroSchemaVisitor<Schema> {
   }
 
   @Override
+  public Schema variant(Schema variant, List<Schema> fields) {
+    return variant;
+  }
+
+  @Override
   public Schema primitive(Schema primitive) {
     return Schema.create(primitive.getType());
   }

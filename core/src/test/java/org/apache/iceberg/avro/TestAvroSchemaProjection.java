@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Collections;
 import org.apache.avro.SchemaBuilder;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 public class TestAvroSchemaProjection {
@@ -152,56 +153,20 @@ public class TestAvroSchemaProjection {
   }
 
   @Test
-  public void projectWithVariantSchemaChanged() {
-    final org.apache.avro.Schema currentAvroSchema =
-        SchemaBuilder.record("myrecord")
-            .fields()
-            .name("f11")
-            .type()
-            .nullable()
-            .intType()
-            .noDefault()
-            .endRecord();
+  public void projectWithVariantType() {
+    Schema icebergSchema =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.required(1, "data", Types.VariantType.get()));
 
-    final org.apache.avro.Schema variantSchema =
-        SchemaBuilder.record("v")
-            .fields()
-            .name("metadata")
-            .type()
-            .bytesType()
-            .noDefault()
-            .name("value")
-            .type()
-            .bytesType()
-            .noDefault()
-            .endRecord();
-    Variant.get().addToSchema(variantSchema);
-
-    final org.apache.avro.Schema updatedAvroSchema =
-        SchemaBuilder.record("myrecord")
-            .fields()
-            .name("f11")
-            .type()
-            .nullable()
-            .intType()
-            .noDefault()
-            .name("f12")
-            .type(variantSchema)
-            .noDefault()
-            .endRecord();
-
-    final Schema currentIcebergSchema = AvroSchemaUtil.toIceberg(currentAvroSchema);
-
-    // Getting the node ID in updatedAvroSchema allocated by converting into iceberg schema and back
-    final org.apache.avro.Schema idAllocatedUpdatedAvroSchema =
-        AvroSchemaUtil.convert(AvroSchemaUtil.toIceberg(updatedAvroSchema).asStruct());
-
-    final org.apache.avro.Schema projectedAvroSchema =
+    org.apache.avro.Schema projectedSchema =
         AvroSchemaUtil.buildAvroProjection(
-            idAllocatedUpdatedAvroSchema, currentIcebergSchema, Collections.emptyMap());
-
-    assertThat(AvroSchemaUtil.missingIds(projectedAvroSchema))
-        .as("Result of buildAvroProjection is missing some IDs")
-        .isFalse();
+            AvroSchemaUtil.convert(icebergSchema.asStruct()),
+            icebergSchema.select("data"),
+            Collections.emptyMap());
+    assertThat(projectedSchema.getField("id")).isNull();
+    org.apache.avro.Schema variantSchema = projectedSchema.getField("data").schema();
+    assertThat(variantSchema.getLogicalType()).isEqualTo(VariantLogicalType.get());
+    assertThat(AvroSchemaUtil.isVariantSchema(variantSchema)).isTrue();
   }
 }

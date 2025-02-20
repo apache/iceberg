@@ -57,6 +57,11 @@ class HasIds extends AvroCustomOrderSchemaVisitor<Boolean, Boolean> {
   }
 
   @Override
+  public Boolean variant(Schema variant) {
+    return false;
+  }
+
+  @Override
   public Boolean primitive(Schema primitive) {
     return false;
   }

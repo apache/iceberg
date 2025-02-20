@@ -223,7 +223,9 @@ public class AvroSchemaUtil {
     return schema.getType() == RECORD
         && schema.getFields().size() == 2
         && schema.getField("metadata") != null
-        && schema.getField("value") != null;
+        && schema.getField("metadata").schema().getType() == Schema.Type.BYTES
+        && schema.getField("value") != null
+        && schema.getField("value").schema().getType() == Schema.Type.BYTES;
   }
 
   static Schema createMap(int keyId, Schema keySchema, int valueId, Schema valueSchema) {
