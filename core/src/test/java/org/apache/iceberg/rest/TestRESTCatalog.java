@@ -2508,7 +2508,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void testNamespaceExistsFallbackToGETRequest() {
-    RESTCatalogAdapter adapter =
+    verifyNamespaceExistsFallbackToGETRequest(
         Mockito.spy(
             new RESTCatalogAdapter(backendCatalog) {
               @Override
@@ -2529,8 +2529,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
                 return super.execute(request, responseType, errorHandler, responseHeaders);
               }
-            });
+            }));
+  }
 
+  private void verifyNamespaceExistsFallbackToGETRequest(RESTCatalogAdapter adapter) {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize("test", ImmutableMap.of());
@@ -2551,6 +2553,30 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any(),
             any(),
             any());
+  }
+
+  @Test
+  public void testNamespaceExistsFallbackToGETRequestWithLegacyServer() {
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders) {
+                if ("v1/config".equals(request.path())) {
+                  // simulate a legacy server that doesn't send back supported endpoints, thus the
+                  // client relies on the default endpoints
+                  return castResponse(responseType, ConfigResponse.builder().build());
+                }
+
+                return super.execute(request, responseType, errorHandler, responseHeaders);
+              }
+            });
+
+    verifyNamespaceExistsFallbackToGETRequest(adapter);
   }
 
   @Test
@@ -2625,6 +2651,57 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any(),
             any(),
             any());
+  }
+
+  private void verifyTableExistsFallbackToGETRequest(RESTCatalogAdapter adapter) {
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of());
+
+    assertThat(catalog.tableExists(TABLE)).isFalse();
+
+    Mockito.verify(adapter)
+        .execute(
+            reqMatcher(HTTPMethod.GET, "v1/config", Map.of(), Map.of()),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+
+    // verifies that the table is loaded via a GET instead of HEAD (V1_LOAD_TABLE)
+    Mockito.verify(adapter)
+        .execute(
+            reqMatcher(
+                HTTPMethod.GET,
+                "v1/namespaces/newdb/tables/table",
+                Map.of(),
+                Map.of("snapshots", "all")),
+            any(),
+            any(),
+            any());
+  }
+
+  @Test
+  public void testTableExistsFallbackToGETRequestWithLegacyServer() {
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders) {
+                if ("v1/config".equals(request.path())) {
+                  // simulate a legacy server that doesn't send back supported endpoints, thus the
+                  // client relies on the default endpoints
+                  return castResponse(responseType, ConfigResponse.builder().build());
+                }
+
+                return super.execute(request, responseType, errorHandler, responseHeaders);
+              }
+            });
+
+    verifyTableExistsFallbackToGETRequest(adapter);
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
