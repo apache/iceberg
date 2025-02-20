@@ -843,9 +843,6 @@ public class TestEvaluator {
 
     Evaluator evaluator =
         new Evaluator(geoStruct, Expressions.geospatialPredicate(operation, columnName, bbox));
-    assertThatThrownBy(() -> evaluator.eval(TestHelpers.Row.of(wkb, wkb)))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageMatching(
-            "Evaluation of \\w+ against geometry/geography value is not implemented.");
+    assertThat(evaluator.eval(TestHelpers.Row.of(wkb, wkb))).isTrue();
   }
 }

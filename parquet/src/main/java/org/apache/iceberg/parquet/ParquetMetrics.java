@@ -33,6 +33,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -53,6 +54,8 @@ import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.column.statistics.Statistics;
+import org.apache.parquet.column.statistics.geospatial.BoundingBox;
+import org.apache.parquet.column.statistics.geospatial.GeospatialStatistics;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
@@ -266,6 +269,9 @@ class ParquetMetrics {
         return null;
       } else if (truncateLength <= 0) {
         return counts(fieldId);
+      } else if (icebergType.typeId() == org.apache.iceberg.types.Type.TypeID.GEOMETRY
+          || icebergType.typeId() == org.apache.iceberg.types.Type.TypeID.GEOGRAPHY) {
+        return geospatialBounds(fieldId, icebergType);
       } else {
         return bounds(fieldId, icebergType, primitive, truncateLength);
       }
@@ -340,6 +346,70 @@ class ParquetMetrics {
       ByteBuffer upper = Conversions.toByteBuffer(icebergType, upperBound);
 
       return new FieldMetrics<>(fieldId, valueCount, nullCount, lower, upper, icebergType);
+    }
+
+    private FieldMetrics<ByteBuffer> geospatialBounds(
+        int fieldId, org.apache.iceberg.types.Type.PrimitiveType icebergType) {
+      if (icebergType == null) {
+        return null;
+      }
+
+      long valueCount = 0;
+      long nullCount = 0;
+      boolean isBoundValid = true;
+      double minX = Double.POSITIVE_INFINITY;
+      double minY = Double.POSITIVE_INFINITY;
+      double minZ = Double.POSITIVE_INFINITY;
+      double minM = Double.POSITIVE_INFINITY;
+      double maxX = Double.NEGATIVE_INFINITY;
+      double maxY = Double.NEGATIVE_INFINITY;
+      double maxZ = Double.NEGATIVE_INFINITY;
+      double maxM = Double.NEGATIVE_INFINITY;
+
+      ColumnPath path = ColumnPath.get(currentPath());
+      for (ColumnChunkMetaData column : columns.get(path)) {
+        Statistics<?> stats = column.getStatistics();
+        if (stats == null || stats.isEmpty()) {
+          return null;
+        }
+
+        nullCount += stats.getNumNulls();
+        valueCount += column.getValueCount();
+
+        // We cannot make any assumption about the geospatial values when geospatial bound is
+        // missing.
+        // See https://github.com/apache/parquet-format/pull/494
+        GeospatialStatistics geoStats = column.getGeospatialStatistics();
+        if (geoStats == null) {
+          isBoundValid = false;
+          continue;
+        }
+
+        BoundingBox boundingBox = geoStats.getBoundingBox();
+        if (boundingBox == null || !boundingBox.isValid()) {
+          isBoundValid = false;
+          continue;
+        }
+
+        minX = Math.min(minX, boundingBox.getXMin());
+        minY = Math.min(minY, boundingBox.getYMin());
+        minZ = Math.min(minZ, boundingBox.getZMin());
+        minM = Math.min(minM, boundingBox.getMMin());
+        maxX = Math.max(maxX, boundingBox.getXMax());
+        maxY = Math.max(maxY, boundingBox.getYMax());
+        maxZ = Math.max(maxZ, boundingBox.getZMax());
+        maxM = Math.max(maxM, boundingBox.getMMax());
+      }
+
+      // X and Y should be valid, otherwise the bound will be invalid and should be ignored
+      if (!isBoundValid) {
+        return new FieldMetrics<>(fieldId, valueCount, nullCount);
+      }
+
+      GeospatialBound lower = GeospatialBound.createXYZM(minX, minY, minZ, minM);
+      GeospatialBound upper = GeospatialBound.createXYZM(maxX, maxY, maxZ, maxM);
+      return new FieldMetrics<>(
+          fieldId, valueCount, nullCount, lower.toByteBuffer(), upper.toByteBuffer());
     }
 
     @Override

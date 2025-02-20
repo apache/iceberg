@@ -29,9 +29,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.TimestampType;
+import org.apache.parquet.column.schema.EdgeInterpolationAlgorithm;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -241,6 +243,41 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     @Override
     public Optional<Type> visit(LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonType) {
       return Optional.of(Types.BinaryType.get());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryType) {
+      String crs = geometryType.getCrs();
+      return Optional.of(Types.GeometryType.of(crs));
+    }
+
+    @Override
+    public Optional<Type> visit(
+        LogicalTypeAnnotation.GeographyLogicalTypeAnnotation geographyType) {
+      String crs = geographyType.getCrs();
+      EdgeInterpolationAlgorithm algorithm = geographyType.getAlgorithm();
+      EdgeAlgorithm edgeAlgorithm;
+      switch (algorithm) {
+        case SPHERICAL:
+          edgeAlgorithm = EdgeAlgorithm.SPHERICAL;
+          break;
+        case VINCENTY:
+          edgeAlgorithm = EdgeAlgorithm.VINCENTY;
+          break;
+        case THOMAS:
+          edgeAlgorithm = EdgeAlgorithm.THOMAS;
+          break;
+        case ANDOYER:
+          edgeAlgorithm = EdgeAlgorithm.ANDOYER;
+          break;
+        case KARNEY:
+          edgeAlgorithm = EdgeAlgorithm.KARNEY;
+          break;
+        default:
+          throw new UnsupportedOperationException(
+              "Cannot convert unknown edge algorithm: " + algorithm);
+      }
+      return Optional.of(Types.GeographyType.of(crs, edgeAlgorithm));
     }
   }
 
