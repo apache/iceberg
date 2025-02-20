@@ -86,7 +86,7 @@ public class Avro {
 
   static {
     LogicalTypes.register(LogicalMap.NAME, schema -> LogicalMap.get());
-    LogicalTypes.register(Variant.NAME, schema -> Variant.get());
+    LogicalTypes.register(VariantLogicalType.NAME, schema -> VariantLogicalType.get());
     DEFAULT_MODEL.addLogicalTypeConversion(new Conversions.DecimalConversion());
     DEFAULT_MODEL.addLogicalTypeConversion(new UUIDConversion());
   }

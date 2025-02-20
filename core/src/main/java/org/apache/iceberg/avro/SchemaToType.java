@@ -173,7 +173,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
   }
 
   @Override
-  public Type variant(Schema variant) {
+  public Type variant(Schema variant, List<Type> fieldTypes) {
     return Types.VariantType.get();
   }
 

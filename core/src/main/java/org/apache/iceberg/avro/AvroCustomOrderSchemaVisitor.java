@@ -37,10 +37,6 @@ abstract class AvroCustomOrderSchemaVisitor<T, F> {
 
         visitor.recordLevels.push(name);
 
-        if (schema.getLogicalType() instanceof Variant) {
-          return visitor.variant(schema);
-        }
-
         List<Schema.Field> fields = schema.getFields();
         List<String> names = Lists.newArrayListWithExpectedSize(fields.size());
         List<Supplier<F>> results = Lists.newArrayListWithExpectedSize(fields.size());
@@ -51,7 +47,13 @@ abstract class AvroCustomOrderSchemaVisitor<T, F> {
 
         visitor.recordLevels.pop();
 
-        return visitor.record(schema, names, Iterables.transform(results, Supplier::get));
+        if (schema.getLogicalType() instanceof VariantLogicalType) {
+          Preconditions.checkArgument(
+              AvroSchemaUtil.isVariantSchema(schema), "Invalid variant record: %s", schema);
+          return visitor.variant(schema);
+        } else {
+          return visitor.record(schema, names, Iterables.transform(results, Supplier::get));
+        }
 
       case UNION:
         List<Schema> types = schema.getTypes();
