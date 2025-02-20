@@ -68,8 +68,8 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
     return Streams.concat(Streams.stream(basePath), fieldNames.stream()).toArray(String[]::new);
   }
 
-  private String[] path(String name) {
-    return Streams.concat(Streams.stream(basePath), fieldNames.stream(), Stream.of(name))
+  private String[] path(String... names) {
+    return Streams.concat(Streams.stream(basePath), fieldNames.stream(), Stream.of(names))
         .toArray(String[]::new);
   }
 
@@ -119,11 +119,13 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
           return ParquetVariantWriters.primitive(
               ParquetValueWriters.longs(desc), PhysicalType.INT64);
         case FLOAT:
+          // use an unboxed writer to skip metrics collection that requires an ID
           return ParquetVariantWriters.primitive(
-              ParquetValueWriters.floats(desc), PhysicalType.FLOAT);
+              ParquetValueWriters.unboxed(desc), PhysicalType.FLOAT);
         case DOUBLE:
+          // use an unboxed writer to skip metrics collection that requires an ID
           return ParquetVariantWriters.primitive(
-              ParquetValueWriters.doubles(desc), PhysicalType.DOUBLE);
+              ParquetValueWriters.unboxed(desc), PhysicalType.DOUBLE);
       }
     }
 
@@ -150,14 +152,19 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
       ParquetValueWriter<?> valueWriter,
       List<ParquetValueWriter<?>> fieldWriters) {
     int valueDL = schema.getMaxDefinitionLevel(path(VALUE));
-    int fieldsDL = schema.getMaxDefinitionLevel(path(TYPED_VALUE));
+    int typedDL = schema.getMaxDefinitionLevel(path(TYPED_VALUE));
+    GroupType firstField = object.getType(TYPED_VALUE).asGroupType().getType(0).asGroupType();
+    int fieldDL =
+        schema.getMaxDefinitionLevel(
+            path(TYPED_VALUE, firstField.getName(), firstField.getType(0).getName()));
 
     List<String> names =
         object.getType(TYPED_VALUE).asGroupType().getFields().stream()
             .map(Type::getName)
             .collect(Collectors.toList());
 
-    return ParquetVariantWriters.objects(valueDL, valueWriter, fieldsDL, names, fieldWriters);
+    return ParquetVariantWriters.objects(
+        valueDL, valueWriter, typedDL, fieldDL, names, fieldWriters);
   }
 
   @Override

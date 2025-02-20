@@ -24,6 +24,7 @@ import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.MessageType;
 
@@ -38,9 +39,14 @@ public class InternalWriter<T extends StructLike> extends BaseParquetWriter<T> {
 
   private InternalWriter() {}
 
-  @SuppressWarnings("unchecked")
   public static <T extends StructLike> ParquetValueWriter<T> create(MessageType type) {
-    return (ParquetValueWriter<T>) INSTANCE.createWriter(type);
+    return create(null, type);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T extends StructLike> ParquetValueWriter<T> create(
+      Types.StructType struct, MessageType type) {
+    return (ParquetValueWriter<T>) INSTANCE.createWriter(struct, type);
   }
 
   @Override
