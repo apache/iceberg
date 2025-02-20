@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
@@ -75,9 +75,10 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       Configuration conf,
       OutputFile output,
       Schema schema,
+      MessageType parquetSchema,
       long rowGroupSize,
       Map<String, String> metadata,
-      Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
+      BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc,
       CompressionCodecName codec,
       ParquetProperties properties,
       MetricsConfig metricsConfig,
@@ -88,8 +89,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.metadata = ImmutableMap.copyOf(metadata);
     this.compressor =
         new ParquetCodecFactory(conf, props.getPageSizeThreshold()).getCompressor(codec);
-    this.parquetSchema = ParquetSchemaUtil.convert(schema, "table");
-    this.model = (ParquetValueWriter<T>) createWriterFunc.apply(parquetSchema);
+    this.parquetSchema = parquetSchema;
+    this.model = (ParquetValueWriter<T>) createWriterFunc.apply(schema, parquetSchema);
     this.metricsConfig = metricsConfig;
     this.columnIndexTruncateLength =
         conf.getInt(COLUMN_INDEX_TRUNCATE_LENGTH, DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
