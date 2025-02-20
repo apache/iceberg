@@ -366,7 +366,7 @@ public class TestExpressionBinding {
     assertThat(pred.term()).as("Should use a BoundExtract").isInstanceOf(BoundExtract.class);
   }
 
-  private static final String[] INVALID_PATHS =
+  private static final String[] UNSUPPORTED_PATHS =
       new String[] {
         null,
         "",
@@ -378,7 +378,7 @@ public class TestExpressionBinding {
       };
 
   @ParameterizedTest
-  @FieldSource("INVALID_PATHS")
+  @FieldSource("UNSUPPORTED_PATHS")
   public void testExtractBindingWithInvalidPath(String path) {
     assertThatThrownBy(() -> Binder.bind(STRUCT, lessThan(extract("var", path, "long"), 100)))
         .isInstanceOf(IllegalArgumentException.class);

@@ -19,11 +19,20 @@
 package org.apache.iceberg.variants;
 
 import java.util.List;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 
 public class VariantDataUtil {
   private VariantDataUtil() {}
+
+  private static final String RFC9535_NAME_FIRST =
+      "[A-Za-z_\\x{0080}-\\x{D7FF}\\x{E000}-\\x{10FFFF}]";
+  private static final String RFC9535_NAME_CHARS =
+      "[0-9A-Za-z_\\x{0080}-\\x{D7FF}\\x{E000}-\\x{10FFFF}]*";
+  private static final Predicate<String> RFC9535_MEMBER_NAME_SHORTHAND =
+      Pattern.compile(RFC9535_NAME_FIRST + RFC9535_NAME_CHARS).asMatchPredicate();
 
   private static final Splitter DOT = Splitter.on(".");
   private static final String ROOT = "$";
@@ -41,6 +50,15 @@ public class VariantDataUtil {
     Preconditions.checkArgument(
         ROOT.equals(parts.get(0)), "Invalid path, does not start with %s: %s", ROOT, path);
 
-    return parts.subList(1, parts.size());
+    List<String> names = parts.subList(1, parts.size());
+    for (String name : names) {
+      Preconditions.checkArgument(
+          RFC9535_MEMBER_NAME_SHORTHAND.test(name),
+          "Invalid path: %s (%s has invalid characters)",
+          path,
+          name);
+    }
+
+    return names;
   }
 }
