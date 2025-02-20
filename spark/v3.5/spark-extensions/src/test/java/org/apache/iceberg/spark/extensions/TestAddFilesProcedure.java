@@ -656,7 +656,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining(
               String.format(
-                  "Cannot add data files to target table %s because that table is partitioned and contains non-identitypartition transforms which will not be compatible.",
+                  "Cannot add data files to target table %s because that table is partitioned and contains non-identity partition transforms which will not be compatible.",
                   tableName));
       return;
     }
@@ -671,6 +671,29 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
         "Iceberg table contains correct data",
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void addFileTableNoCompatibleSpec() {
+    createPartitionedFileTable("parquet");
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (dept)");
+    sql("ALTER TABLE %s ADD PARTITION FIELD subdept", tableName);
+
+    String fullTableName = tableName;
+    if (implementation.equals(SparkCatalogConfig.SPARK.implementation())) {
+      fullTableName = String.format("%s.%s", catalogName, tableName);
+    }
+    assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files(table => '%s', source_table => '`parquet`.`%s`')",
+                    catalogName, tableName, fileTableDir.getAbsolutePath()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            String.format(
+                "Cannot find a partition spec in Iceberg table %s that matches the partition columns (%s) in input table",
+                fullTableName, "[id]"));
   }
 
   @TestTemplate

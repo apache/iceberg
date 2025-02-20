@@ -19,12 +19,13 @@
 package org.apache.iceberg.spark.procedures;
 
 import static org.apache.iceberg.spark.Spark3Util.getInferredSpec;
+import static org.apache.iceberg.spark.SparkTableUtil.findCompatibleSpec;
+import static org.apache.iceberg.spark.SparkTableUtil.validatePartitionFilter;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.PartitionField;
@@ -160,7 +161,7 @@ class AddFilesProcedure extends BaseProcedure {
     return modifyIcebergTable(
         destIdent,
         table -> {
-          validatePartitionFilter(table, partitionFilter);
+          nonIdentityPartitionCheck(table);
           ensureNameMappingPresent(table);
 
           if (isFileIdentifier(sourceIdent)) {
@@ -203,26 +204,13 @@ class AddFilesProcedure extends BaseProcedure {
             .map(StructField::name)
             .map(name -> name.toLowerCase(Locale.ROOT))
             .collect(Collectors.toList());
-    PartitionSpec matchingSpec = null;
-    for (PartitionSpec icebergSpec : table.specs().values()) {
-      List<String> icebergPartNames =
-          icebergSpec.fields().stream()
-              .map(PartitionField::name)
-              .map(name -> name.toLowerCase(Locale.ROOT))
-              .collect(Collectors.toList());
-      if (icebergPartNames.equals(sparkPartNames)) {
-        matchingSpec = icebergSpec;
-        break;
-      }
-    }
-    if (matchingSpec == null) {
-      // If the inferred spec does not match any existing spec, use the Iceberg table's latest spec
-      matchingSpec = table.spec();
-    }
+    PartitionSpec compatibleSpec = findCompatibleSpec(sparkPartNames, table);
+
+    validatePartitionFilter(compatibleSpec, partitionFilter, table.name());
 
     // List Partitions via Spark InMemory file search interface
     List<SparkPartition> partitions =
-        Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter, matchingSpec);
+        Spark3Util.getPartitions(spark(), tableLocation, format, partitionFilter, compatibleSpec);
 
     if (table.spec().isUnpartitioned()) {
       Preconditions.checkArgument(
@@ -235,11 +223,11 @@ class AddFilesProcedure extends BaseProcedure {
       SparkPartition partition =
           new SparkPartition(Collections.emptyMap(), tableLocation.toString(), format);
       importPartitions(
-          table, ImmutableList.of(partition), checkDuplicateFiles, matchingSpec, parallelism);
+          table, ImmutableList.of(partition), checkDuplicateFiles, compatibleSpec, parallelism);
     } else {
       Preconditions.checkArgument(
           !partitions.isEmpty(), "Cannot find any matching partitions in table %s", table.name());
-      importPartitions(table, partitions, checkDuplicateFiles, matchingSpec, parallelism);
+      importPartitions(table, partitions, checkDuplicateFiles, compatibleSpec, parallelism);
     }
   }
 
@@ -283,55 +271,16 @@ class AddFilesProcedure extends BaseProcedure {
     return "AddFiles";
   }
 
-  private void validatePartitionFilter(Table table, Map<String, String> partitionFilter) {
-    List<PartitionField> partitionFields = table.spec().fields();
-    Set<String> partitionNames =
-        table.spec().fields().stream().map(PartitionField::name).collect(Collectors.toSet());
-
-    boolean tablePartitioned = !partitionFields.isEmpty();
-    boolean partitionFilterPassed = !partitionFilter.isEmpty();
-
+  private void nonIdentityPartitionCheck(Table table) {
     // Check for any non-identity partition columns
     List<PartitionField> nonIdentityFields =
-        partitionFields.stream()
+        table.spec().fields().stream()
             .filter(x -> !x.transform().isIdentity())
             .collect(Collectors.toList());
     Preconditions.checkArgument(
         nonIdentityFields.isEmpty(),
-        "Cannot add data files to target table %s because that table is partitioned and contains non-identity"
-            + "partition transforms which will not be compatible. Found non-identity fields %s",
+        "Cannot add data files to target table %s because that table is partitioned and contains non-identity partition transforms which will not be compatible. Found non-identity fields %s",
         table.name(),
         nonIdentityFields);
-
-    if (tablePartitioned && partitionFilterPassed) {
-      // Check to see there are sufficient partition columns to satisfy the filter
-      Preconditions.checkArgument(
-          partitionFields.size() >= partitionFilter.size(),
-          "Cannot add data files to target table %s because that table is partitioned, "
-              + "but the number of columns in the provided partition filter (%s) "
-              + "is greater than the number of partitioned columns in table (%s)",
-          table.name(),
-          partitionFilter.size(),
-          partitionFields.size());
-
-      // Check for any filters of non existent columns
-      List<String> unMatchedFilters =
-          partitionFilter.keySet().stream()
-              .filter(filterName -> !partitionNames.contains(filterName))
-              .collect(Collectors.toList());
-      Preconditions.checkArgument(
-          unMatchedFilters.isEmpty(),
-          "Cannot add files to target table %s. %s is partitioned but the specified partition filter "
-              + "refers to columns that are not partitioned: '%s' . Valid partition columns %s",
-          table.name(),
-          table.name(),
-          unMatchedFilters,
-          String.join(",", partitionNames));
-    } else {
-      Preconditions.checkArgument(
-          !partitionFilterPassed,
-          "Cannot use partition filter with an unpartitioned table %s",
-          table.name());
-    }
   }
 }
