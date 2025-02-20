@@ -1748,7 +1748,7 @@ public class TestRemoveSnapshots extends TestBase {
   }
 
   private void commitStats(Table table, StatisticsFile statisticsFile) {
-    table.updateStatistics().setStatistics(statisticsFile.snapshotId(), statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
   }
 
   private String statsFileLocation(String tableLocation) {

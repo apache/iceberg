@@ -206,7 +206,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
                     ImmutableList.of(1),
                     ImmutableMap.of("data_size", "4"))));
 
-    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
 
     checkColStatisticsNotReported(scan, 4L);
     withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
@@ -259,7 +259,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
                     ImmutableList.of(1),
                     ImmutableMap.of("ndv", "4"))));
 
-    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
 
     checkColStatisticsNotReported(scan, 4L);
     withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
@@ -320,7 +320,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
                     ImmutableList.of(1),
                     ImmutableMap.of("data_size", "2"))));
 
-    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
 
     checkColStatisticsNotReported(scan, 4L);
     withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
@@ -380,7 +380,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
                     ImmutableList.of(2),
                     ImmutableMap.of("ndv", "2"))));
 
-    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
 
     checkColStatisticsNotReported(scan, 4L);
     withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));

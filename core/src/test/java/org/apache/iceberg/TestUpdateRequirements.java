@@ -600,7 +600,7 @@ public class TestUpdateRequirements {
     List<UpdateRequirement> requirements =
         UpdateRequirements.forUpdateTable(
             metadata,
-            ImmutableList.of(new MetadataUpdate.SetStatistics(0L, mock(StatisticsFile.class))));
+            ImmutableList.of(new MetadataUpdate.SetStatistics(mock(StatisticsFile.class))));
     requirements.forEach(req -> req.validate(metadata));
 
     assertThat(requirements)

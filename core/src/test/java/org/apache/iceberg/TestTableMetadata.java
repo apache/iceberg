@@ -1341,7 +1341,6 @@ public class TestTableMetadata {
     TableMetadata withStatistics =
         TableMetadata.buildFrom(meta)
             .setStatistics(
-                43,
                 new GenericStatisticsFile(
                     43, "/some/path/to/stats/file", 128, 27, ImmutableList.of()))
             .build();
@@ -1356,7 +1355,6 @@ public class TestTableMetadata {
     TableMetadata withStatisticsReplaced =
         TableMetadata.buildFrom(withStatistics)
             .setStatistics(
-                43,
                 new GenericStatisticsFile(
                     43, "/some/path/to/stats/file2", 128, 27, ImmutableList.of()))
             .build();
@@ -1378,11 +1376,9 @@ public class TestTableMetadata {
                 TableMetadata.newTableMetadata(
                     schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
             .setStatistics(
-                43,
                 new GenericStatisticsFile(
                     43, "/some/path/to/stats/file", 128, 27, ImmutableList.of()))
             .setStatistics(
-                44,
                 new GenericStatisticsFile(
                     44, "/some/path/to/stats/file2", 128, 27, ImmutableList.of()))
             .build();

@@ -481,13 +481,7 @@ public class MetadataUpdateParser {
   private static MetadataUpdate readAddSchema(JsonNode node) {
     JsonNode schemaNode = JsonUtil.get(SCHEMA, node);
     Schema schema = SchemaParser.fromJson(schemaNode);
-    int lastColumnId;
-    if (node.has(LAST_COLUMN_ID)) {
-      lastColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
-    } else {
-      lastColumnId = schema.highestFieldId();
-    }
-    return new MetadataUpdate.AddSchema(schema, lastColumnId);
+    return new MetadataUpdate.AddSchema(schema);
   }
 
   private static MetadataUpdate readSetCurrentSchema(JsonNode node) {
