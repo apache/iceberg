@@ -18,25 +18,21 @@
  */
 package org.apache.iceberg.expressions;
 
-import java.util.List;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.variants.Variant;
-import org.apache.iceberg.variants.VariantDataUtil;
 
 public class BoundExtract<T> implements BoundTerm<T> {
   private final BoundReference<Variant> ref;
   private final String path;
-  private final List<String> fields;
   private final String fullFieldName;
   private final Type type;
 
   BoundExtract(BoundReference<Variant> ref, String path, Type type) {
     this.ref = ref;
     this.path = path;
-    this.fields = VariantDataUtil.parsePath(path);
-    this.fullFieldName = Joiner.on(".").join(fields);
+    this.fullFieldName = Joiner.on(".").join(PathUtil.parse(path));
     this.type = type;
   }
 
@@ -49,7 +45,7 @@ public class BoundExtract<T> implements BoundTerm<T> {
     return path;
   }
 
-  public String fullFieldName() {
+  String fullFieldName() {
     return fullFieldName;
   }
 
@@ -62,7 +58,7 @@ public class BoundExtract<T> implements BoundTerm<T> {
   public boolean isEquivalentTo(BoundTerm<?> other) {
     if (other instanceof BoundExtract) {
       BoundExtract<?> that = (BoundExtract<?>) other;
-      return ref.isEquivalentTo(that.ref) && fields.equals(that.fields) && type.equals(that.type);
+      return ref.isEquivalentTo(that.ref) && path.equals(that.path) && type.equals(that.type);
     }
 
     return false;

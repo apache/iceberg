@@ -19,7 +19,7 @@
  *
  */
 
-package org.apache.iceberg.variants;
+package org.apache.iceberg.expressions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -34,7 +34,7 @@ public class TestPathParsing {
 
   @Test
   public void testSimplePath() {
-    assertThat(VariantDataUtil.parsePath("$.event.id")).isEqualTo(List.of("event", "id"));
+    assertThat(PathUtil.parse("$.event.id")).isEqualTo(List.of("event", "id"));
   }
 
   private static final String[] VALID_PATHS =
@@ -49,7 +49,7 @@ public class TestPathParsing {
   @ParameterizedTest
   @FieldSource("VALID_PATHS")
   public void testExtractExpressionBindingPaths(String path) {
-    assertThatCode(() -> VariantDataUtil.parsePath(path)).doesNotThrowAnyException();
+    assertThatCode(() -> PathUtil.parse(path)).doesNotThrowAnyException();
   }
 
   private static final String[] INVALID_PATHS =
@@ -69,7 +69,6 @@ public class TestPathParsing {
   @ParameterizedTest
   @FieldSource("INVALID_PATHS")
   public void testExtractBindingWithInvalidPath(String path) {
-    assertThatThrownBy(() -> VariantDataUtil.parsePath(path))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> PathUtil.parse(path)).isInstanceOf(IllegalArgumentException.class);
   }
 }

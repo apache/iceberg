@@ -22,7 +22,6 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.variants.Variant;
-import org.apache.iceberg.variants.VariantDataUtil;
 
 public class UnboundExtract<T> implements UnboundTerm<T> {
   private final NamedReference<Variant> ref;
@@ -34,7 +33,7 @@ public class UnboundExtract<T> implements UnboundTerm<T> {
     this.path = path;
     this.type = Types.fromPrimitiveString(type);
     // verify that the path is well-formed
-    VariantDataUtil.parsePath(path);
+    PathUtil.parse(path);
   }
 
   @Override
