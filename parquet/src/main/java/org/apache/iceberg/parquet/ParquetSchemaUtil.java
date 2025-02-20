@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.NameMapping;
@@ -40,6 +41,11 @@ public class ParquetSchemaUtil {
 
   public static MessageType convert(Schema schema, String name) {
     return new TypeToMessageType().convert(schema, name);
+  }
+
+  public static MessageType convert(
+      Schema schema, String name, BiFunction<Integer, String, Type> variantShreddingFunc) {
+    return new TypeToMessageType(variantShreddingFunc).convert(schema, name);
   }
 
   /**

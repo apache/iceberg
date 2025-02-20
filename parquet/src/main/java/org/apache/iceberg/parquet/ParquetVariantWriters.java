@@ -81,6 +81,7 @@ class ParquetVariantWriters {
       int valueDefinitionLevel,
       ParquetValueWriter<?> valueWriter,
       int typedDefinitionLevel,
+      int fieldDefinitionLevel,
       List<String> fieldNames,
       List<ParquetValueWriter<?>> fieldWriters) {
     ImmutableMap.Builder<String, ParquetValueWriter<VariantValue>> builder = ImmutableMap.builder();
@@ -92,6 +93,7 @@ class ParquetVariantWriters {
         valueDefinitionLevel,
         (ParquetValueWriter<VariantValue>) valueWriter,
         typedDefinitionLevel,
+        fieldDefinitionLevel,
         builder.build());
   }
 
@@ -128,7 +130,7 @@ class ParquetVariantWriters {
 
   private abstract static class VariantBinaryWriter<T> implements ParquetValueWriter<T> {
     private final ParquetValueWriter<ByteBuffer> bytesWriter;
-    private ByteBuffer reusedBuffer = ByteBuffer.allocate(2048);
+    private ByteBuffer reusedBuffer = ByteBuffer.allocate(2048).order(ByteOrder.LITTLE_ENDIAN);
 
     private VariantBinaryWriter(ParquetValueWriter<ByteBuffer> bytesWriter) {
       this.bytesWriter = bytesWriter;
@@ -157,6 +159,8 @@ class ParquetVariantWriters {
       if (reusedBuffer.capacity() < requiredSize) {
         int newCapacity = capacityFor(requiredSize);
         this.reusedBuffer = ByteBuffer.allocate(newCapacity).order(ByteOrder.LITTLE_ENDIAN);
+      } else {
+        reusedBuffer.limit(requiredSize);
       }
     }
 
@@ -282,6 +286,7 @@ class ParquetVariantWriters {
     private final int valueDefinitionLevel;
     private final ParquetValueWriter<VariantValue> valueWriter;
     private final int typedDefinitionLevel;
+    private final int fieldDefinitionLevel;
     private final Map<String, ParquetValueWriter<VariantValue>> typedWriters;
     private final List<TripleWriter<?>> children;
 
@@ -289,10 +294,12 @@ class ParquetVariantWriters {
         int valueDefinitionLevel,
         ParquetValueWriter<VariantValue> valueWriter,
         int typedDefinitionLevel,
+        int fieldDefinitionLevel,
         Map<String, ParquetValueWriter<VariantValue>> typedWriters) {
       this.valueDefinitionLevel = valueDefinitionLevel;
       this.valueWriter = valueWriter;
       this.typedDefinitionLevel = typedDefinitionLevel;
+      this.fieldDefinitionLevel = fieldDefinitionLevel;
       this.typedWriters = typedWriters;
       this.children =
           children(
@@ -305,14 +312,14 @@ class ParquetVariantWriters {
       if (value.type() != PhysicalType.OBJECT) {
         valueWriter.write(repetitionLevel, value);
 
-        // write null for all fields
+        // write null for the typed_value group
         for (ParquetValueWriter<?> writer : typedWriters.values()) {
           writeNull(writer, repetitionLevel, typedDefinitionLevel);
         }
 
       } else {
         VariantObject object = value.asObject();
-        ShreddedObject shredded = Variants.object(null, object);
+        ShreddedObject shredded = Variants.object(object);
         for (Map.Entry<String, ParquetValueWriter<VariantValue>> entry : typedWriters.entrySet()) {
           String fieldName = entry.getKey();
           ParquetValueWriter<VariantValue> writer = entry.getValue();
@@ -324,7 +331,7 @@ class ParquetVariantWriters {
             writer.write(repetitionLevel, fieldValue);
           } else {
             // missing: write null to both value and typed_value
-            writeNull(writer, repetitionLevel, typedDefinitionLevel);
+            writeNull(writer, repetitionLevel, fieldDefinitionLevel);
           }
         }
 
