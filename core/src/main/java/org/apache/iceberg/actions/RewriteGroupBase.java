@@ -71,33 +71,25 @@ public abstract class RewriteGroupBase<I, T extends ContentScanTask<F>, F extend
   }
 
   /**
-   * While we create tasks that should all be smaller than our target size, there is a chance that
-   * the actual data will end up being larger than our target size due to various factors of
-   * compression, serialization, which are outside our control. If this occurs, instead of making a
-   * single file that is close in size to our target, we would end up producing one file of the
-   * target size, and then a small extra file with the remaining data.
+   * The target file size which should be used by the {@link FileRewriteRunner}. The {@link
+   * FileRewritePlanner} could chose different values than defined by the table properties.
    *
-   * <p>For example, if our target is 512 MB, we may generate a rewrite task that should be 500 MB.
-   * When we write the data we may find we actually have to write out 530 MB. If we use the target
-   * size while writing, we would produce a 512 MB file and an 18 MB file. If instead we use a
-   * larger size estimated by this method, then we end up writing a single file.
-   *
-   * @return the target size plus one half of the distance between max and target
+   * @return the target size should be used by the runner
    */
   public long maxOutputFileSize() {
     return maxOutputFileSize;
   }
 
   /**
-   * Determines the reader split size as the input size divided by the desired number of output
-   * files. The final split size is adjusted to be at least as big as the target file size but less
-   * than the max write file size.
+   * The amount of bytes of data the {@link FileRewriteRunner} should read from a single group in a
+   * single read task. The {@link FileRewritePlanner} chooses a value to allow parallelization for
+   * the runners, but prevent fragmentation of the output caused by too many readers.
    */
   public long inputSplitSize() {
     return inputSplitSize;
   }
 
-  /** Expected number of the output files. */
+  /** The total number of files that should be produced by the rewrite of this entire file group. */
   public int expectedOutputFiles() {
     return expectedOutputFiles;
   }

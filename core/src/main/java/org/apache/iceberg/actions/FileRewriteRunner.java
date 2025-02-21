@@ -33,8 +33,6 @@ import org.apache.iceberg.ContentScanTask;
  *       rewrite of the files, and returns the generated new files.
  * </ul>
  *
- * A single runner could be used to rewrite multiple groups for the same plan.
- *
  * @param <I> the Java type of the plan info like {@link RewriteDataFiles.FileGroupInfo} or {@link
  *     RewritePositionDeleteFiles.FileGroupInfo}
  * @param <T> the Java type of the input scan tasks (input)

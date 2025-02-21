@@ -24,18 +24,28 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
 
 /**
- * A class for planning content file rewrites.
+ * A class for planning a rewrite operation.
  *
- * <p>The entire rewrite operation is broken down into pieces. The grouping is based on partitioning
- * and the planning could create multiple groups within a partition. As a result {@link
- * FileRewritePlan} is generated which contains the data need by the {@link FileRewriteRunner}s
- * which execute the actual file rewrite.
+ * <p>A Rewrite Operation is performed by several classes working in conjunction.
  *
- * <p>The lifecycle of the planner is:
+ * <ul>
+ *   <li>{@link FileRewritePlanner} - (this class) which scans the files in the table and determines
+ *       which files should be rewritten and how they should be grouped. The grouping is based on
+ *       partitioning and the planning could create multiple groups within a partition. This
+ *       produces a {@link FileRewritePlan}.
+ *   <li>{@link FileRewritePlan} - This immutable output of the planner contains a set of groups
+ *       like {@link RewriteFileGroup} or {@link RewritePositionDeletesGroup}, each containing a set
+ *       of files that are meant to be compacted together by the {@link FileRewriteRunner}.
+ *   <li>{@link FileRewriteRunner} - The runner is the engine specific implementation that can take
+ *       a {@link FileRewritePlan} and perform a rewrite on each of the groups within. This is the
+ *       actual implementation of the rewrite which generates new files.
+ * </ul>
+ *
+ * <p>The lifecycle for the planner looks like the following:
  *
  * <ul>
  *   <li>{@link #init(Map)} initializes the planner with the configuration parameters
- *   <li>{@link #plan()} generates the plan for the given configuration
+ *   <li>{@link #plan()} called for generating the {@link FileRewritePlan} for the given parameters.
  * </ul>
  *
  * @param <I> the Java type of the plan info like {@link RewriteDataFiles.FileGroupInfo} or {@link
