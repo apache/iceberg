@@ -107,6 +107,20 @@ public class VariantTestUtil {
     return SerializedPrimitive.from(buffer, buffer.get(0));
   }
 
+  public static ByteBuffer variantBuffer(Map<String, VariantValue> data) {
+    ByteBuffer meta = VariantTestUtil.createMetadata(data.keySet(), true /* sort names */);
+    ByteBuffer value = VariantTestUtil.createObject(meta, data);
+    ByteBuffer buffer =
+        ByteBuffer.allocate(meta.remaining() + value.remaining()).order(ByteOrder.LITTLE_ENDIAN);
+    writeBufferAbsolute(buffer, 0, meta);
+    writeBufferAbsolute(buffer, meta.remaining(), value);
+    return buffer;
+  }
+
+  public static Variant variant(Map<String, VariantValue> data) {
+    return Variant.from(variantBuffer(data));
+  }
+
   public static ByteBuffer emptyMetadata() {
     return createMetadata(ImmutableList.of(), true);
   }
@@ -161,8 +175,10 @@ public class VariantTestUtil {
 
   public static ByteBuffer createObject(ByteBuffer metadataBuffer, Map<String, VariantValue> data) {
     // create the metadata to look up field names
-    VariantMetadata metadata = Variants.metadata(metadataBuffer);
+    return createObject(SerializedMetadata.from(metadataBuffer), data);
+  }
 
+  public static ByteBuffer createObject(VariantMetadata metadata, Map<String, VariantValue> data) {
     int numElements = data.size();
     boolean isLarge = numElements > 0xFF;
 
@@ -215,12 +231,12 @@ public class VariantTestUtil {
     return buffer;
   }
 
-  static ByteBuffer createArray(Variants.Serialized... values) {
+  static ByteBuffer createArray(Serialized... values) {
     int numElements = values.length;
     boolean isLarge = numElements > 0xFF;
 
     int dataSize = 0;
-    for (Variants.Serialized value : values) {
+    for (Serialized value : values) {
       // TODO: produce size for every variant without serializing
       dataSize += value.buffer().remaining();
     }
@@ -244,7 +260,7 @@ public class VariantTestUtil {
     // write values and offsets
     int nextOffset = 0; // the first offset is always 0
     int index = 0;
-    for (Variants.Serialized value : values) {
+    for (Serialized value : values) {
       // write the offset and value
       VariantUtil.writeLittleEndianUnsigned(
           buffer, nextOffset, offsetListOffset + (index * offsetSize), offsetSize);

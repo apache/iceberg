@@ -28,7 +28,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.SortedMerge;
 
 /**
@@ -167,12 +166,12 @@ public class ShreddedObject implements VariantObject {
       if (unshredded instanceof SerializedObject) {
         // for serialized objects, use existing buffers instead of materializing values
         SerializedObject serialized = (SerializedObject) unshredded;
-        for (Pair<String, Integer> field : serialized.fields()) {
+        for (Map.Entry<String, Integer> field : serialized.fields()) {
           // if the value is replaced by an unshredded field, don't include it
-          String name = field.first();
+          String name = field.getKey();
           boolean replaced = shreddedFields.containsKey(name) || removedFields.contains(name);
           if (!replaced) {
-            ByteBuffer value = serialized.sliceValue(field.second());
+            ByteBuffer value = serialized.sliceValue(field.getValue());
             unshreddedBuilder.put(name, value);
             totalDataSize += value.remaining();
           }
