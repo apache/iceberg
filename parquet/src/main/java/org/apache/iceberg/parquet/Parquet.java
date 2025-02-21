@@ -120,6 +120,7 @@ import org.apache.parquet.hadoop.api.ReadSupport;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -160,9 +161,10 @@ public class Parquet {
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
     private final Map<String, String> config = Maps.newLinkedHashMap();
     private Schema schema = null;
+    private BiFunction<Integer, String, Type> variantShreddingFunc = null;
     private String name = "table";
     private WriteSupport<?> writeSupport = null;
-    private Function<MessageType, ParquetValueWriter<?>> createWriterFunc = null;
+    private BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc = null;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
     private WriterVersion writerVersion = WriterVersion.PARQUET_1_0;
@@ -189,6 +191,11 @@ public class Parquet {
     @Override
     public WriteBuilder schema(Schema newSchema) {
       this.schema = newSchema;
+      return this;
+    }
+
+    public WriteBuilder variantShreddingFunc(BiFunction<Integer, String, Type> func) {
+      this.variantShreddingFunc = func;
       return this;
     }
 
@@ -222,7 +229,9 @@ public class Parquet {
 
     public WriteBuilder createWriterFunc(
         Function<MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
-      this.createWriterFunc = newCreateWriterFunc;
+      if (newCreateWriterFunc != null) {
+        this.createWriterFunc = (icebergSchema, type) -> newCreateWriterFunc.apply(type);
+      }
       return this;
     }
 
@@ -292,6 +301,7 @@ public class Parquet {
 
       Map<Integer, String> fieldIdToParquetPath =
           parquetSchema.getColumns().stream()
+              .filter(col -> col.getPrimitiveType().getId() != null)
               .collect(
                   Collectors.toMap(
                       col -> col.getPrimitiveType().getId().intValue(),
@@ -362,7 +372,7 @@ public class Parquet {
       }
 
       set("parquet.avro.write-old-list-structure", "false");
-      MessageType type = ParquetSchemaUtil.convert(schema, name);
+      MessageType type = ParquetSchemaUtil.convert(schema, name, variantShreddingFunc);
 
       FileEncryptionProperties fileEncryptionProperties = null;
       if (fileEncryptionKey != null) {
@@ -406,6 +416,7 @@ public class Parquet {
             conf,
             file,
             schema,
+            type,
             rowGroupSize,
             metadata,
             createWriterFunc,

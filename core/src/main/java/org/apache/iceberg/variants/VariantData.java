@@ -18,15 +18,26 @@
  */
 package org.apache.iceberg.variants;
 
-/** A variant metadata and value pair. */
-public interface Variant {
-  /** Returns the metadata for all values in the variant. */
-  VariantMetadata metadata();
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-  /** Returns the variant value. */
-  VariantValue value();
+class VariantData implements Variant {
+  private final VariantMetadata metadata;
+  private final VariantValue value;
 
-  static Variant of(VariantMetadata metadata, VariantValue value) {
-    return new VariantData(metadata, value);
+  VariantData(VariantMetadata metadata, VariantValue value) {
+    Preconditions.checkArgument(metadata != null, "Invalid variant metadata: null");
+    Preconditions.checkArgument(value != null, "Invalid variant value: null");
+    this.metadata = metadata;
+    this.value = value;
+  }
+
+  @Override
+  public VariantMetadata metadata() {
+    return metadata;
+  }
+
+  @Override
+  public VariantValue value() {
+    return value;
   }
 }

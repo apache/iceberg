@@ -26,8 +26,10 @@ import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FLOAT;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 
+import java.util.function.BiFunction;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type.NestedType;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.TypeUtil;
@@ -56,6 +58,19 @@ public class TypeToMessageType {
       LogicalTypeAnnotation.timestampType(false /* not adjusted to UTC */, TimeUnit.MICROS);
   private static final LogicalTypeAnnotation TIMESTAMPTZ_MICROS =
       LogicalTypeAnnotation.timestampType(true /* adjusted to UTC */, TimeUnit.MICROS);
+  private static final String METADATA = "metadata";
+  private static final String VALUE = "value";
+  private static final String TYPED_VALUE = "typed_value";
+
+  private final BiFunction<Integer, String, Type> variantShreddingFunc;
+
+  public TypeToMessageType() {
+    this.variantShreddingFunc = null;
+  }
+
+  public TypeToMessageType(BiFunction<Integer, String, Type> variantShreddingFunc) {
+    this.variantShreddingFunc = variantShreddingFunc;
+  }
 
   public MessageType convert(Schema schema, String name) {
     Types.MessageTypeBuilder builder = Types.buildMessage();
@@ -122,13 +137,41 @@ public class TypeToMessageType {
 
   public Type variant(Type.Repetition repetition, int id, String originalName) {
     String name = AvroSchemaUtil.makeCompatibleName(originalName);
-    return Types.buildGroup(repetition)
-        .id(id)
-        .required(BINARY)
-        .named("metadata")
-        .required(BINARY)
-        .named("value")
-        .named(name);
+    Type shreddedType;
+    if (variantShreddingFunc != null) {
+      shreddedType = variantShreddingFunc.apply(id, originalName);
+    } else {
+      shreddedType = null;
+    }
+
+    if (shreddedType != null) {
+      Preconditions.checkArgument(
+          shreddedType.getName().equals(TYPED_VALUE),
+          "Invalid shredded type name: %s should be typed_value",
+          shreddedType.getName());
+      Preconditions.checkArgument(
+          shreddedType.isRepetition(Type.Repetition.OPTIONAL),
+          "Invalid shredded type repetition: %s should be OPTIONAL",
+          shreddedType.getRepetition());
+
+      return Types.buildGroup(repetition)
+          .id(id)
+          .required(BINARY)
+          .named(METADATA)
+          .optional(BINARY)
+          .named(VALUE)
+          .addField(shreddedType)
+          .named(name);
+
+    } else {
+      return Types.buildGroup(repetition)
+          .id(id)
+          .required(BINARY)
+          .named(METADATA)
+          .required(BINARY)
+          .named(VALUE)
+          .named(name);
+    }
   }
 
   public Type primitive(
