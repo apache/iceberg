@@ -97,40 +97,41 @@ public class TestVariantWriters {
 
   private static final Variant[] VARIANTS =
       new Variant[] {
-        variantOf(EMPTY_METADATA, Variants.ofNull()),
-        variantOf(EMPTY_METADATA, Variants.of(true)),
-        variantOf(EMPTY_METADATA, Variants.of(false)),
-        variantOf(EMPTY_METADATA, Variants.of((byte) 34)),
-        variantOf(EMPTY_METADATA, Variants.of((byte) -34)),
-        variantOf(EMPTY_METADATA, Variants.of((short) 1234)),
-        variantOf(EMPTY_METADATA, Variants.of((short) -1234)),
-        variantOf(EMPTY_METADATA, Variants.of(12345)),
-        variantOf(EMPTY_METADATA, Variants.of(-12345)),
-        variantOf(EMPTY_METADATA, Variants.of(9876543210L)),
-        variantOf(EMPTY_METADATA, Variants.of(-9876543210L)),
-        variantOf(EMPTY_METADATA, Variants.of(10.11F)),
-        variantOf(EMPTY_METADATA, Variants.of(-10.11F)),
-        variantOf(EMPTY_METADATA, Variants.of(14.3D)),
-        variantOf(EMPTY_METADATA, Variants.of(-14.3D)),
-        variantOf(EMPTY_METADATA, EMPTY_OBJECT),
-        variantOf(TEST_METADATA, TEST_OBJECT),
-        variantOf(TEST_METADATA, SIMILAR_OBJECT),
-        variantOf(EMPTY_METADATA, Variants.ofIsoDate("2024-11-07")),
-        variantOf(EMPTY_METADATA, Variants.ofIsoDate("1957-11-07")),
-        variantOf(EMPTY_METADATA, Variants.ofIsoTimestamptz("2024-11-07T12:33:54.123456+00:00")),
-        variantOf(EMPTY_METADATA, Variants.ofIsoTimestamptz("1957-11-07T12:33:54.123456+00:00")),
-        variantOf(EMPTY_METADATA, Variants.ofIsoTimestampntz("2024-11-07T12:33:54.123456")),
-        variantOf(EMPTY_METADATA, Variants.ofIsoTimestampntz("1957-11-07T12:33:54.123456")),
-        variantOf(EMPTY_METADATA, Variants.of(new BigDecimal("123456.789"))), // decimal4
-        variantOf(EMPTY_METADATA, Variants.of(new BigDecimal("-123456.789"))), // decimal4
-        variantOf(EMPTY_METADATA, Variants.of(new BigDecimal("123456789.987654321"))), // decimal8
-        variantOf(EMPTY_METADATA, Variants.of(new BigDecimal("-123456789.987654321"))), // decimal8
-        variantOf(EMPTY_METADATA, Variants.of(new BigDecimal("9876543210.123456789"))), // decimal16
-        variantOf(
+        Variant.of(EMPTY_METADATA, Variants.ofNull()),
+        Variant.of(EMPTY_METADATA, Variants.of(true)),
+        Variant.of(EMPTY_METADATA, Variants.of(false)),
+        Variant.of(EMPTY_METADATA, Variants.of((byte) 34)),
+        Variant.of(EMPTY_METADATA, Variants.of((byte) -34)),
+        Variant.of(EMPTY_METADATA, Variants.of((short) 1234)),
+        Variant.of(EMPTY_METADATA, Variants.of((short) -1234)),
+        Variant.of(EMPTY_METADATA, Variants.of(12345)),
+        Variant.of(EMPTY_METADATA, Variants.of(-12345)),
+        Variant.of(EMPTY_METADATA, Variants.of(9876543210L)),
+        Variant.of(EMPTY_METADATA, Variants.of(-9876543210L)),
+        Variant.of(EMPTY_METADATA, Variants.of(10.11F)),
+        Variant.of(EMPTY_METADATA, Variants.of(-10.11F)),
+        Variant.of(EMPTY_METADATA, Variants.of(14.3D)),
+        Variant.of(EMPTY_METADATA, Variants.of(-14.3D)),
+        Variant.of(EMPTY_METADATA, EMPTY_OBJECT),
+        Variant.of(TEST_METADATA, TEST_OBJECT),
+        Variant.of(TEST_METADATA, SIMILAR_OBJECT),
+        Variant.of(EMPTY_METADATA, Variants.ofIsoDate("2024-11-07")),
+        Variant.of(EMPTY_METADATA, Variants.ofIsoDate("1957-11-07")),
+        Variant.of(EMPTY_METADATA, Variants.ofIsoTimestamptz("2024-11-07T12:33:54.123456+00:00")),
+        Variant.of(EMPTY_METADATA, Variants.ofIsoTimestamptz("1957-11-07T12:33:54.123456+00:00")),
+        Variant.of(EMPTY_METADATA, Variants.ofIsoTimestampntz("2024-11-07T12:33:54.123456")),
+        Variant.of(EMPTY_METADATA, Variants.ofIsoTimestampntz("1957-11-07T12:33:54.123456")),
+        Variant.of(EMPTY_METADATA, Variants.of(new BigDecimal("123456.789"))), // decimal4
+        Variant.of(EMPTY_METADATA, Variants.of(new BigDecimal("-123456.789"))), // decimal4
+        Variant.of(EMPTY_METADATA, Variants.of(new BigDecimal("123456789.987654321"))), // decimal8
+        Variant.of(EMPTY_METADATA, Variants.of(new BigDecimal("-123456789.987654321"))), // decimal8
+        Variant.of(
+            EMPTY_METADATA, Variants.of(new BigDecimal("9876543210.123456789"))), // decimal16
+        Variant.of(
             EMPTY_METADATA, Variants.of(new BigDecimal("-9876543210.123456789"))), // decimal16
-        variantOf(
+        Variant.of(
             EMPTY_METADATA, Variants.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d}))),
-        variantOf(EMPTY_METADATA, Variants.of("iceberg")),
+        Variant.of(EMPTY_METADATA, Variants.of("iceberg")),
       };
 
   @ParameterizedTest
@@ -197,25 +198,6 @@ public class TestVariantWriters {
             .build()) {
       return Lists.newArrayList(reader);
     }
-  }
-
-  private static Variant variantOf(VariantMetadata metadata, VariantValue value) {
-    return new Variant() {
-      @Override
-      public VariantMetadata metadata() {
-        return metadata;
-      }
-
-      @Override
-      public VariantValue value() {
-        return value;
-      }
-
-      @Override
-      public String toString() {
-        return "Variant(metadata=" + metadata + ", value=" + value + ")";
-      }
-    };
   }
 
   private Type toParquetSchema(VariantValue value) {

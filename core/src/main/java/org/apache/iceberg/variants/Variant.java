@@ -25,4 +25,8 @@ public interface Variant {
 
   /** Returns the variant value. */
   VariantValue value();
+
+  static Variant of(VariantMetadata metadata, VariantValue value) {
+    return new VariantData(metadata, value);
+  }
 }
