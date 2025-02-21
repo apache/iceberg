@@ -197,8 +197,8 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
           from configurations.runtimeClasspath
         }
         into('doc/') {
-          from "$projectDir/LICENSE"
-          from "$projectDir/NOTICE"
+          from "$projectDir/main/LICENSE"
+          from "$projectDir/main/NOTICE"
         }
         into('assets/') {
           from "${processResources.destinationDir}/iceberg.png"
@@ -212,8 +212,8 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
           from configurations.hive
         }
         into('doc/') {
-          from "$projectDir/LICENSE"
-          from "$projectDir/NOTICE"
+          from "$projectDir/hive/LICENSE"
+          from "$projectDir/hive/NOTICE"
         }
         into('assets/') {
           from "${processResources.destinationDir}/iceberg.png"
