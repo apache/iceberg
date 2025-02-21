@@ -230,7 +230,7 @@ public class Parquet {
     public WriteBuilder createWriterFunc(
         Function<MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
       if (newCreateWriterFunc != null) {
-        this.createWriterFunc = (schema, type) -> newCreateWriterFunc.apply(type);
+        this.createWriterFunc = (icebergSchema, type) -> newCreateWriterFunc.apply(type);
       }
       return this;
     }
