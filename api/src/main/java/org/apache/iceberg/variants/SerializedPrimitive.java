@@ -24,9 +24,9 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-class SerializedPrimitive extends Variants.SerializedValue implements VariantPrimitive<Object> {
+class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue {
   private static final int PRIMITIVE_TYPE_SHIFT = 2;
-  private static final int PRIMITIVE_OFFSET = Variants.HEADER_SIZE;
+  private static final int PRIMITIVE_OFFSET = 1;
 
   static SerializedPrimitive from(byte[] bytes) {
     return from(ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN), bytes[0]);
@@ -35,9 +35,9 @@ class SerializedPrimitive extends Variants.SerializedValue implements VariantPri
   static SerializedPrimitive from(ByteBuffer value, int header) {
     Preconditions.checkArgument(
         value.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
-    Variants.BasicType basicType = VariantUtil.basicType(header);
+    BasicType basicType = VariantUtil.basicType(header);
     Preconditions.checkArgument(
-        basicType == Variants.BasicType.PRIMITIVE,
+        basicType == BasicType.PRIMITIVE,
         "Invalid primitive, basic type != PRIMITIVE: " + basicType);
     return new SerializedPrimitive(value, header);
   }

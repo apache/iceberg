@@ -23,7 +23,8 @@ import java.nio.ByteOrder;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-class SerializedMetadata implements VariantMetadata, Variants.Serialized {
+class SerializedMetadata implements VariantMetadata, Serialized {
+  private static final int HEADER_SIZE = 1;
   private static final int SUPPORTED_VERSION = 1;
   private static final int VERSION_MASK = 0b1111;
   private static final int SORTED_STRINGS = 0b10000;
@@ -31,7 +32,7 @@ class SerializedMetadata implements VariantMetadata, Variants.Serialized {
   private static final int OFFSET_SIZE_SHIFT = 6;
 
   static final ByteBuffer EMPTY_V1_BUFFER =
-      ByteBuffer.wrap(new byte[] {0x01, 0x00}).order(ByteOrder.LITTLE_ENDIAN);
+      ByteBuffer.wrap(new byte[] {0x01, 0x00, 0x00}).order(ByteOrder.LITTLE_ENDIAN);
   static final SerializedMetadata EMPTY_V1_METADATA = from(EMPTY_V1_BUFFER);
 
   static SerializedMetadata from(byte[] bytes) {
@@ -55,13 +56,21 @@ class SerializedMetadata implements VariantMetadata, Variants.Serialized {
   private final String[] dict;
 
   private SerializedMetadata(ByteBuffer metadata, int header) {
-    this.metadata = metadata;
     this.isSorted = (header & SORTED_STRINGS) == SORTED_STRINGS;
     this.offsetSize = 1 + ((header & OFFSET_SIZE_MASK) >> OFFSET_SIZE_SHIFT);
-    int dictSize = VariantUtil.readLittleEndianUnsigned(metadata, Variants.HEADER_SIZE, offsetSize);
+    int dictSize = VariantUtil.readLittleEndianUnsigned(metadata, HEADER_SIZE, offsetSize);
     this.dict = new String[dictSize];
-    this.offsetListOffset = Variants.HEADER_SIZE + offsetSize;
+    this.offsetListOffset = HEADER_SIZE + offsetSize;
     this.dataOffset = offsetListOffset + ((1 + dictSize) * offsetSize);
+    int endOffset =
+        dataOffset
+            + VariantUtil.readLittleEndianUnsigned(
+                metadata, offsetListOffset + (offsetSize * dictSize), offsetSize);
+    if (endOffset < metadata.limit()) {
+      this.metadata = VariantUtil.slice(metadata, 0, endOffset);
+    } else {
+      this.metadata = metadata;
+    }
   }
 
   @Override

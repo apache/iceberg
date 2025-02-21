@@ -20,34 +20,16 @@ package org.apache.iceberg.variants;
 
 import java.nio.ByteBuffer;
 
-/** A variant metadata and value pair. */
-public interface Variant {
-  /** Returns the metadata for all values in the variant. */
-  VariantMetadata metadata();
-
-  /** Returns the variant value. */
-  VariantValue value();
-
-  static Variant of(VariantMetadata metadata, VariantValue value) {
-    return new Variant() {
-      @Override
-      public VariantMetadata metadata() {
-        return metadata;
-      }
-
-      @Override
-      public VariantValue value() {
-        return value;
-      }
-    };
+interface SerializedValue extends VariantValue, Serialized {
+  @Override
+  default int sizeInBytes() {
+    return buffer().remaining();
   }
 
-  static Variant from(ByteBuffer buffer) {
-    VariantMetadata metadata = VariantMetadata.from(buffer);
-    ByteBuffer valueBuffer =
-        VariantUtil.slice(
-            buffer, metadata.sizeInBytes(), buffer.remaining() - metadata.sizeInBytes());
-    VariantValue value = VariantValue.from(metadata, valueBuffer);
-    return of(metadata, value);
+  @Override
+  default int writeTo(ByteBuffer buffer, int offset) {
+    ByteBuffer value = buffer();
+    VariantUtil.writeBufferAbsolute(buffer, offset, value);
+    return value.remaining();
   }
 }

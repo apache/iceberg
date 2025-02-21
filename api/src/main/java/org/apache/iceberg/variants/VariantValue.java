@@ -59,4 +59,21 @@ public interface VariantValue {
   default VariantArray asArray() {
     throw new IllegalArgumentException("Not an array: " + this);
   }
+
+  static VariantValue from(VariantMetadata metadata, ByteBuffer value) {
+    int header = VariantUtil.readByte(value, 0);
+    BasicType basicType = VariantUtil.basicType(header);
+    switch (basicType) {
+      case PRIMITIVE:
+        return SerializedPrimitive.from(value, header);
+      case SHORT_STRING:
+        return SerializedShortString.from(value, header);
+      case OBJECT:
+        return SerializedObject.from(metadata, value, header);
+      case ARRAY:
+        return SerializedArray.from(metadata, value, header);
+    }
+
+    throw new UnsupportedOperationException("Unsupported basic type: " + basicType);
+  }
 }
