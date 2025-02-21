@@ -44,15 +44,32 @@ class VariantUtil {
     return toCopy.remaining();
   }
 
+  static void writeByteAbsolute(ByteBuffer buffer, int value, int offset) {
+    int originalPosition = buffer.position();
+    buffer.put(offset, (byte) (value & 0xFF));
+    buffer.position(originalPosition);
+  }
+
+  static void writeLittleEndianUnsignedAbsolute(
+      ByteBuffer buffer, long value, int offset, int size) {
+    int originalPosition = buffer.position();
+    buffer.position(0);
+    writeLittleEndianUnsigned(buffer, value, offset, size);
+    buffer.position(originalPosition);
+  }
+
   static void writeByte(ByteBuffer buffer, int value, int offset) {
     buffer.put(buffer.position() + offset, (byte) (value & 0xFF));
   }
 
-  static void writeLittleEndianUnsigned(ByteBuffer buffer, int value, int offset, int size) {
+  static void writeLittleEndianUnsigned(ByteBuffer buffer, long value, int offset, int size) {
     int base = buffer.position() + offset;
     switch (size) {
+      case 8:
+        buffer.putLong(base, value);
+        return;
       case 4:
-        buffer.putInt(base, value);
+        buffer.putInt(base, (int) (value & 0xFFFFFFFF));
         return;
       case 3:
         buffer.putShort(base, (short) (value & 0xFFFF));
@@ -164,8 +181,16 @@ class VariantUtil {
     }
   }
 
+  public static byte metadataHeader(int version, int offsetSize) {
+    return (byte) (version | ((offsetSize - 1) << 6));
+  }
+
   static byte primitiveHeader(int primitiveType) {
     return (byte) (primitiveType << Primitives.PRIMITIVE_TYPE_SHIFT);
+  }
+
+  public static byte shortStrHeader(int size) {
+    return (byte) (size << 2 | 0b01);
   }
 
   static byte objectHeader(boolean isLarge, int fieldIdSize, int offsetSize) {
