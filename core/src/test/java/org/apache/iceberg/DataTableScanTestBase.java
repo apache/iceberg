@@ -31,7 +31,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.util.CharSequenceMap;
+import org.apache.iceberg.util.PathMap;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -187,9 +187,7 @@ public abstract class DataTableScanTestBase<
   }
 
   private void validateExpectedFileScanTasks(
-      ScanT scan,
-      Collection<CharSequence> expectedFileScanPaths,
-      CharSequenceMap<String> fileToManifest)
+      ScanT scan, Collection<CharSequence> expectedFileScanPaths, PathMap<String> fileToManifest)
       throws IOException {
     try (CloseableIterable<T> scanTasks = scan.planFiles()) {
       assertThat(scanTasks).hasSameSizeAs(expectedFileScanPaths);
@@ -274,12 +272,12 @@ public abstract class DataTableScanTestBase<
             .filter(manifest -> manifest.snapshotId() == table.currentSnapshot().snapshotId())
             .collect(Collectors.toList())
             .get(0);
-    CharSequenceMap<String> fileToManifest = CharSequenceMap.create();
+    PathMap<String> fileToManifest = PathMap.create();
     fileToManifest.put(FILE_A.location(), firstDataManifest.path());
     fileToManifest.put(FILE_B.location(), secondDataManifest.path());
     fileToManifest.put(FILE_C.location(), secondDataManifest.path());
 
-    validateExpectedFileScanTasks(newScan(), fileToManifest.keySet(), fileToManifest);
+    validateExpectedFileScanTasks(newScan(), fileToManifest.keys(), fileToManifest);
   }
 
   @TestTemplate
@@ -290,7 +288,7 @@ public abstract class DataTableScanTestBase<
     ManifestFile firstManifest = table.currentSnapshot().allManifests(table.io()).get(0);
     DeleteFile deleteFile = newDeleteFile("data_bucket=0");
     table.newRowDelta().addDeletes(deleteFile).commit();
-    CharSequenceMap<String> fileToManifest = CharSequenceMap.create();
+    PathMap<String> fileToManifest = PathMap.create();
     fileToManifest.put(FILE_A.location(), firstManifest.path());
     ScanT scan = newScan();
     validateExpectedFileScanTasks(scan, ImmutableList.of(FILE_A.location()), fileToManifest);
