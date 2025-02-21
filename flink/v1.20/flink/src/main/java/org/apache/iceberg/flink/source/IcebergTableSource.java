@@ -35,6 +35,7 @@ import org.apache.flink.table.connector.source.ScanTableSource;
 import org.apache.flink.table.connector.source.abilities.SupportsFilterPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsLimitPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushDown;
+import org.apache.flink.table.connector.source.abilities.SupportsSourceWatermark;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.types.DataType;
@@ -53,7 +54,8 @@ public class IcebergTableSource
     implements ScanTableSource,
         SupportsProjectionPushDown,
         SupportsFilterPushDown,
-        SupportsLimitPushDown {
+        SupportsLimitPushDown,
+        SupportsSourceWatermark {
 
   private int[] projectedFields;
   private Long limit;
@@ -173,6 +175,14 @@ public class IcebergTableSource
 
     this.filters = expressions;
     return Result.of(acceptedFilters, flinkFilters);
+  }
+
+  @Override
+  public void applySourceWatermark() {
+    if (!readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE)) {
+      throw new UnsupportedOperationException(
+          "Source watermarks are supported only in flip-27 iceberg source implementation");
+    }
   }
 
   @Override
