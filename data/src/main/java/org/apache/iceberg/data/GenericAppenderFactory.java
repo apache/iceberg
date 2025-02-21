@@ -90,11 +90,13 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     } else {
       this.schema = schema;
     }
+
     if (table != null && spec == null) {
       this.spec = table.spec();
     } else {
       this.spec = spec;
     }
+
     this.equalityFieldIds = equalityFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
     this.posDeleteRowSchema = posDeleteRowSchema;
@@ -118,12 +120,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   @Override
   public FileAppender<Record> newAppender(
       EncryptedOutputFile encryptedOutputFile, FileFormat fileFormat) {
-    MetricsConfig metricsConfig;
-    if (table == null) {
-      metricsConfig = MetricsConfig.fromProperties(config);
-    } else {
-      metricsConfig = MetricsConfig.forTable(table);
-    }
+    MetricsConfig metricsConfig = metricsConfig();
 
     try {
       switch (fileFormat) {
@@ -184,8 +181,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     Preconditions.checkNotNull(
         eqDeleteRowSchema,
         "Equality delete row schema shouldn't be null when creating equality-delete writer");
-
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+    MetricsConfig metricsConfig = metricsConfig();
 
     try {
       switch (format) {
@@ -239,7 +235,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   @Override
   public PositionDeleteWriter<Record> newPosDeleteWriter(
       EncryptedOutputFile file, FileFormat format, StructLike partition) {
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+    MetricsConfig metricsConfig = metricsConfig();
 
     try {
       switch (format) {
@@ -284,5 +280,16 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
+  }
+
+  private MetricsConfig metricsConfig() {
+    MetricsConfig metricsConfig;
+    if (table == null) {
+      metricsConfig = MetricsConfig.fromProperties(config);
+    } else {
+      metricsConfig = MetricsConfig.forTable(table);
+    }
+
+    return metricsConfig;
   }
 }
