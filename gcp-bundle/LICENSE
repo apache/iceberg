@@ -220,58 +220,58 @@ License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api  Name: api-common  Version: 2.42.1
+Group: com.google.api  Name: api-common  Version: 2.43.0
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 License: BSD-3-Clause - https://github.com/googleapis/api-common-java/blob/main/LICENSE
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api  Name: gax  Version: 2.59.1
+Group: com.google.api  Name: gax  Version: 2.60.0
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 License: BSD-3-Clause - https://github.com/googleapis/gax-java/blob/master/LICENSE
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api  Name: gax-grpc  Version: 2.59.1
+Group: com.google.api  Name: gax-grpc  Version: 2.60.0
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 License: BSD-3-Clause - https://github.com/googleapis/gax-java/blob/master/LICENSE
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api  Name: gax-httpjson  Version: 2.59.1
+Group: com.google.api  Name: gax-httpjson  Version: 2.60.0
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 License: BSD-3-Clause - https://github.com/googleapis/gax-java/blob/master/LICENSE
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api-client  Name: google-api-client  Version: 2.7.1
+Group: com.google.api-client  Name: google-api-client  Version: 2.7.2
 Project URL: https://developers.google.com/api-client-library/java/
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: gapic-google-cloud-storage-v2  Version: 2.47.0
+Group: com.google.api.grpc  Name: gapic-google-cloud-storage-v2  Version: 2.48.1
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: grpc-google-cloud-storage-v2  Version: 2.22.5-alpha
+Group: com.google.api.grpc  Name: grpc-google-cloud-storage-v2  Version: 2.48.1
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-cloud-storage-v2  Version: 2.22.5-alpha
+Group: com.google.api.grpc  Name: proto-google-cloud-storage-v2  Version: 2.48.1
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-common-protos  Version: 2.50.1
+Group: com.google.api.grpc  Name: proto-google-common-protos  Version: 2.51.0
 Project URL: https://github.com/googleapis/sdk-platform-java
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-iam-v1  Version: 1.45.1
+Group: com.google.api.grpc  Name: proto-google-iam-v1  Version: 1.46.0
 Project URL: https://github.com/googleapis/sdk-platform-java
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
@@ -282,12 +282,12 @@ License: The Apache Software License, Version 2.0 - http://www.apache.org/licens
 
 --------------------------------------------------------------------------------
 
-Group: com.google.auth  Name: google-auth-library-credentials  Version: 1.30.1
+Group: com.google.auth  Name: google-auth-library-credentials  Version: 1.31.0
 License: BSD New license - http://opensource.org/licenses/BSD-3-Clause
 
 --------------------------------------------------------------------------------
 
-Group: com.google.auth  Name: google-auth-library-oauth2-http  Version: 1.30.1
+Group: com.google.auth  Name: google-auth-library-oauth2-http  Version: 1.31.0
 License: BSD New license - http://opensource.org/licenses/BSD-3-Clause
 
 --------------------------------------------------------------------------------
@@ -298,22 +298,22 @@ License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-core  Version: 2.49.1
+Group: com.google.cloud  Name: google-cloud-core  Version: 2.50.0
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-core-grpc  Version: 2.49.1
+Group: com.google.cloud  Name: google-cloud-core-grpc  Version: 2.50.0
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-core-http  Version: 2.49.1
+Group: com.google.cloud  Name: google-cloud-core-http  Version: 2.50.0
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.cloud  Name: google-cloud-storage  Version: 2.47.0
+Group: com.google.cloud  Name: google-cloud-storage  Version: 2.48.1
 Project URL: https://github.com/googleapis/java-storage
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
@@ -404,7 +404,7 @@ License: Go License - https://golang.org/LICENSE
 
 --------------------------------------------------------------------------------
 
-Group: commons-codec  Name: commons-codec  Version: 1.17.1
+Group: commons-codec  Name: commons-codec  Version: 1.17.2
 Project URL: https://commons.apache.org/proper/commons-codec/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
