@@ -68,6 +68,8 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String TABLES_PROP = "iceberg.tables";
   private static final String TABLES_DYNAMIC_PROP = "iceberg.tables.dynamic-enabled";
   private static final String TABLES_ROUTE_FIELD_PROP = "iceberg.tables.route-field";
+  private static final String TABLES_CDC_FIELD_PROP = "iceberg.tables.cdcField";
+  private static final String TABLES_UPSERT_MODE_ENABLED_PROP = "iceberg.tables.upsertModeEnabled";
   private static final String TABLES_DEFAULT_COMMIT_BRANCH = "iceberg.tables.default-commit-branch";
   private static final String TABLES_DEFAULT_ID_COLUMNS = "iceberg.tables.default-id-columns";
   private static final String TABLES_DEFAULT_PARTITION_BY = "iceberg.tables.default-partition-by";
@@ -128,6 +130,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         Importance.MEDIUM,
         "Source record field for routing records to tables");
     configDef.define(
+        TABLES_CDC_FIELD_PROP,
+        ConfigDef.Type.STRING,
+        null,
+        Importance.MEDIUM,
+        "Source record field that identifies the type of operation (insert, update, or delete)");
+    configDef.define(
         TABLES_DEFAULT_COMMIT_BRANCH,
         ConfigDef.Type.STRING,
         null,
@@ -157,6 +165,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         false,
         Importance.MEDIUM,
         "Set to true to set columns as optional during table create and evolution, false to respect schema");
+    configDef.define(
+        TABLES_UPSERT_MODE_ENABLED_PROP,
+        ConfigDef.Type.BOOLEAN,
+        false,
+        Importance.MEDIUM,
+        "Set to true to treat all appends as upserts, false otherwise");
     configDef.define(
         TABLES_SCHEMA_CASE_INSENSITIVE_PROP,
         ConfigDef.Type.BOOLEAN,
@@ -353,6 +367,10 @@ public class IcebergSinkConfig extends AbstractConfig {
         });
   }
 
+  public String tablesCdcField() {
+    return getString(TABLES_CDC_FIELD_PROP);
+  }
+
   @VisibleForTesting
   static List<String> stringToList(String value, String regex) {
     if (value == null || value.isEmpty()) {
@@ -387,6 +405,10 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public int commitTimeoutMs() {
     return getInt(COMMIT_TIMEOUT_MS_PROP);
+  }
+
+  public boolean isUpsertMode() {
+    return getBoolean(TABLES_UPSERT_MODE_ENABLED_PROP);
   }
 
   public int commitThreads() {
