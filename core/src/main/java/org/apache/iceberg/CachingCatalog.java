@@ -156,7 +156,7 @@ public class CachingCatalog implements Catalog {
       // table instances are refreshed as well when origin table instance is refreshed.
       if (originTable instanceof HasTableOperations) {
         TableOperations ops = ((HasTableOperations) originTable).operations();
-        MetadataTableType type = MetadataTableType.from(canonicalized.name());
+        MetadataTableType type = MetadataTableType.from(canonicalized);
 
         Table metadataTable =
             MetadataTableUtils.createMetadataTableInstance(
