@@ -26,6 +26,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
@@ -44,7 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /** Factory to create a new {@link FileAppender} to write {@link Record}s. */
 public class GenericAppenderFactory implements FileAppenderFactory<Record> {
-
+  private final Table table;
   private final Schema schema;
   private final PartitionSpec spec;
   private final int[] equalityFieldIds;
@@ -52,22 +53,48 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   private final Schema posDeleteRowSchema;
   private final Map<String, String> config = Maps.newHashMap();
 
+  @Deprecated
   public GenericAppenderFactory(Schema schema) {
-    this(schema, PartitionSpec.unpartitioned(), null, null, null);
+    this(null, schema, PartitionSpec.unpartitioned(), null, null, null);
   }
 
+  @Deprecated
   public GenericAppenderFactory(Schema schema, PartitionSpec spec) {
-    this(schema, spec, null, null, null);
+    this(null, schema, spec, null, null, null);
   }
 
+  @Deprecated
   public GenericAppenderFactory(
       Schema schema,
       PartitionSpec spec,
       int[] equalityFieldIds,
       Schema eqDeleteRowSchema,
       Schema posDeleteRowSchema) {
-    this.schema = schema;
-    this.spec = spec;
+    this(null, schema, spec, equalityFieldIds, eqDeleteRowSchema, posDeleteRowSchema);
+  }
+
+  public GenericAppenderFactory(Table table) {
+    this(table, null, null, null, null, null);
+  }
+
+  public GenericAppenderFactory(
+      Table table,
+      Schema schema,
+      PartitionSpec spec,
+      int[] equalityFieldIds,
+      Schema eqDeleteRowSchema,
+      Schema posDeleteRowSchema) {
+    this.table = table;
+    if (table != null && schema == null) {
+      this.schema = table.schema();
+    } else {
+      this.schema = schema;
+    }
+    if (table != null && spec == null) {
+      this.spec = table.spec();
+    } else {
+      this.spec = spec;
+    }
     this.equalityFieldIds = equalityFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
     this.posDeleteRowSchema = posDeleteRowSchema;
@@ -91,7 +118,13 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   @Override
   public FileAppender<Record> newAppender(
       EncryptedOutputFile encryptedOutputFile, FileFormat fileFormat) {
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+    MetricsConfig metricsConfig;
+    if (table == null) {
+      metricsConfig = MetricsConfig.fromProperties(config);
+    } else {
+      metricsConfig = MetricsConfig.forTable(table);
+    }
+
     try {
       switch (fileFormat) {
         case AVRO:
