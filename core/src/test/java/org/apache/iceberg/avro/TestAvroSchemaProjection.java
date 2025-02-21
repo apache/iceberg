@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Collections;
 import org.apache.avro.SchemaBuilder;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 public class TestAvroSchemaProjection {
@@ -149,5 +150,23 @@ public class TestAvroSchemaProjection {
     assertThat(AvroSchemaUtil.missingIds(projectedAvroSchema))
         .as("Result of buildAvroProjection is missing some IDs")
         .isFalse();
+  }
+
+  @Test
+  public void projectWithVariantType() {
+    Schema icebergSchema =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.required(1, "data", Types.VariantType.get()));
+
+    org.apache.avro.Schema projectedSchema =
+        AvroSchemaUtil.buildAvroProjection(
+            AvroSchemaUtil.convert(icebergSchema.asStruct()),
+            icebergSchema.select("data"),
+            Collections.emptyMap());
+    assertThat(projectedSchema.getField("id")).isNull();
+    org.apache.avro.Schema variantSchema = projectedSchema.getField("data").schema();
+    assertThat(variantSchema.getLogicalType()).isEqualTo(VariantLogicalType.get());
+    assertThat(AvroSchemaUtil.isVariantSchema(variantSchema)).isTrue();
   }
 }

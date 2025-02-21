@@ -94,7 +94,7 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
     Integer fieldId = fieldIds.peek();
     String recordName = namesFunction.apply(fieldId, struct);
     if (recordName == null) {
-      recordName = "r" + fieldId;
+      recordName = fieldId != null ? "r" + fieldId : "table";
     }
 
     Schema recordSchema = lookupSchema(struct, recordName);
@@ -185,6 +185,21 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
     cacheSchema(map, mapSchema);
 
     return mapSchema;
+  }
+
+  @Override
+  public Schema variant(Types.VariantType variant) {
+    String recordName = fieldIds.peek() != null ? "r" + fieldIds.peek() : "variant";
+    Schema schema =
+        Schema.createRecord(
+            recordName,
+            null,
+            null,
+            false,
+            List.of(
+                new Schema.Field("metadata", BINARY_SCHEMA),
+                new Schema.Field("value", BINARY_SCHEMA)));
+    return VariantLogicalType.get().addToSchema(schema);
   }
 
   @Override

@@ -46,7 +46,13 @@ public abstract class AvroSchemaVisitor<T> {
 
         visitor.recordLevels.pop();
 
-        return visitor.record(schema, names, results);
+        if (schema.getLogicalType() instanceof VariantLogicalType) {
+          Preconditions.checkArgument(
+              AvroSchemaUtil.isVariantSchema(schema), "Invalid variant record: %s", schema);
+          return visitor.variant(schema, results);
+        } else {
+          return visitor.record(schema, names, results);
+        }
 
       case UNION:
         List<Schema> types = schema.getTypes();
@@ -101,6 +107,10 @@ public abstract class AvroSchemaVisitor<T> {
 
   public T map(Schema map, T value) {
     return null;
+  }
+
+  public T variant(Schema variant, List<T> fields) {
+    throw new UnsupportedOperationException("Unsupported type: variant");
   }
 
   public T primitive(Schema primitive) {
