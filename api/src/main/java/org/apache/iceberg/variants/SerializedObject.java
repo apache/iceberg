@@ -27,9 +27,9 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.Pair;
 
-class SerializedObject extends Variants.SerializedValue implements VariantObject {
+class SerializedObject implements VariantObject, SerializedValue {
+  private static final int HEADER_SIZE = 1;
   private static final int OFFSET_SIZE_MASK = 0b1100;
   private static final int OFFSET_SIZE_SHIFT = 2;
   private static final int FIELD_ID_SIZE_MASK = 0b110000;
@@ -43,9 +43,9 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
   static SerializedObject from(VariantMetadata metadata, ByteBuffer value, int header) {
     Preconditions.checkArgument(
         value.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
-    Variants.BasicType basicType = VariantUtil.basicType(header);
+    BasicType basicType = VariantUtil.basicType(header);
     Preconditions.checkArgument(
-        basicType == Variants.BasicType.OBJECT, "Invalid object, basic type: " + basicType);
+        basicType == BasicType.OBJECT, "Invalid object, basic type: " + basicType);
     return new SerializedObject(metadata, value, header);
   }
 
@@ -67,9 +67,8 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
     this.offsetSize = 1 + ((header & OFFSET_SIZE_MASK) >> OFFSET_SIZE_SHIFT);
     this.fieldIdSize = 1 + ((header & FIELD_ID_SIZE_MASK) >> FIELD_ID_SIZE_SHIFT);
     int numElementsSize = ((header & IS_LARGE) == IS_LARGE) ? 4 : 1;
-    int numElements =
-        VariantUtil.readLittleEndianUnsigned(value, Variants.HEADER_SIZE, numElementsSize);
-    this.fieldIdListOffset = Variants.HEADER_SIZE + numElementsSize;
+    int numElements = VariantUtil.readLittleEndianUnsigned(value, HEADER_SIZE, numElementsSize);
+    this.fieldIdListOffset = HEADER_SIZE + numElementsSize;
     this.fieldIds = new Integer[numElements];
     this.offsetListOffset = fieldIdListOffset + (numElements * fieldIdSize);
     this.offsets = new int[numElements];
@@ -122,7 +121,7 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
     return metadata;
   }
 
-  Iterable<Pair<String, Integer>> fields() {
+  Iterable<Map.Entry<String, Integer>> fields() {
     return () ->
         new Iterator<>() {
           private int index = 0;
@@ -133,8 +132,8 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
           }
 
           @Override
-          public Pair<String, Integer> next() {
-            Pair<String, Integer> next = Pair.of(metadata.get(id(index)), index);
+          public Map.Entry<String, Integer> next() {
+            Map.Entry<String, Integer> next = Map.entry(metadata.get(id(index)), index);
             index += 1;
             return next;
           }
@@ -182,7 +181,7 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
 
     if (null == values[index]) {
       values[index] =
-          Variants.value(
+          VariantValue.from(
               metadata, VariantUtil.slice(value, dataOffset + offsets[index], lengths[index]));
     }
 
@@ -213,7 +212,7 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
    */
   ByteBuffer sliceValue(int index) {
     if (values[index] != null) {
-      return ((Variants.Serialized) values[index]).buffer();
+      return ((Serialized) values[index]).buffer();
     }
 
     return VariantUtil.slice(value, dataOffset + offsets[index], lengths[index]);
@@ -222,11 +221,6 @@ class SerializedObject extends Variants.SerializedValue implements VariantObject
   @Override
   public ByteBuffer buffer() {
     return value;
-  }
-
-  @Override
-  public int sizeInBytes() {
-    return value.remaining();
   }
 
   @Override

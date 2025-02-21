@@ -50,6 +50,10 @@ public interface VariantMetadata {
    */
   int writeTo(ByteBuffer buffer, int offset);
 
+  static VariantMetadata from(ByteBuffer buffer) {
+    return SerializedMetadata.from(buffer);
+  }
+
   static String asString(VariantMetadata metadata) {
     StringBuilder builder = new StringBuilder();
 

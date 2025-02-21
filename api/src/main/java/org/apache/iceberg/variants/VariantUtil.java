@@ -177,17 +177,17 @@ class VariantUtil {
     return (byte) ((isLarge ? 0b10000 : 0) | (offsetSize - 1) << 2 | 0b11);
   }
 
-  static Variants.BasicType basicType(int header) {
+  static BasicType basicType(int header) {
     int basicType = header & BASIC_TYPE_MASK;
     switch (basicType) {
       case BASIC_TYPE_PRIMITIVE:
-        return Variants.BasicType.PRIMITIVE;
+        return BasicType.PRIMITIVE;
       case BASIC_TYPE_SHORT_STRING:
-        return Variants.BasicType.SHORT_STRING;
+        return BasicType.SHORT_STRING;
       case BASIC_TYPE_OBJECT:
-        return Variants.BasicType.OBJECT;
+        return BasicType.OBJECT;
       case BASIC_TYPE_ARRAY:
-        return Variants.BasicType.ARRAY;
+        return BasicType.ARRAY;
     }
 
     throw new UnsupportedOperationException("Unsupported basic type: " + basicType);

@@ -23,7 +23,8 @@ import java.nio.ByteOrder;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-class SerializedArray extends Variants.SerializedValue implements VariantArray {
+class SerializedArray implements VariantArray, SerializedValue {
+  private static final int HEADER_SIZE = 1;
   private static final int OFFSET_SIZE_MASK = 0b1100;
   private static final int OFFSET_SIZE_SHIFT = 2;
   private static final int IS_LARGE = 0b10000;
@@ -36,9 +37,9 @@ class SerializedArray extends Variants.SerializedValue implements VariantArray {
   static SerializedArray from(VariantMetadata metadata, ByteBuffer value, int header) {
     Preconditions.checkArgument(
         value.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
-    Variants.BasicType basicType = VariantUtil.basicType(header);
+    BasicType basicType = VariantUtil.basicType(header);
     Preconditions.checkArgument(
-        basicType == Variants.BasicType.ARRAY, "Invalid array, basic type: " + basicType);
+        basicType == BasicType.ARRAY, "Invalid array, basic type: " + basicType);
     return new SerializedArray(metadata, value, header);
   }
 
@@ -54,9 +55,8 @@ class SerializedArray extends Variants.SerializedValue implements VariantArray {
     this.value = value;
     this.offsetSize = 1 + ((header & OFFSET_SIZE_MASK) >> OFFSET_SIZE_SHIFT);
     int numElementsSize = ((header & IS_LARGE) == IS_LARGE) ? 4 : 1;
-    int numElements =
-        VariantUtil.readLittleEndianUnsigned(value, Variants.HEADER_SIZE, numElementsSize);
-    this.offsetListOffset = Variants.HEADER_SIZE + numElementsSize;
+    int numElements = VariantUtil.readLittleEndianUnsigned(value, HEADER_SIZE, numElementsSize);
+    this.offsetListOffset = HEADER_SIZE + numElementsSize;
     this.dataOffset = offsetListOffset + ((1 + numElements) * offsetSize);
     this.array = new VariantValue[numElements];
   }
@@ -76,7 +76,7 @@ class SerializedArray extends Variants.SerializedValue implements VariantArray {
           VariantUtil.readLittleEndianUnsigned(
               value, offsetListOffset + (offsetSize * (1 + index)), offsetSize);
       array[index] =
-          Variants.value(metadata, VariantUtil.slice(value, dataOffset + offset, next - offset));
+          VariantValue.from(metadata, VariantUtil.slice(value, dataOffset + offset, next - offset));
     }
     return array[index];
   }
