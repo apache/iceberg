@@ -45,6 +45,16 @@ public interface RewriteManifests
   RewriteManifests rewriteIf(Predicate<ManifestFile> predicate);
 
   /**
+   * Sets the target size of rewritten manifests.
+   *
+   * <p>If not set, defaults to the value from table config.
+   *
+   * @param targetSizeBytes a target size in bytes
+   * @return this for method chaining
+   */
+  RewriteManifests targetSizeBytes(long targetSizeBytes);
+
+  /**
    * Passes a location where the staged manifests should be written.
    *
    * <p>If not set, defaults to the table's metadata location.
