@@ -121,6 +121,9 @@ public class TestS3FileIOProperties {
     assertThat(S3FileIOProperties.DELETE_ENABLED_DEFAULT)
         .isEqualTo(s3FileIOProperties.isDeleteEnabled());
 
+    assertThat(S3FileIOProperties.REQUESTER_PAYS_ENABLED_DEFAULT)
+        .isEqualTo(s3FileIOProperties.isRequesterPaysEnabled());
+
     assertThat(Collections.emptyMap()).isEqualTo(s3FileIOProperties.bucketToAccessPointMapping());
   }
 
@@ -263,6 +266,11 @@ public class TestS3FileIOProperties {
         .containsEntry(
             S3FileIOProperties.REMOTE_SIGNING_ENABLED,
             String.valueOf(s3FileIOProperties.isRemoteSigningEnabled()));
+
+    assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.REQUESTER_PAYS_ENABLED,
+            String.valueOf(s3FileIOProperties.isRequesterPaysEnabled()));
 
     assertThat(map).containsEntry(S3FileIOProperties.WRITE_STORAGE_CLASS, "INTELLIGENT_TIERING");
   }
@@ -412,6 +420,7 @@ public class TestS3FileIOProperties {
     map.put(S3FileIOProperties.PRELOAD_CLIENT_ENABLED, "true");
     map.put(S3FileIOProperties.REMOTE_SIGNING_ENABLED, "true");
     map.put(S3FileIOProperties.WRITE_STORAGE_CLASS, "INTELLIGENT_TIERING");
+    map.put(S3FileIOProperties.REQUESTER_PAYS_ENABLED, "true");
     return map;
   }
 
@@ -516,5 +525,19 @@ public class TestS3FileIOProperties {
 
     RetryPolicy retryPolicy = builder.overrideConfiguration().retryPolicy().get();
     assertThat(retryPolicy.numRetries()).as("retries was not set").isEqualTo(999);
+  }
+
+  @Test
+  public void testApplyRequesterPaysConfiguration() {
+    Map<String, String> properties =
+        ImmutableMap.of(S3FileIOProperties.REQUESTER_PAYS_ENABLED, "true");
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
+    S3ClientBuilder mockS3ClientBuilder = Mockito.mock(S3ClientBuilder.class);
+    s3FileIOProperties.applyRequesterPaysConfiguration(mockS3ClientBuilder);
+    ArgumentCaptor<ClientOverrideConfiguration> argumentCaptor =
+        ArgumentCaptor.forClass(ClientOverrideConfiguration.class);
+    Mockito.verify(mockS3ClientBuilder).overrideConfiguration(argumentCaptor.capture());
+    ClientOverrideConfiguration capturedArgument = argumentCaptor.getValue();
+    assertThat(capturedArgument.headers().get("x-amz-request-payer")).contains("requester");
   }
 }
