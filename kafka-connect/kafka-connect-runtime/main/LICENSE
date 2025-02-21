@@ -1448,3 +1448,9 @@ Project URL (from POM): https://github.com/awslabs/aws-eventstream-java
 License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
+
+Group: org.mongodb  Name: bson  Version: 4.11.0
+Project URL (from POM): https://github.com/mongodb/mongo-java-driver
+License (from POM): The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
