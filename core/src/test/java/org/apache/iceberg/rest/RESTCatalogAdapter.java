@@ -287,7 +287,12 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
 
   @SuppressWarnings({"MethodLength", "checkstyle:CyclomaticComplexity"})
   public <T extends RESTResponse> T handleRequest(
-      Route route, Map<String, String> vars, Object body, Class<T> responseType) {
+      Route route,
+      Map<String, String> vars,
+      HTTPRequest httpRequest,
+      Class<T> responseType,
+      Consumer<Map<String, String>> responseHeaders) {
+    Object body = httpRequest.body();
     switch (route) {
       case TOKENS:
         return castResponse(responseType, handleOAuthRequest(body));
@@ -614,8 +619,8 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
         vars.putAll(request.queryParameters());
         vars.putAll(routeAndVars.second());
 
-        return handleRequest(routeAndVars.first(), vars.build(), request.body(), responseType);
-
+        return handleRequest(
+            routeAndVars.first(), vars.build(), request, responseType, responseHeaders);
       } catch (RuntimeException e) {
         configureResponseFromException(e, errorBuilder);
       }
