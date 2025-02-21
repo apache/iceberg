@@ -21,10 +21,14 @@ package org.apache.iceberg.expressions;
 import java.io.Serializable;
 import java.util.Comparator;
 import java.util.Set;
+import org.apache.iceberg.Geography;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundVisitor;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
+import org.locationtech.jts.geom.Geometry;
 
 /**
  * Evaluates an {@link Expression} for data described by a {@link StructType}.
@@ -155,6 +159,50 @@ public class Evaluator implements Serializable {
     @Override
     public <T> Boolean notStartsWith(Bound<T> valueExpr, Literal<T> lit) {
       return !startsWith(valueExpr, lit);
+    }
+
+    @Override
+    public <T> Boolean stIntersects(Bound<T> valueExpr, Literal<T> lit) {
+      T evalRes = valueExpr.eval(struct);
+      if (evalRes == null) {
+        return false;
+      }
+      Type type = valueExpr.ref().type();
+      if (type.typeId() == Type.TypeID.GEOMETRY) {
+        return ((Geometry) evalRes).intersects((Geometry) lit.value());
+      } else if (type.typeId() == Type.TypeID.GEOGRAPHY) {
+        Types.GeographyType geographyType = (Types.GeographyType) type;
+        return ((Geography) evalRes).intersects((Geography) lit.value(), geographyType.algorithm());
+      } else {
+        throw new IllegalArgumentException("Invalid type for spatial predicate: " + type);
+      }
+    }
+
+    @Override
+    public <T> Boolean stCovers(Bound<T> valueExpr, Literal<T> lit) {
+      T evalRes = valueExpr.eval(struct);
+      if (evalRes == null) {
+        return false;
+      }
+      Type type = valueExpr.ref().type();
+      if (type.typeId() == Type.TypeID.GEOMETRY) {
+        return ((Geometry) evalRes).covers((Geometry) lit.value());
+      } else if (type.typeId() == Type.TypeID.GEOGRAPHY) {
+        Types.GeographyType geographyType = (Types.GeographyType) type;
+        return ((Geography) evalRes).covers((Geography) lit.value(), geographyType.algorithm());
+      } else {
+        throw new IllegalArgumentException("Invalid type for spatial predicate: " + type);
+      }
+    }
+
+    @Override
+    public <T> Boolean stDisjoint(Bound<T> valueExpr, Literal<T> lit) {
+      return !stIntersects(valueExpr, lit);
+    }
+
+    @Override
+    public <T> Boolean stNotCovers(Bound<T> valueExpr, Literal<T> lit) {
+      return !stCovers(valueExpr, lit);
     }
   }
 }

@@ -26,6 +26,7 @@ import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FLOAT;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 
+import java.util.Locale;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Type.NestedType;
@@ -33,6 +34,8 @@ import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.DecimalType;
 import org.apache.iceberg.types.Types.FixedType;
+import org.apache.iceberg.types.Types.GeographyType;
+import org.apache.iceberg.types.Types.GeometryType;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.NestedField;
@@ -159,6 +162,21 @@ public class TypeToMessageType {
         return Types.primitive(BINARY, repetition).as(STRING).id(id).named(name);
       case BINARY:
         return Types.primitive(BINARY, repetition).id(id).named(name);
+      case GEOMETRY:
+        GeometryType geometryType = ((GeometryType) primitive);
+        return Types.primitive(BINARY, repetition)
+            .as(LogicalTypeAnnotation.geometryType(geometryType.crs()))
+            .id(id)
+            .named(name);
+      case GEOGRAPHY:
+        GeographyType geographyType = ((GeographyType) primitive);
+        return Types.primitive(BINARY, repetition)
+            .as(
+                LogicalTypeAnnotation.geographyType(
+                    geographyType.crs(),
+                    geographyType.algorithm().value().toUpperCase(Locale.ROOT)))
+            .id(id)
+            .named(name);
       case FIXED:
         FixedType fixed = (FixedType) primitive;
 

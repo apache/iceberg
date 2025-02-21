@@ -24,6 +24,8 @@ import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.parquet.ParquetGeographyValueReaders;
+import org.apache.iceberg.parquet.ParquetGeometryValueReaders;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
@@ -245,6 +247,18 @@ abstract class BaseParquetReaders<T> {
     public Optional<ParquetValueReader<?>> visit(
         LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
       return Optional.of(ParquetValueReaders.uuids(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueReader<?>> visit(
+        LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryLogicalType) {
+      return Optional.of(ParquetGeometryValueReaders.buildReader(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueReader<?>> visit(
+        LogicalTypeAnnotation.GeographyLogicalTypeAnnotation geographyLogicalType) {
+      return Optional.of(ParquetGeographyValueReaders.buildReader(desc));
     }
   }
 

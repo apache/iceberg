@@ -27,8 +27,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.UUID;
+import org.apache.iceberg.Geography;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.GeometryUtil;
 import org.junit.jupiter.api.Test;
 
 public class TestExpressionParser {
@@ -51,7 +53,9 @@ public class TestExpressionParser {
           required(114, "dec_9_0", Types.DecimalType.of(9, 0)),
           required(115, "dec_11_2", Types.DecimalType.of(11, 2)),
           required(116, "dec_38_10", Types.DecimalType.of(38, 10)), // maximum precision
-          required(117, "time", Types.TimeType.get()));
+          required(117, "time", Types.TimeType.get()),
+          required(118, "geom", Types.GeometryType.get()),
+          required(119, "geog", Types.GeographyType.get()));
   private static final Schema SCHEMA = new Schema(SUPPORTED_PRIMITIVES.fields());
 
   @Test
@@ -94,7 +98,15 @@ public class TestExpressionParser {
           Expressions.or(
               Expressions.greaterThan(Expressions.day("ts"), "2022-08-14"),
               Expressions.equal("date", "2022-08-14")),
-          Expressions.not(Expressions.in("l", 1, 2, 3, 4))
+          Expressions.not(Expressions.in("l", 1, 2, 3, 4)),
+          Expressions.stIntersects("geom", GeometryUtil.fromWKT("POINT (1 2)")),
+          Expressions.stCovers("geom", GeometryUtil.fromWKT("POINT (1 2)")),
+          Expressions.stDisjoint("geom", GeometryUtil.fromWKT("POINT (1 2)")),
+          Expressions.stNotCovers("geom", GeometryUtil.fromWKT("POINT (1 2)")),
+          Expressions.stIntersects("geog", new Geography(GeometryUtil.fromWKT("POINT (1 2)"))),
+          Expressions.stCovers("geog", new Geography(GeometryUtil.fromWKT("POINT (1 2)"))),
+          Expressions.stDisjoint("geog", new Geography(GeometryUtil.fromWKT("POINT (1 2)"))),
+          Expressions.stNotCovers("geog", new Geography(GeometryUtil.fromWKT("POINT (1 2)")))
         };
 
     for (Expression expr : expressions) {
@@ -540,6 +552,35 @@ public class TestExpressionParser {
 
     Expression expression = Expressions.in("column-name", new BigDecimal("3.14E+4"));
 
+    assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
+        .isEqualTo(expected);
+  }
+
+  @Test
+  public void testSpatialPredicate() {
+    String expected =
+        "{\n"
+            + "  \"type\" : \"st-intersects\",\n"
+            + "  \"term\" : \"column-name\",\n"
+            + "  \"value\" : \"POINT (1 2)\"\n"
+            + "}";
+
+    Expression expression =
+        Expressions.stIntersects("column-name", GeometryUtil.fromWKT("POINT (1 2)"));
+    assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
+        .isEqualTo(expected);
+
+    expected =
+        "{\n"
+            + "  \"type\" : \"st-covers\",\n"
+            + "  \"term\" : \"column-name\",\n"
+            + "  \"value\" : \"LINESTRING (1 2, 3 4, 5 6)\"\n"
+            + "}";
+    expression =
+        Expressions.stCovers(
+            "column-name", new Geography(GeometryUtil.fromWKT("LINESTRING (1 2, 3 4, 5 6)")));
     assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
     assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
         .isEqualTo(expected);

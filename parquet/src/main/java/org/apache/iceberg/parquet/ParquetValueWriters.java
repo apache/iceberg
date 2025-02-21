@@ -691,4 +691,28 @@ public class ParquetValueWriters {
       throw new IllegalArgumentException("Cannot get value for invalid index: " + index);
     }
   }
+
+  public abstract static class DelegateParquetValueWriter<T, D> implements ParquetValueWriter<T> {
+    @SuppressWarnings("checkstyle:VisibilityModifier")
+    protected final ParquetValueWriter<D> delegate;
+
+    protected DelegateParquetValueWriter(ParquetValueWriter<D> delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override
+    public List<TripleWriter<?>> columns() {
+      return delegate.columns();
+    }
+
+    @Override
+    public void setColumnStore(ColumnWriteStore columnStore) {
+      delegate.setColumnStore(columnStore);
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      return delegate.metrics();
+    }
+  }
 }

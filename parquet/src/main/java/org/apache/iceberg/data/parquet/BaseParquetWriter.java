@@ -20,6 +20,8 @@ package org.apache.iceberg.data.parquet;
 
 import java.util.List;
 import java.util.Optional;
+import org.apache.iceberg.parquet.ParquetGeographyValueWriters;
+import org.apache.iceberg.parquet.ParquetGeometryValueWriters;
 import org.apache.iceberg.parquet.ParquetTypeVisitor;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
@@ -255,6 +257,18 @@ abstract class BaseParquetWriter<T> {
     public Optional<ParquetValueWriter<?>> visit(
         LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
       return Optional.of(ParquetValueWriters.uuids(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueWriter<?>> visit(
+        LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryType) {
+      return Optional.of(ParquetGeometryValueWriters.buildWriter(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueWriter<?>> visit(
+        LogicalTypeAnnotation.GeographyLogicalTypeAnnotation geographyType) {
+      return Optional.of(ParquetGeographyValueWriters.buildWriter(desc));
     }
   }
 }

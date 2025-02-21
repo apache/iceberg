@@ -22,6 +22,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -241,6 +242,20 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     @Override
     public Optional<Type> visit(LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonType) {
       return Optional.of(Types.BinaryType.get());
+    }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryType) {
+      String crs = geometryType.getCrs();
+      return Optional.of(Types.GeometryType.of(crs));
+    }
+
+    @Override
+    public Optional<Type> visit(
+        LogicalTypeAnnotation.GeographyLogicalTypeAnnotation geographyType) {
+      String crs = geographyType.getCrs();
+      String algorithm = geographyType.getEdgeAlgorithm();
+      return Optional.of(Types.GeographyType.of(crs, algorithm.toLowerCase(Locale.ROOT)));
     }
   }
 
