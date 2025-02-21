@@ -55,6 +55,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   }
 
   @Override
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Schema record(Schema record, List<String> names, List<Schema> fields) {
     // Then this should access the record's fields by name
     List<Schema.Field> filteredFields = Lists.newArrayListWithExpectedSize(fields.size());
