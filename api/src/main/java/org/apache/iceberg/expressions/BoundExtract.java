@@ -21,15 +21,14 @@ package org.apache.iceberg.expressions;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.variants.Variant;
 
 public class BoundExtract<T> implements BoundTerm<T> {
-  private final BoundReference<Variant> ref;
+  private final BoundReference<?> ref;
   private final String path;
   private final String fullFieldName;
   private final Type type;
 
-  BoundExtract(BoundReference<Variant> ref, String path, Type type) {
+  BoundExtract(BoundReference<?> ref, String path, Type type) {
     this.ref = ref;
     this.path = path;
     this.fullFieldName = Joiner.on(".").join(PathUtil.parse(path));

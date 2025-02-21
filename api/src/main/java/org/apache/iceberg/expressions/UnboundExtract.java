@@ -21,14 +21,13 @@ package org.apache.iceberg.expressions;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.variants.Variant;
 
 public class UnboundExtract<T> implements UnboundTerm<T> {
-  private final NamedReference<Variant> ref;
+  private final NamedReference<?> ref;
   private final String path;
   private final Type.PrimitiveType type;
 
-  public UnboundExtract(NamedReference<Variant> ref, String path, String type) {
+  public UnboundExtract(NamedReference<?> ref, String path, String type) {
     this.ref = ref;
     this.path = path;
     this.type = Types.fromPrimitiveString(type);
@@ -38,7 +37,7 @@ public class UnboundExtract<T> implements UnboundTerm<T> {
 
   @Override
   public BoundTerm<T> bind(Types.StructType struct, boolean caseSensitive) {
-    BoundReference<Variant> boundRef = ref.bind(struct, caseSensitive);
+    BoundReference<?> boundRef = ref.bind(struct, caseSensitive);
     ValidationException.check(
         Types.VariantType.get().equals(boundRef.type()),
         "Cannot bind extract, not a variant: %s",
