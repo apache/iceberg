@@ -35,7 +35,7 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
 import org.apache.iceberg.variants.VariantDataUtil;
-import org.apache.iceberg.variants.VariantValue;
+import org.apache.iceberg.variants.VariantObject;
 
 /**
  * Evaluates an {@link Expression} on a {@link DataFile} to test whether rows in the file may match.
@@ -555,8 +555,7 @@ public class InclusiveMetricsEvaluator {
     private <T> T extractLowerBound(BoundExtract<T> bound) {
       Integer id = bound.ref().fieldId();
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        Map<String, VariantValue> fieldLowerBounds =
-            VariantDataUtil.parseBounds(lowerBounds.get(id));
+        VariantObject fieldLowerBounds = VariantDataUtil.parseBounds(lowerBounds.get(id));
         return VariantDataUtil.castTo(fieldLowerBounds.get(bound.fullFieldName()), bound.type());
       }
 
@@ -566,8 +565,7 @@ public class InclusiveMetricsEvaluator {
     private <T> T extractUpperBound(BoundExtract<T> bound) {
       Integer id = bound.ref().fieldId();
       if (upperBounds != null && upperBounds.containsKey(id)) {
-        Map<String, VariantValue> fieldUpperBounds =
-            VariantDataUtil.parseBounds(upperBounds.get(id));
+        VariantObject fieldUpperBounds = VariantDataUtil.parseBounds(upperBounds.get(id));
         return VariantDataUtil.castTo(fieldUpperBounds.get(bound.fullFieldName()), bound.type());
       }
 

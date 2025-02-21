@@ -18,15 +18,9 @@
  */
 package org.apache.iceberg.variants;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Map;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -34,29 +28,8 @@ import org.apache.iceberg.types.Types;
 public class VariantDataUtil {
   private VariantDataUtil() {}
 
-  public static ByteBuffer serializeBounds(Map<String, VariantValue> bounds) {
-    ByteArrayOutputStream stream = new ByteArrayOutputStream();
-    try (ObjectOutputStream out = new ObjectOutputStream(stream)) {
-      out.writeObject(bounds);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
-
-    return ByteBuffer.wrap(stream.toByteArray());
-  }
-
-  @SuppressWarnings({"unchecked", "DangerousJavaDeserialization"})
-  public static Map<String, VariantValue> parseBounds(ByteBuffer buffer) {
-    ByteArrayInputStream stream =
-        new ByteArrayInputStream(
-            buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
-    try (ObjectInputStream in = new ObjectInputStream(stream)) {
-      return (Map<String, VariantValue>) in.readObject();
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    } catch (ClassNotFoundException e) {
-      throw new RuntimeException(e);
-    }
+  public static VariantObject parseBounds(ByteBuffer buffer) {
+    return Variant.from(buffer).value().asObject();
   }
 
   // TODO: Implement PhysicalType.TIME
