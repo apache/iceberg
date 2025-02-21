@@ -113,4 +113,9 @@ public class SparkActions implements ActionsProvider {
   public RewriteTablePathSparkAction rewriteTablePath(Table table) {
     return new RewriteTablePathSparkAction(spark, table);
   }
+
+  @Override
+  public RemoveMissingFilesSparkAction removeMissingFiles(Table table) {
+    return new RemoveMissingFilesSparkAction(spark, table);
+  }
 }
