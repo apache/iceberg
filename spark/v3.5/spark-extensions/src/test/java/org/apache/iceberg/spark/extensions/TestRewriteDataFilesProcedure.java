@@ -30,6 +30,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -38,6 +39,7 @@ import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.ExtendedParser;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkTableCache;
 import org.apache.iceberg.spark.SystemFunctionPushDownHelper;
@@ -990,5 +992,65 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
 
   private List<Object[]> currentData(String table) {
     return rowsToJava(spark.sql("SELECT * FROM " + table + " order by c1, c2, c3").collectAsList());
+  }
+
+  @TestTemplate
+  public void testRewriteOnBranchWap() throws Exception {
+    createPartitionTable();
+    // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
+    insertData(10);
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    String branch = "op_audit";
+    table.manageSnapshots().createBranch(branch).commit();
+    table.refresh();
+    long branchSnapshotId = table.currentSnapshot().snapshotId();
+    insertData(10);
+    table.refresh();
+    spark.sql(
+        String.format("ALTER TABLE %s SET TBLPROPERTIES ('write.wap.enabled'='true')", tableName));
+    spark.sql(String.format("SET spark.wap.branch = %s", branch));
+    long lastSnapshotId = table.currentSnapshot().snapshotId();
+    List<Object[]> output =
+        sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
+    assertThat(Arrays.copyOf(output.get(0), 2))
+        .as("Action should rewrite 10 data files and add 2 data files (one per partition)")
+        .containsExactly(row(10, 2));
+    table.refresh();
+    assertThat(table.refs().get(branch).snapshotId())
+        .as("branch ref should have changed")
+        .isNotEqualTo(branchSnapshotId);
+    assertThat(table.currentSnapshot().snapshotId())
+        .as("main branch ref should not have changed")
+        .isEqualTo(lastSnapshotId);
+  }
+
+  @TestTemplate
+  public void testRewriteOnBranch() throws Exception {
+    createPartitionTable();
+    // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
+    insertData(10);
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    String branch = "op_audit";
+    table.manageSnapshots().createBranch(branch).commit();
+    table.refresh();
+    long branchSnapshotId = table.currentSnapshot().snapshotId();
+    insertData(10);
+    table.refresh();
+    long lastSnapshotId = table.currentSnapshot().snapshotId();
+    TableIdentifier branchIdent =
+        TableIdentifier.of(
+            tableIdent.namespace(), String.format("%s.branch_%s", tableIdent.name(), branch));
+    List<Object[]> output =
+        sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, branchIdent);
+    assertThat(Arrays.copyOf(output.get(0), 2))
+        .as("Action should rewrite 10 data files and add 2 data files (one per partition)")
+        .containsExactly(row(10, 2));
+    table.refresh();
+    assertThat(table.refs().get(branch).snapshotId())
+        .as("branch ref should have changed")
+        .isNotEqualTo(branchSnapshotId);
+    assertThat(table.currentSnapshot().snapshotId())
+        .as("main branch ref should not have changed")
+        .isEqualTo(lastSnapshotId);
   }
 }

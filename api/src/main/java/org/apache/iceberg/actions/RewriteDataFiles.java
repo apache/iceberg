@@ -200,6 +200,16 @@ public interface RewriteDataFiles
   RewriteDataFiles filter(Expression expression);
 
   /**
+   * Specify the branch on which the rewrite will be performed.
+   *
+   * @param branch the branch where the rewrite happens
+   * @return this for chaining
+   */
+  default RewriteDataFiles targetBranch(String branch) {
+    throw new UnsupportedOperationException("targetBranch not implemented");
+  }
+
+  /**
    * A map of file group information to the results of rewriting that file group. If the results are
    * null then that particular file group failed. We should only have failed groups if partial
    * progress is enabled otherwise we will report a total failure for the job.
