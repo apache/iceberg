@@ -54,6 +54,7 @@ coverage.xml
 
 # vscode/eclipse files
 .classpath
+.factorypath
 .project
 .settings
 bin/
