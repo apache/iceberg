@@ -18,11 +18,18 @@
  */
 package org.apache.iceberg.variants;
 
-/** A variant metadata and value pair. */
-public interface Variant {
-  /** Returns the metadata for all values in the variant. */
-  VariantMetadata metadata();
+import java.nio.ByteBuffer;
 
-  /** Returns the variant value. */
-  VariantValue value();
+interface SerializedValue extends VariantValue, Serialized {
+  @Override
+  default int sizeInBytes() {
+    return buffer().remaining();
+  }
+
+  @Override
+  default int writeTo(ByteBuffer buffer, int offset) {
+    ByteBuffer value = buffer();
+    VariantUtil.writeBufferAbsolute(buffer, offset, value);
+    return value.remaining();
+  }
 }

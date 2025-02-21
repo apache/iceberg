@@ -44,7 +44,7 @@ public class TestSerializedMetadata {
 
   @Test
   public void testHeaderSorted() {
-    SerializedMetadata metadata = SerializedMetadata.from(new byte[] {0b10001, 0x00});
+    SerializedMetadata metadata = SerializedMetadata.from(new byte[] {0b10001, 0x00, 0x00});
 
     assertThat(metadata.isSorted()).isTrue();
     assertThat(metadata.dictionarySize()).isEqualTo(0);
@@ -54,22 +54,45 @@ public class TestSerializedMetadata {
   public void testHeaderOffsetSize() {
     // offset size is 4-byte LE = 1
     assertThat(
-            SerializedMetadata.from(new byte[] {(byte) 0b11010001, 0x01, 0x00, 0x00, 0x00})
+            SerializedMetadata.from(
+                    new byte[] {
+                      (byte) 0b11010001,
+                      0x01,
+                      0x00,
+                      0x00,
+                      0x00,
+                      0x00,
+                      0x00,
+                      0x00,
+                      0x00,
+                      0x00,
+                      0x00,
+                      0x00,
+                      0x00
+                    })
                 .dictionarySize())
         .isEqualTo(1);
 
     // offset size is 3-byte LE = 1
     assertThat(
-            SerializedMetadata.from(new byte[] {(byte) 0b10010001, 0x01, 0x00, 0x00})
+            SerializedMetadata.from(
+                    new byte[] {
+                      (byte) 0b10010001, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+                    })
                 .dictionarySize())
         .isEqualTo(1);
 
     // offset size is 2-byte LE = 1
-    assertThat(SerializedMetadata.from(new byte[] {(byte) 0b01010001, 0x01, 0x00}).dictionarySize())
+    assertThat(
+            SerializedMetadata.from(
+                    new byte[] {(byte) 0b01010001, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00})
+                .dictionarySize())
         .isEqualTo(1);
 
     // offset size is 1-byte LE = 1
-    assertThat(SerializedMetadata.from(new byte[] {(byte) 0b00010001, 0x01}).dictionarySize())
+    assertThat(
+            SerializedMetadata.from(new byte[] {(byte) 0b00010001, 0x01, 0x00, 0x00})
+                .dictionarySize())
         .isEqualTo(1);
   }
 

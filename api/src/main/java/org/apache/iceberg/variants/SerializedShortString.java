@@ -22,7 +22,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-class SerializedShortString extends Variants.SerializedValue implements VariantPrimitive<String> {
+class SerializedShortString implements VariantPrimitive<String>, SerializedValue {
+  private static final int HEADER_SIZE = 1;
   private static final int LENGTH_MASK = 0b11111100;
   private static final int LENGTH_SHIFT = 2;
 
@@ -33,10 +34,9 @@ class SerializedShortString extends Variants.SerializedValue implements VariantP
   static SerializedShortString from(ByteBuffer value, int header) {
     Preconditions.checkArgument(
         value.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
-    Variants.BasicType basicType = VariantUtil.basicType(header);
+    BasicType basicType = VariantUtil.basicType(header);
     Preconditions.checkArgument(
-        basicType == Variants.BasicType.SHORT_STRING,
-        "Invalid short string, basic type: " + basicType);
+        basicType == BasicType.SHORT_STRING, "Invalid short string, basic type: " + basicType);
     return new SerializedShortString(value, header);
   }
 
@@ -57,7 +57,7 @@ class SerializedShortString extends Variants.SerializedValue implements VariantP
   @Override
   public String get() {
     if (null == string) {
-      this.string = VariantUtil.readString(value, Variants.HEADER_SIZE, length);
+      this.string = VariantUtil.readString(value, HEADER_SIZE, length);
     }
     return string;
   }
