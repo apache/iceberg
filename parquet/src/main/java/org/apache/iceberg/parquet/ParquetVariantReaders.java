@@ -351,31 +351,7 @@ public class ParquetVariantReaders {
     public Variant read(Variant ignored) {
       VariantMetadata metadata = metadataReader.read(null);
       VariantValue value = valueReader.read(metadata);
-      if (value == MISSING) {
-        return new Variant() {
-          @Override
-          public VariantMetadata metadata() {
-            return metadata;
-          }
-
-          @Override
-          public VariantValue value() {
-            return Variants.ofNull();
-          }
-        };
-      }
-
-      return new Variant() {
-        @Override
-        public VariantMetadata metadata() {
-          return metadata;
-        }
-
-        @Override
-        public VariantValue value() {
-          return value;
-        }
-      };
+      return Variant.of(metadata, value != MISSING ? value : Variants.ofNull());
     }
 
     @Override
