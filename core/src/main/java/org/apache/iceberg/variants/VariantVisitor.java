@@ -19,7 +19,7 @@
 package org.apache.iceberg.variants;
 
 import java.util.List;
-import org.apache.commons.compress.utils.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class VariantVisitor<R> {
   public R object(VariantObject object, List<R> fieldResults) {
