@@ -336,6 +336,11 @@ public class FlinkCatalog extends AbstractCatalog {
       throws TableNotExistException, CatalogException {
     Table table = loadIcebergTable(tablePath);
 
+    // Flink's CREATE TABLE LIKE clause relies on properties sent back here to create new table.
+    // Inorder to create such table in non iceberg catalog, we need to send across catalog
+    // properties also.
+    // As Flink API accepts only Map<String, String> for props, here we are serializing catalog
+    // props as json string to distinguish between catalog and table properties in createTable.
     String srcCatalogProps =
         FlinkCreateTableOptions.toJson(
             getName(), tablePath.getDatabaseName(), tablePath.getObjectName(), catalogProps);
@@ -422,8 +427,10 @@ public class FlinkCatalog extends AbstractCatalog {
     for (Map.Entry<String, String> entry : table.getOptions().entrySet()) {
       if ("location".equalsIgnoreCase(entry.getKey())) {
         location = entry.getValue();
-      } else if (!("connector".equalsIgnoreCase(entry.getKey())
-          || FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY.equalsIgnoreCase(entry.getKey()))) {
+      } // Catalog props are added to support CREATE TABLE LIKE in getTable().
+      // Filtering them to not persist on table properties.
+      else if (!("connector".equalsIgnoreCase(entry.getKey()))
+          && !(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY.equalsIgnoreCase(entry.getKey()))) {
         properties.put(entry.getKey(), entry.getValue());
       }
     }
