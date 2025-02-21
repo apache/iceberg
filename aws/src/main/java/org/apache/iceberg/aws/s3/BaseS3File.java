@@ -24,17 +24,24 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.s3.analyticsaccelerator.S3SeekableInputStreamFactory;
 
 abstract class BaseS3File {
   private final S3Client client;
+  private final S3SeekableInputStreamFactory streamFactory;
   private final S3URI uri;
   private final S3FileIOProperties s3FileIOProperties;
   private HeadObjectResponse metadata;
   private final MetricsContext metrics;
 
   BaseS3File(
-      S3Client client, S3URI uri, S3FileIOProperties s3FileIOProperties, MetricsContext metrics) {
+      S3Client client,
+      S3SeekableInputStreamFactory streamFactory,
+      S3URI uri,
+      S3FileIOProperties s3FileIOProperties,
+      MetricsContext metrics) {
     this.client = client;
+    this.streamFactory = streamFactory;
     this.uri = uri;
     this.s3FileIOProperties = s3FileIOProperties;
     this.metrics = metrics;
@@ -46,6 +53,10 @@ abstract class BaseS3File {
 
   S3Client client() {
     return client;
+  }
+
+  S3SeekableInputStreamFactory streamFactory() {
+    return streamFactory;
   }
 
   S3URI uri() {
