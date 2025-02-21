@@ -25,11 +25,16 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import org.apache.iceberg.Geography;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.locationtech.jts.geom.Envelope;
+import org.locationtech.jts.geom.GeometryFactory;
 
 public class TestMiscLiteralConversions {
+  private static final GeometryFactory FACTORY = new GeometryFactory();
+
   @Test
   public void testIdentityConversions() {
     List<Pair<Literal<?>, Type>> pairs =
@@ -48,7 +53,13 @@ public class TestMiscLiteralConversions {
             Pair.of(Literal.of("abc"), Types.StringType.get()),
             Pair.of(Literal.of(UUID.randomUUID()), Types.UUIDType.get()),
             Pair.of(Literal.of(new byte[] {0, 1, 2}), Types.FixedType.ofLength(3)),
-            Pair.of(Literal.of(ByteBuffer.wrap(new byte[] {0, 1, 2})), Types.BinaryType.get()));
+            Pair.of(Literal.of(ByteBuffer.wrap(new byte[] {0, 1, 2})), Types.BinaryType.get()),
+            Pair.of(
+                Literal.of(FACTORY.toGeometry(new Envelope(1, 2, 10, 20))),
+                Types.GeometryType.get()),
+            Pair.of(
+                Literal.of(new Geography(FACTORY.toGeometry(new Envelope(1, 2, 10, 20)))),
+                Types.GeographyType.get()));
 
     for (Pair<Literal<?>, Type> pair : pairs) {
       Literal<?> lit = pair.first();

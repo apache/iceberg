@@ -25,7 +25,9 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.apache.iceberg.Geography;
 import org.apache.iceberg.StructLike;
+import org.locationtech.jts.geom.Geometry;
 
 public interface Type extends Serializable {
   enum TypeID {
@@ -43,6 +45,8 @@ public interface Type extends Serializable {
     FIXED(ByteBuffer.class),
     BINARY(ByteBuffer.class),
     DECIMAL(BigDecimal.class),
+    GEOMETRY(Geometry.class),
+    GEOGRAPHY(Geography.class),
     STRUCT(StructLike.class),
     LIST(List.class),
     MAP(Map.class),

@@ -230,6 +230,8 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
         primitiveSchema = Schema.createFixed("fixed_" + fixed.length(), null, null, fixed.length());
         break;
       case BINARY:
+      case GEOMETRY:
+      case GEOGRAPHY:
         primitiveSchema = BINARY_SCHEMA;
         break;
       case DECIMAL:
