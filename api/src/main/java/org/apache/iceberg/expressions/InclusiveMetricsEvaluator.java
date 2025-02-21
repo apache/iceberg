@@ -34,8 +34,9 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
-import org.apache.iceberg.variants.VariantDataUtil;
+import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantObject;
+import org.apache.iceberg.variants.VariantUtil;
 
 /**
  * Evaluates an {@link Expression} on a {@link DataFile} to test whether rows in the file may match.
@@ -555,8 +556,8 @@ public class InclusiveMetricsEvaluator {
     private <T> T extractLowerBound(BoundExtract<T> bound) {
       Integer id = bound.ref().fieldId();
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        VariantObject fieldLowerBounds = VariantDataUtil.parseBounds(lowerBounds.get(id));
-        return VariantDataUtil.castTo(fieldLowerBounds.get(bound.fullFieldName()), bound.type());
+        VariantObject fieldLowerBounds = parseBounds(lowerBounds.get(id));
+        return VariantUtil.castTo(fieldLowerBounds.get(bound.fullFieldName()), bound.type());
       }
 
       return null;
@@ -565,8 +566,8 @@ public class InclusiveMetricsEvaluator {
     private <T> T extractUpperBound(BoundExtract<T> bound) {
       Integer id = bound.ref().fieldId();
       if (upperBounds != null && upperBounds.containsKey(id)) {
-        VariantObject fieldUpperBounds = VariantDataUtil.parseBounds(upperBounds.get(id));
-        return VariantDataUtil.castTo(fieldUpperBounds.get(bound.fullFieldName()), bound.type());
+        VariantObject fieldUpperBounds = parseBounds(upperBounds.get(id));
+        return VariantUtil.castTo(fieldUpperBounds.get(bound.fullFieldName()), bound.type());
       }
 
       return null;
@@ -601,5 +602,9 @@ public class InclusiveMetricsEvaluator {
       // and unknown bound terms are not non-null preserving
       return false;
     }
+  }
+
+  private static VariantObject parseBounds(ByteBuffer buffer) {
+    return Variant.from(buffer).value().asObject();
   }
 }
