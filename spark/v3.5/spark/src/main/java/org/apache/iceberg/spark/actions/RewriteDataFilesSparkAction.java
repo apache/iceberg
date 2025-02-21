@@ -377,7 +377,8 @@ public class RewriteDataFilesSparkAction
     // stop commit service
     commitService.close();
 
-    int failedCommits = maxCommits - commitService.succeededCommits();
+    int totalCommits = groupsPerCommit == 1 ? ctx.totalGroupCount() : maxCommits;
+    int failedCommits = totalCommits - commitService.succeededCommits();
     if (failedCommits > 0 && failedCommits <= maxFailedCommits) {
       LOG.warn(
           "{} is true but {} rewrite commits failed. Check the logs to determine why the individual "
