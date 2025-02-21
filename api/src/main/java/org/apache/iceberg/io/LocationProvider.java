@@ -45,4 +45,6 @@ public interface LocationProvider extends Serializable {
    * @return a fully-qualified location URI for a data file
    */
   String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename);
+
+  String dataLocationRoot();
 }
