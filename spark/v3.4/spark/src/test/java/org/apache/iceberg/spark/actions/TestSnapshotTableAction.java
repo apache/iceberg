@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -64,6 +67,23 @@ public class TestSnapshotTableAction extends SparkCatalogTestBase {
                   return thread;
                 }))
         .execute();
-    Assert.assertEquals(snapshotThreadsIndex.get(), 2);
+    Assert.assertEquals(2, snapshotThreadsIndex.get());
+  }
+
+  @Test
+  public void testSnapshotWithEmptyPartitionOrLocationMissingPartition() throws IOException {
+    File tableLocation = temp.newFolder();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet PARTITIONED BY (bucket string) LOCATION '%s'",
+        SOURCE_NAME, tableLocation.toURI().toString());
+    sql("ALTER TABLE %s ADD PARTITION (bucket = 'foo')", SOURCE_NAME);
+    sql("ALTER TABLE %s ADD PARTITION (bucket = 'bar')", SOURCE_NAME);
+
+    // Delete the 2nd partition location
+    Path partitionLocation = tableLocation.toPath().resolve("bucket=bar");
+    Files.delete(partitionLocation);
+
+    SparkActions.get().snapshotTable(SOURCE_NAME).as(tableName).execute();
+    Assert.assertEquals(0L, scalarSql("SELECT count(*) FROM %s.partitions", selectTarget()));
   }
 }
