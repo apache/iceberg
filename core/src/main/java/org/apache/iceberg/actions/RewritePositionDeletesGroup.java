@@ -35,27 +35,35 @@ import org.apache.iceberg.util.DeleteFileSet;
  * Container class representing a set of position delete files to be rewritten by a {@link
  * RewritePositionDeleteFiles} and the new files which have been written by the action.
  */
-public class RewritePositionDeletesGroup {
-  private final FileGroupInfo info;
-  private final List<PositionDeletesScanTask> tasks;
+public class RewritePositionDeletesGroup
+    extends RewriteGroupBase<FileGroupInfo, PositionDeletesScanTask, DeleteFile> {
   private final long maxRewrittenDataSequenceNumber;
 
   private DeleteFileSet addedDeleteFiles = DeleteFileSet.create();
 
+  @Deprecated
   public RewritePositionDeletesGroup(FileGroupInfo info, List<PositionDeletesScanTask> tasks) {
+    this(info, tasks, 0L, 0L, 0);
+  }
+
+  public RewritePositionDeletesGroup(
+      FileGroupInfo info,
+      List<PositionDeletesScanTask> tasks,
+      long writeMaxFileSize,
+      long splitSize,
+      int expectedOutputFiles) {
+    super(info, tasks, writeMaxFileSize, splitSize, expectedOutputFiles);
     Preconditions.checkArgument(!tasks.isEmpty(), "Tasks must not be empty");
-    this.info = info;
-    this.tasks = tasks;
     this.maxRewrittenDataSequenceNumber =
         tasks.stream().mapToLong(t -> t.file().dataSequenceNumber()).max().getAsLong();
   }
 
-  public FileGroupInfo info() {
-    return info;
-  }
-
+  /**
+   * @deprecated use {@link #fileScanTasks()}
+   */
+  @Deprecated
   public List<PositionDeletesScanTask> tasks() {
-    return tasks;
+    return fileScanTasks();
   }
 
   public void setOutputFiles(Set<DeleteFile> files) {
@@ -67,7 +75,7 @@ public class RewritePositionDeletesGroup {
   }
 
   public Set<DeleteFile> rewrittenDeleteFiles() {
-    return tasks().stream()
+    return fileScanTasks().stream()
         .map(PositionDeletesScanTask::file)
         .collect(Collectors.toCollection(DeleteFileSet::create));
   }
@@ -81,10 +89,10 @@ public class RewritePositionDeletesGroup {
         addedDeleteFiles != null, "Cannot get result, Group was never rewritten");
 
     return ImmutableRewritePositionDeleteFiles.FileGroupRewriteResult.builder()
-        .info(info)
+        .info(info())
         .addedDeleteFilesCount(addedDeleteFiles.size())
-        .rewrittenDeleteFilesCount(tasks.size())
-        .rewrittenBytesCount(rewrittenBytes())
+        .rewrittenDeleteFilesCount(inputFileNum())
+        .rewrittenBytesCount(inputFilesSizeInBytes())
         .addedBytesCount(addedBytes())
         .build();
   }
@@ -92,42 +100,53 @@ public class RewritePositionDeletesGroup {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("info", info)
-        .add("numRewrittenPositionDeleteFiles", tasks.size())
+        .add("info", info())
+        .add("numRewrittenPositionDeleteFiles", fileScanTasks().size())
         .add(
             "numAddedPositionDeleteFiles",
             addedDeleteFiles == null
                 ? "Rewrite Incomplete"
                 : Integer.toString(addedDeleteFiles.size()))
         .add("numAddedBytes", addedBytes())
-        .add("numRewrittenBytes", rewrittenBytes())
+        .add("numRewrittenBytes", inputFilesSizeInBytes())
+        .add("maxOutputFileSize", maxOutputFileSize())
+        .add("inputSplitSize", inputSplitSize())
+        .add("expectedOutputFiles", expectedOutputFiles())
         .toString();
   }
 
+  /**
+   * @deprecated use {@link #inputFilesSizeInBytes()}
+   */
+  @Deprecated
   public long rewrittenBytes() {
-    return tasks.stream().mapToLong(PositionDeletesScanTask::length).sum();
+    return inputFilesSizeInBytes();
   }
 
   public long addedBytes() {
     return addedDeleteFiles.stream().mapToLong(DeleteFile::fileSizeInBytes).sum();
   }
 
+  /**
+   * @deprecated use {@link #inputFileNum()}
+   */
+  @Deprecated
   public int numRewrittenDeleteFiles() {
-    return tasks.size();
+    return inputFileNum();
   }
 
   public static Comparator<RewritePositionDeletesGroup> comparator(RewriteJobOrder order) {
     switch (order) {
       case BYTES_ASC:
-        return Comparator.comparing(RewritePositionDeletesGroup::rewrittenBytes);
+        return Comparator.comparing(RewritePositionDeletesGroup::inputFilesSizeInBytes);
       case BYTES_DESC:
         return Comparator.comparing(
-            RewritePositionDeletesGroup::rewrittenBytes, Comparator.reverseOrder());
+            RewritePositionDeletesGroup::inputFilesSizeInBytes, Comparator.reverseOrder());
       case FILES_ASC:
-        return Comparator.comparing(RewritePositionDeletesGroup::numRewrittenDeleteFiles);
+        return Comparator.comparing(RewritePositionDeletesGroup::inputFileNum);
       case FILES_DESC:
         return Comparator.comparing(
-            RewritePositionDeletesGroup::numRewrittenDeleteFiles, Comparator.reverseOrder());
+            RewritePositionDeletesGroup::inputFileNum, Comparator.reverseOrder());
       default:
         return (unused, unused2) -> 0;
     }
