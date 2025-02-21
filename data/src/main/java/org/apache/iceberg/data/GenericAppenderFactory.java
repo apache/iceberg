@@ -21,6 +21,7 @@ package org.apache.iceberg.data;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
@@ -51,16 +52,18 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   private final int[] equalityFieldIds;
   private final Schema eqDeleteRowSchema;
   private final Schema posDeleteRowSchema;
-  private final Map<String, String> config = Maps.newHashMap();
+  private final Map<String, String> config;
+
+  private static final String WRITE_METRICS_PREFIX = "write.metadata.metrics.";
 
   @Deprecated
   public GenericAppenderFactory(Schema schema) {
-    this(null, schema, PartitionSpec.unpartitioned(), null, null, null);
+    this(schema, PartitionSpec.unpartitioned());
   }
 
   @Deprecated
   public GenericAppenderFactory(Schema schema, PartitionSpec spec) {
-    this(null, schema, spec, null, null, null);
+    this(schema, spec, null, null, null);
   }
 
   @Deprecated
@@ -70,17 +73,18 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
       int[] equalityFieldIds,
       Schema eqDeleteRowSchema,
       Schema posDeleteRowSchema) {
-    this(null, schema, spec, equalityFieldIds, eqDeleteRowSchema, posDeleteRowSchema);
+    this(null, schema, spec, null, equalityFieldIds, eqDeleteRowSchema, posDeleteRowSchema);
   }
 
   public GenericAppenderFactory(Table table) {
-    this(table, null, null, null, null, null);
+    this(table, null, null, null, null, null, null);
   }
 
   public GenericAppenderFactory(
       Table table,
       Schema schema,
       PartitionSpec spec,
+      Map<String, String> config,
       int[] equalityFieldIds,
       Schema eqDeleteRowSchema,
       Schema posDeleteRowSchema) {
@@ -97,17 +101,30 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
       this.spec = spec;
     }
 
+    this.config = config == null ? Maps.newHashMap() : config;
     this.equalityFieldIds = equalityFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
     this.posDeleteRowSchema = posDeleteRowSchema;
   }
 
   public GenericAppenderFactory set(String property, String value) {
+    if (property.startsWith(WRITE_METRICS_PREFIX) && table != null) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot set metrics property: %s directly. Use table properties instead.", property));
+    }
+
     config.put(property, value);
     return this;
   }
 
   public GenericAppenderFactory setAll(Map<String, String> properties) {
+    if (properties.keySet().stream().anyMatch(k -> k.startsWith(WRITE_METRICS_PREFIX))
+        && table != null) {
+      throw new IllegalArgumentException(
+          "Cannot set metrics properties directly. Use table properties instead.");
+    }
+
     config.putAll(properties);
     return this;
   }
@@ -120,7 +137,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   @Override
   public FileAppender<Record> newAppender(
       EncryptedOutputFile encryptedOutputFile, FileFormat fileFormat) {
-    MetricsConfig metricsConfig = metricsConfig();
+    MetricsConfig metricsConfig = applyMetricsConfig(() -> MetricsConfig.forTable(table));
 
     try {
       switch (fileFormat) {
@@ -181,7 +198,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     Preconditions.checkNotNull(
         eqDeleteRowSchema,
         "Equality delete row schema shouldn't be null when creating equality-delete writer");
-    MetricsConfig metricsConfig = metricsConfig();
+    MetricsConfig metricsConfig = applyMetricsConfig(() -> MetricsConfig.forTable(table));
 
     try {
       switch (format) {
@@ -235,7 +252,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   @Override
   public PositionDeleteWriter<Record> newPosDeleteWriter(
       EncryptedOutputFile file, FileFormat format, StructLike partition) {
-    MetricsConfig metricsConfig = metricsConfig();
+    MetricsConfig metricsConfig = applyMetricsConfig(() -> MetricsConfig.forPositionDelete(table));
 
     try {
       switch (format) {
@@ -282,12 +299,12 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     }
   }
 
-  private MetricsConfig metricsConfig() {
+  private MetricsConfig applyMetricsConfig(Supplier<MetricsConfig> metricsConfigSupplier) {
     MetricsConfig metricsConfig;
     if (table == null) {
       metricsConfig = MetricsConfig.fromProperties(config);
     } else {
-      metricsConfig = MetricsConfig.forTable(table);
+      metricsConfig = metricsConfigSupplier.get();
     }
 
     return metricsConfig;
