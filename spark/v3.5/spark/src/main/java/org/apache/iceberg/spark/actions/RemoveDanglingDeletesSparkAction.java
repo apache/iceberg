@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.RewriteFiles;
@@ -124,10 +125,15 @@ class RemoveDanglingDeletesSparkAction
             .selectExpr(
                 "data_file.partition as partition",
                 "data_file.spec_id as spec_id",
-                "sequence_number")
-            .groupBy("partition", "spec_id")
+                "sequence_number",
+                "data_file.file_path as file_path")
+            .groupBy("partition", "spec_id", "file_path")
             .agg(min("sequence_number"))
-            .toDF("grouped_partition", "grouped_spec_id", "min_data_sequence_number");
+            .toDF(
+                "grouped_partition",
+                "grouped_spec_id",
+                "data_file_path",
+                "min_data_sequence_number");
 
     Dataset<Row> deleteEntries =
         loadMetadataTable(table, MetadataTableType.ENTRIES)
@@ -156,7 +162,12 @@ class RemoveDanglingDeletesSparkAction
             .or(
                 col("data_file.content")
                     .equalTo("2")
-                    .and(col("sequence_number").$less$eq(col("min_data_sequence_number"))));
+                    .and(col("sequence_number").$less$eq(col("min_data_sequence_number"))))
+            // dvs pointing to non-existing data files
+            .or(
+                col("data_file.file_format")
+                    .equalTo(FileFormat.PUFFIN.name())
+                    .and(col("data_file.referenced_data_file").notEqual(col("data_file_path"))));
 
     Dataset<Row> danglingDeletes =
         deleteEntries
