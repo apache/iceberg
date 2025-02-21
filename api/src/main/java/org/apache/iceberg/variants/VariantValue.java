@@ -18,11 +18,10 @@
  */
 package org.apache.iceberg.variants;
 
-import java.io.Serializable;
 import java.nio.ByteBuffer;
 
 /** A variant value. */
-public interface VariantValue extends Serializable {
+public interface VariantValue {
   /** Returns the {@link PhysicalType} of this value. */
   PhysicalType type();
 

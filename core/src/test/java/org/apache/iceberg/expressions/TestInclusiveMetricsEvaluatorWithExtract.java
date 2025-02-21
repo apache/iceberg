@@ -52,7 +52,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
-import org.apache.iceberg.variants.VariantDataUtil;
+import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.Variants;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -86,12 +86,12 @@ public class TestInclusiveMetricsEvaluatorWithExtract {
           // lower bounds
           ImmutableMap.of(
               2,
-              VariantDataUtil.serializeBounds(
+              VariantTestUtil.variantBuffer(
                   Map.of("event_id", Variants.of(INT_MIN_VALUE), "str", Variants.of("abc")))),
           // upper bounds
           ImmutableMap.of(
               2,
-              VariantDataUtil.serializeBounds(
+              VariantTestUtil.variantBuffer(
                   Map.of("event_id", Variants.of(INT_MAX_VALUE), "str", Variants.of("abe")))));
 
   private boolean shouldRead(Expression expr) {
