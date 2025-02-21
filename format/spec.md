@@ -1756,7 +1756,7 @@ Snapshot summary can include metrics fields to track numeric stats of the snapsh
 
 ### Assignment of Snapshot IDs and `current-snapshot-id`
 
-Writers should produce positive values for snapshot ids in a manner that minimizes the probability of id collisions and should verify the id does not conflict with existing snapshots.  Producing snapshot ids based on timestamps alone is not recommended as it increases the potential for collisions.  
+Writers should produce positive values for snapshot ids in a manner that minimizes the probability of id collisions and should verify the id does not conflict with existing snapshots. Producing snapshot ids based on timestamps alone is not recommended as it increases the potential for collisions.
 
 The reference implementation uses a type 4 uuid and XORs the 4 most significant bytes with the 4 least significant bytes then ANDs with the maximum long value to arrive at a pseudo-random snapshot id with a low probability of collision.
 
