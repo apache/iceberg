@@ -255,7 +255,7 @@ Many [maintenance actions](maintenance.md) can be performed using Iceberg stored
 ### `expire_snapshots`
 
 Each write/update/delete/upsert/compaction in Iceberg produces a new snapshot while keeping the old data and metadata
-around for snapshot isolation and time travel. The `expire_snapshots` procedure can be used to remove older snapshots
+around for snapshot isolation and time travel. The [`expire_snapshots`](https://github.com/apache/iceberg/blob/0b47faaada2aafa42c118be78445f6c40fc0ead6/spark/v3.5/spark/src/main/java/org/apache/iceberg/spark/procedures/ExpireSnapshotsProcedure.java) procedure can be used to remove older snapshots
 and their files which are no longer needed.
 
 This procedure will remove old snapshots and data files which are uniquely required by those old snapshots. This means
@@ -270,7 +270,7 @@ the `expire_snapshots` procedure will never remove files which are still require
 | `retain_last` |    | int       | Number of ancestor snapshots to preserve regardless of `older_than` (defaults to 1) |
 | `max_concurrent_deletes` |    | int       | Size of the thread pool used for delete file actions (by default, no thread pool is used) |
 | `stream_results` |    | boolean       | When true, deletion files will be sent to Spark driver by RDD partition (by default, all the files will be sent to Spark driver). This option is recommended to set to `true` to prevent Spark driver OOM from large file size |
-| `snapshot_ids` |   | array of long       | Array of additional snapshot IDs to remove, along with those expired by `older_than` and `retain_last` arguments, and the table's [expiration properties](configuration.md#table-behavior-properties)). |
+| `snapshot_ids` |   | array of long       | Array of [additional snapshot IDs to remove](https://github.com/apache/iceberg/blob/0b47faaada2aafa42c118be78445f6c40fc0ead6/spark/v3.5/spark/src/main/java/org/apache/iceberg/spark/actions/ExpireSnapshotsSparkAction.java#L149-L151), along with those expired by `older_than` and `retain_last` arguments, and the table's [expiration properties](configuration.md#table-behavior-properties)). |
 ) |
 
 If `older_than` and `retain_last` are omitted, the table's [expiration properties](configuration.md#table-behavior-properties) will be used.
