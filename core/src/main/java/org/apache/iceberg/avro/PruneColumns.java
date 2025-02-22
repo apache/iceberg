@@ -55,7 +55,6 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   }
 
   @Override
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Schema record(Schema record, List<String> names, List<Schema> fields) {
     // Then this should access the record's fields by name
     List<Schema.Field> filteredFields = Lists.newArrayListWithExpectedSize(fields.size());
@@ -93,8 +92,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
           hasChange = true; // Sub-fields may be different
           filteredFields.add(copyField(field, fieldSchema, fieldId));
         } else {
-          if (isRecord(field.schema())
-              && field.schema().getLogicalType() != VariantLogicalType.get()) {
+          if (isRecord(field.schema())) {
             hasChange = true; // Sub-fields are now empty
             filteredFields.add(copyField(field, makeEmptyCopy(field.schema()), fieldId));
           } else {
@@ -262,7 +260,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   }
 
   @Override
-  public Schema variant(Schema variant, List<Schema> fields) {
+  public Schema variant(Schema variant, Schema metadata, Schema value) {
     return null;
   }
 
@@ -284,12 +282,11 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
     return copy;
   }
 
+  /* Check the schema is a record but not a Variant type */
   private boolean isRecord(Schema field) {
-    if (AvroSchemaUtil.isOptionSchema(field)) {
-      return AvroSchemaUtil.fromOption(field).getType().equals(Schema.Type.RECORD);
-    } else {
-      return field.getType().equals(Schema.Type.RECORD);
-    }
+    Schema schema = AvroSchemaUtil.isOptionSchema(field) ? AvroSchemaUtil.fromOption(field) : field;
+    return schema.getType().equals(Schema.Type.RECORD)
+        && !(schema.getLogicalType() instanceof VariantLogicalType);
   }
 
   private static Schema makeEmptyCopy(Schema field) {

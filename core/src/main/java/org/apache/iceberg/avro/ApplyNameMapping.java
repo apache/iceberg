@@ -129,7 +129,7 @@ public class ApplyNameMapping extends AvroSchemaVisitor<Schema> {
   }
 
   @Override
-  public Schema variant(Schema variant, List<Schema> fields) {
+  public Schema variant(Schema variant, Schema metadata, Schema value) {
     return variant;
   }
 

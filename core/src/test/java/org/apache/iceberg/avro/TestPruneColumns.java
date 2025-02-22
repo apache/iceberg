@@ -44,8 +44,8 @@ public class TestPruneColumns {
                           Types.NestedField.required(6, "lat", Types.FloatType.get()),
                           Types.NestedField.optional(7, "long", Types.FloatType.get()))),
                   Types.NestedField.required(
-                      8, "types", Types.ListType.ofRequired(9, Types.StringType.get())),
-                  Types.NestedField.required(10, "payload", Types.VariantType.get()))
+                      8, "tags", Types.ListType.ofRequired(9, Types.StringType.get())),
+                  Types.NestedField.optional(10, "payload", Types.VariantType.get()))
               .asStruct());
 
   @Test
@@ -97,7 +97,7 @@ public class TestPruneColumns {
     Schema expected =
         new Schema(
             Types.NestedField.required(
-                8, "types", Types.ListType.ofRequired(9, Types.StringType.get())));
+                8, "tags", Types.ListType.ofRequired(9, Types.StringType.get())));
     org.apache.avro.Schema prunedSchema =
         AvroSchemaUtil.pruneColumns(TEST_SCHEMA, Sets.newHashSet(selectedId));
     assertThat(prunedSchema).isEqualTo(AvroSchemaUtil.convert(expected.asStruct()));
@@ -106,7 +106,7 @@ public class TestPruneColumns {
   @Test
   public void testSelectVariant() {
     Schema expected =
-        new Schema(Types.NestedField.required(10, "payload", Types.VariantType.get()));
+        new Schema(Types.NestedField.optional(10, "payload", Types.VariantType.get()));
     org.apache.avro.Schema prunedSchema =
         AvroSchemaUtil.pruneColumns(TEST_SCHEMA, Sets.newHashSet(10));
     assertThat(prunedSchema).isEqualTo(AvroSchemaUtil.convert(expected.asStruct()));

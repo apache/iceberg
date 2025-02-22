@@ -344,8 +344,8 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
 
   @Test
   public void testVariantNameMapping() {
-    org.apache.iceberg.Schema icebergSchema =
-        new org.apache.iceberg.Schema(
+    Schema icebergSchema =
+        new Schema(
             Types.NestedField.required(0, "id", Types.LongType.get()),
             Types.NestedField.required(1, "var", Types.VariantType.get()));
 
@@ -356,7 +356,7 @@ public class TestAvroNameMapping extends TestAvroReadProjection {
         NameMapping.of(
             MappedField.of(0, ImmutableList.of("id")), MappedField.of(1, ImmutableList.of("var")));
     org.apache.avro.Schema mappedSchema = AvroSchemaUtil.applyNameMapping(avroSchema, nameMapping);
-    assertThat(mappedSchema).isEqualTo(AvroSchemaUtil.convert(icebergSchema.asStruct()));
+    assertThat(mappedSchema).isEqualTo(AvroSchemaUtil.convert(icebergSchema.asStruct(), "table"));
   }
 
   @Test
