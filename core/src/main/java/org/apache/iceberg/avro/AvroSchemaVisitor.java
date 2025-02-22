@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.variants.Variant;
 
 public abstract class AvroSchemaVisitor<T> {
   public static <T> T visit(Schema schema, AvroSchemaVisitor<T> visitor) {
@@ -49,7 +50,12 @@ public abstract class AvroSchemaVisitor<T> {
         if (schema.getLogicalType() instanceof VariantLogicalType) {
           Preconditions.checkArgument(
               AvroSchemaUtil.isVariantSchema(schema), "Invalid variant record: %s", schema);
-          return visitor.variant(schema, results);
+
+          boolean isMetadataFirst = names.get(0).equals(Variant.METADATA);
+          return visitor.variant(
+              schema,
+              isMetadataFirst ? results.get(0) : results.get(1),
+              isMetadataFirst ? results.get(1) : results.get(0));
         } else {
           return visitor.record(schema, names, results);
         }
@@ -109,7 +115,7 @@ public abstract class AvroSchemaVisitor<T> {
     return null;
   }
 
-  public T variant(Schema variant, List<T> fields) {
+  public T variant(Schema variant, T metadataResult, T valueResult) {
     throw new UnsupportedOperationException("Unsupported type: variant");
   }
 

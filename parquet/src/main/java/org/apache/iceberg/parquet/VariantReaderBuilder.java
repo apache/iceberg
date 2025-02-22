@@ -27,6 +27,7 @@ import org.apache.iceberg.parquet.ParquetVariantReaders.VariantValueReader;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.variants.PhysicalType;
+import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DateLogicalTypeAnnotation;
@@ -129,10 +130,12 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
   public VariantValueReader value(
       GroupType group, ParquetValueReader<?> valueReader, ParquetValueReader<?> typedReader) {
     int valueDL =
-        valueReader != null ? schema.getMaxDefinitionLevel(path(VALUE)) - 1 : Integer.MAX_VALUE;
+        valueReader != null
+            ? schema.getMaxDefinitionLevel(path(Variant.VALUE)) - 1
+            : Integer.MAX_VALUE;
     int typedDL =
         typedReader != null
-            ? schema.getMaxDefinitionLevel(path(TYPED_VALUE)) - 1
+            ? schema.getMaxDefinitionLevel(path(Variant.TYPED_VALUE)) - 1
             : Integer.MAX_VALUE;
     return ParquetVariantReaders.shredded(valueDL, valueReader, typedDL, typedReader);
   }
@@ -143,11 +146,13 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
       ParquetValueReader<?> valueReader,
       List<ParquetValueReader<?>> fieldResults) {
     int valueDL =
-        valueReader != null ? schema.getMaxDefinitionLevel(path(VALUE)) - 1 : Integer.MAX_VALUE;
-    int fieldsDL = schema.getMaxDefinitionLevel(path(TYPED_VALUE)) - 1;
+        valueReader != null
+            ? schema.getMaxDefinitionLevel(path(Variant.VALUE)) - 1
+            : Integer.MAX_VALUE;
+    int fieldsDL = schema.getMaxDefinitionLevel(path(Variant.TYPED_VALUE)) - 1;
 
     List<String> shreddedFieldNames =
-        group.getType(TYPED_VALUE).asGroupType().getFields().stream()
+        group.getType(Variant.TYPED_VALUE).asGroupType().getFields().stream()
             .map(Type::getName)
             .collect(Collectors.toList());
     List<VariantValueReader> fieldReaders =

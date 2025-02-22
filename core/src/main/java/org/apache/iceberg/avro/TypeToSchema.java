@@ -94,7 +94,7 @@ abstract class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
     Integer fieldId = fieldIds.peek();
     String recordName = namesFunction.apply(fieldId, struct);
     if (recordName == null) {
-      recordName = fieldId != null ? "r" + fieldId : "table";
+      recordName = "r" + fieldId;
     }
 
     Schema recordSchema = lookupSchema(struct, recordName);
