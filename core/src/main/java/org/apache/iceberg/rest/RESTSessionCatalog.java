@@ -135,17 +135,17 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           .addAll(TOKEN_PREFERENCE_ORDER)
           .build();
 
+  // these default endpoints must not be updated in order to maintain backwards compatibility with
+  // legacy servers
   private static final Set<Endpoint> DEFAULT_ENDPOINTS =
       ImmutableSet.<Endpoint>builder()
           .add(Endpoint.V1_LIST_NAMESPACES)
           .add(Endpoint.V1_LOAD_NAMESPACE)
-          .add(Endpoint.V1_NAMESPACE_EXISTS)
           .add(Endpoint.V1_CREATE_NAMESPACE)
           .add(Endpoint.V1_UPDATE_NAMESPACE)
           .add(Endpoint.V1_DELETE_NAMESPACE)
           .add(Endpoint.V1_LIST_TABLES)
           .add(Endpoint.V1_LOAD_TABLE)
-          .add(Endpoint.V1_TABLE_EXISTS)
           .add(Endpoint.V1_CREATE_TABLE)
           .add(Endpoint.V1_UPDATE_TABLE)
           .add(Endpoint.V1_DELETE_TABLE)
@@ -155,11 +155,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           .add(Endpoint.V1_COMMIT_TRANSACTION)
           .build();
 
+  // these view endpoints must not be updated in order to maintain backwards compatibility with
+  // legacy servers
   private static final Set<Endpoint> VIEW_ENDPOINTS =
       ImmutableSet.<Endpoint>builder()
           .add(Endpoint.V1_LIST_VIEWS)
           .add(Endpoint.V1_LOAD_VIEW)
-          .add(Endpoint.V1_VIEW_EXISTS)
           .add(Endpoint.V1_CREATE_VIEW)
           .add(Endpoint.V1_UPDATE_VIEW)
           .add(Endpoint.V1_DELETE_VIEW)
