@@ -25,9 +25,9 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -106,7 +106,7 @@ public class EncryptionUtil {
         "Invalid data key length: %s (must be 16, 24, or 32)",
         dataKeyLength);
 
-    return new StandardEncryptionManager(tableKeyId, dataKeyLength, ImmutableList.of(), kmsClient);
+    return new StandardEncryptionManager(tableKeyId, dataKeyLength, kmsClient);
   }
 
   public static EncryptedOutputFile plainAsEncryptedOutput(OutputFile encryptingOutputFile) {
@@ -128,7 +128,7 @@ public class EncryptionUtil {
         em instanceof StandardEncryptionManager,
         "Snapshot key metadata encryption requires a StandardEncryptionManager");
     ByteBuffer unwrappedKey =
-        ((StandardEncryptionManager) em).unwrapKey(manifestList.keyMetadataKeyId());
+        ((StandardEncryptionManager) em).unwrapKey(manifestList.metadataEncryptionKeyID());
     return decryptSnapshotKeyMetadata(
         unwrappedKey, manifestList.snapshotId(), manifestList.encryptedKeyMetadata());
   }

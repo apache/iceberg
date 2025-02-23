@@ -27,16 +27,16 @@ import org.apache.iceberg.util.ByteBuffers;
 class BaseManifestListFile implements ManifestListFile, Serializable {
   private final String location;
   private final long snapshotId;
-  private final String keyMetadataKeyID;
+  private final String metadataEncryptionKeyID;
   // stored as a byte array to be Serializable
   private final byte[] encryptedKeyMetadata;
 
   BaseManifestListFile(
-      String location, long snapshotId, String keyMetadataKeyID, ByteBuffer encryptedKeyMetadata) {
+      String location, long snapshotId, String encryptionKeyId, ByteBuffer encryptedKeyMetadata) {
     this.location = location;
     this.snapshotId = snapshotId;
     this.encryptedKeyMetadata = ByteBuffers.toByteArray(encryptedKeyMetadata);
-    this.keyMetadataKeyID = keyMetadataKeyID;
+    this.metadataEncryptionKeyID = encryptionKeyId;
   }
 
   @Override
@@ -50,8 +50,8 @@ class BaseManifestListFile implements ManifestListFile, Serializable {
   }
 
   @Override
-  public String keyMetadataKeyId() {
-    return keyMetadataKeyID;
+  public String metadataEncryptionKeyID() {
+    return metadataEncryptionKeyID;
   }
 
   @Override

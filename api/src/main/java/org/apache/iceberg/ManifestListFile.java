@@ -29,13 +29,10 @@ public interface ManifestListFile {
   /** Snapshot ID of the manifest list. */
   long snapshotId();
 
-  /**
-   * The manifest list key metadata is encrypted with a "key encryption key" (KEK). Returns the KEK
-   * ID for this manifest file.
-   */
-  String keyMetadataKeyId();
+  /** The manifest list key metadata is encrypted. Returns the ID of the encryption key */
+  String metadataEncryptionKeyID();
 
-  /** Returns the manifest list key metadata, encrypted with its KEK. */
+  /** Returns the encrypted manifest list key metadata */
   ByteBuffer encryptedKeyMetadata();
 
   /** Decrypt and return the encrypted key metadata */
