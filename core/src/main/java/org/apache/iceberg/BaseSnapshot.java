@@ -100,7 +100,6 @@ class BaseSnapshot implements Snapshot {
     this.summary = summary;
     this.schemaId = schemaId;
     this.manifestListFile = manifestListFile;
-    ;
     this.v1ManifestLocations = null;
     this.firstRowId = firstRowId;
     this.addedRows = addedRows;
