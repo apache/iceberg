@@ -22,6 +22,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.ProxySelector;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -106,6 +107,8 @@ public class HTTPClient extends BaseHTTPClient {
     this.authSession = session;
 
     HttpClientBuilder clientBuilder = HttpClients.custom();
+
+    clientBuilder.setProxySelector(ProxySelector.getDefault());
 
     clientBuilder.setConnectionManager(connectionManager);
 

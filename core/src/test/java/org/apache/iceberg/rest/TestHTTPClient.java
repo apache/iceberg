@@ -24,6 +24,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockserver.integration.ClientAndServer.startClientAndServer;
 import static org.mockserver.model.HttpRequest.request;
@@ -32,6 +33,7 @@ import static org.mockserver.model.HttpResponse.response;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.net.ProxySelector;
 import java.net.SocketTimeoutException;
 import java.util.Locale;
 import java.util.Map;
@@ -42,6 +44,8 @@ import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
+import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.core5.http.EntityDetails;
@@ -56,10 +60,13 @@ import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.mockserver.configuration.Configuration;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.HttpRequest;
@@ -135,6 +142,26 @@ public class TestHTTPClient {
   @Test
   public void testHeadFailure() throws JsonProcessingException {
     testHttpMethodOnFailure(HttpMethod.HEAD);
+  }
+
+  @Test
+  void testProxySelectorUsageOnHttpClient() {
+    try (MockedStatic<HttpClients> httpClientsMock = Mockito.mockStatic(HttpClients.class);
+        MockedStatic<ProxySelector> proxySelMock = Mockito.mockStatic(ProxySelector.class)) {
+
+      HttpClientBuilder mockHttpBuilder = mock(HttpClientBuilder.class);
+      ProxySelector mockProxy = mock(ProxySelector.class);
+      httpClientsMock.when(HttpClients::custom).thenReturn(mockHttpBuilder);
+      proxySelMock.when(() -> ProxySelector.getDefault()).thenReturn(mockProxy);
+
+      HTTPClient localClient =
+          HTTPClient.builder(ImmutableMap.of()).uri(URI).withAuthSession(AuthSession.EMPTY).build();
+
+      Assertions.assertNotNull(localClient);
+      httpClientsMock.verify(() -> HttpClients.custom(), times(1));
+      proxySelMock.verify(() -> ProxySelector.getDefault(), times(1));
+      verify(mockHttpBuilder).setProxySelector(mockProxy);
+    }
   }
 
   @Test
