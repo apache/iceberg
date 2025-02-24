@@ -31,6 +31,7 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MergeableScanTask;
 import org.apache.iceberg.MockFileScanTask;
@@ -74,6 +75,13 @@ public class TestTableScanUtil {
     return mockFile;
   }
 
+  private DeleteFile dvWithSize(long size) {
+    DeleteFile mockDeleteFile = Mockito.mock(DeleteFile.class);
+    Mockito.when(mockDeleteFile.format()).thenReturn(FileFormat.PUFFIN);
+    Mockito.when(mockDeleteFile.contentSizeInBytes()).thenReturn(size);
+    return mockDeleteFile;
+  }
+
   private DeleteFile[] deleteFilesWithSizes(long... sizes) {
     return Arrays.stream(sizes)
         .mapToObj(
@@ -83,6 +91,14 @@ public class TestTableScanUtil {
               return mockDeleteFile;
             })
         .toArray(DeleteFile[]::new);
+  }
+
+  @Test
+  public void testFileScanTaskSizeEstimation() {
+    DataFile dataFile = dataFileWithSize(100L);
+    DeleteFile dv = dvWithSize(20L);
+    MockFileScanTask task = new MockFileScanTask(dataFile, new DeleteFile[] {dv});
+    assertThat(task.sizeBytes()).isEqualTo(120L);
   }
 
   @Test
@@ -298,6 +314,22 @@ public class TestTableScanUtil {
 
     long adjusted2 = TableScanUtil.adjustSplitSize(scanSize, parallelism, largeDefaultSplitSize);
     assertThat(adjusted2).isEqualTo(scanSize / parallelism);
+
+    assertThatThrownBy(() -> TableScanUtil.adjustSplitSize(scanSize, parallelism, -1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Split size must be > 0: -1");
+
+    assertThatThrownBy(() -> TableScanUtil.adjustSplitSize(scanSize, parallelism, 0))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Split size must be > 0: 0");
+
+    assertThatThrownBy(() -> TableScanUtil.adjustSplitSize(scanSize, -1, smallDefaultSplitSize))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Parallelism must be > 0: -1");
+
+    assertThatThrownBy(() -> TableScanUtil.adjustSplitSize(scanSize, 0, largeDefaultSplitSize))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Parallelism must be > 0: 0");
   }
 
   private PartitionScanTask taskWithPartition(

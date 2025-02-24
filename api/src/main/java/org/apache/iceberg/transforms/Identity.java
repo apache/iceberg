@@ -38,6 +38,9 @@ class Identity<T> implements Transform<T, T> {
    */
   @Deprecated
   public static <I> Identity<I> get(Type type) {
+    Preconditions.checkArgument(
+        type.typeId() != Type.TypeID.VARIANT, "Unsupported type for identity: %s", type);
+
     return new Identity<>(type);
   }
 
@@ -68,6 +71,14 @@ class Identity<T> implements Transform<T, T> {
     this.type = type;
   }
 
+  /**
+   * Transforms a value to its corresponding partition value.
+   *
+   * @param value a source value
+   * @return a transformed partition value
+   * @deprecated will be removed in 2.0.0; use {@link #bind(Type)} instead
+   */
+  @Deprecated
   @Override
   public T apply(T value) {
     return value;

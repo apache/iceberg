@@ -107,10 +107,7 @@ public class TestIcebergFilesCommitter extends TestBase {
   @BeforeEach
   public void setupTable() throws IOException {
     flinkManifestFolder = Files.createTempDirectory(temp, "flink").toFile();
-
-    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
     this.metadataDir = new File(tableDir, "metadata");
-    assertThat(tableDir.delete()).isTrue();
 
     // Construct the iceberg table.
     table = create(SimpleDataUtil.SCHEMA, PartitionSpec.unpartitioned());

@@ -62,7 +62,8 @@ public class TestCopyOnWriteMerge extends TestMerge {
       String distributionMode,
       boolean fanoutEnabled,
       String branch,
-      PlanningMode planningMode) {
+      PlanningMode planningMode,
+      int formatVersion) {
     super(
         catalogName,
         implementation,
@@ -72,7 +73,8 @@ public class TestCopyOnWriteMerge extends TestMerge {
         distributionMode,
         fanoutEnabled,
         branch,
-        planningMode);
+        planningMode,
+        formatVersion);
   }
 
   @Override

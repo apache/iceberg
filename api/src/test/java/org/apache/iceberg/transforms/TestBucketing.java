@@ -417,6 +417,34 @@ public class TestBucketing {
         .hasMessage("Invalid number of buckets: 0 (must be > 0)");
   }
 
+  @Test
+  public void testVariantUnsupported() {
+    assertThatThrownBy(() -> Transforms.bucket(Types.VariantType.get(), 3))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot bucket by type: variant");
+
+    Transform<Object, Integer> bucket = Transforms.bucket(3);
+    assertThatThrownBy(() -> bucket.bind(Types.VariantType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot bucket by type: variant");
+
+    assertThat(bucket.canTransform(Types.VariantType.get())).isFalse();
+  }
+
+  @Test
+  public void testUnknownUnsupported() {
+    assertThatThrownBy(() -> Transforms.bucket(Types.UnknownType.get(), 3))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot bucket by type: unknown");
+
+    Transform<Object, Integer> bucket = Transforms.bucket(3);
+    assertThatThrownBy(() -> bucket.bind(Types.UnknownType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot bucket by type: unknown");
+
+    assertThat(bucket.canTransform(Types.UnknownType.get())).isFalse();
+  }
+
   private byte[] randomBytes(int length) {
     byte[] bytes = new byte[length];
     testRandom.nextBytes(bytes);

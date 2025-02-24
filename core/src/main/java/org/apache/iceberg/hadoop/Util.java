@@ -27,7 +27,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTask;
@@ -59,10 +58,10 @@ public class Util {
     }
   }
 
-  public static String[] blockLocations(CombinedScanTask task, Configuration conf) {
+  public static String[] blockLocations(ScanTaskGroup<FileScanTask> taskGroup, Configuration conf) {
     Set<String> locationSets = Sets.newHashSet();
-    for (FileScanTask f : task.files()) {
-      Path path = new Path(f.file().path().toString());
+    for (FileScanTask f : taskGroup.tasks()) {
+      Path path = new Path(f.file().location());
       try {
         FileSystem fs = path.getFileSystem(conf);
         for (BlockLocation b : fs.getFileBlockLocations(path, f.start(), f.length())) {
@@ -104,7 +103,7 @@ public class Util {
   }
 
   private static String[] blockLocations(FileIO io, ContentScanTask<?> task) {
-    String location = task.file().path().toString();
+    String location = task.file().location();
     if (usesHadoopFileIO(io, location)) {
       InputFile inputFile = io.newInputFile(location);
       if (inputFile instanceof HadoopInputFile) {

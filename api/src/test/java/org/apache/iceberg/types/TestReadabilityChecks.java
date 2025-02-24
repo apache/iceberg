@@ -22,10 +22,15 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestReadabilityChecks {
   private static final Type.PrimitiveType[] PRIMITIVES =
@@ -110,6 +115,40 @@ public class TestReadabilityChecks {
     assertThat(errors.get(0))
         .as("Should complain that primitive to struct is not allowed")
         .contains("cannot be read as a struct");
+  }
+
+  @Test
+  public void testVariantToVariant() {
+    Schema fromSchema = new Schema(required(1, "from_field", Types.VariantType.get()));
+    List<String> errors =
+        CheckCompatibility.writeCompatibilityErrors(
+            new Schema(required(1, "to_field", Types.VariantType.get())), fromSchema);
+    assertThat(errors).as("Should produce 0 error messages").isEmpty();
+  }
+
+  private static Stream<Arguments> incompatibleTypesToVariant() {
+    return Stream.of(
+            Stream.of(
+                Arguments.of(Types.StructType.of(required(1, "from", Types.IntegerType.get()))),
+                Arguments.of(
+                    Types.MapType.ofRequired(
+                        1, 2, Types.StringType.get(), Types.IntegerType.get())),
+                Arguments.of(Types.ListType.ofRequired(1, Types.StringType.get()))),
+            Arrays.stream(PRIMITIVES).map(type -> Arguments.of(type)))
+        .flatMap(s -> s);
+  }
+
+  @ParameterizedTest
+  @MethodSource("incompatibleTypesToVariant")
+  public void testIncompatibleTypesToVariant(Type from) {
+    Schema fromSchema = new Schema(required(3, "from_field", from));
+    List<String> errors =
+        CheckCompatibility.writeCompatibilityErrors(
+            new Schema(required(3, "to_field", Types.VariantType.get())), fromSchema);
+    assertThat(errors).hasSize(1);
+    assertThat(errors.get(0))
+        .as("Should complain that other type to variant is not allowed")
+        .contains("cannot be read as a variant");
   }
 
   @Test

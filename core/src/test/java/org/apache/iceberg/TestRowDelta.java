@@ -29,7 +29,9 @@ import static org.apache.iceberg.SnapshotSummary.TOTAL_POS_DELETES_PROP;
 import static org.apache.iceberg.util.SnapshotUtil.latestSnapshot;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -38,8 +40,11 @@ import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,13 +57,17 @@ public class TestRowDelta extends V2TableTestBase {
 
   @Parameters(name = "formatVersion = {0}, branch = {1}")
   protected static List<Object> parameters() {
-    return Arrays.asList(new Object[] {2, "main"}, new Object[] {2, "testBranch"});
+    return Arrays.asList(
+        new Object[] {2, "main"},
+        new Object[] {2, "testBranch"},
+        new Object[] {3, "main"},
+        new Object[] {3, "testBranch"});
   }
 
   @TestTemplate
   public void addOnlyDeleteFilesProducesDeleteOperation() {
     SnapshotUpdate<?> rowDelta =
-        table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_B_DELETES);
+        table.newRowDelta().addDeletes(fileADeletes()).addDeletes(fileBDeletes());
 
     commit(table, rowDelta, branch);
     Snapshot snap = latestSnapshot(table, branch);
@@ -70,7 +79,7 @@ public class TestRowDelta extends V2TableTestBase {
   @TestTemplate
   public void testAddDeleteFile() {
     SnapshotUpdate<?> rowDelta =
-        table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES).addDeletes(FILE_B_DELETES);
+        table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()).addDeletes(fileBDeletes());
 
     commit(table, rowDelta, branch);
     Snapshot snap = latestSnapshot(table, branch);
@@ -95,7 +104,7 @@ public class TestRowDelta extends V2TableTestBase {
         dataSeqs(1L, 1L),
         fileSeqs(1L, 1L),
         ids(snap.snapshotId(), snap.snapshotId()),
-        files(FILE_A_DELETES, FILE_B_DELETES),
+        files(fileADeletes(), fileBDeletes()),
         statuses(Status.ADDED, Status.ADDED));
   }
 
@@ -126,9 +135,9 @@ public class TestRowDelta extends V2TableTestBase {
                     table,
                     table
                         .newRowDelta()
-                        .addDeletes(FILE_A_DELETES)
+                        .addDeletes(fileADeletes())
                         .validateFromSnapshot(validateFromSnapshotId)
-                        .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
+                        .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
                     branch))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Cannot commit, missing data files");
@@ -143,8 +152,8 @@ public class TestRowDelta extends V2TableTestBase {
         table,
         table
             .newRowDelta()
-            .addDeletes(FILE_B_DELETES)
-            .validateDataFilesExist(ImmutableList.of(FILE_B.path()))
+            .addDeletes(fileBDeletes())
+            .validateDataFilesExist(ImmutableList.of(FILE_B.location()))
             .validateFromSnapshot(validateFromSnapshotId),
         branch);
 
@@ -155,7 +164,7 @@ public class TestRowDelta extends V2TableTestBase {
         dataSeqs(4L),
         fileSeqs(4L),
         ids(latestSnapshot(table, branch).snapshotId()),
-        files(FILE_B_DELETES),
+        files(fileBDeletes()),
         statuses(Status.ADDED));
   }
 
@@ -177,9 +186,9 @@ public class TestRowDelta extends V2TableTestBase {
                     table,
                     table
                         .newRowDelta()
-                        .addDeletes(FILE_A_DELETES)
+                        .addDeletes(fileADeletes())
                         .validateFromSnapshot(validateFromSnapshotId)
-                        .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
+                        .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
                     branch))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Cannot commit, missing data files");
@@ -209,9 +218,9 @@ public class TestRowDelta extends V2TableTestBase {
                     table,
                     table
                         .newRowDelta()
-                        .addDeletes(FILE_A_DELETES)
+                        .addDeletes(fileADeletes())
                         .validateFromSnapshot(validateFromSnapshotId)
-                        .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
+                        .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
                     branch))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Cannot commit, missing data files");
@@ -242,9 +251,9 @@ public class TestRowDelta extends V2TableTestBase {
         table,
         table
             .newRowDelta()
-            .addDeletes(FILE_A_DELETES)
+            .addDeletes(fileADeletes())
             .validateFromSnapshot(validateFromSnapshotId)
-            .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
+            .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
         branch);
 
     Snapshot snap = latestSnapshot(table, branch);
@@ -276,7 +285,7 @@ public class TestRowDelta extends V2TableTestBase {
         dataSeqs(3L),
         fileSeqs(3L),
         ids(snap.snapshotId()),
-        files(FILE_A_DELETES),
+        files(fileADeletes()),
         statuses(Status.ADDED));
   }
 
@@ -301,9 +310,9 @@ public class TestRowDelta extends V2TableTestBase {
                     table,
                     table
                         .newRowDelta()
-                        .addDeletes(FILE_A_DELETES)
+                        .addDeletes(fileADeletes())
                         .validateFromSnapshot(validateFromSnapshotId)
-                        .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
+                        .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
                     branch))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Cannot commit, missing data files");
@@ -333,10 +342,10 @@ public class TestRowDelta extends V2TableTestBase {
                     table,
                     table
                         .newRowDelta()
-                        .addDeletes(FILE_A_DELETES)
+                        .addDeletes(fileADeletes())
                         .validateDeletedFiles()
                         .validateFromSnapshot(validateFromSnapshotId)
-                        .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
+                        .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
                     branch))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Cannot commit, missing data files");
@@ -366,7 +375,7 @@ public class TestRowDelta extends V2TableTestBase {
                     table,
                     table
                         .newRowDelta()
-                        .addDeletes(FILE_A_DELETES)
+                        .addDeletes(fileADeletes())
                         .validateFromSnapshot(validateFromSnapshotId)
                         .conflictDetectionFilter(
                             Expressions.equal("data", "u")) // bucket16("u") -> 0
@@ -399,10 +408,10 @@ public class TestRowDelta extends V2TableTestBase {
         table,
         table
             .newRowDelta()
-            .addDeletes(FILE_A_DELETES)
+            .addDeletes(fileADeletes())
             .validateDeletedFiles()
             .validateFromSnapshot(validateFromSnapshotId)
-            .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
+            .validateDataFilesExist(ImmutableList.of(FILE_A.location()))
             .conflictDetectionFilter(Expressions.equal("data", "u")) // bucket16("u") -> 0
             .validateNoConflictingDataFiles(),
         branch);
@@ -436,7 +445,7 @@ public class TestRowDelta extends V2TableTestBase {
         dataSeqs(3L),
         fileSeqs(3L),
         ids(snap.snapshotId()),
-        files(FILE_A_DELETES),
+        files(fileADeletes()),
         statuses(Status.ADDED));
   }
 
@@ -444,7 +453,7 @@ public class TestRowDelta extends V2TableTestBase {
   public void testOverwriteWithDeleteFile() {
     commit(
         table,
-        table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES).addDeletes(FILE_B_DELETES),
+        table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()).addDeletes(fileBDeletes()),
         branch);
 
     long deltaSnapshotId = latestSnapshot(table, branch).snapshotId();
@@ -479,7 +488,7 @@ public class TestRowDelta extends V2TableTestBase {
         dataSeqs(1L, 1L),
         fileSeqs(1L, 1L),
         ids(snap.snapshotId(), deltaSnapshotId),
-        files(FILE_A_DELETES, FILE_B_DELETES),
+        files(fileADeletes(), fileBDeletes()),
         statuses(Status.DELETED, Status.EXISTING));
   }
 
@@ -487,7 +496,7 @@ public class TestRowDelta extends V2TableTestBase {
   public void testReplacePartitionsWithDeleteFile() {
     commit(
         table,
-        table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES).addDeletes(FILE_B_DELETES),
+        table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()).addDeletes(fileBDeletes()),
         branch);
 
     long deltaSnapshotId = latestSnapshot(table, branch).snapshotId();
@@ -526,7 +535,7 @@ public class TestRowDelta extends V2TableTestBase {
         dataSeqs(1L, 1L),
         fileSeqs(1L, 1L),
         ids(snap.snapshotId(), deltaSnapshotId),
-        files(FILE_A_DELETES, FILE_B_DELETES),
+        files(fileADeletes(), fileBDeletes()),
         statuses(Status.DELETED, Status.EXISTING));
   }
 
@@ -534,7 +543,7 @@ public class TestRowDelta extends V2TableTestBase {
   public void testDeleteByExpressionWithDeleteFile() {
     commit(
         table,
-        table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES).addDeletes(FILE_B_DELETES),
+        table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()).addDeletes(fileBDeletes()),
         branch);
 
     long deltaSnapshotId = latestSnapshot(table, branch).snapshotId();
@@ -564,13 +573,16 @@ public class TestRowDelta extends V2TableTestBase {
         dataSeqs(1L, 1L),
         fileSeqs(1L, 1L),
         ids(snap.snapshotId(), snap.snapshotId()),
-        files(FILE_A_DELETES, FILE_B_DELETES),
+        files(fileADeletes(), fileBDeletes()),
         statuses(Status.DELETED, Status.DELETED));
   }
 
   @TestTemplate
   public void testDeleteDataFileWithDeleteFile() {
-    commit(table, table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES), branch);
+    commit(
+        table,
+        table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()).addDeletes(fileBDeletes()),
+        branch);
 
     long deltaSnapshotId = latestSnapshot(table, branch).snapshotId();
     assertThat(latestSnapshot(table, branch).sequenceNumber()).isEqualTo(1);
@@ -595,18 +607,18 @@ public class TestRowDelta extends V2TableTestBase {
     assertThat(deleteSnap.deleteManifests(table.io())).hasSize(1);
     validateDeleteManifest(
         deleteSnap.deleteManifests(table.io()).get(0),
-        dataSeqs(1L),
-        fileSeqs(1L),
-        ids(deltaSnapshotId),
-        files(FILE_A_DELETES),
-        statuses(Status.ADDED));
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(deltaSnapshotId, deltaSnapshotId),
+        files(fileADeletes(), fileBDeletes()),
+        statuses(Status.ADDED, Status.ADDED));
 
     // the manifest that removed FILE_A will be dropped next commit, causing the min sequence number
     // of all data files
     // to be 2, the largest known sequence number. this will cause FILE_A_DELETES to be removed
     // because it is too old
     // to apply to any data files.
-    commit(table, table.newDelete().deleteFile("no-such-file"), branch);
+    commit(table, table.newRowDelta().removeDeletes(FILE_B_DELETES), branch);
 
     Snapshot nextSnap = latestSnapshot(table, branch);
     assertThat(nextSnap.sequenceNumber()).isEqualTo(3);
@@ -616,16 +628,16 @@ public class TestRowDelta extends V2TableTestBase {
     assertThat(nextSnap.deleteManifests(table.io())).hasSize(1);
     validateDeleteManifest(
         nextSnap.deleteManifests(table.io()).get(0),
-        dataSeqs(1L),
-        fileSeqs(1L),
-        ids(nextSnap.snapshotId()),
-        files(FILE_A_DELETES),
-        statuses(Status.DELETED));
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(nextSnap.snapshotId(), nextSnap.snapshotId()),
+        files(fileADeletes(), fileBDeletes()),
+        statuses(Status.DELETED, Status.DELETED));
   }
 
   @TestTemplate
   public void testFastAppendDoesNotRemoveStaleDeleteFiles() {
-    commit(table, table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES), branch);
+    commit(table, table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()), branch);
 
     long deltaSnapshotId = latestSnapshot(table, branch).snapshotId();
     assertThat(latestSnapshot(table, branch).sequenceNumber()).isEqualTo(1);
@@ -653,7 +665,7 @@ public class TestRowDelta extends V2TableTestBase {
         dataSeqs(1L),
         fileSeqs(1L),
         ids(deltaSnapshotId),
-        files(FILE_A_DELETES),
+        files(fileADeletes()),
         statuses(Status.ADDED));
 
     // the manifest that removed FILE_A will be dropped next merging commit, but FastAppend will not
@@ -689,7 +701,7 @@ public class TestRowDelta extends V2TableTestBase {
         dataSeqs(1L),
         fileSeqs(1L),
         ids(deltaSnapshotId),
-        files(FILE_A_DELETES),
+        files(fileADeletes()),
         statuses(Status.ADDED));
   }
 
@@ -728,21 +740,14 @@ public class TestRowDelta extends V2TableTestBase {
     Snapshot baseSnapshot = latestSnapshot(table, branch);
 
     // add a delete file for partition A
-    DeleteFile deleteFile =
-        FileMetadata.deleteFileBuilder(table.spec())
-            .ofPositionDeletes()
-            .withPath("/path/to/data-a-deletes.parquet")
-            .withFileSizeInBytes(10)
-            .withPartitionPath("data=a")
-            .withRecordCount(1)
-            .build();
+    DeleteFile deleteFile = newDeletes(dataFile1);
 
     Expression conflictDetectionFilter = Expressions.equal("data", "a");
     RowDelta rowDelta =
         table
             .newRowDelta()
             .addDeletes(deleteFile)
-            .validateDataFilesExist(ImmutableList.of(dataFile1.path()))
+            .validateDataFilesExist(ImmutableList.of(dataFile1.location()))
             .validateDeletedFiles()
             .validateFromSnapshot(baseSnapshot.snapshotId())
             .conflictDetectionFilter(conflictDetectionFilter)
@@ -789,21 +794,14 @@ public class TestRowDelta extends V2TableTestBase {
     Snapshot baseSnapshot = latestSnapshot(table, branch);
 
     // add a delete file for partition A
-    DeleteFile deleteFile =
-        FileMetadata.deleteFileBuilder(table.spec())
-            .ofPositionDeletes()
-            .withPath("/path/to/data-a-deletes.parquet")
-            .withFileSizeInBytes(10)
-            .withPartitionPath("data=a")
-            .withRecordCount(1)
-            .build();
+    DeleteFile deleteFile = newDeletes(dataFile1);
 
     Expression conflictDetectionFilter = Expressions.equal("data", "a");
     RowDelta rowDelta =
         table
             .newRowDelta()
             .addDeletes(deleteFile)
-            .validateDataFilesExist(ImmutableList.of(dataFile1.path()))
+            .validateDataFilesExist(ImmutableList.of(dataFile1.location()))
             .validateDeletedFiles()
             .validateFromSnapshot(baseSnapshot.snapshotId())
             .conflictDetectionFilter(conflictDetectionFilter)
@@ -847,9 +845,9 @@ public class TestRowDelta extends V2TableTestBase {
     // commit a row delta with 1 data file and 3 delete files where delete files have different
     // specs
     DataFile dataFile = newDataFile("data=xyz");
-    DeleteFile firstDeleteFile = newDeleteFile(firstSnapshotDataFile.specId(), "data_bucket=0");
-    DeleteFile secondDeleteFile = newDeleteFile(secondSnapshotDataFile.specId(), "");
-    DeleteFile thirdDeleteFile = newDeleteFile(thirdSnapshotDataFile.specId(), "data=abc");
+    DeleteFile firstDeleteFile = newDeletes(firstSnapshotDataFile);
+    DeleteFile secondDeleteFile = newDeletes(secondSnapshotDataFile);
+    DeleteFile thirdDeleteFile = newDeletes(thirdSnapshotDataFile);
 
     commit(
         table,
@@ -867,6 +865,7 @@ public class TestRowDelta extends V2TableTestBase {
     assertThat(snapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
 
     Map<String, String> summary = snapshot.summary();
+    long posDeletesCount = recordCount(firstDeleteFile, secondDeleteFile, thirdDeleteFile);
 
     assertThat(summary)
         .containsEntry(CHANGED_PARTITION_COUNT_PROP, "4")
@@ -874,8 +873,8 @@ public class TestRowDelta extends V2TableTestBase {
         .containsEntry(TOTAL_DATA_FILES_PROP, "4")
         .containsEntry(ADDED_DELETE_FILES_PROP, "3")
         .containsEntry(TOTAL_DELETE_FILES_PROP, "3")
-        .containsEntry(ADDED_POS_DELETES_PROP, "3")
-        .containsEntry(TOTAL_POS_DELETES_PROP, "3")
+        .containsEntry(ADDED_POS_DELETES_PROP, String.valueOf(posDeletesCount))
+        .containsEntry(TOTAL_POS_DELETES_PROP, String.valueOf(posDeletesCount))
         .hasEntrySatisfying(
             CHANGED_PARTITION_PREFIX + "data_bucket=0",
             v -> assertThat(v).contains(ADDED_DELETE_FILES_PROP + "=1"))
@@ -953,8 +952,8 @@ public class TestRowDelta extends V2TableTestBase {
     commit(table, table.newAppend().appendFile(secondSnapshotDataFile), branch);
 
     // commit two delete files to two specs in a single operation
-    DeleteFile firstDeleteFile = newDeleteFile(firstSnapshotDataFile.specId(), "data_bucket=0");
-    DeleteFile secondDeleteFile = newDeleteFile(secondSnapshotDataFile.specId(), "");
+    DeleteFile firstDeleteFile = newDeletes(firstSnapshotDataFile);
+    DeleteFile secondDeleteFile = newDeletes(secondSnapshotDataFile);
 
     commit(
         table,
@@ -968,12 +967,18 @@ public class TestRowDelta extends V2TableTestBase {
     assertThat(thirdSnapshot.deleteManifests(table.io())).hasSize(2);
 
     // commit two more delete files to the same specs to trigger merging
-    DeleteFile thirdDeleteFile = newDeleteFile(firstSnapshotDataFile.specId(), "data_bucket=0");
-    DeleteFile fourthDeleteFile = newDeleteFile(secondSnapshotDataFile.specId(), "");
+    DeleteFile thirdDeleteFile = newDeletes(firstSnapshotDataFile);
+    DeleteFile fourthDeleteFile = newDeletes(secondSnapshotDataFile);
 
     commit(
         table,
-        table.newRowDelta().addDeletes(thirdDeleteFile).addDeletes(fourthDeleteFile),
+        table
+            .newRowDelta()
+            .removeDeletes(firstDeleteFile)
+            .addDeletes(thirdDeleteFile)
+            .removeDeletes(secondDeleteFile)
+            .addDeletes(fourthDeleteFile)
+            .validateFromSnapshot(thirdSnapshot.snapshotId()),
         branch);
 
     Snapshot fourthSnapshot = latestSnapshot(table, branch);
@@ -988,9 +993,9 @@ public class TestRowDelta extends V2TableTestBase {
         firstDeleteManifest,
         dataSeqs(4L, 3L),
         fileSeqs(4L, 3L),
-        ids(fourthSnapshot.snapshotId(), thirdSnapshot.snapshotId()),
+        ids(fourthSnapshot.snapshotId(), fourthSnapshot.snapshotId()),
         files(thirdDeleteFile, firstDeleteFile),
-        statuses(Status.ADDED, Status.EXISTING));
+        statuses(Status.ADDED, Status.DELETED));
 
     ManifestFile secondDeleteManifest = fourthSnapshot.deleteManifests(table.io()).get(0);
     assertThat(secondDeleteManifest.partitionSpecId()).isEqualTo(secondSnapshotDataFile.specId());
@@ -998,9 +1003,9 @@ public class TestRowDelta extends V2TableTestBase {
         secondDeleteManifest,
         dataSeqs(4L, 3L),
         fileSeqs(4L, 3L),
-        ids(fourthSnapshot.snapshotId(), thirdSnapshot.snapshotId()),
+        ids(fourthSnapshot.snapshotId(), fourthSnapshot.snapshotId()),
         files(fourthDeleteFile, secondDeleteFile),
-        statuses(Status.ADDED, Status.EXISTING));
+        statuses(Status.ADDED, Status.DELETED));
   }
 
   @TestTemplate
@@ -1019,8 +1024,8 @@ public class TestRowDelta extends V2TableTestBase {
     commit(table, table.newAppend().appendFile(secondSnapshotDataFile), branch);
 
     // prepare two delete files that belong to different specs
-    DeleteFile firstDeleteFile = newDeleteFile(firstSnapshotDataFile.specId(), "data_bucket=0");
-    DeleteFile secondDeleteFile = newDeleteFile(secondSnapshotDataFile.specId(), "");
+    DeleteFile firstDeleteFile = newDeletes(firstSnapshotDataFile);
+    DeleteFile secondDeleteFile = newDeletes(secondSnapshotDataFile);
 
     // capture all deletes
     Set<String> deletedFiles = Sets.newHashSet();
@@ -1033,7 +1038,7 @@ public class TestRowDelta extends V2TableTestBase {
             .addDeletes(secondDeleteFile)
             .deleteWith(deletedFiles::add)
             .validateDeletedFiles()
-            .validateDataFilesExist(ImmutableList.of(firstSnapshotDataFile.path()));
+            .validateDataFilesExist(ImmutableList.of(firstSnapshotDataFile.location()));
 
     rowDelta.apply();
 
@@ -1062,7 +1067,7 @@ public class TestRowDelta extends V2TableTestBase {
             .newRowDelta()
             .toBranch(branch)
             .addRows(FILE_B)
-            .addDeletes(FILE_A_DELETES)
+            .addDeletes(fileADeletes())
             .validateFromSnapshot(firstSnapshot.snapshotId())
             .conflictDetectionFilter(conflictDetectionFilter)
             .validateNoConflictingDataFiles()
@@ -1071,7 +1076,7 @@ public class TestRowDelta extends V2TableTestBase {
     table
         .newRowDelta()
         .toBranch(branch)
-        .addDeletes(FILE_A_DELETES)
+        .addDeletes(fileADeletes())
         .validateFromSnapshot(firstSnapshot.snapshotId())
         .conflictDetectionFilter(conflictDetectionFilter)
         .validateNoConflictingDataFiles()
@@ -1094,7 +1099,7 @@ public class TestRowDelta extends V2TableTestBase {
     RowDelta rowDelta =
         table
             .newRowDelta()
-            .addDeletes(FILE_A_DELETES)
+            .addDeletes(fileADeletes())
             .validateFromSnapshot(firstSnapshot.snapshotId())
             .conflictDetectionFilter(conflictDetectionFilter)
             .validateNoConflictingDeleteFiles();
@@ -1102,7 +1107,7 @@ public class TestRowDelta extends V2TableTestBase {
     table
         .newRowDelta()
         .toBranch(branch)
-        .addDeletes(FILE_A_DELETES)
+        .addDeletes(fileADeletes())
         .validateFromSnapshot(firstSnapshot.snapshotId())
         .conflictDetectionFilter(conflictDetectionFilter)
         .validateNoConflictingDataFiles()
@@ -1149,14 +1154,7 @@ public class TestRowDelta extends V2TableTestBase {
     Expression conflictDetectionFilter = Expressions.equal("data", "a");
 
     // add a delete file for partition A
-    DeleteFile deleteFile1 =
-        FileMetadata.deleteFileBuilder(table.spec())
-            .ofPositionDeletes()
-            .withPath("/path/to/data-a-deletes.parquet")
-            .withFileSizeInBytes(10)
-            .withPartitionPath("data=a")
-            .withRecordCount(1)
-            .build();
+    DeleteFile deleteFile1 = newDeletes(dataFile1);
 
     // mock a DELETE operation with serializable isolation
     RowDelta rowDelta =
@@ -1170,14 +1168,7 @@ public class TestRowDelta extends V2TableTestBase {
             .validateNoConflictingDeleteFiles();
 
     // add a delete file for partition B
-    DeleteFile deleteFile2 =
-        FileMetadata.deleteFileBuilder(table.spec())
-            .ofPositionDeletes()
-            .withPath("/path/to/data-b-deletes.parquet")
-            .withFileSizeInBytes(10)
-            .withPartitionPath("data=b")
-            .withRecordCount(1)
-            .build();
+    DeleteFile deleteFile2 = newDeletes(dataFile2);
 
     table
         .newRowDelta()
@@ -1320,8 +1311,8 @@ public class TestRowDelta extends V2TableTestBase {
 
     Snapshot baseSnapshot = latestSnapshot(table, branch);
 
-    // add an position delete file
-    DeleteFile deleteFile1 = newDeleteFile(table.spec().specId(), "data=a");
+    // add position deletes
+    DeleteFile deleteFile1 = newDeletes(dataFile1);
 
     // mock a DELETE operation with serializable isolation
     RowDelta rowDelta =
@@ -1357,7 +1348,7 @@ public class TestRowDelta extends V2TableTestBase {
 
     Snapshot firstSnapshot = latestSnapshot(table, branch);
 
-    commit(table, table.newRowDelta().addDeletes(FILE_A_DELETES), branch);
+    commit(table, table.newRowDelta().addDeletes(fileADeletes()), branch);
 
     Expression conflictDetectionFilter = Expressions.equal(Expressions.bucket("dAtA", 16), 0);
 
@@ -1413,12 +1404,12 @@ public class TestRowDelta extends V2TableTestBase {
   @TestTemplate
   public void testRewrittenDeleteFiles() {
     DataFile dataFile = newDataFile("data_bucket=0");
-    DeleteFile deleteFile = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    DeleteFile deleteFile = newDeletes(dataFile);
     RowDelta baseRowDelta = table.newRowDelta().addRows(dataFile).addDeletes(deleteFile);
     Snapshot baseSnapshot = commit(table, baseRowDelta, branch);
     assertThat(baseSnapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
 
-    DeleteFile newDeleteFile = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    DeleteFile newDeleteFile = newDeletes(dataFile);
     RowDelta rowDelta =
         table
             .newRowDelta()
@@ -1457,15 +1448,70 @@ public class TestRowDelta extends V2TableTestBase {
   }
 
   @TestTemplate
-  public void testConcurrentDeletesRewriteSameDeleteFile() {
+  public void testRewrittenDeleteFilesReadFromManifest() throws IOException {
+    assumeThat(formatVersion).isEqualTo(2);
     DataFile dataFile = newDataFile("data_bucket=0");
     DeleteFile deleteFile = newDeleteFile(dataFile.specId(), "data_bucket=0");
     RowDelta baseRowDelta = table.newRowDelta().addRows(dataFile).addDeletes(deleteFile);
     Snapshot baseSnapshot = commit(table, baseRowDelta, branch);
     assertThat(baseSnapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+    List<ManifestFile> deleteManifests = baseSnapshot.deleteManifests(table.io());
+    try (ManifestReader<DeleteFile> deleteReader =
+        ManifestFiles.readDeleteManifest(deleteManifests.get(0), table.io(), table.specs())) {
+      deleteFile = deleteReader.iterator().next();
+    }
+
+    assertThat(deleteFile.manifestLocation()).isEqualTo(deleteManifests.get(0).path());
+    DeleteFile newDeleteFile = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    RowDelta rowDelta =
+        table
+            .newRowDelta()
+            .removeDeletes(deleteFile)
+            .addDeletes(newDeleteFile)
+            .validateFromSnapshot(baseSnapshot.snapshotId());
+    Snapshot snapshot = commit(table, rowDelta, branch);
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.DELETE);
+
+    List<ManifestFile> dataManifests = snapshot.dataManifests(table.io());
+    assertThat(dataManifests).hasSize(1);
+    validateManifest(
+        dataManifests.get(0),
+        dataSeqs(1L),
+        fileSeqs(1L),
+        ids(baseSnapshot.snapshotId()),
+        files(dataFile),
+        statuses(Status.ADDED));
+
+    deleteManifests = snapshot.deleteManifests(table.io());
+    assertThat(deleteManifests).hasSize(2);
+    validateDeleteManifest(
+        deleteManifests.get(0),
+        dataSeqs(2L),
+        fileSeqs(2L),
+        ids(snapshot.snapshotId()),
+        files(newDeleteFile),
+        statuses(Status.ADDED));
+    validateDeleteManifest(
+        deleteManifests.get(1),
+        dataSeqs(1L),
+        fileSeqs(1L),
+        ids(snapshot.snapshotId()),
+        files(deleteFile),
+        statuses(Status.DELETED));
+  }
+
+  @TestTemplate
+  public void testConcurrentDeletesRewriteSameDeleteFile() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    DataFile dataFile = newDataFile("data_bucket=0");
+    DeleteFile deleteFile = newDeletes(dataFile);
+    RowDelta baseRowDelta = table.newRowDelta().addRows(dataFile).addDeletes(deleteFile);
+    Snapshot baseSnapshot = commit(table, baseRowDelta, branch);
+    assertThat(baseSnapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
 
     // commit the first DELETE operation that replaces `deleteFile`
-    DeleteFile newDeleteFile1 = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    DeleteFile newDeleteFile1 = newDeletes(dataFile);
     RowDelta delete1 =
         table
             .newRowDelta()
@@ -1478,7 +1524,7 @@ public class TestRowDelta extends V2TableTestBase {
     assertThat(snapshot1.sequenceNumber()).isEqualTo(2L);
 
     // commit the second DELETE operation that replaces `deleteFile`
-    DeleteFile newDeleteFile2 = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    DeleteFile newDeleteFile2 = newDeletes(dataFile);
     RowDelta delete2 =
         table
             .newRowDelta()
@@ -1520,15 +1566,79 @@ public class TestRowDelta extends V2TableTestBase {
   }
 
   @TestTemplate
-  public void testConcurrentMergeRewriteSameDeleteFile() {
+  public void testConcurrentManifestRewriteWithDeleteFileRemoval() throws IOException {
+    assumeThat(formatVersion).isEqualTo(2);
+    // Manifest rewrite isn't supported on branches currently
+    assumeThat(branch).isEqualTo("main");
+
     DataFile dataFile = newDataFile("data_bucket=0");
     DeleteFile deleteFile = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    RowDelta rowDelta = table.newRowDelta().addRows(dataFile).addDeletes(deleteFile);
+    Snapshot first = commit(table, rowDelta, branch);
+
+    DeleteFile secondDeleteFile = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    Snapshot secondRowDelta =
+        commit(table, table.newRowDelta().addRows(dataFile).addDeletes(secondDeleteFile), branch);
+    List<ManifestFile> secondRowDeltaDeleteManifests = secondRowDelta.deleteManifests(table.io());
+    assertThat(secondRowDeltaDeleteManifests).hasSize(2);
+
+    // Read the manifest entries before the manifest rewrite is committed
+    List<ManifestEntry<DeleteFile>> readEntries = Lists.newArrayList();
+    for (ManifestFile manifest : secondRowDeltaDeleteManifests) {
+      try (ManifestReader<DeleteFile> deleteManifestReader =
+          ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
+        deleteManifestReader.entries().forEach(readEntries::add);
+      }
+    }
+
+    RowDelta removeDeletes =
+        table
+            .newRowDelta()
+            .removeDeletes(readEntries.get(0).file())
+            .removeDeletes(readEntries.get(1).file())
+            .validateFromSnapshot(secondRowDelta.snapshotId());
+
+    RewriteManifests rewriteManifests =
+        table
+            .rewriteManifests()
+            .addManifest(
+                writeManifest(
+                    "new_delete_manifest.avro",
+                    // Specify data sequence number so that the delete files don't get aged out
+                    // first
+                    manifestEntry(
+                        ManifestEntry.Status.EXISTING, first.snapshotId(), 3L, 0L, deleteFile),
+                    manifestEntry(
+                        ManifestEntry.Status.EXISTING,
+                        secondRowDelta.snapshotId(),
+                        3L,
+                        0L,
+                        secondDeleteFile)))
+            .deleteManifest(secondRowDeltaDeleteManifests.get(0))
+            .deleteManifest(secondRowDeltaDeleteManifests.get(1));
+    commit(table, rewriteManifests, branch);
+
+    Snapshot remove = commit(table, removeDeletes, branch);
+    List<ManifestFile> deleteManifests = remove.deleteManifests(table.io());
+    validateDeleteManifest(
+        deleteManifests.get(0),
+        dataSeqs(3L, 3L),
+        fileSeqs(0L, 0L),
+        ids(remove.snapshotId(), remove.snapshotId()),
+        files(deleteFile, secondDeleteFile),
+        statuses(Status.DELETED, Status.DELETED));
+  }
+
+  @TestTemplate
+  public void testConcurrentMergeRewriteSameDeleteFile() {
+    DataFile dataFile = newDataFile("data_bucket=0");
+    DeleteFile deleteFile = newDeletes(dataFile);
     RowDelta baseRowDelta = table.newRowDelta().addRows(dataFile).addDeletes(deleteFile);
     Snapshot baseSnapshot = commit(table, baseRowDelta, branch);
     assertThat(baseSnapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
 
     // commit a DELETE operation that replaces `deleteFile`
-    DeleteFile newDeleteFile1 = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    DeleteFile newDeleteFile1 = newDeletes(dataFile);
     RowDelta delete =
         table
             .newRowDelta()
@@ -1540,7 +1650,7 @@ public class TestRowDelta extends V2TableTestBase {
 
     // attempt to commit a MERGE operation that replaces `deleteFile`
     DataFile newDataFile2 = newDataFile("data_bucket=0");
-    DeleteFile newDeleteFile2 = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    DeleteFile newDeleteFile2 = newDeletes(dataFile);
     RowDelta merge =
         table
             .newRowDelta()
@@ -1555,5 +1665,103 @@ public class TestRowDelta extends V2TableTestBase {
     assertThatThrownBy(() -> commit(table, merge, branch))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Found new conflicting delete files that can apply");
+  }
+
+  @TestTemplate
+  public void testConcurrentDVsForSameDataFile() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    DataFile dataFile = newDataFile("data_bucket=0");
+    commit(table, table.newRowDelta().addRows(dataFile), branch);
+
+    DeleteFile deleteFile1 = newDeletes(dataFile);
+    RowDelta rowDelta1 = table.newRowDelta().addDeletes(deleteFile1);
+
+    DeleteFile deleteFile2 = newDeletes(dataFile);
+    RowDelta rowDelta2 = table.newRowDelta().addDeletes(deleteFile2);
+
+    commit(table, rowDelta1, branch);
+
+    assertThatThrownBy(() -> commit(table, rowDelta2, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Found concurrently added DV for %s", dataFile.location());
+  }
+
+  @TestTemplate
+  public void testManifestMergingAfterUpgradeToV3() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // enable manifest merging
+    table
+        .updateProperties()
+        .set(TableProperties.MANIFEST_MERGE_ENABLED, "true")
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "2")
+        .commit();
+
+    // add a data file
+    DataFile dataFile = newDataFile("data_bucket=0");
+    commit(table, table.newAppend().appendFile(dataFile), branch);
+
+    // commit a delete operation using a positional delete file
+    DeleteFile deleteFile = newDeleteFileWithRef(dataFile);
+    assertThat(deleteFile.format()).isEqualTo(FileFormat.PARQUET);
+    RowDelta rowDelta1 = table.newRowDelta().addDeletes(deleteFile);
+    Snapshot deleteFileSnapshot = commit(table, rowDelta1, branch);
+
+    // upgrade the table
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+
+    // commit a DV
+    DeleteFile dv = newDV(dataFile);
+    assertThat(dv.format()).isEqualTo(FileFormat.PUFFIN);
+    RowDelta rowDelta2 = table.newRowDelta().addDeletes(dv);
+    Snapshot dvSnapshot = commit(table, rowDelta2, branch);
+
+    // both must be part of the table and merged into one manifest
+    ManifestFile deleteManifest = Iterables.getOnlyElement(dvSnapshot.deleteManifests(table.io()));
+    validateDeleteManifest(
+        deleteManifest,
+        dataSeqs(3L, 2L),
+        fileSeqs(3L, 2L),
+        ids(dvSnapshot.snapshotId(), deleteFileSnapshot.snapshotId()),
+        files(dv, deleteFile),
+        statuses(Status.ADDED, Status.EXISTING));
+
+    // only the DV must be assigned during planning
+    List<ScanTask> tasks = planFiles();
+    FileScanTask task = Iterables.getOnlyElement(tasks).asFileScanTask();
+    assertThat(task.deletes()).hasSize(1);
+    DeleteFile taskDV = Iterables.getOnlyElement(task.deletes());
+    assertThat(taskDV.location()).isEqualTo(dv.location());
+    assertThat(taskDV.referencedDataFile()).isEqualTo(dv.referencedDataFile());
+    assertThat(taskDV.contentOffset()).isEqualTo(dv.contentOffset());
+    assertThat(taskDV.contentSizeInBytes()).isEqualTo(dv.contentSizeInBytes());
+  }
+
+  @TestTemplate
+  public void testInabilityToAddPositionDeleteFilesInTablesWithDVs() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    DeleteFile deleteFile = newDeleteFile(table.spec().specId(), "data_bucket=0");
+    assertThatThrownBy(() -> table.newRowDelta().addDeletes(deleteFile))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Must use DVs for position deletes in V%s", formatVersion);
+  }
+
+  @TestTemplate
+  public void testInabilityToAddDVToV2Tables() {
+    assumeThat(formatVersion).isEqualTo(2);
+    DataFile dataFile = newDataFile("data_bucket=0");
+    DeleteFile dv = newDV(dataFile);
+    assertThatThrownBy(() -> table.newRowDelta().addDeletes(dv))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Must not use DVs for position deletes in V2");
+  }
+
+  private List<ScanTask> planFiles() {
+    try (CloseableIterable<ScanTask> tasks = table.newBatchScan().useRef(branch).planFiles()) {
+      return Lists.newArrayList(tasks);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 }

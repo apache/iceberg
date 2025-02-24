@@ -24,15 +24,28 @@ import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.TimeLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.TimeUnit;
+import org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation;
+import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 public class ParquetValueReaders {
@@ -44,6 +57,90 @@ public class ParquetValueReaders {
       return new OptionReader<>(definitionLevel, reader);
     }
     return reader;
+  }
+
+  public static ParquetValueReader<Integer> unboxed(ColumnDescriptor desc) {
+    return new UnboxedReader<>(desc);
+  }
+
+  public static ParquetValueReader<Byte> intsAsByte(ColumnDescriptor desc) {
+    return new IntAsByteReader(desc);
+  }
+
+  public static ParquetValueReader<Short> intsAsShort(ColumnDescriptor desc) {
+    return new IntAsShortReader(desc);
+  }
+
+  public static ParquetValueReader<String> strings(ColumnDescriptor desc) {
+    return new StringReader(desc);
+  }
+
+  public static ParquetValueReader<ByteBuffer> byteBuffers(ColumnDescriptor desc) {
+    return new BytesReader(desc);
+  }
+
+  public static ParquetValueReader<Long> intsAsLongs(ColumnDescriptor desc) {
+    return new IntAsLongReader(desc);
+  }
+
+  public static ParquetValueReader<Double> floatsAsDoubles(ColumnDescriptor desc) {
+    return new FloatAsDoubleReader(desc);
+  }
+
+  public static ParquetValueReader<BigDecimal> bigDecimals(ColumnDescriptor desc) {
+    LogicalTypeAnnotation decimal = desc.getPrimitiveType().getLogicalTypeAnnotation();
+    Preconditions.checkArgument(
+        decimal instanceof DecimalLogicalTypeAnnotation,
+        "Invalid timestamp logical type: " + decimal);
+
+    int scale = ((DecimalLogicalTypeAnnotation) decimal).getScale();
+
+    switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
+      case FIXED_LEN_BYTE_ARRAY:
+      case BINARY:
+        return new BinaryAsDecimalReader(desc, scale);
+      case INT64:
+        return new LongAsDecimalReader(desc, scale);
+      case INT32:
+        return new IntegerAsDecimalReader(desc, scale);
+    }
+
+    throw new IllegalArgumentException(
+        "Invalid primitive type for decimal: " + desc.getPrimitiveType());
+  }
+
+  public static ParquetValueReader<Long> times(ColumnDescriptor desc) {
+    LogicalTypeAnnotation time = desc.getPrimitiveType().getLogicalTypeAnnotation();
+    Preconditions.checkArgument(
+        time instanceof TimeLogicalTypeAnnotation, "Invalid time logical type: " + time);
+
+    TimeUnit unit = ((TimeLogicalTypeAnnotation) time).getUnit();
+    if (unit == LogicalTypeAnnotation.TimeUnit.MILLIS) {
+      return new TimeMillisReader(desc);
+    }
+
+    return new UnboxedReader<>(desc);
+  }
+
+  public static ParquetValueReader<Long> timestamps(ColumnDescriptor desc) {
+    if (desc.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
+      return new TimestampInt96Reader(desc);
+    }
+
+    LogicalTypeAnnotation timestamp = desc.getPrimitiveType().getLogicalTypeAnnotation();
+    Preconditions.checkArgument(
+        timestamp instanceof TimestampLogicalTypeAnnotation,
+        "Invalid timestamp logical type: " + timestamp);
+
+    TimeUnit unit = ((TimestampLogicalTypeAnnotation) timestamp).getUnit();
+    switch (unit) {
+      case MILLIS:
+        return new TimestampMillisReader(desc);
+      case MICROS:
+        return new UnboxedReader<>(desc);
+    }
+
+    throw new IllegalArgumentException("Unsupported timestamp unit: " + unit);
   }
 
   @SuppressWarnings("unchecked")
@@ -61,6 +158,19 @@ public class ParquetValueReaders {
 
   public static ParquetValueReader<Long> position() {
     return new PositionReader();
+  }
+
+  public static ParquetValueReader<UUID> uuids(ColumnDescriptor desc) {
+    return new UUIDReader(desc);
+  }
+
+  public static ParquetValueReader<Long> int96Timestamps(ColumnDescriptor desc) {
+    return new TimestampInt96Reader(desc);
+  }
+
+  public static ParquetValueReader<Record> recordReader(
+      List<ParquetValueReader<?>> readers, Types.StructType struct) {
+    return new RecordReader(readers, struct);
   }
 
   private static class NullReader<T> implements ParquetValueReader<T> {
@@ -112,10 +222,10 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {}
+    public void setPageSource(PageReadStore pageStore) {}
   }
 
-  static class ConstantReader<C> implements ParquetValueReader<C> {
+  private static class ConstantReader<C> implements ParquetValueReader<C> {
     private final C constantValue;
     private final TripleIterator<?> column;
     private final List<TripleIterator<?>> children;
@@ -175,10 +285,10 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {}
+    public void setPageSource(PageReadStore pageStore) {}
   }
 
-  static class PositionReader implements ParquetValueReader<Long> {
+  private static class PositionReader implements ParquetValueReader<Long> {
     private long rowOffset = -1;
     private long rowGroupStart;
 
@@ -199,8 +309,14 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      this.rowGroupStart = rowPosition;
+    public void setPageSource(PageReadStore pageStore) {
+      this.rowGroupStart =
+          pageStore
+              .getRowIndexOffset()
+              .orElseThrow(
+                  () ->
+                      new IllegalArgumentException(
+                          "PageReadStore does not contain row index offset"));
       this.rowOffset = -1;
     }
   }
@@ -220,7 +336,7 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {
+    public void setPageSource(PageReadStore pageStore) {
       column.setPageSource(pageStore.getPageReader(desc));
     }
 
@@ -279,6 +395,28 @@ public class ParquetValueReaders {
     @Override
     public String read(String reuse) {
       return column.nextBinary().toStringUsingUTF8();
+    }
+  }
+
+  private static class IntAsByteReader extends UnboxedReader<Byte> {
+    private IntAsByteReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Byte read(Byte ignored) {
+      return (byte) readInteger();
+    }
+  }
+
+  private static class IntAsShortReader extends UnboxedReader<Short> {
+    private IntAsShortReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Short read(Short ignored) {
+      return (short) readInteger();
     }
   }
 
@@ -379,7 +517,18 @@ public class ParquetValueReaders {
     }
   }
 
-  public static class ByteArrayReader extends ParquetValueReaders.PrimitiveReader<byte[]> {
+  private static class UUIDReader extends PrimitiveReader<UUID> {
+    private UUIDReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public UUID read(UUID reuse) {
+      return UUIDUtil.convert(column.nextBinary().toByteBuffer());
+    }
+  }
+
+  public static class ByteArrayReader extends PrimitiveReader<byte[]> {
     public ByteArrayReader(ColumnDescriptor desc) {
       super(desc);
     }
@@ -387,6 +536,57 @@ public class ParquetValueReaders {
     @Override
     public byte[] read(byte[] ignored) {
       return column.nextBinary().getBytes();
+    }
+  }
+
+  private static class TimestampInt96Reader extends UnboxedReader<Long> {
+
+    private TimestampInt96Reader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Long read(Long ignored) {
+      return readLong();
+    }
+
+    @Override
+    public long readLong() {
+      final ByteBuffer byteBuffer =
+          column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+      return ParquetUtil.extractTimestampInt96(byteBuffer);
+    }
+  }
+
+  private static class TimeMillisReader extends UnboxedReader<Long> {
+    private TimeMillisReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Long read(Long ignored) {
+      return readLong();
+    }
+
+    @Override
+    public long readLong() {
+      return 1000L * column.nextInteger();
+    }
+  }
+
+  private static class TimestampMillisReader extends UnboxedReader<Long> {
+    private TimestampMillisReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Long read(Long ignored) {
+      return readLong();
+    }
+
+    @Override
+    public long readLong() {
+      return 1000L * column.nextLong();
     }
   }
 
@@ -404,8 +604,8 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      reader.setPageSource(pageStore, rowPosition);
+    public void setPageSource(PageReadStore pageStore) {
+      reader.setPageSource(pageStore);
     }
 
     @Override
@@ -449,8 +649,8 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      reader.setPageSource(pageStore, rowPosition);
+    public void setPageSource(PageReadStore pageStore) {
+      reader.setPageSource(pageStore);
     }
 
     @Override
@@ -568,9 +768,9 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      keyReader.setPageSource(pageStore, rowPosition);
-      valueReader.setPageSource(pageStore, rowPosition);
+    public void setPageSource(PageReadStore pageStore) {
+      keyReader.setPageSource(pageStore);
+      valueReader.setPageSource(pageStore);
     }
 
     @Override
@@ -700,7 +900,7 @@ public class ParquetValueReaders {
     private final TripleIterator<?> column;
     private final List<TripleIterator<?>> children;
 
-    protected StructReader(List<Type> types, List<ParquetValueReader<?>> readers) {
+    protected StructReader(List<ParquetValueReader<?>> readers) {
       this.readers =
           (ParquetValueReader<?>[]) Array.newInstance(ParquetValueReader.class, readers.size());
       TripleIterator<?>[] columns =
@@ -719,9 +919,9 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public final void setPageSource(PageReadStore pageStore, long rowPosition) {
+    public final void setPageSource(PageReadStore pageStore) {
       for (ParquetValueReader<?> reader : readers) {
-        reader.setPageSource(pageStore, rowPosition);
+        reader.setPageSource(pageStore);
       }
     }
 
@@ -806,6 +1006,41 @@ public class ParquetValueReaders {
         }
       }
       return NullReader.NULL_COLUMN;
+    }
+  }
+
+  private static class RecordReader extends StructReader<Record, Record> {
+    private final GenericRecord template;
+
+    RecordReader(List<ParquetValueReader<?>> readers, Types.StructType struct) {
+      super(readers);
+      this.template = struct != null ? GenericRecord.create(struct) : null;
+    }
+
+    @Override
+    protected Record newStructData(Record reuse) {
+      if (reuse != null) {
+        return reuse;
+      } else {
+        // GenericRecord.copy() is more performant than GenericRecord.create(StructType) since
+        // NAME_MAP_CACHE access is eliminated. Using copy here to gain performance.
+        return template.copy();
+      }
+    }
+
+    @Override
+    protected Object getField(Record intermediate, int pos) {
+      return intermediate.get(pos);
+    }
+
+    @Override
+    protected Record buildStruct(Record struct) {
+      return struct;
+    }
+
+    @Override
+    protected void set(Record struct, int pos, Object value) {
+      struct.set(pos, value);
     }
   }
 }

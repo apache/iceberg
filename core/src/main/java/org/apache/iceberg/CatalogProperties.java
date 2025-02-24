@@ -29,6 +29,7 @@ public class CatalogProperties {
   public static final String WAREHOUSE_LOCATION = "warehouse";
   public static final String TABLE_DEFAULT_PREFIX = "table-default.";
   public static final String TABLE_OVERRIDE_PREFIX = "table-override.";
+  public static final String VIEW_DEFAULT_PREFIX = "view-default.";
   public static final String METRICS_REPORTER_IMPL = "metrics-reporter-impl";
 
   /**

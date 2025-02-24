@@ -72,7 +72,8 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
         force 'org.codehaus.jettison:jettison:1.5.4'
         force 'org.xerial.snappy:snappy-java:1.1.10.7'
         force 'org.apache.commons:commons-compress:1.27.1'
-        force 'org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.2.0'
+        force 'org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.3.0'
+        force 'com.fasterxml.woodstox:woodstox-core:6.7.0'
       }
     }
   }
@@ -96,7 +97,6 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
       exclude group: 'org.slf4j'
       exclude group: 'ch.qos.reload4j'
       exclude group: 'org.apache.avro', module: 'avro'
-      exclude group: 'com.fasterxml.woodstox'
       exclude group: 'com.google.guava'
       exclude group: 'com.google.protobuf'
       exclude group: 'org.apache.curator'
@@ -105,7 +105,6 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
       exclude group: 'org.apache.hadoop', module: 'hadoop-auth'
       exclude group: 'org.apache.commons', module: 'commons-configuration2'
       exclude group: 'org.apache.hadoop.thirdparty', module: 'hadoop-shaded-protobuf_3_7'
-      exclude group: 'org.codehaus.woodstox'
       exclude group: 'org.eclipse.jetty'
     }
     implementation project(':iceberg-orc')
@@ -198,7 +197,8 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
           from configurations.runtimeClasspath
         }
         into('doc/') {
-          from "$rootDir/LICENSE"
+          from "$projectDir/main/LICENSE"
+          from "$projectDir/main/NOTICE"
         }
         into('assets/') {
           from "${processResources.destinationDir}/iceberg.png"
@@ -212,7 +212,8 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
           from configurations.hive
         }
         into('doc/') {
-          from "$rootDir/LICENSE"
+          from "$projectDir/hive/LICENSE"
+          from "$projectDir/hive/NOTICE"
         }
         into('assets/') {
           from "${processResources.destinationDir}/iceberg.png"

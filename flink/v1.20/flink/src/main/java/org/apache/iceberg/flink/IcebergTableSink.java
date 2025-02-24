@@ -35,6 +35,7 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.RowKind;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.flink.sink.FlinkSink;
+import org.apache.iceberg.flink.sink.IcebergSink;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning, SupportsOverwrite {
@@ -77,14 +78,25 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
       @Override
       public DataStreamSink<?> consumeDataStream(
           ProviderContext providerContext, DataStream<RowData> dataStream) {
-        return FlinkSink.forRowData(dataStream)
-            .tableLoader(tableLoader)
-            .tableSchema(tableSchema)
-            .equalityFieldColumns(equalityColumns)
-            .overwrite(overwrite)
-            .setAll(writeProps)
-            .flinkConf(readableConfig)
-            .append();
+        if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_V2_SINK)) {
+          return IcebergSink.forRowData(dataStream)
+              .tableLoader(tableLoader)
+              .tableSchema(tableSchema)
+              .equalityFieldColumns(equalityColumns)
+              .overwrite(overwrite)
+              .setAll(writeProps)
+              .flinkConf(readableConfig)
+              .append();
+        } else {
+          return FlinkSink.forRowData(dataStream)
+              .tableLoader(tableLoader)
+              .tableSchema(tableSchema)
+              .equalityFieldColumns(equalityColumns)
+              .overwrite(overwrite)
+              .setAll(writeProps)
+              .flinkConf(readableConfig)
+              .append();
+        }
       }
     };
   }

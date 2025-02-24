@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
@@ -41,7 +42,7 @@ import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
-import org.apache.flink.streaming.api.functions.sink.DiscardingSink;
+import org.apache.flink.streaming.api.functions.sink.v2.DiscardingSink;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
@@ -65,6 +66,7 @@ import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.sink.shuffle.DataStatisticsOperatorFactory;
 import org.apache.iceberg.flink.sink.shuffle.RangePartitioner;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsOrRecord;
+import org.apache.iceberg.flink.sink.shuffle.StatisticsOrRecordTypeInformation;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsType;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -134,7 +136,7 @@ public class FlinkSink {
     return new Builder().forRowData(input);
   }
 
-  public static class Builder {
+  public static class Builder implements IcebergSinkBuilder<Builder> {
     private Function<String, DataStream<RowData>> inputCreator = null;
     private TableLoader tableLoader;
     private Table table;
@@ -179,6 +181,7 @@ public class FlinkSink {
      * @param newTable the loaded iceberg table instance.
      * @return {@link Builder} to connect the iceberg table.
      */
+    @Override
     public Builder table(Table newTable) {
       this.table = newTable;
       return this;
@@ -192,6 +195,7 @@ public class FlinkSink {
      * @param newTableLoader to load iceberg table inside tasks.
      * @return {@link Builder} to connect the iceberg table.
      */
+    @Override
     public Builder tableLoader(TableLoader newTableLoader) {
       this.tableLoader = newTableLoader;
       return this;
@@ -210,21 +214,25 @@ public class FlinkSink {
      * Set the write properties for Flink sink. View the supported properties in {@link
      * FlinkWriteOptions}
      */
+    @Override
     public Builder setAll(Map<String, String> properties) {
       writeOptions.putAll(properties);
       return this;
     }
 
+    @Override
     public Builder tableSchema(TableSchema newTableSchema) {
       this.tableSchema = newTableSchema;
       return this;
     }
 
+    @Override
     public Builder overwrite(boolean newOverwrite) {
       writeOptions.put(FlinkWriteOptions.OVERWRITE_MODE.key(), Boolean.toString(newOverwrite));
       return this;
     }
 
+    @Override
     public Builder flinkConf(ReadableConfig config) {
       this.readableConfig = config;
       return this;
@@ -237,6 +245,7 @@ public class FlinkSink {
      * @param mode to specify the write distribution mode.
      * @return {@link Builder} to connect the iceberg table.
      */
+    @Override
     public Builder distributionMode(DistributionMode mode) {
       if (mode != null) {
         writeOptions.put(FlinkWriteOptions.DISTRIBUTION_MODE.key(), mode.modeName());
@@ -306,6 +315,7 @@ public class FlinkSink {
      * @param newWriteParallelism the number of parallel iceberg stream writer.
      * @return {@link Builder} to connect the iceberg table.
      */
+    @Override
     public Builder writeParallelism(int newWriteParallelism) {
       writeOptions.put(
           FlinkWriteOptions.WRITE_PARALLELISM.key(), Integer.toString(newWriteParallelism));
@@ -321,6 +331,7 @@ public class FlinkSink {
      * @param enabled indicate whether it should transform all INSERT/UPDATE_AFTER events to UPSERT.
      * @return {@link Builder} to connect the iceberg table.
      */
+    @Override
     public Builder upsert(boolean enabled) {
       writeOptions.put(FlinkWriteOptions.WRITE_UPSERT_ENABLED.key(), Boolean.toString(enabled));
       return this;
@@ -332,6 +343,7 @@ public class FlinkSink {
      * @param columns defines the iceberg table's key.
      * @return {@link Builder} to connect the iceberg table.
      */
+    @Override
     public Builder equalityFieldColumns(List<String> columns) {
       this.equalityFieldColumns = columns;
       return this;
@@ -376,12 +388,13 @@ public class FlinkSink {
       return this;
     }
 
+    @Override
     public Builder toBranch(String branch) {
       writeOptions.put(FlinkWriteOptions.BRANCH.key(), branch);
       return this;
     }
 
-    private <T> DataStreamSink<T> chainIcebergOperators() {
+    private DataStreamSink<Void> chainIcebergOperators() {
       Preconditions.checkArgument(
           inputCreator != null,
           "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
@@ -436,6 +449,7 @@ public class FlinkSink {
      *
      * @return {@link DataStreamSink} for sink.
      */
+    @Override
     public DataStreamSink<Void> append() {
       return chainIcebergOperators();
     }
@@ -472,12 +486,10 @@ public class FlinkSink {
       return equalityFieldIds;
     }
 
-    @SuppressWarnings("unchecked")
-    private <T> DataStreamSink<T> appendDummySink(
-        SingleOutputStreamOperator<Void> committerStream) {
-      DataStreamSink<T> resultStream =
+    private DataStreamSink<Void> appendDummySink(SingleOutputStreamOperator<Void> committerStream) {
+      DataStreamSink<Void> resultStream =
           committerStream
-              .addSink(new DiscardingSink())
+              .sinkTo(new DiscardingSink<>())
               .name(operatorName(String.format("IcebergSink %s", this.table.name())))
               .setParallelism(1);
       if (uidPrefix != null) {
@@ -634,12 +646,14 @@ public class FlinkSink {
           }
 
           LOG.info("Range distribute rows by sort order: {}", sortOrder);
+          StatisticsOrRecordTypeInformation statisticsOrRecordTypeInformation =
+              new StatisticsOrRecordTypeInformation(flinkRowType, iSchema, sortOrder);
           StatisticsType statisticsType = flinkWriteConf.rangeDistributionStatisticsType();
           SingleOutputStreamOperator<StatisticsOrRecord> shuffleStream =
               input
                   .transform(
                       operatorName("range-shuffle"),
-                      TypeInformation.of(StatisticsOrRecord.class),
+                      statisticsOrRecordTypeInformation,
                       new DataStatisticsOperatorFactory(
                           iSchema,
                           sortOrder,
@@ -654,8 +668,17 @@ public class FlinkSink {
 
           return shuffleStream
               .partitionCustom(new RangePartitioner(iSchema, sortOrder), r -> r)
-              .filter(StatisticsOrRecord::hasRecord)
-              .map(StatisticsOrRecord::record);
+              .flatMap(
+                  (FlatMapFunction<StatisticsOrRecord, RowData>)
+                      (statisticsOrRecord, out) -> {
+                        if (statisticsOrRecord.hasRecord()) {
+                          out.collect(statisticsOrRecord.record());
+                        }
+                      })
+              // Set the parallelism same as writerParallelism to
+              // promote operator chaining with the downstream writer operator
+              .setParallelism(writerParallelism)
+              .returns(RowData.class);
 
         default:
           throw new RuntimeException("Unrecognized " + WRITE_DISTRIBUTION_MODE + ": " + writeMode);

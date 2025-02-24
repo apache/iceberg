@@ -41,7 +41,7 @@ services:
     entrypoint: mc mb /data/bucket
 
   iceberg:
-    image: tabulario/iceberg-rest
+    image: apache/iceberg-rest-fixture
     depends_on:
       - create-bucket
     hostname: iceberg
@@ -50,6 +50,7 @@ services:
     environment:
       - AWS_REGION=us-east-1
       - CATALOG_WAREHOUSE=s3://bucket/warehouse/
+      - CATALOG_URI=jdbc:sqlite:file:/tmp/iceberg_rest_mode=memory
       - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
       - CATALOG_S3_ENDPOINT=http://minio:9000
       - CATALOG_S3_PATH__STYLE__ACCESS=true
@@ -57,7 +58,7 @@ services:
       - CATALOG_S3_SECRET__ACCESS__KEY=minioadmin
 
   kafka:
-    image: confluentinc/cp-kafka
+    image: confluentinc/cp-kafka:7.8.1
     hostname: kafka
     ports:
       - 29092:29092
@@ -80,7 +81,7 @@ services:
       CLUSTER_ID: E-JXLvCaTiaUYDb1LwZ1JQ
 
   connect:
-    image: confluentinc/cp-kafka-connect
+    image: confluentinc/cp-kafka-connect:7.8.1
     depends_on:
       - kafka
     hostname: connect

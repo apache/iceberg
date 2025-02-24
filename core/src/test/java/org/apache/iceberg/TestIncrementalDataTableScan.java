@@ -320,7 +320,7 @@ public class TestIncrementalDataTableScan extends TestBase {
         Iterables.transform(
             tableScan.planFiles(),
             t -> {
-              String path = t.file().path().toString();
+              String path = t.file().location();
               return path.split("\\.")[0];
             });
     return Lists.newArrayList(filesToRead);

@@ -226,6 +226,13 @@ public class S3FileIOProperties implements Serializable {
   public static final String SESSION_TOKEN = "s3.session-token";
 
   /**
+   * Configure the expiration time in millis of the static session token used to access S3FileIO.
+   * This expiration time is currently only used in {@link VendedCredentialsProvider} for refreshing
+   * vended credentials.
+   */
+  static final String SESSION_TOKEN_EXPIRES_AT_MS = "s3.session-token-expires-at-ms";
+
+  /**
    * Enable to make S3FileIO, to make cross-region call to the region specified in the ARN of an
    * access point.
    *
@@ -377,6 +384,16 @@ public class S3FileIOProperties implements Serializable {
   public static final boolean DUALSTACK_ENABLED_DEFAULT = false;
 
   /**
+   * Determines if S3 client will allow Cross-Region bucket access, default to false.
+   *
+   * <p>For more details, see
+   * https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/s3-cross-region.html
+   */
+  public static final String CROSS_REGION_ACCESS_ENABLED = "s3.cross-region-access-enabled";
+
+  public static final boolean CROSS_REGION_ACCESS_ENABLED_DEFAULT = false;
+
+  /**
    * Used by {@link S3FileIO}, prefix used for bucket access point configuration. To set, we can
    * pass a catalog property.
    *
@@ -418,6 +435,25 @@ public class S3FileIOProperties implements Serializable {
 
   public static final long S3_RETRY_MAX_WAIT_MS_DEFAULT = 20_000; // 20 seconds
 
+  /**
+   * Controls whether to list prefixes as directories for S3 Directory buckets Defaults value is
+   * true, where it will add the "/"
+   *
+   * <p>Example: s3://bucket/prefix will be shown as s3://bucket/prefix/
+   *
+   * <p>For more details see delimiter section in:
+   * https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html#API_ListObjectsV2_RequestSyntax
+   *
+   * <p>If set to false, this will throw an error when the "/" is not provided for directory bucket.
+   * Turn off this feature if you are using S3FileIO.listPrefix for listing bucket prefixes that are
+   * not directories. This would ensure correctness and fail the operation based on S3 requirement
+   * when listing against a non-directory prefix in a directory bucket.
+   */
+  public static final String S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY =
+      "s3.directory-bucket.list-prefix-as-directory";
+
+  public static final boolean S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY_DEFAULT = true;
+
   private String sseType;
   private String sseKey;
   private String sseMd5;
@@ -442,6 +478,7 @@ public class S3FileIOProperties implements Serializable {
   private final Map<String, String> bucketToAccessPointMapping;
   private boolean isPreloadClientEnabled;
   private final boolean isDualStackEnabled;
+  private final boolean isCrossRegionAccessEnabled;
   private final boolean isPathStyleAccess;
   private final boolean isUseArnRegionEnabled;
   private final boolean isAccelerationEnabled;
@@ -451,6 +488,8 @@ public class S3FileIOProperties implements Serializable {
   private int s3RetryNumRetries;
   private long s3RetryMinWaitMs;
   private long s3RetryMaxWaitMs;
+
+  private boolean s3DirectoryBucketListPrefixAsDirectory;
   private final Map<String, String> allProperties;
 
   public S3FileIOProperties() {
@@ -477,6 +516,7 @@ public class S3FileIOProperties implements Serializable {
     this.bucketToAccessPointMapping = Collections.emptyMap();
     this.isPreloadClientEnabled = PRELOAD_CLIENT_ENABLED_DEFAULT;
     this.isDualStackEnabled = DUALSTACK_ENABLED_DEFAULT;
+    this.isCrossRegionAccessEnabled = CROSS_REGION_ACCESS_ENABLED_DEFAULT;
     this.isPathStyleAccess = PATH_STYLE_ACCESS_DEFAULT;
     this.isUseArnRegionEnabled = USE_ARN_REGION_ENABLED_DEFAULT;
     this.isAccelerationEnabled = ACCELERATION_ENABLED_DEFAULT;
@@ -486,6 +526,8 @@ public class S3FileIOProperties implements Serializable {
     this.s3RetryNumRetries = S3_RETRY_NUM_RETRIES_DEFAULT;
     this.s3RetryMinWaitMs = S3_RETRY_MIN_WAIT_MS_DEFAULT;
     this.s3RetryMaxWaitMs = S3_RETRY_MAX_WAIT_MS_DEFAULT;
+    this.s3DirectoryBucketListPrefixAsDirectory =
+        S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY_DEFAULT;
     this.allProperties = Maps.newHashMap();
 
     ValidationException.check(
@@ -521,6 +563,9 @@ public class S3FileIOProperties implements Serializable {
             properties, ACCELERATION_ENABLED, ACCELERATION_ENABLED_DEFAULT);
     this.isDualStackEnabled =
         PropertyUtil.propertyAsBoolean(properties, DUALSTACK_ENABLED, DUALSTACK_ENABLED_DEFAULT);
+    this.isCrossRegionAccessEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, CROSS_REGION_ACCESS_ENABLED, CROSS_REGION_ACCESS_ENABLED_DEFAULT);
     try {
       this.multiPartSize =
           PropertyUtil.propertyAsInt(properties, MULTIPART_SIZE, MULTIPART_SIZE_DEFAULT);
@@ -590,6 +635,11 @@ public class S3FileIOProperties implements Serializable {
         PropertyUtil.propertyAsLong(properties, S3_RETRY_MIN_WAIT_MS, S3_RETRY_MIN_WAIT_MS_DEFAULT);
     this.s3RetryMaxWaitMs =
         PropertyUtil.propertyAsLong(properties, S3_RETRY_MAX_WAIT_MS, S3_RETRY_MAX_WAIT_MS_DEFAULT);
+    this.s3DirectoryBucketListPrefixAsDirectory =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY,
+            S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY_DEFAULT);
 
     ValidationException.check(
         keyIdAccessKeyBothConfigured(),
@@ -678,6 +728,10 @@ public class S3FileIOProperties implements Serializable {
 
   public boolean isDualStackEnabled() {
     return this.isDualStackEnabled;
+  }
+
+  public boolean isCrossRegionAccessEnabled() {
+    return this.isCrossRegionAccessEnabled;
   }
 
   public boolean isPathStyleAccess() {
@@ -818,6 +872,15 @@ public class S3FileIOProperties implements Serializable {
     return (long) s3RetryNumRetries() * s3RetryMaxWaitMs();
   }
 
+  public boolean isS3DirectoryBucketListPrefixAsDirectory() {
+    return s3DirectoryBucketListPrefixAsDirectory;
+  }
+
+  public void setS3DirectoryBucketListPrefixAsDirectory(
+      boolean s3DirectoryBucketListPrefixAsDirectory) {
+    this.s3DirectoryBucketListPrefixAsDirectory = s3DirectoryBucketListPrefixAsDirectory;
+  }
+
   private boolean keyIdAccessKeyBothConfigured() {
     return (accessKeyId == null) == (secretAccessKey == null);
   }
@@ -832,7 +895,7 @@ public class S3FileIOProperties implements Serializable {
 
   /**
    * Configure services settings for an S3 client. The settings include: s3DualStack,
-   * s3UseArnRegion, s3PathStyleAccess, and s3Acceleration
+   * crossRegionAccessEnabled, s3UseArnRegion, s3PathStyleAccess, and s3Acceleration
    *
    * <p>Sample usage:
    *
@@ -843,6 +906,7 @@ public class S3FileIOProperties implements Serializable {
   public <T extends S3ClientBuilder> void applyServiceConfigurations(T builder) {
     builder
         .dualstackEnabled(isDualStackEnabled)
+        .crossRegionAccessEnabled(isCrossRegionAccessEnabled)
         .serviceConfiguration(
             S3Configuration.builder()
                 .pathStyleAccessEnabled(isPathStyleAccess)

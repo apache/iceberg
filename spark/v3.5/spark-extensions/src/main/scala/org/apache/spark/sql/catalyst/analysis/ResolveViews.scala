@@ -124,10 +124,10 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
   private def rewriteIdentifiers(
     plan: LogicalPlan,
     catalogAndNamespace: Seq[String]): LogicalPlan = {
-    // Substitute CTEs within the view, then rewrite unresolved functions and relations
+    // Substitute CTEs and Unresolved Ordinals within the view, then rewrite unresolved functions and relations
     qualifyTableIdentifiers(
       qualifyFunctionIdentifiers(
-        CTESubstitution.apply(plan),
+        SubstituteUnresolvedOrdinals.apply(CTESubstitution.apply(plan)),
         catalogAndNamespace),
       catalogAndNamespace)
   }

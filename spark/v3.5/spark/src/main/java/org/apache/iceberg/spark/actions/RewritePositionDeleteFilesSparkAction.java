@@ -39,6 +39,7 @@ import org.apache.iceberg.PositionDeletesTable.PositionDeletesBatchScan;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.actions.ImmutableRewritePositionDeleteFiles;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles;
 import org.apache.iceberg.actions.RewritePositionDeletesCommitManager;
@@ -59,6 +60,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.PropertyUtil;
@@ -92,11 +94,13 @@ public class RewritePositionDeleteFilesSparkAction
   private int maxCommits;
   private boolean partialProgressEnabled;
   private RewriteJobOrder rewriteJobOrder;
+  private boolean caseSensitive;
 
   RewritePositionDeleteFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
     this.rewriter = new SparkBinPackPositionDeletesRewriter(spark(), table);
+    this.caseSensitive = SparkUtil.caseSensitive(spark);
   }
 
   @Override
@@ -158,7 +162,7 @@ public class RewritePositionDeleteFilesSparkAction
   private CloseableIterable<PositionDeletesScanTask> planFiles(Table deletesTable) {
     PositionDeletesBatchScan scan = (PositionDeletesBatchScan) deletesTable.newBatchScan();
     return CloseableIterable.transform(
-        scan.baseTableFilter(filter).ignoreResiduals().planFiles(),
+        scan.baseTableFilter(filter).caseSensitive(caseSensitive).ignoreResiduals().planFiles(),
         task -> (PositionDeletesScanTask) task);
   }
 
@@ -399,6 +403,9 @@ public class RewritePositionDeleteFilesSparkAction
         PARTIAL_PROGRESS_MAX_COMMITS,
         maxCommits,
         PARTIAL_PROGRESS_ENABLED);
+
+    Preconditions.checkArgument(
+        TableUtil.formatVersion(table) <= 2, "Cannot rewrite position deletes for V3 table");
   }
 
   private String jobDesc(RewritePositionDeletesGroup group, RewriteExecutionContext ctx) {

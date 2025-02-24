@@ -26,17 +26,17 @@ buildscript {
     gradlePluginPortal()
   }
   dependencies {
-    classpath 'io.github.goooler.shadow:shadow-gradle-plugin:8.1.8'
-    classpath 'com.palantir.baseline:gradle-baseline-java:5.69.0'
+    classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.6'
+    classpath 'com.palantir.baseline:gradle-baseline-java:5.72.0'
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.25.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
-    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.2'
+    classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.3'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
     classpath 'org.revapi:gradle-revapi:1.8.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.2'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.1.0'
-    classpath 'org.openapitools:openapi-generator-gradle-plugin:6.6.0'
+    classpath 'org.openapitools:openapi-generator-gradle-plugin:7.11.0'
   }
 }
 
@@ -135,7 +135,7 @@ subprojects {
     revapi {
       oldGroup = project.group
       oldName = project.name
-      oldVersion = "1.6.0"
+      oldVersion = "1.8.0"
     }
 
     tasks.register('showDeprecationRulesOnRevApiFailure') {
@@ -246,7 +246,7 @@ subprojects {
 }
 
 project(':iceberg-bundled-guava') {
-  apply plugin: 'io.github.goooler.shadow'
+  apply plugin: 'com.gradleup.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
 
@@ -347,7 +347,6 @@ project(':iceberg-core') {
     implementation libs.jackson.core
     implementation libs.jackson.databind
     implementation libs.caffeine
-    implementation libs.failsafe
     implementation libs.roaringbitmap
     compileOnly(libs.hadoop2.client) {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -438,16 +437,6 @@ project(':iceberg-aliyun') {
     testImplementation platform(libs.jackson.bom)
     testImplementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml"
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation libs.spring.web
-    testImplementation(libs.spring.boot.starter.jetty) {
-      exclude module: 'logback-classic'
-      exclude group: 'org.eclipse.jetty.websocket', module: 'javax-websocket-server-impl'
-      exclude group: 'org.eclipse.jetty.websocket', module: 'websocket-server'
-    }
-    testImplementation(libs.spring.boot.starter.web) {
-      exclude module: 'logback-classic'
-      exclude module: 'spring-boot-starter-logging'
-    }
   }
 }
 
@@ -495,20 +484,18 @@ project(':iceberg-aws') {
     testImplementation("software.amazon.awssdk:s3control")
     testImplementation("software.amazon.s3.accessgrants:aws-s3-accessgrants-java-plugin")
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation(libs.s3mock.junit5) {
-      exclude module: "spring-boot-starter-logging"
-      exclude module: "logback-classic"
-      exclude group: 'junit'
-    }
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.sqlite.jdbc
     testImplementation libs.testcontainers
+    testImplementation libs.testcontainers.junit.jupiter
+    testImplementation libs.testcontainers.minio
     testImplementation libs.httpcomponents.httpclient5
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
     testImplementation libs.jaxb.api
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation libs.awaitility
+    testImplementation libs.jetty.servlet
   }
 
   sourceSets {
@@ -656,6 +643,7 @@ project(':iceberg-gcp') {
     testImplementation "com.google.cloud:google-cloud-nio"
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
 
     testImplementation(libs.hadoop2.common) {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -664,6 +652,8 @@ project(':iceberg-gcp') {
       exclude group: 'com.google.code.gson', module: 'gson'
     }
     testImplementation libs.esotericsoftware.kryo
+    testImplementation libs.mockserver.netty
+    testImplementation libs.mockserver.client.java
   }
 }
 
@@ -847,39 +837,6 @@ project(':iceberg-arrow') {
   }
 }
 
-project(':iceberg-pig') {
-  test {
-    useJUnitPlatform()
-  }
-
-  dependencies {
-    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    api project(':iceberg-api')
-    implementation project(':iceberg-common')
-    implementation project(':iceberg-core')
-    implementation project(':iceberg-parquet')
-
-    implementation(libs.parquet.avro) {
-      exclude group: 'org.apache.avro', module: 'avro'
-      // already shaded by Parquet
-      exclude group: 'it.unimi.dsi'
-      exclude group: 'org.codehaus.jackson'
-    }
-
-    compileOnly(libs.pig) {
-      exclude group: "junit", module: "junit"
-    }
-    compileOnly(libs.hadoop2.mapreduce.client.core)
-    compileOnly(libs.hadoop2.client) {
-      exclude group: 'org.apache.avro', module: 'avro'
-    }
-
-    testImplementation(libs.hadoop2.minicluster) {
-      exclude group: 'org.apache.avro', module: 'avro'
-    }
-  }
-}
-
 project(':iceberg-nessie') {
   test {
     useJUnitPlatform()
@@ -956,6 +913,9 @@ project(':iceberg-snowflake') {
 
 project(':iceberg-open-api') {
   apply plugin: 'java-test-fixtures'
+  apply plugin: 'com.gradleup.shadow'
+
+  build.dependsOn shadowJar
 
   dependencies {
     testImplementation project(':iceberg-api')
@@ -975,16 +935,45 @@ project(':iceberg-open-api') {
     testFixturesImplementation project(':iceberg-api')
     testFixturesImplementation project(':iceberg-core')
     testFixturesImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
-    testFixturesImplementation project(':iceberg-core').sourceSets.test.runtimeClasspath
     testFixturesImplementation project(':iceberg-aws')
     testFixturesImplementation project(':iceberg-gcp')
     testFixturesImplementation project(':iceberg-azure')
+    testFixturesImplementation(libs.hadoop3.common) {
+      exclude group: 'org.slf4j'
+      exclude group: 'ch.qos.reload4j'
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'com.google.guava'
+      exclude group: 'com.google.protobuf'
+      exclude group: 'org.apache.curator'
+      exclude group: 'org.apache.zookeeper'
+      exclude group: 'org.apache.kerby'
+      exclude group: 'org.apache.hadoop.thirdparty', module: 'hadoop-shaded-protobuf_3_7'
+      exclude group: 'org.eclipse.jetty'
+      exclude group: 'com.google.re2j', module: 're2j'
+      exclude group: 'com.google.code.gson', module: 'gson'
+      exclude group: 'com.jcraft', module: 'jsch'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'io.dropwizard.metrics', module: 'metrics-core'
+      exclude group: 'dnsjava', module: 'dnsjava'
+      exclude group: 'org.xerial.snappy', module: 'snappy-java'
+      exclude group: 'commons-cli', module: 'commons-cli'
+      exclude group: 'com.github.pjfanning', module: 'jersey-json'
+    }
+    testFixturesImplementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    testFixturesImplementation libs.junit.jupiter
+
+    testFixturesImplementation libs.slf4j.api
+    testFixturesImplementation libs.slf4j.simple
 
     testFixturesImplementation libs.jetty.servlet
     testFixturesImplementation libs.jetty.server
     testFixturesImplementation libs.sqlite.jdbc
 
     testFixturesCompileOnly libs.apiguardian
+
+    testFixturesRuntimeOnly project(':iceberg-aws-bundle')
+    testFixturesRuntimeOnly project(':iceberg-azure-bundle')
+    testFixturesRuntimeOnly project(':iceberg-gcp-bundle')
   }
 
   test {
@@ -1008,6 +997,28 @@ project(':iceberg-open-api') {
     recommend.set(true)
   }
   check.dependsOn('validateRESTCatalogSpec')
+
+  shadowJar {
+    archiveBaseName.set("iceberg-open-api-test-fixtures-runtime")
+    archiveClassifier.set(null)
+    configurations = [project.configurations.testFixturesRuntimeClasspath]
+    from sourceSets.testFixtures.output
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the runtime Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    manifest {
+      attributes 'Main-Class': 'org.apache.iceberg.rest.RESTCatalogServer'
+    }
+  }
+
+  jar {
+    enabled = false
+  }
 }
 
 @Memoized
@@ -1069,7 +1080,6 @@ project(':iceberg-bom') {
       // the BOM references the artifacts for all Scala versions.
       def sparkScalaPattern = ~"(.*)-([0-9][.][0-9]+)_([0-9][.][0-9]+)"
       def sparkScalaVersions = [
-        "3.3": ["2.12", "2.13"],
         "3.4": ["2.12", "2.13"],
         "3.5": ["2.12", "2.13"],
       ]

@@ -175,7 +175,7 @@ public class CatalogUtil {
                 for (ManifestEntry<?> entry : reader.entries()) {
                   // intern the file path because the weak key map uses identity (==) instead of
                   // equals
-                  String path = entry.file().path().toString().intern();
+                  String path = entry.file().location().intern();
                   Boolean alreadyDeleted = deletedFiles.putIfAbsent(path, true);
                   if (alreadyDeleted == null || !alreadyDeleted) {
                     pathsToDelete.add(path);
@@ -514,5 +514,50 @@ public class CatalogUtil {
     sb.append(identifier.name());
 
     return sb.toString();
+  }
+
+  /**
+   * Deletes the oldest metadata files if {@link
+   * TableProperties#METADATA_DELETE_AFTER_COMMIT_ENABLED} is true.
+   *
+   * @param io FileIO instance to use for deletes
+   * @param base table metadata on which previous versions were based
+   * @param metadata new table metadata with updated previous versions
+   */
+  public static void deleteRemovedMetadataFiles(
+      FileIO io, TableMetadata base, TableMetadata metadata) {
+    if (base == null) {
+      return;
+    }
+
+    boolean deleteAfterCommit =
+        metadata.propertyAsBoolean(
+            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
+            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
+
+    if (deleteAfterCommit) {
+      Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles =
+          Sets.newHashSet(base.previousFiles());
+      // TableMetadata#addPreviousFile builds up the metadata log and uses
+      // TableProperties.METADATA_PREVIOUS_VERSIONS_MAX to determine how many files should stay in
+      // the log, thus we don't include metadata.previousFiles() for deletion - everything else can
+      // be removed
+      removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
+      if (io instanceof SupportsBulkOperations) {
+        ((SupportsBulkOperations) io)
+            .deleteFiles(
+                Iterables.transform(
+                    removedPreviousMetadataFiles, TableMetadata.MetadataLogEntry::file));
+      } else {
+        Tasks.foreach(removedPreviousMetadataFiles)
+            .noRetry()
+            .suppressFailureWhenFinished()
+            .onFailure(
+                (previousMetadataFile, exc) ->
+                    LOG.warn(
+                        "Delete failed for previous metadata file: {}", previousMetadataFile, exc))
+            .run(previousMetadataFile -> io.deleteFile(previousMetadataFile.file()));
+      }
+    }
   }
 }

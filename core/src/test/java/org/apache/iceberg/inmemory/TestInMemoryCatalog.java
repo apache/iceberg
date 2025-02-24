@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.inmemory;
 
+import java.util.Map;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,8 +28,7 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
 
   @BeforeEach
   public void before() {
-    this.catalog = new InMemoryCatalog();
-    this.catalog.initialize("in-memory-catalog", ImmutableMap.of());
+    this.catalog = initCatalog("in-memory-catalog", ImmutableMap.of());
   }
 
   @Override
@@ -37,7 +37,20 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
   }
 
   @Override
+  protected InMemoryCatalog initCatalog(
+      String catalogName, Map<String, String> additionalProperties) {
+    InMemoryCatalog cat = new InMemoryCatalog();
+    cat.initialize(catalogName, additionalProperties);
+    return cat;
+  }
+
+  @Override
   protected boolean requiresNamespaceCreate() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsEmptyNamespace() {
     return true;
   }
 }

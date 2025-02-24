@@ -350,7 +350,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
   }
 
   private int streamCount(DeleteFile deleteFile) {
-    CustomInputFile inputFile = INPUT_FILES.get(deleteFile.path().toString());
+    CustomInputFile inputFile = INPUT_FILES.get(deleteFile.location());
     return inputFile.streamCount();
   }
 
@@ -375,7 +375,7 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
 
     List<Pair<CharSequence, Long>> posDeletes =
         dataFiles(table).stream()
-            .map(dataFile -> Pair.of(dataFile.path(), 0L))
+            .map(dataFile -> Pair.of((CharSequence) dataFile.location(), 0L))
             .collect(Collectors.toList());
     Pair<DeleteFile, CharSequenceSet> posDeleteResult = writePosDeletes(table, posDeletes);
     DeleteFile posDeleteFile = posDeleteResult.first();

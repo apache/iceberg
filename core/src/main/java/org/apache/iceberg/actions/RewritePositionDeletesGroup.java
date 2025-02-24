@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.actions;
 
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -30,6 +29,7 @@ import org.apache.iceberg.actions.RewritePositionDeleteFiles.FileGroupInfo;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.FileGroupRewriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.DeleteFileSet;
 
 /**
  * Container class representing a set of position delete files to be rewritten by a {@link
@@ -40,7 +40,7 @@ public class RewritePositionDeletesGroup {
   private final List<PositionDeletesScanTask> tasks;
   private final long maxRewrittenDataSequenceNumber;
 
-  private Set<DeleteFile> addedDeleteFiles = Collections.emptySet();
+  private DeleteFileSet addedDeleteFiles = DeleteFileSet.create();
 
   public RewritePositionDeletesGroup(FileGroupInfo info, List<PositionDeletesScanTask> tasks) {
     Preconditions.checkArgument(!tasks.isEmpty(), "Tasks must not be empty");
@@ -59,7 +59,7 @@ public class RewritePositionDeletesGroup {
   }
 
   public void setOutputFiles(Set<DeleteFile> files) {
-    addedDeleteFiles = files;
+    addedDeleteFiles = DeleteFileSet.of(files);
   }
 
   public long maxRewrittenDataSequenceNumber() {
@@ -67,7 +67,9 @@ public class RewritePositionDeletesGroup {
   }
 
   public Set<DeleteFile> rewrittenDeleteFiles() {
-    return tasks().stream().map(PositionDeletesScanTask::file).collect(Collectors.toSet());
+    return tasks().stream()
+        .map(PositionDeletesScanTask::file)
+        .collect(Collectors.toCollection(DeleteFileSet::create));
   }
 
   public Set<DeleteFile> addedDeleteFiles() {

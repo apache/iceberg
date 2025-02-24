@@ -73,7 +73,7 @@ public class TestSequenceNumberForV2Table extends TestBase {
 
     // FILE_A and FILE_B in manifest may reorder
     for (ManifestEntry<DataFile> entry : ManifestFiles.read(newManifest, FILE_IO).entries()) {
-      if (entry.file().path().equals(FILE_A.path())) {
+      if (entry.file().location().equals(FILE_A.location())) {
         V2Assert.assertEquals(
             "FILE_A sequence number should be 1", 1, entry.dataSequenceNumber().longValue());
         V2Assert.assertEquals(
@@ -86,7 +86,7 @@ public class TestSequenceNumberForV2Table extends TestBase {
             entry.file().fileSequenceNumber().longValue());
       }
 
-      if (entry.file().path().equals(FILE_B.path())) {
+      if (entry.file().location().equals(FILE_B.location())) {
         V2Assert.assertEquals(
             "FILE_b sequence number should be 2", 2, entry.dataSequenceNumber().longValue());
         V2Assert.assertEquals(

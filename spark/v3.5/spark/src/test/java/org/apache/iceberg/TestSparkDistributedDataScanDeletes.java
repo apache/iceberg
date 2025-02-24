@@ -42,7 +42,11 @@ public class TestSparkDistributedDataScanDeletes
         new Object[] {2, LOCAL, LOCAL},
         new Object[] {2, LOCAL, DISTRIBUTED},
         new Object[] {2, DISTRIBUTED, LOCAL},
-        new Object[] {2, LOCAL, DISTRIBUTED});
+        new Object[] {2, LOCAL, DISTRIBUTED},
+        new Object[] {3, LOCAL, LOCAL},
+        new Object[] {3, LOCAL, DISTRIBUTED},
+        new Object[] {3, DISTRIBUTED, LOCAL},
+        new Object[] {3, DISTRIBUTED, DISTRIBUTED});
   }
 
   private static SparkSession spark = null;

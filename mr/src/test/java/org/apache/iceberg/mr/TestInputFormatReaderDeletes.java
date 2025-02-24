@@ -49,21 +49,20 @@ public class TestInputFormatReaderDeletes extends DeleteReadTests {
   private final HadoopTables tables = new HadoopTables(conf);
   private TestHelper helper;
 
-  // parametrized variables
-  @Parameter private String inputFormat;
+  @Parameter(index = 2)
+  private String inputFormat;
 
-  @Parameter(index = 1)
-  private FileFormat fileFormat;
-
-  @Parameters(name = "inputFormat = {0}, fileFormat = {1}")
+  @Parameters(name = "fileFormat = {0}, formatVersion = {1}, inputFormat = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"IcebergInputFormat", FileFormat.PARQUET},
-      {"IcebergInputFormat", FileFormat.AVRO},
-      {"IcebergInputFormat", FileFormat.ORC},
-      {"MapredIcebergInputFormat", FileFormat.PARQUET},
-      {"MapredIcebergInputFormat", FileFormat.AVRO},
-      {"MapredIcebergInputFormat", FileFormat.ORC},
+      {FileFormat.PARQUET, 2, "IcebergInputFormat"},
+      {FileFormat.AVRO, 2, "IcebergInputFormat"},
+      {FileFormat.ORC, 2, "IcebergInputFormat"},
+      {FileFormat.PARQUET, 2, "MapredIcebergInputFormat"},
+      {FileFormat.AVRO, 2, "MapredIcebergInputFormat"},
+      {FileFormat.ORC, 2, "MapredIcebergInputFormat"},
+      {FileFormat.PARQUET, 3, "IcebergInputFormat"},
+      {FileFormat.PARQUET, 3, "MapredIcebergInputFormat"},
     };
   }
 
@@ -78,14 +77,14 @@ public class TestInputFormatReaderDeletes extends DeleteReadTests {
   protected Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException {
     Table table;
 
-    File location = temp.resolve(inputFormat).resolve(fileFormat.name()).toFile();
+    File location = temp.resolve(inputFormat).resolve(format.name()).toFile();
     assertThat(location.mkdirs()).isTrue();
-    helper = new TestHelper(conf, tables, location.toString(), schema, spec, fileFormat, temp);
+    helper = new TestHelper(conf, tables, location.toString(), schema, spec, format, temp);
     table = helper.createTable();
 
     TableOperations ops = ((BaseTable) table).operations();
     TableMetadata meta = ops.current();
-    ops.commit(meta, meta.upgradeToFormatVersion(2));
+    ops.commit(meta, meta.upgradeToFormatVersion(formatVersion));
 
     return table;
   }

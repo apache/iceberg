@@ -80,7 +80,7 @@ class SplitPositionDeletesScanTask
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("file", file().path())
+        .add("file", file().location())
         .add("partition_data", file().partition())
         .add("offset", offset)
         .add("length", length)

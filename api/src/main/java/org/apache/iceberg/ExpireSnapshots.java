@@ -118,4 +118,15 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
    * @return this for method chaining
    */
   ExpireSnapshots cleanExpiredFiles(boolean clean);
+
+  /**
+   * Enable cleaning up unused metadata, such as partition specs, schemas, etc.
+   *
+   * @param clean remove unused partition specs, schemas, or other metadata when true
+   * @return this for method chaining
+   */
+  default ExpireSnapshots cleanExpiredMetadata(boolean clean) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement cleanExpiredMetadata");
+  }
 }

@@ -35,12 +35,12 @@ This page describes the procedures that the release manager and voting PMC membe
 To create a release candidate, you will need:
 
 * Apache LDAP credentials for Nexus and SVN
-* A [GPG key for signing](https://www.apache.org/dev/release-signing#generate), published in [KEYS](https://dist.apache.org/repos/dist/dev/iceberg/KEYS)
+* A [GPG key for signing](https://www.apache.org/dev/release-signing#generate), published in [KEYS](https://downloads.apache.org/iceberg/KEYS)
 
 If you have not published your GPG key yet, you must publish it before sending the vote email by doing:
 
 ```shell
-svn co https://dist.apache.org/repos/dist/dev/iceberg icebergsvn
+svn co https://dist.apache.org/repos/dist/release/iceberg icebergsvn
 cd icebergsvn
 echo "" >> KEYS # append a newline
 gpg --list-sigs <YOUR KEY ID HERE> >> KEYS # append signatures
@@ -204,7 +204,7 @@ The release tarball, signature, and checksums are here:
 * https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-<VERSION>-rc<NUM>/
 
 You can find the KEYS file here:
-* https://dist.apache.org/repos/dist/dev/iceberg/KEYS
+* https://downloads.apache.org/iceberg/KEYS
 
 Convenience binary artifacts are staged in Nexus. The Maven repository URL is:
 * https://repository.apache.org/content/repositories/orgapacheiceberg-<ID>/
@@ -349,7 +349,7 @@ verify signatures, checksums, and documentation.
 
 First, import the keys.
 ```bash
-curl https://dist.apache.org/repos/dist/dev/iceberg/KEYS -o KEYS
+curl https://downloads.apache.org/iceberg/KEYS -o KEYS
 gpg --import KEYS
 ```
 
@@ -422,11 +422,11 @@ spark-runtime jar for the Spark installation):
 ```bash
 spark-shell \
     --conf spark.jars.repositories=${MAVEN_URL} \
-    --packages org.apache.iceberg:iceberg-spark3-runtime:{{ icebergVersion }} \
+    --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }} \
     --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
     --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.local.type=hadoop \
-    --conf spark.sql.catalog.local.warehouse=${LOCAL_WAREHOUSE_PATH} \
+    --conf spark.sql.catalog.local.warehouse=$PWD/warehouse \
     --conf spark.sql.catalog.local.default-namespace=default \
     --conf spark.sql.defaultCatalog=local
 ```
@@ -435,13 +435,14 @@ spark-shell \
 
 To verify using Flink, start a Flink SQL Client with the following command:
 ```bash
-wget ${MAVEN_URL}/iceberg-flink-runtime/{{ icebergVersion }}/iceberg-flink-runtime-{{ icebergVersion }}.jar
+wget ${MAVEN_URL}/iceberg-flink-runtime-1.20/{{ icebergVersion }}/iceberg-flink-runtime-1.20-{{ icebergVersion }}.jar
 
 sql-client.sh embedded \
-    -j iceberg-flink-runtime-{{ icebergVersion }}.jar \
-    -j ${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_VERSION}-${FLINK_VERSION}.jar \
+    -j iceberg-flink-runtime-1.20-{{ icebergVersion }}.jar \
+    -j flink-connector-hive_2.12-1.20.jar \
     shell
 ```
+
 
 ## Voting
 
@@ -449,8 +450,10 @@ Votes are cast by replying to the release candidate announcement email on the de
 with either `+1`, `0`, or `-1`.
 
 > [ ] +1 Release this as Apache Iceberg {{ icebergVersion }}
-[ ] +0
-[ ] -1 Do not release this because...
+>
+> [ ] +0
+>
+> [ ] -1 Do not release this because...
 
 In addition to your vote, it's customary to specify if your vote is binding or non-binding. Only members
 of the Project Management Committee have formally binding votes. If you're unsure, you can specify that your

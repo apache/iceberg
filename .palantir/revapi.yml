@@ -1145,6 +1145,96 @@ acceptedBreaks:
       new: "method org.apache.iceberg.BaseMetastoreOperations.CommitStatus org.apache.iceberg.BaseMetastoreTableOperations::checkCommitStatus(java.lang.String,\
         \ org.apache.iceberg.TableMetadata)"
       justification: "Removing deprecated code"
+  "1.7.0":
+    org.apache.iceberg:iceberg-core:
+    - code: "java.method.removed"
+      old: "method <T extends org.apache.iceberg.StructLike> org.apache.iceberg.deletes.PositionDeleteIndex\
+        \ org.apache.iceberg.deletes.Deletes::toPositionIndex(java.lang.CharSequence,\
+        \ java.util.List<org.apache.iceberg.io.CloseableIterable<T>>)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method <T extends org.apache.iceberg.StructLike> org.apache.iceberg.deletes.PositionDeleteIndex\
+        \ org.apache.iceberg.deletes.Deletes::toPositionIndex(java.lang.CharSequence,\
+        \ java.util.List<org.apache.iceberg.io.CloseableIterable<T>>, java.util.concurrent.ExecutorService)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method <T> org.apache.iceberg.io.CloseableIterable<T> org.apache.iceberg.deletes.Deletes::streamingFilter(org.apache.iceberg.io.CloseableIterable<T>,\
+        \ java.util.function.Function<T, java.lang.Long>, org.apache.iceberg.io.CloseableIterable<java.lang.Long>)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method <T> org.apache.iceberg.io.CloseableIterable<T> org.apache.iceberg.deletes.Deletes::streamingFilter(org.apache.iceberg.io.CloseableIterable<T>,\
+        \ java.util.function.Function<T, java.lang.Long>, org.apache.iceberg.io.CloseableIterable<java.lang.Long>,\
+        \ org.apache.iceberg.deletes.DeleteCounter)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method <T> org.apache.iceberg.io.CloseableIterable<T> org.apache.iceberg.deletes.Deletes::streamingMarker(org.apache.iceberg.io.CloseableIterable<T>,\
+        \ java.util.function.Function<T, java.lang.Long>, org.apache.iceberg.io.CloseableIterable<java.lang.Long>,\
+        \ java.util.function.Consumer<T>)"
+      justification: "Removing deprecated code"
+  "1.8.0":
+    org.apache.iceberg:iceberg-core:
+    - code: "java.method.removed"
+      old: "method java.lang.String[] org.apache.iceberg.hadoop.Util::blockLocations(org.apache.iceberg.CombinedScanTask,\
+        \ org.apache.hadoop.conf.Configuration)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.TableMetadata org.apache.iceberg.TableMetadata::updateSchema(org.apache.iceberg.Schema,\
+        \ int)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.TableMetadata.Builder org.apache.iceberg.TableMetadata.Builder::addSchema(org.apache.iceberg.Schema,\
+        \ int)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.TableMetadata.Builder org.apache.iceberg.TableMetadata.Builder::setStatistics(long,\
+        \ org.apache.iceberg.StatisticsFile)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.UpdateStatistics org.apache.iceberg.SetStatistics::setStatistics(long,\
+        \ org.apache.iceberg.StatisticsFile)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MetadataUpdate.AddSchema::<init>(org.apache.iceberg.Schema,\
+        \ int)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MetadataUpdate.SetStatistics::<init>(long,\
+        \ org.apache.iceberg.StatisticsFile)"
+      justification: "Removing deprecated code"
+    org.apache.iceberg:iceberg-parquet:
+    - code: "java.class.visibilityReduced"
+      old: "class org.apache.iceberg.data.parquet.BaseParquetReaders<T extends java.lang.Object>"
+      new: "class org.apache.iceberg.data.parquet.BaseParquetReaders<T extends java.lang.Object>"
+      justification: "Changing deprecated code"
+    - code: "java.class.visibilityReduced"
+      old: "class org.apache.iceberg.data.parquet.BaseParquetWriter<T extends java.lang.Object>"
+      new: "class org.apache.iceberg.data.parquet.BaseParquetWriter<T extends java.lang.Object>"
+      justification: "Changing deprecated code"
+    - code: "java.element.noLongerDeprecated"
+      old: "class org.apache.iceberg.data.parquet.BaseParquetReaders<T extends java.lang.Object>"
+      new: "class org.apache.iceberg.data.parquet.BaseParquetReaders<T extends java.lang.Object>"
+      justification: "Changing deprecated code"
+    - code: "java.element.noLongerDeprecated"
+      old: "class org.apache.iceberg.data.parquet.BaseParquetWriter<T extends java.lang.Object>"
+      new: "class org.apache.iceberg.data.parquet.BaseParquetWriter<T extends java.lang.Object>"
+      justification: "Changing deprecated code"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.parquet.ParquetValueReader<T>::setPageSource(org.apache.parquet.column.page.PageReadStore,\
+        \ long)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.parquet.ParquetValueReaders.StructReader<T,\
+        \ I>::<init>(java.util.List<org.apache.parquet.schema.Type>, java.util.List<org.apache.iceberg.parquet.ParquetValueReader<?>>)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.parquet.VectorizedReader<T>::setRowGroupInfo(org.apache.parquet.column.page.PageReadStore,\
+        \ java.util.Map<org.apache.parquet.hadoop.metadata.ColumnPath, org.apache.parquet.hadoop.metadata.ColumnChunkMetaData>,\
+        \ long)"
+      justification: "Removing deprecated code"
+    - code: "java.method.visibilityReduced"
+      old: "method void org.apache.iceberg.data.parquet.BaseParquetWriter<T>::<init>()"
+      new: "method void org.apache.iceberg.data.parquet.BaseParquetWriter<T>::<init>()"
+      justification: "Changing deprecated code"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

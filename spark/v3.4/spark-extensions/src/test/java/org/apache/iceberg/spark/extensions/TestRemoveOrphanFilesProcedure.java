@@ -63,7 +63,6 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.After;
@@ -264,8 +263,13 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
         .hasMessage("Named and positional arguments cannot be mixed");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.remove_orphan_files('n', 't')", catalogName))
-        .isInstanceOf(NoSuchProcedureException.class)
-        .hasMessage("Procedure custom.remove_orphan_files not found");
+        .isInstanceOf(ParseException.class)
+        .satisfies(
+            exception -> {
+              ParseException parseException = (ParseException) exception;
+              Assert.assertEquals("PARSE_SYNTAX_ERROR", parseException.getErrorClass());
+              Assert.assertEquals("'CALL'", parseException.getMessageParameters().get("error"));
+            });
 
     assertThatThrownBy(() -> sql("CALL %s.system.remove_orphan_files()", catalogName))
         .isInstanceOf(AnalysisException.class)
@@ -420,8 +424,7 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
         "Should have 1 delete manifest", 1, TestHelpers.deleteManifests(table).size());
     Assert.assertEquals("Should have 1 delete file", 1, TestHelpers.deleteFiles(table).size());
     Path deleteManifestPath = new Path(TestHelpers.deleteManifests(table).iterator().next().path());
-    Path deleteFilePath =
-        new Path(String.valueOf(TestHelpers.deleteFiles(table).iterator().next().path()));
+    Path deleteFilePath = new Path(TestHelpers.deleteFiles(table).iterator().next().location());
 
     // wait to ensure files are old enough
     waitUntilAfter(System.currentTimeMillis());
@@ -457,12 +460,15 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
 
     String statsFileName = "stats-file-" + UUID.randomUUID();
+    String location = table.location();
+    // not every catalog will return file proto for local directories
+    // i.e. Hadoop and Hive Catalog do, Jdbc and REST do not
+    if (!location.startsWith("file:")) {
+      location = "file:" + location;
+    }
+
     File statsLocation =
-        new File(new URI(table.location()))
-            .toPath()
-            .resolve("data")
-            .resolve(statsFileName)
-            .toFile();
+        new File(new URI(location)).toPath().resolve("data").resolve(statsFileName).toFile();
     StatisticsFile statisticsFile;
     try (PuffinWriter puffinWriter = Puffin.write(Files.localOutput(statsLocation)).build()) {
       long snapshotId = table.currentSnapshot().snapshotId();
@@ -487,10 +493,7 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
     }
 
     Transaction transaction = table.newTransaction();
-    transaction
-        .updateStatistics()
-        .setStatistics(statisticsFile.snapshotId(), statisticsFile)
-        .commit();
+    transaction.updateStatistics().setStatistics(statisticsFile).commit();
     transaction.commitTransaction();
 
     // wait to ensure files are old enough
