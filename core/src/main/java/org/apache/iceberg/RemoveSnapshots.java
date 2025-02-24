@@ -364,6 +364,10 @@ class RemoveSnapshots implements ExpireSnapshots {
       incrementalCleanup = current.refs().size() == 1;
     }
 
+    if (SnapshotUtil.hasDiscontinuousSnapshots(base)) {
+      incrementalCleanup = false;
+    }
+
     LOG.info(
         "Cleaning up expired files (local, {})", incrementalCleanup ? "incremental" : "reachable");
 
