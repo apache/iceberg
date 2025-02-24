@@ -219,7 +219,7 @@ License: The Apache Software License, Version 2.0 - http://www.apache.org/licens
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-buffer  Version: 4.1.112.Final
+Group: io.netty  Name: netty-buffer  Version: 4.1.115.Final
 Project URL: https://netty.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
@@ -505,7 +505,7 @@ License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk.crt  Name: aws-crt  Version: 0.33.6
+Group: software.amazon.awssdk.crt  Name: aws-crt  Version: 0.33.3
 Project URL: https://github.com/awslabs/aws-crt-java
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 

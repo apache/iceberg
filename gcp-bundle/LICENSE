@@ -255,12 +255,12 @@ License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: grpc-google-cloud-storage-v2  Version: 2.22.5-alpha
+Group: com.google.api.grpc  Name: grpc-google-cloud-storage-v2  Version: 2.47.0
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.api.grpc  Name: proto-google-cloud-storage-v2  Version: 2.22.5-alpha
+Group: com.google.api.grpc  Name: proto-google-cloud-storage-v2  Version: 2.47.0
 License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
