@@ -23,13 +23,17 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.common.TopicPartition;
 
 public interface Committer {
-  void start(ResourceType resourceType);
+  void startCoordinator();
 
-  void stop(ResourceType resourceType);
+  void startWorker();
+
+  void stopCoordinator();
+
+  void stopWorker();
 
   void save(Collection<SinkRecord> sinkRecords);
 
-  boolean isLeader(Collection<TopicPartition> currentAssignedPartitions);
+  boolean isCoordinator(Collection<TopicPartition> currentAssignedPartitions);
 
   void syncLastCommittedOffsets();
 }

@@ -51,8 +51,8 @@ public class IcebergSinkTask extends SinkTask {
 
   @Override
   public void open(Collection<TopicPartition> partitions) {
-    if(committer.isLeader(partitions)) {
-      committer.start(ResourceType.COORDINATOR);
+    if(committer.isCoordinator(partitions)) {
+      committer.startCoordinator();
     }
     committer.syncLastCommittedOffsets();
   }
@@ -60,16 +60,16 @@ public class IcebergSinkTask extends SinkTask {
   @Override
   public void close(Collection<TopicPartition> partitions) {
     // We need to close worker here in every case to ensure exactly once.
-    committer.stop(ResourceType.WORKER);
-    if(committer.isLeader(partitions)) {
-      committer.stop(ResourceType.COORDINATOR);
+    committer.stopWorker();
+    if(committer.isCoordinator(partitions)) {
+      committer.stopCoordinator();
     }
   }
 
   private void close() {
     if (committer != null) {
-      committer.stop(ResourceType.WORKER);
-      committer.stop(ResourceType.COORDINATOR);
+      committer.stopWorker();
+      committer.stopCoordinator();
       committer = null;
     }
 

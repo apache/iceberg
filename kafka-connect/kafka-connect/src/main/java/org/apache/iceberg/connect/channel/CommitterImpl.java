@@ -26,7 +26,6 @@ import java.util.concurrent.ExecutionException;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.Committer;
 import org.apache.iceberg.connect.IcebergSinkConfig;
-import org.apache.iceberg.connect.ResourceType;
 import org.apache.iceberg.connect.data.SinkWriter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.kafka.clients.admin.Admin;
@@ -83,7 +82,7 @@ public class CommitterImpl implements Committer {
   }
 
   @Override
-  public boolean isLeader(Collection<TopicPartition> currentAssignedPartitions) {
+  public boolean isCoordinator(Collection<TopicPartition> currentAssignedPartitions) {
     ConsumerGroupDescription groupDesc;
     try (Admin admin = clientFactory.createAdmin()) {
       groupDesc = KafkaUtils.consumerGroupDescription(config.connectGroupId(), admin);
@@ -97,17 +96,6 @@ public class CommitterImpl implements Committer {
       }
     }
     return false;
-  }
-
-  @Override
-  public void start(ResourceType resourceType) {
-    switch (resourceType) {
-      case WORKER:
-        startWorker();
-        break;
-      case COORDINATOR:
-        startCoordinator();
-    }
   }
 
   @Override
@@ -136,17 +124,6 @@ public class CommitterImpl implements Committer {
     context.offset(stableConsumerOffsets);
   }
 
-  @Override
-  public void stop(ResourceType resourceType) {
-    switch (resourceType) {
-      case WORKER:
-        stopWorker();
-        break;
-      case COORDINATOR:
-        stopCoordinator();
-    }
-  }
-
   @VisibleForTesting
   boolean isLeader(Collection<MemberDescription> members, Collection<TopicPartition> partitions) {
     // there should only be one task assigned partition 0 of the first topic,
@@ -170,7 +147,8 @@ public class CommitterImpl implements Committer {
     }
   }
 
-  private void startWorker() {
+  @Override
+  public void startWorker() {
     if(null == this.worker) {
       LOG.info("Starting commit worker");
       SinkWriter sinkWriter = new SinkWriter(catalog, config);
@@ -179,21 +157,24 @@ public class CommitterImpl implements Committer {
     }
   }
 
-  private void startCoordinator() {
+  @Override
+  public void startCoordinator() {
     LOG.info("Task elected leader, starting commit coordinator");
     Coordinator coordinator = new Coordinator(catalog, config, membersWhenWorkerIsCoordinator, clientFactory, context);
     coordinatorThread = new CoordinatorThread(coordinator);
     coordinatorThread.start();
   }
 
-  private void stopWorker() {
+  @Override
+  public void stopWorker() {
     if (worker != null) {
       worker.stop();
       worker = null;
     }
   }
 
-  private void stopCoordinator() {
+  @Override
+  public void stopCoordinator() {
     if (coordinatorThread != null) {
       coordinatorThread.terminate();
       coordinatorThread = null;
