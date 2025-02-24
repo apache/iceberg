@@ -211,14 +211,12 @@ public class PartitionStatsHandler {
         return Parquet.writeData(outputFile)
             .schema(dataSchema)
             .createWriterFunc(InternalWriter::create)
-            .overwrite()
             .withSpec(PartitionSpec.unpartitioned())
             .build();
       case AVRO:
         return Avro.writeData(outputFile)
             .schema(dataSchema)
             .createWriterFunc(org.apache.iceberg.avro.InternalWriter::create)
-            .overwrite()
             .withSpec(PartitionSpec.unpartitioned())
             .build();
       case ORC:
