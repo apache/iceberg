@@ -84,20 +84,24 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
   @TestTemplate
   public void testYearsFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName);
-    testYearsFunction(false);
+    testYearsFunction(false, false);
+    testYearsFunction(false, true);
   }
 
   @TestTemplate
   public void testYearsFunctionOnPartitionedTable() {
     createPartitionedTable(spark, tableName, "years(ts)");
-    testYearsFunction(true);
+    testYearsFunction(true, false);
+    testYearsFunction(true, true);
   }
 
-  private void testYearsFunction(boolean partitioned) {
+  private void testYearsFunction(boolean partitioned, boolean singular) {
     int targetYears = timestampStrToYearOrdinal("2017-11-22T00:00:00.000000+00:00");
+    String functionName = singular ? "year" : "years";
     String query =
         String.format(
-            "SELECT * FROM %s WHERE system.years(ts) = %s ORDER BY id", tableName, targetYears);
+            "SELECT * FROM %s WHERE system.%s(ts) = %s ORDER BY id",
+            tableName, functionName, targetYears);
 
     Dataset<Row> df = spark.sql(query);
     LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
@@ -112,20 +116,24 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
   @TestTemplate
   public void testMonthsFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName);
-    testMonthsFunction(false);
+    testMonthsFunction(false, false);
+    testMonthsFunction(false, true);
   }
 
   @TestTemplate
   public void testMonthsFunctionOnPartitionedTable() {
     createPartitionedTable(spark, tableName, "months(ts)");
-    testMonthsFunction(true);
+    testMonthsFunction(true, false);
+    testMonthsFunction(true, true);
   }
 
-  private void testMonthsFunction(boolean partitioned) {
+  private void testMonthsFunction(boolean partitioned, boolean singular) {
     int targetMonths = timestampStrToMonthOrdinal("2017-11-22T00:00:00.000000+00:00");
+    String functionName = singular ? "month" : "months";
     String query =
         String.format(
-            "SELECT * FROM %s WHERE system.months(ts) > %s ORDER BY id", tableName, targetMonths);
+            "SELECT * FROM %s WHERE system.%s(ts) > %s ORDER BY id",
+            tableName, functionName, targetMonths);
 
     Dataset<Row> df = spark.sql(query);
     LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
@@ -140,22 +148,25 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
   @TestTemplate
   public void testDaysFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName);
-    testDaysFunction(false);
+    testDaysFunction(false, false);
+    testDaysFunction(false, true);
   }
 
   @TestTemplate
   public void testDaysFunctionOnPartitionedTable() {
     createPartitionedTable(spark, tableName, "days(ts)");
-    testDaysFunction(true);
+    testDaysFunction(true, false);
+    testDaysFunction(true, true);
   }
 
-  private void testDaysFunction(boolean partitioned) {
+  private void testDaysFunction(boolean partitioned, boolean singular) {
     String timestamp = "2018-11-20T00:00:00.000000+00:00";
     int targetDays = timestampStrToDayOrdinal(timestamp);
+    String functionName = singular ? "day" : "days";
     String query =
         String.format(
-            "SELECT * FROM %s WHERE system.days(ts) < date('%s') ORDER BY id",
-            tableName, timestamp);
+            "SELECT * FROM %s WHERE system.%s(ts) < date('%s') ORDER BY id",
+            tableName, functionName, timestamp);
 
     Dataset<Row> df = spark.sql(query);
     LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
@@ -170,20 +181,24 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
   @TestTemplate
   public void testHoursFunctionOnUnpartitionedTable() {
     createUnpartitionedTable(spark, tableName);
-    testHoursFunction(false);
+    testHoursFunction(false, false);
+    testHoursFunction(false, true);
   }
 
   @TestTemplate
   public void testHoursFunctionOnPartitionedTable() {
     createPartitionedTable(spark, tableName, "hours(ts)");
-    testHoursFunction(true);
+    testHoursFunction(true, false);
+    testHoursFunction(true, true);
   }
 
-  private void testHoursFunction(boolean partitioned) {
+  private void testHoursFunction(boolean partitioned, boolean singular) {
     int targetHours = timestampStrToHourOrdinal("2017-11-22T06:02:09.243857+00:00");
+    String functionName = singular ? "hour" : "hours";
     String query =
         String.format(
-            "SELECT * FROM %s WHERE system.hours(ts) >= %s ORDER BY id", tableName, targetHours);
+            "SELECT * FROM %s WHERE system.%s(ts) >= %s ORDER BY id",
+            tableName, functionName, targetHours);
 
     Dataset<Row> df = spark.sql(query);
     LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
