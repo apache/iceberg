@@ -28,15 +28,9 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
-import org.apache.iceberg.io.datafile.DeleteFilter;
-import org.apache.iceberg.io.datafile.ReaderBuilder;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.io.datafile.ReadBuilder;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
-import org.apache.iceberg.spark.ParquetReaderType;
-import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
-import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
@@ -65,15 +59,15 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Expression residual,
       Map<Integer, ?> idToConstant,
       SparkDeleteFilter deleteFilter) {
-    ReaderBuilder readerBuilder =
-        DataFileServiceRegistry.readerBuilder(
+    ReadBuilder<ColumnarBatch, InternalRow> readBuilder =
+        DataFileServiceRegistry.<ColumnarBatch, InternalRow>readerBuilder(
                 format,
                 ColumnarBatch.class.getName(),
                 parquetConf != null ? parquetConf.readerType().name() : null,
-                inputFile,
-                expectedSchema(),
-                idToConstant,
-                deleteFilter)
+                inputFile)
+            .project(expectedSchema())
+            .idToConstant(idToConstant)
+            .withDeleteFilter(deleteFilter)
             .split(start, length)
             .filter(residual)
             .caseSensitive(caseSensitive())
@@ -85,85 +79,11 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
             .reuseContainers()
             .withNameMapping(nameMapping());
     if (parquetConf != null) {
-      readerBuilder = readerBuilder.recordsPerBatch(parquetConf.batchSize());
+      readBuilder = readBuilder.recordsPerBatch(parquetConf.batchSize());
     } else if (orcConf != null) {
-      readerBuilder = readerBuilder.recordsPerBatch(orcConf.batchSize());
+      readBuilder = readBuilder.recordsPerBatch(orcConf.batchSize());
     }
 
-    return readerBuilder.build();
-  }
-
-  public static class IcebergParquetReaderService implements DataFileServiceRegistry.ReaderService {
-    @Override
-    public DataFileServiceRegistry.Key key() {
-      return new DataFileServiceRegistry.Key(
-          FileFormat.PARQUET, ColumnarBatch.class.getName(), ParquetReaderType.ICEBERG.name());
-    }
-
-    @Override
-    public ReaderBuilder builder(
-        InputFile inputFile,
-        Schema readSchema,
-        Map<Integer, ?> idToConstant,
-        DeleteFilter<?> deleteFilter) {
-      // get required schema if there are deletes
-      Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : readSchema;
-      return Parquet.read(inputFile)
-          .project(requiredSchema)
-          .createBatchedReaderFunc(
-              fileSchema ->
-                  VectorizedSparkParquetReaders.buildReader(
-                      requiredSchema,
-                      fileSchema,
-                      idToConstant,
-                      (DeleteFilter<InternalRow>) deleteFilter));
-    }
-  }
-
-  public static class CometParquetReaderService implements DataFileServiceRegistry.ReaderService {
-    @Override
-    public DataFileServiceRegistry.Key key() {
-      return new DataFileServiceRegistry.Key(
-          FileFormat.PARQUET, ColumnarBatch.class.getName(), ParquetReaderType.COMET.name());
-    }
-
-    @Override
-    public ReaderBuilder builder(
-        InputFile inputFile,
-        Schema readSchema,
-        Map<Integer, ?> idToConstant,
-        DeleteFilter<?> deleteFilter) {
-      // get required schema if there are deletes
-      Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : readSchema;
-      return Parquet.read(inputFile)
-          .project(requiredSchema)
-          .createBatchedReaderFunc(
-              fileSchema ->
-                  VectorizedSparkParquetReaders.buildCometReader(
-                      requiredSchema,
-                      fileSchema,
-                      idToConstant,
-                      (DeleteFilter<InternalRow>) deleteFilter));
-    }
-  }
-
-  public static class ORCReaderService implements DataFileServiceRegistry.ReaderService {
-    @Override
-    public DataFileServiceRegistry.Key key() {
-      return new DataFileServiceRegistry.Key(FileFormat.ORC, ColumnarBatch.class.getName());
-    }
-
-    @Override
-    public ReaderBuilder builder(
-        InputFile inputFile,
-        Schema readSchema,
-        Map<Integer, ?> idToConstant,
-        DeleteFilter<?> deleteFilter) {
-      return ORC.read(inputFile)
-          .project(ORC.schemaWithoutConstantAndMetadataFields(readSchema, idToConstant))
-          .createBatchedReaderFunc(
-              fileSchema ->
-                  VectorizedSparkOrcReaders.buildReader(readSchema, fileSchema, idToConstant));
-    }
+    return readBuilder.build();
   }
 }

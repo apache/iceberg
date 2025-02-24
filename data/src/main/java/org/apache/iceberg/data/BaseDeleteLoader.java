@@ -221,8 +221,9 @@ public class BaseDeleteLoader implements DeleteLoader {
     LOG.trace("Opening delete file {}", deleteFile.location());
     InputFile inputFile = loadInputFile.apply(deleteFile);
 
-    return DataFileServiceRegistry.readerBuilder(
-            format, Record.class.getName(), inputFile, projection)
+    return DataFileServiceRegistry.<Record, Object>readerBuilder(
+            format, Record.class.getName(), inputFile)
+        .project(projection)
         .reuseContainers()
         .filter(filter)
         .build();

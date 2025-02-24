@@ -20,25 +20,94 @@ package org.apache.iceberg.io.datafile;
 
 import java.util.Map;
 import java.util.ServiceLoader;
+import java.util.function.Function;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Schema;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Registry which maintains the available {@link ReaderService} and {@link WriterService}
+ * Registry which maintains the available {@link ReadBuilder}s and {@link WriterService}
  * implementations. Based on the `file format`, the required `data type` and the reader/writer
  * `builderType` the registry returns the correct reader and writer service implementations. These
  * services could be used to generate the correct reader and writer builders.
  */
 public final class DataFileServiceRegistry {
   private static final Logger LOG = LoggerFactory.getLogger(DataFileServiceRegistry.class);
+  private static final String[] CLASSES_TO_REGISTER =
+      new String[] {
+        "org.apache.iceberg.parquet.Parquet",
+        "org.apache.iceberg.orc.ORC",
+        "org.apache.iceberg.arrow.vectorized.ArrowReader",
+        "org.apache.iceberg.spark.source.Readers",
+        "org.apache.iceberg.flink.source.RowDataFileScanTaskReader"
+      };
+
+  private static final Map<Key, Function<OutputFile, WriteBuilder<?>>> WRITE_BUILDERS =
+      Maps.newConcurrentMap();
+  private static final Map<Key, Function<InputFile, ReadBuilder<?, ?>>> READ_BUILDERS =
+      Maps.newConcurrentMap();
+
+  static void registerWrite(
+      FileFormat format, String inputType, Function<OutputFile, WriteBuilder<?>> writeBuilder) {
+    registerWrite(format, inputType, null, writeBuilder);
+  }
+
+  public static void registerRead(
+      FileFormat format, String inputType, Function<InputFile, ReadBuilder<?, ?>> readBuilder) {
+    registerRead(format, inputType, null, readBuilder);
+  }
+
+  static void registerWrite(
+      FileFormat format,
+      String inputType,
+      String writerType,
+      Function<OutputFile, WriteBuilder<?>> writeBuilder) {
+    WRITE_BUILDERS.put(new Key(format, inputType, writerType), writeBuilder);
+  }
+
+  public static void registerRead(
+      FileFormat format,
+      String inputType,
+      String readerType,
+      Function<InputFile, ReadBuilder<?, ?>> readBuilder) {
+    READ_BUILDERS.put(new Key(format, inputType, readerType), readBuilder);
+  }
+
+  @SuppressWarnings("CatchBlockLogException")
+  private static void registerSupportedFormats() {
+    registerRead(
+        FileFormat.AVRO,
+        Record.class.getName(),
+        inputFile ->
+            new Avro.DataReadBuilder<>(inputFile).readerFunction(PlannedDataReader::create));
+
+    for (String s : CLASSES_TO_REGISTER) {
+      try {
+        DynMethods.StaticMethod register =
+            DynMethods.builder("register").impl(s).buildStaticChecked();
+
+        register.invoke();
+
+      } catch (NoSuchMethodException e) {
+        // failing to register readers/writers is normal and does not require a stack trace
+        LOG.info("Unable to register {} for data files: {}", s, e.getMessage());
+      }
+    }
+  }
+
+  static {
+    registerSupportedFormats();
+  }
 
   private DataFileServiceRegistry() {}
 
@@ -48,12 +117,11 @@ public final class DataFileServiceRegistry {
    * @param format of the file to read
    * @param returnType returned by the reader
    * @param inputFile to read
-   * @param readSchema to use when reading the data file
-   * @return {@link ReaderBuilder} for building the actual reader
+   * @return {@link ReadBuilder} for building the actual reader
    */
-  public static ReaderBuilder readerBuilder(
-      FileFormat format, String returnType, InputFile inputFile, Schema readSchema) {
-    return readerBuilder(format, returnType, null, inputFile, readSchema, ImmutableMap.of(), null);
+  public static <D, F> ReadBuilder<D, F> readerBuilder(
+      FileFormat format, String returnType, InputFile inputFile) {
+    return readerBuilder(format, returnType, null, inputFile);
   }
 
   /**
@@ -61,43 +129,14 @@ public final class DataFileServiceRegistry {
    *
    * @param format of the file to read
    * @param returnType returned by the reader
+   * @param builderType of the reader builder
    * @param inputFile to read
-   * @param readSchema to use when reading the data file
-   * @param idToConstant to use for getting value for constant fields
-   * @return {@link ReaderBuilder} for building the actual reader
+   * @return {@link ReadBuilder} for building the actual reader
    */
-  public static ReaderBuilder readerBuilder(
-      FileFormat format,
-      String returnType,
-      InputFile inputFile,
-      Schema readSchema,
-      Map<Integer, ?> idToConstant) {
-    return readerBuilder(format, returnType, null, inputFile, readSchema, idToConstant, null);
-  }
-
-  /**
-   * Provides a reader for the given input file which returns objects with a given returnType.
-   *
-   * @param format of the file to read
-   * @param returnType returned by the reader
-   * @param builderType selects the builder when there are multiple builders for the same format and
-   *     return type
-   * @param inputFile to read
-   * @param readSchema to use when reading the data file
-   * @param idToConstant to use for getting value for constant fields
-   * @param deleteFilter is used when the delete record filtering is pushed down to the reader
-   * @return {@link ReaderBuilder} for building the actual reader
-   */
-  public static ReaderBuilder readerBuilder(
-      FileFormat format,
-      String returnType,
-      String builderType,
-      InputFile inputFile,
-      Schema readSchema,
-      Map<Integer, ?> idToConstant,
-      DeleteFilter<?> deleteFilter) {
-    return Registry.readerBuilderFor(format, returnType, builderType)
-        .builder(inputFile, readSchema, idToConstant, deleteFilter);
+  public static <D, F> ReadBuilder<D, F> readerBuilder(
+      FileFormat format, String returnType, String builderType, InputFile inputFile) {
+    return (ReadBuilder<D, F>)
+        READ_BUILDERS.get(new Key(format, returnType, builderType)).apply(inputFile);
   }
 
   /**
@@ -257,21 +296,9 @@ public final class DataFileServiceRegistry {
    * issues.
    */
   private static final class Registry {
-    private static final Map<Key, ReaderService> READ_BUILDERS = Maps.newConcurrentMap();
     private static final Map<Key, WriterService<?>> WRITE_BUILDERS = Maps.newConcurrentMap();
 
     static {
-      for (ReaderService service : ServiceLoader.load(ReaderService.class)) {
-        if (READ_BUILDERS.containsKey(service.key())) {
-          throw new IllegalArgumentException(
-              String.format(
-                  "Read service %s clashes with %s. Both serves %s",
-                  service.getClass(), READ_BUILDERS.get(service.key()), service.key()));
-        }
-
-        READ_BUILDERS.putIfAbsent(service.key(), service);
-      }
-
       for (WriterService<?> service : ServiceLoader.load(WriterService.class)) {
         if (WRITE_BUILDERS.containsKey(service.key())) {
           throw new IllegalArgumentException(
@@ -286,18 +313,6 @@ public final class DataFileServiceRegistry {
       LOG.info("DataFileServices found: readers={}, writers={}", READ_BUILDERS, WRITE_BUILDERS);
     }
 
-    private static ReaderService readerBuilderFor(
-        FileFormat format, String inputType, String builderType) {
-      Key key = new Key(format, inputType, builderType);
-      ReaderService service = READ_BUILDERS.get(key);
-      if (service == null) {
-        throw new IllegalArgumentException(
-            String.format("No reader builder registered for key %s", key));
-      }
-
-      return service;
-    }
-
     private static <S> WriterService<S> writeBuilderFor(
         FileFormat format, String inputType, String builderType) {
       Key key = new Key(format, inputType, builderType);
@@ -309,31 +324,6 @@ public final class DataFileServiceRegistry {
 
       return service;
     }
-  }
-
-  /**
-   * Service building readers. Implementations should be registered through the {@link
-   * java.util.ServiceLoader}. {@link DataFileServiceRegistry} is used to collect and serve the
-   * reader implementations.
-   */
-  public interface ReaderService {
-    /** Returns the file format which is handled by the service. */
-    Key key();
-
-    /**
-     * Provides a reader for the given input file which returns objects with a given type.
-     *
-     * @param inputFile to read
-     * @param readSchema to use when reading the data file
-     * @param idToConstant used to generate constant values
-     * @param deleteFilter is used when the delete record filtering is pushed down to the reader
-     * @return {@link ReaderBuilder} for building the actual reader
-     */
-    ReaderBuilder builder(
-        InputFile inputFile,
-        Schema readSchema,
-        Map<Integer, ?> idToConstant,
-        DeleteFilter<?> deleteFilter);
   }
 
   /**
