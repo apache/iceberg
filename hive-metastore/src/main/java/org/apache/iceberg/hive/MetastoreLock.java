@@ -22,6 +22,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -38,11 +39,13 @@ import org.apache.hadoop.hive.metastore.api.LockRequest;
 import org.apache.hadoop.hive.metastore.api.LockResponse;
 import org.apache.hadoop.hive.metastore.api.LockState;
 import org.apache.hadoop.hive.metastore.api.LockType;
+import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.ShowLocksRequest;
 import org.apache.hadoop.hive.metastore.api.ShowLocksResponse;
 import org.apache.hadoop.hive.metastore.api.ShowLocksResponseElement;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -74,7 +77,10 @@ class MetastoreLock implements HiveLock {
   private static final long HIVE_LOCK_CREATION_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
   private static final long HIVE_LOCK_CREATION_MIN_WAIT_MS_DEFAULT = 50; // 50 milliseconds
   private static final long HIVE_LOCK_CREATION_MAX_WAIT_MS_DEFAULT = 5 * 1000; // 5 seconds
-  private static final long HIVE_LOCK_HEARTBEAT_INTERVAL_MS_DEFAULT = 4 * 60 * 1000; // 4 minutes
+
+  @VisibleForTesting
+  static final long HIVE_LOCK_HEARTBEAT_INTERVAL_MS_DEFAULT = 60 * 1000; // 1 minutes
+
   private static final long HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT = TimeUnit.MINUTES.toMillis(10);
   private static volatile Cache<String, ReentrantLock> commitLockCache;
 
@@ -181,7 +187,8 @@ class MetastoreLock implements HiveLock {
     }
   }
 
-  private long acquireLock() throws LockException {
+  @VisibleForTesting
+  long acquireLock() throws LockException {
     LockInfo lockInfo = createLock();
 
     final long start = System.currentTimeMillis();
@@ -213,6 +220,9 @@ class MetastoreLock implements HiveLock {
                     LockState newState = response.getState();
                     lockInfo.lockState = newState;
                     if (newState.equals(LockState.WAITING)) {
+                      if (!HiveVersion.min(HiveVersion.HIVE_4)) {
+                        releaseExpiredHiveLock();
+                      }
                       throw new WaitingForLockException(
                           String.format(
                               "Waiting for lock on table %s.%s", databaseName, tableName));
@@ -360,6 +370,17 @@ class MetastoreLock implements HiveLock {
    * @return The {@link LockInfo} for the found lock, or <code>null</code> if nothing found
    */
   private LockInfo findLock() throws LockException, InterruptedException {
+    for (ShowLocksResponseElement lock : showLocks()) {
+      if (lock.getAgentInfo().equals(agentInfo)) {
+        // We found our lock
+        return new LockInfo(lock.getLockid(), lock.getState());
+      }
+    }
+    // Not found anything
+    return null;
+  }
+
+  private List<ShowLocksResponseElement> showLocks() throws LockException, InterruptedException {
     Preconditions.checkArgument(
         HiveVersion.min(HiveVersion.HIVE_2),
         "Minimally Hive 2 HMS client is needed to find the Lock using the showLocks API call");
@@ -372,15 +393,30 @@ class MetastoreLock implements HiveLock {
     } catch (TException e) {
       throw new LockException(e, "Failed to find lock for table %s.%s", databaseName, tableName);
     }
-    for (ShowLocksResponseElement lock : response.getLocks()) {
-      if (lock.getAgentInfo().equals(agentInfo)) {
-        // We found our lock
-        return new LockInfo(lock.getLockid(), lock.getState());
+
+    return response.getLocks();
+  }
+
+  private void releaseExpiredHiveLock() throws LockException, InterruptedException {
+    long now = System.currentTimeMillis();
+    for (ShowLocksResponseElement lock : showLocks()) {
+      long lastHeartbeat = lock.getLastheartbeat();
+      if (now - lastHeartbeat > lockHeartbeatIntervalTime) {
+        try {
+          metaClients.run(
+              client -> {
+                client.unlock(lock.getLockid());
+                return null;
+              });
+        } catch (TException e) {
+          if (e instanceof NoSuchObjectException) {
+            LOG.debug("lock has been cleared, ignoring", e);
+          } else {
+            LOG.debug("Failed to release lock. ", e);
+          }
+        }
       }
     }
-
-    // Not found anything
-    return null;
   }
 
   private void unlock(Optional<Long> lockId) {
@@ -427,7 +463,8 @@ class MetastoreLock implements HiveLock {
     }
   }
 
-  private void doUnlock(long lockId) throws TException, InterruptedException {
+  @VisibleForTesting
+  void doUnlock(long lockId) throws TException, InterruptedException {
     metaClients.run(
         client -> {
           client.unlock(lockId);
@@ -465,7 +502,8 @@ class MetastoreLock implements HiveLock {
     }
   }
 
-  private static class Heartbeat implements Runnable {
+  @VisibleForTesting
+  static class Heartbeat implements Runnable {
     private final ClientPool<IMetaStoreClient, TException> hmsClients;
     private final long lockId;
     private final long intervalMs;
