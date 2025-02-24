@@ -136,6 +136,18 @@ public class StandardEncryptionManager implements EncryptionManager {
     return transientState.unwrappedKeyCache.get(keyId);
   }
 
+  public String currentKeyID() {
+    if (transientState == null) {
+      throw new IllegalStateException("Cannot return the current key after serialization");
+    }
+
+    if (transientState.currentKeyID == null) {
+      createNewEncryptionKey();
+    }
+
+    return transientState.currentKeyID;
+  }
+
   public void addSnapshotKeyMetadata(EncryptionKeyEntry key) {
     if (transientState == null) {
       throw new IllegalStateException("Cannot add key metadata after serialization");
