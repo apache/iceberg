@@ -59,7 +59,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     }
 
     this.snapshotId = snapshotId;
-    this.writer = newAppender(file, meta);
+    this.writer = newAppender(outputFile, meta);
   }
 
   protected abstract ManifestFile prepare(ManifestFile manifest);
