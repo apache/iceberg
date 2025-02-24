@@ -87,7 +87,8 @@ public class RewriteDataFilesSparkAction
           USE_STARTING_SEQUENCE_NUMBER,
           REWRITE_JOB_ORDER,
           OUTPUT_SPEC_ID,
-          REMOVE_DANGLING_DELETES);
+          REMOVE_DANGLING_DELETES,
+          IGNORE_INVALID_OPTIONS);
 
   private static final RewriteDataFilesSparkAction.Result EMPTY_RESULT =
       ImmutableRewriteDataFiles.Result.builder().rewriteResults(ImmutableList.of()).build();
@@ -435,17 +436,22 @@ public class RewriteDataFilesSparkAction
   }
 
   void validateAndInitOptions() {
-    Set<String> validOptions = Sets.newHashSet(rewriter.validOptions());
-    validOptions.addAll(VALID_OPTIONS);
+    boolean ignoreInvalidOptions =
+        PropertyUtil.propertyAsBoolean(
+            options(), IGNORE_INVALID_OPTIONS, IGNORE_INVALID_OPTIONS_DEFAULT);
+    if (!ignoreInvalidOptions) {
+      Set<String> validOptions = Sets.newHashSet(rewriter.validOptions());
+      validOptions.addAll(VALID_OPTIONS);
 
-    Set<String> invalidKeys = Sets.newHashSet(options().keySet());
-    invalidKeys.removeAll(validOptions);
+      Set<String> invalidKeys = Sets.newHashSet(options().keySet());
+      invalidKeys.removeAll(validOptions);
 
-    Preconditions.checkArgument(
-        invalidKeys.isEmpty(),
-        "Cannot use options %s, they are not supported by the action or the rewriter %s",
-        invalidKeys,
-        rewriter.description());
+      Preconditions.checkArgument(
+          invalidKeys.isEmpty(),
+          "Cannot use options %s, they are not supported by the action or the rewriter %s",
+          invalidKeys,
+          rewriter.description());
+    }
 
     rewriter.init(options());
 
