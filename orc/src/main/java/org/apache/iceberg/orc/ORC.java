@@ -86,9 +86,9 @@ import org.apache.iceberg.io.datafile.DataWriterBuilder;
 import org.apache.iceberg.io.datafile.DeleteFilter;
 import org.apache.iceberg.io.datafile.EqualityDeleteWriterBuilder;
 import org.apache.iceberg.io.datafile.PositionDeleteWriterBuilder;
-import org.apache.iceberg.io.datafile.ReaderBuilder;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
@@ -128,6 +128,14 @@ public class ORC {
       Schema target, Map<Integer, ?> idToConstant) {
     return TypeUtil.selectNot(
         target, Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
+  }
+
+  public static void register() {
+    DataFileServiceRegistry.registerRead(
+        FileFormat.ORC,
+        Record.class.getName(),
+        inputFile ->
+            new DataReadBuilder<Record>(inputFile).readerFunction(GenericOrcReader::buildReader));
   }
 
   public static class WriteBuilder implements AppenderBuilder {
@@ -749,7 +757,7 @@ public class ORC {
     return new ReadBuilder(file);
   }
 
-  public static class ReadBuilder implements ReaderBuilder {
+  public static class ReadBuilder {
     private final InputFile file;
     private final Configuration conf;
     private Schema schema = null;
@@ -784,20 +792,17 @@ public class ORC {
      * @param newLength the length of the range this read should scan
      * @return this builder for method chaining
      */
-    @Override
     public ReadBuilder split(long newStart, long newLength) {
       this.start = newStart;
       this.length = newLength;
       return this;
     }
 
-    @Override
     public ReadBuilder project(Schema newSchema) {
       this.schema = newSchema;
       return this;
     }
 
-    @Override
     public ReadBuilder caseSensitive(boolean newCaseSensitive) {
       OrcConf.IS_SCHEMA_EVOLUTION_CASE_SENSITIVE.setBoolean(this.conf, newCaseSensitive);
       this.caseSensitive = newCaseSensitive;
@@ -809,7 +814,6 @@ public class ORC {
       return set(property, value);
     }
 
-    @Override
     public ReadBuilder set(String key, String value) {
       conf.set(key, value);
       return this;
@@ -823,13 +827,11 @@ public class ORC {
       return this;
     }
 
-    @Override
     public ReadBuilder filter(Expression newFilter) {
       this.filter = newFilter;
       return this;
     }
 
-    @Override
     public ReadBuilder reuseContainers(boolean newReuseContainers) {
       // ORC always reuses the containers
       return this;
@@ -844,19 +846,16 @@ public class ORC {
       return this;
     }
 
-    @Override
     public ReadBuilder recordsPerBatch(int numRecordsPerBatch) {
       this.recordsPerBatch = numRecordsPerBatch;
       return this;
     }
 
-    @Override
     public ReadBuilder withNameMapping(NameMapping newNameMapping) {
       this.nameMapping = newNameMapping;
       return this;
     }
 
-    @Override
     public <D> CloseableIterable<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
       return new OrcIterable<>(
@@ -870,6 +869,148 @@ public class ORC {
           caseSensitive,
           filter,
           batchedReaderFunc,
+          recordsPerBatch);
+    }
+  }
+
+  public static class DataReadBuilder<D>
+      implements org.apache.iceberg.io.datafile.ReadBuilder<D, Object> {
+    private final InputFile file;
+    private final Configuration conf;
+    private Schema schema = null;
+    private Long start = null;
+    private Long length = null;
+    private Expression filter = null;
+    private boolean caseSensitive = true;
+    private NameMapping nameMapping = null;
+    private ReaderFunction<D> readerFunction;
+    private BatchReaderFunction<D> batchReaderFunction;
+    private int recordsPerBatch = VectorizedRowBatch.DEFAULT_SIZE;
+    private Map<Integer, ?> idToConstant = ImmutableMap.of();
+
+    public DataReadBuilder(InputFile file) {
+      Preconditions.checkNotNull(file, "Input file cannot be null");
+      this.file = file;
+      if (file instanceof HadoopInputFile) {
+        this.conf = new Configuration(((HadoopInputFile) file).getConf());
+      } else {
+        this.conf = new Configuration();
+      }
+
+      // We need to turn positional schema evolution off since we use column name based schema
+      // evolution for projection
+      this.conf.setBoolean(OrcConf.FORCE_POSITIONAL_EVOLUTION.getHiveConfName(), false);
+    }
+
+    /**
+     * Restricts the read to the given range: [start, start + length).
+     *
+     * @param newStart the start position for this read
+     * @param newLength the length of the range this read should scan
+     * @return this builder for method chaining
+     */
+    @Override
+    public DataReadBuilder<D> split(long newStart, long newLength) {
+      this.start = newStart;
+      this.length = newLength;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D> project(Schema newSchema) {
+      this.schema = newSchema;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D> caseSensitive(boolean newCaseSensitive) {
+      OrcConf.IS_SCHEMA_EVOLUTION_CASE_SENSITIVE.setBoolean(this.conf, newCaseSensitive);
+      this.caseSensitive = newCaseSensitive;
+      return this;
+    }
+
+    @Deprecated
+    public DataReadBuilder<D> config(String property, String value) {
+      return set(property, value);
+    }
+
+    @Override
+    public DataReadBuilder<D> set(String key, String value) {
+      conf.set(key, value);
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D> filter(Expression newFilter) {
+      this.filter = newFilter;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D> reuseContainers(boolean newReuseContainers) {
+      // ORC always reuses the containers
+      return this;
+    }
+
+    public DataReadBuilder<D> readerFunction(ReaderFunction<D> newReaderFunction) {
+      Preconditions.checkArgument(
+          this.batchReaderFunction == null,
+          "Reader function cannot be set since the batched version is already set");
+      this.readerFunction = newReaderFunction;
+      return this;
+    }
+
+    public DataReadBuilder<D> batchReaderFunction(BatchReaderFunction<D> newBatchReaderFunction) {
+      Preconditions.checkArgument(
+          this.readerFunction == null,
+          "Batched reader function cannot be set since the non-batched version is already set");
+      this.batchReaderFunction = newBatchReaderFunction;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D> recordsPerBatch(int numRecordsPerBatch) {
+      this.recordsPerBatch = numRecordsPerBatch;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D> withNameMapping(NameMapping newNameMapping) {
+      this.nameMapping = newNameMapping;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D> idToConstant(Map<Integer, ?> newIdConstant) {
+      this.idToConstant = newIdConstant;
+      return this;
+    }
+
+    /** Used for filtering out deleted records on the reader level. */
+    @Override
+    public DataReadBuilder<D> withDeleteFilter(DeleteFilter<Object> newDeleteFilter) {
+      // Filtering deleted record is currently not done on the ORC reader side
+      return this;
+    }
+
+    @Override
+    public CloseableIterable<D> build() {
+      Preconditions.checkNotNull(schema, "Schema is required");
+      return new OrcIterable<>(
+          file,
+          conf,
+          ORC.schemaWithoutConstantAndMetadataFields(schema, idToConstant),
+          nameMapping,
+          start,
+          length,
+          readerFunction != null
+              ? fileType -> readerFunction.read(schema, fileType, idToConstant)
+              : null,
+          caseSensitive,
+          filter,
+          batchReaderFunction != null
+              ? fileType -> batchReaderFunction.read(schema, fileType, idToConstant)
+              : null,
           recordsPerBatch);
     }
   }
@@ -912,25 +1053,6 @@ public class ORC {
     return writer;
   }
 
-  public static class ReaderService implements DataFileServiceRegistry.ReaderService {
-    @Override
-    public DataFileServiceRegistry.Key key() {
-      return new DataFileServiceRegistry.Key(FileFormat.ORC, Record.class.getName());
-    }
-
-    @Override
-    public ReaderBuilder builder(
-        InputFile inputFile,
-        Schema readSchema,
-        Map<Integer, ?> idToConstant,
-        DeleteFilter<?> deleteFilter) {
-      return new ReadBuilder(inputFile)
-          .project(ORC.schemaWithoutConstantAndMetadataFields(readSchema, idToConstant))
-          .createReaderFunc(
-              fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema, idToConstant));
-    }
-  }
-
   public static class WriterService implements DataFileServiceRegistry.WriterService<Object> {
     @Override
     public DataFileServiceRegistry.Key key() {
@@ -958,5 +1080,14 @@ public class ORC {
         EncryptedOutputFile outputFile, Object notUsed) {
       return writeDeletes(outputFile).createWriterFunc(GenericOrcWriter::buildWriter);
     }
+  }
+
+  public interface ReaderFunction<D> {
+    OrcRowReader<D> read(Schema schema, TypeDescription messageType, Map<Integer, ?> idToConstant);
+  }
+
+  public interface BatchReaderFunction<D> {
+    OrcBatchReader<D> read(
+        Schema schema, TypeDescription messageType, Map<Integer, ?> idToConstant);
   }
 }

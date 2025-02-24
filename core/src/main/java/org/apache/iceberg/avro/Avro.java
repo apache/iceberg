@@ -46,6 +46,7 @@ import org.apache.avro.io.Encoder;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.InternalData;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SchemaParser;
@@ -54,12 +55,12 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataWriter;
-import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
@@ -67,13 +68,12 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.datafile.AppenderBuilder;
 import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
 import org.apache.iceberg.io.datafile.DataWriterBuilder;
-import org.apache.iceberg.io.datafile.DeleteFilter;
 import org.apache.iceberg.io.datafile.EqualityDeleteWriterBuilder;
 import org.apache.iceberg.io.datafile.PositionDeleteWriterBuilder;
-import org.apache.iceberg.io.datafile.ReaderBuilder;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ArrayUtil;
 
@@ -671,7 +671,7 @@ public class Avro {
     return new ReadBuilder(file);
   }
 
-  public static class ReadBuilder implements ReaderBuilder {
+  public static class ReadBuilder implements InternalData.ReadBuilder {
     private final InputFile file;
     private final Map<String, String> renames = Maps.newLinkedHashMap();
     private final Map<Integer, Class<? extends StructLike>> typeMap = Maps.newHashMap();
@@ -752,7 +752,6 @@ public class Avro {
       return this;
     }
 
-    @Override
     public ReadBuilder reuseContainers(boolean shouldReuse) {
       this.reuseContainers = shouldReuse;
       return this;
@@ -775,7 +774,6 @@ public class Avro {
       return this;
     }
 
-    @Override
     public ReadBuilder withNameMapping(NameMapping newNameMapping) {
       this.nameMapping = newNameMapping;
       return this;
@@ -822,6 +820,74 @@ public class Avro {
     }
   }
 
+  public static class DataReadBuilder<D>
+      implements org.apache.iceberg.io.datafile.ReadBuilder<D, Object> {
+    private final InputFile file;
+    private Long start = null;
+    private Long length = null;
+    private org.apache.iceberg.Schema schema;
+    private boolean reuseContainers = false;
+    private Map<Integer, ?> idToConstant = ImmutableMap.of();
+    private NameMapping nameMapping;
+    private BiFunction<org.apache.iceberg.Schema, Map<Integer, ?>, DatumReader<D>> readerFunction;
+
+    public DataReadBuilder(InputFile file) {
+      Preconditions.checkNotNull(file, "Input file cannot be null");
+      this.file = file;
+    }
+
+    @Override
+    public DataReadBuilder<D> split(long newStart, long newLength) {
+      this.start = newStart;
+      this.length = newLength;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D> project(org.apache.iceberg.Schema newSchema) {
+      this.schema = newSchema;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D> reuseContainers(boolean newReuseContainers) {
+      this.reuseContainers = newReuseContainers;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D> idToConstant(Map<Integer, ?> newIdConstant) {
+      this.idToConstant = newIdConstant;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D> withNameMapping(NameMapping newNameMapping) {
+      this.nameMapping = newNameMapping;
+      return this;
+    }
+
+    public DataReadBuilder<D> readerFunction(
+        BiFunction<org.apache.iceberg.Schema, Map<Integer, ?>, DatumReader<D>> newReaderFunction) {
+      this.readerFunction = newReaderFunction;
+      return this;
+    }
+
+    @Override
+    public CloseableIterable<D> build() {
+      Preconditions.checkNotNull(schema, "Schema is required");
+
+      if (null == nameMapping) {
+        this.nameMapping = MappingUtil.create(schema);
+      }
+
+      DatumReader<D> reader = readerFunction.apply(schema, idToConstant);
+
+      return new AvroIterable<>(
+          file, new NameMappingDatumReader<>(nameMapping, reader), start, length, reuseContainers);
+    }
+  }
+
   /**
    * Returns number of rows in specified Avro file
    *
@@ -830,24 +896,6 @@ public class Avro {
    */
   public static long rowCount(InputFile file) {
     return AvroIO.findStartingRowPos(file::newStream, Long.MAX_VALUE);
-  }
-
-  public static class ReaderService implements DataFileServiceRegistry.ReaderService {
-    @Override
-    public DataFileServiceRegistry.Key key() {
-      return new DataFileServiceRegistry.Key(FileFormat.AVRO, Record.class.getName());
-    }
-
-    @Override
-    public ReaderBuilder builder(
-        InputFile inputFile,
-        org.apache.iceberg.Schema readSchema,
-        Map<Integer, ?> idToConstant,
-        DeleteFilter<?> deleteFilter) {
-      return Avro.read(inputFile)
-          .project(readSchema)
-          .createResolvingReader(fileSchema -> PlannedDataReader.create(fileSchema, idToConstant));
-    }
   }
 
   public static class WriterService implements DataFileServiceRegistry.WriterService<Object> {
