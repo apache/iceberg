@@ -134,6 +134,9 @@ public class DataReader<T> implements DatumReader<T>, SupportsRowPosition {
           case "time-micros":
             return GenericReaders.times();
 
+            // timestamp-millis is adjusted to micros and hence same implementation can be used for
+            // both
+          case "timestamp-millis":
           case "timestamp-micros":
             if (AvroSchemaUtil.isTimestamptz(primitive)) {
               return GenericReaders.timestamptz();
