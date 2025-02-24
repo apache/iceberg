@@ -27,7 +27,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
-import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -69,9 +68,9 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
         .uidSuffix(UID_SUFFIX)
         .append(
             infra.triggerStream(),
-            0,
-            DUMMY_TASK_NAME,
             DUMMY_TABLE_NAME,
+            DUMMY_TASK_NAME,
+            0,
             tableLoader(),
             "OTHER",
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
@@ -101,36 +100,16 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
     ExpireSnapshots.builder()
         .append(
             infra.triggerStream(),
-            0,
-            DUMMY_TASK_NAME,
             DUMMY_TABLE_NAME,
+            DUMMY_TASK_NAME,
+            0,
             tableLoader(),
             UID_SUFFIX,
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
             1)
         .sinkTo(infra.sink());
 
-    JobClient jobClient = null;
-    try {
-      jobClient = infra.env().executeAsync();
-
-      // Do a single task run
-      long time = System.currentTimeMillis();
-      infra.source().sendRecord(Trigger.create(time, 1), time);
-
-      // First successful run (ensure that the operators are loaded/opened etc.)
-      assertThat(infra.sink().poll(Duration.ofSeconds(5)).success()).isTrue();
-
-      // Drop the table, so it will cause an exception
-      dropTable();
-
-      // Failed run
-      infra.source().sendRecord(Trigger.create(time + 1, 1), time + 1);
-
-      assertThat(infra.sink().poll(Duration.ofSeconds(5)).success()).isFalse();
-    } finally {
-      closeJobClient(jobClient);
-    }
+    runAndWaitForFailure(infra.env(), infra.source(), infra.sink());
 
     // Check the metrics. There are no expired snapshots or data files because ExpireSnapshots has
     // no max age of number of snapshots set, so no files are removed.
@@ -162,9 +141,9 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
         .uidSuffix(UID_SUFFIX)
         .append(
             infra.triggerStream(),
-            0,
-            DUMMY_TASK_NAME,
             DUMMY_TABLE_NAME,
+            DUMMY_TASK_NAME,
+            0,
             tableLoader(),
             UID_SUFFIX,
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
@@ -180,9 +159,9 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
     ExpireSnapshots.builder()
         .append(
             infra.triggerStream(),
-            0,
-            DUMMY_TASK_NAME,
             DUMMY_TABLE_NAME,
+            DUMMY_TASK_NAME,
+            0,
             tableLoader(),
             UID_SUFFIX,
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
@@ -204,9 +183,9 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
         .parallelism(1)
         .append(
             infra.triggerStream(),
-            0,
-            DUMMY_TASK_NAME,
             DUMMY_TABLE_NAME,
+            DUMMY_TASK_NAME,
+            0,
             tableLoader(),
             UID_SUFFIX,
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,

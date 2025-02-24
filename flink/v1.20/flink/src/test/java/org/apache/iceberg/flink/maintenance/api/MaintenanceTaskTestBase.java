@@ -20,8 +20,10 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.File;
 import java.time.Duration;
 import java.util.function.Supplier;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.iceberg.flink.maintenance.operator.CollectingSink;
@@ -39,14 +41,52 @@ class MaintenanceTaskTestBase extends OperatorTestBase {
   void runAndWaitForSuccess(
       StreamExecutionEnvironment env,
       ManualSource<Trigger> triggerSource,
+      CollectingSink<TaskResult> collectingSink)
+      throws Exception {
+    runAndWaitForResult(env, triggerSource, collectingSink, false, null, () -> true);
+  }
+
+  void runAndWaitForSuccess(
+      StreamExecutionEnvironment env,
+      ManualSource<Trigger> triggerSource,
       CollectingSink<TaskResult> collectingSink,
       Supplier<Boolean> waitForCondition)
       throws Exception {
+    runAndWaitForResult(env, triggerSource, collectingSink, false, null, waitForCondition);
+  }
+
+  Configuration runAndWaitForSavepoint(
+      StreamExecutionEnvironment env,
+      ManualSource<Trigger> triggerSource,
+      CollectingSink<TaskResult> collectingSink,
+      File savepointDir)
+      throws Exception {
+
+    return runAndWaitForResult(env, triggerSource, collectingSink, false, savepointDir, () -> true);
+  }
+
+  void runAndWaitForFailure(
+      StreamExecutionEnvironment env,
+      ManualSource<Trigger> triggerSource,
+      CollectingSink<TaskResult> collectingSink)
+      throws Exception {
+    runAndWaitForResult(env, triggerSource, collectingSink, true, null, () -> true);
+  }
+
+  Configuration runAndWaitForResult(
+      StreamExecutionEnvironment env,
+      ManualSource<Trigger> triggerSource,
+      CollectingSink<TaskResult> collectingSink,
+      boolean generateFailure,
+      File savepointDir,
+      Supplier<Boolean> waitForCondition)
+      throws Exception {
     JobClient jobClient = null;
+    Configuration configuration;
     try {
       jobClient = env.executeAsync();
 
-      // Do a single task run
+      // Do a single successful task run
       long time = System.currentTimeMillis();
       triggerSource.sendRecord(Trigger.create(time, TESTING_TASK_ID), time);
 
@@ -56,9 +96,22 @@ class MaintenanceTaskTestBase extends OperatorTestBase {
       assertThat(result.success()).isTrue();
       assertThat(result.taskIndex()).isEqualTo(TESTING_TASK_ID);
 
+      if (generateFailure) {
+        dropTable();
+        time = System.currentTimeMillis();
+        triggerSource.sendRecord(Trigger.create(time, TESTING_TASK_ID), time);
+        result = collectingSink.poll(POLL_DURATION);
+
+        assertThat(result.startEpoch()).isEqualTo(time);
+        assertThat(result.success()).isFalse();
+        assertThat(result.taskIndex()).isEqualTo(TESTING_TASK_ID);
+      }
+
       Awaitility.await().until(waitForCondition::get);
     } finally {
-      closeJobClient(jobClient);
+      configuration = closeJobClient(jobClient, savepointDir);
     }
+
+    return configuration;
   }
 }

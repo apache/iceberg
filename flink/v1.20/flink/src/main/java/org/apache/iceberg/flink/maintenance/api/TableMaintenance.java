@@ -255,9 +255,9 @@ public class TableMaintenance {
           DataStream<TaskResult> result =
               builder.append(
                   filtered,
-                  taskIndex,
-                  taskNames.get(taskIndex),
                   tableName,
+                  taskNames.get(taskIndex),
+                  taskIndex,
                   loader,
                   uidSuffix,
                   slotSharingGroup,
@@ -298,8 +298,7 @@ public class TableMaintenance {
     }
 
     private static String nameFor(MaintenanceTaskBuilder<?> streamBuilder, int taskIndex) {
-      return String.format(
-          "%s [%s]", streamBuilder.getClass().getSimpleName(), String.valueOf(taskIndex));
+      return String.format("%s [%s]", streamBuilder.getClass().getSimpleName(), taskIndex);
     }
   }
 
