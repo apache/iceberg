@@ -1448,7 +1448,12 @@ Project URL (from POM): https://github.com/awslabs/aws-eventstream-java
 License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
+The `opentelemetry-api-inclubating` seems to be missing here:
 
+```sh
+unzip iceberg-kafka-connect-runtime-1.9.0-SNAPSHOT.zip
+find . | grep -i incubator
+./iceberg-kafka-connect-runtime-1.9.0-SNAPSHOT/lib/opentelemetry-api-incubator-1.45.0-alpha.jar
 Group: io.opentelemetry Name: opentelemetry-api Version: 1.45.0
 Project URL (from POM): https://github.com/open-telemetry/opentelemetry-java
 License (from POM): The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
