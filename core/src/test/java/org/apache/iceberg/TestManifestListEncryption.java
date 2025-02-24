@@ -24,17 +24,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.UUID;
 import org.apache.avro.InvalidAvroMagicException;
-import org.apache.iceberg.encryption.EncryptedFiles;
-import org.apache.iceberg.encryption.EncryptedInputFile;
-import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.EncryptionTestHelpers;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.inmemory.InMemoryOutputFile;
-import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.inmemory.InMemoryFileIO;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
@@ -114,30 +111,32 @@ public class TestManifestListEncryption {
   }
 
   private ManifestFile writeAndReadEncryptedManifestList() throws IOException {
-    OutputFile rawOutput = new InMemoryOutputFile();
-    EncryptedOutputFile encryptedOutput = ENCRYPTION_MANAGER.encrypt(rawOutput);
-    EncryptionKeyMetadata keyMetadata = encryptedOutput.keyMetadata();
+    FileIO io = new InMemoryFileIO();
+    EncryptingFileIO encryptingFileIO = EncryptingFileIO.combine(io, ENCRYPTION_MANAGER);
+    OutputFile outputFile = io.newOutputFile("memory:" + UUID.randomUUID());
 
-    try (FileAppender<ManifestFile> writer =
+    ManifestListWriter writer =
         ManifestLists.write(
-            2, encryptedOutput.encryptingOutputFile(), SNAPSHOT_ID, SNAPSHOT_ID - 1, SEQ_NUM)) {
-      writer.add(TEST_MANIFEST);
-    }
-
-    InputFile rawInput = rawOutput.toInputFile();
+            2,
+            encryptingFileIO.encryptionManager(),
+            outputFile,
+            SNAPSHOT_ID,
+            SNAPSHOT_ID - 1,
+            SEQ_NUM);
+    writer.add(TEST_MANIFEST);
+    writer.close();
+    ManifestListFile manifestListFile = writer.toManifestListFile();
 
     // First try to read without decryption
-    assertThatThrownBy(() -> ManifestLists.read(rawInput))
+    assertThatThrownBy(() -> ManifestLists.read(outputFile.toInputFile()))
         .isInstanceOf(RuntimeIOException.class)
         .hasMessageContaining("Failed to open file")
         .hasCauseInstanceOf(InvalidAvroMagicException.class);
 
-    EncryptedInputFile encryptedManifestListInput =
-        EncryptedFiles.encryptedInput(rawInput, keyMetadata);
-    InputFile manifestListInput = ENCRYPTION_MANAGER.decrypt(encryptedManifestListInput);
-
-    List<ManifestFile> manifests = ManifestLists.read(manifestListInput);
+    List<ManifestFile> manifests =
+        ManifestLists.read(encryptingFileIO.newInputFile(manifestListFile));
     assertThat(manifests.size()).isEqualTo(1);
+
     return manifests.get(0);
   }
 }
