@@ -1760,7 +1760,7 @@ Writers should produce positive values for snapshot ids in a manner that minimiz
 
 The reference implementation uses a type 4 uuid and XORs the 4 most significant bytes with the 4 least significant bytes then ANDs with the maximum long value to arrive at a pseudo-random snapshot id with a low probability of collision.
 
-The Java implementation writes `-1` for "no current snapshot" with V1 and V2 tables and considers this equivalent to omitted or `null`. This has never been formalized in the spec but for compatibility, other implementations can accept `-1` as `null`. The Java implementation will no longer write `-1` and will use `null` for "no current snapshot" for all tables with a version greater than or equal to V3.
+The reference Java implementation writes `-1` for "no current snapshot" with V1 and V2 tables and considers this equivalent to omitted or `null`. This has never been formalized in the spec but for compatibility, other implementations can accept `-1` as `null`. Java will no longer write `-1` and will use `null` for "no current snapshot" for all tables with a version greater than or equal to V3.
 
 ## Appendix G: Geospatial Notes
 
