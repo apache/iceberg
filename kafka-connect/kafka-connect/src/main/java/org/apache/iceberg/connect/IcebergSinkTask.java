@@ -45,12 +45,18 @@ public class IcebergSinkTask extends SinkTask {
   @Override
   public void start(Map<String, String> props) {
     this.config = new IcebergSinkConfig(props);
+    /*
+     catalog and committer are global resource and does not depend on the topic partition,
+     hence we should open this with the start call only and should only close these if the task is closed by connect
+     framework.
+     */
     catalog = CatalogUtils.loadCatalog(config);
     committer = CommitterFactory.createCommitter(catalog, config, context);
   }
 
   @Override
   public void open(Collection<TopicPartition> partitions) {
+    // We should be starting co-ordinator only the list of partitions has the zeroth partition.
     if(committer.isCoordinator(partitions)) {
       committer.startCoordinator();
     }
@@ -59,8 +65,9 @@ public class IcebergSinkTask extends SinkTask {
 
   @Override
   public void close(Collection<TopicPartition> partitions) {
-    // We need to close worker here in every case to ensure exactly once.
+    // We need to close worker here in every case to ensure exactly once otherwise this will lead to duplicate records.
     committer.stopWorker();
+    // Coordinator should only be closed if this received closed partitions has the partition which elected this task as coordinator.
     if(committer.isCoordinator(partitions)) {
       committer.stopCoordinator();
     }
