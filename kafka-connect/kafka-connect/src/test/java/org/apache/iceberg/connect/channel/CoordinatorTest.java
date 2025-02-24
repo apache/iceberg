@@ -217,7 +217,7 @@ public class CoordinatorTest extends ChannelTestBase {
     TopicPartition tp1 = new TopicPartition(SRC_TOPIC_NAME, 1);
     TopicPartition tp2 = new TopicPartition(SRC_TOPIC_NAME, 2);
 
-    // Assigning two topic partitions tp0, tp1, tp0 will elect this task as coordinator
+    // Assigning three topic partitions tp0, tp1, and tp2. This will be elected as leader as it has tp0.
     sourceConsumer.rebalance(Lists.newArrayList(tp0, tp1, tp2));
     assertTrue(mockIcebergSinkTask.isCoordinatorRunning());
 
