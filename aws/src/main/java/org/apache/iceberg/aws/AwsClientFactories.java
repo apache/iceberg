@@ -115,6 +115,7 @@ public class AwsClientFactories {
           .applyMutation(s3FileIOProperties::applyS3AccessGrantsConfigurations)
           .applyMutation(s3FileIOProperties::applyUserAgentConfigurations)
           .applyMutation(s3FileIOProperties::applyRetryConfigurations)
+          .applyMutation(s3FileIOProperties::applyRequesterPaysConfiguration)
           .build();
     }
 
