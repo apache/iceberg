@@ -1935,6 +1935,7 @@ Project URL (from POM): https://github.com/awslabs/aws-eventstream-java
 License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
+
 Group: io.opentelemetry Name: opentelemetry-api-incubator Version: 1.45.0-alpha
 Project URL: https://opentelemetry.io/
 License: The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
