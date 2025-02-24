@@ -19,6 +19,8 @@
 package org.apache.iceberg.connect.channel;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -43,8 +45,10 @@ import org.apache.iceberg.connect.events.StartCommit;
 import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.connect.events.TopicPartitionOffset;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.junit.jupiter.api.Test;
 
@@ -205,5 +209,24 @@ public class CoordinatorTest extends ChannelTestBase {
     coordinator.process();
 
     return commitId;
+  }
+
+  @Test
+  public void testCoordinatorRunning() {
+    TopicPartition tp0 = new TopicPartition(SRC_TOPIC_NAME, 0);
+    TopicPartition tp1 = new TopicPartition(SRC_TOPIC_NAME, 1);
+    TopicPartition tp2 = new TopicPartition(SRC_TOPIC_NAME, 2);
+
+    // Assigning two topic partitions tp0, tp1, tp0 will elect this task as coordinator
+    sourceConsumer.rebalance(Lists.newArrayList(tp0, tp1, tp2));
+    assertTrue(mockIcebergSinkTask.isCoordinatorRunning());
+
+    // Now revoking the partition 2, this should not close the coordinator as this task still has the zeroth partition
+    sourceConsumer.rebalance(Lists.newArrayList(tp0, tp1));
+    assertTrue(mockIcebergSinkTask.isCoordinatorRunning());
+
+    // Now finally revoking partition zero and this should result in the closure of the coordinator
+    sourceConsumer.rebalance(ImmutableList.of(tp1));
+    assertFalse(mockIcebergSinkTask.isCoordinatorRunning());
   }
 }
