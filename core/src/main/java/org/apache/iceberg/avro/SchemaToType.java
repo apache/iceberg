@@ -173,6 +173,11 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
   }
 
   @Override
+  public Type variant(Schema variant, Type metadataType, Type valueType) {
+    return Types.VariantType.get();
+  }
+
+  @Override
   public Type primitive(Schema primitive) {
     // first check supported logical types
     LogicalType logical = primitive.getLogicalType();

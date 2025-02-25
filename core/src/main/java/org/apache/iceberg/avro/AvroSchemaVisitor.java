@@ -25,6 +25,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public abstract class AvroSchemaVisitor<T> {
+  private static final String METADATA = "metadata";
+
   public static <T> T visit(Schema schema, AvroSchemaVisitor<T> visitor) {
     switch (schema.getType()) {
       case RECORD:
@@ -32,6 +34,11 @@ public abstract class AvroSchemaVisitor<T> {
         String name = schema.getFullName();
         Preconditions.checkState(
             !visitor.recordLevels.contains(name), "Cannot process recursive Avro record %s", name);
+        Preconditions.checkArgument(
+            !(schema.getLogicalType() instanceof VariantLogicalType)
+                || AvroSchemaUtil.isVariantSchema(schema),
+            "Invalid variant record: %s",
+            schema);
 
         visitor.recordLevels.push(name);
 
@@ -46,7 +53,15 @@ public abstract class AvroSchemaVisitor<T> {
 
         visitor.recordLevels.pop();
 
-        return visitor.record(schema, names, results);
+        if (schema.getLogicalType() instanceof VariantLogicalType) {
+          boolean isMetadataFirst = names.get(0).equals(METADATA);
+          return visitor.variant(
+              schema,
+              isMetadataFirst ? results.get(0) : results.get(1),
+              isMetadataFirst ? results.get(1) : results.get(0));
+        } else {
+          return visitor.record(schema, names, results);
+        }
 
       case UNION:
         List<Schema> types = schema.getTypes();
@@ -101,6 +116,10 @@ public abstract class AvroSchemaVisitor<T> {
 
   public T map(Schema map, T value) {
     return null;
+  }
+
+  public T variant(Schema variant, T metadataResult, T valueResult) {
+    throw new UnsupportedOperationException("Unsupported type: variant");
   }
 
   public T primitive(Schema primitive) {
