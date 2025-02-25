@@ -169,6 +169,10 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     return properties;
   }
 
+  public Table underlyingTable() {
+    return lazyTable();
+  }
+
   public int formatVersion() {
     if (formatVersion == UNKNOWN_FORMAT_VERSION) {
       throw new UnsupportedOperationException(

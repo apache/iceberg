@@ -128,6 +128,10 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
     return table;
   }
 
+  protected long maxGroupSize() {
+    return maxGroupSize;
+  }
+
   @Override
   public Set<String> validOptions() {
     return ImmutableSet.of(
