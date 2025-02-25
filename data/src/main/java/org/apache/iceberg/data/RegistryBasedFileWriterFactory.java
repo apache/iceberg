@@ -140,8 +140,8 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
-      return DataFileServiceRegistry.dataWriterBuilder(
-              dataFileFormat, inputType, file, rowSchemaType())
+      return DataFileServiceRegistry.<T, S>writeBuilder(dataFileFormat, inputType, file)
+          .nativeType(rowSchemaType())
           .schema(dataSchema)
           .setAll(properties)
           .setAll(writeProperties)
@@ -151,7 +151,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
           .withKeyMetadata(keyMetadata)
           .withSortOrder(dataSortOrder)
           .overwrite()
-          .build();
+          .writerBuilder();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -165,8 +165,8 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
-      return DataFileServiceRegistry.equalityDeleteWriterBuilder(
-              deleteFileFormat, inputType, file, equalityDeleteRowSchemaType())
+      return DataFileServiceRegistry.<T, S>writeBuilder(deleteFileFormat, inputType, file)
+          .nativeType(equalityDeleteRowSchemaType())
           .setAll(properties)
           .setAll(writeProperties)
           .metricsConfig(metricsConfig)
@@ -177,7 +177,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
           .withKeyMetadata(keyMetadata)
           .withSortOrder(equalityDeleteSortOrder)
           .overwrite()
-          .buildEqualityWriter();
+          .equalityWriterBuilder();
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create new equality delete writer", e);
     }
@@ -191,8 +191,8 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
     MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
 
     try {
-      return DataFileServiceRegistry.positionDeleteWriterBuilder(
-              deleteFileFormat, inputType, file, positionDeleteRowSchemaType())
+      return DataFileServiceRegistry.<T, S>writeBuilder(deleteFileFormat, inputType, file)
+          .nativeType(positionDeleteRowSchemaType())
           .setAll(properties)
           .setAll(writeProperties)
           .metricsConfig(metricsConfig)
@@ -201,7 +201,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
           .withPartition(partition)
           .withKeyMetadata(keyMetadata)
           .overwrite()
-          .buildPositionWriter();
+          .positionWriterBuilder();
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create new position delete writer", e);
     }

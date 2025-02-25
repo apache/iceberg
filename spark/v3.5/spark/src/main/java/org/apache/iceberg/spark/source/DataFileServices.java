@@ -18,21 +18,28 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
+
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.ParquetReaderType;
+import org.apache.iceberg.spark.data.SparkAvroWriter;
 import org.apache.iceberg.spark.data.SparkOrcReader;
+import org.apache.iceberg.spark.data.SparkOrcWriter;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
+import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.iceberg.spark.data.SparkPlannedAvroReader;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
+import org.apache.spark.unsafe.types.UTF8String;
 
-public class Readers {
+public class DataFileServices {
   public static void register() {
     // Base readers
     DataFileServiceRegistry.registerRead(
@@ -78,7 +85,36 @@ public class Readers {
         inputFile ->
             new ORC.DataReadBuilder<ColumnarBatch>(inputFile)
                 .batchReaderFunction(VectorizedSparkOrcReaders::buildReader));
+
+    DataFileServiceRegistry.registerWrite(
+        FileFormat.PARQUET,
+        InternalRow.class.getName(),
+        outputFile ->
+            new Parquet.ParquetDataWriteBuilder<InternalRow, StructType>(outputFile)
+                .writerFunction(SparkParquetWriters::buildWriter)
+                .transformPaths(path -> UTF8String.fromString(path.toString())));
+
+    DataFileServiceRegistry.registerWrite(
+        FileFormat.AVRO,
+        InternalRow.class.getName(),
+        outputFile ->
+            new Avro.AvroDataWriteBuilder<InternalRow, StructType>(outputFile)
+                .writerFunction((nativeSchema, unused) -> new SparkAvroWriter(nativeSchema))
+                .positionDeleteWriterFunction(
+                    (nativeSchema, unused) ->
+                        new SparkAvroWriter(
+                            (StructType)
+                                nativeSchema.apply(DELETE_FILE_ROW_FIELD_NAME).dataType())));
+
+    DataFileServiceRegistry.registerWrite(
+        FileFormat.ORC,
+        InternalRow.class.getName(),
+        outputFile ->
+            new ORC.ORCDataWriteBuilder<InternalRow, StructType>(outputFile)
+                .writerFunction(
+                    (schema, messageType, nativeSchema) -> new SparkOrcWriter(schema, messageType))
+                .transformPaths(path -> UTF8String.fromString(path.toString())));
   }
 
-  private Readers() {}
+  private DataFileServices() {}
 }
