@@ -36,6 +36,7 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -127,6 +128,52 @@ public class TestHiveCommits extends HiveTableBaseTest {
             "New metadata files should still exist, new location not in history but"
                 + " the commit may still succeed")
         .isEqualTo(3);
+  }
+
+  /**
+   * Pretends we throw a concurrent commit to allow for retry when register and overwrite an iceberg
+   * table
+   */
+  @Test
+  public void testCommitFailedExceptionOnRegisterOverwrite() {
+    Table table = catalog.loadTable(TABLE_IDENTIFIER);
+    HiveTableOperations ops = (HiveTableOperations) ((HasTableOperations) table).operations();
+
+    TableMetadata metadataV1 = ops.current();
+    String metadataV1Location = metadataV1.metadataFileLocation();
+    String metadataV1AsJson = TableMetadataParser.toJson(metadataV1);
+
+    table.updateSchema().addColumn("n", Types.IntegerType.get()).commit();
+
+    ops.refresh();
+
+    TableMetadata metadataV2 = ops.current();
+
+    assertThat(ops.current().schema().columns()).hasSize(2);
+
+    HiveTableOperations spyOps = spy(ops);
+
+    HiveCatalog spyCatalog = spy(catalog);
+    when(spyCatalog.newTableOps(TABLE_IDENTIFIER)).thenReturn(spyOps);
+    // Simulate a CommitFailedException and then allow the commit to be retried
+    doThrow(new CommitFailedException("Cannot commit: stale table metadata"))
+        .doCallRealMethod()
+        .when(spyOps)
+        .commit(any(), any());
+    spyCatalog.registerTable(TABLE_IDENTIFIER, metadataV1Location, true);
+
+    TableMetadata actual = ops.refresh();
+    assertThat(actual).as("Current metadata should have changed").isNotEqualTo(metadataV2);
+    assertThat(metadataFileExists(actual)).as("Current metadata file should still exist").isTrue();
+    assertThat(metadataFileCount(actual))
+        .as("Commit should have been successful and new metadata file should be made")
+        .isEqualTo(3);
+
+    TableMetadata expected = TableMetadataParser.fromJson(metadataV1AsJson);
+    assertThat(actual)
+        .usingRecursiveComparison()
+        .ignoringFields("metadataFileLocation")
+        .isEqualTo(expected);
   }
 
   /** Pretends we throw an error while persisting that actually does commit serverside */
