@@ -18,30 +18,16 @@
  */
 package org.apache.iceberg.aws.s3;
 
-import java.io.Serializable;
-import java.util.Map;
-import software.amazon.awssdk.services.s3.S3AsyncClient;
+import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.MetricsContext;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.s3.analyticsaccelerator.util.OpenStreamInformation;
 
-public interface S3FileIOAwsClientFactory extends Serializable {
-  /**
-   * create a Amazon S3 client
-   *
-   * @return s3 client
-   */
-  S3Client s3();
-
-  /**
-   * create a Amazon S3 async client
-   *
-   * @return s3 async client
-   */
-  S3AsyncClient s3Async();
-
-  /**
-   * Initialize AWS client factory from catalog properties.
-   *
-   * @param properties catalog properties
-   */
-  void initialize(Map<String, String> properties);
+public interface S3InputStreamFactory {
+  SeekableInputStream createStream(
+      S3Client client,
+      S3URI uri,
+      S3FileIOProperties properties,
+      MetricsContext metrics,
+      OpenStreamInformation openStreamInformation);
 }
