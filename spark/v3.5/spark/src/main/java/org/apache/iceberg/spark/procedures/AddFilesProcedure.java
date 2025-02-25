@@ -18,10 +18,6 @@
  */
 package org.apache.iceberg.spark.procedures;
 
-import static org.apache.iceberg.spark.Spark3Util.getInferredSpec;
-import static org.apache.iceberg.spark.SparkTableUtil.findCompatibleSpec;
-import static org.apache.iceberg.spark.SparkTableUtil.validatePartitionFilter;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -194,15 +190,15 @@ class AddFilesProcedure extends BaseProcedure {
       int parallelism) {
 
     org.apache.spark.sql.execution.datasources.PartitionSpec inferredSpec =
-        getInferredSpec(spark(), tableLocation);
+        Spark3Util.getInferredSpec(spark(), tableLocation);
 
     List<String> sparkPartNames =
         JavaConverters.seqAsJavaList(inferredSpec.partitionColumns()).stream()
             .map(StructField::name)
             .collect(Collectors.toList());
-    PartitionSpec compatibleSpec = findCompatibleSpec(sparkPartNames, table);
+    PartitionSpec compatibleSpec = SparkTableUtil.findCompatibleSpec(sparkPartNames, table);
 
-    validatePartitionFilter(compatibleSpec, partitionFilter, table.name());
+    SparkTableUtil.validatePartitionFilter(compatibleSpec, partitionFilter, table.name());
 
     // List Partitions via Spark InMemory file search interface
     List<SparkPartition> partitions =
