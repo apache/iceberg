@@ -23,9 +23,10 @@ import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.variants.Variant;
 
 public abstract class AvroSchemaVisitor<T> {
+  private static final String METADATA = "metadata";
+
   public static <T> T visit(Schema schema, AvroSchemaVisitor<T> visitor) {
     switch (schema.getType()) {
       case RECORD:
@@ -33,6 +34,11 @@ public abstract class AvroSchemaVisitor<T> {
         String name = schema.getFullName();
         Preconditions.checkState(
             !visitor.recordLevels.contains(name), "Cannot process recursive Avro record %s", name);
+        Preconditions.checkArgument(
+            !(schema.getLogicalType() instanceof VariantLogicalType)
+                || AvroSchemaUtil.isVariantSchema(schema),
+            "Invalid variant record: %s",
+            schema);
 
         visitor.recordLevels.push(name);
 
@@ -48,10 +54,7 @@ public abstract class AvroSchemaVisitor<T> {
         visitor.recordLevels.pop();
 
         if (schema.getLogicalType() instanceof VariantLogicalType) {
-          Preconditions.checkArgument(
-              AvroSchemaUtil.isVariantSchema(schema), "Invalid variant record: %s", schema);
-
-          boolean isMetadataFirst = names.get(0).equals(Variant.METADATA);
+          boolean isMetadataFirst = names.get(0).equals(METADATA);
           return visitor.variant(
               schema,
               isMetadataFirst ? results.get(0) : results.get(1),

@@ -22,10 +22,6 @@ import java.nio.ByteBuffer;
 
 /** A variant metadata and value pair. */
 public interface Variant {
-  String METADATA = "metadata";
-  String VALUE = "value";
-  String TYPED_VALUE = "typed_value";
-
   /** Returns the metadata for all values in the variant. */
   VariantMetadata metadata();
 

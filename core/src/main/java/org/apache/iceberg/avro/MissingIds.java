@@ -63,7 +63,7 @@ class MissingIds extends AvroCustomOrderSchemaVisitor<Boolean, Boolean> {
   }
 
   @Override
-  public Boolean variant(Schema variant) {
+  public Boolean variant(Schema variant, Supplier<Boolean> metadata, Supplier<Boolean> value) {
     return false;
   }
 

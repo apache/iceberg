@@ -21,7 +21,6 @@ package org.apache.iceberg.parquet;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation.ListLogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
@@ -29,6 +28,10 @@ import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import org.apache.parquet.schema.Type;
 
 public abstract class ParquetVariantVisitor<R> {
+  static final String METADATA = "metadata";
+  static final String VALUE = "value";
+  static final String TYPED_VALUE = "typed_value";
+
   /**
    * Handles the root variant column group.
    *
@@ -161,11 +164,9 @@ public abstract class ParquetVariantVisitor<R> {
 
   public static <R> R visit(GroupType type, ParquetVariantVisitor<R> visitor) {
     Preconditions.checkArgument(
-        ParquetSchemaUtil.hasField(type, Variant.METADATA),
-        "Invalid variant, missing metadata: %s",
-        type);
+        ParquetSchemaUtil.hasField(type, METADATA), "Invalid variant, missing metadata: %s", type);
 
-    Type metadataType = type.getType(Variant.METADATA);
+    Type metadataType = type.getType(METADATA);
     Preconditions.checkArgument(
         isBinary(metadataType), "Invalid variant metadata, expecting BINARY: %s", metadataType);
 
@@ -179,8 +180,8 @@ public abstract class ParquetVariantVisitor<R> {
 
   private static <R> R visitValue(GroupType valueGroup, ParquetVariantVisitor<R> visitor) {
     R valueResult;
-    if (ParquetSchemaUtil.hasField(valueGroup, Variant.VALUE)) {
-      Type valueType = valueGroup.getType(Variant.VALUE);
+    if (ParquetSchemaUtil.hasField(valueGroup, VALUE)) {
+      Type valueType = valueGroup.getType(VALUE);
       Preconditions.checkArgument(
           isBinary(valueType), "Invalid variant value, expecting BINARY: %s", valueType);
 
@@ -189,15 +190,15 @@ public abstract class ParquetVariantVisitor<R> {
               () -> visitor.serialized(valueType.asPrimitiveType()), valueType, visitor);
     } else {
       Preconditions.checkArgument(
-          ParquetSchemaUtil.hasField(valueGroup, Variant.TYPED_VALUE),
+          ParquetSchemaUtil.hasField(valueGroup, TYPED_VALUE),
           "Invalid variant, missing both value and typed_value: %s",
           valueGroup);
 
       valueResult = null;
     }
 
-    if (ParquetSchemaUtil.hasField(valueGroup, Variant.TYPED_VALUE)) {
-      Type typedValueType = valueGroup.getType(Variant.TYPED_VALUE);
+    if (ParquetSchemaUtil.hasField(valueGroup, TYPED_VALUE)) {
+      Type typedValueType = valueGroup.getType(TYPED_VALUE);
 
       if (typedValueType.isPrimitive()) {
         R typedResult =
