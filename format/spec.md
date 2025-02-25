@@ -686,7 +686,6 @@ A snapshot consists of the following fields:
 | _optional_ | _optional_ | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created                                                                     |
 |            |            | _optional_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage)        |
 |            |            | _optional_ | **`added-rows`**             | Sum of the [`added_rows_count`](#manifest-lists) from all manifests added in this snapshot. Required if [Row Lineage](#row-lineage) is enabled | 
-|            |            | _optional_ | **`key-metadata-id`**        | ID of the manifest list key metadata in the encryption-keys table ([Encryption Keys](#encryption-keys))                            |
 
 
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
@@ -989,10 +988,9 @@ There are two types of entries:
 
 | v1 | v2 |     v3     |     Field name          |   Type.  |                             Description                                                                  |
 |----|----|------------|-------------------------|----------|----------------------------------------------------------------------------------------------------------|
-|    |    | _required_ | **`id`**                | `string` | ID of the encryption key.                                                                                |
-|    |    | _required_ | **`type`**              | `string` | `key-metadata` for manifest list encryption key metadata, or `key` for keys that encrypt `key-metadata`. |
-|    |    | _required_ | **`key-metadata`**.     | `string` | Encrypted `key-metadata` or wrapped `key`. Base64-encoded.                                               |
-|    |    | _optional_ | **`encryption-key-id`** | `string` | ID of the key in this table that encrypted this entry. Omitted for KMS-wrapped keys.                     |
+|    |    | _required_ | **`key-id`**            | `string` | ID of the encryption key. For manifest list file keys, the ID is the snapshot-id (a string representation of the Long in base 10).    |
+|    |    | _required_ | **`key-metadata`**.     | `string` | Encrypted `key-metadata` or wrapped `key`. Base64-encoded.                                                                            |
+|    |    | _optional_ | **`encryption-key-id`** | `string` | ID of the key in this table that encrypted this entry. Omitted for KMS-wrapped keys.                                                  |
 
 
 ### Commit Conflict Resolution and Retry
