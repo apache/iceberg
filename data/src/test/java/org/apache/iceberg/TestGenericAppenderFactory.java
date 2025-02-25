@@ -118,4 +118,23 @@ public class TestGenericAppenderFactory extends TestAppenderFactory<Record> {
                 appenderFactory.setAll(
                     ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full")));
   }
+
+  @TestTemplate
+  void createFactoryWithConflictConfig() {
+    table
+        .updateProperties()
+        .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, MetricsModes.Full.get().toString())
+        .commit();
+    Map<String, String> config =
+        ImmutableMap.of(
+            TableProperties.DEFAULT_WRITE_METRICS_MODE, MetricsModes.None.get().toString());
+
+    assertThatThrownBy(
+            () -> new GenericAppenderFactory(table, SCHEMA, SPEC, config, null, null, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            String.format(
+                "Cannot set metrics property: %s to %s, as it conflicts with the table property",
+                TableProperties.DEFAULT_WRITE_METRICS_MODE, MetricsModes.None.get().toString()));
+  }
 }

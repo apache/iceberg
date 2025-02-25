@@ -21,7 +21,6 @@ package org.apache.iceberg.data;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
-import java.util.function.Supplier;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
@@ -56,17 +55,14 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
   private static final String WRITE_METRICS_PREFIX = "write.metadata.metrics.";
 
-  @Deprecated
   public GenericAppenderFactory(Schema schema) {
     this(schema, PartitionSpec.unpartitioned());
   }
 
-  @Deprecated
   public GenericAppenderFactory(Schema schema, PartitionSpec spec) {
     this(schema, spec, null, null, null);
   }
 
-  @Deprecated
   public GenericAppenderFactory(
       Schema schema,
       PartitionSpec spec,
@@ -76,10 +72,17 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     this(null, schema, spec, null, equalityFieldIds, eqDeleteRowSchema, posDeleteRowSchema);
   }
 
-  public GenericAppenderFactory(Table table) {
-    this(table, null, null, null, null, null, null);
-  }
-
+  /**
+   * Constructor for GenericAppenderFactory.
+   *
+   * @param table iceberg table
+   * @param schema the schema of the records to write
+   * @param spec the partition spec of the records
+   * @param config the configuration for the writer
+   * @param equalityFieldIds the field ids for equality delete
+   * @param eqDeleteRowSchema the schema for equality delete rows
+   * @param posDeleteRowSchema the schema for position delete rows
+   */
   public GenericAppenderFactory(
       Table table,
       Schema schema,
@@ -89,19 +92,19 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
       Schema eqDeleteRowSchema,
       Schema posDeleteRowSchema) {
     this.table = table;
-    if (table != null && schema == null) {
-      this.schema = table.schema();
+    this.config = config == null ? Maps.newHashMap() : config;
+
+    if (table != null) {
+      // If the table is provided and schema and spec are not provided, derive them from the table
+      this.schema = schema == null ? table.schema() : schema;
+      this.spec = spec == null ? table.spec() : spec;
+      // Validate that the metrics config doesn't have conflict with table properties
+      validateMetricsConfig(table.properties());
     } else {
       this.schema = schema;
-    }
-
-    if (table != null && spec == null) {
-      this.spec = table.spec();
-    } else {
       this.spec = spec;
     }
 
-    this.config = config == null ? Maps.newHashMap() : config;
     this.equalityFieldIds = equalityFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
     this.posDeleteRowSchema = posDeleteRowSchema;
@@ -111,7 +114,8 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     if (property.startsWith(WRITE_METRICS_PREFIX) && table != null) {
       throw new IllegalArgumentException(
           String.format(
-              "Cannot set metrics property: %s directly. Use table properties instead.", property));
+              "Cannot set metrics property: %s directly when the table is provided. Use table properties instead.",
+              property));
     }
 
     config.put(property, value);
@@ -122,7 +126,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     if (properties.keySet().stream().anyMatch(k -> k.startsWith(WRITE_METRICS_PREFIX))
         && table != null) {
       throw new IllegalArgumentException(
-          "Cannot set metrics properties directly. Use table properties instead.");
+          "Cannot set metrics properties directly when the table is provided. Use table properties instead.");
     }
 
     config.putAll(properties);
@@ -137,7 +141,8 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   @Override
   public FileAppender<Record> newAppender(
       EncryptedOutputFile encryptedOutputFile, FileFormat fileFormat) {
-    MetricsConfig metricsConfig = applyMetricsConfig(() -> MetricsConfig.forTable(table));
+    MetricsConfig metricsConfig =
+        table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
 
     try {
       switch (fileFormat) {
@@ -198,7 +203,8 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     Preconditions.checkNotNull(
         eqDeleteRowSchema,
         "Equality delete row schema shouldn't be null when creating equality-delete writer");
-    MetricsConfig metricsConfig = applyMetricsConfig(() -> MetricsConfig.forTable(table));
+    MetricsConfig metricsConfig =
+        table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
 
     try {
       switch (format) {
@@ -252,7 +258,10 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   @Override
   public PositionDeleteWriter<Record> newPosDeleteWriter(
       EncryptedOutputFile file, FileFormat format, StructLike partition) {
-    MetricsConfig metricsConfig = applyMetricsConfig(() -> MetricsConfig.forPositionDelete(table));
+    MetricsConfig metricsConfig =
+        table != null
+            ? MetricsConfig.forPositionDelete(table)
+            : MetricsConfig.fromProperties(config);
 
     try {
       switch (format) {
@@ -299,14 +308,23 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     }
   }
 
-  private MetricsConfig applyMetricsConfig(Supplier<MetricsConfig> metricsConfigSupplier) {
-    MetricsConfig metricsConfig;
-    if (table == null) {
-      metricsConfig = MetricsConfig.fromProperties(config);
-    } else {
-      metricsConfig = metricsConfigSupplier.get();
+  private void validateMetricsConfig(Map<String, String> properties) {
+    if (config.isEmpty()) {
+      return;
     }
 
-    return metricsConfig;
+    config.keySet().stream()
+        .filter(k -> k.startsWith(WRITE_METRICS_PREFIX))
+        .forEach(
+            k -> {
+              String configValue = config.get(k);
+              String propertyValue = properties.get(k);
+              if (propertyValue != null && !propertyValue.equals(configValue)) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        "Cannot set metrics property: %s to %s, as it conflicts with the table property value: %s",
+                        k, configValue, propertyValue));
+              }
+            });
   }
 }
