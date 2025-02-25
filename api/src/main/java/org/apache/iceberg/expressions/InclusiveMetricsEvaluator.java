@@ -36,7 +36,6 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantObject;
-import org.apache.iceberg.variants.VariantUtil;
 
 /**
  * Evaluates an {@link Expression} on a {@link DataFile} to test whether rows in the file may match.
@@ -557,7 +556,8 @@ public class InclusiveMetricsEvaluator {
       Integer id = bound.ref().fieldId();
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         VariantObject fieldLowerBounds = parseBounds(lowerBounds.get(id));
-        return VariantUtil.castTo(fieldLowerBounds.get(bound.fullFieldName()), bound.type());
+        return VariantExpressionUtil.castTo(
+            fieldLowerBounds.get(bound.fullFieldName()), bound.type());
       }
 
       return null;
@@ -567,7 +567,8 @@ public class InclusiveMetricsEvaluator {
       Integer id = bound.ref().fieldId();
       if (upperBounds != null && upperBounds.containsKey(id)) {
         VariantObject fieldUpperBounds = parseBounds(upperBounds.get(id));
-        return VariantUtil.castTo(fieldUpperBounds.get(bound.fullFieldName()), bound.type());
+        return VariantExpressionUtil.castTo(
+            fieldUpperBounds.get(bound.fullFieldName()), bound.type());
       }
 
       return null;
