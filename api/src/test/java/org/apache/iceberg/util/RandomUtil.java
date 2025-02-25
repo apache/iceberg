@@ -20,6 +20,7 @@ package org.apache.iceberg.util;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -31,10 +32,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.Point;
 
 public class RandomUtil {
 
   private RandomUtil() {}
+
+  private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
 
   private static boolean negate(int num) {
     return num % 2 == 1;
@@ -150,6 +156,13 @@ public class RandomUtil {
         BigInteger unscaled = randomUnscaled(type.precision(), random);
         BigDecimal bigDecimal = new BigDecimal(unscaled, type.scale());
         return negate(choice) ? bigDecimal.negate() : bigDecimal;
+
+      case GEOMETRY:
+      case GEOGRAPHY:
+        Point geometry =
+            GEOMETRY_FACTORY.createPoint(new Coordinate(random.nextDouble(), random.nextDouble()));
+        byte[] wkb = GeometryUtil.toWKB(geometry);
+        return ByteBuffer.wrap(wkb);
 
       default:
         throw new IllegalArgumentException(

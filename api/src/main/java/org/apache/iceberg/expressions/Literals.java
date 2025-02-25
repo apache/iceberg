@@ -32,6 +32,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.UUID;
+import org.apache.iceberg.Geography;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.types.Comparators;
@@ -41,6 +42,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.NaNUtil;
+import org.locationtech.jts.geom.Geometry;
 
 class Literals {
   private Literals() {}
@@ -55,7 +57,7 @@ class Literals {
    * @param <T> Java type of value
    * @return a Literal for the given value
    */
-  @SuppressWarnings("unchecked")
+  @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
   static <T> Literal<T> from(T value) {
     Preconditions.checkNotNull(value, "Cannot create expression literal from null");
     Preconditions.checkArgument(!NaNUtil.isNaN(value), "Cannot create expression literal from NaN");
@@ -80,6 +82,10 @@ class Literals {
       return (Literal<T>) new Literals.BinaryLiteral((ByteBuffer) value);
     } else if (value instanceof BigDecimal) {
       return (Literal<T>) new Literals.DecimalLiteral((BigDecimal) value);
+    } else if (value instanceof Geometry) {
+      return (Literal<T>) new Literals.GeometryLiteral((Geometry) value);
+    } else if (value instanceof Geography) {
+      return (Literal<T>) new Literals.GeographyLiteral((Geography) value);
     }
 
     throw new IllegalArgumentException(
@@ -685,6 +691,63 @@ class Literals {
     public String toString() {
       byte[] bytes = ByteBuffers.toByteArray(value());
       return "X'" + BaseEncoding.base16().encode(bytes) + "'";
+    }
+  }
+
+  static class GeometryLiteral extends BaseLiteral<Geometry> {
+    @SuppressWarnings("unchecked")
+    private static final Comparator<Geometry> CMP =
+        Comparators.<Geometry>nullsFirst().thenComparing(Comparator.naturalOrder());
+
+    GeometryLiteral(Geometry value) {
+      super(value);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Literal<T> to(Type type) {
+      if (type.typeId() == Type.TypeID.GEOMETRY) {
+        return (Literal<T>) this;
+      }
+      return null;
+    }
+
+    @Override
+    public Comparator<Geometry> comparator() {
+      return CMP;
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.GEOMETRY;
+    }
+  }
+
+  static class GeographyLiteral extends BaseLiteral<Geography> {
+    private static final Comparator<Geography> CMP =
+        Comparators.<Geography>nullsFirst().thenComparing(Comparator.naturalOrder());
+
+    GeographyLiteral(Geography value) {
+      super(value);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Literal<T> to(Type type) {
+      if (type.typeId() == Type.TypeID.GEOGRAPHY) {
+        return (Literal<T>) this;
+      }
+      return null;
+    }
+
+    @Override
+    public Comparator<Geography> comparator() {
+      return CMP;
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.GEOGRAPHY;
     }
   }
 }

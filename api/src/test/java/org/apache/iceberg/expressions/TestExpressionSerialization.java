@@ -21,11 +21,15 @@ package org.apache.iceberg.expressions;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Collection;
+import org.apache.iceberg.Geography;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.locationtech.jts.geom.Envelope;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 
 public class TestExpressionSerialization {
   @Test
@@ -33,8 +37,12 @@ public class TestExpressionSerialization {
     Schema schema =
         new Schema(
             Types.NestedField.optional(34, "a", Types.IntegerType.get()),
-            Types.NestedField.required(35, "s", Types.StringType.get()));
-
+            Types.NestedField.required(35, "s", Types.StringType.get()),
+            Types.NestedField.optional(3, "g", Types.GeometryType.get()),
+            Types.NestedField.optional(4, "geog", Types.GeographyType.get()));
+    GeometryFactory factory = new GeometryFactory();
+    Geometry queryWindow = factory.toGeometry(new Envelope(0, 1, 0, 1));
+    Geography queryWindowGeog = new Geography(queryWindow);
     Expression[] expressions =
         new Expression[] {
           Expressions.alwaysFalse(),
@@ -61,7 +69,15 @@ public class TestExpressionSerialization {
           Expressions.notIn("s", "abc", "xyz").bind(schema.asStruct()),
           Expressions.isNull("a").bind(schema.asStruct()),
           Expressions.startsWith("s", "abc").bind(schema.asStruct()),
-          Expressions.notStartsWith("s", "xyz").bind(schema.asStruct())
+          Expressions.notStartsWith("s", "xyz").bind(schema.asStruct()),
+          Expressions.stIntersects("g", queryWindow).bind(schema.asStruct()),
+          Expressions.stCovers("g", queryWindow).bind(schema.asStruct()),
+          Expressions.stDisjoint("g", queryWindow).bind(schema.asStruct()),
+          Expressions.stNotCovers("g", queryWindow).bind(schema.asStruct()),
+          Expressions.stIntersects("geog", queryWindowGeog).bind(schema.asStruct()),
+          Expressions.stCovers("geog", queryWindowGeog).bind(schema.asStruct()),
+          Expressions.stDisjoint("geog", queryWindowGeog).bind(schema.asStruct()),
+          Expressions.stNotCovers("geog", queryWindowGeog).bind(schema.asStruct())
         };
 
     for (Expression expression : expressions) {

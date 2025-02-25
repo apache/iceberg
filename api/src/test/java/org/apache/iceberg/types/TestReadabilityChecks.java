@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
+import org.apache.iceberg.Geography;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.junit.jupiter.api.Test;
@@ -53,7 +54,12 @@ public class TestReadabilityChecks {
         Types.BinaryType.get(),
         Types.DecimalType.of(9, 2),
         Types.DecimalType.of(11, 2),
-        Types.DecimalType.of(9, 3)
+        Types.DecimalType.of(9, 3),
+        Types.GeometryType.get(),
+        Types.GeometryType.of("srid:3857"),
+        Types.GeographyType.get(),
+        Types.GeographyType.of("srid:4269"),
+        Types.GeographyType.of("srid:4269", Geography.EdgeInterpolationAlgorithm.KARNEY),
       };
 
   @Test

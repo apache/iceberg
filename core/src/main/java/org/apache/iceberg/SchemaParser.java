@@ -44,6 +44,8 @@ public class SchemaParser {
   private static final String STRUCT = "struct";
   private static final String LIST = "list";
   private static final String MAP = "map";
+  private static final String GEOMETRY = "geometry";
+  private static final String GEOGRAPHY = "geography";
   private static final String FIELDS = "fields";
   private static final String ELEMENT = "element";
   private static final String KEY = "key";
@@ -141,7 +143,22 @@ public class SchemaParser {
   }
 
   static void toJson(Type.PrimitiveType primitive, JsonGenerator generator) throws IOException {
-    generator.writeString(primitive.toString());
+    if (primitive.typeId() == Type.TypeID.GEOMETRY) {
+      Types.GeometryType geometryType = (Types.GeometryType) primitive;
+      generator.writeStartObject();
+      generator.writeStringField("type", "geometry");
+      generator.writeStringField("crs", geometryType.crs());
+      generator.writeEndObject();
+    } else if (primitive.typeId() == Type.TypeID.GEOGRAPHY) {
+      Types.GeographyType geographyType = (Types.GeographyType) primitive;
+      generator.writeStartObject();
+      generator.writeStringField("type", "geography");
+      generator.writeStringField("crs", geographyType.crs());
+      generator.writeStringField("algorithm", geographyType.algorithm().name());
+      generator.writeEndObject();
+    } else {
+      generator.writeString(primitive.toString());
+    }
   }
 
   static void toJson(Type type, JsonGenerator generator) throws IOException {
@@ -192,6 +209,10 @@ public class SchemaParser {
           return listFromJson(json);
         } else if (MAP.equals(type)) {
           return mapFromJson(json);
+        } else if (GEOMETRY.equals(type)) {
+          return geometryFromJson(json);
+        } else if (GEOGRAPHY.equals(type)) {
+          return geographyFromJson(json);
         }
       }
     }
@@ -275,6 +296,17 @@ public class SchemaParser {
     } else {
       return Types.MapType.ofOptional(keyId, valueId, keyType, valueType);
     }
+  }
+
+  private static Types.GeometryType geometryFromJson(JsonNode json) {
+    String crs = JsonUtil.getStringOrNull("crs", json);
+    return Types.GeometryType.of(crs);
+  }
+
+  private static Types.GeographyType geographyFromJson(JsonNode json) {
+    String crs = JsonUtil.getStringOrNull("crs", json);
+    String algorithm = JsonUtil.getStringOrNull("algorithm", json);
+    return Types.GeographyType.of(crs, algorithm);
   }
 
   public static Schema fromJson(JsonNode json) {

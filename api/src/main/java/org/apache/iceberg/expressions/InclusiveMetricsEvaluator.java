@@ -28,13 +28,16 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.Geography;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
+import org.apache.iceberg.util.GeometryUtil;
 import org.apache.iceberg.util.NaNUtil;
+import org.locationtech.jts.geom.Geometry;
 
 /**
  * Evaluates an {@link Expression} on a {@link DataFile} to test whether rows in the file may match.
@@ -467,6 +470,155 @@ public class InclusiveMetricsEvaluator {
         }
       }
 
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stIntersects(BoundReference<T> ref, Literal<T> lit) {
+      Integer id = ref.fieldId();
+
+      if (containsNullsOnly(id)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      if (lowerBounds != null
+          && upperBounds != null
+          && lowerBounds.containsKey(id)
+          && upperBounds.containsKey(id)) {
+        T lowerBound = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+        T upperBound = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
+        if (lowerBound != null && upperBound != null) {
+          switch (ref.type().typeId()) {
+            case GEOMETRY:
+              {
+                Geometry queryWindow = (Geometry) lit.value();
+                boolean intersects =
+                    GeometryUtil.boundMayIntersects(
+                        (Geometry) lowerBound, (Geometry) upperBound, queryWindow);
+                if (!intersects) {
+                  return ROWS_CANNOT_MATCH;
+                }
+                break;
+              }
+            case GEOGRAPHY:
+              {
+                Geography queryWindow = (Geography) lit.value();
+                boolean intersects =
+                    GeometryUtil.boundMayIntersects(
+                        (Geography) lowerBound, (Geography) upperBound, queryWindow);
+                if (!intersects) {
+                  return ROWS_CANNOT_MATCH;
+                }
+                break;
+              }
+            default:
+              throw new UnsupportedOperationException(
+                  "Cannot evaluate stIntersects predicate on non-spatial column: " + ref);
+          }
+        }
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stCovers(BoundReference<T> ref, Literal<T> lit) {
+      Integer id = ref.fieldId();
+
+      if (containsNullsOnly(id)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      if (lowerBounds != null
+          && upperBounds != null
+          && lowerBounds.containsKey(id)
+          && upperBounds.containsKey(id)) {
+        T lowerBound = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+        T upperBound = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
+        if (lowerBound != null && upperBound != null) {
+          switch (ref.type().typeId()) {
+            case GEOMETRY:
+              {
+                Geometry queryWindow = (Geometry) lit.value();
+                boolean covers =
+                    GeometryUtil.boundMayCovers(
+                        (Geometry) lowerBound, (Geometry) upperBound, queryWindow);
+                if (!covers) {
+                  return ROWS_CANNOT_MATCH;
+                }
+                break;
+              }
+            case GEOGRAPHY:
+              {
+                Geography queryWindow = (Geography) lit.value();
+                boolean covers =
+                    GeometryUtil.boundMayCovers(
+                        (Geography) lowerBound, (Geography) upperBound, queryWindow);
+                if (!covers) {
+                  return ROWS_CANNOT_MATCH;
+                }
+                break;
+              }
+            default:
+              throw new UnsupportedOperationException(
+                  "Cannot evaluate stCovers predicate on non-spatial column: " + ref);
+          }
+        }
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stDisjoint(BoundReference<T> ref, Literal<T> lit) {
+      Integer id = ref.fieldId();
+
+      if (containsNullsOnly(id)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      if (lowerBounds != null
+          && upperBounds != null
+          && lowerBounds.containsKey(id)
+          && upperBounds.containsKey(id)) {
+        T lowerBound = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+        T upperBound = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
+        if (lowerBound != null && upperBound != null) {
+          switch (ref.type().typeId()) {
+            case GEOMETRY:
+              {
+                Geometry queryWindow = (Geometry) lit.value();
+                boolean covered =
+                    GeometryUtil.boundMustBeCoveredBy(
+                        (Geometry) lowerBound, (Geometry) upperBound, queryWindow);
+                if (covered) {
+                  return ROWS_CANNOT_MATCH;
+                }
+                break;
+              }
+            case GEOGRAPHY:
+              {
+                Geography queryWindow = (Geography) lit.value();
+                boolean covered =
+                    GeometryUtil.boundMustBeCoveredBy(
+                        (Geography) lowerBound, (Geography) upperBound, queryWindow);
+                if (covered) {
+                  return ROWS_CANNOT_MATCH;
+                }
+                break;
+              }
+            default:
+              throw new UnsupportedOperationException(
+                  "Cannot evaluate stDisjoint predicate on non-spatial column: " + ref);
+          }
+        }
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stNotCovers(BoundReference<T> ref, Literal<T> lit) {
       return ROWS_MIGHT_MATCH;
     }
 

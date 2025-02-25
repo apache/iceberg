@@ -20,9 +20,12 @@ package org.apache.iceberg.expressions;
 
 import java.util.Comparator;
 import java.util.Set;
+import org.apache.iceberg.Geography;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.locationtech.jts.geom.Geometry;
 
 public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
   private static final Set<Type.TypeID> INTEGRAL_TYPES =
@@ -88,8 +91,61 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
         return String.valueOf(value).startsWith((String) literal.value());
       case NOT_STARTS_WITH:
         return !String.valueOf(value).startsWith((String) literal.value());
+      case ST_INTERSECTS:
+      case ST_COVERS:
+      case ST_DISJOINT:
+      case ST_NOT_COVERS:
+        return testSpatial(value);
       default:
         throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + op());
+    }
+  }
+
+  private boolean testSpatial(T value) {
+    Type type = term().type();
+    Type.TypeID typeId = type.typeId();
+    if (typeId == Type.TypeID.GEOMETRY) {
+      return testGeometry((Geometry) value);
+    } else if (typeId == Type.TypeID.GEOGRAPHY) {
+      Types.GeographyType geographyType = (Types.GeographyType) type;
+      Geography.EdgeInterpolationAlgorithm algorithm = geographyType.algorithm();
+      return testGeography((Geography) value, algorithm);
+    } else {
+      throw new IllegalStateException("Invalid term type for spatial predicate: " + type);
+    }
+  }
+
+  private boolean testGeometry(Geometry value) {
+    Geometry literalGeometry = (Geometry) literal.value();
+    switch (op()) {
+      case ST_INTERSECTS:
+        return value.intersects(literalGeometry);
+      case ST_COVERS:
+        return value.covers(literalGeometry);
+      case ST_DISJOINT:
+        return value.disjoint(literalGeometry);
+      case ST_NOT_COVERS:
+        return !value.covers(literalGeometry);
+      default:
+        throw new IllegalStateException(
+            "Invalid spatial operation for BoundLiteralPredicate: " + op());
+    }
+  }
+
+  private boolean testGeography(Geography value, Geography.EdgeInterpolationAlgorithm algorithm) {
+    Geography literalGeography = (Geography) literal.value();
+    switch (op()) {
+      case ST_INTERSECTS:
+        return value.intersects(literalGeography, algorithm);
+      case ST_COVERS:
+        return value.covers(literalGeography, algorithm);
+      case ST_DISJOINT:
+        return !value.intersects(literalGeography, algorithm);
+      case ST_NOT_COVERS:
+        return !value.covers(literalGeography, algorithm);
+      default:
+        throw new IllegalStateException(
+            "Invalid spatial operation for BoundLiteralPredicate: " + op());
     }
   }
 
@@ -159,6 +215,14 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
         return term() + " startsWith \"" + literal + "\"";
       case NOT_STARTS_WITH:
         return term() + " notStartsWith \"" + literal + "\"";
+      case ST_INTERSECTS:
+        return term() + " intersects " + literal;
+      case ST_COVERS:
+        return term() + " covers " + literal;
+      case ST_DISJOINT:
+        return term() + " disjoint " + literal;
+      case ST_NOT_COVERS:
+        return term() + " notCovers " + literal;
       case IN:
         return term() + " in { " + literal + " }";
       case NOT_IN:
