@@ -26,6 +26,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
@@ -44,16 +45,18 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /** Factory to create a new {@link FileAppender} to write {@link Record}s. */
 public class GenericAppenderFactory implements FileAppenderFactory<Record> {
-
+  private final Table table;
   private final Schema schema;
   private final PartitionSpec spec;
   private final int[] equalityFieldIds;
   private final Schema eqDeleteRowSchema;
   private final Schema posDeleteRowSchema;
-  private final Map<String, String> config = Maps.newHashMap();
+  private final Map<String, String> config;
+
+  private static final String WRITE_METRICS_PREFIX = "write.metadata.metrics.";
 
   public GenericAppenderFactory(Schema schema) {
-    this(schema, PartitionSpec.unpartitioned(), null, null, null);
+    this(schema, PartitionSpec.unpartitioned());
   }
 
   public GenericAppenderFactory(Schema schema, PartitionSpec spec) {
@@ -66,19 +69,66 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
       int[] equalityFieldIds,
       Schema eqDeleteRowSchema,
       Schema posDeleteRowSchema) {
-    this.schema = schema;
-    this.spec = spec;
+    this(null, schema, spec, null, equalityFieldIds, eqDeleteRowSchema, posDeleteRowSchema);
+  }
+
+  /**
+   * Constructor for GenericAppenderFactory.
+   *
+   * @param table iceberg table
+   * @param schema the schema of the records to write
+   * @param spec the partition spec of the records
+   * @param config the configuration for the writer
+   * @param equalityFieldIds the field ids for equality delete
+   * @param eqDeleteRowSchema the schema for equality delete rows
+   * @param posDeleteRowSchema the schema for position delete rows
+   */
+  public GenericAppenderFactory(
+      Table table,
+      Schema schema,
+      PartitionSpec spec,
+      Map<String, String> config,
+      int[] equalityFieldIds,
+      Schema eqDeleteRowSchema,
+      Schema posDeleteRowSchema) {
+    this.table = table;
+    this.config = config == null ? Maps.newHashMap() : config;
+
+    if (table != null) {
+      // If the table is provided and schema and spec are not provided, derive them from the table
+      this.schema = schema == null ? table.schema() : schema;
+      this.spec = spec == null ? table.spec() : spec;
+      // Validate that the metrics config doesn't have conflict with table properties
+      validateMetricsConfig(table.properties());
+    } else {
+      this.schema = schema;
+      this.spec = spec;
+    }
+
     this.equalityFieldIds = equalityFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
     this.posDeleteRowSchema = posDeleteRowSchema;
   }
 
   public GenericAppenderFactory set(String property, String value) {
+    if (property.startsWith(WRITE_METRICS_PREFIX) && table != null) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot set metrics property: %s directly when the table is provided. Use table properties instead.",
+              property));
+    }
+
     config.put(property, value);
     return this;
   }
 
   public GenericAppenderFactory setAll(Map<String, String> properties) {
+    if (properties.keySet().stream().anyMatch(k -> k.startsWith(WRITE_METRICS_PREFIX))
+        && table != null) {
+      throw new IllegalArgumentException(
+          "Cannot set metrics properties directly when the table is provided. Use table properties instead.");
+    }
+
     config.putAll(properties);
     return this;
   }
@@ -91,7 +141,9 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   @Override
   public FileAppender<Record> newAppender(
       EncryptedOutputFile encryptedOutputFile, FileFormat fileFormat) {
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+    MetricsConfig metricsConfig =
+        table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
+
     try {
       switch (fileFormat) {
         case AVRO:
@@ -151,8 +203,8 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     Preconditions.checkNotNull(
         eqDeleteRowSchema,
         "Equality delete row schema shouldn't be null when creating equality-delete writer");
-
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+    MetricsConfig metricsConfig =
+        table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
 
     try {
       switch (format) {
@@ -206,7 +258,10 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   @Override
   public PositionDeleteWriter<Record> newPosDeleteWriter(
       EncryptedOutputFile file, FileFormat format, StructLike partition) {
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
+    MetricsConfig metricsConfig =
+        table != null
+            ? MetricsConfig.forPositionDelete(table)
+            : MetricsConfig.fromProperties(config);
 
     try {
       switch (format) {
@@ -251,5 +306,25 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
+  }
+
+  private void validateMetricsConfig(Map<String, String> properties) {
+    if (config.isEmpty()) {
+      return;
+    }
+
+    config.keySet().stream()
+        .filter(k -> k.startsWith(WRITE_METRICS_PREFIX))
+        .forEach(
+            k -> {
+              String configValue = config.get(k);
+              String propertyValue = properties.get(k);
+              if (propertyValue != null && !propertyValue.equals(configValue)) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        "Cannot set metrics property: %s to %s, as it conflicts with the table property value: %s",
+                        k, configValue, propertyValue));
+              }
+            });
   }
 }
