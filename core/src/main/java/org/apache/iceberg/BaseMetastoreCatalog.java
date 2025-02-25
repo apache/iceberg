@@ -85,7 +85,8 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
         metadataFileLocation != null && !metadataFileLocation.isEmpty(),
         "Cannot register an empty metadata file location as a table");
 
-    // Throw an exception if this table already exists in the catalog and not overwrite is requested
+    // Throw an exception if the table already exists in the catalog and overwriting is not
+    // requested.
     if (tableExists(identifier) && !overwrite) {
       throw new AlreadyExistsException("Table already exists: %s", identifier);
     }
