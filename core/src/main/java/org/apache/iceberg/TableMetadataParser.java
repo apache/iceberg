@@ -128,7 +128,6 @@ public class TableMetadataParser {
     try (OutputStream ou = isGzip ? new GZIPOutputStream(stream) : stream;
         OutputStreamWriter writer = new OutputStreamWriter(ou, StandardCharsets.UTF_8)) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      generator.useDefaultPrettyPrinter();
       toJson(metadata, generator);
       generator.flush();
     } catch (IOException e) {
