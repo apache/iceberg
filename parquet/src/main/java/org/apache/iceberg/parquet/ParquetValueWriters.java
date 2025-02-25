@@ -71,6 +71,10 @@ public class ParquetValueWriters {
     return new ShortWriter(desc);
   }
 
+  public static <T> ParquetValueWriter<T> unboxed(ColumnDescriptor desc) {
+    return new UnboxedWriter<>(desc);
+  }
+
   public static UnboxedWriter<Integer> ints(ColumnDescriptor desc) {
     return new UnboxedWriter<>(desc);
   }

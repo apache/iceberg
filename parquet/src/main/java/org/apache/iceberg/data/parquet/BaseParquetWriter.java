@@ -18,13 +18,17 @@
  */
 package org.apache.iceberg.data.parquet;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import org.apache.iceberg.parquet.ParquetTypeVisitor;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
+import org.apache.iceberg.parquet.ParquetVariantVisitor;
+import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
+import org.apache.iceberg.parquet.VariantWriterBuilder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -34,9 +38,14 @@ import org.apache.parquet.schema.Type;
 
 abstract class BaseParquetWriter<T> {
 
-  @SuppressWarnings("unchecked")
   protected ParquetValueWriter<T> createWriter(MessageType type) {
-    return (ParquetValueWriter<T>) ParquetTypeVisitor.visit(type, new WriteBuilder(type));
+    return createWriter(null, type);
+  }
+
+  @SuppressWarnings("unchecked")
+  protected ParquetValueWriter<T> createWriter(Types.StructType struct, MessageType type) {
+    return (ParquetValueWriter<T>)
+        TypeWithSchemaVisitor.visit(struct, type, new WriteBuilder(type));
   }
 
   protected abstract ParquetValueWriters.StructWriter<T> createStructWriter(
@@ -62,7 +71,7 @@ abstract class BaseParquetWriter<T> {
     }
   }
 
-  private class WriteBuilder extends ParquetTypeVisitor<ParquetValueWriter<?>> {
+  private class WriteBuilder extends TypeWithSchemaVisitor<ParquetValueWriter<?>> {
     private final MessageType type;
 
     private WriteBuilder(MessageType type) {
@@ -71,14 +80,14 @@ abstract class BaseParquetWriter<T> {
 
     @Override
     public ParquetValueWriter<?> message(
-        MessageType message, List<ParquetValueWriter<?>> fieldWriters) {
+        Types.StructType struct, MessageType message, List<ParquetValueWriter<?>> fieldWriters) {
 
-      return struct(message.asGroupType(), fieldWriters);
+      return struct(struct, message.asGroupType(), fieldWriters);
     }
 
     @Override
     public ParquetValueWriter<?> struct(
-        GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
+        Types.StructType iceberg, GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
       List<Type> fields = struct.getFields();
       List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
       for (int i = 0; i < fields.size(); i += 1) {
@@ -91,7 +100,8 @@ abstract class BaseParquetWriter<T> {
     }
 
     @Override
-    public ParquetValueWriter<?> list(GroupType array, ParquetValueWriter<?> elementWriter) {
+    public ParquetValueWriter<?> list(
+        Types.ListType iceberg, GroupType array, ParquetValueWriter<?> elementWriter) {
       GroupType repeated = array.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -107,7 +117,10 @@ abstract class BaseParquetWriter<T> {
 
     @Override
     public ParquetValueWriter<?> map(
-        GroupType map, ParquetValueWriter<?> keyWriter, ParquetValueWriter<?> valueWriter) {
+        Types.MapType iceberg,
+        GroupType map,
+        ParquetValueWriter<?> keyWriter,
+        ParquetValueWriter<?> valueWriter) {
       GroupType repeatedKeyValue = map.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -127,7 +140,8 @@ abstract class BaseParquetWriter<T> {
     }
 
     @Override
-    public ParquetValueWriter<?> primitive(PrimitiveType primitive) {
+    public ParquetValueWriter<?> primitive(
+        org.apache.iceberg.types.Type.PrimitiveType iceberg, PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
       LogicalTypeAnnotation logicalType = primitive.getLogicalTypeAnnotation();
       if (logicalType != null) {
@@ -156,6 +170,16 @@ abstract class BaseParquetWriter<T> {
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
+    }
+
+    @Override
+    public ParquetValueWriter<?> variant(Types.VariantType iVariant, ParquetValueWriter<?> result) {
+      return result;
+    }
+
+    @Override
+    public ParquetVariantVisitor<ParquetValueWriter<?>> variantVisitor() {
+      return new VariantWriterBuilder(type, Arrays.asList(currentPath()));
     }
   }
 
