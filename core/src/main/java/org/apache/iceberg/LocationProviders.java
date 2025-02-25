@@ -102,9 +102,14 @@ public class LocationProviders {
     public String newDataLocation(String filename) {
       return String.format("%s/%s", dataLocation, filename);
     }
+
+    @Override
+    public String dataLocationRoot() {
+      return dataLocation;
+    }
   }
 
-  static class ObjectStoreLocationProvider implements LocationProvider {
+  public static class ObjectStoreLocationProvider implements LocationProvider {
 
     private static final HashFunction HASH_FUNC = Hashing.murmur3_32_fixed();
     // Length of entropy generated in the file location
@@ -227,6 +232,11 @@ public class LocationProviders {
       }
 
       return hashWithDirs.toString();
+    }
+
+    @Override
+    public String dataLocationRoot() {
+      return storageLocation;
     }
   }
 }

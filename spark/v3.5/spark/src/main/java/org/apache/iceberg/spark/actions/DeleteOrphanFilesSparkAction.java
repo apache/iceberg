@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
@@ -37,11 +38,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
+import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
@@ -50,6 +53,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -292,19 +296,77 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
   private Dataset<FileURI> actualFileIdentDS() {
     StringToFileURI toFileURI = new StringToFileURI(equalSchemes, equalAuthorities);
+    Dataset<String> dataList;
     if (compareToFileList == null) {
-      return toFileURI.apply(listedFileDS());
+      dataList =
+          table.io() instanceof SupportsPrefixOperations ? listWithPrefix() : listWithoutPrefix();
     } else {
-      return toFileURI.apply(filteredCompareToFileList());
+      dataList = filteredCompareToFileList();
     }
+
+    return toFileURI.apply(dataList);
   }
 
-  private Dataset<String> listedFileDS() {
+  @VisibleForTesting
+  List<String> listLocationWithPrefix(String location, PathFilter pathFilter) {
+    List<String> matchingFiles = Lists.newArrayList();
+    try {
+      Iterator<org.apache.iceberg.io.FileInfo> iterator =
+          ((SupportsPrefixOperations) table.io()).listPrefix(location).iterator();
+      while (iterator.hasNext()) {
+        org.apache.iceberg.io.FileInfo fileInfo = iterator.next();
+        // NOTE: To avoid checking un necessary root folders, check the path relative to table
+        // location.
+        Path relativeFilePath = new Path(fileInfo.location().replace(location, ""));
+        if (fileInfo.createdAtMillis() < olderThanTimestamp
+            && pathFilter.accept(relativeFilePath)) {
+          matchingFiles.add(fileInfo.location());
+        }
+      }
+    } catch (Exception e) {
+      if (!(e.getCause() instanceof FileNotFoundException)) {
+        throw e;
+      }
+    }
+    return matchingFiles;
+  }
+
+  @VisibleForTesting
+  Dataset<String> listWithPrefix() {
+    List<String> matchingFiles = Lists.newArrayList();
+    PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(table.specs(), true);
+
+    if (table.locationProvider() instanceof LocationProviders.ObjectStoreLocationProvider) {
+      // ObjectStoreLocationProvider generates hierarchical prefixes in a binary fashion
+      // (0000/, 0001/, 0010/, 0011/, ...).
+      // This allows us to parallelize listing operations across these prefixes.
+      List<String> prefixes =
+          List.of(
+              "/0000", "/0001", "/0010", "/0011", "/0100", "/0101", "/0110", "/0111", "/1000",
+              "/1001", "/1010", "/1011", "/1100", "/1101", "/1110", "/1111");
+
+      String tableDataLocationRoot = table.locationProvider().dataLocationRoot();
+      for (String prefix : prefixes) {
+        List<String> result = listLocationWithPrefix(tableDataLocationRoot + prefix, pathFilter);
+        matchingFiles.addAll(result);
+      }
+
+    } else {
+      matchingFiles.addAll(listLocationWithPrefix(location, pathFilter));
+    }
+
+    JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
+    return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
+  }
+
+  @VisibleForTesting
+  Dataset<String> listWithoutPrefix() {
     List<String> subDirs = Lists.newArrayList();
     List<String> matchingFiles = Lists.newArrayList();
 
     Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
-    PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(table.specs());
+    // don't check parent folders because it's already checked by recursive call
+    PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(table.specs(), false);
 
     // list at most MAX_DRIVER_LISTING_DEPTH levels and only dirs that have
     // less than MAX_DRIVER_LISTING_DIRECT_SUB_DIRS direct sub dirs on the driver
@@ -330,7 +392,6 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     Broadcast<SerializableConfiguration> conf = sparkContext().broadcast(hadoopConf);
     ListDirsRecursively listDirs = new ListDirsRecursively(conf, olderThanTimestamp, pathFilter);
     JavaRDD<String> matchingLeafFileRDD = subDirRDD.mapPartitions(listDirs);
-
     JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
     return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING());
   }
@@ -589,21 +650,42 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   static class PartitionAwareHiddenPathFilter implements PathFilter, Serializable {
 
     private final Set<String> hiddenPathPartitionNames;
+    private final boolean checkParents;
 
-    PartitionAwareHiddenPathFilter(Set<String> hiddenPathPartitionNames) {
+    PartitionAwareHiddenPathFilter(Set<String> hiddenPathPartitionNames, boolean checkParents) {
       this.hiddenPathPartitionNames = hiddenPathPartitionNames;
+      this.checkParents = checkParents;
     }
 
     @Override
     public boolean accept(Path path) {
+      if (!checkParents) {
+        return doAccept(path);
+      }
+
+      // if any of the parent folders is not accepted then return false
+      return doAccept(path) && !hasHiddenPttParentFolder(path);
+    }
+
+    private boolean doAccept(Path path) {
       return isHiddenPartitionPath(path) || HiddenPathFilter.get().accept(path);
+    }
+
+    /**
+     * Iterates through the parent folders if any of the parent folders of the given path is a
+     * hidden partition folder.
+     */
+    public boolean hasHiddenPttParentFolder(Path path) {
+      return Stream.iterate(path, Path::getParent)
+          .takeWhile(Objects::nonNull)
+          .anyMatch(parentPath -> !doAccept(parentPath));
     }
 
     private boolean isHiddenPartitionPath(Path path) {
       return hiddenPathPartitionNames.stream().anyMatch(path.getName()::startsWith);
     }
 
-    static PathFilter forSpecs(Map<Integer, PartitionSpec> specs) {
+    static PathFilter forSpecs(Map<Integer, PartitionSpec> specs, boolean checkParents) {
       if (specs == null) {
         return HiddenPathFilter.get();
       }
@@ -619,7 +701,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       if (partitionNames.isEmpty()) {
         return HiddenPathFilter.get();
       } else {
-        return new PartitionAwareHiddenPathFilter(partitionNames);
+        return new PartitionAwareHiddenPathFilter(partitionNames, checkParents);
       }
     }
   }
