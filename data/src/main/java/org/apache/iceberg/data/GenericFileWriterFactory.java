@@ -28,9 +28,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.avro.DataWriter;
-import org.apache.iceberg.data.orc.GenericOrcWriter;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -69,49 +66,40 @@ class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Sc
     return new Builder(table);
   }
 
-  @Override
   protected void configureDataWrite(Avro.DataWriteBuilder builder) {
-    builder.createWriterFunc(DataWriter::create);
+    throw new UnsupportedOperationException("Deprecated");
   }
 
-  @Override
   protected void configureEqualityDelete(Avro.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(DataWriter::create);
+    throw new UnsupportedOperationException("Deprecated");
   }
 
-  @Override
   protected void configurePositionDelete(Avro.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(DataWriter::create);
+    throw new UnsupportedOperationException("Deprecated");
   }
 
-  @Override
   protected void configureDataWrite(Parquet.DataWriteBuilder builder) {
-    builder.createWriterFunc(GenericParquetWriter::buildWriter);
+    throw new UnsupportedOperationException("Deprecated");
   }
 
-  @Override
   protected void configureEqualityDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(GenericParquetWriter::buildWriter);
+    throw new UnsupportedOperationException("Deprecated");
   }
 
-  @Override
   protected void configurePositionDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(GenericParquetWriter::buildWriter);
+    throw new UnsupportedOperationException("Deprecated");
   }
 
-  @Override
   protected void configureDataWrite(ORC.DataWriteBuilder builder) {
-    builder.createWriterFunc(GenericOrcWriter::buildWriter);
+    throw new UnsupportedOperationException("Deprecated");
   }
 
-  @Override
   protected void configureEqualityDelete(ORC.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(GenericOrcWriter::buildWriter);
+    throw new UnsupportedOperationException("Deprecated");
   }
 
-  @Override
   protected void configurePositionDelete(ORC.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(GenericOrcWriter::buildWriter);
+    throw new UnsupportedOperationException("Deprecated");
   }
 
   static class Builder {

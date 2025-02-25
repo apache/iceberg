@@ -94,7 +94,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
           .setAll(config)
           .metricsConfig(metricsConfig)
           .overwrite()
-          .appenderBuilder();
+          .appender();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -136,7 +136,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
           .withSpec(spec)
           .withKeyMetadata(file.keyMetadata())
           .equalityFieldIds(equalityFieldIds)
-          .equalityWriterBuilder();
+          .equalityDeleteWriter();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -158,7 +158,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
           .rowSchema(posDeleteRowSchema)
           .withSpec(spec)
           .withKeyMetadata(file.keyMetadata())
-          .positionWriterBuilder();
+          .positionDeleteWriter();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

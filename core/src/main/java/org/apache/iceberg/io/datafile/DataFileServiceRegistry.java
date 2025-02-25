@@ -36,13 +36,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Registry which maintains the available {@link ReadBuilder}s and {@link WriterService}
- * implementations. Based on the `file format`, the required `data type` and the reader/writer
- * `builderType` the registry returns the correct reader and writer service implementations. These
- * services could be used to generate the correct reader and writer builders.
+ * Registry which maintains the available {@link ReadBuilder}s and {@link WriteBuilder}s. Based on
+ * the `file format`, the required `data type` and the reader/writer `builderType` the registry
+ * returns the correct reader and writer builders. These services could be used to generate the
+ * correct readers and writers.
  */
 public final class DataFileServiceRegistry {
   private static final Logger LOG = LoggerFactory.getLogger(DataFileServiceRegistry.class);
+  // The list of classes which are used for registering the reader and writer builders
   private static final String[] CLASSES_TO_REGISTER =
       new String[] {
         "org.apache.iceberg.parquet.Parquet",
@@ -58,6 +59,7 @@ public final class DataFileServiceRegistry {
   private static final Map<Key, Function<InputFile, ReadBuilder<?, ?>>> READ_BUILDERS =
       Maps.newConcurrentMap();
 
+  /** Registers a new writer builder for the given format/input type. */
   public static void registerWrite(
       FileFormat format,
       String inputType,
@@ -73,11 +75,13 @@ public final class DataFileServiceRegistry {
     WRITE_BUILDERS.putIfAbsent(key, writeBuilder);
   }
 
+  /** Registers a new reader builder for the given format/input type. */
   public static void registerRead(
       FileFormat format, String outputType, Function<InputFile, ReadBuilder<?, ?>> readBuilder) {
     registerRead(format, outputType, null, readBuilder);
   }
 
+  /** Registers a new reader builder for the given format/input type/reader type. */
   public static void registerRead(
       FileFormat format,
       String outputType,
@@ -107,8 +111,10 @@ public final class DataFileServiceRegistry {
         Record.class.getName(),
         outputFile ->
             new Avro.AvroDataWriteBuilder<Record, Schema>(outputFile)
-                .writerFunction((nativeType, schema) -> DataWriter.create(schema)));
+                .writerFunction((nativeType, schema) -> DataWriter.create(schema))
+                .positionDeleteWriterFunction((nativeType, schema) -> DataWriter.create(schema)));
 
+    // Uses dynamic methods to call the `register` for the listed classes
     for (String s : CLASSES_TO_REGISTER) {
       try {
         DynMethods.StaticMethod register =

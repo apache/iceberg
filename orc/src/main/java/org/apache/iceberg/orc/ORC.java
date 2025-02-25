@@ -110,22 +110,6 @@ public class ORC {
 
   private ORC() {}
 
-  public static WriteBuilder write(OutputFile file) {
-    return new WriteBuilder(file);
-  }
-
-  public static WriteBuilder write(EncryptedOutputFile file) {
-    Preconditions.checkState(
-        !(file instanceof NativeEncryptionOutputFile), "Native ORC encryption is not supported");
-    return new WriteBuilder(file.encryptingOutputFile());
-  }
-
-  public static Schema schemaWithoutConstantAndMetadataFields(
-      Schema target, Map<Integer, ?> idToConstant) {
-    return TypeUtil.selectNot(
-        target, Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
-  }
-
   public static void register() {
     DataFileServiceRegistry.registerRead(
         FileFormat.ORC,
@@ -143,6 +127,25 @@ public class ORC {
                         GenericOrcWriter.buildWriter(schema, messageType))));
   }
 
+  @Deprecated
+  public static WriteBuilder write(OutputFile file) {
+    return new WriteBuilder(file);
+  }
+
+  @Deprecated
+  public static WriteBuilder write(EncryptedOutputFile file) {
+    Preconditions.checkState(
+        !(file instanceof NativeEncryptionOutputFile), "Native ORC encryption is not supported");
+    return new WriteBuilder(file.encryptingOutputFile());
+  }
+
+  private static Schema schemaWithoutConstantAndMetadataFields(
+      Schema target, Map<Integer, ?> idToConstant) {
+    return TypeUtil.selectNot(
+        target, Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
+  }
+
+  @Deprecated
   public static class WriteBuilder {
     private final OutputFile file;
     private final Configuration conf;
@@ -170,14 +173,9 @@ public class ORC {
       return this;
     }
 
-    public WriteBuilder meta(String property, String value) {
+    public WriteBuilder metadata(String property, String value) {
       metadata.put(property, value.getBytes(StandardCharsets.UTF_8));
       return this;
-    }
-
-    @Deprecated
-    public WriteBuilder metadata(String property, String value) {
-      return meta(property, value);
     }
 
     public WriteBuilder set(String property, String value) {
@@ -425,16 +423,19 @@ public class ORC {
     }
   }
 
+  @Deprecated
   public static DataWriteBuilder writeData(OutputFile file) {
     return new DataWriteBuilder(file);
   }
 
+  @Deprecated
   public static DataWriteBuilder writeData(EncryptedOutputFile file) {
     Preconditions.checkState(
         !(file instanceof NativeEncryptionOutputFile), "Native ORC encryption is not supported");
     return new DataWriteBuilder(file.encryptingOutputFile());
   }
 
+  @Deprecated
   public static class DataWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
@@ -528,16 +529,19 @@ public class ORC {
     }
   }
 
+  @Deprecated
   public static DeleteWriteBuilder writeDeletes(OutputFile file) {
     return new DeleteWriteBuilder(file);
   }
 
+  @Deprecated
   public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
     Preconditions.checkState(
         !(file instanceof NativeEncryptionOutputFile), "Native ORC encryption is not supported");
     return new DeleteWriteBuilder(file.encryptingOutputFile());
   }
 
+  @Deprecated
   public static class DeleteWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
@@ -715,6 +719,7 @@ public class ORC {
     }
   }
 
+  @Deprecated
   public static ReadBuilder read(InputFile file) {
     Preconditions.checkState(
         !(file instanceof NativeEncryptionInputFile), "Native ORC encryption is not supported");
@@ -722,6 +727,7 @@ public class ORC {
     return new ReadBuilder(file);
   }
 
+  @Deprecated
   public static class ReadBuilder {
     private final InputFile file;
     private final Configuration conf;
@@ -774,13 +780,8 @@ public class ORC {
       return this;
     }
 
-    @Deprecated
     public ReadBuilder config(String property, String value) {
-      return set(property, value);
-    }
-
-    public ReadBuilder set(String key, String value) {
-      conf.set(key, value);
+      conf.set(property, value);
       return this;
     }
 
@@ -794,11 +795,6 @@ public class ORC {
 
     public ReadBuilder filter(Expression newFilter) {
       this.filter = newFilter;
-      return this;
-    }
-
-    public ReadBuilder reuseContainers(boolean newReuseContainers) {
-      // ORC always reuses the containers
       return this;
     }
 
@@ -1024,7 +1020,7 @@ public class ORC {
 
     @Override
     public ORCDataWriteBuilder<D, T> meta(String property, String value) {
-      appenderBuilder.meta(property, value);
+      appenderBuilder.metadata(property, value);
       return this;
     }
 
@@ -1111,7 +1107,7 @@ public class ORC {
     }
 
     @Override
-    public FileAppender<D> appenderBuilder() throws IOException {
+    public FileAppender<D> appender() {
       Preconditions.checkNotNull(appenderBuilder.schema, "Schema is required");
 
       for (Map.Entry<String, String> entry : appenderBuilder.config.entrySet()) {
@@ -1149,7 +1145,7 @@ public class ORC {
     }
 
     @Override
-    public DataWriter<D> writerBuilder() throws IOException {
+    public DataWriter<D> dataWriter() {
       Preconditions.checkArgument(spec != null, "Cannot create data writer without spec");
       Preconditions.checkArgument(
           spec.isUnpartitioned() || partition != null,
@@ -1163,7 +1159,7 @@ public class ORC {
     }
 
     @Override
-    public EqualityDeleteWriter<D> equalityWriterBuilder() throws IOException {
+    public EqualityDeleteWriter<D> equalityDeleteWriter() {
       Preconditions.checkState(
           rowSchema != null, "Cannot create equality delete file without a schema");
       Preconditions.checkState(
@@ -1202,7 +1198,7 @@ public class ORC {
     }
 
     @Override
-    public PositionDeleteWriter<D> positionWriterBuilder() throws IOException {
+    public PositionDeleteWriter<D> positionDeleteWriter() {
       Preconditions.checkState(
           equalityFieldIds == null, "Cannot create position delete file using delete field ids");
       Preconditions.checkArgument(

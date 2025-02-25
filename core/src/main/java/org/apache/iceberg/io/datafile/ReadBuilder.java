@@ -29,7 +29,8 @@ import org.apache.iceberg.mapping.NameMapping;
  * Builder API for reading Iceberg data files.
  *
  * @param <D> The records returned by the reader
- * @param <F> The records accepted by the {@link DeleteFilter}
+ * @param <F> The records accepted by the {@link DeleteFilter}. Different from `D` for vectorized
+ *     readers.
  */
 public interface ReadBuilder<D, F> {
   /**
@@ -98,13 +99,16 @@ public interface ReadBuilder<D, F> {
   /** Sets a mapping from external schema names to Iceberg type IDs. */
   ReadBuilder<D, F> withNameMapping(NameMapping newNameMapping);
 
+  /** Sets the file encryption key used for reading the file. */
   default ReadBuilder<D, F> withFileEncryptionKey(ByteBuffer encryptionKey) {
     throw new UnsupportedOperationException("Not supported");
   }
 
+  /** Sets the additional authentication data prefix for encryption. */
   default ReadBuilder<D, F> withAADPrefix(ByteBuffer aadPrefix) {
     throw new UnsupportedOperationException("Not supported");
   }
 
+  /** Builds the reader. */
   CloseableIterable<D> build();
 }

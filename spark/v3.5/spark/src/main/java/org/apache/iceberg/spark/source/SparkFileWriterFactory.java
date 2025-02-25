@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.source;
 
-import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 import static org.apache.iceberg.TableProperties.DELETE_DEFAULT_FILE_FORMAT;
@@ -28,24 +27,14 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.RegistryBasedFileWriterFactory;
 import org.apache.iceberg.io.DeleteSchemaUtil;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.spark.data.SparkAvroWriter;
-import org.apache.iceberg.spark.data.SparkOrcWriter;
-import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.unsafe.types.UTF8String;
 
 class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow, StructType> {
-  private final Map<String, String> writeProperties;
 
   SparkFileWriterFactory(
       Table table,
@@ -87,77 +76,10 @@ class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow,
                 ? null
                 : SparkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(positionDeleteRowSchema))
             : positionDeleteSparkType);
-    this.writeProperties = writeProperties != null ? writeProperties : ImmutableMap.of();
   }
 
   static Builder builderFor(Table table) {
     return new Builder(table);
-  }
-
-  @Override
-  protected void configureDataWrite(Avro.DataWriteBuilder builder) {
-    builder.createWriterFunc(ignored -> new SparkAvroWriter(rowSchemaType()));
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configureEqualityDelete(Avro.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(ignored -> new SparkAvroWriter(equalityDeleteRowSchemaType()));
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configurePositionDelete(Avro.DeleteWriteBuilder builder) {
-    boolean withRow =
-        positionDeleteRowSchemaType().getFieldIndex(DELETE_FILE_ROW_FIELD_NAME).isDefined();
-    if (withRow) {
-      // SparkAvroWriter accepts just the Spark type of the row ignoring the path and pos
-      StructField rowField = positionDeleteRowSchemaType().apply(DELETE_FILE_ROW_FIELD_NAME);
-      StructType positionDeleteRowSparkType = (StructType) rowField.dataType();
-      builder.createWriterFunc(ignored -> new SparkAvroWriter(positionDeleteRowSparkType));
-    }
-
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configureDataWrite(Parquet.DataWriteBuilder builder) {
-    builder.createWriterFunc(msgType -> SparkParquetWriters.buildWriter(rowSchemaType(), msgType));
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configureEqualityDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(
-        msgType -> SparkParquetWriters.buildWriter(equalityDeleteRowSchemaType(), msgType));
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configurePositionDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(
-        msgType -> SparkParquetWriters.buildWriter(positionDeleteRowSchemaType(), msgType));
-    builder.transformPaths(path -> UTF8String.fromString(path.toString()));
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configureDataWrite(ORC.DataWriteBuilder builder) {
-    builder.createWriterFunc(SparkOrcWriter::new);
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configureEqualityDelete(ORC.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(SparkOrcWriter::new);
-    builder.setAll(writeProperties);
-  }
-
-  @Override
-  protected void configurePositionDelete(ORC.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(SparkOrcWriter::new);
-    builder.transformPaths(path -> UTF8String.fromString(path.toString()));
-    builder.setAll(writeProperties);
   }
 
   static class Builder {
