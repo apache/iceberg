@@ -791,7 +791,8 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
                     "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
                     catalogName, tableName, fileTableDir.getAbsolutePath()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot use partition filter with an unpartitioned table");
+        .hasMessageStartingWith("Cannot find a partition spec in Iceberg table")
+        .hasMessageContaining("that matches the partition columns");
 
     assertThatThrownBy(
             () ->
@@ -799,7 +800,8 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
                     "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
                     catalogName, tableName, fileTableDir.getAbsolutePath()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot add partitioned files to an unpartitioned table");
+        .hasMessageStartingWith("Cannot find a partition spec in Iceberg table")
+        .hasMessageContaining("that matches the partition columns");
   }
 
   @TestTemplate
@@ -815,8 +817,8 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
                     "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('x', '1', 'y', '2'))",
                     catalogName, tableName, fileTableDir.getAbsolutePath()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot add data files to target table")
-        .hasMessageContaining("is greater than the number of partitioned columns");
+        .hasMessageStartingWith("Cannot find a partition spec in Iceberg table")
+        .hasMessageContaining("that matches the partition columns");
 
     assertThatThrownBy(
             () ->
@@ -824,9 +826,8 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
                     "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', '2'))",
                     catalogName, tableName, fileTableDir.getAbsolutePath()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot add files to target table")
-        .hasMessageContaining(
-            "specified partition filter refers to columns that are not partitioned");
+        .hasMessageStartingWith("Cannot find a partition spec in Iceberg table")
+        .hasMessageContaining("that matches the partition columns");
   }
 
   @TestTemplate

@@ -1097,6 +1097,10 @@ public class SparkTableUtil {
    * the partition columns provided. Throws an error if not found
    */
   public static PartitionSpec findCompatibleSpec(List<String> partitionNames, Table icebergTable) {
+    List<String> partitionNamesLower =
+        partitionNames.stream()
+            .map(name -> name.toLowerCase(Locale.ROOT))
+            .collect(Collectors.toList());
     for (PartitionSpec icebergSpec : icebergTable.specs().values()) {
       boolean allIdentity =
           icebergSpec.fields().stream().allMatch(field -> field.transform().isIdentity());
@@ -1106,7 +1110,7 @@ public class SparkTableUtil {
                 .map(PartitionField::name)
                 .map(name -> name.toLowerCase(Locale.ROOT))
                 .collect(Collectors.toList());
-        if (icebergPartNames.equals(partitionNames)) {
+        if (icebergPartNames.equals(partitionNamesLower)) {
           return icebergSpec;
         }
       }
