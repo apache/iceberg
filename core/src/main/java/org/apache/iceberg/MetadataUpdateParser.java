@@ -60,6 +60,7 @@ public class MetadataUpdateParser {
   static final String SET_PARTITION_STATISTICS = "set-partition-statistics";
   static final String REMOVE_PARTITION_STATISTICS = "remove-partition-statistics";
   static final String REMOVE_PARTITION_SPECS = "remove-partition-specs";
+  static final String REMOVE_SCHEMAS = "remove-schemas";
   static final String ENABLE_ROW_LINEAGE = "enable-row-lineage";
 
   // AssignUUID
@@ -131,6 +132,9 @@ public class MetadataUpdateParser {
   // RemovePartitionSpecs
   private static final String SPEC_IDS = "spec-ids";
 
+  // RemoveSchemas
+  private static final String SCHEMA_IDS = "schema-ids";
+
   private static final Map<Class<? extends MetadataUpdate>, String> ACTIONS =
       ImmutableMap.<Class<? extends MetadataUpdate>, String>builder()
           .put(MetadataUpdate.AssignUUID.class, ASSIGN_UUID)
@@ -155,6 +159,7 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.AddViewVersion.class, ADD_VIEW_VERSION)
           .put(MetadataUpdate.SetCurrentViewVersion.class, SET_CURRENT_VIEW_VERSION)
           .put(MetadataUpdate.RemovePartitionSpecs.class, REMOVE_PARTITION_SPECS)
+          .put(MetadataUpdate.RemoveSchemas.class, REMOVE_SCHEMAS)
           .put(MetadataUpdate.EnableRowLineage.class, ENABLE_ROW_LINEAGE)
           .buildOrThrow();
 
@@ -251,6 +256,9 @@ public class MetadataUpdateParser {
       case REMOVE_PARTITION_SPECS:
         writeRemovePartitionSpecs((MetadataUpdate.RemovePartitionSpecs) metadataUpdate, generator);
         break;
+      case REMOVE_SCHEMAS:
+        writeRemoveSchemas((MetadataUpdate.RemoveSchemas) metadataUpdate, generator);
+        break;
       case ENABLE_ROW_LINEAGE:
         break;
       default:
@@ -326,6 +334,8 @@ public class MetadataUpdateParser {
         return readCurrentViewVersionId(jsonNode);
       case REMOVE_PARTITION_SPECS:
         return readRemovePartitionSpecs(jsonNode);
+      case REMOVE_SCHEMAS:
+        return readRemoveSchemas(jsonNode);
       case ENABLE_ROW_LINEAGE:
         return new MetadataUpdate.EnableRowLineage();
       default:
@@ -466,6 +476,11 @@ public class MetadataUpdateParser {
   private static void writeRemovePartitionSpecs(
       MetadataUpdate.RemovePartitionSpecs metadataUpdate, JsonGenerator gen) throws IOException {
     JsonUtil.writeIntegerArray(SPEC_IDS, metadataUpdate.specIds(), gen);
+  }
+
+  private static void writeRemoveSchemas(
+      MetadataUpdate.RemoveSchemas metadataUpdate, JsonGenerator gen) throws IOException {
+    JsonUtil.writeIntegerArray(SCHEMA_IDS, metadataUpdate.schemaIds(), gen);
   }
 
   private static MetadataUpdate readAssignUUID(JsonNode node) {
@@ -613,5 +628,9 @@ public class MetadataUpdateParser {
 
   private static MetadataUpdate readRemovePartitionSpecs(JsonNode node) {
     return new MetadataUpdate.RemovePartitionSpecs(JsonUtil.getIntegerSet(SPEC_IDS, node));
+  }
+
+  private static MetadataUpdate readRemoveSchemas(JsonNode node) {
+    return new MetadataUpdate.RemoveSchemas(JsonUtil.getIntegerSet(SCHEMA_IDS, node));
   }
 }
