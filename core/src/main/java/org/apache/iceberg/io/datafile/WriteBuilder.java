@@ -47,11 +47,6 @@ public interface WriteBuilder<D, T> {
   /** Sets the file metadata kep/value pairs for the writer which should be written to the file. */
   WriteBuilder<D, T> meta(String property, String value);
 
-  default WriteBuilder<D, T> meta(Map<String, String> properties) {
-    properties.forEach(this::meta);
-    return this;
-  }
-
   /** Enables overwriting previously created files. */
   WriteBuilder<D, T> overwrite();
 
@@ -63,12 +58,16 @@ public interface WriteBuilder<D, T> {
    */
   WriteBuilder<D, T> metricsConfig(MetricsConfig newMetricsConfig);
 
+  /** Sets the partition specification for the generated {@link org.apache.iceberg.ContentFile}. */
   WriteBuilder<D, T> withSpec(PartitionSpec newSpec);
 
+  /** Sets the partition value for the generated {@link org.apache.iceberg.ContentFile}. */
   WriteBuilder<D, T> withPartition(StructLike newPartition);
 
+  /** Sets the encryption key metadata for the generated {@link org.apache.iceberg.ContentFile}. */
   WriteBuilder<D, T> withKeyMetadata(EncryptionKeyMetadata metadata);
 
+  /** Sets the sort order for the generated {@link org.apache.iceberg.ContentFile}. */
   WriteBuilder<D, T> withSortOrder(SortOrder newSortOrder);
 
   /** The target data file schema. */
@@ -79,10 +78,12 @@ public interface WriteBuilder<D, T> {
    */
   WriteBuilder<D, T> rowSchema(Schema schema);
 
+  /** Writes the file with the given encryption key */
   default WriteBuilder<D, T> withFileEncryptionKey(ByteBuffer fileEncryptionKey) {
     throw new UnsupportedOperationException("Not supported");
   }
 
+  /** Writes the AAP prefix to the the generated {@link org.apache.iceberg.ContentFile}. */
   default WriteBuilder<D, T> withAADPrefix(ByteBuffer aadPrefix) {
     throw new UnsupportedOperationException("Not supported");
   }
@@ -92,13 +93,21 @@ public interface WriteBuilder<D, T> {
   /** Sets the equality field ids which are used in the delete file. */
   WriteBuilder<D, T> equalityFieldIds(int... fieldIds);
 
+  /**
+   * Sets the engine specific data type for the writer. Used for conversion by the engine specific
+   * writers.
+   */
   WriteBuilder<D, T> nativeType(T nativeType);
 
-  FileAppender<D> appenderBuilder() throws IOException;
+  /** Creates an appender. */
+  FileAppender<D> appender() throws IOException;
 
-  DataWriter<D> writerBuilder() throws IOException;
+  /** Creates a data writer. */
+  DataWriter<D> dataWriter() throws IOException;
 
-  EqualityDeleteWriter<D> equalityWriterBuilder() throws IOException;
+  /** Creates an equality delete writer. */
+  EqualityDeleteWriter<D> equalityDeleteWriter() throws IOException;
 
-  PositionDeleteWriter<D> positionWriterBuilder() throws IOException;
+  /** Creates a position delete writer. */
+  PositionDeleteWriter<D> positionDeleteWriter() throws IOException;
 }
