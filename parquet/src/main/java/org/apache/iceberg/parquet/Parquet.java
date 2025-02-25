@@ -73,6 +73,8 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -90,6 +92,8 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
+import org.apache.iceberg.io.datafile.DeleteFilter;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.parquet.ParquetValueWriters.PositionDeleteStructWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
@@ -135,6 +139,24 @@ public class Parquet {
           "parquet.read.support.class",
           "parquet.crypto.factory.class");
 
+  public static void register() {
+    DataFileServiceRegistry.registerRead(
+        FileFormat.PARQUET,
+        Record.class.getName(),
+        inputFile ->
+            new DataReadBuilder<Record, Object>(inputFile)
+                .readerFunction(GenericParquetReaders::buildReader));
+
+    DataFileServiceRegistry.registerWrite(
+        FileFormat.PARQUET,
+        Record.class.getName(),
+        outputFile ->
+            new ParquetDataWriteBuilder<Record, Object>(outputFile)
+                .writerFunction(
+                    (nativeType, messageType) -> GenericParquetWriter.buildWriter(messageType)));
+  }
+
+  @Deprecated
   public static WriteBuilder write(OutputFile file) {
     if (file instanceof EncryptedOutputFile) {
       return write((EncryptedOutputFile) file);
@@ -143,6 +165,7 @@ public class Parquet {
     return new WriteBuilder(file);
   }
 
+  @Deprecated
   public static WriteBuilder write(EncryptedOutputFile file) {
     if (file instanceof NativeEncryptionOutputFile) {
       NativeEncryptionOutputFile nativeFile = (NativeEncryptionOutputFile) file;
@@ -684,10 +707,12 @@ public class Parquet {
     }
   }
 
+  @Deprecated
   public static DataWriteBuilder writeData(OutputFile file) {
     return new DataWriteBuilder(file);
   }
 
+  @Deprecated
   public static DataWriteBuilder writeData(EncryptedOutputFile file) {
     if (file instanceof NativeEncryptionOutputFile) {
       NativeEncryptionOutputFile nativeFile = (NativeEncryptionOutputFile) file;
@@ -699,6 +724,7 @@ public class Parquet {
     }
   }
 
+  @Deprecated
   public static class DataWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
@@ -802,10 +828,12 @@ public class Parquet {
     }
   }
 
+  @Deprecated
   public static DeleteWriteBuilder writeDeletes(OutputFile file) {
     return new DeleteWriteBuilder(file);
   }
 
+  @Deprecated
   public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
     if (file instanceof NativeEncryptionOutputFile) {
       NativeEncryptionOutputFile nativeFile = (NativeEncryptionOutputFile) file;
@@ -817,6 +845,7 @@ public class Parquet {
     }
   }
 
+  @Deprecated
   public static class DeleteWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
@@ -1371,6 +1400,615 @@ public class Parquet {
     }
   }
 
+  public static class DataReadBuilder<D, F>
+      implements org.apache.iceberg.io.datafile.ReadBuilder<D, F> {
+    private final InputFile file;
+    private final Map<String, String> properties = Maps.newHashMap();
+    private Long start = null;
+    private Long length = null;
+    private Schema schema = null;
+    private Expression filter = null;
+    private BatchReaderFunction<D, F> batchReaderFunction = null;
+    private ReaderFunction<D> readerFunction = null;
+    private boolean filterRecords = true;
+    private boolean caseSensitive = true;
+    private boolean reuseContainers = false;
+    private int maxRecordsPerBatch = 10000;
+    private NameMapping nameMapping = null;
+    private ByteBuffer fileEncryptionKey = null;
+    private ByteBuffer fileAADPrefix = null;
+    private Map<Integer, ?> idToConstant = ImmutableMap.of();
+    private DeleteFilter<F> deleteFilter = null;
+
+    public DataReadBuilder(InputFile file) {
+      Preconditions.checkNotNull(file, "Input file cannot be null");
+      this.file = file;
+    }
+
+    /**
+     * Restricts the read to the given range: [start, start + length).
+     *
+     * @param newStart the start position for this read
+     * @param newLength the length of the range this read should scan
+     * @return this builder for method chaining
+     */
+    @Override
+    public DataReadBuilder<D, F> split(long newStart, long newLength) {
+      this.start = newStart;
+      this.length = newLength;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D, F> project(Schema newSchema) {
+      this.schema = newSchema;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D, F> caseInsensitive() {
+      return caseSensitive(false);
+    }
+
+    @Override
+    public DataReadBuilder<D, F> caseSensitive(boolean newCaseSensitive) {
+      this.caseSensitive = newCaseSensitive;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D, F> filterRecords(boolean newFilterRecords) {
+      this.filterRecords = newFilterRecords;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D, F> filter(Expression newFilter) {
+      this.filter = newFilter;
+      return this;
+    }
+
+    public DataReadBuilder<D, F> readerFunction(ReaderFunction<D> newReaderFunction) {
+      Preconditions.checkArgument(
+          this.batchReaderFunction == null,
+          "Cannot set reader function: batched reader function already set");
+      this.readerFunction = newReaderFunction;
+      return this;
+    }
+
+    public DataReadBuilder<D, F> batchReaderFunction(BatchReaderFunction<D, F> func) {
+      Preconditions.checkArgument(
+          this.readerFunction == null,
+          "Cannot set batched reader function: reader function already set");
+      this.batchReaderFunction = func;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D, F> set(String key, String value) {
+      properties.put(key, value);
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D, F> reuseContainers() {
+      return reuseContainers(true);
+    }
+
+    @Override
+    public DataReadBuilder<D, F> reuseContainers(boolean newReuseContainers) {
+      this.reuseContainers = newReuseContainers;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D, F> recordsPerBatch(int numRowsPerBatch) {
+      this.maxRecordsPerBatch = numRowsPerBatch;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D, F> withNameMapping(NameMapping newNameMapping) {
+      this.nameMapping = newNameMapping;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D, F> withFileEncryptionKey(ByteBuffer encryptionKey) {
+      this.fileEncryptionKey = encryptionKey;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D, F> withAADPrefix(ByteBuffer aadPrefix) {
+      this.fileAADPrefix = aadPrefix;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D, F> idToConstant(Map<Integer, ?> newIdConstant) {
+      this.idToConstant = newIdConstant;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D, F> withDeleteFilter(DeleteFilter<F> newDeleteFilter) {
+      this.deleteFilter = newDeleteFilter;
+      return this;
+    }
+
+    @Override
+    @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
+    public CloseableIterable<D> build() {
+      FileDecryptionProperties fileDecryptionProperties = null;
+      if (fileEncryptionKey != null) {
+        byte[] encryptionKeyArray = ByteBuffers.toByteArray(fileEncryptionKey);
+        byte[] aadPrefixArray = ByteBuffers.toByteArray(fileAADPrefix);
+        fileDecryptionProperties =
+            FileDecryptionProperties.builder()
+                .withFooterKey(encryptionKeyArray)
+                .withAADPrefix(aadPrefixArray)
+                .build();
+      } else {
+        Preconditions.checkState(fileAADPrefix == null, "AAD prefix set with null encryption key");
+      }
+
+      if (readerFunction != null || batchReaderFunction != null) {
+        ParquetReadOptions.Builder optionsBuilder;
+        if (file instanceof HadoopInputFile) {
+          // remove read properties already set that may conflict with this read
+          Configuration conf = new Configuration(((HadoopInputFile) file).getConf());
+          for (String property : READ_PROPERTIES_TO_REMOVE) {
+            conf.unset(property);
+          }
+          optionsBuilder = HadoopReadOptions.builder(conf);
+        } else {
+          optionsBuilder = ParquetReadOptions.builder();
+        }
+
+        for (Map.Entry<String, String> entry : properties.entrySet()) {
+          optionsBuilder.set(entry.getKey(), entry.getValue());
+        }
+
+        if (start != null) {
+          optionsBuilder.withRange(start, start + length);
+        }
+
+        if (fileDecryptionProperties != null) {
+          optionsBuilder.withDecryption(fileDecryptionProperties);
+        }
+
+        ParquetReadOptions options = optionsBuilder.build();
+
+        NameMapping mapping;
+        if (nameMapping != null) {
+          mapping = nameMapping;
+        } else if (SystemConfigs.NETFLIX_UNSAFE_PARQUET_ID_FALLBACK_ENABLED.value()) {
+          mapping = null;
+        } else {
+          mapping = NameMapping.empty();
+        }
+
+        if (batchReaderFunction != null) {
+          return new VectorizedParquetReader<>(
+              file,
+              schema,
+              options,
+              fileType -> batchReaderFunction.read(schema, fileType, idToConstant, deleteFilter),
+              mapping,
+              filter,
+              reuseContainers,
+              caseSensitive,
+              maxRecordsPerBatch);
+        } else {
+          return new org.apache.iceberg.parquet.ParquetReader<>(
+              file,
+              schema,
+              options,
+              fileType -> readerFunction.read(schema, fileType, idToConstant),
+              mapping,
+              filter,
+              reuseContainers,
+              caseSensitive);
+        }
+      }
+
+      ParquetReadBuilder<D> builder = new ParquetReadBuilder<>(ParquetIO.file(file));
+
+      builder.project(schema);
+
+      // default options for readers
+      builder
+          .set("parquet.strict.typing", "false") // allow type promotion
+          .set("parquet.avro.compatible", "false") // use the new RecordReader with Utf8 support
+          .set(
+              "parquet.avro.add-list-element-records",
+              "false"); // assume that lists use a 3-level schema
+
+      for (Map.Entry<String, String> entry : properties.entrySet()) {
+        builder.set(entry.getKey(), entry.getValue());
+      }
+
+      if (filter != null) {
+        // TODO: should not need to get the schema to push down before opening the file.
+        // Parquet should allow setting a filter inside its read support
+        ParquetReadOptions decryptOptions =
+            ParquetReadOptions.builder().withDecryption(fileDecryptionProperties).build();
+        MessageType type;
+        try (ParquetFileReader schemaReader =
+            ParquetFileReader.open(ParquetIO.file(file), decryptOptions)) {
+          type = schemaReader.getFileMetaData().getSchema();
+        } catch (IOException e) {
+          throw new RuntimeIOException(e);
+        }
+        Schema fileSchema = ParquetSchemaUtil.convert(type);
+        builder
+            .useStatsFilter()
+            .useDictionaryFilter()
+            .useRecordFilter(filterRecords)
+            .useBloomFilter()
+            .withFilter(ParquetFilters.convert(fileSchema, filter, caseSensitive));
+      } else {
+        // turn off filtering
+        builder
+            .useStatsFilter(false)
+            .useDictionaryFilter(false)
+            .useBloomFilter(false)
+            .useRecordFilter(false);
+      }
+
+      if (start != null) {
+        builder.withFileRange(start, start + length);
+      }
+
+      if (nameMapping != null) {
+        builder.withNameMapping(nameMapping);
+      }
+
+      if (fileDecryptionProperties != null) {
+        builder.withDecryption(fileDecryptionProperties);
+      }
+
+      return new ParquetIterable<>(builder);
+    }
+  }
+
+  public static class ParquetDataWriteBuilder<D, T>
+      implements org.apache.iceberg.io.datafile.WriteBuilder<D, T> {
+    private final WriteBuilder appenderBuilder;
+    private final String location;
+    private BiFunction<T, MessageType, ParquetValueWriter<D>> writerFunction = null;
+    private Schema rowSchema = null;
+    private PartitionSpec spec = null;
+    private StructLike partition = null;
+    private EncryptionKeyMetadata keyMetadata = null;
+    private int[] equalityFieldIds = null;
+    private SortOrder sortOrder = null;
+    private Function<CharSequence, ?> pathTransformFunc = Function.identity();
+    private T nativeType = null;
+
+    public ParquetDataWriteBuilder(EncryptedOutputFile file) {
+      this.appenderBuilder = write(file);
+      this.location = file.encryptingOutputFile().location();
+    }
+
+    @Override
+    public ParquetDataWriteBuilder<D, T> forTable(Table table) {
+      rowSchema(table.schema());
+      withSpec(table.spec());
+      setAll(table.properties());
+      metricsConfig(MetricsConfig.forTable(table));
+      return this;
+    }
+
+    @Override
+    public ParquetDataWriteBuilder<D, T> set(String property, String value) {
+      appenderBuilder.set(property, value);
+      return this;
+    }
+
+    @Override
+    public ParquetDataWriteBuilder<D, T> setAll(Map<String, String> properties) {
+      appenderBuilder.setAll(properties);
+      return this;
+    }
+
+    @Override
+    public ParquetDataWriteBuilder<D, T> meta(String property, String value) {
+      appenderBuilder.meta(property, value);
+      return this;
+    }
+
+    @Override
+    public ParquetDataWriteBuilder<D, T> overwrite() {
+      return overwrite(true);
+    }
+
+    @Override
+    public ParquetDataWriteBuilder<D, T> overwrite(boolean enabled) {
+      appenderBuilder.overwrite(enabled);
+      return this;
+    }
+
+    @Override
+    public ParquetDataWriteBuilder<D, T> metricsConfig(MetricsConfig newMetricsConfig) {
+      appenderBuilder.metricsConfig(newMetricsConfig);
+      return this;
+    }
+
+    @Override
+    public ParquetDataWriteBuilder<D, T> schema(Schema newSchema) {
+      appenderBuilder.schema(newSchema);
+      return this;
+    }
+
+    public ParquetDataWriteBuilder<D, T> writerFunction(
+        BiFunction<T, MessageType, ParquetValueWriter<D>> newWriterFunction) {
+      this.writerFunction = newWriterFunction;
+      return this;
+    }
+
+    @Override
+    public ParquetDataWriteBuilder<D, T> rowSchema(Schema newSchema) {
+      this.rowSchema = newSchema;
+      return this;
+    }
+
+    @Override
+    public ParquetDataWriteBuilder<D, T> withSpec(PartitionSpec newSpec) {
+      this.spec = newSpec;
+      return this;
+    }
+
+    @Override
+    public ParquetDataWriteBuilder<D, T> withPartition(StructLike key) {
+      this.partition = key;
+      return this;
+    }
+
+    @Override
+    public ParquetDataWriteBuilder<D, T> withKeyMetadata(EncryptionKeyMetadata metadata) {
+      this.keyMetadata = metadata;
+      return this;
+    }
+
+    @Override
+    public ParquetDataWriteBuilder<D, T> withFileEncryptionKey(ByteBuffer fileEncryptionKey) {
+      appenderBuilder.withFileEncryptionKey(fileEncryptionKey);
+      return this;
+    }
+
+    @Override
+    public ParquetDataWriteBuilder<D, T> withAADPrefix(ByteBuffer aadPrefix) {
+      appenderBuilder.withAADPrefix(aadPrefix);
+      return this;
+    }
+
+    @Override
+    public ParquetDataWriteBuilder<D, T> equalityFieldIds(List<Integer> fieldIds) {
+      this.equalityFieldIds = ArrayUtil.toIntArray(fieldIds);
+      return this;
+    }
+
+    @Override
+    public ParquetDataWriteBuilder<D, T> equalityFieldIds(int... fieldIds) {
+      this.equalityFieldIds = fieldIds;
+      return this;
+    }
+
+    public ParquetDataWriteBuilder<D, T> transformPaths(
+        Function<CharSequence, ?> newPathTransformFunc) {
+      this.pathTransformFunc = newPathTransformFunc;
+      return this;
+    }
+
+    @Override
+    public ParquetDataWriteBuilder<D, T> withSortOrder(SortOrder newSortOrder) {
+      this.sortOrder = newSortOrder;
+      return this;
+    }
+
+    @Override
+    public ParquetDataWriteBuilder<D, T> nativeType(T newNativeType) {
+      this.nativeType = newNativeType;
+      return this;
+    }
+
+    @Override
+    public FileAppender<D> appender() throws IOException {
+      Preconditions.checkNotNull(appenderBuilder.schema, "Schema is required");
+      Preconditions.checkNotNull(appenderBuilder.name, "Table name is required and cannot be null");
+      Preconditions.checkNotNull(writerFunction, "Writer function is required and cannot be null");
+
+      // add the Iceberg schema to keyValueMetadata
+      meta("iceberg.schema", SchemaParser.toJson(appenderBuilder.schema));
+
+      // Map Iceberg properties to pass down to the Parquet writer
+      WriteBuilder.Context context =
+          appenderBuilder.createContextFunc.apply(appenderBuilder.config);
+
+      int rowGroupSize = context.rowGroupSize();
+      int pageSize = context.pageSize();
+      int pageRowLimit = context.pageRowLimit();
+      int dictionaryPageSize = context.dictionaryPageSize();
+      String compressionLevel = context.compressionLevel();
+      CompressionCodecName codec = context.codec();
+      int rowGroupCheckMinRecordCount = context.rowGroupCheckMinRecordCount();
+      int rowGroupCheckMaxRecordCount = context.rowGroupCheckMaxRecordCount();
+      int bloomFilterMaxBytes = context.bloomFilterMaxBytes();
+      boolean dictionaryEnabled = context.dictionaryEnabled();
+
+      if (compressionLevel != null) {
+        switch (codec) {
+          case GZIP:
+            appenderBuilder.config.put("zlib.compress.level", compressionLevel);
+            break;
+          case BROTLI:
+            appenderBuilder.config.put("compression.brotli.quality", compressionLevel);
+            break;
+          case ZSTD:
+            // keep "io.compression.codec.zstd.level" for backwards compatibility
+            appenderBuilder.config.put("io.compression.codec.zstd.level", compressionLevel);
+            appenderBuilder.config.put("parquet.compression.codec.zstd.level", compressionLevel);
+            break;
+          default:
+            // compression level is not supported; ignore it
+        }
+      }
+
+      set("parquet.avro.write-old-list-structure", "false");
+      MessageType type = ParquetSchemaUtil.convert(appenderBuilder.schema, appenderBuilder.name);
+
+      FileEncryptionProperties fileEncryptionProperties = null;
+      if (appenderBuilder.fileEncryptionKey != null) {
+        byte[] encryptionKeyArray = ByteBuffers.toByteArray(appenderBuilder.fileEncryptionKey);
+        byte[] aadPrefixArray = ByteBuffers.toByteArray(appenderBuilder.fileAADPrefix);
+
+        fileEncryptionProperties =
+            FileEncryptionProperties.builder(encryptionKeyArray)
+                .withAADPrefix(aadPrefixArray)
+                .withoutAADPrefixStorage()
+                .build();
+      } else {
+        Preconditions.checkState(
+            appenderBuilder.fileAADPrefix == null, "AAD prefix set with null encryption key");
+      }
+
+      for (Map.Entry<String, String> entry : appenderBuilder.config.entrySet()) {
+        appenderBuilder.conf.set(entry.getKey(), entry.getValue());
+      }
+
+      ParquetProperties.Builder propsBuilder =
+          ParquetProperties.builder()
+              .withWriterVersion(appenderBuilder.writerVersion)
+              .withPageSize(pageSize)
+              .withPageRowCountLimit(pageRowLimit)
+              .withDictionaryEncoding(dictionaryEnabled)
+              .withDictionaryPageSize(dictionaryPageSize)
+              .withMinRowCountForPageSizeCheck(rowGroupCheckMinRecordCount)
+              .withMaxRowCountForPageSizeCheck(rowGroupCheckMaxRecordCount)
+              .withMaxBloomFilterBytes(bloomFilterMaxBytes);
+
+      appenderBuilder.setBloomFilterConfig(
+          context, type, propsBuilder::withBloomFilterEnabled, propsBuilder::withBloomFilterFPP);
+
+      ParquetProperties parquetProperties = propsBuilder.build();
+
+      return new org.apache.iceberg.parquet.ParquetWriter<>(
+          appenderBuilder.conf,
+          appenderBuilder.file,
+          appenderBuilder.schema,
+          rowGroupSize,
+          appenderBuilder.metadata,
+          msgType -> writerFunction.apply(nativeType, msgType),
+          codec,
+          parquetProperties,
+          appenderBuilder.metricsConfig,
+          appenderBuilder.writeMode,
+          fileEncryptionProperties);
+    }
+
+    @Override
+    public DataWriter<D> dataWriter() throws IOException {
+      Preconditions.checkArgument(spec != null, "Cannot create data writer without spec");
+      Preconditions.checkArgument(
+          spec.isUnpartitioned() || partition != null,
+          "Partition must not be null when creating data writer for partitioned spec");
+
+      appenderBuilder.createWriterFunc(msgType -> writerFunction.apply(nativeType, msgType));
+      FileAppender<D> fileAppender = appenderBuilder.build();
+      return new DataWriter<>(
+          fileAppender, FileFormat.PARQUET, location, spec, partition, keyMetadata, sortOrder);
+    }
+
+    @Override
+    public EqualityDeleteWriter<D> equalityDeleteWriter() throws IOException {
+      Preconditions.checkState(
+          rowSchema != null, "Cannot create equality delete file without a schema");
+      Preconditions.checkState(
+          equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
+      Preconditions.checkState(
+          writerFunction != null,
+          "Cannot create equality delete file unless writerFunction is set");
+      Preconditions.checkArgument(
+          spec != null, "Spec must not be null when creating equality delete writer");
+      Preconditions.checkArgument(
+          spec.isUnpartitioned() || partition != null,
+          "Partition must not be null for partitioned writes");
+
+      meta("delete-type", "equality");
+      meta(
+          "delete-field-ids",
+          IntStream.of(equalityFieldIds)
+              .mapToObj(Objects::toString)
+              .collect(Collectors.joining(", ")));
+
+      // the appender uses the row schema without extra columns
+      appenderBuilder.schema(rowSchema);
+      appenderBuilder.createWriterFunc(msgType -> writerFunction.apply(nativeType, msgType));
+      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
+
+      return new EqualityDeleteWriter<>(
+          appenderBuilder.build(),
+          FileFormat.PARQUET,
+          location,
+          spec,
+          partition,
+          keyMetadata,
+          sortOrder,
+          equalityFieldIds);
+    }
+
+    @Override
+    public PositionDeleteWriter<D> positionDeleteWriter() throws IOException {
+      Preconditions.checkState(
+          equalityFieldIds == null, "Cannot create position delete file using delete field ids");
+      Preconditions.checkArgument(
+          spec != null, "Spec must not be null when creating position delete writer");
+      Preconditions.checkArgument(
+          spec.isUnpartitioned() || partition != null,
+          "Partition must not be null for partitioned writes");
+      Preconditions.checkArgument(
+          rowSchema == null || writerFunction != null,
+          "Create function should be provided if we write row data");
+
+      meta("delete-type", "position");
+
+      if (rowSchema != null && writerFunction != null) {
+        // the appender uses the row schema wrapped with position fields
+        appenderBuilder.schema(DeleteSchemaUtil.posDeleteSchema(rowSchema));
+
+        appenderBuilder.createWriterFunc(
+            parquetSchema -> {
+              ParquetValueWriter<?> writer = writerFunction.apply(nativeType, parquetSchema);
+              if (writer instanceof StructWriter) {
+                return new PositionDeleteStructWriter<D>(
+                    (StructWriter<?>) writer, pathTransformFunc);
+              } else {
+                throw new UnsupportedOperationException(
+                    "Cannot wrap writer for position deletes: " + writer.getClass());
+              }
+            });
+
+      } else {
+        appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
+
+        // We ignore the 'createWriterFunc' and 'rowSchema' even if is provided, since we do not
+        // write row data itself
+        appenderBuilder.createWriterFunc(
+            parquetSchema ->
+                new PositionDeleteStructWriter<D>(
+                    (StructWriter<?>) GenericParquetWriter.buildWriter(parquetSchema),
+                    Function.identity()));
+      }
+
+      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
+
+      return new PositionDeleteWriter<>(
+          appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata);
+    }
+  }
+
   private static class ParquetReadBuilder<T> extends ParquetReader.Builder<T> {
     private Schema schema = null;
     private ReadSupport<T> readSupport = null;
@@ -1437,5 +2075,18 @@ public class Parquet {
       writer.appendFile(ParquetIO.file(Files.localInput(inputFile)));
     }
     writer.end(metadata);
+  }
+
+  public interface ReaderFunction<D> {
+    ParquetValueReader<D> read(
+        Schema schema, MessageType messageType, Map<Integer, ?> idToConstant);
+  }
+
+  public interface BatchReaderFunction<D, F> {
+    VectorizedReader<D> read(
+        Schema schema,
+        MessageType messageType,
+        Map<Integer, ?> idToConstant,
+        DeleteFilter<F> deleteFilter);
   }
 }
