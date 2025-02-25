@@ -436,23 +436,26 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     checkIdentifierIsValid(from);
     checkIdentifierIsValid(to);
     try {
-      renameInternal(context, from, to);
+      renameInternal(context, from, to, paths.rename());
     } catch (NoSuchNamespaceException e) {
       if (name().equals(to.namespace().level(0)) && to.namespace().length() > 1) {
         Namespace namespace =
             Namespace.of(Arrays.copyOfRange(to.namespace().levels(), 1, to.namespace().length()));
-        TableIdentifier toWithStrippingCatalog = TableIdentifier.of(namespace, to.name());
-        renameInternal(context, from, toWithStrippingCatalog);
+        TableIdentifier toWithoutCatalog = TableIdentifier.of(namespace, to.name());
+        renameInternal(context, from, toWithoutCatalog, paths.rename());
+      } else {
+        throw e;
       }
     }
   }
 
-  private void renameInternal(SessionContext context, TableIdentifier from, TableIdentifier to) {
+  private void renameInternal(
+      SessionContext context, TableIdentifier from, TableIdentifier to, String renameEndpoint) {
     RenameTableRequest request =
         RenameTableRequest.builder().withSource(from).withDestination(to).build();
 
     // for now, ignore the response because there is no way to return it
-    client.post(paths.rename(), request, null, headers(context), ErrorHandlers.tableErrorHandler());
+    client.post(renameEndpoint, request, null, headers(context), ErrorHandlers.tableErrorHandler());
   }
 
   @Override
@@ -1316,12 +1319,18 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     Endpoint.check(endpoints, Endpoint.V1_RENAME_VIEW);
     checkViewIdentifierIsValid(from);
     checkViewIdentifierIsValid(to);
-
-    RenameTableRequest request =
-        RenameTableRequest.builder().withSource(from).withDestination(to).build();
-
-    client.post(
-        paths.renameView(), request, null, headers(context), ErrorHandlers.viewErrorHandler());
+    try {
+      renameInternal(context, from, to, paths.renameView());
+    } catch (NoSuchNamespaceException e) {
+      if (name().equals(to.namespace().level(0)) && to.namespace().length() > 1) {
+        Namespace namespace =
+            Namespace.of(Arrays.copyOfRange(to.namespace().levels(), 1, to.namespace().length()));
+        TableIdentifier toWithoutCatalog = TableIdentifier.of(namespace, to.name());
+        renameInternal(context, from, toWithoutCatalog, paths.renameView());
+      } else {
+        throw e;
+      }
+    }
   }
 
   private class RESTViewBuilder implements ViewBuilder {

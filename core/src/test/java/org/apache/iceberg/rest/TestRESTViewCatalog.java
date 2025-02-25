@@ -243,6 +243,36 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
             any());
   }
 
+  @Test
+  public void renameViewNamespaceHavingCatalogName() {
+    TableIdentifier from = TableIdentifier.of("ns", "table");
+    TableIdentifier to = TableIdentifier.of("ns", "renamedTable");
+    TableIdentifier toWithCatalogName = TableIdentifier.of(catalog().name(), "ns", "renamedTable");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(from.namespace());
+    }
+
+    assertThat(catalog().viewExists(from)).as("View should not exist").isFalse();
+
+    catalog()
+        .buildView(from)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(from.namespace())
+        .withQuery("spark", "select 1")
+        .create();
+
+    assertThat(catalog().viewExists(from)).as("View should exist").isTrue();
+
+    assertThat(catalog().viewExists(to))
+        .as("Destination View should not exist before rename")
+        .isFalse();
+
+    catalog().renameView(from, toWithCatalogName);
+    assertThat(catalog().viewExists(to)).as("View should exist with new name").isTrue();
+    assertThat(catalog().viewExists(from)).as("Original view should no longer exist").isFalse();
+  }
+
   @Override
   protected RESTCatalog catalog() {
     return restCatalog;
