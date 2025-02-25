@@ -70,6 +70,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -104,6 +105,13 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
   @BeforeClass
   public static void startSpark() {
     TestCompressionSettings.spark = SparkSession.builder().master("local[2]").getOrCreate();
+  }
+
+  @Before
+  public void resetSpecificConfigurations() {
+    spark.conf().unset(COMPRESSION_CODEC);
+    spark.conf().unset(COMPRESSION_LEVEL);
+    spark.conf().unset(COMPRESSION_STRATEGY);
   }
 
   @Parameterized.AfterParam
