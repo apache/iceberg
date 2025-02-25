@@ -28,7 +28,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -36,8 +35,6 @@ import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 /**
@@ -93,33 +90,6 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
     this.positionalDeleteSchemaType = positionalDeleteSchemaType;
   }
 
-  @Deprecated
-  protected abstract void configureDataWrite(Avro.DataWriteBuilder builder);
-
-  @Deprecated
-  protected abstract void configureEqualityDelete(Avro.DeleteWriteBuilder builder);
-
-  @Deprecated
-  protected abstract void configurePositionDelete(Avro.DeleteWriteBuilder builder);
-
-  @Deprecated
-  protected abstract void configureDataWrite(Parquet.DataWriteBuilder builder);
-
-  @Deprecated
-  protected abstract void configureEqualityDelete(Parquet.DeleteWriteBuilder builder);
-
-  @Deprecated
-  protected abstract void configurePositionDelete(Parquet.DeleteWriteBuilder builder);
-
-  @Deprecated
-  protected abstract void configureDataWrite(ORC.DataWriteBuilder builder);
-
-  @Deprecated
-  protected abstract void configureEqualityDelete(ORC.DeleteWriteBuilder builder);
-
-  @Deprecated
-  protected abstract void configurePositionDelete(ORC.DeleteWriteBuilder builder);
-
   protected S rowSchemaType() {
     return rowSchemaType;
   }
@@ -151,7 +121,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
           .withKeyMetadata(keyMetadata)
           .withSortOrder(dataSortOrder)
           .overwrite()
-          .writerBuilder();
+          .dataWriter();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -177,7 +147,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
           .withKeyMetadata(keyMetadata)
           .withSortOrder(equalityDeleteSortOrder)
           .overwrite()
-          .equalityWriterBuilder();
+          .equalityDeleteWriter();
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create new equality delete writer", e);
     }
@@ -201,7 +171,7 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
           .withPartition(partition)
           .withKeyMetadata(keyMetadata)
           .overwrite()
-          .positionWriterBuilder();
+          .positionDeleteWriter();
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create new position delete writer", e);
     }
