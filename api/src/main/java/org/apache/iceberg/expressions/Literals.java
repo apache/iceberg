@@ -300,8 +300,7 @@ class Literals {
         case TIMESTAMP:
           return (Literal<T>) new TimestampLiteral(value());
         case TIMESTAMP_NANO:
-          // assume micros and convert to nanos to match the behavior in the timestamp case above
-          return new TimestampLiteral(value()).to(type);
+          return (Literal<T>) new TimestampNanoLiteral(value());
         case DATE:
           if ((long) Integer.MAX_VALUE < value()) {
             return aboveMax();
