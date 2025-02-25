@@ -27,6 +27,10 @@ import org.apache.hc.core5.http.HttpStatus;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPClient;
+import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.auth.AuthManager;
+import org.apache.iceberg.rest.auth.AuthManagers;
+import org.apache.iceberg.rest.auth.AuthProperties;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.responses.ConfigResponse;
@@ -39,12 +43,15 @@ import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.Header;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
+import org.mockserver.model.Parameter;
+import org.mockserver.model.ParameterBody;
 import org.mockserver.verify.VerificationTimes;
 import software.amazon.awssdk.auth.signer.internal.SignerConstant;
 
 public class TestRESTSigV4Signer {
   private static ClientAndServer mockServer;
-  private static HTTPClient client;
+  private static RESTClient client;
+  private static AuthManager authManager;
 
   @BeforeAll
   public static void beforeClass() {
@@ -52,26 +59,35 @@ public class TestRESTSigV4Signer {
 
     Map<String, String> properties =
         ImmutableMap.of(
-            "rest.sigv4-enabled",
-            "true",
+            AuthProperties.AUTH_TYPE,
+            AuthProperties.AUTH_TYPE_SIGV4,
             // CI environment doesn't have credentials, but a value must be set for signing
             AwsProperties.REST_SIGNER_REGION,
             "us-west-2",
             AwsProperties.REST_ACCESS_KEY_ID,
             "id",
             AwsProperties.REST_SECRET_ACCESS_KEY,
-            "secret");
-    client =
+            "secret",
+            // OAuth2 token to test relocation of conflicting auth header
+            "token",
+            "existing_token");
+
+    HTTPClient httpClient =
         HTTPClient.builder(properties)
             .uri("http://localhost:" + mockServer.getLocalPort())
-            .withHeader(HttpHeaders.AUTHORIZATION, "Bearer existing_token")
-            .withAuthSession(AuthSession.EMPTY)
-            .build();
+            .build()
+            .withAuthSession(AuthSession.EMPTY);
+
+    authManager = AuthManagers.loadAuthManager("test", properties);
+    AuthSession authSession = authManager.catalogSession(httpClient, properties);
+
+    client = httpClient.withAuthSession(authSession);
   }
 
   @AfterAll
   public static void afterClass() throws IOException {
     mockServer.stop();
+    authManager.close();
     client.close();
   }
 
@@ -90,11 +106,13 @@ public class TestRESTSigV4Signer {
             .withHeader(Header.header(HttpHeaders.AUTHORIZATION, "AWS4-HMAC-SHA256.*"))
             // Require that conflicting auth header is relocated
             .withHeader(
-                Header.header(RESTSigV4Signer.RELOCATED_HEADER_PREFIX + HttpHeaders.AUTHORIZATION))
+                Header.header(
+                    RESTSigV4AuthSession.RELOCATED_HEADER_PREFIX + HttpHeaders.AUTHORIZATION,
+                    "Bearer existing_token"))
             // Require the empty body checksum
             .withHeader(
                 Header.header(
-                    SignerConstant.X_AMZ_CONTENT_SHA256, RESTSigV4Signer.EMPTY_BODY_SHA256));
+                    SignerConstant.X_AMZ_CONTENT_SHA256, RESTSigV4AuthSession.EMPTY_BODY_SHA256));
 
     mockServer
         .when(request)
@@ -113,11 +131,18 @@ public class TestRESTSigV4Signer {
         HttpRequest.request()
             .withMethod("POST")
             .withPath("/v1/oauth/token")
+            .withBody(
+                ParameterBody.params(
+                    Parameter.param("client_id", "asdfasd"),
+                    Parameter.param("client_secret", "asdfasdf"),
+                    Parameter.param("scope", "catalog")))
             // Require SigV4 Authorization
             .withHeader(Header.header(HttpHeaders.AUTHORIZATION, "AWS4-HMAC-SHA256.*"))
             // Require that conflicting auth header is relocated
             .withHeader(
-                Header.header(RESTSigV4Signer.RELOCATED_HEADER_PREFIX + HttpHeaders.AUTHORIZATION))
+                Header.header(
+                    RESTSigV4AuthSession.RELOCATED_HEADER_PREFIX + HttpHeaders.AUTHORIZATION,
+                    "Bearer existing_token"))
             // Require a body checksum is set
             .withHeader(Header.header(SignerConstant.X_AMZ_CONTENT_SHA256));
 
