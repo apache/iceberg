@@ -23,6 +23,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -75,14 +76,25 @@ abstract class FileCleanupStrategy {
   }
 
   protected void deleteFiles(Set<String> pathsToDelete, String fileType) {
-    Tasks.foreach(pathsToDelete)
-        .executeWith(deleteExecutorService)
-        .retry(3)
-        .stopRetryOn(NotFoundException.class)
-        .suppressFailureWhenFinished()
-        .onFailure(
-            (file, thrown) -> LOG.warn("Delete failed for {} file: {}", fileType, file, thrown))
-        .run(deleteFunc::accept);
+    if (deleteFunc instanceof BulkDeleteConsumer) {
+      pathsToDelete.forEach(deleteFunc);
+
+      try {
+        ((BulkDeleteConsumer) deleteFunc).consumeAll();
+      } catch (BulkDeletionFailureException e) {
+        LOG.warn("Bulk deletion failed for {} file(s).", e.numberFailedObjects(), e);
+      }
+    } else {
+      Tasks.foreach(pathsToDelete)
+          .executeWith(deleteExecutorService)
+          .retry(3)
+          .stopRetryOn(NotFoundException.class)
+          .stopOnFailure()
+          .suppressFailureWhenFinished()
+          .onFailure(
+              (file, thrown) -> LOG.warn("Delete failed for {} file: {}", fileType, file, thrown))
+          .run(deleteFunc::accept);
+    }
   }
 
   protected boolean hasAnyStatisticsFiles(TableMetadata tableMetadata) {
