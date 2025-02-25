@@ -88,13 +88,13 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
       EncryptedOutputFile encryptedOutputFile, FileFormat fileFormat) {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
     try {
-      return DataFileServiceRegistry.appenderBuilder(
-              fileFormat, Record.class.getName(), encryptedOutputFile, schema)
+      return DataFileServiceRegistry.<Record, Object>writeBuilder(
+              fileFormat, Record.class.getName(), encryptedOutputFile)
           .schema(schema)
           .setAll(config)
           .metricsConfig(metricsConfig)
           .overwrite()
-          .build();
+          .appenderBuilder();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -125,8 +125,9 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
 
     try {
-      return DataFileServiceRegistry.equalityDeleteWriterBuilder(
-              format, Record.class.getName(), file, schema)
+      return DataFileServiceRegistry.<Record, Object>writeBuilder(
+              format, Record.class.getName(), file)
+          .schema(schema)
           .withPartition(partition)
           .overwrite()
           .setAll(config)
@@ -135,7 +136,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
           .withSpec(spec)
           .withKeyMetadata(file.keyMetadata())
           .equalityFieldIds(equalityFieldIds)
-          .buildEqualityWriter();
+          .equalityWriterBuilder();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -147,8 +148,9 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(config);
 
     try {
-      return DataFileServiceRegistry.positionDeleteWriterBuilder(
-              format, Record.class.getName(), file, schema)
+      return DataFileServiceRegistry.<Record, Object>writeBuilder(
+              format, Record.class.getName(), file)
+          .schema(schema)
           .withPartition(partition)
           .overwrite()
           .setAll(config)
@@ -156,7 +158,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
           .rowSchema(posDeleteRowSchema)
           .withSpec(spec)
           .withKeyMetadata(file.keyMetadata())
-          .buildPositionWriter();
+          .positionWriterBuilder();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

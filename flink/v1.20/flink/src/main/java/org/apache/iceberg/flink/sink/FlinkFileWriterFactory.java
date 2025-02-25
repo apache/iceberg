@@ -46,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 class FlinkFileWriterFactory extends RegistryBasedFileWriterFactory<RowData, RowType>
     implements Serializable {
+
   FlinkFileWriterFactory(
       Table table,
       FileFormat dataFileFormat,
