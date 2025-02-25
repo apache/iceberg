@@ -1133,7 +1133,6 @@ public class SparkTableUtil {
         spark.catalog().listColumns(db, table).collectAsList().stream()
             .filter(org.apache.spark.sql.catalog.Column::isPartition)
             .map(org.apache.spark.sql.catalog.Column::name)
-            .map(name -> name.toLowerCase(Locale.ROOT))
             .collect(Collectors.toList());
     return findCompatibleSpec(sparkPartNames, icebergTable);
   }

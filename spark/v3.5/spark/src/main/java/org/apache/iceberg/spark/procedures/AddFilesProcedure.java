@@ -24,11 +24,9 @@ import static org.apache.iceberg.spark.SparkTableUtil.validatePartitionFilter;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
@@ -161,7 +159,6 @@ class AddFilesProcedure extends BaseProcedure {
     return modifyIcebergTable(
         destIdent,
         table -> {
-          nonIdentityPartitionCheck(table);
           ensureNameMappingPresent(table);
 
           if (isFileIdentifier(sourceIdent)) {
@@ -202,7 +199,6 @@ class AddFilesProcedure extends BaseProcedure {
     List<String> sparkPartNames =
         JavaConverters.seqAsJavaList(inferredSpec.partitionColumns()).stream()
             .map(StructField::name)
-            .map(name -> name.toLowerCase(Locale.ROOT))
             .collect(Collectors.toList());
     PartitionSpec compatibleSpec = findCompatibleSpec(sparkPartNames, table);
 
@@ -269,18 +265,5 @@ class AddFilesProcedure extends BaseProcedure {
   @Override
   public String description() {
     return "AddFiles";
-  }
-
-  private void nonIdentityPartitionCheck(Table table) {
-    // Check for any non-identity partition columns
-    List<PartitionField> nonIdentityFields =
-        table.spec().fields().stream()
-            .filter(x -> !x.transform().isIdentity())
-            .collect(Collectors.toList());
-    Preconditions.checkArgument(
-        nonIdentityFields.isEmpty(),
-        "Cannot add data files to target table %s because that table is partitioned and contains non-identity partition transforms which will not be compatible. Found non-identity fields %s",
-        table.name(),
-        nonIdentityFields);
   }
 }

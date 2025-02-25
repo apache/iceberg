@@ -42,6 +42,7 @@ import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.FileIO;
@@ -636,7 +637,8 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void addFileTableOldSpecDataAfterPartitionSpecEvolved() {
+  public void addFileTableOldSpecDataAfterPartitionSpecEvolved()
+      throws NoSuchTableException, ParseException {
     createPartitionedFileTable("parquet");
     createIcebergTable(
         "id Integer, name String, dept String, subdept String",
@@ -644,10 +646,12 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
     sql("ALTER TABLE %s DROP PARTITION FIELD dept", tableName);
     sql(
         "ALTER TABLE %s DROP PARTITION FIELD subdept",
-        tableName); // This spec is matching with the input data which is partitioned just by "id"
+        tableName); // This spec now matches the partitioning of the parquet table
     sql("ALTER TABLE %s ADD PARTITION FIELD subdept", tableName);
 
     if (formatVersion == 1) {
+      // In V1, since we are dropping the partition field, it adds a void transform which will not
+      // match with the input spec
       assertThatThrownBy(
               () ->
                   scalarSql(
@@ -656,7 +660,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining(
               String.format(
-                  "Cannot add data files to target table %s because that table is partitioned and contains non-identity partition transforms which will not be compatible.",
+                  "Cannot find a partition spec in Iceberg table %s that matches the partition columns ([id]) in input table",
                   tableName));
       return;
     }
@@ -671,6 +675,19 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
         "Iceberg table contains correct data",
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    // Find the spec that matches the partitioning of the parquet table
+    PartitionSpec compatibleSpec =
+        table.specs().values().stream()
+            .filter(spec -> spec.fields().size() == 1)
+            .filter(spec -> "id".equals(spec.fields().get(0).name()))
+            .findFirst()
+            .orElse(null);
+
+    assertThat(compatibleSpec).isNotNull();
+    manifestSpecMatchesGivenSpec(table, compatibleSpec);
+    verifyUUIDInPath();
   }
 
   @TestTemplate
@@ -1279,15 +1296,18 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
 
   private void manifestSpecMatchesTableSpec() throws NoSuchTableException, ParseException {
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    FileIO io = ((HasTableOperations) table).operations().io();
+    manifestSpecMatchesGivenSpec(table, table.spec());
+  }
 
+  private void manifestSpecMatchesGivenSpec(Table table, PartitionSpec partitionSpec) {
+    FileIO io = ((HasTableOperations) table).operations().io();
     // Check that the manifests have the correct partition spec
     assertThat(
             table.currentSnapshot().allManifests(io).stream()
                 .map(mf -> ManifestFiles.read(mf, io, null /* force reading spec from file*/))
                 .map(ManifestReader::spec)
                 .collect(Collectors.toList()))
-        .allSatisfy(spec -> assertThat(spec).isEqualTo(table.spec()));
+        .allSatisfy(spec -> assertThat(spec).isEqualTo(partitionSpec));
   }
 
   private void verifyUUIDInPath() {
