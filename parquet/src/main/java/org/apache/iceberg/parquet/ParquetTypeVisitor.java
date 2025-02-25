@@ -23,8 +23,8 @@ import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
@@ -41,17 +41,11 @@ public class ParquetTypeVisitor<T> {
     } else {
       // if not a primitive, the typeId must be a group
       GroupType group = type.asGroupType();
-      OriginalType annotation = group.getOriginalType();
-      if (annotation != null) {
-        switch (annotation) {
-          case LIST:
-            return visitList(group, visitor);
-
-          case MAP:
-            return visitMap(group, visitor);
-
-          default:
-        }
+      LogicalTypeAnnotation annotation = group.getLogicalTypeAnnotation();
+      if (LogicalTypeAnnotation.listType().equals(annotation)) {
+        return visitList(group, visitor);
+      } else if (LogicalTypeAnnotation.mapType().equals(annotation)) {
+        return visitMap(group, visitor);
       }
 
       return visitor.struct(group, visitFields(group, visitor));
