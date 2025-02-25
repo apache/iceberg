@@ -23,11 +23,11 @@ import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Iterator;
 import java.util.Map;
-import org.apache.iceberg.encryption.EncryptionKeyEntry;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.encryption.NativeEncryptionKeyMetadata;
 import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
+import org.apache.iceberg.encryption.SnapshotEncryptionKey;
 import org.apache.iceberg.encryption.StandardEncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
@@ -103,10 +103,9 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
       ByteBuffer encryptedKeyMetadata =
           EncryptionUtil.encryptSnapshotKeyMetadata(
               em.unwrapKey(keyId), snapshotId, keyMetadata.copyWithLength(writer.length()));
-      EncryptionKeyEntry key =
-          new EncryptionKeyEntry(
+      SnapshotEncryptionKey key =
+          new SnapshotEncryptionKey(
               Long.toString(snapshotId),
-              EncryptionKeyEntry.TYPE_KEY_METADATA,
               Base64.getEncoder().encodeToString(ByteBuffers.toByteArray(encryptedKeyMetadata)),
               keyId);
       em.addSnapshotKeyMetadata(key);

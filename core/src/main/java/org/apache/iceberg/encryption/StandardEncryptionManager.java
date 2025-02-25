@@ -41,7 +41,7 @@ public class StandardEncryptionManager implements EncryptionManager {
   // a holder class of metadata that is not available after serialization
   private class TransientEncryptionState {
     private final KeyManagementClient kmsClient;
-    private final Map<String, EncryptionKeyEntry> encryptionKeys;
+    private final Map<String, SnapshotEncryptionKey> encryptionKeys;
     private final LoadingCache<String, ByteBuffer> unwrappedKeyCache;
     private String currentKeyID;
 
@@ -148,7 +148,7 @@ public class StandardEncryptionManager implements EncryptionManager {
     return transientState.currentKeyID;
   }
 
-  public void addSnapshotKeyMetadata(EncryptionKeyEntry key) {
+  public void addSnapshotKeyMetadata(SnapshotEncryptionKey key) {
     if (transientState == null) {
       throw new IllegalStateException("Cannot add key metadata after serialization");
     }
@@ -158,20 +158,6 @@ public class StandardEncryptionManager implements EncryptionManager {
     }
 
     transientState.encryptionKeys.put(key.id(), key);
-  }
-
-  // todo gg add in integr PR
-  void addEncryptionKeys(String currentKeyID, Map<String, EncryptionKeyEntry> encryptionKeys) {
-    this.transientState.currentKeyID = currentKeyID;
-
-    for (Map.Entry<String, EncryptionKeyEntry> entry : encryptionKeys.entrySet()) {
-      EncryptionKeyEntry keyEntry = entry.getValue();
-
-      transientState.encryptionKeys.put(
-          entry.getKey(),
-          new EncryptionKeyEntry(
-              keyEntry.id(), keyEntry.type(), keyEntry.keyPayload(), keyEntry.encryptionKeyID()));
-    }
   }
 
   private ByteBuffer newKey() {
@@ -193,12 +179,9 @@ public class StandardEncryptionManager implements EncryptionManager {
 
     ByteBuffer unwrapped = newKey();
     ByteBuffer wrapped = transientState.kmsClient.wrapKey(unwrapped, tableKeyId);
-    EncryptionKeyEntry key =
-        new EncryptionKeyEntry(
-            newKeyId(),
-            EncryptionKeyEntry.TYPE_KEY,
-            Base64.getEncoder().encodeToString(ByteBuffers.toByteArray(wrapped)),
-            "");
+    SnapshotEncryptionKey key =
+        new SnapshotEncryptionKey(
+            newKeyId(), Base64.getEncoder().encodeToString(ByteBuffers.toByteArray(wrapped)), "");
 
     // update internal tracking
     transientState.unwrappedKeyCache.put(key.id(), unwrapped);

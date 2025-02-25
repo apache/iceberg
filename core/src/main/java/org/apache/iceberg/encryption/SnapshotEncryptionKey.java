@@ -23,21 +23,17 @@ import java.nio.ByteBuffer;
 import java.util.Base64;
 
 /**
- * Encryption keys and metadata required for decrypting the manifest list files in encrypted tables.
+ * Encryption keys and metadata required for decrypting the manifest list files in snapshots of
+ * encrypted tables.
  */
-public class EncryptionKeyEntry implements Serializable {
-  public static final String TYPE_KEY_METADATA = "key-metadata";
-  public static final String TYPE_KEY = "key";
-
+public class SnapshotEncryptionKey implements Serializable {
   private final String id;
-  private final String type;
   private final String keyPayload;
   private final ByteBuffer keyPayloadBytes;
   private final String encryptionKeyID;
 
-  public EncryptionKeyEntry(String id, String type, String keyPayload, String encryptionKeyID) {
+  public SnapshotEncryptionKey(String id, String keyPayload, String encryptionKeyID) {
     this.id = id;
-    this.type = type;
     this.keyPayload = keyPayload;
     this.keyPayloadBytes = ByteBuffer.wrap(Base64.getDecoder().decode(keyPayload));
     this.encryptionKeyID = encryptionKeyID;
@@ -45,10 +41,6 @@ public class EncryptionKeyEntry implements Serializable {
 
   public String id() {
     return id;
-  }
-
-  public String type() {
-    return type;
   }
 
   public String keyPayload() {

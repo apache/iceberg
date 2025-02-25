@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Map;
-import org.apache.iceberg.encryption.EncryptionKeyEntry;
+import org.apache.iceberg.encryption.SnapshotEncryptionKey;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -124,7 +124,7 @@ public class SnapshotParser {
     return fromJson(node, null);
   }
 
-  static Snapshot fromJson(JsonNode node, Map<String, EncryptionKeyEntry> encryptionKeys) {
+  static Snapshot fromJson(JsonNode node, Map<String, SnapshotEncryptionKey> encryptionKeys) {
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse table version from a non-object: %s", node);
 
@@ -186,7 +186,7 @@ public class SnapshotParser {
       ByteBuffer encryptedKeyMetadata = null;
       if (encryptionKeys != null) {
         String snapshotKeyID = Long.toString(snapshotId);
-        EncryptionKeyEntry snapshotKey = encryptionKeys.get(snapshotKeyID);
+        SnapshotEncryptionKey snapshotKey = encryptionKeys.get(snapshotKeyID);
         encryptionKeyId = snapshotKey.encryptionKeyID();
         encryptedKeyMetadata = snapshotKey.keyPayloadBytes();
       }
