@@ -304,7 +304,7 @@ class AddFilesProcedure extends BaseProcedure {
       Preconditions.checkArgument(
           unMatchedFilters.isEmpty(),
           "Cannot add files to target table %s. %s is partitioned but the specified partition filter "
-              + "refers to columns that are not partitioned: '%s' . Valid partition columns %s",
+              + "refers to columns that are not partitioned: '%s' . Valid partition columns: '%s'",
           table.name(),
           table.name(),
           unMatchedFilters,

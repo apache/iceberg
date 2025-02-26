@@ -752,6 +752,26 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void invalidPartitionColumnsInFilter() {
+    createPartitionedHiveTable();
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id, dept)");
+    String icebergTablePartitionNames = "id,dept";
+    assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files(table => '%s', source_table => '%s', partition_filter => map('dept', '1','subdept', '2'))",
+                    catalogName, tableName, sourceTableName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add files to target table")
+        .hasMessageContaining(
+            "specified partition filter refers to columns that are not partitioned: '[%s]'",
+            "subdept")
+        .hasMessageContaining("Valid partition columns: '%s'", icebergTablePartitionNames);
+  }
+
+  @TestTemplate
   public void addTwice() {
     createPartitionedHiveTable();
 
