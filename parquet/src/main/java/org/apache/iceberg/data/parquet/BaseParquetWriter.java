@@ -256,5 +256,11 @@ abstract class BaseParquetWriter<T> {
         LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
       return Optional.of(ParquetValueWriters.uuids(desc));
     }
+
+    @Override
+    public Optional<ParquetValueWriter<?>> visit(
+        LogicalTypeAnnotation.IntervalLogicalTypeAnnotation intervalType) {
+      return Optional.of(ParquetValueWriters.unknown(desc));
+    }
   }
 }

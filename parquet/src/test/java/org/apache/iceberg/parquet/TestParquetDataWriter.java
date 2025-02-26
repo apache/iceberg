@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
@@ -46,7 +47,11 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.ParquetReadOptions;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.schema.MessageType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -56,7 +61,9 @@ public class TestParquetDataWriter {
       new Schema(
           Types.NestedField.required(1, "id", Types.LongType.get()),
           Types.NestedField.optional(2, "data", Types.StringType.get()),
-          Types.NestedField.optional(3, "binary", Types.BinaryType.get()));
+          Types.NestedField.optional(3, "binary", Types.BinaryType.get()),
+          Types.NestedField.optional(4, "unknown", Types.UnknownType.get()),
+          Types.NestedField.optional(5, "test", Types.BooleanType.get()));
 
   private List<Record> records;
 
@@ -67,7 +74,7 @@ public class TestParquetDataWriter {
     GenericRecord record = GenericRecord.create(SCHEMA);
 
     ImmutableList.Builder<Record> builder = ImmutableList.builder();
-    builder.add(record.copy(ImmutableMap.of("id", 1L, "data", "a")));
+    builder.add(record.copy(ImmutableMap.of("id", 1L, "data", "a", "test", true)));
     builder.add(record.copy(ImmutableMap.of("id", 2L, "data", "b")));
     builder.add(record.copy(ImmutableMap.of("id", 3L, "data", "c")));
     builder.add(record.copy(ImmutableMap.of("id", 4L, "data", "d")));
@@ -109,6 +116,9 @@ public class TestParquetDataWriter {
         .as("Sort order should match")
         .isEqualTo(sortOrder.orderId());
     assertThat(dataFile.keyMetadata()).as("Key metadata should be null").isNull();
+    assertThat(dataFile.nullValueCounts())
+        .as("Unknown type field should not appear in metrics")
+        .doesNotContainKey(4);
 
     List<Record> writtenRecords;
     try (CloseableIterable<Record> reader =
@@ -118,6 +128,20 @@ public class TestParquetDataWriter {
             .build()) {
       writtenRecords = Lists.newArrayList(reader);
     }
+
+    ParquetFileReader schemaReader =
+        ParquetFileReader.open(
+            ParquetIO.file(file.toInputFile()), ParquetReadOptions.builder().build());
+    MessageType parquetSchema = schemaReader.getFileMetaData().getSchema();
+    assertThat(parquetSchema)
+        .as("UNKNOWN type should not be written to data file.")
+        .isEqualTo(
+            ParquetSchemaUtil.convert(
+                new Schema(
+                    SCHEMA.columns().stream()
+                        .filter(field -> field.type().typeId() != Type.TypeID.UNKNOWN)
+                        .collect(Collectors.toList())),
+                "table"));
 
     assertThat(writtenRecords).as("Written records should match").isEqualTo(records);
   }
@@ -134,7 +158,7 @@ public class TestParquetDataWriter {
             SCHEMA,
             PartitionSpec.unpartitioned(),
             SortOrder.unsorted(),
-            2);
+            3);
     testTable
         .updateProperties()
         .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "truncate(16)")
@@ -207,7 +231,7 @@ public class TestParquetDataWriter {
             SCHEMA,
             PartitionSpec.unpartitioned(),
             SortOrder.unsorted(),
-            2);
+            3);
     testTable
         .updateProperties()
         .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "truncate(16)")
