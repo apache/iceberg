@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import java.io.IOException;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
@@ -116,19 +117,17 @@ public class RewriteDVsSparkAction extends BaseSnapshotUpdateSparkAction<Rewrite
 
     validateAndInitOptions();
 
-    // TODO: 1) if V3 table has V2 deletes -> rewrite those
-    // TODO: 2) if V3 table has V3 deletes -> check their liveness ratio
-    // TODO: 3) if V3 table has multiple (conflicting DVs) for the same data file -> merge those
-
     Table deletesTable =
         MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.POSITION_DELETES);
-    CloseableIterable<PositionDeletesScanTask> tasks = planFiles(deletesTable);
-
     Map<String, List<List<PositionDeletesScanTask>>> fileGroupsByPuffinPath = Maps.newHashMap();
-
-    Map<String, List<PositionDeletesScanTask>> byPuffinPath =
-        StreamSupport.stream(tasks.spliterator(), false)
-            .collect(Collectors.groupingBy(task -> task.file().location()));
+    Map<String, List<PositionDeletesScanTask>> byPuffinPath = Maps.newHashMap();
+    try (CloseableIterable<PositionDeletesScanTask> tasks = planFiles(deletesTable)) {
+      byPuffinPath =
+          StreamSupport.stream(tasks.spliterator(), false)
+              .collect(Collectors.groupingBy(task -> task.file().location()));
+    } catch (IOException e) {
+      LOG.error("Cannot properly close file iterable while planning for rewrite", e);
+    }
 
     for (Map.Entry<String, List<PositionDeletesScanTask>> entry : byPuffinPath.entrySet()) {
       fileGroupsByPuffinPath.put(

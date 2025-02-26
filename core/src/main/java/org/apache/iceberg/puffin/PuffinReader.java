@@ -160,7 +160,7 @@ public class PuffinReader implements Closeable {
 
   public long dataSize() {
     try {
-      return fileSize - footerSize() - 4;
+      return fileSize - footerSize() - 4L;
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
