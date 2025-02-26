@@ -52,7 +52,7 @@ class SparkBinPackDVRewriter extends SparkBinPackPositionDeletesRewriter {
 
   public static final double DELETE_RATIO_THRESHOLD_DEFAULT = 0.3;
 
-  private double deleteRatio;
+  private double deleteRatioThreshold;
 
   SparkBinPackDVRewriter(SparkSession spark, Table table) {
     super(spark, table);
@@ -71,7 +71,7 @@ class SparkBinPackDVRewriter extends SparkBinPackPositionDeletesRewriter {
   @Override
   public void init(Map<String, String> options) {
     super.init(options);
-    this.deleteRatio =
+    this.deleteRatioThreshold =
         PropertyUtil.propertyAsDouble(
             options, DELETE_RATIO_THRESHOLD, DELETE_RATIO_THRESHOLD_DEFAULT);
   }
@@ -102,7 +102,7 @@ class SparkBinPackDVRewriter extends SparkBinPackPositionDeletesRewriter {
     }
 
     double liveRatio = liveDataSize / (double) totalDataSize;
-    return 1.0d - liveRatio >= deleteRatio;
+    return 1.0d - liveRatio >= deleteRatioThreshold;
   }
 
   @Override

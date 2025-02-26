@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -57,7 +56,6 @@ import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.api.io.TempDir;
 
 public class TestRewriteDVsAction extends CatalogTestBase {
 
@@ -78,8 +76,6 @@ public class TestRewriteDVsAction extends CatalogTestBase {
       }
     };
   }
-
-  @TempDir private Path temp;
 
   @AfterEach
   public void cleanup() {
