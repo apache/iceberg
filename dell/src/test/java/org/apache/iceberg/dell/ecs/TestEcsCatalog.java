@@ -200,6 +200,9 @@ public class TestEcsCatalog {
     assertThatThrownBy(() -> ecsCatalog.registerTable(identifier, metadataLocation))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Table already exists: a.t1");
+    assertThatThrownBy(() -> ecsCatalog.registerTable(identifier, metadataLocation, false))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("Table already exists: a.t1");
     assertThat(ecsCatalog.dropTable(identifier, true)).isTrue();
   }
 
@@ -216,6 +219,7 @@ public class TestEcsCatalog {
     // register with overwrite
     ecsCatalog.registerTable(identifier, unpartitionedMetadataLocation, true);
     assertThat(ecsCatalog.loadTable(identifier).spec().isPartitioned()).isFalse();
+    assertThat(ops.refresh().metadataFileLocation()).isEqualTo(unpartitionedMetadataLocation);
     assertThat(ecsCatalog.dropTable(identifier, true)).isTrue();
   }
 }

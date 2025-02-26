@@ -51,6 +51,7 @@ public class RegisterTableRequestParser {
     if (null != request.overwrite()) {
       gen.writeBooleanField(OVERWRITE, request.overwrite());
     }
+
     gen.writeEndObject();
   }
 

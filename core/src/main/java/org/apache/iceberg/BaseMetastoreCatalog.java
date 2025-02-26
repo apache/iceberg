@@ -18,15 +18,9 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -38,7 +32,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,8 +78,7 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
         metadataFileLocation != null && !metadataFileLocation.isEmpty(),
         "Cannot register an empty metadata file location as a table");
 
-    // Throw an exception if the table already exists in the catalog and overwriting is not
-    // requested.
+    // If the table already exists and overwriting is disabled, throw an exception.
     if (tableExists(identifier) && !overwrite) {
       throw new AlreadyExistsException("Table already exists: %s", identifier);
     }
@@ -94,36 +86,19 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
     TableOperations ops = newTableOps(identifier);
     TableMetadata newMetadata =
         TableMetadataParser.read(ops.io(), ops.io().newInputFile(metadataFileLocation));
+
     TableMetadata existing = ops.current();
     if (existing != null && overwrite) {
-      if (newMetadata.uuid() != null && existing.uuid() != null) {
-        Preconditions.checkArgument(
-            newMetadata.uuid().equals(existing.uuid()),
-            "Table UUID does not match: current=%s != refreshed=%s",
-            existing.uuid(),
-            newMetadata.uuid());
+      if (existing.metadataFileLocation().equals(metadataFileLocation)) {
+        LOG.info(
+            "The requested metadata matches the existing metadata. No changes will be committed.");
+        return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
       }
-      AtomicBoolean isRetry = new AtomicBoolean(false);
-      // overwrite new metadata with retry
-      Tasks.foreach(ops)
-          .retry(COMMIT_NUM_RETRIES_DEFAULT)
-          .exponentialBackoff(
-              COMMIT_MIN_RETRY_WAIT_MS_DEFAULT,
-              COMMIT_MAX_RETRY_WAIT_MS_DEFAULT,
-              COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT,
-              2.0 /* exponential */)
-          .onlyRetryOn(CommitFailedException.class)
-          .run(
-              taskOps -> {
-                TableMetadata base = isRetry.get() ? taskOps.refresh() : taskOps.current();
-                isRetry.set(true);
-
-                // commit
-                taskOps.commit(base, newMetadata);
-              });
-    } else {
-      ops.commit(null, newMetadata);
+      dropTable(identifier, false /* Keep all data and metadata files */);
+      // Reload table operations after the drop to avoid stale current in ops.commit
+      ops = newTableOps(identifier);
     }
+    ops.commit(null, newMetadata);
     return new BaseTable(ops, fullTableName(name(), identifier), metricsReporter());
   }
 

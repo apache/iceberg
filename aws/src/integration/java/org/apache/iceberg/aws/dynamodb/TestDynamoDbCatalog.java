@@ -392,6 +392,9 @@ public class TestDynamoDbCatalog {
     assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageContaining("already exists");
+    assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation, false))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("already exists");
     assertThat(catalog.dropTable(identifier, true)).isTrue();
     assertThat(catalog.dropNamespace(namespace)).isTrue();
   }
@@ -417,6 +420,7 @@ public class TestDynamoDbCatalog {
 
     registeringTable.refresh();
     assertThat(registeringTable.spec().isPartitioned()).isFalse();
+    assertThat(ops.current().metadataFileLocation()).isEqualTo(unpartitionedMetadataLocation);
     assertThat(catalog.dropTable(identifier, true)).isTrue();
     assertThat(catalog.dropNamespace(namespace)).isTrue();
   }

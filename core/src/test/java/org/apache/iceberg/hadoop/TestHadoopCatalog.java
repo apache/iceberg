@@ -677,6 +677,9 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Table already exists: a.t1");
+    assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation, false))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessage("Table already exists: a.t1");
     assertThat(catalog.dropTable(identifier)).isTrue();
   }
 
@@ -692,8 +695,9 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     registeringTable.updateSpec().addField(bucket("id", 16)).commit();
     assertThat(registeringTable.spec().isPartitioned()).isTrue();
     // register with overwrite
-    catalog.registerTable(identifier, unpartitionedMetadataLocation, true);
-    assertThat(catalog.loadTable(identifier).spec().isPartitioned()).isFalse();
+    Table registered = catalog.registerTable(identifier, unpartitionedMetadataLocation, true);
+    assertThat(registered.spec().isPartitioned()).isFalse();
+
     assertThat(catalog.dropTable(identifier)).isTrue();
   }
 }

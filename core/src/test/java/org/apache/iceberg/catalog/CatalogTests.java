@@ -3141,6 +3141,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     TestHelpers.assertSameSchemaMap(registeredTable.schemas(), originalTable.schemas());
     assertFiles(registeredTable, FILE_B, FILE_C);
 
+    assertThat(ops.refresh().metadataFileLocation())
+        .as("metadataFileLocation must match")
+        .isEqualTo(metadataLocation);
+
     registeredTable.newFastAppend().appendFile(FILE_A).commit();
     assertFiles(registeredTable, FILE_B, FILE_C, FILE_A);
 
@@ -3166,58 +3170,105 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageStartingWith("Table already exists: a.t1");
+    assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation, false))
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageStartingWith("Table already exists: a.t1");
     assertThat(catalog.dropTable(identifier)).isTrue();
+  }
+
+  @Test
+  public void testRegisterAndOverwriteForeignTable() {
+    C catalog = catalog();
+
+    TableIdentifier identT1 = TableIdentifier.of("a", "t1");
+    TableIdentifier identT2 = TableIdentifier.of("a", "t2");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identT1.namespace());
+    }
+
+    Table t1 = catalog.createTable(identT1, SCHEMA);
+    UUID t1UUID = t1.uuid();
+    Table t2 =
+        catalog.createTable(
+            identT2, SCHEMA, PartitionSpec.builderFor(SCHEMA).bucket("id", 16).build());
+    assertThat(t1.spec().isPartitioned()).isFalse();
+    assertThat(t2.spec().isPartitioned()).isTrue();
+
+    TableOperations opsT2 = operation(t2);
+
+    // register table t1 with metadata from table t2
+    Table registered = catalog.registerTable(identT1, opsT2.current().metadataFileLocation(), true);
+
+    assertThat(registered.uuid())
+        .as("table UUID should differ when registering with foreign metadata")
+        .isNotEqualTo(t1UUID);
+    assertThat(registered.spec().isPartitioned())
+        .as("table is expected to be partitioned after registration with t2’s metadata")
+        .isEqualTo(t2.spec().isPartitioned())
+        .isTrue();
+    assertThat(operation(registered).refresh())
+        .usingRecursiveComparison()
+        // Nessie catalog holds different Nessie commit-ID from which the metadata has been loaded.
+        .ignoringFields("properties.nessie.commit.id")
+        .as("TableMetadata fields must match")
+        .isEqualTo(opsT2.current());
+
+    // Both tables now point to the same metadata location, so we only need to purge once.
+    assertThat(catalog.dropTable(identT1, true)).isTrue();
+    assertThat(catalog.dropTable(identT2, false)).isTrue();
+  }
+
+  private TableOperations operation(Table table) {
+    return ((BaseTable) table).operations();
   }
 
   @Test
   public void testRegisterAndOverwriteExistingTable() {
     C catalog = catalog();
 
-    TableIdentifier ident1 = TableIdentifier.of("a", "t1");
-    TableIdentifier ident2 = TableIdentifier.of("a", "t2");
+    TableIdentifier ident = TableIdentifier.of("a", "e1");
 
     if (requiresNamespaceCreate()) {
-      catalog.createNamespace(ident1.namespace());
+      catalog.createNamespace(ident.namespace());
     }
 
-    Table table1 = catalog.createTable(ident1, SCHEMA);
-    Table table2 =
-        catalog.createTable(
-            ident2, SCHEMA, PartitionSpec.builderFor(SCHEMA).bucket("id", 16).build());
-    assertThat(table1.spec().isPartitioned()).isFalse();
-
-    TableOperations ops1 = ((BaseTable) table1).operations();
-    TableOperations ops2 = ((BaseTable) table2).operations();
-    TableMetadata metadata1 = ops1.current();
-    String unpartitionedMetadataLocation = metadata1.metadataFileLocation();
-    String metadata1AsJson = TableMetadataParser.toJson(metadata1);
-
-    String metadata2 = ops2.current().metadataFileLocation();
-
-    // register and overwrite metadata of foreign table
-    assertThatThrownBy(() -> catalog.registerTable(ident1, metadata2, true))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Table UUID does not match");
+    Table table = catalog.createTable(ident, SCHEMA);
+    UUID tableUUID = table.uuid();
+    TableMetadata metadata = operation(table).current();
+    String originalMetadataLocation = metadata.metadataFileLocation();
+    // Serialize the table’s current (unpartitioned) metadata to JSON for later comparison.
+    String metadataAsJson = TableMetadataParser.toJson(metadata);
 
     // update table spec
-    table1.updateSpec().addField(bucket("id", 16)).commit();
-    assertThat(table1.spec().isPartitioned()).isTrue();
+    table.updateSpec().addField(bucket("id", 16)).commit();
+    assertThat(table.spec().isPartitioned()).isTrue();
 
-    // register and overwrite metadata of same table
-    catalog.registerTable(ident1, unpartitionedMetadataLocation, true);
-    table1.refresh();
+    // overwrite the table’s metadata with its original unpartitioned version.
+    Table overwritten = catalog.registerTable(ident, originalMetadataLocation, true);
 
-    assertThat(table1.spec().isPartitioned()).isFalse();
-    TableMetadata actual = ((BaseTable) table1).operations().current();
-    TableMetadata expected = TableMetadataParser.fromJson(metadata1AsJson);
+    assertThat(overwritten.uuid())
+        .as("UUID should remain the same when overwriting an existing table's own metadata")
+        .isEqualTo(tableUUID);
+    assertThat(overwritten.spec().isPartitioned())
+        .as("table is expected to be unpartitioned")
+        .isFalse();
 
+    TableMetadata actual = operation(overwritten).refresh();
+    TableMetadata expected = TableMetadataParser.fromJson(metadataAsJson);
+    assertThat(actual.metadataFileLocation())
+        .as("metadataFileLocation must match")
+        .isEqualTo(originalMetadataLocation);
     assertThat(actual)
         .usingRecursiveComparison()
-        .ignoringFields("metadataFileLocation", "properties")
+        // reason to ignore:
+        // TableMetadataParser to/fromJson skips recording of metadataFileLocation in TableMetadata
+        // Nessie catalog holds different Nessie commit-ID from which the metadata has been loaded.
+        .ignoringFields("metadataFileLocation", "properties.nessie.commit.id")
+        .as("tableMetadata fields must match")
         .isEqualTo(expected);
 
-    assertThat(catalog.dropTable(ident1)).isTrue();
-    assertThat(catalog.dropTable(ident2)).isTrue();
+    assertThat(catalog.dropTable(ident)).isTrue();
   }
 
   @Test
