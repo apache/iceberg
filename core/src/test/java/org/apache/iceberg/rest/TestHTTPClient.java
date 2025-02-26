@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -44,6 +45,7 @@ import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
+import org.apache.hc.client5.http.ssl.TlsSocketStrategy;
 import org.apache.hc.core5.http.EntityDetails;
 import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpHost;
@@ -60,6 +62,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.Mockito;
 import org.mockserver.configuration.Configuration;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.HttpRequest;
@@ -253,6 +256,27 @@ public class TestHTTPClient {
     assertThat(connectionConfig).isNotNull();
     assertThat(connectionConfig.getConnectTimeout().getDuration()).isEqualTo(connectionTimeoutMs);
     assertThat(connectionConfig.getSocketTimeout().getDuration()).isEqualTo(socketTimeoutMs);
+  }
+
+  @Test
+  public void testTlsSocketStrategyNullValue() {
+    assertThatThrownBy(
+            () ->
+                HTTPClient.builder(ImmutableMap.of()).uri(URI).withTlsSocketStrategy(null).build())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid tls socket strategy for http client proxy: null");
+  }
+
+  @Test
+  public void testTlsSocketStrategy() {
+    TlsSocketStrategy socketStrategy = Mockito.mock(TlsSocketStrategy.class);
+    assertThatCode(
+            () ->
+                HTTPClient.builder(ImmutableMap.of())
+                    .uri(URI)
+                    .withTlsSocketStrategy(socketStrategy)
+                    .build())
+        .doesNotThrowAnyException();
   }
 
   @Test

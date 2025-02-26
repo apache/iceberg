@@ -487,6 +487,8 @@ public class HTTPClient extends BaseHTTPClient {
     }
 
     public Builder withTlsSocketStrategy(TlsSocketStrategy socketStrategy) {
+      Preconditions.checkNotNull(
+          socketStrategy, "Invalid tls socket strategy for http client proxy: null");
       this.tlsSocketStrategy = socketStrategy;
       return this;
     }
