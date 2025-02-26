@@ -462,15 +462,21 @@ public interface ViewMetadata extends Serializable {
           ViewProperties.VERSION_HISTORY_SIZE,
           historySize);
 
-      // expire old versions, but keep at least the versions added in this builder
-      int numAddedVersions = (int) changes(MetadataUpdate.AddViewVersion.class).count();
-      int numVersionsToKeep = Math.max(numAddedVersions, historySize);
+      // expire old versions, but keep at least the versions added in this builder and the current
+      // version
+      Set<ViewVersion> keepVersions = Sets.newHashSet();
+      keepVersions.add(versionsById.get(currentVersionId));
+      changes(MetadataUpdate.AddViewVersion.class)
+          .map(MetadataUpdate.AddViewVersion::viewVersion)
+          .forEach(keepVersions::add);
+
+      //      int numAddedVersions = (int) changes(MetadataUpdate.AddViewVersion.class).count();
+      int numVersionsToKeep = Math.max(keepVersions.size(), historySize);
 
       List<ViewVersion> retainedVersions;
       List<ViewHistoryEntry> retainedHistory;
       if (versions.size() > numVersionsToKeep) {
-        retainedVersions =
-            expireVersions(versionsById, numVersionsToKeep, versionsById.get(currentVersionId));
+        retainedVersions = expireVersions(versionsById, numVersionsToKeep, keepVersions);
         Set<Integer> retainedVersionIds =
             retainedVersions.stream().map(ViewVersion::versionId).collect(Collectors.toSet());
         retainedHistory = updateHistory(history, retainedVersionIds);
@@ -494,14 +500,14 @@ public interface ViewMetadata extends Serializable {
 
     @VisibleForTesting
     static List<ViewVersion> expireVersions(
-        Map<Integer, ViewVersion> versionsById, int numVersionsToKeep, ViewVersion currentVersion) {
+        Map<Integer, ViewVersion> versionsById,
+        int numVersionsToKeep,
+        Set<ViewVersion> keepVersions) {
       // version ids are assigned sequentially. keep the latest versions by ID.
       List<Integer> ids = Lists.newArrayList(versionsById.keySet());
       ids.sort(Comparator.reverseOrder());
 
-      List<ViewVersion> retainedVersions = Lists.newArrayList();
-      // always retain the current version
-      retainedVersions.add(currentVersion);
+      List<ViewVersion> retainedVersions = Lists.newArrayList(keepVersions);
 
       for (int idToKeep : ids.subList(0, numVersionsToKeep)) {
         if (retainedVersions.size() == numVersionsToKeep) {
@@ -509,7 +515,7 @@ public interface ViewMetadata extends Serializable {
         }
 
         ViewVersion version = versionsById.get(idToKeep);
-        if (currentVersion.versionId() != version.versionId()) {
+        if (!keepVersions.contains(version)) {
           retainedVersions.add(version);
         }
       }
