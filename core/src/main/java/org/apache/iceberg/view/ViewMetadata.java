@@ -470,7 +470,6 @@ public interface ViewMetadata extends Serializable {
           .map(MetadataUpdate.AddViewVersion::viewVersion)
           .forEach(keepVersions::add);
 
-      //      int numAddedVersions = (int) changes(MetadataUpdate.AddViewVersion.class).count();
       int numVersionsToKeep = Math.max(keepVersions.size(), historySize);
 
       List<ViewVersion> retainedVersions;
