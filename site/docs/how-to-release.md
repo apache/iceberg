@@ -93,18 +93,18 @@ The release status is discussed during each community sync meeting. Release mana
 To create the source release artifacts, run the `source-release.sh` script with the release version and release candidate number:
 
 ```bash
-dev/source-release.sh -v 0.13.0 -r 0 -k <YOUR KEY ID HERE>
+dev/source-release.sh -v 1.8.0 -r 0 -k <YOUR KEY ID HERE>
 ```
 
 Example console output:
 
 ```text
-Preparing source for apache-iceberg-0.13.0-rc1
+Preparing source for apache-iceberg-1.8.0-rc1
 Adding version.txt and tagging release...
-[main ca8bb7d0] Add version.txt for release 0.13.0
+[main ca8bb7d0] Add version.txt for release 1.8.0
  1 file changed, 1 insertion(+)
  create mode 100644 version.txt
-Pushing apache-iceberg-0.13.0-rc1 to origin...
+Pushing apache-iceberg-1.8.0-rc1 to origin...
 Enumerating objects: 5, done.
 Counting objects: 100% (5/5), done.
 Delta compression using up to 12 threads
@@ -113,26 +113,26 @@ Writing objects: 100% (4/4), 433 bytes | 433.00 KiB/s, done.
 Total 4 (delta 1), reused 0 (delta 0)
 remote: Resolving deltas: 100% (1/1), completed with 1 local object.
 To https://github.com/apache/iceberg.git
- * [new tag]           apache-iceberg-0.13.0-rc1 -> apache-iceberg-0.13.0-rc1
+ * [new tag]           apache-iceberg-1.8.0-rc1 -> apache-iceberg-1.8.0-rc1
 Creating tarball  using commit ca8bb7d0821f35bbcfa79a39841be8fb630ac3e5
 Signing the tarball...
 Checking out Iceberg RC subversion repo...
 Checked out revision 52260.
 Adding tarball to the Iceberg distribution Subversion repo...
-A         tmp/apache-iceberg-0.13.0-rc1
-A         tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz.asc
-A  (bin)  tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz
-A         tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz.sha512
-Adding         tmp/apache-iceberg-0.13.0-rc1
-Adding  (bin)  tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz
-Adding         tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz.asc
-Adding         tmp/apache-iceberg-0.13.0-rc1/apache-iceberg-0.13.0.tar.gz.sha512
+A         tmp/apache-iceberg-1.8.0-rc1
+A         tmp/apache-iceberg-1.8.0-rc1/apache-iceberg-1.8.0.tar.gz.asc
+A  (bin)  tmp/apache-iceberg-1.8.0-rc1/apache-iceberg-1.8.0.tar.gz
+A         tmp/apache-iceberg-1.8.0-rc1/apache-iceberg-1.8.0.tar.gz.sha512
+Adding         tmp/apache-iceberg-1.8.0-rc1
+Adding  (bin)  tmp/apache-iceberg-1.8.0-rc1/apache-iceberg-1.8.0.tar.gz
+Adding         tmp/apache-iceberg-1.8.0-rc1/apache-iceberg-1.8.0.tar.gz.asc
+Adding         tmp/apache-iceberg-1.8.0-rc1/apache-iceberg-1.8.0.tar.gz.sha512
 Transmitting file data ...done
 Committing transaction...
 Committed revision 52261.
 Creating release-announcement-email.txt...
 Success! The release candidate is available here:
-  https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-0.13.0-rc1
+  https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-1.8.0-rc1
 
 Commit SHA1: ca8bb7d0821f35bbcfa79a39841be8fb630ac3e5
 
@@ -156,8 +156,8 @@ Convenience binaries are created using the source release tarball from in the la
 Untar the source release and go into the release directory:
 
 ```bash
-tar xzf apache-iceberg-0.13.0.tar.gz
-cd apache-iceberg-0.13.0
+tar xzf apache-iceberg-1.8.0.tar.gz
+cd apache-iceberg-1.8.0
 ```
 
 To build and publish the convenience binaries, run the `dev/stage-binaries.sh` script. This will push to a release staging repository.
@@ -320,6 +320,37 @@ Create a PR in the `iceberg` repo to make revapi run on the new release. For an 
 ### Documentation Release
 
 Please follow the instructions on the GitHub repository in the [`README.md` in the `site/`](https://github.com/apache/iceberg/tree/main/site) directory.
+
+#### Versioned Docs
+
+The versioned docs in the source tarball are located under `site/docs`. Check out the `docs` branch in the `iceberg` repo and copy
+the versioned docs over:
+
+```
+cp -R apache-iceberg-1.8.0/site/docs 1.8.0
+```
+
+Once this is done, create a PR against the `docs` branch containing the changes under the `1.8.0` folder, similar to https://github.com/apache/iceberg/pull/12411.
+
+#### Versioned Javadoc
+
+Navigate to the source tarball and generate Javadoc:
+
+```
+cd apache-iceberg-1.8.0
+./gradlew refreshJavadoc
+```
+
+The versioned Javadoc will be generated under `site/docs/javadoc/1.8.0`.
+
+Check out the `javadoc` branch in the `iceberg` repo and copy the generated Javadoc over:
+
+```
+cp -R apache-iceberg-1.8.0/site/docs/javadoc/1.8.0 1.8.0
+```
+
+Once this is done, create a PR against the `javadoc` branch, similar to https://github.com/apache/iceberg/pull/12412.
+
 
 # How to Verify a Release
 
