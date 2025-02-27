@@ -95,6 +95,10 @@ public class ParquetValueWriters {
     return new UUIDWriter(desc);
   }
 
+  public static PrimitiveWriter<Object> unknown(ColumnDescriptor desc) {
+    return new UnknownWriter(desc);
+  }
+
   public static PrimitiveWriter<BigDecimal> decimalAsInteger(
       ColumnDescriptor desc, int precision, int scale) {
     return new IntegerDecimalWriter(desc, precision, scale);
@@ -383,6 +387,20 @@ public class ParquetValueWriters {
     public void write(int repetitionLevel, UUID value) {
       ByteBuffer buffer = UUIDUtil.convertToByteBuffer(value, BUFFER.get());
       column.writeBinary(repetitionLevel, Binary.fromReusedByteBuffer(buffer));
+    }
+  }
+
+  private static class UnknownWriter extends PrimitiveWriter<Object> {
+    private UnknownWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, Object value) {}
+
+    @Override
+    public List<TripleWriter<?>> columns() {
+      return ImmutableList.of();
     }
   }
 
