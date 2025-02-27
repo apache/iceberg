@@ -62,12 +62,11 @@ public class TestViewMetadata {
     ViewVersion v2 = newViewVersion(2, "select count(1) as count from t2");
     Map<Integer, ViewVersion> versionsById = ImmutableMap.of(1, v1, 2, v2, 3, v3);
 
-    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 3, ImmutableSet.of(v1)))
+    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 3, v1))
         .containsExactlyInAnyOrder(v1, v2, v3);
-    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 2, ImmutableSet.of(v1)))
+    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 2, v1))
         .containsExactlyInAnyOrder(v1, v3);
-    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 1, ImmutableSet.of(v1)))
-        .containsExactly(v1);
+    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 1, v1)).containsExactly(v1);
   }
 
   @Test
@@ -413,8 +412,11 @@ public class TestViewMetadata {
             .build();
     assertThat(metadata.versions()).containsOnly(v1);
 
+    // make sure all currently added versions are retained
     ViewMetadata updated = ViewMetadata.buildFrom(metadata).addVersion(v2).addVersion(v3).build();
     assertThat(updated.versions()).containsExactlyInAnyOrder(v1, v2, v3);
+
+    // rebuild the metadata to expire older versions
     updated = ViewMetadata.buildFrom(updated).build();
     assertThat(updated.versions()).containsExactlyInAnyOrder(v1, v3);
   }

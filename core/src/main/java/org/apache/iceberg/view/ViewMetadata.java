@@ -35,6 +35,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -464,18 +465,19 @@ public interface ViewMetadata extends Serializable {
 
       // expire old versions, but keep at least the versions added in this builder and the current
       // version
-      Set<ViewVersion> keepVersions = Sets.newHashSet();
-      keepVersions.add(versionsById.get(currentVersionId));
-      changes(MetadataUpdate.AddViewVersion.class)
-          .map(MetadataUpdate.AddViewVersion::viewVersion)
-          .forEach(keepVersions::add);
-
-      int numVersionsToKeep = Math.max(keepVersions.size(), historySize);
+      Set<Integer> addedVersions =
+          changes(MetadataUpdate.AddViewVersion.class)
+              .map(v -> v.viewVersion().versionId())
+              .collect(Collectors.toSet());
+      int numVersions =
+          ImmutableSet.builder().addAll(addedVersions).add(currentVersionId).build().size();
+      int numVersionsToKeep = Math.max(numVersions, historySize);
 
       List<ViewVersion> retainedVersions;
       List<ViewHistoryEntry> retainedHistory;
       if (versions.size() > numVersionsToKeep) {
-        retainedVersions = expireVersions(versionsById, numVersionsToKeep, keepVersions);
+        retainedVersions =
+            expireVersions(versionsById, numVersionsToKeep, versionsById.get(currentVersionId));
         Set<Integer> retainedVersionIds =
             retainedVersions.stream().map(ViewVersion::versionId).collect(Collectors.toSet());
         retainedHistory = updateHistory(history, retainedVersionIds);
@@ -499,14 +501,14 @@ public interface ViewMetadata extends Serializable {
 
     @VisibleForTesting
     static List<ViewVersion> expireVersions(
-        Map<Integer, ViewVersion> versionsById,
-        int numVersionsToKeep,
-        Set<ViewVersion> keepVersions) {
+        Map<Integer, ViewVersion> versionsById, int numVersionsToKeep, ViewVersion currentVersion) {
       // version ids are assigned sequentially. keep the latest versions by ID.
       List<Integer> ids = Lists.newArrayList(versionsById.keySet());
       ids.sort(Comparator.reverseOrder());
 
-      List<ViewVersion> retainedVersions = Lists.newArrayList(keepVersions);
+      List<ViewVersion> retainedVersions = Lists.newArrayList();
+      // always retain the current version
+      retainedVersions.add(currentVersion);
 
       for (int idToKeep : ids.subList(0, numVersionsToKeep)) {
         if (retainedVersions.size() == numVersionsToKeep) {
@@ -514,7 +516,7 @@ public interface ViewMetadata extends Serializable {
         }
 
         ViewVersion version = versionsById.get(idToKeep);
-        if (!keepVersions.contains(version)) {
+        if (currentVersion.versionId() != version.versionId()) {
           retainedVersions.add(version);
         }
       }
