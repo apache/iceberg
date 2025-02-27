@@ -53,11 +53,11 @@ class GenericReaders {
     return TimestamptzReader.INSTANCE;
   }
 
-  static ValueReader<LocalDateTime> timestamp9s() {
+  static ValueReader<LocalDateTime> timestampNanos() {
     return TimestampNanoReader.INSTANCE;
   }
 
-  static ValueReader<OffsetDateTime> timestamptz9s() {
+  static ValueReader<OffsetDateTime> timestamptzNanos() {
     return TimestamptzNanoReader.INSTANCE;
   }
 

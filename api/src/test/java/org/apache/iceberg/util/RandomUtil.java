@@ -167,6 +167,8 @@ public class RandomUtil {
       Type.PrimitiveType primitive, Random random) {
     int value = random.nextInt(3);
     switch (primitive.typeId()) {
+      case UNKNOWN:
+        return null;
       case BOOLEAN:
         return true; // doesn't really matter for booleans since they are not dictionary encoded
       case INTEGER:

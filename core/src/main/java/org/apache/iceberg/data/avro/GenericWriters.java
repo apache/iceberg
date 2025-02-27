@@ -51,11 +51,11 @@ class GenericWriters {
     return TimestamptzWriter.INSTANCE;
   }
 
-  static ValueWriter<LocalDateTime> timestamp9s() {
+  static ValueWriter<LocalDateTime> timestampNanos() {
     return TimestampNanoWriter.INSTANCE;
   }
 
-  static ValueWriter<OffsetDateTime> timestamptz9s() {
+  static ValueWriter<OffsetDateTime> timestamptzNanos() {
     return TimestamptzNanoWriter.INSTANCE;
   }
 
