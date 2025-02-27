@@ -27,6 +27,7 @@ import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.util.TimeUtils;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class FlinkConfParser {
@@ -37,6 +38,12 @@ class FlinkConfParser {
 
   FlinkConfParser(Table table, Map<String, String> options, ReadableConfig readableConfig) {
     this.tableProperties = table.properties();
+    this.options = options;
+    this.readableConfig = readableConfig;
+  }
+
+  FlinkConfParser(Map<String, String> options, ReadableConfig readableConfig) {
+    this.tableProperties = ImmutableMap.of();
     this.options = options;
     this.readableConfig = readableConfig;
   }

@@ -26,7 +26,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
 
-final class BucketPartitionerUtil {
+public final class BucketPartitionerUtil {
   static final String BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE =
       "Invalid number of buckets: %s (must be 1)";
 

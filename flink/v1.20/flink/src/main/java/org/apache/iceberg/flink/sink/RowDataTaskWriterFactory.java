@@ -80,6 +80,28 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       Map<String, String> writeProperties,
       List<Integer> equalityFieldIds,
       boolean upsert) {
+    this(
+        tableSupplier,
+        flinkSchema,
+        targetFileSizeBytes,
+        format,
+        writeProperties,
+        equalityFieldIds,
+        upsert,
+        tableSupplier.get().schema(),
+        tableSupplier.get().spec());
+  }
+
+  public RowDataTaskWriterFactory(
+      SerializableSupplier<Table> tableSupplier,
+      RowType flinkSchema,
+      long targetFileSizeBytes,
+      FileFormat format,
+      Map<String, String> writeProperties,
+      List<Integer> equalityFieldIds,
+      boolean upsert,
+      Schema schema,
+      PartitionSpec spec) {
     this.tableSupplier = tableSupplier;
 
     Table table;
@@ -90,9 +112,9 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       table = tableSupplier.get();
     }
 
-    this.schema = table.schema();
+    this.schema = schema;
     this.flinkSchema = flinkSchema;
-    this.spec = table.spec();
+    this.spec = spec;
     this.targetFileSizeBytes = targetFileSizeBytes;
     this.format = format;
     this.equalityFieldIds = equalityFieldIds;
@@ -148,6 +170,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
         OutputFileFactory.builderFor(table, taskId, attemptId)
             .format(format)
             .ioSupplier(() -> tableSupplier.get().io())
+            .defaultSpec(spec)
             .build();
   }
 
