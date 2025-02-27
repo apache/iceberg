@@ -42,6 +42,7 @@ import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.FileIO;
@@ -636,6 +637,83 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void addFileTableOldSpecDataAfterPartitionSpecEvolved()
+      throws NoSuchTableException, ParseException {
+    createPartitionedFileTable("parquet");
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String",
+        "PARTITIONED BY (id, dept, subdept)");
+    sql("ALTER TABLE %s DROP PARTITION FIELD dept", tableName);
+    sql(
+        "ALTER TABLE %s DROP PARTITION FIELD subdept",
+        tableName); // This spec now matches the partitioning of the parquet table
+    sql("ALTER TABLE %s ADD PARTITION FIELD subdept", tableName);
+
+    if (formatVersion == 1) {
+      // In V1, since we are dropping the partition field, it adds a void transform which will not
+      // match with the input spec
+      assertThatThrownBy(
+              () ->
+                  scalarSql(
+                      "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+                      catalogName, tableName, fileTableDir.getAbsolutePath()))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining(
+              String.format(
+                  "Cannot find a partition spec in Iceberg table %s that matches the partition columns ([id]) in input table",
+                  tableName));
+      return;
+    }
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.add_files(table => '%s', source_table => '`parquet`.`%s`')",
+            catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    assertOutput(result, 8L, 4L);
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    // Find the spec that matches the partitioning of the parquet table
+    PartitionSpec compatibleSpec =
+        table.specs().values().stream()
+            .filter(spec -> spec.fields().size() == 1)
+            .filter(spec -> "id".equals(spec.fields().get(0).name()))
+            .findFirst()
+            .orElse(null);
+
+    assertThat(compatibleSpec).isNotNull();
+    manifestSpecMatchesGivenSpec(table, compatibleSpec);
+    verifyUUIDInPath();
+  }
+
+  @TestTemplate
+  public void addFileTableNoCompatibleSpec() {
+    createPartitionedFileTable("parquet");
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (dept)");
+    sql("ALTER TABLE %s ADD PARTITION FIELD subdept", tableName);
+
+    String fullTableName = tableName;
+    if (implementation.equals(SparkCatalogConfig.SPARK.implementation())) {
+      fullTableName = String.format("%s.%s", catalogName, tableName);
+    }
+    assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files(table => '%s', source_table => '`parquet`.`%s`')",
+                    catalogName, tableName, fileTableDir.getAbsolutePath()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            String.format(
+                "Cannot find a partition spec in Iceberg table %s that matches the partition columns (%s) in input table",
+                fullTableName, "[id]"));
+  }
+
+  @TestTemplate
   public void addWeirdCaseHiveTable() {
     createWeirdCaseTable();
 
@@ -713,7 +791,8 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
                     "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
                     catalogName, tableName, fileTableDir.getAbsolutePath()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot use partition filter with an unpartitioned table");
+        .hasMessageStartingWith("Cannot find a partition spec in Iceberg table")
+        .hasMessageContaining("that matches the partition columns");
 
     assertThatThrownBy(
             () ->
@@ -721,7 +800,8 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
                     "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
                     catalogName, tableName, fileTableDir.getAbsolutePath()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot add partitioned files to an unpartitioned table");
+        .hasMessageStartingWith("Cannot find a partition spec in Iceberg table")
+        .hasMessageContaining("that matches the partition columns");
   }
 
   @TestTemplate
@@ -737,8 +817,8 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
                     "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('x', '1', 'y', '2'))",
                     catalogName, tableName, fileTableDir.getAbsolutePath()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot add data files to target table")
-        .hasMessageContaining("is greater than the number of partitioned columns");
+        .hasMessageStartingWith("Cannot find a partition spec in Iceberg table")
+        .hasMessageContaining("that matches the partition columns");
 
     assertThatThrownBy(
             () ->
@@ -746,9 +826,8 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
                     "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', '2'))",
                     catalogName, tableName, fileTableDir.getAbsolutePath()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot add files to target table")
-        .hasMessageContaining(
-            "specified partition filter refers to columns that are not partitioned");
+        .hasMessageStartingWith("Cannot find a partition spec in Iceberg table")
+        .hasMessageContaining("that matches the partition columns");
   }
 
   @TestTemplate
@@ -1218,15 +1297,18 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
 
   private void manifestSpecMatchesTableSpec() throws NoSuchTableException, ParseException {
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    FileIO io = ((HasTableOperations) table).operations().io();
+    manifestSpecMatchesGivenSpec(table, table.spec());
+  }
 
+  private void manifestSpecMatchesGivenSpec(Table table, PartitionSpec partitionSpec) {
+    FileIO io = ((HasTableOperations) table).operations().io();
     // Check that the manifests have the correct partition spec
     assertThat(
             table.currentSnapshot().allManifests(io).stream()
                 .map(mf -> ManifestFiles.read(mf, io, null /* force reading spec from file*/))
                 .map(ManifestReader::spec)
                 .collect(Collectors.toList()))
-        .allSatisfy(spec -> assertThat(spec).isEqualTo(table.spec()));
+        .allSatisfy(spec -> assertThat(spec).isEqualTo(partitionSpec));
   }
 
   private void verifyUUIDInPath() {
