@@ -57,7 +57,7 @@ import org.slf4j.LoggerFactory;
  *       same jobId-operatorId-checkpointId triplet
  * </ul>
  */
-class IcebergCommitter implements Committer<IcebergCommittable> {
+public class IcebergCommitter implements Committer<IcebergCommittable> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergCommitter.class);
   private static final byte[] EMPTY_MANIFEST_DATA = new byte[0];
   public static final WriteResult EMPTY_WRITE_RESULT =

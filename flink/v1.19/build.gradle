@@ -68,6 +68,9 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 
     implementation libs.datasketches
 
+    // for caching in DynamicSink
+    implementation libs.caffeine
+
     testImplementation libs.flink119.connector.test.utils
     testImplementation libs.flink119.core
     testImplementation libs.flink119.runtime
