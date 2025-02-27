@@ -258,7 +258,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         config = fetchConfig(initClient, authHeaders, props);
       } else {
         authResponse = null;
-        config = fetchConfig(initClient, initHeaders, props);
+        Map<String, String> authHeaders =
+            RESTUtil.merge(initHeaders, OAuth2Util.authHeaders(initToken));
+        config = fetchConfig(initClient, authHeaders, props);
       }
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close HTTP client", e);
