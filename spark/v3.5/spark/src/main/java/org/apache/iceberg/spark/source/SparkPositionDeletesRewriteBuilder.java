@@ -23,9 +23,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.PositionDeletesScanTask;
+import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.ScanTaskSetManager;
@@ -82,7 +84,15 @@ public class SparkPositionDeletesRewriteBuilder implements WriteBuilder {
     StructLike partition = partition(fileSetId, tasks);
 
     return new SparkPositionDeletesRewrite(
-        spark, table, writeConf, writeInfo, writeSchema, dsSchema, specId, partition);
+        spark,
+        table,
+        writeConf,
+        writeInfo,
+        writeSchema,
+        dsSchema,
+        specId,
+        partition,
+        TableUtil.formatVersion(underlyingTable(table)));
   }
 
   private int specId(String fileSetId, List<PositionDeletesScanTask> tasks) {
@@ -104,5 +114,13 @@ public class SparkPositionDeletesRewriteBuilder implements WriteBuilder {
         fileSetId,
         Joiner.on(",").join(partitions));
     return tasks.get(0).partition();
+  }
+
+  private Table underlyingTable(Table metadataTable) {
+    if (metadataTable instanceof PositionDeletesTable) {
+      return ((PositionDeletesTable) metadataTable).table();
+    }
+
+    return metadataTable;
   }
 }
