@@ -256,6 +256,25 @@ public class TestHelpers {
               .isEqualTo(ts);
         }
         break;
+      case TIMESTAMP_NANO:
+        if (((Types.TimestampNanoType) type).shouldAdjustToUTC()) {
+          assertThat(expected)
+              .as("Should expect a OffsetDataTime")
+              .isInstanceOf(OffsetDateTime.class);
+          OffsetDateTime ts = (OffsetDateTime) expected;
+          assertThat(((TimestampData) actual).toLocalDateTime())
+              .as("OffsetDataTime should be equal")
+              .isEqualTo(ts.toLocalDateTime());
+        } else {
+          assertThat(expected)
+              .as("Should expect a LocalDataTime")
+              .isInstanceOf(LocalDateTime.class);
+          LocalDateTime ts = (LocalDateTime) expected;
+          assertThat(((TimestampData) actual).toLocalDateTime())
+              .as("LocalDataTime should be equal")
+              .isEqualTo(ts);
+        }
+        break;
       case BINARY:
         assertThat(ByteBuffer.wrap((byte[]) actual))
             .as("Should expect a ByteBuffer")

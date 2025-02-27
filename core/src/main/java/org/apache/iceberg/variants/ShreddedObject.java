@@ -46,11 +46,11 @@ public class ShreddedObject implements VariantObject {
   private SerializationState serializationState = null;
 
   ShreddedObject(VariantMetadata metadata) {
-    this.metadata = metadata;
-    this.unshredded = null;
+    this(metadata, null);
   }
 
   ShreddedObject(VariantMetadata metadata, VariantObject unshredded) {
+    Preconditions.checkArgument(metadata != null, "Invalid metadata: null");
     this.metadata = metadata;
     this.unshredded = unshredded;
   }

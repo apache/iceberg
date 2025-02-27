@@ -92,7 +92,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
       Type fieldType = fieldTypes.get(i);
       int fieldId = getId(field);
 
-      if (AvroSchemaUtil.isOptionSchema(field.schema())) {
+      if (AvroSchemaUtil.isOptional(field.schema())) {
         newFields.add(Types.NestedField.optional(fieldId, field.name(), fieldType, field.doc()));
       } else {
         newFields.add(Types.NestedField.required(fieldId, field.name(), fieldType, field.doc()));
@@ -105,7 +105,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
   @Override
   public Type union(Schema union, List<Type> options) {
     if (AvroSchemaUtil.isOptionSchema(union)) {
-      if (options.get(0) == null) {
+      if (options.get(0) == null || options.get(0).typeId() == Type.TypeID.UNKNOWN) {
         return options.get(1);
       } else {
         return options.get(0);
@@ -165,7 +165,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
     int keyId = getKeyId(map);
     int valueId = getValueId(map);
 
-    if (AvroSchemaUtil.isOptionSchema(valueSchema)) {
+    if (AvroSchemaUtil.isOptional(valueSchema)) {
       return Types.MapType.ofOptional(keyId, valueId, Types.StringType.get(), valueType);
     } else {
       return Types.MapType.ofRequired(keyId, valueId, Types.StringType.get(), valueType);
@@ -198,6 +198,13 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
           return Types.TimestampType.withoutZone();
         }
 
+      } else if (logical instanceof LogicalTypes.TimestampNanos) {
+        if (AvroSchemaUtil.isTimestamptz(primitive)) {
+          return Types.TimestampNanoType.withZone();
+        } else {
+          return Types.TimestampNanoType.withoutZone();
+        }
+
       } else if (LogicalTypes.uuid().getName().equals(name)) {
         return Types.UUIDType.get();
       }
@@ -222,7 +229,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
       case BYTES:
         return Types.BinaryType.get();
       case NULL:
-        return null;
+        return Types.UnknownType.get();
     }
 
     throw new UnsupportedOperationException("Unsupported primitive type: " + primitive);

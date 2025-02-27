@@ -45,6 +45,16 @@ public class Variants {
     return new ShreddedObject(metadata);
   }
 
+  public static ShreddedObject object(VariantObject object) {
+    if (object instanceof ShreddedObject) {
+      return new ShreddedObject(((ShreddedObject) object).metadata(), object);
+    } else if (object instanceof SerializedObject) {
+      return new ShreddedObject(((SerializedObject) object).metadata(), object);
+    }
+
+    throw new UnsupportedOperationException("Metadata is required for object: " + object);
+  }
+
   public static <T> VariantPrimitive<T> of(PhysicalType type, T value) {
     return new PrimitiveWrapper<>(type, value);
   }

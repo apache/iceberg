@@ -18,26 +18,26 @@
  */
 package org.apache.iceberg.variants;
 
-import java.nio.ByteBuffer;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/** A variant metadata and value pair. */
-public interface Variant {
-  /** Returns the metadata for all values in the variant. */
-  VariantMetadata metadata();
+class VariantData implements Variant {
+  private final VariantMetadata metadata;
+  private final VariantValue value;
 
-  /** Returns the variant value. */
-  VariantValue value();
-
-  static Variant of(VariantMetadata metadata, VariantValue value) {
-    return new VariantData(metadata, value);
+  VariantData(VariantMetadata metadata, VariantValue value) {
+    Preconditions.checkArgument(metadata != null, "Invalid variant metadata: null");
+    Preconditions.checkArgument(value != null, "Invalid variant value: null");
+    this.metadata = metadata;
+    this.value = value;
   }
 
-  static Variant from(ByteBuffer buffer) {
-    VariantMetadata metadata = VariantMetadata.from(buffer);
-    ByteBuffer valueBuffer =
-        VariantUtil.slice(
-            buffer, metadata.sizeInBytes(), buffer.remaining() - metadata.sizeInBytes());
-    VariantValue value = VariantValue.from(metadata, valueBuffer);
-    return of(metadata, value);
+  @Override
+  public VariantMetadata metadata() {
+    return metadata;
+  }
+
+  @Override
+  public VariantValue value() {
+    return value;
   }
 }

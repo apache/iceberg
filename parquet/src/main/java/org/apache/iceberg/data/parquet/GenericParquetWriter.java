@@ -31,8 +31,10 @@ import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 
 public class GenericParquetWriter extends BaseParquetWriter<Record> {
@@ -44,15 +46,47 @@ public class GenericParquetWriter extends BaseParquetWriter<Record> {
     return INSTANCE.createWriter(type);
   }
 
+  public static ParquetValueWriter<Record> create(Types.StructType struct, MessageType type) {
+    return INSTANCE.createWriter(struct, type);
+  }
+
   @Override
   protected StructWriter<Record> createStructWriter(List<ParquetValueWriter<?>> writers) {
     return ParquetValueWriters.recordWriter(writers);
   }
 
+  protected ParquetValueWriter<?> fixedWriter(ColumnDescriptor desc) {
+    return new GenericParquetWriter.FixedWriter(desc);
+  }
+
+  protected ParquetValueWriter<?> dateWriter(ColumnDescriptor desc) {
+    return new GenericParquetWriter.DateWriter(desc);
+  }
+
+  protected ParquetValueWriter<?> timeWriter(ColumnDescriptor desc) {
+    return new GenericParquetWriter.TimeWriter(desc);
+  }
+
+  protected ParquetValueWriter<?> timestampWriter(ColumnDescriptor desc, boolean isAdjustedToUTC) {
+    LogicalTypeAnnotation timestamp = desc.getPrimitiveType().getLogicalTypeAnnotation();
+    Preconditions.checkArgument(
+        timestamp instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation,
+        "Invalid timestamp logical type: " + timestamp);
+
+    LogicalTypeAnnotation.TimeUnit unit =
+        ((LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) timestamp).getUnit();
+
+    if (isAdjustedToUTC) {
+      return new GenericParquetWriter.TimestamptzWriter(desc, fromParquet(unit));
+    } else {
+      return new GenericParquetWriter.TimestampWriter(desc, fromParquet(unit));
+    }
+  }
+
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
-  static class DateWriter extends ParquetValueWriters.PrimitiveWriter<LocalDate> {
+  private static class DateWriter extends ParquetValueWriters.PrimitiveWriter<LocalDate> {
     DateWriter(ColumnDescriptor desc) {
       super(desc);
     }
@@ -63,7 +97,7 @@ public class GenericParquetWriter extends BaseParquetWriter<Record> {
     }
   }
 
-  static class TimeWriter extends ParquetValueWriters.PrimitiveWriter<LocalTime> {
+  private static class TimeWriter extends ParquetValueWriters.PrimitiveWriter<LocalTime> {
     TimeWriter(ColumnDescriptor desc) {
       super(desc);
     }
@@ -74,30 +108,36 @@ public class GenericParquetWriter extends BaseParquetWriter<Record> {
     }
   }
 
-  static class TimestampWriter extends ParquetValueWriters.PrimitiveWriter<LocalDateTime> {
-    TimestampWriter(ColumnDescriptor desc) {
+  private static class TimestampWriter extends ParquetValueWriters.PrimitiveWriter<LocalDateTime> {
+    private final ChronoUnit unit;
+
+    TimestampWriter(ColumnDescriptor desc, ChronoUnit unit) {
       super(desc);
+      this.unit = unit;
     }
 
     @Override
     public void write(int repetitionLevel, LocalDateTime value) {
-      column.writeLong(
-          repetitionLevel, ChronoUnit.MICROS.between(EPOCH, value.atOffset(ZoneOffset.UTC)));
+      column.writeLong(repetitionLevel, unit.between(EPOCH, value.atOffset(ZoneOffset.UTC)));
     }
   }
 
-  static class TimestamptzWriter extends ParquetValueWriters.PrimitiveWriter<OffsetDateTime> {
-    TimestamptzWriter(ColumnDescriptor desc) {
+  private static class TimestamptzWriter
+      extends ParquetValueWriters.PrimitiveWriter<OffsetDateTime> {
+    private final ChronoUnit unit;
+
+    TimestamptzWriter(ColumnDescriptor desc, ChronoUnit unit) {
       super(desc);
+      this.unit = unit;
     }
 
     @Override
     public void write(int repetitionLevel, OffsetDateTime value) {
-      column.writeLong(repetitionLevel, ChronoUnit.MICROS.between(EPOCH, value));
+      column.writeLong(repetitionLevel, unit.between(EPOCH, value));
     }
   }
 
-  static class FixedWriter extends ParquetValueWriters.PrimitiveWriter<byte[]> {
+  private static class FixedWriter extends ParquetValueWriters.PrimitiveWriter<byte[]> {
     private final int length;
 
     FixedWriter(ColumnDescriptor desc) {
@@ -113,6 +153,17 @@ public class GenericParquetWriter extends BaseParquetWriter<Record> {
           value.length,
           length);
       column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(value));
+    }
+  }
+
+  private static ChronoUnit fromParquet(LogicalTypeAnnotation.TimeUnit unit) {
+    switch (unit) {
+      case MICROS:
+        return ChronoUnit.MICROS;
+      case NANOS:
+        return ChronoUnit.NANOS;
+      default:
+        throw new UnsupportedOperationException("Unsupported unit for timestamp: " + unit);
     }
   }
 }

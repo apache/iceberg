@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantTestUtil;
 
 public class DataTestHelpers {
   private DataTestHelpers() {}
@@ -76,6 +78,7 @@ public class DataTestHelpers {
     }
 
     switch (type.typeId()) {
+      case UNKNOWN:
       case BOOLEAN:
       case INTEGER:
       case LONG:
@@ -85,6 +88,7 @@ public class DataTestHelpers {
       case DATE:
       case TIME:
       case TIMESTAMP:
+      case TIMESTAMP_NANO:
       case UUID:
       case BINARY:
       case DECIMAL:
@@ -92,9 +96,15 @@ public class DataTestHelpers {
             .as("Primitive value should be equal to expected for type " + type)
             .isEqualTo(expected);
         break;
+      case VARIANT:
+        assertThat(expected).as("Expected should be a Variant").isInstanceOf(Variant.class);
+        assertThat(actual).as("Actual should be a Variant").isInstanceOf(Variant.class);
+        VariantTestUtil.assertEqual(((Variant) expected).metadata(), ((Variant) actual).metadata());
+        VariantTestUtil.assertEqual(((Variant) expected).value(), ((Variant) actual).value());
+        break;
       case FIXED:
         assertThat(expected).as("Expected should be a byte[]").isInstanceOf(byte[].class);
-        assertThat(expected).as("Actual should be a byte[]").isInstanceOf(byte[].class);
+        assertThat(actual).as("Actual should be a byte[]").isInstanceOf(byte[].class);
         assertThat(actual).as("Array contents should be equal").isEqualTo(expected);
         break;
       case STRUCT:

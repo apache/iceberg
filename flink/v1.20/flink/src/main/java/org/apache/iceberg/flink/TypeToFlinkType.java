@@ -31,6 +31,7 @@ import org.apache.flink.table.types.logical.IntType;
 import org.apache.flink.table.types.logical.LocalZonedTimestampType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.MapType;
+import org.apache.flink.table.types.logical.NullType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.TimeType;
 import org.apache.flink.table.types.logical.TimestampType;
@@ -85,6 +86,8 @@ class TypeToFlinkType extends TypeUtil.SchemaVisitor<LogicalType> {
   @Override
   public LogicalType primitive(Type.PrimitiveType primitive) {
     switch (primitive.typeId()) {
+      case UNKNOWN:
+        return new NullType();
       case BOOLEAN:
         return new BooleanType();
       case INTEGER:
@@ -112,6 +115,15 @@ class TypeToFlinkType extends TypeUtil.SchemaVisitor<LogicalType> {
         } else {
           // MICROS
           return new TimestampType(6);
+        }
+      case TIMESTAMP_NANO:
+        Types.TimestampNanoType timestamp9 = (Types.TimestampNanoType) primitive;
+        if (timestamp9.shouldAdjustToUTC()) {
+          // NANOS
+          return new LocalZonedTimestampType(9);
+        } else {
+          // NANOS
+          return new TimestampType(9);
         }
       case STRING:
         return new VarCharType(VarCharType.MAX_LENGTH);
