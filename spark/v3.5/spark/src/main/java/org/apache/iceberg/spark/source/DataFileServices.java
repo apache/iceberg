@@ -87,33 +87,31 @@ public class DataFileServices {
                 .batchReaderFunction(VectorizedSparkOrcReaders::buildReader));
 
     DataFileServiceRegistry.registerWrite(
-        FileFormat.PARQUET,
-        InternalRow.class.getName(),
-        outputFile ->
-            new Parquet.ParquetDataWriteBuilder<InternalRow, StructType>(outputFile)
-                .writerFunction(SparkParquetWriters::buildWriter)
-                .transformPaths(path -> UTF8String.fromString(path.toString())));
-
-    DataFileServiceRegistry.registerWrite(
         FileFormat.AVRO,
         InternalRow.class.getName(),
-        outputFile ->
-            new Avro.AvroDataWriteBuilder<InternalRow, StructType>(outputFile)
-                .writerFunction((nativeSchema, unused) -> new SparkAvroWriter(nativeSchema))
-                .positionDeleteWriterFunction(
-                    (nativeSchema, unused) ->
-                        new SparkAvroWriter(
-                            (StructType)
-                                nativeSchema.apply(DELETE_FILE_ROW_FIELD_NAME).dataType())));
+        Avro::write,
+        Avro.<StructType>initGenerator(
+            (schema, nativeSchema) -> new SparkAvroWriter(nativeSchema),
+            (schema, nativeSchema) ->
+                new SparkAvroWriter(
+                    (StructType) nativeSchema.apply(DELETE_FILE_ROW_FIELD_NAME).dataType())));
+
+    DataFileServiceRegistry.registerWrite(
+        FileFormat.PARQUET,
+        InternalRow.class.getName(),
+        Parquet::write,
+        Parquet.<StructType>initGenerator(
+            (messageType, nativeSchema) ->
+                SparkParquetWriters.buildWriter(nativeSchema, messageType),
+            path -> UTF8String.fromString(path.toString())));
 
     DataFileServiceRegistry.registerWrite(
         FileFormat.ORC,
         InternalRow.class.getName(),
-        outputFile ->
-            new ORC.ORCDataWriteBuilder<InternalRow, StructType>(outputFile)
-                .writerFunction(
-                    (schema, messageType, nativeSchema) -> new SparkOrcWriter(schema, messageType))
-                .transformPaths(path -> UTF8String.fromString(path.toString())));
+        ORC::write,
+        ORC.<StructType>initGenerator(
+            (schema, messageType, nativeSchema) -> new SparkOrcWriter(schema, messageType),
+            path -> UTF8String.fromString(path.toString())));
   }
 
   private DataFileServices() {}

@@ -127,7 +127,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
 
     try {
-      return DataFileServiceRegistry.<Record, Object>writeBuilder(
+      return DataFileServiceRegistry.writeBuilder(
               fileFormat, Record.class.getName(), encryptedOutputFile)
           .schema(schema)
           .setAll(config)
@@ -164,17 +164,16 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
 
     try {
-      return DataFileServiceRegistry.<Record, Object>writeBuilder(
-              format, Record.class.getName(), file)
+      return DataFileServiceRegistry.writeBuilder(format, Record.class.getName(), file)
           .schema(schema)
           .withPartition(partition)
           .overwrite()
           .setAll(config)
           .metricsConfig(metricsConfig)
-          .rowSchema(eqDeleteRowSchema)
+          .withRowSchema(eqDeleteRowSchema)
           .withSpec(spec)
           .withKeyMetadata(file.keyMetadata())
-          .equalityFieldIds(equalityFieldIds)
+          .withEqualityFieldIds(equalityFieldIds)
           .equalityDeleteWriter();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
@@ -190,14 +189,13 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
             : MetricsConfig.fromProperties(config);
 
     try {
-      return DataFileServiceRegistry.<Record, Object>writeBuilder(
-              format, Record.class.getName(), file)
+      return DataFileServiceRegistry.writeBuilder(format, Record.class.getName(), file)
           .schema(schema)
           .withPartition(partition)
           .overwrite()
           .setAll(config)
           .metricsConfig(metricsConfig)
-          .rowSchema(posDeleteRowSchema)
+          .withRowSchema(posDeleteRowSchema)
           .withSpec(spec)
           .withKeyMetadata(file.keyMetadata())
           .positionDeleteWriter();
