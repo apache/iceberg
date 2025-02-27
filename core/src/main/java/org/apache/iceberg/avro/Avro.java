@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -53,19 +54,25 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.datafile.AppenderBuilder;
+import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ArrayUtil;
 
@@ -90,6 +97,24 @@ public class Avro {
     DEFAULT_MODEL.addLogicalTypeConversion(new UUIDConversion());
   }
 
+  public static void register() {
+    DataFileServiceRegistry.registerRead(
+        FileFormat.AVRO,
+        Record.class.getName(),
+        inputFile ->
+            new Avro.DataReadBuilder<>(inputFile).readerFunction(PlannedDataReader::create));
+
+    DataFileServiceRegistry.registerWrite(
+        FileFormat.AVRO,
+        Record.class.getName(),
+        Avro::write,
+        initGenerator(
+            (avroSchema, nativeSchema) ->
+                org.apache.iceberg.data.avro.DataWriter.create(avroSchema),
+            (avroSchema, nativeSchema) ->
+                org.apache.iceberg.data.avro.DataWriter.create(avroSchema)));
+  }
+
   public static WriteBuilder write(OutputFile file) {
     if (file instanceof EncryptedOutputFile) {
       return write((EncryptedOutputFile) file);
@@ -102,7 +127,46 @@ public class Avro {
     return new WriteBuilder(file.encryptingOutputFile());
   }
 
-  public static class WriteBuilder implements InternalData.WriteBuilder {
+  public static <T> DataFileServiceRegistry.InitBuilder initGenerator(
+      BiFunction<Schema, T, DatumWriter<?>> writerFunction,
+      BiFunction<Schema, T, DatumWriter<?>> deleteRowWriterFunction) {
+    return new DataFileServiceRegistry.InitBuilder() {
+      @Override
+      public BiConsumer<WriteBuilder, T> build(DataFileServiceRegistry.WriteMode mode) {
+        switch (mode) {
+          case APPENDER:
+          case DATA_WRITER:
+            return (appender, nativeType) -> {
+              appender.createContextFunc(WriteBuilder.Context::dataContext);
+              appender.createWriterFunc(avroSchema -> writerFunction.apply(avroSchema, nativeType));
+            };
+          case EQUALITY_DELETE_WRITER:
+            return (appender, nativeType) -> {
+              appender.createContextFunc(WriteBuilder.Context::deleteContext);
+              appender.createWriterFunc(avroSchema -> writerFunction.apply(avroSchema, nativeType));
+            };
+          case POSITION_DELETE_WRITER:
+            return (appender, nativeType) -> {
+              appender.createContextFunc(WriteBuilder.Context::deleteContext);
+              appender.createWriterFunc(ignored -> new PositionDatumWriter());
+            };
+          case POSITION_DELETE_WITH_ROW_WRITER:
+            return (appender, nativeType) -> {
+              appender.createContextFunc(WriteBuilder.Context::deleteContext);
+              appender.createWriterFunc(
+                  avroSchema ->
+                      new PositionAndRowDatumWriter<>(
+                          deleteRowWriterFunction.apply(avroSchema, nativeType)));
+            };
+          default:
+            throw new IllegalArgumentException("Not supported mode: " + mode);
+        }
+      }
+    };
+  }
+
+  public static class WriteBuilder
+      implements InternalData.WriteBuilder, AppenderBuilder<WriteBuilder> {
     private final OutputFile file;
     private final Map<String, String> config = Maps.newHashMap();
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
@@ -117,6 +181,7 @@ public class Avro {
       this.file = file;
     }
 
+    @Override
     public WriteBuilder forTable(Table table) {
       schema(table.schema());
       setAll(table.properties());
@@ -147,6 +212,7 @@ public class Avro {
       return this;
     }
 
+    @Override
     public WriteBuilder setAll(Map<String, String> properties) {
       config.putAll(properties);
       return this;
@@ -164,6 +230,7 @@ public class Avro {
       return this;
     }
 
+    @Override
     public WriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
       this.metricsConfig = newMetricsConfig;
       return this;
@@ -174,6 +241,7 @@ public class Avro {
       return overwrite(true);
     }
 
+    @Override
     public WriteBuilder overwrite(boolean enabled) {
       this.overwrite = enabled;
       return this;
@@ -286,14 +354,17 @@ public class Avro {
     }
   }
 
+  @Deprecated
   public static DataWriteBuilder writeData(OutputFile file) {
     return new DataWriteBuilder(file);
   }
 
+  @Deprecated
   public static DataWriteBuilder writeData(EncryptedOutputFile file) {
     return new DataWriteBuilder(file.encryptingOutputFile());
   }
 
+  @Deprecated
   public static class DataWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
@@ -386,14 +457,17 @@ public class Avro {
     }
   }
 
+  @Deprecated
   public static DeleteWriteBuilder writeDeletes(OutputFile file) {
     return new DeleteWriteBuilder(file);
   }
 
+  @Deprecated
   public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
     return new DeleteWriteBuilder(file.encryptingOutputFile());
   }
 
+  @Deprecated
   public static class DeleteWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
@@ -771,6 +845,74 @@ public class Avro {
       if (reader instanceof SupportsCustomTypes) {
         ((SupportsCustomTypes) reader).setCustomTypes(rootType, typeMap);
       }
+
+      return new AvroIterable<>(
+          file, new NameMappingDatumReader<>(nameMapping, reader), start, length, reuseContainers);
+    }
+  }
+
+  public static class DataReadBuilder<D>
+      implements org.apache.iceberg.io.datafile.ReadBuilder<D, Object> {
+    private final InputFile file;
+    private Long start = null;
+    private Long length = null;
+    private org.apache.iceberg.Schema schema;
+    private boolean reuseContainers = false;
+    private Map<Integer, ?> idToConstant = ImmutableMap.of();
+    private NameMapping nameMapping;
+    private BiFunction<org.apache.iceberg.Schema, Map<Integer, ?>, DatumReader<D>> readerFunction;
+
+    public DataReadBuilder(InputFile file) {
+      Preconditions.checkNotNull(file, "Input file cannot be null");
+      this.file = file;
+    }
+
+    @Override
+    public DataReadBuilder<D> split(long newStart, long newLength) {
+      this.start = newStart;
+      this.length = newLength;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D> project(org.apache.iceberg.Schema newSchema) {
+      this.schema = newSchema;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D> reuseContainers(boolean newReuseContainers) {
+      this.reuseContainers = newReuseContainers;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D> idToConstant(Map<Integer, ?> newIdConstant) {
+      this.idToConstant = newIdConstant;
+      return this;
+    }
+
+    @Override
+    public DataReadBuilder<D> withNameMapping(NameMapping newNameMapping) {
+      this.nameMapping = newNameMapping;
+      return this;
+    }
+
+    public DataReadBuilder<D> readerFunction(
+        BiFunction<org.apache.iceberg.Schema, Map<Integer, ?>, DatumReader<D>> newReaderFunction) {
+      this.readerFunction = newReaderFunction;
+      return this;
+    }
+
+    @Override
+    public CloseableIterable<D> build() {
+      Preconditions.checkNotNull(schema, "Schema is required");
+
+      if (null == nameMapping) {
+        this.nameMapping = MappingUtil.create(schema);
+      }
+
+      DatumReader<D> reader = readerFunction.apply(schema, idToConstant);
 
       return new AvroIterable<>(
           file, new NameMappingDatumReader<>(nameMapping, reader), start, length, reuseContainers);

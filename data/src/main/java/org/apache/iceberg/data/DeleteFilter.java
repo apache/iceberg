@@ -47,7 +47,7 @@ import org.apache.iceberg.util.StructProjection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class DeleteFilter<T> {
+public abstract class DeleteFilter<T> implements org.apache.iceberg.io.datafile.DeleteFilter<T> {
   private static final Logger LOG = LoggerFactory.getLogger(DeleteFilter.class);
 
   private final String filePath;
@@ -122,22 +122,27 @@ public abstract class DeleteFilter<T> {
     return isDeletedColumnPosition;
   }
 
+  @Override
   public Schema requiredSchema() {
     return requiredSchema;
   }
 
+  @Override
   public Schema expectedSchema() {
     return expectedSchema;
   }
 
+  @Override
   public boolean hasPosDeletes() {
     return !posDeletes.isEmpty();
   }
 
+  @Override
   public boolean hasEqDeletes() {
     return !eqDeletes.isEmpty();
   }
 
+  @Override
   public void incrementDeleteCount() {
     counter.increment();
   }
@@ -231,6 +236,7 @@ public abstract class DeleteFilter<T> {
         this.getClass().getName() + " does not implement markRowDeleted");
   }
 
+  @Override
   public Predicate<T> eqDeletedRowFilter() {
     if (eqDeleteRows == null) {
       eqDeleteRows =
@@ -239,6 +245,7 @@ public abstract class DeleteFilter<T> {
     return eqDeleteRows;
   }
 
+  @Override
   public PositionDeleteIndex deletedRowPositions() {
     if (deleteRowPositions == null && !posDeletes.isEmpty()) {
       this.deleteRowPositions = deleteLoader().loadPositionDeletes(posDeletes, filePath);
