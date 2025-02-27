@@ -130,7 +130,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
       return DataFileServiceRegistry.writeBuilder(
               fileFormat, Record.class.getName(), encryptedOutputFile)
           .schema(schema)
-          .setAll(config)
+          .set(config)
           .metricsConfig(metricsConfig)
           .overwrite()
           .appender();
@@ -168,7 +168,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
           .schema(schema)
           .withPartition(partition)
           .overwrite()
-          .setAll(config)
+          .set(config)
           .metricsConfig(metricsConfig)
           .withRowSchema(eqDeleteRowSchema)
           .withSpec(spec)
@@ -193,7 +193,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
           .schema(schema)
           .withPartition(partition)
           .overwrite()
-          .setAll(config)
+          .set(config)
           .metricsConfig(metricsConfig)
           .withRowSchema(posDeleteRowSchema)
           .withSpec(spec)

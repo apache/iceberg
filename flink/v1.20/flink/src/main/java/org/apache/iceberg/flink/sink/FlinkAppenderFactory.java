@@ -66,30 +66,29 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   private RowType posDeleteFlinkSchema = null;
 
   public static void register() {
-    DataFileServiceRegistry.registerWrite(
+    DataFileServiceRegistry.registerAppender(
         FileFormat.AVRO,
         RowData.class.getName(),
         Avro::write,
-        Avro.<RowType>initGenerator(
+        Avro.<RowType>initializer(
             (unused, rowType) -> new FlinkAvroWriter(rowType),
             (unused, rowType) ->
                 new FlinkAvroWriter(
                     (RowType)
                         rowType.getTypeAt(rowType.getFieldIndex(DELETE_FILE_ROW_FIELD_NAME)))));
 
-    DataFileServiceRegistry.registerWrite(
+    DataFileServiceRegistry.registerAppender(
         FileFormat.PARQUET,
         RowData.class.getName(),
         Parquet::write,
-        Parquet.<RowType>initGenerator(
-            (messageType, rowType) -> FlinkParquetWriters.buildWriter(rowType, messageType),
-            path -> StringData.fromString(path.toString())));
+        Parquet.<RowType>initializer(
+            FlinkParquetWriters::buildWriter, path -> StringData.fromString(path.toString())));
 
-    DataFileServiceRegistry.registerWrite(
+    DataFileServiceRegistry.registerAppender(
         FileFormat.ORC,
         RowData.class.getName(),
         ORC::write,
-        ORC.<RowType>initGenerator(
+        ORC.<RowType>initializer(
             (schema, messageType, nativeSchema) -> FlinkOrcWriter.buildWriter(nativeSchema, schema),
             path -> StringData.fromString(path.toString())));
   }
@@ -137,7 +136,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
       return DataFileServiceRegistry.writeBuilder(
               format, RowData.class.getName(), EncryptedFiles.plainAsEncryptedOutput(outputFile))
           .withNativeType(flinkSchema)
-          .setAll(props)
+          .set(props)
           .schema(schema)
           .metricsConfig(metricsConfig)
           .overwrite()
@@ -173,7 +172,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     try {
       return DataFileServiceRegistry.writeBuilder(format, RowData.class.getName(), outputFile)
           .overwrite()
-          .setAll(props)
+          .set(props)
           .metricsConfig(metricsConfig)
           .withNativeType(lazyEqDeleteFlinkSchema())
           .withPartition(partition)
@@ -194,7 +193,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     try {
       return DataFileServiceRegistry.writeBuilder(format, RowData.class.getName(), outputFile)
           .overwrite()
-          .setAll(props)
+          .set(props)
           .metricsConfig(metricsConfig)
           .withNativeType(lazyPosDeleteFlinkSchema())
           .withPartition(partition)

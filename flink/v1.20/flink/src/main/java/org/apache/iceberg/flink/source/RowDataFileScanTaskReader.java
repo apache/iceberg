@@ -62,21 +62,21 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
   private final FlinkSourceFilter rowFilter;
 
   public static void register() {
-    DataFileServiceRegistry.registerRead(
+    DataFileServiceRegistry.registerReader(
         FileFormat.PARQUET,
         RowData.class.getName(),
         inputFile ->
             new Parquet.DataReadBuilder<RowData, Object>(inputFile)
                 .readerFunction(FlinkParquetReaders::buildReader));
 
-    DataFileServiceRegistry.registerRead(
+    DataFileServiceRegistry.registerReader(
         FileFormat.AVRO,
         RowData.class.getName(),
         inputFile ->
             new Avro.DataReadBuilder<RowData>(inputFile)
                 .readerFunction(FlinkPlannedAvroReader::create));
 
-    DataFileServiceRegistry.registerRead(
+    DataFileServiceRegistry.registerReader(
         FileFormat.ORC,
         RowData.class.getName(),
         inputFile ->
@@ -143,7 +143,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
       throw new UnsupportedOperationException("Cannot read data task.");
     } else {
       ReadBuilder builder =
-          DataFileServiceRegistry.readerBuilder(
+          DataFileServiceRegistry.readBuilder(
                   task.file().format(),
                   RowData.class.getName(),
                   inputFilesDecryptor.getInputFile(task))

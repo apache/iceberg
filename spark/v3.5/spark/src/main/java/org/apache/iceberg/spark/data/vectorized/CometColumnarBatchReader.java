@@ -43,7 +43,7 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
  * populated via delegated read calls to {@link CometColumnReader VectorReader(s)}.
  */
 @SuppressWarnings("checkstyle:VisibilityModifier")
-class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
+public class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch> {
 
   private final CometColumnReader[] readers;
   private final boolean hasIsDeletedColumn;

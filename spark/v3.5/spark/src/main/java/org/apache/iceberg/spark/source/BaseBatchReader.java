@@ -61,7 +61,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       SparkDeleteFilter deleteFilter) {
     Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema();
     ReadBuilder<ColumnarBatch, InternalRow> readBuilder =
-        DataFileServiceRegistry.<ColumnarBatch, InternalRow>readerBuilder(
+        DataFileServiceRegistry.<ColumnarBatch, InternalRow>readBuilder(
                 format,
                 ColumnarBatch.class.getName(),
                 parquetConf != null ? parquetConf.readerType().name() : null,

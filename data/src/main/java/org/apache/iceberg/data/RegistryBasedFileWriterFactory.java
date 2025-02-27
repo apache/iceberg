@@ -112,8 +112,8 @@ public abstract class RegistryBasedFileWriterFactory<T, F, S> implements FileWri
     try {
       return DataFileServiceRegistry.writeBuilder(dataFileFormat, inputType, file)
           .schema(dataSchema)
-          .setAll(properties)
-          .setAll(writeProperties)
+          .set(properties)
+          .set(writeProperties)
           .metricsConfig(metricsConfig)
           .withNativeType(rowSchemaType())
           .withSpec(spec)
@@ -136,8 +136,8 @@ public abstract class RegistryBasedFileWriterFactory<T, F, S> implements FileWri
 
     try {
       return DataFileServiceRegistry.writeBuilder(deleteFileFormat, inputType, file)
-          .setAll(properties)
-          .setAll(writeProperties)
+          .set(properties)
+          .set(writeProperties)
           .metricsConfig(metricsConfig)
           .withNativeType(equalityDeleteRowSchemaType())
           .withRowSchema(equalityDeleteRowSchema)
@@ -162,8 +162,8 @@ public abstract class RegistryBasedFileWriterFactory<T, F, S> implements FileWri
 
     try {
       return DataFileServiceRegistry.writeBuilder(deleteFileFormat, inputType, file)
-          .setAll(properties)
-          .setAll(writeProperties)
+          .set(properties)
+          .set(writeProperties)
           .metricsConfig(metricsConfig)
           .withNativeType(positionDeleteRowSchemaType())
           .withRowSchema(positionDeleteRowSchema)

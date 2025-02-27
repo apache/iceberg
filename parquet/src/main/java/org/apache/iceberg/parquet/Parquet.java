@@ -141,19 +141,19 @@ public class Parquet {
           "parquet.crypto.factory.class");
 
   public static void register() {
-    DataFileServiceRegistry.registerRead(
+    DataFileServiceRegistry.registerReader(
         FileFormat.PARQUET,
         Record.class.getName(),
         inputFile ->
             new DataReadBuilder<Record, Object>(inputFile)
                 .readerFunction(GenericParquetReaders::buildReader));
 
-    DataFileServiceRegistry.registerWrite(
+    DataFileServiceRegistry.registerAppender(
         FileFormat.PARQUET,
         Record.class.getName(),
         Parquet::write,
-        Parquet.initGenerator(
-            (messageType, nativeSchema) -> GenericParquetWriter.buildWriter(messageType),
+        Parquet.initializer(
+            (nativeSchema, messageType) -> GenericParquetWriter.buildWriter(messageType),
             Function.identity()));
   }
 
@@ -177,25 +177,26 @@ public class Parquet {
     }
   }
 
-  public static <T> DataFileServiceRegistry.InitBuilder initGenerator(
-      BiFunction<MessageType, T, ParquetValueWriter<?>> writerFunction,
+  public static <T> AppenderBuilder.Initializer initializer(
+      BiFunction<T, MessageType, ParquetValueWriter<?>> writerFunction,
       Function<CharSequence, ?> pathTransformFunc) {
-    return new DataFileServiceRegistry.InitBuilder() {
+    return new AppenderBuilder.Initializer() {
       @Override
-      public BiConsumer<WriteBuilder, T> build(DataFileServiceRegistry.WriteMode mode) {
+      @SuppressWarnings("unchecked")
+      public BiConsumer<WriteBuilder, T> buildInitializer(AppenderBuilder.WriteMode mode) {
         switch (mode) {
           case APPENDER:
           case DATA_WRITER:
             return (appender, nativeType) -> {
               appender.createContextFunc(WriteBuilder.Context::dataContext);
               appender.createWriterFunc(
-                  messageType -> writerFunction.apply(messageType, nativeType));
+                  messageType -> writerFunction.apply(nativeType, messageType));
             };
           case EQUALITY_DELETE_WRITER:
             return (appender, nativeType) -> {
               appender.createContextFunc(WriteBuilder.Context::deleteContext);
               appender.createWriterFunc(
-                  messageType -> writerFunction.apply(messageType, nativeType));
+                  messageType -> writerFunction.apply(nativeType, messageType));
             };
           case POSITION_DELETE_WRITER:
             return (appender, nativeType) -> {
@@ -212,7 +213,7 @@ public class Parquet {
               appender.createWriterFunc(
                   messageType ->
                       new PositionDeleteStructWriter<T>(
-                          (StructWriter<?>) writerFunction.apply(messageType, nativeType),
+                          (StructWriter<?>) writerFunction.apply(nativeType, messageType),
                           pathTransformFunc));
             };
           default:
@@ -293,7 +294,6 @@ public class Parquet {
       return this;
     }
 
-    @Override
     public WriteBuilder setAll(Map<String, String> properties) {
       config.putAll(properties);
       return this;
@@ -302,6 +302,12 @@ public class Parquet {
     @Override
     public WriteBuilder meta(String property, String value) {
       metadata.put(property, value);
+      return this;
+    }
+
+    @Override
+    public WriteBuilder meta(Map<String, String> properties) {
+      metadata.putAll(properties);
       return this;
     }
 
@@ -1606,7 +1612,7 @@ public class Parquet {
     }
 
     @Override
-    @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public CloseableIterable<D> build() {
       FileDecryptionProperties fileDecryptionProperties = null;
       if (fileEncryptionKey != null) {

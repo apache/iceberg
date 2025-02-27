@@ -19,7 +19,6 @@
 package org.apache.iceberg.io.datafile;
 
 import java.util.Map;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.avro.Avro;
@@ -51,35 +50,35 @@ public final class DataFileServiceRegistry {
         "org.apache.iceberg.spark.source.DataFileServices"
       };
 
-  private static final Map<Key, WriterData<?, ?>> WRITE_BUILDERS = Maps.newConcurrentMap();
+  private static final Map<Key, AppenderData<?>> APPENDER_BUILDERS = Maps.newConcurrentMap();
   private static final Map<Key, Function<InputFile, ReadBuilder<?, ?>>> READ_BUILDERS =
       Maps.newConcurrentMap();
 
-  /** Registers a new writer builder for the given format/input type. */
-  public static <A extends AppenderBuilder<A>> void registerWrite(
+  /** Registers a new appender builder for the given format/input type. */
+  public static <A extends AppenderBuilder<A>> void registerAppender(
       FileFormat format,
       String inputType,
       Function<EncryptedOutputFile, AppenderBuilder<A>> appenderBuilder,
-      InitBuilder initBuilder) {
+      AppenderBuilder.Initializer initializer) {
     Key key = new Key(format, inputType, null);
-    if (WRITE_BUILDERS.containsKey(key)) {
+    if (APPENDER_BUILDERS.containsKey(key)) {
       throw new IllegalArgumentException(
           String.format(
-              "Write builder %s clashes with %s. Both serves %s",
-              appenderBuilder.getClass(), WRITE_BUILDERS.get(key), key));
+              "Appender builder %s clashes with %s. Both serves %s",
+              appenderBuilder.getClass(), APPENDER_BUILDERS.get(key), key));
     }
 
-    WRITE_BUILDERS.putIfAbsent(key, new WriterData<>(appenderBuilder, initBuilder));
+    APPENDER_BUILDERS.putIfAbsent(key, new AppenderData<>(appenderBuilder, initializer));
   }
 
   /** Registers a new reader builder for the given format/input type. */
-  public static void registerRead(
+  public static void registerReader(
       FileFormat format, String outputType, Function<InputFile, ReadBuilder<?, ?>> readBuilder) {
-    registerRead(format, outputType, null, readBuilder);
+    registerReader(format, outputType, null, readBuilder);
   }
 
   /** Registers a new reader builder for the given format/input type/reader type. */
-  public static void registerRead(
+  public static void registerReader(
       FileFormat format,
       String outputType,
       String readerType,
@@ -128,9 +127,9 @@ public final class DataFileServiceRegistry {
    * @param inputFile to read
    * @return {@link ReadBuilder} for building the actual reader
    */
-  public static <D, F> ReadBuilder<D, F> readerBuilder(
+  public static <D, F> ReadBuilder<D, F> readBuilder(
       FileFormat format, String returnType, InputFile inputFile) {
-    return readerBuilder(format, returnType, null, inputFile);
+    return readBuilder(format, returnType, null, inputFile);
   }
 
   /**
@@ -142,7 +141,7 @@ public final class DataFileServiceRegistry {
    * @param inputFile to read
    * @return {@link ReadBuilder} for building the actual reader
    */
-  public static <D, F> ReadBuilder<D, F> readerBuilder(
+  public static <D, F> ReadBuilder<D, F> readBuilder(
       FileFormat format, String returnType, String builderType, InputFile inputFile) {
     return (ReadBuilder<D, F>)
         READ_BUILDERS.get(new Key(format, returnType, builderType)).apply(inputFile);
@@ -158,12 +157,12 @@ public final class DataFileServiceRegistry {
    */
   public static <A extends AppenderBuilder<A>, T> WriteBuilder<A, T> writeBuilder(
       FileFormat format, String inputType, EncryptedOutputFile outputFile) {
-    WriterData<A, T> writerData =
-        (WriterData<A, T>) WRITE_BUILDERS.get(new Key(format, inputType, null));
+    AppenderData<A> appenderData =
+        (AppenderData<A>) APPENDER_BUILDERS.get(new Key(format, inputType, null));
 
     return new WriteBuilder<>(
-        writerData.appenderBuilder.apply(outputFile),
-        writerData.initBuilder,
+        appenderData.appenderBuilder.apply(outputFile),
+        appenderData.initializer,
         outputFile.encryptingOutputFile().location(),
         format);
   }
@@ -174,13 +173,6 @@ public final class DataFileServiceRegistry {
     private final String dataType;
     private final String builderType;
 
-    /**
-     * Create the key when there are multiple builder types available.
-     *
-     * @param fileFormat the service handles
-     * @param dataType the service handles
-     * @param builderType identifier of the builder type when multiple readers/writers are available
-     */
     private Key(FileFormat fileFormat, String dataType, String builderType) {
       this.fileFormat = fileFormat;
       this.dataType = dataType;
@@ -218,27 +210,19 @@ public final class DataFileServiceRegistry {
     }
   }
 
-  private static class WriterData<A extends AppenderBuilder<A>, T> {
+  /**
+   * Object to store a pair of {@link AppenderBuilder} and {@link AppenderBuilder.Initializer}. Used
+   * to store them in the registry.
+   */
+  private static class AppenderData<A extends AppenderBuilder<A>> {
     private final Function<EncryptedOutputFile, AppenderBuilder<A>> appenderBuilder;
-    private final InitBuilder initBuilder;
+    private final AppenderBuilder.Initializer initializer;
 
-    private WriterData(
+    private AppenderData(
         Function<EncryptedOutputFile, AppenderBuilder<A>> appenderBuilder,
-        InitBuilder initBuilder) {
+        AppenderBuilder.Initializer initializer) {
       this.appenderBuilder = appenderBuilder;
-      this.initBuilder = initBuilder;
+      this.initializer = initializer;
     }
-  }
-
-  public interface InitBuilder {
-    <A extends AppenderBuilder<A>, T> BiConsumer<AppenderBuilder<A>, T> build(WriteMode mode);
-  }
-
-  public enum WriteMode {
-    APPENDER,
-    DATA_WRITER,
-    EQUALITY_DELETE_WRITER,
-    POSITION_DELETE_WRITER,
-    POSITION_DELETE_WITH_ROW_WRITER,
   }
 }

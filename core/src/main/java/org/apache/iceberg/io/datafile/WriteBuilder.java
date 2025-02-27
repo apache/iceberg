@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
@@ -41,9 +42,19 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ArrayUtil;
 
+/**
+ * Builder for generating {@link FileAppender}s, {@link DataWriter}, {@link EqualityDeleteWriter}
+ * and {@link PositionDeleteWriter}s. The builder wraps the file format specific {@link
+ * AppenderBuilder}. To allow further engine and file format specific configuration changes for the
+ * given type of writer it uses {@link AppenderBuilder.Initializer} to finalize the appender
+ * configuration before generating the actual writer.
+ *
+ * @param <A> type of the appender
+ * @param <T> engine specific native type of the input records used for appender initialization
+ */
 public class WriteBuilder<A extends AppenderBuilder<A>, T> {
   private final AppenderBuilder<A> appenderBuilder;
-  private final DataFileServiceRegistry.InitBuilder initBuilder;
+  private final AppenderBuilder.Initializer initializer;
   private final String location;
   private final FileFormat format;
   private PartitionSpec spec = null;
@@ -56,147 +67,219 @@ public class WriteBuilder<A extends AppenderBuilder<A>, T> {
 
   WriteBuilder(
       AppenderBuilder<A> appenderBuilder,
-      DataFileServiceRegistry.InitBuilder initBuilder,
+      AppenderBuilder.Initializer initializer,
       String location,
       FileFormat format) {
     this.appenderBuilder = appenderBuilder;
-    this.initBuilder = initBuilder;
+    this.initializer = initializer;
     this.location = location;
     this.format = format;
   }
 
+  /**
+   * Sets the configurations coming from the table like {@link #schema(Schema)}, {@link #set(Map)}
+   * and {@link #metricsConfig(MetricsConfig)}.
+   */
   public WriteBuilder<A, T> forTable(Table table) {
     appenderBuilder.forTable(table);
     return this;
   }
 
+  /** Set the file schema. */
   public WriteBuilder<A, T> schema(Schema newSchema) {
     appenderBuilder.schema(newSchema);
     return this;
   }
 
+  /** Set the file schema's root name. */
   public WriteBuilder<A, T> named(String newName) {
     appenderBuilder.named(newName);
     return this;
   }
 
+  /**
+   * Set a writer configuration property.
+   *
+   * <p>Write configuration affects writer behavior. To add file metadata properties, use {@link
+   * #meta(String, String)} or {@link #meta(Map)}.
+   *
+   * @param property a writer config property name
+   * @param value config value
+   * @return this for method chaining
+   */
   public WriteBuilder<A, T> set(String property, String value) {
     appenderBuilder.set(property, value);
     return this;
   }
 
-  public WriteBuilder<A, T> setAll(Map<String, String> properties) {
-    appenderBuilder.setAll(properties);
+  /**
+   * Set a writer configuration properties Map.
+   *
+   * <p>Write configuration affects writer behavior. To add file metadata properties, use {@link
+   * #meta(String, String)} or {@link #meta(Map)}.
+   *
+   * @param properties a map of writer config properties
+   * @return this for method chaining
+   */
+  public WriteBuilder<A, T> set(Map<String, String> properties) {
+    properties.forEach(appenderBuilder::set);
     return this;
   }
 
+  /**
+   * Set a file metadata property.
+   *
+   * <p>Metadata properties are written into file metadata. To alter a writer configuration
+   * property, use {@link #set(String, String)} or {@link #set(Map)}.
+   *
+   * @param property a file metadata property name
+   * @param value config value
+   * @return this for method chaining
+   */
   public WriteBuilder<A, T> meta(String property, String value) {
     appenderBuilder.meta(property, value);
     return this;
   }
 
+  /**
+   * Set a file metadata properties Map.
+   *
+   * <p>Metadata properties are written into file metadata. To alter a writer configuration
+   * property, use {@link #set(String, String)}.
+   *
+   * @param properties a map of file metadata properties
+   * @return this for method chaining
+   */
+  public WriteBuilder<A, T> meta(Map<String, String> properties) {
+    properties.forEach(appenderBuilder::meta);
+    return this;
+  }
+
+  /** Sets the metrics configuration used for collecting column metrics for the created file. */
   public WriteBuilder<A, T> metricsConfig(MetricsConfig newMetricsConfig) {
     appenderBuilder.metricsConfig(newMetricsConfig);
     return this;
   }
 
+  /** Overwrite the file if it already exists. */
   public WriteBuilder<A, T> overwrite() {
-    appenderBuilder.overwrite();
-    return this;
+    return overwrite(true);
   }
 
+  /** Sets the overwrite flag. */
   public WriteBuilder<A, T> overwrite(boolean enabled) {
     appenderBuilder.overwrite(enabled);
     return this;
   }
 
+  /** Sets the encryption key used for writing the file. */
   public WriteBuilder<A, T> fileEncryptionKey(ByteBuffer encryptionKey) {
     appenderBuilder.fileEncryptionKey(encryptionKey);
     return this;
   }
 
+  /** Sets the additional authentication data prefix used for writing the file. */
   public WriteBuilder<A, T> aADPrefix(ByteBuffer aadPrefix) {
     appenderBuilder.aADPrefix(aadPrefix);
     return this;
   }
 
+  /** Sets the row schema for the delete writers. */
   public WriteBuilder<A, T> withRowSchema(Schema newSchema) {
     this.rowSchema = newSchema;
     return this;
   }
 
+  /** Sets the equality field ids for the equality delete writer. */
   public WriteBuilder<A, T> withEqualityFieldIds(List<Integer> fieldIds) {
     this.equalityFieldIds = ArrayUtil.toIntArray(fieldIds);
     return this;
   }
 
+  /** Sets the equality field ids for the equality delete writer. */
   public WriteBuilder<A, T> withEqualityFieldIds(int... fieldIds) {
     this.equalityFieldIds = fieldIds;
     return this;
   }
 
+  /** Sets the partition specification for the content file metadata. */
   public WriteBuilder<A, T> withSpec(PartitionSpec newSpec) {
     this.spec = newSpec;
     return this;
   }
 
+  /** Sets the partition value for the content file metadata. */
   public WriteBuilder<A, T> withPartition(StructLike newPartition) {
     this.partition = newPartition;
     return this;
   }
 
+  /** Sets the encryption key metadata for the content file. */
   public WriteBuilder<A, T> withKeyMetadata(EncryptionKeyMetadata metadata) {
     this.keyMetadata = metadata;
     return this;
   }
 
+  /** Sets the sort order for the content file metadata. */
   public WriteBuilder<A, T> withSortOrder(SortOrder newSortOrder) {
     this.sortOrder = newSortOrder;
     return this;
   }
 
+  /**
+   * Sets the engine specific type of the input. Provided for the {@link
+   * AppenderBuilder.Initializer} methods to configure the engine specific converters.
+   */
   public WriteBuilder<A, T> withNativeType(T newNativeType) {
     this.nativeType = newNativeType;
     return this;
   }
 
+  /** Creates a {@link FileAppender} based on the configurations set. */
   public <D> FileAppender<D> appender() throws IOException {
-    initBuilder
-        .<A, T>build(DataFileServiceRegistry.WriteMode.APPENDER)
+    initializer
+        .<A, T>buildInitializer(AppenderBuilder.WriteMode.APPENDER)
         .accept(appenderBuilder, nativeType);
     return appenderBuilder.build();
   }
 
+  /**
+   * Creates a writer which generates {@link org.apache.iceberg.DataFile}s based on the
+   * configurations set.
+   */
   public <D> DataWriter<D> dataWriter() throws IOException {
     Preconditions.checkArgument(spec != null, "Cannot create data writer without spec");
     Preconditions.checkArgument(
         spec.isUnpartitioned() || partition != null,
         "Partition must not be null when creating data writer for partitioned spec");
     Preconditions.checkState(
-        initBuilder != null, "Cannot create data file unless initBuilder is set");
+        initializer != null, "Cannot create data file unless appenderInitializer is set");
 
-    initBuilder
-        .<A, T>build(DataFileServiceRegistry.WriteMode.DATA_WRITER)
+    initializer
+        .<A, T>buildInitializer(AppenderBuilder.WriteMode.DATA_WRITER)
         .accept(appenderBuilder, nativeType);
     return new org.apache.iceberg.io.DataWriter<>(
         appenderBuilder.build(), format, location, spec, partition, keyMetadata, sortOrder);
   }
 
+  /**
+   * Creates a writer which generates equality {@link DeleteFile}s based on the configurations set.
+   */
   public <D> EqualityDeleteWriter<D> equalityDeleteWriter() throws IOException {
     Preconditions.checkState(
         rowSchema != null, "Cannot create equality delete file without a schema");
     Preconditions.checkState(
         equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
     Preconditions.checkState(
-        initBuilder != null, "Cannot create data file unless initBuilder is set");
+        initializer != null, "Cannot create data file unless appenderInitializer is set");
     Preconditions.checkArgument(
         spec != null, "Spec must not be null when creating equality delete writer");
     Preconditions.checkArgument(
         spec.isUnpartitioned() || partition != null,
         "Partition must not be null for partitioned writes");
 
-    initBuilder
-        .<A, T>build(DataFileServiceRegistry.WriteMode.EQUALITY_DELETE_WRITER)
+    initializer
+        .<A, T>buildInitializer(AppenderBuilder.WriteMode.EQUALITY_DELETE_WRITER)
         .accept(
             appenderBuilder
                 .schema(rowSchema)
@@ -218,6 +301,9 @@ public class WriteBuilder<A extends AppenderBuilder<A>, T> {
         equalityFieldIds);
   }
 
+  /**
+   * Creates a writer which generates position {@link DeleteFile}s based on the configurations set.
+   */
   public <D> PositionDeleteWriter<D> positionDeleteWriter() throws IOException {
     Preconditions.checkState(
         equalityFieldIds == null, "Cannot create position delete file using delete field ids");
@@ -227,17 +313,17 @@ public class WriteBuilder<A extends AppenderBuilder<A>, T> {
         spec.isUnpartitioned() || partition != null,
         "Partition must not be null for partitioned writes");
     Preconditions.checkState(
-        initBuilder != null, "Cannot create data file unless initBuilder is set");
+        initializer != null, "Cannot create data file unless appenderInitializer is set");
 
     if (rowSchema != null) {
       appenderBuilder.schema(DeleteSchemaUtil.posDeleteSchema(rowSchema));
-      initBuilder
-          .<A, T>build(DataFileServiceRegistry.WriteMode.POSITION_DELETE_WITH_ROW_WRITER)
+      initializer
+          .<A, T>buildInitializer(AppenderBuilder.WriteMode.POSITION_DELETE_WITH_ROW_WRITER)
           .accept(appenderBuilder, nativeType);
     } else {
       appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
-      initBuilder
-          .<A, T>build(DataFileServiceRegistry.WriteMode.POSITION_DELETE_WRITER)
+      initializer
+          .<A, T>buildInitializer(AppenderBuilder.WriteMode.POSITION_DELETE_WRITER)
           .accept(appenderBuilder, nativeType);
     }
 

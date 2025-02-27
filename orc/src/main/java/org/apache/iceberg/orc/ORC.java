@@ -113,17 +113,17 @@ public class ORC {
   private ORC() {}
 
   public static void register() {
-    DataFileServiceRegistry.registerRead(
+    DataFileServiceRegistry.registerReader(
         FileFormat.ORC,
         Record.class.getName(),
         inputFile ->
             new DataReadBuilder<Record>(inputFile).readerFunction(GenericOrcReader::buildReader));
 
-    DataFileServiceRegistry.registerWrite(
+    DataFileServiceRegistry.registerAppender(
         FileFormat.ORC,
         Record.class.getName(),
         ORC::write,
-        ORC.initGenerator(
+        ORC.initializer(
             (schema, messageType, nativeSchema) ->
                 GenericOrcWriter.buildWriter(schema, messageType),
             Function.identity()));
@@ -140,11 +140,12 @@ public class ORC {
     return new WriteBuilder(file.encryptingOutputFile());
   }
 
-  public static <T> DataFileServiceRegistry.InitBuilder initGenerator(
+  public static <T> AppenderBuilder.Initializer initializer(
       WriterFunction<T> writerFunction, Function<CharSequence, ?> pathTransformFunc) {
-    return new DataFileServiceRegistry.InitBuilder() {
+    return new AppenderBuilder.Initializer() {
       @Override
-      public BiConsumer<WriteBuilder, T> build(DataFileServiceRegistry.WriteMode mode) {
+      @SuppressWarnings("unchecked")
+      public BiConsumer<WriteBuilder, T> buildInitializer(AppenderBuilder.WriteMode mode) {
         switch (mode) {
           case APPENDER:
           case DATA_WRITER:
@@ -233,7 +234,6 @@ public class ORC {
       return this;
     }
 
-    @Override
     public WriteBuilder setAll(Map<String, String> properties) {
       config.putAll(properties);
       return this;
@@ -251,7 +251,6 @@ public class ORC {
       return this;
     }
 
-    @Override
     public WriteBuilder overwrite() {
       return overwrite(true);
     }
