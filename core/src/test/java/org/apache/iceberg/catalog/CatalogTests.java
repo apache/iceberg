@@ -47,6 +47,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.ReplaceSortOrder;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
@@ -1423,6 +1424,66 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       assertThat(loaded.specs().values()).containsExactlyInAnyOrder(spec, current);
     } else {
       assertThat(loaded.specs().values()).containsExactlyInAnyOrder(current);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testRemoveUnusedSchemas(boolean withBranch) {
+    String branch = "test";
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table =
+        catalog
+            .buildTable(TABLE, SCHEMA)
+            .withPartitionSpec(SPEC)
+            .withProperty(TableProperties.GC_ENABLED, "true")
+            .create();
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    if (withBranch) {
+      table.manageSnapshots().createBranch(branch).commit();
+    }
+
+    table.updateSchema().addColumn("col_to_delete", Types.IntegerType.get()).commit();
+    table.updateSchema().deleteColumn("col_to_delete").commit();
+    table.updateSchema().addColumn("extra_col", Types.StringType.get()).commit();
+
+    assertThat(table.schemas().values()).as("Should have 3 total schemas").hasSize(3);
+
+    // Keeps the schema used by the single snapshot and the current schema.
+    // Doesn't remove snapshots.
+    table.expireSnapshots().cleanExpiredMetadata(true).commit();
+
+    Table loaded = catalog.loadTable(TABLE);
+    assertThat(loaded.snapshot(firstSnapshot.snapshotId())).isNotNull();
+    assertThat(loaded.schemas().keySet())
+        .containsExactlyInAnyOrder(firstSnapshot.schemaId(), loaded.schema().schemaId());
+
+    table.updateSchema().addColumn("extra_col2", Types.LongType.get()).commit();
+    table.newFastAppend().appendFile(FILE_B).commit();
+
+    table
+        .expireSnapshots()
+        .expireOlderThan(table.currentSnapshot().timestampMillis())
+        .cleanExpiredMetadata(true)
+        .commit();
+
+    loaded = catalog.loadTable(TABLE);
+    if (withBranch) {
+      assertThat(loaded.snapshots())
+          .containsExactlyInAnyOrder(firstSnapshot, loaded.currentSnapshot());
+      assertThat(loaded.schemas().keySet())
+          .containsExactlyInAnyOrder(firstSnapshot.schemaId(), loaded.currentSnapshot().schemaId());
+    } else {
+      assertThat(loaded.snapshot(firstSnapshot.snapshotId())).isNull();
+      assertThat(loaded.schemas().keySet())
+          .containsExactlyInAnyOrder(loaded.currentSnapshot().schemaId());
     }
   }
 
