@@ -47,13 +47,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.FieldSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public abstract class DataTest {
 
   protected abstract void writeAndValidate(Schema schema) throws IOException;
 
-  protected abstract void writeAndValidate(Schema schema, List<Record> data) throws IOException;
+  protected void writeAndValidate(Schema schema, List<Record> data) throws IOException {
+    throw new UnsupportedEncodingException(
+        "Cannot run test, writeAndValidate(Schema, List<Record>) is not implemented");
+  }
 
   protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
     throw new UnsupportedEncodingException(
@@ -89,6 +93,35 @@ public abstract class DataTest {
           required(117, "time", Types.TimeType.get()));
 
   @TempDir protected Path temp;
+
+  private static final Type[] SIMPLE_TYPES =
+      new Type[] {
+        Types.UnknownType.get(),
+        Types.BooleanType.get(),
+        Types.IntegerType.get(),
+        LongType.get(),
+        Types.FloatType.get(),
+        Types.DoubleType.get(),
+        Types.DateType.get(),
+        Types.TimeType.get(),
+        Types.TimestampType.withZone(),
+        Types.TimestampType.withoutZone(),
+        Types.TimestampNanoType.withZone(),
+        Types.TimestampNanoType.withoutZone(),
+        Types.StringType.get(),
+        Types.FixedType.ofLength(7),
+        Types.BinaryType.get(),
+        Types.DecimalType.of(9, 0),
+        Types.DecimalType.of(11, 2),
+        Types.DecimalType.of(38, 10),
+        // Types.VariantType.get(),
+      };
+
+  @ParameterizedTest
+  @FieldSource("SIMPLE_TYPES")
+  public void testTypeSchema(Type type) throws IOException {
+    writeAndValidate(new Schema(required(1, "id", LongType.get()), optional(2, "test_type", type)));
+  }
 
   @Test
   public void testSimpleStruct() throws IOException {

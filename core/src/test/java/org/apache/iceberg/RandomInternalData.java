@@ -24,6 +24,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.function.Supplier;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -34,11 +35,11 @@ public class RandomInternalData {
 
   private RandomInternalData() {}
 
-  public static List<StructLike> generate(Schema schema, int numRecords, long seed) {
+  public static List<Record> generate(Schema schema, int numRecords, long seed) {
     RandomDataGenerator generator = new RandomDataGenerator(seed);
-    List<StructLike> records = Lists.newArrayListWithExpectedSize(numRecords);
+    List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
     for (int i = 0; i < numRecords; i += 1) {
-      records.add((StructLike) TypeUtil.visit(schema, generator));
+      records.add((Record) TypeUtil.visit(schema, generator));
     }
 
     return records;
@@ -52,13 +53,13 @@ public class RandomInternalData {
     }
 
     @Override
-    public StructLike schema(Schema schema, Supplier<Object> structResult) {
-      return (StructLike) structResult.get();
+    public Record schema(Schema schema, Supplier<Object> structResult) {
+      return (Record) structResult.get();
     }
 
     @Override
-    public StructLike struct(Types.StructType struct, Iterable<Object> fieldResults) {
-      StructLike rec = GenericRecord.create(struct);
+    public Record struct(Types.StructType struct, Iterable<Object> fieldResults) {
+      Record rec = GenericRecord.create(struct);
       List<Object> values = Lists.newArrayList(fieldResults);
       for (int i = 0; i < values.size(); i += 1) {
         rec.set(i, values.get(i));
@@ -84,6 +85,11 @@ public class RandomInternalData {
     @Override
     public Object map(Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
       return RandomUtil.generateMap(random, map, keyResult, valueResult);
+    }
+
+    @Override
+    public Object variant(Types.VariantType variant) {
+      return RandomVariants.randomVariant(random);
     }
 
     @Override

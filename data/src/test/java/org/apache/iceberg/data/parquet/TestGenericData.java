@@ -72,7 +72,8 @@ public class TestGenericData extends DataTest {
     try (FileAppender<Record> appender =
         Parquet.write(Files.localOutput(testFile))
             .schema(writeSchema)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .createWriterFunc(
+                fileSchema -> GenericParquetWriter.create(writeSchema.asStruct(), fileSchema))
             .build()) {
       appender.addAll(expected);
     }

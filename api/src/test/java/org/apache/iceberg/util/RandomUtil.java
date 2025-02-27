@@ -45,6 +45,9 @@ public class RandomUtil {
     int choice = random.nextInt(20);
 
     switch (primitive.typeId()) {
+      case UNKNOWN:
+        return null;
+
       case BOOLEAN:
         return choice < 10;
 
@@ -126,6 +129,9 @@ public class RandomUtil {
       case TIMESTAMP:
         return random.nextLong() % FIFTY_YEARS_IN_MICROS;
 
+      case TIMESTAMP_NANO:
+        return random.nextLong() % ABOUT_TEN_YEARS_IN_NANOS;
+
       case STRING:
         return randomString(random);
 
@@ -201,6 +207,7 @@ public class RandomUtil {
 
   private static final long FIFTY_YEARS_IN_MICROS =
       (50L * (365 * 3 + 366) * 24 * 60 * 60 * 1_000_000) / 4;
+  private static final long ABOUT_TEN_YEARS_IN_NANOS = 10L * 365 * 24 * 60 * 60 * 1_000_000_000;
   private static final int ABOUT_380_YEARS_IN_DAYS = 380 * 365;
   private static final long ONE_DAY_IN_MICROS = 24 * 60 * 60 * 1_000_000L;
   private static final String CHARS =
