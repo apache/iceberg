@@ -26,7 +26,7 @@ import org.apache.iceberg.types.Types;
 public class NamedReference<T> implements UnboundTerm<T>, Reference<T> {
   private final String name;
 
-  NamedReference(String name) {
+  public NamedReference(String name) {
     Preconditions.checkNotNull(name, "Name cannot be null");
     this.name = name;
   }
