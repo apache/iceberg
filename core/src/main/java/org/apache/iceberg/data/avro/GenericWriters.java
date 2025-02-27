@@ -51,6 +51,14 @@ class GenericWriters {
     return TimestamptzWriter.INSTANCE;
   }
 
+  static ValueWriter<LocalDateTime> timestamp9s() {
+    return TimestampNanoWriter.INSTANCE;
+  }
+
+  static ValueWriter<OffsetDateTime> timestamptz9s() {
+    return TimestamptzNanoWriter.INSTANCE;
+  }
+
   static ValueWriter<Record> struct(List<ValueWriter<?>> writers) {
     return new GenericRecordWriter(writers);
   }
@@ -99,6 +107,28 @@ class GenericWriters {
     @Override
     public void write(OffsetDateTime timestamptz, Encoder encoder) throws IOException {
       encoder.writeLong(ChronoUnit.MICROS.between(EPOCH, timestamptz));
+    }
+  }
+
+  private static class TimestampNanoWriter implements ValueWriter<LocalDateTime> {
+    private static final TimestampNanoWriter INSTANCE = new TimestampNanoWriter();
+
+    private TimestampNanoWriter() {}
+
+    @Override
+    public void write(LocalDateTime timestamp, Encoder encoder) throws IOException {
+      encoder.writeLong(ChronoUnit.NANOS.between(EPOCH, timestamp.atOffset(ZoneOffset.UTC)));
+    }
+  }
+
+  private static class TimestamptzNanoWriter implements ValueWriter<OffsetDateTime> {
+    private static final TimestamptzNanoWriter INSTANCE = new TimestamptzNanoWriter();
+
+    private TimestamptzNanoWriter() {}
+
+    @Override
+    public void write(OffsetDateTime timestamptz, Encoder encoder) throws IOException {
+      encoder.writeLong(ChronoUnit.NANOS.between(EPOCH, timestamptz));
     }
   }
 

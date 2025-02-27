@@ -32,12 +32,15 @@ import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.RepeatedKeyValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.RepeatedWriter;
+import org.apache.iceberg.parquet.TripleWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -317,6 +320,10 @@ public class SparkParquetWriters {
     return new ByteArrayWriter(desc);
   }
 
+  private static ParquetValueWriter<byte[]> variants(ParquetValueWriter<Variant> writer) {
+    return new VariantWriter(writer);
+  }
+
   private static class UTF8StringWriter extends PrimitiveWriter<UTF8String> {
     private UTF8StringWriter(ColumnDescriptor desc) {
       super(desc);
@@ -437,6 +444,29 @@ public class SparkParquetWriters {
     @Override
     public void write(int repetitionLevel, byte[] bytes) {
       column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(bytes));
+    }
+  }
+
+  private static class VariantWriter implements ParquetValueWriter<byte[]> {
+    private final ParquetValueWriter<Variant> variantWriter;
+
+    private VariantWriter(ParquetValueWriter<Variant> variantWriter) {
+      this.variantWriter = variantWriter;
+    }
+
+    @Override
+    public void write(int repetitionLevel, byte[] value) {
+      variantWriter.write(repetitionLevel, Variant.from(ByteBuffer.wrap(value)));
+    }
+
+    @Override
+    public List<TripleWriter<?>> columns() {
+      return variantWriter.columns();
+    }
+
+    @Override
+    public void setColumnStore(ColumnWriteStore columnStore) {
+      variantWriter.setColumnStore(columnStore);
     }
   }
 
