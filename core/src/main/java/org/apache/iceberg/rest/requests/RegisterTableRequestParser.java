@@ -47,10 +47,7 @@ public class RegisterTableRequestParser {
 
     gen.writeStringField(NAME, request.name());
     gen.writeStringField(METADATA_LOCATION, request.metadataLocation());
-
-    if (null != request.overwrite()) {
-      gen.writeBooleanField(OVERWRITE, request.overwrite());
-    }
+    gen.writeBooleanField(OVERWRITE, request.overwrite());
 
     gen.writeEndObject();
   }

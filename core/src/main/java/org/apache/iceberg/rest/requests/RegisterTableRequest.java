@@ -28,7 +28,7 @@ public interface RegisterTableRequest extends RESTRequest {
 
   String metadataLocation();
 
-  Boolean overwrite();
+  boolean overwrite();
 
   @Override
   default void validate() {
