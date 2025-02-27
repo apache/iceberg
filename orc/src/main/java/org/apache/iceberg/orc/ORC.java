@@ -83,7 +83,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.datafile.AppenderBuilder;
 import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
-import org.apache.iceberg.io.datafile.ReadBuilder;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -792,9 +791,9 @@ public class ORC {
 
     private Function<TypeDescription, OrcRowReader<?>> readerFunc;
     private Function<TypeDescription, OrcBatchReader<?>> batchedReaderFunc;
-    private int recordsPerBatch = VectorizedRowBatch.DEFAULT_SIZE;
     private ReaderFunction<?> readerFunction;
     private BatchReaderFunction<?> batchReaderFunction;
+    private int recordsPerBatch = VectorizedRowBatch.DEFAULT_SIZE;
     private Map<Integer, ?> idToConstant = ImmutableMap.of();
 
     private ReadBuilder(InputFile file) {
@@ -838,16 +837,24 @@ public class ORC {
       return this;
     }
 
+    @Deprecated
     public ReadBuilder config(String property, String value) {
       conf.set(property, value);
       return this;
     }
 
-    public ReadBuilder createReaderFunc(Function<TypeDescription, OrcRowReader<?>> readerFunction) {
-      Preconditions.checkArgument(
-          this.batchedReaderFunc == null,
-          "Reader function cannot be set since the batched version is already set");
-      this.readerFunc = readerFunction;
+    @Override
+    public ReadBuilder set(String property, String value) {
+      conf.set(property, value);
+      return this;
+    }
+
+    @Deprecated
+    public ReadBuilder createReaderFunc(Function<TypeDescription, OrcRowReader<?>> newReaderFunc) {
+      Preconditions.checkState(
+          batchedReaderFunc == null && readerFunction == null && batchReaderFunction == null,
+          "Cannot set multiple read builder functions");
+      this.readerFunc = newReaderFunc;
       return this;
     }
 
@@ -863,28 +870,29 @@ public class ORC {
       return this;
     }
 
+    @Deprecated
     public ReadBuilder createBatchedReaderFunc(
-        Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction) {
-      Preconditions.checkArgument(
-          this.readerFunc == null,
-          "Batched reader function cannot be set since the non-batched version is already set");
-      this.batchedReaderFunc = batchReaderFunction;
+        Function<TypeDescription, OrcBatchReader<?>> newReaderFunction) {
+      Preconditions.checkState(
+          readerFunc == null && readerFunction == null && batchReaderFunction == null,
+          "Cannot set multiple read builder functions");
+      this.batchedReaderFunc = newReaderFunction;
       return this;
     }
 
     public <D> ReadBuilder readerFunction(ReaderFunction<D> newReaderFunction) {
-      Preconditions.checkArgument(
-          this.batchReaderFunction == null,
-          "Reader function cannot be set since the batched version is already set");
+      Preconditions.checkState(
+          readerFunc == null && batchedReaderFunc == null && batchReaderFunction == null,
+          "Cannot set multiple read builder functions");
       this.readerFunction = newReaderFunction;
       return this;
     }
 
-    public <D> ReadBuilder batchReaderFunction(BatchReaderFunction<D> newBatchReaderFunction) {
-      Preconditions.checkArgument(
-          this.readerFunction == null,
-          "Batched reader function cannot be set since the non-batched version is already set");
-      this.batchReaderFunction = newBatchReaderFunction;
+    public <D> ReadBuilder batchReaderFunction(BatchReaderFunction<D> newReaderFunction) {
+      Preconditions.checkState(
+          readerFunc == null && batchedReaderFunc == null && readerFunction == null,
+          "Cannot set multiple read builder functions");
+      this.batchReaderFunction = newReaderFunction;
       return this;
     }
 

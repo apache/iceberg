@@ -68,7 +68,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.datafile.AppenderBuilder;
 import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
-import org.apache.iceberg.io.datafile.ReadBuilder;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -714,8 +713,8 @@ public class Avro {
     private Function<Schema, DatumReader<?>> createReaderFunc = null;
     private BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<?>> createReaderBiFunc = null;
     private Function<org.apache.iceberg.Schema, DatumReader<?>> createResolvingReaderFunc = null;
-    private Map<Integer, ?> idToConstant = ImmutableMap.of();
     private BiFunction<org.apache.iceberg.Schema, Map<Integer, ?>, DatumReader<?>> readerFunction;
+    private Map<Integer, ?> idToConstant = ImmutableMap.of();
 
     @SuppressWarnings("UnnecessaryLambda")
     private final Function<org.apache.iceberg.Schema, DatumReader<?>> defaultCreateReaderFunc =
@@ -734,28 +733,39 @@ public class Avro {
     }
 
     public ReadBuilder createResolvingReader(
-        Function<org.apache.iceberg.Schema, DatumReader<?>> readerFunction) {
+        Function<org.apache.iceberg.Schema, DatumReader<?>> newReaderFunction) {
       Preconditions.checkState(
-          createReaderBiFunc == null && createReaderFunc == null,
+          createReaderBiFunc == null && createReaderFunc == null && readerFunction == null,
           "Cannot set multiple read builder functions");
-      this.createResolvingReaderFunc = readerFunction;
+      this.createResolvingReaderFunc = newReaderFunction;
       return this;
     }
 
-    public ReadBuilder createReaderFunc(Function<Schema, DatumReader<?>> readerFunction) {
+    public ReadBuilder createReaderFunc(Function<Schema, DatumReader<?>> newReaderFunction) {
       Preconditions.checkState(
-          createReaderBiFunc == null && createResolvingReaderFunc == null,
+          createReaderBiFunc == null && createResolvingReaderFunc == null && readerFunction == null,
           "Cannot set multiple read builder functions");
-      this.createReaderFunc = readerFunction;
+      this.createReaderFunc = newReaderFunction;
       return this;
     }
 
     public ReadBuilder createReaderFunc(
-        BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<?>> readerFunction) {
+        BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<?>> newReaderFunction) {
       Preconditions.checkState(
-          createReaderFunc == null && createResolvingReaderFunc == null,
+          createReaderFunc == null && createResolvingReaderFunc == null && readerFunction == null,
           "Cannot set multiple read builder functions");
-      this.createReaderBiFunc = readerFunction;
+      this.createReaderBiFunc = newReaderFunction;
+      return this;
+    }
+
+    public ReadBuilder readerFunction(
+        BiFunction<org.apache.iceberg.Schema, Map<Integer, ?>, DatumReader<?>> newReaderFunction) {
+      Preconditions.checkState(
+          createReaderBiFunc == null
+              && createReaderFunc == null
+              && createResolvingReaderFunc == null,
+          "Cannot set multiple read builder functions");
+      this.readerFunction = newReaderFunction;
       return this;
     }
 
@@ -823,12 +833,6 @@ public class Avro {
 
     public ReadBuilder classLoader(ClassLoader classLoader) {
       this.loader = classLoader;
-      return this;
-    }
-
-    public ReadBuilder readerFunction(
-        BiFunction<org.apache.iceberg.Schema, Map<Integer, ?>, DatumReader<?>> newReaderFunction) {
-      this.readerFunction = newReaderFunction;
       return this;
     }
 
