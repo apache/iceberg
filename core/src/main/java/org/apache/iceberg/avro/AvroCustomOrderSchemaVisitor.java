@@ -28,6 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 abstract class AvroCustomOrderSchemaVisitor<T, F> {
   private static final String METADATA = "metadata";
+  private static final String VALUE = "value";
 
   public static <T, F> T visit(Schema schema, AvroCustomOrderSchemaVisitor<T, F> visitor) {
     switch (schema.getType()) {
@@ -36,31 +37,27 @@ abstract class AvroCustomOrderSchemaVisitor<T, F> {
         String name = schema.getFullName();
         Preconditions.checkState(
             !visitor.recordLevels.contains(name), "Cannot process recursive Avro record %s", name);
-        Preconditions.checkArgument(
-            !(schema.getLogicalType() instanceof VariantLogicalType)
-                || AvroSchemaUtil.isVariantSchema(schema),
-            "Invalid variant record: %s",
-            schema);
-
-        visitor.recordLevels.push(name);
-
-        List<Schema.Field> fields = schema.getFields();
-        List<String> names = Lists.newArrayListWithExpectedSize(fields.size());
-        List<Supplier<F>> results = Lists.newArrayListWithExpectedSize(fields.size());
-        for (Schema.Field field : schema.getFields()) {
-          names.add(field.name());
-          results.add(new VisitFieldFuture<>(field, visitor));
-        }
-
-        visitor.recordLevels.pop();
 
         if (schema.getLogicalType() instanceof VariantLogicalType) {
-          boolean isMetadataFirst = names.get(0).equals(METADATA);
+          Preconditions.checkArgument(
+              AvroSchemaUtil.isVariantSchema(schema), "Invalid variant record: %s", schema);
+
           return visitor.variant(
               schema,
-              isMetadataFirst ? results.get(0) : results.get(1),
-              isMetadataFirst ? results.get(1) : results.get(0));
+              new VisitFuture<>(schema.getField(METADATA).schema(), visitor),
+              new VisitFuture<>(schema.getField(VALUE).schema(), visitor));
         } else {
+          visitor.recordLevels.push(name);
+
+          List<Schema.Field> fields = schema.getFields();
+          List<String> names = Lists.newArrayListWithExpectedSize(fields.size());
+          List<Supplier<F>> results = Lists.newArrayListWithExpectedSize(fields.size());
+          for (Schema.Field field : schema.getFields()) {
+            names.add(field.name());
+            results.add(new VisitFieldFuture<>(field, visitor));
+          }
+
+          visitor.recordLevels.pop();
           return visitor.record(schema, names, Iterables.transform(results, Supplier::get));
         }
 
@@ -105,7 +102,7 @@ abstract class AvroCustomOrderSchemaVisitor<T, F> {
     return null;
   }
 
-  public T variant(Schema variant, Supplier<F> metadataResult, Supplier<F> valueResult) {
+  public T variant(Schema variant, Supplier<T> metadataResult, Supplier<T> valueResult) {
     throw new UnsupportedOperationException("Unsupported type: variant");
   }
 

@@ -26,6 +26,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public abstract class AvroSchemaVisitor<T> {
   private static final String METADATA = "metadata";
+  private static final String VALUE = "value";
 
   public static <T> T visit(Schema schema, AvroSchemaVisitor<T> visitor) {
     switch (schema.getType()) {
@@ -34,32 +35,28 @@ public abstract class AvroSchemaVisitor<T> {
         String name = schema.getFullName();
         Preconditions.checkState(
             !visitor.recordLevels.contains(name), "Cannot process recursive Avro record %s", name);
-        Preconditions.checkArgument(
-            !(schema.getLogicalType() instanceof VariantLogicalType)
-                || AvroSchemaUtil.isVariantSchema(schema),
-            "Invalid variant record: %s",
-            schema);
-
-        visitor.recordLevels.push(name);
-
-        List<Schema.Field> fields = schema.getFields();
-        List<String> names = Lists.newArrayListWithExpectedSize(fields.size());
-        List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
-        for (Schema.Field field : schema.getFields()) {
-          names.add(field.name());
-          T result = visitWithName(field.name(), field.schema(), visitor);
-          results.add(result);
-        }
-
-        visitor.recordLevels.pop();
 
         if (schema.getLogicalType() instanceof VariantLogicalType) {
-          boolean isMetadataFirst = names.get(0).equals(METADATA);
+          Preconditions.checkArgument(
+              AvroSchemaUtil.isVariantSchema(schema), "Invalid variant record: %s", schema);
+
           return visitor.variant(
               schema,
-              isMetadataFirst ? results.get(0) : results.get(1),
-              isMetadataFirst ? results.get(1) : results.get(0));
+              visit(schema.getField(METADATA).schema(), visitor),
+              visit(schema.getField(VALUE).schema(), visitor));
         } else {
+          visitor.recordLevels.push(name);
+
+          List<Schema.Field> fields = schema.getFields();
+          List<String> names = Lists.newArrayListWithExpectedSize(fields.size());
+          List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
+          for (Schema.Field field : schema.getFields()) {
+            names.add(field.name());
+            T result = visitWithName(field.name(), field.schema(), visitor);
+            results.add(result);
+          }
+
+          visitor.recordLevels.pop();
           return visitor.record(schema, names, results);
         }
 

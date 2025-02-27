@@ -266,8 +266,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
   }
 
   @Override
-  public Schema variant(
-      Schema variant, Supplier<Schema.Field> metadata, Supplier<Schema.Field> value) {
+  public Schema variant(Schema variant, Supplier<Schema> metadata, Supplier<Schema> value) {
     return variant;
   }
 

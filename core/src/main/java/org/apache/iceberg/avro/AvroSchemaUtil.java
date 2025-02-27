@@ -220,12 +220,17 @@ public class AvroSchemaUtil {
   }
 
   static boolean isVariantSchema(Schema schema) {
-    return schema.getType() == RECORD
-        && schema.getFields().size() == 2
-        && schema.getField("metadata") != null
-        && schema.getField("metadata").schema().getType() == Schema.Type.BYTES
-        && schema.getField("value") != null
-        && schema.getField("value").schema().getType() == Schema.Type.BYTES;
+    if (schema.getType() != Schema.Type.RECORD || schema.getFields().size() != 2) {
+      return false;
+    }
+
+    Schema.Field metadataField = schema.getField("metadata");
+    Schema.Field valueField = schema.getField("value");
+
+    return metadataField != null
+        && metadataField.schema().getType() == Schema.Type.BYTES
+        && valueField != null
+        && valueField.schema().getType() == Schema.Type.BYTES;
   }
 
   static Schema createMap(int keyId, Schema keySchema, int valueId, Schema valueSchema) {
