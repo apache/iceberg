@@ -62,11 +62,12 @@ public class TestViewMetadata {
     ViewVersion v2 = newViewVersion(2, "select count(1) as count from t2");
     Map<Integer, ViewVersion> versionsById = ImmutableMap.of(1, v1, 2, v2, 3, v3);
 
-    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 3, v1))
+    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 3, ImmutableSet.of(v1)))
         .containsExactlyInAnyOrder(v1, v2, v3);
-    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 2, v1))
+    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 2, ImmutableSet.of(v1)))
         .containsExactlyInAnyOrder(v1, v3);
-    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 1, v1)).containsExactly(v1);
+    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 1, ImmutableSet.of(v1)))
+        .containsExactly(v1);
   }
 
   @Test
@@ -394,6 +395,28 @@ public class TestViewMetadata {
     assertThatThrownBy(() -> ViewMetadata.buildFrom(view).setCurrentVersionId(1).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot set current version to unknown version: 1");
+  }
+
+  @Test
+  public void versionsAddedInCurrentBuildAreRetained() {
+    ViewVersion v1 = newViewVersion(1, "select 1 as count");
+    ViewVersion v2 = newViewVersion(2, "select count from t1");
+    ViewVersion v3 = newViewVersion(3, "select count(1) as count from t2");
+
+    ViewMetadata metadata =
+        ViewMetadata.builder()
+            .setLocation("location")
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addVersion(v1)
+            .setCurrentVersionId(v1.versionId())
+            .setProperties(ImmutableMap.of(ViewProperties.VERSION_HISTORY_SIZE, "2"))
+            .build();
+    assertThat(metadata.versions()).containsOnly(v1);
+
+    ViewMetadata updated = ViewMetadata.buildFrom(metadata).addVersion(v2).addVersion(v3).build();
+    assertThat(updated.versions()).containsExactlyInAnyOrder(v1, v2, v3);
+    updated = ViewMetadata.buildFrom(updated).build();
+    assertThat(updated.versions()).containsExactlyInAnyOrder(v1, v3);
   }
 
   @Test
