@@ -43,7 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
  * @param <T> type of the records
  * @param <S> type of the schema
  */
-public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriterFactory<T> {
+public abstract class RegistryBasedFileWriterFactory<T, F, S> implements FileWriterFactory<T> {
   private final Table table;
   private final FileFormat dataFileFormat;
   private final String inputType;
@@ -110,12 +110,12 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
-      return DataFileServiceRegistry.<T, S>writeBuilder(dataFileFormat, inputType, file)
-          .nativeType(rowSchemaType())
+      return DataFileServiceRegistry.writeBuilder(dataFileFormat, inputType, file)
           .schema(dataSchema)
           .setAll(properties)
           .setAll(writeProperties)
           .metricsConfig(metricsConfig)
+          .withNativeType(rowSchemaType())
           .withSpec(spec)
           .withPartition(partition)
           .withKeyMetadata(keyMetadata)
@@ -135,13 +135,13 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
-      return DataFileServiceRegistry.<T, S>writeBuilder(deleteFileFormat, inputType, file)
-          .nativeType(equalityDeleteRowSchemaType())
+      return DataFileServiceRegistry.writeBuilder(deleteFileFormat, inputType, file)
           .setAll(properties)
           .setAll(writeProperties)
           .metricsConfig(metricsConfig)
-          .rowSchema(equalityDeleteRowSchema)
-          .equalityFieldIds(equalityFieldIds)
+          .withNativeType(equalityDeleteRowSchemaType())
+          .withRowSchema(equalityDeleteRowSchema)
+          .withEqualityFieldIds(equalityFieldIds)
           .withSpec(spec)
           .withPartition(partition)
           .withKeyMetadata(keyMetadata)
@@ -161,12 +161,12 @@ public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriter
     MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
 
     try {
-      return DataFileServiceRegistry.<T, S>writeBuilder(deleteFileFormat, inputType, file)
-          .nativeType(positionDeleteRowSchemaType())
+      return DataFileServiceRegistry.writeBuilder(deleteFileFormat, inputType, file)
           .setAll(properties)
           .setAll(writeProperties)
           .metricsConfig(metricsConfig)
-          .rowSchema(positionDeleteRowSchema)
+          .withNativeType(positionDeleteRowSchemaType())
+          .withRowSchema(positionDeleteRowSchema)
           .withSpec(spec)
           .withPartition(partition)
           .withKeyMetadata(keyMetadata)

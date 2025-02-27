@@ -36,7 +36,7 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-class FlinkFileWriterFactory extends RegistryBasedFileWriterFactory<RowData, RowType>
+class FlinkFileWriterFactory extends RegistryBasedFileWriterFactory<RowData, Object, RowType>
     implements Serializable {
 
   FlinkFileWriterFactory(
