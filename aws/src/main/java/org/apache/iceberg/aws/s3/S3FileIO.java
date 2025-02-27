@@ -32,6 +32,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.S3FileIOAwsClientFactories;
+import org.apache.iceberg.aws.s3.analyticsaccelerator.AnalyticsAcceleratorInputStreamFactory;
+import org.apache.iceberg.aws.s3.analyticsaccelerator.S3SeekableInputStreamFactorySupplier;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.CredentialSupplier;
@@ -87,9 +89,11 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
 
   private String credential = null;
   private SerializableSupplier<S3Client> s3;
+  private S3SeekableInputStreamFactorySupplier streamFactorySupplier;
   private S3FileIOProperties s3FileIOProperties;
   private SerializableMap<String, String> properties = null;
   private transient volatile S3Client client;
+  private transient volatile S3InputStreamFactory inputStreamFactory;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private transient StackTraceElement[] createStack;
@@ -122,23 +126,27 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
    */
   public S3FileIO(SerializableSupplier<S3Client> s3, S3FileIOProperties s3FileIOProperties) {
     this.s3 = s3;
+    this.streamFactorySupplier = new S3SeekableInputStreamFactorySupplier(s3FileIOProperties);
     this.s3FileIOProperties = s3FileIOProperties;
     this.createStack = Thread.currentThread().getStackTrace();
   }
 
   @Override
   public InputFile newInputFile(String path) {
-    return S3InputFile.fromLocation(path, client(), s3FileIOProperties, metrics);
+    return S3InputFile.fromLocation(
+        path, client(), inputStreamFactory(), s3FileIOProperties, metrics);
   }
 
   @Override
   public InputFile newInputFile(String path, long length) {
-    return S3InputFile.fromLocation(path, length, client(), s3FileIOProperties, metrics);
+    return S3InputFile.fromLocation(
+        path, length, client(), inputStreamFactory(), s3FileIOProperties, metrics);
   }
 
   @Override
   public OutputFile newOutputFile(String path) {
-    return S3OutputFile.fromLocation(path, client(), s3FileIOProperties, metrics);
+    return S3OutputFile.fromLocation(
+        path, client(), inputStreamFactory(), s3FileIOProperties, metrics);
   }
 
   @Override
@@ -343,6 +351,23 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
     return client;
   }
 
+  public S3InputStreamFactory inputStreamFactory() {
+    if (inputStreamFactory == null) {
+      synchronized (this) {
+        if (inputStreamFactory == null) {
+          inputStreamFactory = createInputStreamFactory();
+        }
+      }
+    }
+    return inputStreamFactory;
+  }
+
+  private S3InputStreamFactory createInputStreamFactory() {
+    return s3FileIOProperties.isS3AnalyticsAcceleratorEnabled()
+        ? new AnalyticsAcceleratorInputStreamFactory(streamFactorySupplier.get())
+        : new DefaultS3InputStreamFactory();
+  }
+
   private ExecutorService executorService() {
     if (executorService == null) {
       synchronized (S3FileIO.class) {
@@ -387,6 +412,8 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
         client();
       }
     }
+
+    this.streamFactorySupplier = new S3SeekableInputStreamFactorySupplier(s3FileIOProperties);
 
     initMetrics(properties);
   }

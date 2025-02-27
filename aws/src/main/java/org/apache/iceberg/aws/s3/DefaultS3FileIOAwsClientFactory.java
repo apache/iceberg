@@ -21,14 +21,15 @@ package org.apache.iceberg.aws.s3;
 import java.util.Map;
 import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.HttpClientProperties;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
-class DefaultS3FileIOAwsClientFactory implements S3FileIOAwsClientFactory {
+public class DefaultS3FileIOAwsClientFactory implements S3FileIOAwsClientFactory {
   private S3FileIOProperties s3FileIOProperties;
   private HttpClientProperties httpClientProperties;
   private AwsClientProperties awsClientProperties;
 
-  DefaultS3FileIOAwsClientFactory() {
+  public DefaultS3FileIOAwsClientFactory() {
     this.s3FileIOProperties = new S3FileIOProperties();
     this.httpClientProperties = new HttpClientProperties();
     this.awsClientProperties = new AwsClientProperties();
@@ -56,6 +57,13 @@ class DefaultS3FileIOAwsClientFactory implements S3FileIOAwsClientFactory {
         .applyMutation(s3FileIOProperties::applyS3AccessGrantsConfigurations)
         .applyMutation(s3FileIOProperties::applyUserAgentConfigurations)
         .applyMutation(s3FileIOProperties::applyRetryConfigurations)
+        .build();
+  }
+
+  @Override
+  public S3AsyncClient s3Async() {
+    return S3AsyncClient.crtBuilder()
+        .applyMutation(awsClientProperties::applyAsyncConfigurations)
         .build();
   }
 }
