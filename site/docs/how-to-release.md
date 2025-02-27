@@ -99,12 +99,12 @@ dev/source-release.sh -v 1.8.0 -r 0 -k <YOUR KEY ID HERE>
 Example console output:
 
 ```text
-Preparing source for apache-iceberg-1.8.0-rc1
+Preparing source for apache-iceberg-1.8.0-rc0
 Adding version.txt and tagging release...
 [main ca8bb7d0] Add version.txt for release 1.8.0
  1 file changed, 1 insertion(+)
  create mode 100644 version.txt
-Pushing apache-iceberg-1.8.0-rc1 to origin...
+Pushing apache-iceberg-1.8.0-rc0 to origin...
 Enumerating objects: 5, done.
 Counting objects: 100% (5/5), done.
 Delta compression using up to 12 threads
@@ -113,26 +113,26 @@ Writing objects: 100% (4/4), 433 bytes | 433.00 KiB/s, done.
 Total 4 (delta 1), reused 0 (delta 0)
 remote: Resolving deltas: 100% (1/1), completed with 1 local object.
 To https://github.com/apache/iceberg.git
- * [new tag]           apache-iceberg-1.8.0-rc1 -> apache-iceberg-1.8.0-rc1
+ * [new tag]           apache-iceberg-1.8.0-rc0 -> apache-iceberg-1.8.0-rc0
 Creating tarball  using commit ca8bb7d0821f35bbcfa79a39841be8fb630ac3e5
 Signing the tarball...
 Checking out Iceberg RC subversion repo...
 Checked out revision 52260.
 Adding tarball to the Iceberg distribution Subversion repo...
-A         tmp/apache-iceberg-1.8.0-rc1
-A         tmp/apache-iceberg-1.8.0-rc1/apache-iceberg-1.8.0.tar.gz.asc
-A  (bin)  tmp/apache-iceberg-1.8.0-rc1/apache-iceberg-1.8.0.tar.gz
-A         tmp/apache-iceberg-1.8.0-rc1/apache-iceberg-1.8.0.tar.gz.sha512
-Adding         tmp/apache-iceberg-1.8.0-rc1
-Adding  (bin)  tmp/apache-iceberg-1.8.0-rc1/apache-iceberg-1.8.0.tar.gz
-Adding         tmp/apache-iceberg-1.8.0-rc1/apache-iceberg-1.8.0.tar.gz.asc
-Adding         tmp/apache-iceberg-1.8.0-rc1/apache-iceberg-1.8.0.tar.gz.sha512
+A         tmp/apache-iceberg-1.8.0-rc0
+A         tmp/apache-iceberg-1.8.0-rc0/apache-iceberg-1.8.0.tar.gz.asc
+A  (bin)  tmp/apache-iceberg-1.8.0-rc0/apache-iceberg-1.8.0.tar.gz
+A         tmp/apache-iceberg-1.8.0-rc0/apache-iceberg-1.8.0.tar.gz.sha512
+Adding         tmp/apache-iceberg-1.8.0-rc0
+Adding  (bin)  tmp/apache-iceberg-1.8.0-rc0/apache-iceberg-1.8.0.tar.gz
+Adding         tmp/apache-iceberg-1.8.0-rc0/apache-iceberg-1.8.0.tar.gz.asc
+Adding         tmp/apache-iceberg-1.8.0-rc0/apache-iceberg-1.8.0.tar.gz.sha512
 Transmitting file data ...done
 Committing transaction...
 Committed revision 52261.
 Creating release-announcement-email.txt...
 Success! The release candidate is available here:
-  https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-1.8.0-rc1
+  https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-1.8.0-rc0
 
 Commit SHA1: ca8bb7d0821f35bbcfa79a39841be8fb630ac3e5
 
