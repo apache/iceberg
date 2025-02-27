@@ -41,6 +41,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /** Factory to create a new {@link FileAppender} to write {@link Record}s. */
@@ -52,8 +53,6 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   private final Schema eqDeleteRowSchema;
   private final Schema posDeleteRowSchema;
   private final Map<String, String> config;
-
-  private static final String WRITE_METRICS_PREFIX = "write.metadata.metrics.";
 
   public GenericAppenderFactory(Schema schema) {
     this(schema, PartitionSpec.unpartitioned());
@@ -98,8 +97,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
       // If the table is provided and schema and spec are not provided, derive them from the table
       this.schema = schema == null ? table.schema() : schema;
       this.spec = spec == null ? table.spec() : spec;
-      // Validate that the metrics config doesn't have conflict with table properties
-      validateMetricsConfig(table.properties());
+      validateMetricsConfig(this.config);
     } else {
       this.schema = schema;
       this.spec = spec;
@@ -111,24 +109,13 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   }
 
   public GenericAppenderFactory set(String property, String value) {
-    if (property.startsWith(WRITE_METRICS_PREFIX) && table != null) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Cannot set metrics property: %s directly when the table is provided. Use table properties instead.",
-              property));
-    }
-
+    validateMetricsConfig(ImmutableMap.of(property, value));
     config.put(property, value);
     return this;
   }
 
   public GenericAppenderFactory setAll(Map<String, String> properties) {
-    if (properties.keySet().stream().anyMatch(k -> k.startsWith(WRITE_METRICS_PREFIX))
-        && table != null) {
-      throw new IllegalArgumentException(
-          "Cannot set metrics properties directly when the table is provided. Use table properties instead.");
-    }
-
+    validateMetricsConfig(properties);
     config.putAll(properties);
     return this;
   }
@@ -308,23 +295,14 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     }
   }
 
-  private void validateMetricsConfig(Map<String, String> properties) {
-    if (config.isEmpty()) {
+  private void validateMetricsConfig(Map<String, String> writeConfig) {
+    if (table == null) {
       return;
     }
 
-    config.keySet().stream()
-        .filter(k -> k.startsWith(WRITE_METRICS_PREFIX))
-        .forEach(
-            k -> {
-              String configValue = config.get(k);
-              String propertyValue = properties.get(k);
-              if (propertyValue != null && !propertyValue.equals(configValue)) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        "Cannot set metrics property: %s to %s, as it conflicts with the table property value: %s",
-                        k, configValue, propertyValue));
-              }
-            });
+    if (writeConfig.keySet().stream().anyMatch(k -> k.startsWith("write.metadata.metrics."))) {
+      throw new IllegalArgumentException(
+          "Cannot set metrics properties when the table is provided, use table properties instead");
+    }
   }
 }

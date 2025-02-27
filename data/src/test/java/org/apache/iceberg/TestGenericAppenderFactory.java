@@ -76,7 +76,7 @@ public class TestGenericAppenderFactory extends TestAppenderFactory<Record> {
         .as("Should not allow setting metrics property if the table was provided")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
-            "Cannot set metrics property: " + TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS);
+            "Cannot set metrics properties when the table is provided, use table properties instead");
   }
 
   @TestTemplate
@@ -94,7 +94,8 @@ public class TestGenericAppenderFactory extends TestAppenderFactory<Record> {
     assertThatThrownBy(() -> appenderFactory.setAll(properties))
         .as("Should not allow setting metrics property if the table was provided")
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot set metrics properties directly");
+        .hasMessageContaining(
+            "Cannot set metrics properties when the table is provided, use table properties instead");
   }
 
   @TestTemplate
@@ -133,8 +134,6 @@ public class TestGenericAppenderFactory extends TestAppenderFactory<Record> {
             () -> new GenericAppenderFactory(table, SCHEMA, SPEC, config, null, null, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
-            String.format(
-                "Cannot set metrics property: %s to %s, as it conflicts with the table property",
-                TableProperties.DEFAULT_WRITE_METRICS_MODE, MetricsModes.None.get().toString()));
+            "Cannot set metrics properties when the table is provided, use table properties instead");
   }
 }
