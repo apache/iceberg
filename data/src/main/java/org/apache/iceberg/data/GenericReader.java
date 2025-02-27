@@ -88,7 +88,7 @@ class GenericReader implements Serializable {
     Map<Integer, ?> partition =
         PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
 
-    return DataFileServiceRegistry.<Record, Object>readBuilder(
+    return DataFileServiceRegistry.readBuilder(
             task.file().format(), Record.class.getName(), input)
         .project(fileProjection)
         .idToConstant(partition)

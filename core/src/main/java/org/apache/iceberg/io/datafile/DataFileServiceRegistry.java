@@ -51,7 +51,7 @@ public final class DataFileServiceRegistry {
       };
 
   private static final Map<Key, AppenderData<?>> APPENDER_BUILDERS = Maps.newConcurrentMap();
-  private static final Map<Key, Function<InputFile, ReadBuilder<?, ?>>> READ_BUILDERS =
+  private static final Map<Key, Function<InputFile, ReadBuilder>> READ_BUILDERS =
       Maps.newConcurrentMap();
 
   /** Registers a new appender builder for the given format/input type. */
@@ -73,7 +73,7 @@ public final class DataFileServiceRegistry {
 
   /** Registers a new reader builder for the given format/input type. */
   public static void registerReader(
-      FileFormat format, String outputType, Function<InputFile, ReadBuilder<?, ?>> readBuilder) {
+      FileFormat format, String outputType, Function<InputFile, ReadBuilder> readBuilder) {
     registerReader(format, outputType, null, readBuilder);
   }
 
@@ -82,7 +82,7 @@ public final class DataFileServiceRegistry {
       FileFormat format,
       String outputType,
       String readerType,
-      Function<InputFile, ReadBuilder<?, ?>> readBuilder) {
+      Function<InputFile, ReadBuilder> readBuilder) {
     Key key = new Key(format, outputType, readerType);
     if (READ_BUILDERS.containsKey(key)) {
       throw new IllegalArgumentException(
@@ -127,8 +127,7 @@ public final class DataFileServiceRegistry {
    * @param inputFile to read
    * @return {@link ReadBuilder} for building the actual reader
    */
-  public static <D, F> ReadBuilder<D, F> readBuilder(
-      FileFormat format, String returnType, InputFile inputFile) {
+  public static ReadBuilder readBuilder(FileFormat format, String returnType, InputFile inputFile) {
     return readBuilder(format, returnType, null, inputFile);
   }
 
@@ -141,10 +140,9 @@ public final class DataFileServiceRegistry {
    * @param inputFile to read
    * @return {@link ReadBuilder} for building the actual reader
    */
-  public static <D, F> ReadBuilder<D, F> readBuilder(
+  public static ReadBuilder readBuilder(
       FileFormat format, String returnType, String builderType, InputFile inputFile) {
-    return (ReadBuilder<D, F>)
-        READ_BUILDERS.get(new Key(format, returnType, builderType)).apply(inputFile);
+    return READ_BUILDERS.get(new Key(format, returnType, builderType)).apply(inputFile);
   }
 
   /**

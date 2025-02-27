@@ -65,22 +65,17 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     DataFileServiceRegistry.registerReader(
         FileFormat.PARQUET,
         RowData.class.getName(),
-        inputFile ->
-            new Parquet.DataReadBuilder<RowData, Object>(inputFile)
-                .readerFunction(FlinkParquetReaders::buildReader));
+        inputFile -> Parquet.read(inputFile).readerFunction(FlinkParquetReaders::buildReader));
 
     DataFileServiceRegistry.registerReader(
         FileFormat.AVRO,
         RowData.class.getName(),
-        inputFile ->
-            new Avro.DataReadBuilder<RowData>(inputFile)
-                .readerFunction(FlinkPlannedAvroReader::create));
+        inputFile -> Avro.read(inputFile).readerFunction(FlinkPlannedAvroReader::create));
 
     DataFileServiceRegistry.registerReader(
         FileFormat.ORC,
         RowData.class.getName(),
-        inputFile ->
-            new ORC.DataReadBuilder<RowData>(inputFile).readerFunction(FlinkOrcReader::new));
+        inputFile -> ORC.read(inputFile).readerFunction(FlinkOrcReader::new));
   }
 
   public RowDataFileScanTaskReader(
