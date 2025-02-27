@@ -80,7 +80,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       }
 
       Schema fieldSchema = fields.get(field.pos());
-      // All primitives are selected by selecting the field, but map and list
+      // All primitives and variant are selected by selecting the field, but map and list
       // types can be selected by projecting the keys, values, or elements. Empty
       // Structs can be selected by selecting the record itself instead of its children.
       // This creates two conditions where the field should be selected: if the
@@ -260,6 +260,11 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
   }
 
   @Override
+  public Schema variant(Schema variant, Schema metadata, Schema value) {
+    return null;
+  }
+
+  @Override
   public Schema primitive(Schema primitive) {
     // primitives are not selected directly
     return null;
@@ -277,12 +282,11 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
     return copy;
   }
 
+  /* Check the schema is a record but not a Variant type */
   private boolean isRecord(Schema field) {
-    if (AvroSchemaUtil.isOptionSchema(field)) {
-      return AvroSchemaUtil.fromOption(field).getType().equals(Schema.Type.RECORD);
-    } else {
-      return field.getType().equals(Schema.Type.RECORD);
-    }
+    Schema schema = AvroSchemaUtil.isOptionSchema(field) ? AvroSchemaUtil.fromOption(field) : field;
+    return schema.getType().equals(Schema.Type.RECORD)
+        && !(schema.getLogicalType() instanceof VariantLogicalType);
   }
 
   private static Schema makeEmptyCopy(Schema field) {

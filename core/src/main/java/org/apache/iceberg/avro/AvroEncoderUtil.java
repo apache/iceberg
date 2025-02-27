@@ -39,6 +39,7 @@ public class AvroEncoderUtil {
 
   static {
     LogicalTypes.register(LogicalMap.NAME, schema -> LogicalMap.get());
+    LogicalTypes.register(VariantLogicalType.NAME, schema -> VariantLogicalType.get());
   }
 
   private static final byte[] MAGIC_BYTES = new byte[] {(byte) 0xC2, (byte) 0x01};

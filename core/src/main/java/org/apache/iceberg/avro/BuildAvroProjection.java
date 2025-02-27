@@ -266,6 +266,12 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
   }
 
   @Override
+  public Schema variant(
+      Schema variant, Supplier<Schema.Field> metadata, Supplier<Schema.Field> value) {
+    return variant;
+  }
+
+  @Override
   public Schema primitive(Schema primitive) {
     // check for type promotion
     switch (primitive.getType()) {
