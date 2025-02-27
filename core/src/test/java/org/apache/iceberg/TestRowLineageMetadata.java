@@ -316,8 +316,9 @@ public class TestRowLineageMetadata {
             tableDir,
             "test",
             TEST_SCHEMA,
-            ImmutableMap.of(TableProperties.ROW_LINEAGE, "true"),
-            formatVersion);
+            PartitionSpec.unpartitioned(),
+            formatVersion,
+            ImmutableMap.of(TableProperties.ROW_LINEAGE, "true"));
     assertThat(table.ops().current().rowLineageEnabled()).isTrue();
   }
 
