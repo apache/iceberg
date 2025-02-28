@@ -32,6 +32,13 @@ public class CatalogProperties {
   public static final String VIEW_DEFAULT_PREFIX = "view-default.";
   public static final String METRICS_REPORTER_IMPL = "metrics-reporter-impl";
 
+  /** http proxy configuration for rest catalog */
+  public static final String PROXY_ENABLED = "proxy-enabled";
+
+  public static final boolean PROXY_ENABLED_DEFAULT = false;
+  public static final String PROXY_HOSTNAME = "proxy.hostname";
+  public static final String PROXY_PORT = "proxy.port";
+
   /**
    * Controls whether the catalog will cache table entries upon load.
    *
