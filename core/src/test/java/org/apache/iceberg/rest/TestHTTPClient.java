@@ -18,17 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockserver.integration.ClientAndServer.startClientAndServer;
-import static org.mockserver.model.HttpRequest.request;
-import static org.mockserver.model.HttpResponse.response;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -65,6 +54,17 @@ import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
 import org.mockserver.verify.VerificationTimes;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockserver.integration.ClientAndServer.startClientAndServer;
+import static org.mockserver.model.HttpRequest.request;
+import static org.mockserver.model.HttpResponse.response;
 
 /**
  * * Exercises the RESTClient interface, specifically over a mocked-server using the actual
@@ -175,6 +175,65 @@ public class TestHTTPClient {
             () -> HTTPClient.builder(ImmutableMap.of()).uri(URI).withProxy(null, 1070).build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid hostname for http client proxy: null");
+  }
+
+  @Test
+  public void testClientWithProxyProps() throws IOException {
+    int proxyPort = 1070;
+    try (ClientAndServer proxyServer = startClientAndServer(proxyPort);
+        RESTClient clientWithProxy =
+            HTTPClient.builder(
+                    ImmutableMap.of(
+                        HTTPClient.REST_PROXY_HOSTNAME,
+                        "localhost",
+                        HTTPClient.REST_PROXY_PORT,
+                        String.valueOf(proxyPort)))
+                .uri(URI)
+                .withAuthSession(AuthSession.EMPTY)
+                .build()) {
+      String path = "v1/config";
+      HttpRequest mockRequest =
+          request("/" + path).withMethod(HttpMethod.HEAD.name().toUpperCase(Locale.ROOT));
+      HttpResponse mockResponse = response().withStatusCode(200);
+      proxyServer.when(mockRequest).respond(mockResponse);
+      clientWithProxy.head(path, ImmutableMap.of(), (onError) -> {});
+      proxyServer.verify(mockRequest, VerificationTimes.exactly(1));
+    }
+  }
+
+  @Test
+  public void testClientWithAuthProxyProps() throws IOException {
+    int proxyPort = 1070;
+    String authorizedUsername = "test-username";
+    String authorizedPassword = "test-password";
+    try (ClientAndServer proxyServer =
+            startClientAndServer(
+                new Configuration()
+                    .proxyAuthenticationUsername(authorizedUsername)
+                    .proxyAuthenticationPassword(authorizedPassword),
+                proxyPort);
+        RESTClient clientWithProxy =
+            HTTPClient.builder(
+                    ImmutableMap.of(
+                        HTTPClient.REST_PROXY_HOSTNAME,
+                        "localhost",
+                        HTTPClient.REST_PROXY_PORT,
+                        String.valueOf(proxyPort),
+                        HTTPClient.REST_PROXY_USERNAME,
+                        authorizedUsername,
+                        HTTPClient.REST_PROXY_PASSWORD,
+                        authorizedPassword))
+                .uri(URI)
+                .withAuthSession(AuthSession.EMPTY)
+                .build()) {
+      String path = "v1/config";
+      HttpRequest mockRequest =
+          request("/" + path).withMethod(HttpMethod.HEAD.name().toUpperCase(Locale.ROOT));
+      HttpResponse mockResponse = response().withStatusCode(200);
+      proxyServer.when(mockRequest).respond(mockResponse);
+      clientWithProxy.head(path, ImmutableMap.of(), (onError) -> {});
+      proxyServer.verify(mockRequest, VerificationTimes.exactly(1));
+    }
   }
 
   @Test
