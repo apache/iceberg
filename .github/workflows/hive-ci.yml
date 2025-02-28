@@ -47,6 +47,7 @@ on:
     - '.gitignore'
     - '.asf.yaml'
     - 'dev/**'
+    - 'docker/**'
     - 'arrow/**'
     - 'spark/**'
     - 'flink/**'
