@@ -41,8 +41,6 @@ The latest version of Iceberg is [{{ icebergVersion }}](https://github.com/apach
 
 To use Iceberg in Spark or Flink, download the runtime JAR for your engine version and add it to the jars folder of your installation.
 
-To use Iceberg in Hive 2 or Hive 3, download the Hive runtime JAR and add it to Hive using `ADD JAR`.
-
 ### Gradle
 
 To add a dependency on Iceberg in Gradle, add the following to `build.gradle`:
