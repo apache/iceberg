@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
@@ -119,7 +120,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private boolean stageOnly = false;
   private Consumer<String> deleteFunc = defaultDelete;
 
-  private ExecutorService workerPool = ThreadPools.getWorkerPool();
+  private ExecutorService workerPool;
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
   private CommitMetrics commitMetrics;
 
@@ -197,7 +198,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   protected ExecutorService workerPool() {
-    return this.workerPool;
+    return Optional.ofNullable(workerPool).orElseGet(ThreadPools::getWorkerPool);
   }
 
   @Override
