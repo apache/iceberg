@@ -52,8 +52,7 @@ import software.amazon.awssdk.regions.Region;
  * href="https://docs.aws.amazon.com/general/latest/gr/signing-aws-api-requests.html">Signing AWS
  * API requests</a> for details about the protocol.
  *
- * @deprecated this class is deprecated and will be removed in a future release. To use SigV4
- *     authentication, use {@link RESTSigV4AuthManager} instead.
+ * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link RESTSigV4AuthManager} instead.
  */
 @Deprecated
 public class RESTSigV4Signer implements HttpRequestInterceptor {
