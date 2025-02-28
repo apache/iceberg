@@ -45,7 +45,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -120,11 +119,12 @@ public class ORC {
     DataFileServiceRegistry.registerAppender(
         FileFormat.ORC,
         Record.class.getName(),
-        ORC::write,
-        ORC.initializer(
-            (schema, messageType, nativeSchema) ->
-                GenericOrcWriter.buildWriter(schema, messageType),
-            Function.identity()));
+        outputFile ->
+            ORC.write(outputFile)
+                .writerFunction(
+                    (schema, messageType, nativeSchema) ->
+                        GenericOrcWriter.buildWriter(schema, messageType))
+                .pathTransformFunc(Function.identity()));
   }
 
   @Deprecated
@@ -138,64 +138,19 @@ public class ORC {
     return new WriteBuilder(file.encryptingOutputFile());
   }
 
-  public static <T> AppenderBuilder.Initializer initializer(
-      WriterFunction<T> writerFunction, Function<CharSequence, ?> pathTransformFunc) {
-    return new AppenderBuilder.Initializer() {
-      @Override
-      @SuppressWarnings("unchecked")
-      public BiConsumer<WriteBuilder, T> buildInitializer(AppenderBuilder.WriteMode mode) {
-        switch (mode) {
-          case APPENDER:
-          case DATA_WRITER:
-            return (appender, nativeType) -> {
-              appender.createContextFunc(WriteBuilder.Context::dataContext);
-              appender.createWriterFunc(
-                  (schema, typeDescription) ->
-                      writerFunction.write(schema, typeDescription, nativeType));
-            };
-          case EQUALITY_DELETE_WRITER:
-            return (appender, nativeType) -> {
-              appender.createContextFunc(WriteBuilder.Context::deleteContext);
-              appender.createWriterFunc(
-                  (schema, typeDescription) ->
-                      writerFunction.write(schema, typeDescription, nativeType));
-            };
-          case POSITION_DELETE_WRITER:
-            return (appender, nativeType) -> {
-              appender.createContextFunc(WriteBuilder.Context::deleteContext);
-              appender.createWriterFunc(
-                  (schema, typeDescription) ->
-                      GenericOrcWriters.positionDelete(
-                          GenericOrcWriter.buildWriter(schema, typeDescription),
-                          Function.identity()));
-            };
-          case POSITION_DELETE_WITH_ROW_WRITER:
-            return (appender, nativeType) -> {
-              appender.createContextFunc(WriteBuilder.Context::deleteContext);
-              appender.createWriterFunc(
-                  (schema, typeDescription) ->
-                      GenericOrcWriters.positionDelete(
-                          writerFunction.write(schema, typeDescription, nativeType),
-                          pathTransformFunc));
-            };
-          default:
-            throw new IllegalArgumentException("Not supported mode: " + mode);
-        }
-      }
-    };
-  }
-
-  @Deprecated
-  public static class WriteBuilder implements AppenderBuilder<WriteBuilder> {
+  public static class WriteBuilder implements AppenderBuilder<WriteBuilder, Object> {
     private final OutputFile file;
     private final Configuration conf;
     private Schema schema = null;
     private BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc;
+    private WriterFunction<Object> writerFunction;
     private final Map<String, byte[]> metadata = Maps.newHashMap();
     private MetricsConfig metricsConfig;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
     private final Map<String, String> config = Maps.newLinkedHashMap();
     private boolean overwrite = false;
+    private Object engineSchema;
+    private Function<CharSequence, ?> pathTransformFunc;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -226,12 +181,28 @@ public class ORC {
       return this;
     }
 
+    @Deprecated
     public WriteBuilder createWriterFunc(
-        BiFunction<Schema, TypeDescription, OrcRowWriter<?>> writerFunction) {
-      this.createWriterFunc = writerFunction;
+        BiFunction<Schema, TypeDescription, OrcRowWriter<?>> newWriterFunction) {
+      Preconditions.checkState(
+          writerFunction == null, "Cannot set multiple writer builder functions");
+      this.createWriterFunc = newWriterFunction;
       return this;
     }
 
+    public WriteBuilder writerFunction(WriterFunction<Object> newWriterFunction) {
+      Preconditions.checkState(
+          createWriterFunc == null, "Cannot set multiple writer builder functions");
+      this.writerFunction = newWriterFunction;
+      return this;
+    }
+
+    public WriteBuilder pathTransformFunc(Function<CharSequence, ?> newPathTransformFunc) {
+      this.pathTransformFunc = newPathTransformFunc;
+      return this;
+    }
+
+    @Deprecated
     public WriteBuilder setAll(Map<String, String> properties) {
       config.putAll(properties);
       return this;
@@ -249,6 +220,13 @@ public class ORC {
       return this;
     }
 
+    @Override
+    public WriteBuilder engineSchema(Object newEngineSchema) {
+      this.engineSchema = newEngineSchema;
+      return null;
+    }
+
+    @Deprecated
     public WriteBuilder overwrite() {
       return overwrite(true);
     }
@@ -273,6 +251,48 @@ public class ORC {
     }
 
     @Override
+    public <D> FileAppender<D> build(WriteMode mode) throws IOException {
+      Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
+      switch (mode) {
+        case APPENDER:
+        case DATA_WRITER:
+          this.createWriterFunc =
+              (icebergSchema, typeDescription) ->
+                  writerFunction.write(icebergSchema, typeDescription, engineSchema);
+          this.createContextFunc = Context::dataContext;
+          break;
+        case EQUALITY_DELETE_WRITER:
+          this.createWriterFunc =
+              (icebergSchema, typeDescription) ->
+                  writerFunction.write(icebergSchema, typeDescription, engineSchema);
+          this.createContextFunc = Context::deleteContext;
+          break;
+        case POSITION_DELETE_WRITER:
+          this.createWriterFunc =
+              (icebergSchema, typeDescription) ->
+                  GenericOrcWriters.positionDelete(
+                      GenericOrcWriter.buildWriter(icebergSchema, typeDescription),
+                      Function.identity());
+          this.createContextFunc = Context::deleteContext;
+          break;
+        case POSITION_DELETE_WITH_ROW_WRITER:
+          Preconditions.checkState(
+              pathTransformFunc != null, "Path transform function has to be set.");
+          this.createWriterFunc =
+              (icebergSchema, typeDescription) ->
+                  GenericOrcWriters.positionDelete(
+                      writerFunction.write(icebergSchema, typeDescription, engineSchema),
+                      pathTransformFunc);
+          this.createContextFunc = Context::deleteContext;
+          break;
+        default:
+          throw new IllegalArgumentException("Not supported mode: " + mode);
+      }
+
+      return build();
+    }
+
+    @Deprecated
     public <D> FileAppender<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
 
@@ -779,7 +799,8 @@ public class ORC {
     return new ReadBuilder(file);
   }
 
-  public static class ReadBuilder implements org.apache.iceberg.io.datafile.ReadBuilder {
+  public static class ReadBuilder
+      implements org.apache.iceberg.io.datafile.ReadBuilder<ReadBuilder, Object> {
     private final InputFile file;
     private final Configuration conf;
     private Schema schema = null;

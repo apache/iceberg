@@ -25,81 +25,112 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.mapping.NameMapping;
 
-/** Builder API for reading Iceberg data files. */
-public interface ReadBuilder {
+/**
+ * Builder API for reading Iceberg data files.
+ *
+ * @param <R> type of the reader
+ * @param <F> type of the records which are filtered by {@link DeleteFilter}
+ */
+public interface ReadBuilder<R extends ReadBuilder<R, F>, F> {
   /**
    * Restricts the read to the given range: [start, start + length).
    *
    * @param newStart the start position for this read
    * @param newLength the length of the range this read should scan
    */
-  ReadBuilder split(long newStart, long newLength);
+  R split(long newStart, long newLength);
 
   /** Read only the given columns. */
-  ReadBuilder project(Schema newSchema);
+  R project(Schema newSchema);
 
-  /** Sets the reader to case-sensitive when matching column names. */
-  default ReadBuilder caseInsensitive() {
+  /**
+   * Sets the reader to case-sensitive when matching column names. Readers might decide not to
+   * implement this feature. The default is behavior is case-sensitive.
+   */
+  default R caseInsensitive() {
     return caseSensitive(false);
   }
 
-  default ReadBuilder caseSensitive(boolean newCaseSensitive) {
+  default R caseSensitive(boolean newCaseSensitive) {
     // Just ignore case sensitivity if not available
-    return this;
+    return (R) this;
   }
 
-  /** Enables record filtering. */
-  default ReadBuilder filterRecords(boolean newFilterRecords) {
+  /**
+   * Enables record filtering. Some readers might not be able to do reader side filtering. In this
+   * case the reader might decide on returning every row. It is the caller's responsibility to apply
+   * the filter again.
+   */
+  default R filterRecords(boolean newFilterRecords) {
     // Skip filtering if not available
-    return this;
+    return (R) this;
   }
 
   /**
    * Pushes down the {@link Expression} filter for the reader to prevent reading unnecessary
-   * records.
+   * records. Some readers might not be able to filter some part of the exception. In this case the
+   * reader might return unfiltered or partially filtered rows. It is the caller's responsibility to
+   * apply the filter again.
    */
-  default ReadBuilder filter(Expression newFilter) {
+  default R filter(Expression newFilter) {
     // Skip filtering if not available
-    return this;
+    return (R) this;
   }
 
-  /** Sets configuration key/value pairs for the reader. */
-  default ReadBuilder set(String key, String value) {
-    throw new UnsupportedOperationException("Not supported");
-  }
+  /**
+   * Sets configuration key/value pairs for the reader. Reader builders could ignore configuration
+   * keys not known for them.
+   */
+  R set(String key, String value);
 
   /** Enables reusing the containers returned by the reader. Decreases pressure on GC. */
-  default ReadBuilder reuseContainers() {
+  default R reuseContainers() {
     return reuseContainers(true);
   }
 
-  ReadBuilder reuseContainers(boolean newReuseContainers);
+  /**
+   * Reusing the containers returned by the reader decreases pressure on GC. Readers could decide to
+   * ignore the user provided setting if is not supported by them.
+   */
+  R reuseContainers(boolean newReuseContainers);
 
   /** Sets the batch size for vectorized readers. */
-  default ReadBuilder recordsPerBatch(int numRowsPerBatch) {
+  default R recordsPerBatch(int numRowsPerBatch) {
     throw new UnsupportedOperationException("Not supported");
   }
 
   /**
-   * Accessors for constant field values. Used for returning values not coming from the data files.
+   * Accessors for constant field values. Used for calculating values it the result which are coming
+   * from metadata, and not coming from the data files themselves.
    */
-  ReadBuilder idToConstant(Map<Integer, ?> newIdConstant);
+  R idToConstant(Map<Integer, ?> newIdConstant);
 
-  /** Used for filtering out deleted records on the reader level. */
-  default <F> ReadBuilder withDeleteFilter(DeleteFilter<F> newDeleteFilter) {
-    throw new UnsupportedOperationException("Not supported");
+  /**
+   * Used for filtering out deleted records on the reader level. If delete filtering is not
+   * supported by the reader then the delete filter is ignored, and unfiltered results are returned.
+   * It is the caller's responsibility to apply the filter again.
+   */
+  default R withDeleteFilter(DeleteFilter<F> newDeleteFilter) {
+    // Skip filtering if not available
+    return (R) this;
   }
 
   /** Sets a mapping from external schema names to Iceberg type IDs. */
-  ReadBuilder withNameMapping(NameMapping newNameMapping);
+  R withNameMapping(NameMapping newNameMapping);
 
-  /** Sets the file encryption key used for reading the file. */
-  default ReadBuilder withFileEncryptionKey(ByteBuffer encryptionKey) {
+  /**
+   * Sets the file encryption key used for reading the file. If encryption is not supported by the
+   * reader then an exception should be thrown.
+   */
+  default R withFileEncryptionKey(ByteBuffer encryptionKey) {
     throw new UnsupportedOperationException("Not supported");
   }
 
-  /** Sets the additional authentication data prefix for encryption. */
-  default ReadBuilder withAADPrefix(ByteBuffer aadPrefix) {
+  /**
+   * Sets the additional authentication data prefix for encryption. If encryption is not supported
+   * by the reader then an exception should be thrown.
+   */
+  default R withAADPrefix(ByteBuffer aadPrefix) {
     throw new UnsupportedOperationException("Not supported");
   }
 

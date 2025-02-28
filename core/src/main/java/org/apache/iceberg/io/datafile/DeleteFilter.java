@@ -26,9 +26,9 @@ import org.apache.iceberg.deletes.PositionDeleteIndex;
  * Used for filtering out deleted records on the reader level. Currently only used by the Spark
  * vectorized readers.
  *
- * @param <T> type of the records which are filtered
+ * @param <D> type of the records which are filtered
  */
-public interface DeleteFilter<T> {
+public interface DeleteFilter<D> {
   /** The schema required to apply the delete filter. */
   Schema requiredSchema();
 
@@ -42,7 +42,7 @@ public interface DeleteFilter<T> {
   PositionDeleteIndex deletedRowPositions();
 
   /** The filter to apply for the equality deletes. */
-  Predicate<T> eqDeletedRowFilter();
+  Predicate<D> eqDeletedRowFilter();
 
   /** Should be called if a row is removed. */
   void incrementDeleteCount();

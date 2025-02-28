@@ -26,6 +26,7 @@ import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
+import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
@@ -69,28 +70,37 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     DataFileServiceRegistry.registerAppender(
         FileFormat.AVRO,
         RowData.class.getName(),
-        Avro::write,
-        Avro.<RowType>initializer(
-            (unused, rowType) -> new FlinkAvroWriter(rowType),
-            (unused, rowType) ->
-                new FlinkAvroWriter(
-                    (RowType)
-                        rowType.getTypeAt(rowType.getFieldIndex(DELETE_FILE_ROW_FIELD_NAME)))));
+        outputFile ->
+            Avro.write(outputFile)
+                .writerFunction((unused, rowType) -> new FlinkAvroWriter((RowType) rowType))
+                .deleteRowWriterFunction(
+                    (unused, rowType) ->
+                        new FlinkAvroWriter(
+                            (RowType)
+                                ((RowType) rowType)
+                                    .getTypeAt(
+                                        ((RowType) rowType)
+                                            .getFieldIndex(DELETE_FILE_ROW_FIELD_NAME)))));
 
     DataFileServiceRegistry.registerAppender(
         FileFormat.PARQUET,
         RowData.class.getName(),
-        Parquet::write,
-        Parquet.<RowType>initializer(
-            FlinkParquetWriters::buildWriter, path -> StringData.fromString(path.toString())));
+        outputFile ->
+            Parquet.write(outputFile)
+                .writerFunction(
+                    (engineType, icebergSchema, messageType) ->
+                        FlinkParquetWriters.buildWriter((LogicalType) engineType, messageType))
+                .pathTransformFunc(path -> StringData.fromString(path.toString())));
 
     DataFileServiceRegistry.registerAppender(
         FileFormat.ORC,
         RowData.class.getName(),
-        ORC::write,
-        ORC.<RowType>initializer(
-            (schema, messageType, nativeSchema) -> FlinkOrcWriter.buildWriter(nativeSchema, schema),
-            path -> StringData.fromString(path.toString())));
+        outputFile ->
+            ORC.write(outputFile)
+                .writerFunction(
+                    (schema, messageType, nativeSchema) ->
+                        FlinkOrcWriter.buildWriter((RowType) nativeSchema, schema))
+                .pathTransformFunc(path -> StringData.fromString(path.toString())));
   }
 
   public FlinkAppenderFactory(
@@ -135,7 +145,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     try {
       return DataFileServiceRegistry.writeBuilder(
               format, RowData.class.getName(), EncryptedFiles.plainAsEncryptedOutput(outputFile))
-          .withNativeType(flinkSchema)
+          .engineSchema(flinkSchema)
           .set(props)
           .schema(schema)
           .metricsConfig(metricsConfig)
@@ -174,7 +184,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
           .overwrite()
           .set(props)
           .metricsConfig(metricsConfig)
-          .withNativeType(lazyEqDeleteFlinkSchema())
+          .engineSchema(lazyEqDeleteFlinkSchema())
           .withPartition(partition)
           .withRowSchema(eqDeleteRowSchema)
           .withSpec(spec)
@@ -195,7 +205,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
           .overwrite()
           .set(props)
           .metricsConfig(metricsConfig)
-          .withNativeType(lazyPosDeleteFlinkSchema())
+          .engineSchema(lazyPosDeleteFlinkSchema())
           .withPartition(partition)
           .withRowSchema(posDeleteRowSchema)
           .withSpec(spec)

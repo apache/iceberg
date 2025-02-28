@@ -31,6 +31,7 @@ import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
 import org.apache.iceberg.io.datafile.ReadBuilder;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
+import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
@@ -59,8 +60,8 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Map<Integer, ?> idToConstant,
       SparkDeleteFilter deleteFilter) {
     Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema();
-    ReadBuilder readBuilder =
-        DataFileServiceRegistry.readBuilder(
+    ReadBuilder<?, ?> readBuilder =
+        DataFileServiceRegistry.<InternalRow>readBuilder(
                 format,
                 ColumnarBatch.class.getName(),
                 parquetConf != null ? parquetConf.readerType().name() : null,

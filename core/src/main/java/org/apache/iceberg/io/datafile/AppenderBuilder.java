@@ -20,7 +20,6 @@ package org.apache.iceberg.io.datafile;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.function.BiConsumer;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -30,8 +29,9 @@ import org.apache.iceberg.io.FileAppender;
  * Interface which should be implemented by the data file format implementations.
  *
  * @param <A> type returned by builder API to allow chained calls
+ * @param <E> type for the engine specific schema
  */
-public interface AppenderBuilder<A extends AppenderBuilder<A>> {
+public interface AppenderBuilder<A extends AppenderBuilder<A, E>, E> {
   /**
    * Sets the appender configurations coming from the table like {@link #schema(Schema)}, {@link
    * #set(String, String)} and {@link #metricsConfig(MetricsConfig)}.
@@ -73,32 +73,44 @@ public interface AppenderBuilder<A extends AppenderBuilder<A>> {
   /** Sets the metrics configuration used for collecting column metrics for the created file. */
   A metricsConfig(MetricsConfig newMetricsConfig);
 
-  /** Overwrite the file if it already exists. */
+  /** Overwrite the file if it already exists. The default value is <code>false</code>. */
   A overwrite(boolean enabled);
 
-  /** Sets the encryption key used for writing the file. */
+  /**
+   * Sets the encryption key used for writing the file. If encryption is not supported by the reader
+   * then an exception should be thrown.
+   */
   default A fileEncryptionKey(ByteBuffer encryptionKey) {
     throw new UnsupportedOperationException("Not supported");
   }
 
-  /** Sets the additional authentication data prefix used for writing the file. */
+  /**
+   * Sets the additional authentication data prefix used for writing the file. If encryption is not
+   * supported by the reader then an exception should be thrown.
+   */
   default A aADPrefix(ByteBuffer aadPrefix) {
     throw new UnsupportedOperationException("Not supported");
   }
 
-  /** Build the configured {@link FileAppender}. */
-  <I> FileAppender<I> build() throws IOException;
+  /** Sets the engine native schema for the appender. */
+  E engineSchema(E newEngineSchema);
 
   /**
-   * Functional interface to build initializer functions which for the given {@link WriteMode}s. The
-   * method is used by the {@link WriteBuilder} to execute engine specific initializations for the
-   * appender.
+   * Builds the {@link FileAppender} for the configured {@link WriteMode}. Could change several
+   * use-case specific configurations, like:
+   *
+   * <ul>
+   *   <li>Mode specific writer context (typically different for data and delete files).
+   *   <li>Writer functions to accept data rows, or {@link
+   *       org.apache.iceberg.deletes.PositionDelete}s
+   * </ul>
    */
-  interface Initializer {
-    <A extends AppenderBuilder<A>, T> BiConsumer<AppenderBuilder<A>, T> buildInitializer(
-        WriteMode mode);
-  }
+  <D> FileAppender<D> build(WriteMode mode) throws IOException;
 
+  /**
+   * Writer modes. Based on the mode {@link #build(WriteMode)} could alter the appender
+   * configuration when creating the {@link FileAppender}.
+   */
   enum WriteMode {
     APPENDER,
     DATA_WRITER,
