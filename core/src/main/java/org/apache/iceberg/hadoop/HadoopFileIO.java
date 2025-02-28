@@ -79,13 +79,17 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   private final AtomicBoolean bulkDeleteConfigured = new AtomicBoolean(false);
 
   /**
+   * Flag to indicate that bulk delete is present and should be used. This is set in {@link
+   * #maybeUseBulkDeleteApi()} if all the conditions are met. If some problems surface during actual
+   * use, this value is changed to {@code false}; hence the use of an atomic boolean.
+   */
+  private final AtomicBoolean useBulkDelete = new AtomicBoolean(false);
+
+  /**
    * Dynamically loaded accessor of Hadoop Wrapped IO classes. Marked as volatile as its creation in
    * {@link #maybeUseBulkDeleteApi()} is synchronized and IDEs then complain about mixed use.
    */
   private transient volatile DynamicWrappedIO wrappedIO;
-
-  /** Flag to indicate that bulk delete is present and should be used. */
-  private boolean useBulkDelete;
 
   /**
    * Constructor used for dynamic FileIO loading.
@@ -211,25 +215,26 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   private synchronized boolean maybeUseBulkDeleteApi() {
     if (!bulkDeleteConfigured.compareAndSet(false, true)) {
       // configured already, so return.
-      return useBulkDelete;
+      return useBulkDelete.get();
     }
     boolean enableBulkDelete = conf().getBoolean(BULK_DELETE_ENABLED, BULK_DELETE_ENABLED_DEFAULT);
     if (!enableBulkDelete) {
       LOG.debug("Bulk delete is disabled");
-      useBulkDelete = false;
+      useBulkDelete.set(false);
     } else {
       // library is configured to use bulk delete, so try to load it
       // and probe for the bulk delete methods being found.
       // this is only satisfied on Hadoop releases with the WrappedIO class.
       wrappedIO = new DynamicWrappedIO(getClass().getClassLoader());
-      useBulkDelete = wrappedIO.bulkDeleteAvailable();
-      if (useBulkDelete) {
+      final boolean available = wrappedIO.bulkDeleteAvailable();
+      useBulkDelete.set(available);
+      if (available) {
         LOG.debug("Bulk delete is enabled and available");
       } else {
         LOG.debug("Bulk delete enabled but not available");
       }
     }
-    return useBulkDelete;
+    return useBulkDelete.get();
   }
 
   /**
@@ -267,8 +272,13 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
         // Probably a mismatch between the hadoop FS APIs and the implementation
         // class, either due to mocking or library versions.
 
-        // Log and fall back to the classic delete
-        LOG.debug("Failed to use bulk delete -falling back", e);
+        // Log
+        LOG.debug("Failed to use bulk delete -falling back to single delete calls", e);
+
+        // disable further attempts to use the API.
+        useBulkDelete.set(false);
+
+        // And fall through to the classic delete
       }
     }
     // classic delete in which each file is deleted individually
