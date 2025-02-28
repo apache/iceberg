@@ -89,7 +89,7 @@ public class TestS3RestSigner {
 
   private ValidatingSigner validatingSigner;
   private S3Client s3;
-  private ImmutableS3V4RestSignerClient icebergSigner;
+  private S3V4RestSignerClient icebergSigner;
 
   @BeforeAll
   public static void beforeClass() throws Exception {
