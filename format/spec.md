@@ -1395,8 +1395,8 @@ Types are serialized according to this table:
 |**`list`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": <id int>,`<br />&nbsp;&nbsp;`"element-required": <bool>`<br />&nbsp;&nbsp;`"element": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": 3,`<br />&nbsp;&nbsp;`"element-required": true,`<br />&nbsp;&nbsp;`"element": "string"`<br />`}`|
 |**`map`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": <key id int>,`<br />&nbsp;&nbsp;`"key": <type JSON>,`<br />&nbsp;&nbsp;`"value-id": <val id int>,`<br />&nbsp;&nbsp;`"value-required": <bool>`<br />&nbsp;&nbsp;`"value": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": 4,`<br />&nbsp;&nbsp;`"key": "string",`<br />&nbsp;&nbsp;`"value-id": 5,`<br />&nbsp;&nbsp;`"value-required": false,`<br />&nbsp;&nbsp;`"value": "double"`<br />`}`|
 | **`variant`**| `JSON string: "variant"`|`"variant"`|
-| **`geometry(C)`** | `JSON object: {`<br />&nbsp;&nbsp;`"type": "geometry",`<br />&nbsp;&nbsp;`"crs": <C>`<br />`}` | `{`<br />&nbsp;&nbsp;`"type": "geometry",`<br />&nbsp;&nbsp;`"crs": "OGC:CRS84"`<br />`}`  |
-| **`geography(C, A)`** | `JSON object: {`<br />&nbsp;&nbsp;`"type": "geography",`<br />&nbsp;&nbsp;`"crs": <C>,`<br />&nbsp;&nbsp;`"algorithm": <A>`<br />}` | `{`<br />&nbsp;&nbsp;`"type": "geography",`<br />&nbsp;&nbsp;`"crs": "OGC:CRS84",`<br />&nbsp;&nbsp;`"algorithm": "spherical"` <br /> `}`  |
+| **`geometry(C)`** | `JSON object: {`<br />&nbsp;&nbsp;`"type": "geometry",`<br />&nbsp;&nbsp;`"crs": <C>`<br />`}` | `{`<br />&nbsp;&nbsp;`"type": "geometry",`<br />&nbsp;&nbsp;`"crs": "srid:4326"`<br />`}`  |
+| **`geography(C, A)`** | `JSON object: {`<br />&nbsp;&nbsp;`"type": "geography",`<br />&nbsp;&nbsp;`"crs": <C>,`<br />&nbsp;&nbsp;`"algorithm": <A>`<br />}` | `{`<br />&nbsp;&nbsp;`"type": "geography",`<br />&nbsp;&nbsp;`"crs": "srid:4326",`<br />&nbsp;&nbsp;`"algorithm": "spherical"` <br /> `}`  |
 
 Note that default values are serialized using the JSON single-value serialization in [Appendix D](#appendix-d-single-value-serialization).
 
