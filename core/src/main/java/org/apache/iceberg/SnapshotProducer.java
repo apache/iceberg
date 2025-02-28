@@ -276,7 +276,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       Tasks.range(manifestFiles.length)
           .stopOnFailure()
           .throwFailureWhenFinished()
-          .executeWith(workerPool)
+          .executeWith(workerPool())
           .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
 
       writer.addAll(Arrays.asList(manifestFiles));
