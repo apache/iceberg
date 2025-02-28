@@ -335,3 +335,13 @@ This product includes code from Apache Flink.
 Copyright: 1999-2022 The Apache Software Foundation.
 Home page: https://flink.apache.org/
 License: https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product includes code from AWS SDK for Java 2.0.
+
+* Copy of org.apache.iceberg.aws.StaticCredentialsProvider.java with a new factory method
+
+Copyright: Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved
+Home page: https://github.com/aws/aws-sdk-java-v2
+License: http://aws.amazon.com/apache2.0
