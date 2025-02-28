@@ -76,7 +76,7 @@ To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:
 
 Apache Iceberg 1.8.1 was released on February 28, 2025.
 
-The 1.8.1 release contains bug fixes and  fixes to LICENSE/NOTICE files . For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.8.1)
+The 1.8.1 release contains bug fixes and fixes to LICENSE/NOTICE files . For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.8.1)
 
 * Core
     - Don't remove trailing slash from absolute paths ([\#12390](https://github.com/apache/iceberg/pull/12390))
