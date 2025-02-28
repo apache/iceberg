@@ -38,6 +38,7 @@ import static org.apache.iceberg.TableProperties.MIN_SNAPSHOTS_TO_KEEP_DEFAULT;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
@@ -75,7 +76,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   private int defaultMinNumSnapshots;
   private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
-  private ExecutorService planExecutorService = ThreadPools.getWorkerPool();
+  private ExecutorService planExecutorService;
   private Boolean incrementalCleanup;
   private boolean specifiedSnapshotId = false;
   private boolean cleanExpiredMetadata = false;
@@ -153,6 +154,10 @@ class RemoveSnapshots implements ExpireSnapshots {
     return this;
   }
 
+  protected ExecutorService planExecutorService() {
+    return Optional.ofNullable(planExecutorService).orElseGet(ThreadPools::getWorkerPool);
+  }
+
   @Override
   public ExpireSnapshots cleanExpiredMetadata(boolean clean) {
     this.cleanExpiredMetadata = clean;
@@ -216,7 +221,7 @@ class RemoveSnapshots implements ExpireSnapshots {
       reachableSchemas.add(base.currentSchemaId());
 
       Tasks.foreach(idsToRetain)
-          .executeWith(planExecutorService)
+          .executeWith(planExecutorService())
           .run(
               snapshotId -> {
                 Snapshot snapshot = base.snapshot(snapshotId);
@@ -374,9 +379,9 @@ class RemoveSnapshots implements ExpireSnapshots {
     FileCleanupStrategy cleanupStrategy =
         incrementalCleanup
             ? new IncrementalFileCleanup(
-                ops.io(), deleteExecutorService, planExecutorService, deleteFunc)
+                ops.io(), deleteExecutorService, planExecutorService(), deleteFunc)
             : new ReachableFileCleanup(
-                ops.io(), deleteExecutorService, planExecutorService, deleteFunc);
+                ops.io(), deleteExecutorService, planExecutorService(), deleteFunc);
 
     cleanupStrategy.cleanFiles(base, current);
   }
