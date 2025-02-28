@@ -69,7 +69,7 @@ public class TestTables {
             properties,
             formatVersion));
 
-    return new TestTable(ops, name);
+    return new TestTable(ops);
   }
 
   public static TestTable create(
@@ -89,7 +89,7 @@ public class TestTables {
         newTableMetadata(
             schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), formatVersion));
 
-    return new TestTable(ops, name);
+    return new TestTable(ops);
   }
 
   public static TestTable create(
@@ -110,7 +110,7 @@ public class TestTables {
         newTableMetadata(
             schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), formatVersion));
 
-    return new TestTable(ops, name, reporter);
+    return new TestTable(ops, reporter);
   }
 
   public static Transaction beginCreate(File temp, String name, Schema schema, PartitionSpec spec) {
@@ -174,12 +174,12 @@ public class TestTables {
 
   public static TestTable load(File temp, String name) {
     TestTableOperations ops = new TestTableOperations(name, temp);
-    return new TestTable(ops, name);
+    return new TestTable(ops);
   }
 
   public static TestTable tableWithCommitSucceedButStateUnknown(File temp, String name) {
     TestTableOperations ops = opsWithCommitSucceedButStateUnknown(temp, name);
-    return new TestTable(ops, name);
+    return new TestTable(ops);
   }
 
   public static TestTableOperations opsWithCommitSucceedButStateUnknown(File temp, String name) {
@@ -195,13 +195,13 @@ public class TestTables {
   public static class TestTable extends BaseTable {
     private final TestTableOperations ops;
 
-    private TestTable(TestTableOperations ops, String name) {
-      super(ops, name);
+    private TestTable(TestTableOperations ops) {
+      super(ops, ops.tableName);
       this.ops = ops;
     }
 
-    private TestTable(TestTableOperations ops, String name, MetricsReporter reporter) {
-      super(ops, name, reporter);
+    private TestTable(TestTableOperations ops, MetricsReporter reporter) {
+      super(ops, ops.tableName, reporter);
       this.ops = ops;
     }
 
@@ -242,18 +242,7 @@ public class TestTables {
     private int failCommits = 0;
 
     public TestTableOperations(String tableName, File location) {
-      this.tableName = tableName;
-      this.metadata = new File(location, "metadata");
-      this.fileIO = new LocalFileIO();
-      metadata.mkdirs();
-      refresh();
-      if (current != null) {
-        for (Snapshot snap : current.snapshots()) {
-          this.lastSnapshotId = Math.max(lastSnapshotId, snap.snapshotId());
-        }
-      } else {
-        this.lastSnapshotId = 0;
-      }
+      this(tableName, location, new LocalFileIO());
     }
 
     public TestTableOperations(String tableName, File location, FileIO fileIO) {
