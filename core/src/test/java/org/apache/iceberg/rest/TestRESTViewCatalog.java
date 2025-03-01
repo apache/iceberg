@@ -253,9 +253,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     if (requiresNamespaceCreate()) {
       catalog().createNamespace(from.namespace());
     }
-
     assertThat(catalog().viewExists(from)).as("View should not exist").isFalse();
-
     catalog()
         .buildView(from)
         .withSchema(SCHEMA)
@@ -264,7 +262,6 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
         .create();
 
     assertThat(catalog().viewExists(from)).as("View should exist").isTrue();
-
     assertThat(catalog().viewExists(to))
         .as("Destination View should not exist before rename")
         .isFalse();

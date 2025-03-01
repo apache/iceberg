@@ -2511,7 +2511,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     TableIdentifier from = TableIdentifier.of("ns", "table");
     TableIdentifier to = TableIdentifier.of("ns", "renamedTable");
     TableIdentifier toWithCatalogName = TableIdentifier.of(catalog().name(), "ns", "renamedTable");
-
     if (requiresNamespaceCreate()) {
       catalog().createNamespace(from.namespace());
     }
@@ -2521,10 +2520,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     catalog().buildTable(from, SCHEMA).create();
 
     assertThat(catalog().tableExists(from)).as("Table should exist").isTrue();
-
     assertThat(catalog().tableExists(to))
-            .as("Destination table should not exist before rename")
-            .isFalse();
+        .as("Destination table should not exist before rename")
+        .isFalse();
 
     catalog().renameTable(from, toWithCatalogName);
     assertThat(catalog().tableExists(to)).as("Table should exist with new name").isTrue();
