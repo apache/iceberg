@@ -51,10 +51,10 @@ on:
     - 'site/**'
     - 'format/**'
     - '.gitattributes'
-    - 'README.md'
+    - '**/README.md'
     - 'CONTRIBUTING.md'
-    - 'LICENSE'
-    - 'NOTICE'
+    - '**/LICENSE'
+    - '**/NOTICE'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
