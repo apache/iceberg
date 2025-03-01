@@ -25,33 +25,6 @@ import org.apache.iceberg.util.DateTimeUtil;
 public class Variants {
   private Variants() {}
 
-  interface Serialized {
-    ByteBuffer buffer();
-  }
-
-  abstract static class SerializedValue implements VariantValue, Serialized {
-    @Override
-    public int sizeInBytes() {
-      return buffer().remaining();
-    }
-
-    @Override
-    public int writeTo(ByteBuffer buffer, int offset) {
-      ByteBuffer value = buffer();
-      VariantUtil.writeBufferAbsolute(buffer, offset, value);
-      return value.remaining();
-    }
-  }
-
-  static final int HEADER_SIZE = 1;
-
-  enum BasicType {
-    PRIMITIVE,
-    SHORT_STRING,
-    OBJECT,
-    ARRAY
-  }
-
   public static VariantMetadata emptyMetadata() {
     return SerializedMetadata.EMPTY_V1_METADATA;
   }
@@ -61,20 +34,7 @@ public class Variants {
   }
 
   public static VariantValue value(VariantMetadata metadata, ByteBuffer value) {
-    int header = VariantUtil.readByte(value, 0);
-    BasicType basicType = VariantUtil.basicType(header);
-    switch (basicType) {
-      case PRIMITIVE:
-        return SerializedPrimitive.from(value, header);
-      case SHORT_STRING:
-        return SerializedShortString.from(value, header);
-      case OBJECT:
-        return SerializedObject.from(metadata, value, header);
-      case ARRAY:
-        return SerializedArray.from(metadata, value, header);
-    }
-
-    throw new UnsupportedOperationException("Unsupported basic type: " + basicType);
+    return VariantValue.from(metadata, value);
   }
 
   public static ShreddedObject object(VariantMetadata metadata, VariantObject object) {

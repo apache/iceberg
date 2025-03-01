@@ -108,6 +108,7 @@ import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.avro.AvroWriteSupport;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
+import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.crypto.FileDecryptionProperties;
 import org.apache.parquet.crypto.FileEncryptionProperties;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -283,7 +284,7 @@ public class Parquet {
       return this;
     }
 
-    private <T> void setBloomFilterConfig(
+    private void setBloomFilterConfig(
         Context context,
         MessageType parquetSchema,
         BiConsumer<String, Boolean> withBloomFilterEnabled,
@@ -1251,7 +1252,7 @@ public class Parquet {
           }
           optionsBuilder = HadoopReadOptions.builder(conf);
         } else {
-          optionsBuilder = ParquetReadOptions.builder();
+          optionsBuilder = ParquetReadOptions.builder(new PlainParquetConfiguration());
         }
 
         for (Map.Entry<String, String> entry : properties.entrySet()) {
@@ -1291,7 +1292,7 @@ public class Parquet {
         } else {
           Function<MessageType, ParquetValueReader<?>> readBuilder =
               readerFuncWithSchema != null
-                  ? (fileType) -> readerFuncWithSchema.apply(schema, fileType)
+                  ? fileType -> readerFuncWithSchema.apply(schema, fileType)
                   : readerFunc;
           return new org.apache.iceberg.parquet.ParquetReader<>(
               file, schema, options, readBuilder, mapping, filter, reuseContainers, caseSensitive);
@@ -1324,7 +1325,9 @@ public class Parquet {
         // TODO: should not need to get the schema to push down before opening the file.
         // Parquet should allow setting a filter inside its read support
         ParquetReadOptions decryptOptions =
-            ParquetReadOptions.builder().withDecryption(fileDecryptionProperties).build();
+            ParquetReadOptions.builder(new PlainParquetConfiguration())
+                .withDecryption(fileDecryptionProperties)
+                .build();
         MessageType type;
         try (ParquetFileReader schemaReader =
             ParquetFileReader.open(ParquetIO.file(file), decryptOptions)) {

@@ -592,16 +592,6 @@ public class TableMetadata implements Serializable {
     return nextRowId;
   }
 
-  /**
-   * Updates the schema
-   *
-   * @deprecated since 1.8.0, will be removed in 1.9.0 or 2.0.0, use updateSchema(schema).
-   */
-  @Deprecated
-  public TableMetadata updateSchema(Schema newSchema, int newLastColumnId) {
-    return new Builder(this).setCurrentSchema(newSchema, newLastColumnId).build();
-  }
-
   /** Updates the schema */
   public TableMetadata updateSchema(Schema newSchema) {
     return new Builder(this)
@@ -1141,17 +1131,6 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    /**
-     * Add a new schema.
-     *
-     * @deprecated since 1.8.0, will be removed in 1.9.0 or 2.0.0, use AddSchema(schema).
-     */
-    @Deprecated
-    public Builder addSchema(Schema schema, int newLastColumnId) {
-      addSchemaInternal(schema, newLastColumnId);
-      return this;
-    }
-
     public Builder setDefaultPartitionSpec(PartitionSpec spec) {
       setDefaultPartitionSpec(addPartitionSpecInternal(spec));
       return this;
@@ -1363,24 +1342,6 @@ public class TableMetadata implements Serializable {
         changes.add(new MetadataUpdate.RemoveSnapshotRef(name));
       }
 
-      return this;
-    }
-
-    /**
-     * Set a statistics file for a snapshot.
-     *
-     * @deprecated since 1.8.0, will be removed 1.9.0 or 2.0.0, use setStatistics(statisticsFile).
-     */
-    @Deprecated
-    public Builder setStatistics(long snapshotId, StatisticsFile statisticsFile) {
-      Preconditions.checkNotNull(statisticsFile, "statisticsFile is null");
-      Preconditions.checkArgument(
-          snapshotId == statisticsFile.snapshotId(),
-          "snapshotId does not match: %s vs %s",
-          snapshotId,
-          statisticsFile.snapshotId());
-      statisticsFiles.put(statisticsFile.snapshotId(), ImmutableList.of(statisticsFile));
-      changes.add(new MetadataUpdate.SetStatistics(statisticsFile));
       return this;
     }
 
@@ -1665,7 +1626,7 @@ public class TableMetadata implements Serializable {
         schemasById.put(newSchema.schemaId(), newSchema);
       }
 
-      changes.add(new MetadataUpdate.AddSchema(newSchema, lastColumnId));
+      changes.add(new MetadataUpdate.AddSchema(newSchema));
 
       this.lastAddedSchemaId = newSchemaId;
 

@@ -58,7 +58,7 @@ services:
       - CATALOG_S3_SECRET__ACCESS__KEY=minioadmin
 
   kafka:
-    image: confluentinc/cp-kafka
+    image: confluentinc/cp-kafka:7.8.1
     hostname: kafka
     ports:
       - 29092:29092
@@ -81,7 +81,7 @@ services:
       CLUSTER_ID: E-JXLvCaTiaUYDb1LwZ1JQ
 
   connect:
-    image: confluentinc/cp-kafka-connect
+    image: confluentinc/cp-kafka-connect:7.8.1
     depends_on:
       - kafka
     hostname: connect

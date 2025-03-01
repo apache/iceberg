@@ -36,17 +36,25 @@ import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -454,7 +462,8 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void addPartitionToPartitionedSnapshotIdInheritanceEnabledInTwoRuns() {
+  public void addPartitionToPartitionedSnapshotIdInheritanceEnabledInTwoRuns()
+      throws NoSuchTableException, ParseException {
     createPartitionedFileTable("parquet");
 
     createIcebergTable(
@@ -476,13 +485,32 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s WHERE id < 3 ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
 
-    // verify manifest file name has uuid pattern
-    String manifestPath = (String) sql("select path from %s.manifests", tableName).get(0)[0];
+    manifestSpecMatchesTableSpec();
 
-    Pattern uuidPattern = Pattern.compile("[a-f0-9]{8}(?:-[a-f0-9]{4}){4}[a-f0-9]{8}");
+    verifyUUIDInPath();
+  }
 
-    Matcher matcher = uuidPattern.matcher(manifestPath);
-    assertThat(matcher.find()).as("verify manifest path has uuid").isTrue();
+  @TestTemplate
+  public void addPartitionsFromHiveSnapshotInheritanceEnabled()
+      throws NoSuchTableException, ParseException {
+    createPartitionedHiveTable();
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
+
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' 'true')",
+        tableName, TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED);
+
+    sql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
+
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+
+    manifestSpecMatchesTableSpec();
+
+    verifyUUIDInPath();
   }
 
   @TestTemplate
@@ -968,6 +996,28 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
+  @TestTemplate
+  public void testAddFilesToTableWithManySpecs() {
+    createPartitionedHiveTable();
+    createIcebergTable("id Integer, name String, dept String, subdept String"); // Spec 0
+
+    sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName); // Spec 1
+    sql("ALTER TABLE %s ADD PARTITION FIELD name", tableName); // Spec 2
+    sql("ALTER TABLE %s ADD PARTITION FIELD subdept", tableName); // Spec 3
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.add_files('%s', '%s', map('id', 1))",
+            catalogName, tableName, sourceTableName);
+
+    assertOutput(result, 2L, 1L);
+
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
   private static final List<Object[]> EMPTY_QUERY_RESULT = Lists.newArrayList();
 
   private static final StructField[] STRUCT = {
@@ -1164,5 +1214,28 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
       // the number of changed partitions may not be populated in v2 tables
       assertThat(output[1]).isIn(expectedChangedPartitionCount, null);
     }
+  }
+
+  private void manifestSpecMatchesTableSpec() throws NoSuchTableException, ParseException {
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    FileIO io = ((HasTableOperations) table).operations().io();
+
+    // Check that the manifests have the correct partition spec
+    assertThat(
+            table.currentSnapshot().allManifests(io).stream()
+                .map(mf -> ManifestFiles.read(mf, io, null /* force reading spec from file*/))
+                .map(ManifestReader::spec)
+                .collect(Collectors.toList()))
+        .allSatisfy(spec -> assertThat(spec).isEqualTo(table.spec()));
+  }
+
+  private void verifyUUIDInPath() {
+    // verify manifest file name has uuid pattern
+    String manifestPath = (String) sql("select path from %s.manifests", tableName).get(0)[0];
+
+    Pattern uuidPattern = Pattern.compile("[a-f0-9]{8}(?:-[a-f0-9]{4}){4}[a-f0-9]{8}");
+
+    Matcher matcher = uuidPattern.matcher(manifestPath);
+    assertThat(matcher.find()).as("verify manifest path has uuid").isTrue();
   }
 }

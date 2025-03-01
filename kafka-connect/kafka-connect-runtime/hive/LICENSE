@@ -831,13 +831,13 @@ License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-buffer  Version: 4.1.115.Final
+Group: io.netty  Name: netty-buffer  Version: 4.1.118.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-codec  Version: 4.1.115.Final
+Group: io.netty  Name: netty-codec  Version: 4.1.118.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
@@ -855,13 +855,13 @@ License (from POM): Apache License, Version 2.0 - https://www.apache.org/license
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-codec-http  Version: 4.1.115.Final
+Group: io.netty  Name: netty-codec-http  Version: 4.1.118.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-codec-http2  Version: 4.1.115.Final
+Group: io.netty  Name: netty-codec-http2  Version: 4.1.118.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
@@ -891,7 +891,7 @@ License (from POM): Apache License, Version 2.0 - https://www.apache.org/license
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-codec-socks  Version: 4.1.115.Final
+Group: io.netty  Name: netty-codec-socks  Version: 4.1.118.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
@@ -909,19 +909,19 @@ License (from POM): Apache License, Version 2.0 - https://www.apache.org/license
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-common  Version: 4.1.115.Final
+Group: io.netty  Name: netty-common  Version: 4.1.118.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-handler  Version: 4.1.115.Final
+Group: io.netty  Name: netty-handler  Version: 4.1.118.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-handler-proxy  Version: 4.1.115.Final
+Group: io.netty  Name: netty-handler-proxy  Version: 4.1.118.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
@@ -933,7 +933,7 @@ License (from POM): Apache License, Version 2.0 - https://www.apache.org/license
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-resolver  Version: 4.1.115.Final
+Group: io.netty  Name: netty-resolver  Version: 4.1.118.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
@@ -970,37 +970,37 @@ License (from POM): The Apache Software License, Version 2.0 - http://www.apache
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport  Version: 4.1.115.Final
+Group: io.netty  Name: netty-transport  Version: 4.1.118.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport-classes-epoll  Version: 4.1.115.Final
+Group: io.netty  Name: netty-transport-classes-epoll  Version: 4.1.118.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport-classes-kqueue  Version: 4.1.115.Final
+Group: io.netty  Name: netty-transport-classes-kqueue  Version: 4.1.118.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport-native-epoll  Version: 4.1.115.Final
+Group: io.netty  Name: netty-transport-native-epoll  Version: 4.1.118.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport-native-kqueue  Version: 4.1.115.Final
+Group: io.netty  Name: netty-transport-native-kqueue  Version: 4.1.118.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport-native-unix-common  Version: 4.1.115.Final
+Group: io.netty  Name: netty-transport-native-unix-common  Version: 4.1.118.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 

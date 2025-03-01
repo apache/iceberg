@@ -754,7 +754,6 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
     TableMetadata withStatistics =
         TableMetadata.buildFrom(metadata)
             .setStatistics(
-                43,
                 new GenericStatisticsFile(
                     43, "/some/path/to/stats/file", 128, 27, ImmutableList.of()))
             .build();

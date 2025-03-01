@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -49,6 +50,7 @@ import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
@@ -66,6 +68,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -540,7 +543,7 @@ public class SparkTableUtil {
 
     try {
       PartitionSpec spec =
-          SparkSchemaUtil.specForTable(spark, sourceTableIdentWithDB.unquotedString());
+          findCompatibleSpec(targetTable, spark, sourceTableIdentWithDB.unquotedString());
 
       if (Objects.equal(spec, PartitionSpec.unpartitioned())) {
         importUnpartitionedSparkTable(
@@ -1084,5 +1087,44 @@ public class SparkTableUtil {
       }
       return service;
     }
+  }
+
+  /**
+   * Returns the first partition spec in an IcebergTable that shares the same names and ordering as
+   * the partition columns in a given Spark Table. Throws an error if not found
+   */
+  private static PartitionSpec findCompatibleSpec(
+      Table icebergTable, SparkSession spark, String sparkTable) throws AnalysisException {
+    List<String> parts = Lists.newArrayList(Splitter.on('.').limit(2).split(sparkTable));
+    String db = parts.size() == 1 ? "default" : parts.get(0);
+    String table = parts.get(parts.size() == 1 ? 0 : 1);
+
+    List<String> sparkPartNames =
+        spark.catalog().listColumns(db, table).collectAsList().stream()
+            .filter(org.apache.spark.sql.catalog.Column::isPartition)
+            .map(org.apache.spark.sql.catalog.Column::name)
+            .map(name -> name.toLowerCase(Locale.ROOT))
+            .collect(Collectors.toList());
+
+    for (PartitionSpec icebergSpec : icebergTable.specs().values()) {
+      boolean allIdentity =
+          icebergSpec.fields().stream().allMatch(field -> field.transform().isIdentity());
+      if (allIdentity) {
+        List<String> icebergPartNames =
+            icebergSpec.fields().stream()
+                .map(PartitionField::name)
+                .map(name -> name.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toList());
+        if (icebergPartNames.equals(sparkPartNames)) {
+          return icebergSpec;
+        }
+      }
+    }
+
+    throw new IllegalArgumentException(
+        String.format(
+            "Cannot find a partition spec in Iceberg table %s that matches the partition"
+                + " columns (%s) in Spark table %s",
+            icebergTable, sparkPartNames, sparkTable));
   }
 }

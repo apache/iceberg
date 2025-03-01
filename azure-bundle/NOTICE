@@ -30,27 +30,27 @@ NOTICE for Group: com.fasterxml.jackson.core  Name: jackson-databind  Version: 2
 
 --------------------------------------------------------------------------------
 
-NOTICE for Group: io.netty  Name: netty-buffer  Version: 4.1.115.Final
-NOTICE for Group: io.netty  Name: netty-codec  Version: 4.1.115.Final
-NOTICE for Group: io.netty  Name: netty-codec-dns  Version: 4.1.115.Final
-NOTICE for Group: io.netty  Name: netty-codec-http  Version: 4.1.115.Final
-NOTICE for Group: io.netty  Name: netty-codec-http2  Version: 4.1.115.Final
-NOTICE for Group: io.netty  Name: netty-codec-socks  Version: 4.1.115.Final
-NOTICE for Group: io.netty  Name: netty-common  Version: 4.1.115.Final
-NOTICE for Group: io.netty  Name: netty-handler  Version: 4.1.115.Final
-NOTICE for Group: io.netty  Name: netty-handler-proxy  Version: 4.1.115.Final
-NOTICE for Group: io.netty  Name: netty-resolver  Version: 4.1.115.Final
-NOTICE for Group: io.netty  Name: netty-resolver-dns  Version: 4.1.115.Final
-NOTICE for Group: io.netty  Name: netty-resolver-dns-classes-macos  Version: 4.1.115.Final
-NOTICE for Group: io.netty  Name: netty-resolver-dns-native-macos  Version: 4.1.115.Final
+NOTICE for Group: io.netty  Name: netty-buffer  Version: 4.1.118.Final
+NOTICE for Group: io.netty  Name: netty-codec  Version: 4.1.118.Final
+NOTICE for Group: io.netty  Name: netty-codec-dns  Version: 4.1.118.Final
+NOTICE for Group: io.netty  Name: netty-codec-http  Version: 4.1.118.Final
+NOTICE for Group: io.netty  Name: netty-codec-http2  Version: 4.1.118.Final
+NOTICE for Group: io.netty  Name: netty-codec-socks  Version: 4.1.118.Final
+NOTICE for Group: io.netty  Name: netty-common  Version: 4.1.118.Final
+NOTICE for Group: io.netty  Name: netty-handler  Version: 4.1.118.Final
+NOTICE for Group: io.netty  Name: netty-handler-proxy  Version: 4.1.118.Final
+NOTICE for Group: io.netty  Name: netty-resolver  Version: 4.1.118.Final
+NOTICE for Group: io.netty  Name: netty-resolver-dns  Version: 4.1.118.Final
+NOTICE for Group: io.netty  Name: netty-resolver-dns-classes-macos  Version: 4.1.118.Final
+NOTICE for Group: io.netty  Name: netty-resolver-dns-native-macos  Version: 4.1.118.Final
 NOTICE for Group: io.netty  Name: netty-tcnative-boringssl-static  Version: 2.0.69.Final
 NOTICE for Group: io.netty  Name: netty-tcnative-classes  Version: 2.0.69.Final
-NOTICE for Group: io.netty  Name: netty-transport  Version: 4.1.115.Final
-NOTICE for Group: io.netty  Name: netty-transport-classes-epoll  Version: 4.1.115.Final
-NOTICE for Group: io.netty  Name: netty-transport-classes-kqueue  Version: 4.1.115.Final
-NOTICE for Group: io.netty  Name: netty-transport-native-epoll  Version: 4.1.115.Final
-NOTICE for Group: io.netty  Name: netty-transport-native-kqueue  Version: 4.1.115.Final
-NOTICE for Group: io.netty  Name: netty-transport-native-unix-common  Version: 4.1.115.Final
+NOTICE for Group: io.netty  Name: netty-transport  Version: 4.1.118.Final
+NOTICE for Group: io.netty  Name: netty-transport-classes-epoll  Version: 4.1.118.Final
+NOTICE for Group: io.netty  Name: netty-transport-classes-kqueue  Version: 4.1.118.Final
+NOTICE for Group: io.netty  Name: netty-transport-native-epoll  Version: 4.1.118.Final
+NOTICE for Group: io.netty  Name: netty-transport-native-kqueue  Version: 4.1.118.Final
+NOTICE for Group: io.netty  Name: netty-transport-native-unix-common  Version: 4.1.118.Final
 
 |                             The Netty Project
 |                             =================
