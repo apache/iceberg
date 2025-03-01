@@ -206,7 +206,7 @@ public class TestVariantWriters {
 
   private static class ParquetSchemaProducer extends VariantVisitor<Type> {
     @Override
-    public Type object(VariantObject object, List<Type> typedValues) {
+    public Type object(VariantObject object, List<String> names, List<Type> typedValues) {
       if (object.numFields() < 1) {
         // Parquet cannot write  typed_value group with no fields
         return null;
@@ -214,7 +214,7 @@ public class TestVariantWriters {
 
       List<GroupType> fields = Lists.newArrayList();
       int index = 0;
-      for (String name : object.fieldNames()) {
+      for (String name : names) {
         Type typedValue = typedValues.get(index);
         fields.add(field(name, typedValue));
         index += 1;

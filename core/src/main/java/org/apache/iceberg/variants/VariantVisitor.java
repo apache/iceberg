@@ -22,7 +22,7 @@ import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class VariantVisitor<R> {
-  public R object(VariantObject object, List<R> fieldResults) {
+  public R object(VariantObject object, List<String> fieldNames, List<R> fieldResults) {
     return null;
   }
 
@@ -64,8 +64,10 @@ public class VariantVisitor<R> {
 
       case OBJECT:
         VariantObject object = value.asObject();
+        List<String> fieldNames = Lists.newArrayList();
         List<R> fieldResults = Lists.newArrayList();
         for (String fieldName : object.fieldNames()) {
+          fieldNames.add(fieldName);
           visitor.beforeObjectField(fieldName);
           try {
             fieldResults.add(visit(object.get(fieldName), visitor));
@@ -74,7 +76,7 @@ public class VariantVisitor<R> {
           }
         }
 
-        return visitor.object(object, fieldResults);
+        return visitor.object(object, fieldNames, fieldResults);
 
       default:
         return visitor.primitive(value.asPrimitive());
