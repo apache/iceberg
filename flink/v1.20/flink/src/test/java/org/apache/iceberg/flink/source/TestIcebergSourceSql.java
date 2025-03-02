@@ -163,9 +163,8 @@ public class TestIcebergSourceSql extends TestSqlBase {
         SCHEMA_TS);
   }
 
-  /** Test create table using LIKE */
   @Test
-  public void testFlinkTableUsingLIKE() throws Exception {
+  public void testReadFlinkDynamicTable() throws Exception {
     List<Record> expected = generateExpectedRecords(false);
     SqlHelpers.sql(
         getTableEnv(),

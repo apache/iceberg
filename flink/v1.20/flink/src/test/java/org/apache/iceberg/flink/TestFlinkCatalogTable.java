@@ -189,7 +189,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testCreateTableLikeInDifferentCatalog() throws TableNotExistException {
+  public void testCreateTableLikeInDiffIcebergCatalog() throws TableNotExistException {
     sql("CREATE TABLE tl(id BIGINT)");
     sql("CREATE TABLE tl2 LIKE tl");
 

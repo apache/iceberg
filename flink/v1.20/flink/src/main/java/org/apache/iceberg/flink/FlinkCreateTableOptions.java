@@ -23,7 +23,7 @@ import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.iceberg.util.JsonUtil;
 
-public class FlinkCreateTableOptions {
+class FlinkCreateTableOptions {
   private final String catalogName;
   private final String catalogDb;
   private final String catalogTable;
@@ -68,16 +68,17 @@ public class FlinkCreateTableOptions {
           .withDescription("Properties for the underlying catalog for iceberg table.");
 
   public static final String SRC_CATALOG_PROPS_KEY = "src-catalog";
+  public static final String CONNECTOR_PROPS_KEY = "connector";
 
   static String toJson(
-      String catalogName, String catalogDb, String catalogTable, Map<String, String> props) {
+      String catalogName, String catalogDb, String catalogTable, Map<String, String> catalogProps) {
     return JsonUtil.generate(
         gen -> {
           gen.writeStartObject();
           gen.writeStringField(CATALOG_NAME.key(), catalogName);
           gen.writeStringField(CATALOG_DATABASE.key(), catalogDb);
           gen.writeStringField(CATALOG_TABLE.key(), catalogTable);
-          JsonUtil.writeStringMap(CATALOG_PROPS.key(), props, gen);
+          JsonUtil.writeStringMap(CATALOG_PROPS.key(), catalogProps, gen);
           gen.writeEndObject();
         },
         false);
@@ -96,19 +97,19 @@ public class FlinkCreateTableOptions {
         });
   }
 
-  String getCatalogName() {
+  String catalogName() {
     return catalogName;
   }
 
-  String getCatalogDb() {
+  String catalogDb() {
     return catalogDb;
   }
 
-  String getCatalogTable() {
+  String catalogTable() {
     return catalogTable;
   }
 
-  Map<String, String> getCatalogProps() {
+  Map<String, String> catalogProps() {
     return catalogProps;
   }
 }
