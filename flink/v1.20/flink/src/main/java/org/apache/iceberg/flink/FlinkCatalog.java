@@ -447,14 +447,14 @@ public class FlinkCatalog extends AbstractCatalog {
           location = entry.getValue();
         }
       }
+    }
 
-      try {
-        icebergCatalog.createTable(
-            toIdentifier(tablePath), icebergSchema, spec, location, properties.build());
-      } catch (AlreadyExistsException e) {
-        if (!ignoreIfExists) {
-          throw new TableAlreadyExistException(getName(), tablePath, e);
-        }
+    try {
+      icebergCatalog.createTable(
+          toIdentifier(tablePath), icebergSchema, spec, location, properties.build());
+    } catch (AlreadyExistsException e) {
+      if (!ignoreIfExists) {
+        throw new TableAlreadyExistException(getName(), tablePath, e);
       }
     }
   }
