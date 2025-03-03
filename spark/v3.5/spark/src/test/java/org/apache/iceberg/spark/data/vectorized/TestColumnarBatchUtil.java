@@ -20,12 +20,16 @@ package org.apache.iceberg.spark.data.vectorized;
 
 import static java.util.Collections.nCopies;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
+import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +38,8 @@ public class TestColumnarBatchUtil {
 
   private ColumnVector[] columnVectors;
   private DeleteFilter deleteFilter;
+  PositionDeleteIndex deletedRowPos;
+  Predicate<InternalRow> eqDeleteFilter;
 
   @BeforeEach
   public void setup() {
@@ -41,100 +47,112 @@ public class TestColumnarBatchUtil {
     columnVectors[0] = mock(ColumnVector.class);
     columnVectors[1] = mock(ColumnVector.class);
     deleteFilter = mock(DeleteFilter.class);
+    when(deleteFilter.hasPosDeletes()).thenReturn(true);
+    when(deleteFilter.hasEqDeletes()).thenReturn(true);
+    deletedRowPos = mock(PositionDeleteIndex.class);
+    eqDeleteFilter = mock(Predicate.class);
   }
 
   @Test
   public void testBuildRowIdMappingNoDeletes() {
-    when(deleteFilter.hasPosDeletes()).thenReturn(true);
-    PositionDeleteIndex deletedRowPos = mock(PositionDeleteIndex.class);
 
     for (long i = 0; i <= 10; i++) {
       when(deletedRowPos.isDeleted(i)).thenReturn(false);
     }
 
+    when(eqDeleteFilter.test(any(InternalRow.class))).thenReturn(true);
+
     when(deleteFilter.deletedRowPositions()).thenReturn(deletedRowPos);
+    when(deleteFilter.eqDeletedRowFilter()).thenReturn(eqDeleteFilter);
     var rowIdMapping = ColumnarBatchUtil.buildRowIdMapping(columnVectors, deleteFilter, 0, 10);
     assertThat(rowIdMapping).isNull();
   }
 
   @Test
   public void testBuildRowIdMapping() {
-    when(deleteFilter.hasPosDeletes()).thenReturn(true);
-    PositionDeleteIndex deletedRowPos = mock(PositionDeleteIndex.class);
-
-    // 5 position deletes
-    for (long i = 98; i < 103; i++) {
-      when(deletedRowPos.isDeleted(i)).thenReturn(true);
-    }
-
-    when(deleteFilter.deletedRowPositions()).thenReturn(deletedRowPos);
-
-    var rowIdMapping = ColumnarBatchUtil.buildRowIdMapping(columnVectors, deleteFilter, 0, 200);
+    mockEqAndPosDeletes();
+    var rowIdMapping = ColumnarBatchUtil.buildRowIdMapping(columnVectors, deleteFilter, 0, 100);
     assertThat(rowIdMapping).isNotNull();
 
     int[] rowIds = (int[]) rowIdMapping.first();
     int liveRows = (int) rowIdMapping.second();
 
     for (int id : rowIds) {
-      assertThat(id < 98 || id > 102).isTrue();
+      assertThat(id < 90).isTrue();
     }
 
-    assertThat(rowIds.length).isEqualTo(200);
-    assertThat(liveRows).isEqualTo(195);
+    assertThat(rowIds.length).isEqualTo(100);
+    assertThat(liveRows).isEqualTo(90);
   }
 
   @Test
   void testBuildIsDeletedWithDeletedRange() {
-    PositionDeleteIndex deletedRowPos = mock(PositionDeleteIndex.class);
-    when(deleteFilter.deletedRowPositions()).thenReturn(deletedRowPos);
-
-    for (long i = 98; i < 100; i++) {
-      when(deletedRowPos.isDeleted(i)).thenReturn(true);
-    }
-
+    mockEqAndPosDeletes();
     var isDeleted = ColumnarBatchUtil.buildIsDeleted(columnVectors, deleteFilter, 0, 100);
 
     assertThat(isDeleted).isNotNull();
     assertThat(isDeleted.length).isEqualTo(100);
 
-    for (int i = 98; i < 100; i++) {
-      assertThat(isDeleted[i]).isTrue();
+    for (int i = 0; i < 100; i++) {
+      if (i > 89) {
+        assertThat(isDeleted[i]).isTrue();
+      } else {
+        assertThat(isDeleted[i]).isFalse();
+      }
     }
-    assertThat(isDeleted[97]).isFalse();
   }
 
-    @Test
-    void testBuildIsDeletedNoDeletes() {
-        var result = ColumnarBatchUtil.buildIsDeleted(columnVectors, null, 0, 5);
-        assertThat(result).isNotNull();
-        for (int i = 0; i < 5; i++) {
-            assertThat(result[i]).isFalse();
-        }
+  @Test
+  void testBuildIsDeletedNoDeletes() {
+    var result = ColumnarBatchUtil.buildIsDeleted(columnVectors, null, 0, 5);
+    assertThat(result).isNotNull();
+    for (int i = 0; i < 5; i++) {
+      assertThat(result[i]).isFalse();
+    }
+  }
+
+  @Test
+  void testRemoveExtraColumns() {
+    ColumnVector[] vectors = new ColumnVector[5];
+    for (int i = 0; i < 5; i++) {
+      vectors[i] = mock(ColumnVector.class);
+    }
+    when(deleteFilter.expectedSchema()).thenReturn(mock(Schema.class));
+    when(deleteFilter.expectedSchema().columns()).thenReturn(nCopies(3, null));
+
+    ColumnVector[] result = ColumnarBatchUtil.removeExtraColumns(deleteFilter, vectors);
+    assertThat(result.length).isEqualTo(3);
+  }
+
+  @Test
+  void testRemoveExtraColumnsNotNeeded() {
+    ColumnVector[] vectors = new ColumnVector[3];
+    for (int i = 0; i < 3; i++) {
+      vectors[i] = mock(ColumnVector.class);
+    }
+    when(deleteFilter.expectedSchema()).thenReturn(mock(Schema.class));
+    when(deleteFilter.expectedSchema().columns()).thenReturn(nCopies(3, null));
+
+    ColumnVector[] result = ColumnarBatchUtil.removeExtraColumns(deleteFilter, vectors);
+    assertThat(result.length).isEqualTo(3);
+  }
+
+  private void mockEqAndPosDeletes() {
+    // 5 position deletes
+    for (long i = 95; i < 100; i++) {
+      when(deletedRowPos.isDeleted(i)).thenReturn(true);
     }
 
-    @Test
-    void testRemoveExtraColumns() {
-        ColumnVector[] vectors = new ColumnVector[5];
-        for (int i = 0; i < 5; i++) {
-            vectors[i] = mock(ColumnVector.class);
-        }
-        when(deleteFilter.expectedSchema()).thenReturn(mock(Schema.class));
-        when(deleteFilter.expectedSchema().columns()).thenReturn(nCopies(3, null));
+    // 5 equality deletes
+    AtomicInteger rowIdCounter = new AtomicInteger(-1);
+    when(eqDeleteFilter.test(any(InternalRow.class)))
+        .thenAnswer(
+            invocation -> {
+              int rowId = rowIdCounter.incrementAndGet();
+              return !(rowId == 90 || rowId == 91 || rowId == 92 || rowId == 93 || rowId == 94);
+            });
 
-        ColumnVector[] result = ColumnarBatchUtil.removeExtraColumns(deleteFilter, vectors);
-        assertThat(result.length).isEqualTo(3);
-    }
-
-    @Test
-    void testRemoveExtraColumnsNotNeeded() {
-        ColumnVector[] vectors = new ColumnVector[3];
-        for (int i = 0; i < 3; i++) {
-            vectors[i] = mock(ColumnVector.class);
-        }
-        when(deleteFilter.expectedSchema()).thenReturn(mock(Schema.class));
-        when(deleteFilter.expectedSchema().columns()).thenReturn(nCopies(3, null));
-
-        ColumnVector[] result = ColumnarBatchUtil.removeExtraColumns(deleteFilter, vectors);
-        assertThat( result.length).isEqualTo(3);
-    }
+    when(deleteFilter.deletedRowPositions()).thenReturn(deletedRowPos);
+    when(deleteFilter.eqDeletedRowFilter()).thenReturn(eqDeleteFilter);
+  }
 }
