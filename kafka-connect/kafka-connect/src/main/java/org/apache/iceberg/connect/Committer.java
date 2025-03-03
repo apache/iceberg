@@ -29,8 +29,8 @@ public interface Committer {
   @Deprecated
   void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context);
 
-  default void start(Collection<TopicPartition> addedPartitions) {
-    start(null, null, null);
+  default void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context, Collection<TopicPartition> addedPartitions) {
+    start(catalog, config, context);
   }
 
   @Deprecated

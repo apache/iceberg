@@ -56,7 +56,7 @@ public class IcebergSinkTask extends SinkTask {
 
   @Override
   public void open(Collection<TopicPartition> partitions) {
-    committer.start(partitions);
+    committer.start(catalog, config, context, partitions);
   }
 
   @Override

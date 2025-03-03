@@ -104,7 +104,7 @@ public class CommitterImpl implements Committer {
   }
 
   @Override
-  public void start(Collection<TopicPartition> addedPartitions) {
+  public void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context, Collection<TopicPartition> addedPartitions) {
     syncLastCommittedOffsets();
     if (hasLeaderPartitions(addedPartitions)) {
       LOG.info("committer received leader partitions, starting coordinator");
