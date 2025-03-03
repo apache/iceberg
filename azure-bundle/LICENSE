@@ -225,7 +225,7 @@ License: The MIT License (MIT) - http://opensource.org/licenses/MIT
 
 --------------------------------------------------------------------------------
 
-Group: com.azure  Name: azure-storage-blob  Version: 12.27.0
+Group: com.azure  Name: azure-storage-blob  Version: 12.28.0
 Project URL: https://github.com/Azure/azure-sdk-for-java
 License: The MIT License (MIT) - http://opensource.org/licenses/MIT
 
