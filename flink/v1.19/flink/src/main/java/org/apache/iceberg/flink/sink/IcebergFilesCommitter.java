@@ -76,7 +76,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // the max committed one to iceberg table, for avoiding committing the same data files twice. This
   // id will be attached to iceberg's meta when committing the iceberg transaction.
   private static final String MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed-checkpoint-id";
-  public static final String MAX_CONTINUOUS_EMPTY_COMMITS = "flink.max-continuous-empty-commits";
+  static final String MAX_CONTINUOUS_EMPTY_COMMITS = "flink.max-continuous-empty-commits";
 
   // TableLoader to load iceberg table lazily.
   private final TableLoader tableLoader;

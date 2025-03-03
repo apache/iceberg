@@ -30,7 +30,7 @@ import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
  *
  * <p>In both cases only the respective part is serialized.
  */
-public class IcebergCommittableSerializer implements SimpleVersionedSerializer<IcebergCommittable> {
+class IcebergCommittableSerializer implements SimpleVersionedSerializer<IcebergCommittable> {
   private static final int VERSION = 1;
 
   @Override

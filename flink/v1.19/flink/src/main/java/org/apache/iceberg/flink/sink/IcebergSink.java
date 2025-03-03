@@ -571,7 +571,7 @@ public class IcebergSink
     return (SerializableTable) SerializableTable.copyOf(table);
   }
 
-  public static RowType toFlinkRowType(Schema schema, TableSchema requestedSchema) {
+  private static RowType toFlinkRowType(Schema schema, TableSchema requestedSchema) {
     if (requestedSchema != null) {
       // Convert the flink schema to iceberg schema firstly, then reassign ids to match the existing
       // iceberg schema.

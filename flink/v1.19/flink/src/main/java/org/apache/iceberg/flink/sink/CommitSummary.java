@@ -19,14 +19,13 @@
 package org.apache.iceberg.flink.sink;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.NavigableMap;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.util.ScanTaskUtil;
 
-public class CommitSummary {
+class CommitSummary {
 
   private final AtomicLong dataFilesCount = new AtomicLong();
   private final AtomicLong dataFilesRecordCount = new AtomicLong();
@@ -35,35 +34,30 @@ public class CommitSummary {
   private final AtomicLong deleteFilesRecordCount = new AtomicLong();
   private final AtomicLong deleteFilesByteCount = new AtomicLong();
 
-  public CommitSummary() {}
-
-  public CommitSummary(NavigableMap<Long, WriteResult> pendingResults) {
-    pendingResults.values().forEach(this::addWriteResult);
-  }
-
-  public void addAll(NavigableMap<Long, List<WriteResult>> pendingResults) {
-    pendingResults.values().forEach(writeResults -> writeResults.forEach(this::addWriteResult));
-  }
-
-  private void addWriteResult(WriteResult writeResult) {
-    dataFilesCount.addAndGet(writeResult.dataFiles().length);
-    Arrays.stream(writeResult.dataFiles())
+  CommitSummary(NavigableMap<Long, WriteResult> pendingResults) {
+    pendingResults
+        .values()
         .forEach(
-            dataFile -> {
-              dataFilesRecordCount.addAndGet(dataFile.recordCount());
-              dataFilesByteCount.addAndGet(dataFile.fileSizeInBytes());
-            });
-    deleteFilesCount.addAndGet(writeResult.deleteFiles().length);
-    Arrays.stream(writeResult.deleteFiles())
-        .forEach(
-            deleteFile -> {
-              deleteFilesRecordCount.addAndGet(deleteFile.recordCount());
-              long deleteBytes = ScanTaskUtil.contentSizeInBytes(deleteFile);
-              deleteFilesByteCount.addAndGet(deleteBytes);
+            writeResult -> {
+              dataFilesCount.addAndGet(writeResult.dataFiles().length);
+              Arrays.stream(writeResult.dataFiles())
+                  .forEach(
+                      dataFile -> {
+                        dataFilesRecordCount.addAndGet(dataFile.recordCount());
+                        dataFilesByteCount.addAndGet(dataFile.fileSizeInBytes());
+                      });
+              deleteFilesCount.addAndGet(writeResult.deleteFiles().length);
+              Arrays.stream(writeResult.deleteFiles())
+                  .forEach(
+                      deleteFile -> {
+                        deleteFilesRecordCount.addAndGet(deleteFile.recordCount());
+                        long deleteBytes = ScanTaskUtil.contentSizeInBytes(deleteFile);
+                        deleteFilesByteCount.addAndGet(deleteBytes);
+                      });
             });
   }
 
-  public long dataFilesCount() {
+  long dataFilesCount() {
     return dataFilesCount.get();
   }
 
@@ -75,7 +69,7 @@ public class CommitSummary {
     return dataFilesByteCount.get();
   }
 
-  public long deleteFilesCount() {
+  long deleteFilesCount() {
     return deleteFilesCount.get();
   }
 

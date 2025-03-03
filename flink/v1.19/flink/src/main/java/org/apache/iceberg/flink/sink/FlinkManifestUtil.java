@@ -38,7 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class FlinkManifestUtil {
+class FlinkManifestUtil {
 
   private static final Logger LOG = LoggerFactory.getLogger(FlinkManifestUtil.class);
   private static final int FORMAT_V2 = 2;
@@ -66,7 +66,7 @@ public class FlinkManifestUtil {
     }
   }
 
-  public static ManifestOutputFileFactory createOutputFileFactory(
+  static ManifestOutputFileFactory createOutputFileFactory(
       Supplier<Table> tableSupplier,
       Map<String, String> tableProps,
       String flinkJobId,
@@ -83,7 +83,7 @@ public class FlinkManifestUtil {
    * @param result all those DataFiles/DeleteFiles in this WriteResult should be written with same
    *     partition spec
    */
-  public static DeltaManifests writeCompletedFiles(
+  static DeltaManifests writeCompletedFiles(
       WriteResult result, Supplier<OutputFile> outputFileSupplier, PartitionSpec spec)
       throws IOException {
 
@@ -114,7 +114,7 @@ public class FlinkManifestUtil {
     return new DeltaManifests(dataManifest, deleteManifest, result.referencedDataFiles());
   }
 
-  public static WriteResult readCompletedFiles(
+  static WriteResult readCompletedFiles(
       DeltaManifests deltaManifests, FileIO io, Map<Integer, PartitionSpec> specsById)
       throws IOException {
     WriteResult.Builder builder = WriteResult.builder();
@@ -135,7 +135,7 @@ public class FlinkManifestUtil {
     return builder.addReferencedDataFiles(deltaManifests.referencedDataFiles()).build();
   }
 
-  public static void deleteCommittedManifests(
+  static void deleteCommittedManifests(
       Table table, List<ManifestFile> manifests, String newFlinkJobId, long checkpointId) {
     for (ManifestFile manifest : manifests) {
       try {

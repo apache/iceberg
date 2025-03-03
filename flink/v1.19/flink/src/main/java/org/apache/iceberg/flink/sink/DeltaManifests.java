@@ -23,7 +23,7 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-public class DeltaManifests {
+class DeltaManifests {
 
   private static final CharSequence[] EMPTY_REF_DATA_FILES = new CharSequence[0];
 
@@ -56,7 +56,7 @@ public class DeltaManifests {
     return referencedDataFiles;
   }
 
-  public List<ManifestFile> manifests() {
+  List<ManifestFile> manifests() {
     List<ManifestFile> manifests = Lists.newArrayListWithCapacity(2);
     if (dataManifest != null) {
       manifests.add(dataManifest);
