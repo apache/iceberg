@@ -273,14 +273,14 @@ License (from POM): The MIT License (MIT) - http://opensource.org/licenses/MIT
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.core  Name: jackson-annotations  Version: 2.18.2
+Group: com.fasterxml.jackson.core  Name: jackson-annotations  Version: 2.18.3
 Project URL (from manifest): https://github.com/FasterXML/jackson
 Project URL (from POM): https://github.com/FasterXML/jackson
 License (from POM): The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.core  Name: jackson-core  Version: 2.18.2
+Group: com.fasterxml.jackson.core  Name: jackson-core  Version: 2.18.3
 Project URL (from manifest): https://github.com/FasterXML/jackson-core
 Project URL (from POM): https://github.com/FasterXML/jackson-core
 License (from POM): Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
@@ -288,7 +288,7 @@ License (from POM): The Apache Software License, Version 2.0 - https://www.apach
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.core  Name: jackson-databind  Version: 2.18.2
+Group: com.fasterxml.jackson.core  Name: jackson-databind  Version: 2.18.3
 Project URL (from manifest): https://github.com/FasterXML/jackson
 Project URL (from POM): https://github.com/FasterXML/jackson
 License (from POM): Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
@@ -296,28 +296,28 @@ License (from POM): The Apache Software License, Version 2.0 - https://www.apach
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.datatype  Name: jackson-datatype-jsr310  Version: 2.18.2
+Group: com.fasterxml.jackson.datatype  Name: jackson-datatype-jsr310  Version: 2.18.3
 Project URL (from manifest): https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310
 License (from POM): Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.jaxrs  Name: jackson-jaxrs-base  Version: 2.18.2
+Group: com.fasterxml.jackson.jaxrs  Name: jackson-jaxrs-base  Version: 2.18.3
 Project URL (from manifest): https://github.com/FasterXML/jackson-jaxrs-providers/jackson-jaxrs-base
 License (from POM): Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.jaxrs  Name: jackson-jaxrs-json-provider  Version: 2.18.2
+Group: com.fasterxml.jackson.jaxrs  Name: jackson-jaxrs-json-provider  Version: 2.18.3
 Project URL (from manifest): https://github.com/FasterXML/jackson-jaxrs-providers/jackson-jaxrs-json-provider
 License (from POM): Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.module  Name: jackson-module-jaxb-annotations  Version: 2.18.2
+Group: com.fasterxml.jackson.module  Name: jackson-module-jaxb-annotations  Version: 2.18.3
 Project URL (from manifest): https://github.com/FasterXML/jackson-modules-base
 Project URL (from POM): https://github.com/FasterXML/jackson-modules-base
 License (from POM): Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
