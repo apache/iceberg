@@ -1677,7 +1677,7 @@ License (from POM): Apache 2 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: org.slf4j  Name: slf4j-api  Version: 2.0.16
+Group: org.slf4j  Name: slf4j-api  Version: 2.0.17
 Project URL (from manifest): http://www.slf4j.org
 Project URL (from POM): http://www.slf4j.org
 License (from POM): MIT License - http://www.opensource.org/licenses/mit-license.php
