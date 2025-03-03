@@ -42,7 +42,7 @@ public class TestColumnarBatchUtil {
   Predicate<InternalRow> eqDeleteFilter;
 
   @BeforeEach
-  public void setup() {
+  public void before() {
     columnVectors = new ColumnVector[2];
     columnVectors[0] = mock(ColumnVector.class);
     columnVectors[1] = mock(ColumnVector.class);
@@ -86,7 +86,7 @@ public class TestColumnarBatchUtil {
   }
 
   @Test
-  void testBuildIsDeletedWithDeletedRange() {
+  public void testBuildIsDeletedWithDeletedRange() {
     mockEqAndPosDeletes();
     var isDeleted = ColumnarBatchUtil.buildIsDeleted(columnVectors, deleteFilter, 0, 100);
 
@@ -103,7 +103,7 @@ public class TestColumnarBatchUtil {
   }
 
   @Test
-  void testBuildIsDeletedNoDeletes() {
+  public void testBuildIsDeletedNoDeletes() {
     var result = ColumnarBatchUtil.buildIsDeleted(columnVectors, null, 0, 5);
     assertThat(result).isNotNull();
     for (int i = 0; i < 5; i++) {
@@ -112,7 +112,7 @@ public class TestColumnarBatchUtil {
   }
 
   @Test
-  void testRemoveExtraColumns() {
+  public void testRemoveExtraColumns() {
     ColumnVector[] vectors = new ColumnVector[5];
     for (int i = 0; i < 5; i++) {
       vectors[i] = mock(ColumnVector.class);
@@ -125,7 +125,7 @@ public class TestColumnarBatchUtil {
   }
 
   @Test
-  void testRemoveExtraColumnsNotNeeded() {
+  public void testRemoveExtraColumnsNotNeeded() {
     ColumnVector[] vectors = new ColumnVector[3];
     for (int i = 0; i < 3; i++) {
       vectors[i] = mock(ColumnVector.class);
