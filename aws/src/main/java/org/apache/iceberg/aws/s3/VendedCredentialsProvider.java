@@ -67,9 +67,9 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
 
   @Override
   public void close() {
-    IoUtils.closeQuietly(authSession, null);
-    IoUtils.closeQuietly(authManager, null);
-    IoUtils.closeQuietly(client, null);
+    IoUtils.closeQuietlyV2(authSession, null);
+    IoUtils.closeQuietlyV2(authManager, null);
+    IoUtils.closeQuietlyV2(client, null);
     credentialCache.close();
   }
 

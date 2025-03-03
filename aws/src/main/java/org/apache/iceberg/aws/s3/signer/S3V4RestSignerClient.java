@@ -330,9 +330,9 @@ public abstract class S3V4RestSignerClient
 
   @Override
   public void close() throws Exception {
-    IoUtils.closeQuietly(httpClient, null);
-    IoUtils.closeQuietly(authSessionCache, null);
-    IoUtils.closeQuietly(authManager, null);
+    IoUtils.closeQuietlyV2(authSession, null);
+    IoUtils.closeQuietlyV2(authManager, null);
+    IoUtils.closeQuietlyV2(httpClient, null);
   }
 
   /**
