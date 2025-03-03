@@ -23,7 +23,6 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +41,6 @@ import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
-import org.apache.iceberg.rest.auth.AuthSessionCache;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.util.PropertyUtil;
@@ -81,10 +79,10 @@ public abstract class S3V4RestSignerClient
   private volatile AuthManager authManager;
 
   @SuppressWarnings("immutables:incompat")
-  private volatile RESTClient httpClient;
+  private volatile AuthSession authSession;
 
   @SuppressWarnings("immutables:incompat")
-  private volatile AuthSessionCache authSessionCache;
+  private volatile RESTClient httpClient;
 
   public abstract Map<String, String> properties();
 
@@ -135,96 +133,36 @@ public abstract class S3V4RestSignerClient
         OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
   }
 
-  private AuthManager authManager() {
-    if (null == authManager) {
-      synchronized (S3V4RestSignerClient.class) {
-        if (null == authManager) {
-          authManager = AuthManagers.loadAuthManager("s3-signer", properties());
-        }
-      }
-    }
-
-    return authManager;
-  }
-
-  private AuthSessionCache authSessionCache() {
-    if (null == authSessionCache) {
-      synchronized (S3V4RestSignerClient.class) {
-        if (null == authSessionCache) {
-          long expirationIntervalMs =
-              PropertyUtil.propertyAsLong(
-                  properties(),
-                  CatalogProperties.AUTH_SESSION_TIMEOUT_MS,
-                  CatalogProperties.AUTH_SESSION_TIMEOUT_MS_DEFAULT);
-
-          authSessionCache =
-              new AuthSessionCache("s3-signer", Duration.ofMillis(expirationIntervalMs));
-        }
-      }
-    }
-
-    return authSessionCache;
-  }
-
   private RESTClient httpClient() {
     if (null == httpClient) {
       synchronized (S3V4RestSignerClient.class) {
         if (null == httpClient) {
-          httpClient =
+          authManager = AuthManagers.loadAuthManager("s3-signer", properties());
+          HTTPClient client =
               HTTPClient.builder(properties())
                   .uri(baseSignerUri())
                   .withObjectMapper(S3ObjectMapper.mapper())
                   .build();
+          ImmutableMap.Builder<String, String> properties =
+              ImmutableMap.<String, String>builder()
+                  .putAll(properties())
+                  .putAll(optionalOAuthParams())
+                  .put(OAuth2Properties.OAUTH2_SERVER_URI, oauth2ServerUri())
+                  .put(OAuth2Properties.TOKEN_REFRESH_ENABLED, String.valueOf(keepTokenRefreshed()))
+                  .put(OAuth2Properties.SCOPE, SCOPE);
+          String token = token().get();
+          if (null != token) {
+            properties.put(OAuth2Properties.TOKEN, token);
+          } else if (credentialProvided()) {
+            properties.put(OAuth2Properties.CREDENTIAL, credential());
+          }
+          authSession = authManager.catalogSession(client, properties.buildKeepingLast());
+          httpClient = client.withAuthSession(authSession);
         }
       }
     }
 
     return httpClient;
-  }
-
-  private AuthSession authSession() {
-    String token = token().get();
-    if (null != token) {
-      return authSessionCache()
-          .cachedSession(
-              token,
-              key -> {
-                Map<String, String> properties =
-                    ImmutableMap.<String, String>builder()
-                        .putAll(properties())
-                        .putAll(optionalOAuthParams())
-                        .put(OAuth2Properties.OAUTH2_SERVER_URI, oauth2ServerUri())
-                        .put(
-                            OAuth2Properties.TOKEN_REFRESH_ENABLED,
-                            String.valueOf(keepTokenRefreshed()))
-                        .put(OAuth2Properties.TOKEN, token)
-                        .put(OAuth2Properties.SCOPE, SCOPE)
-                        .buildKeepingLast();
-                return authManager().catalogSession(httpClient(), properties);
-              });
-    }
-
-    if (credentialProvided()) {
-      return authSessionCache()
-          .cachedSession(
-              credential(),
-              key -> {
-                Map<String, String> properties =
-                    ImmutableMap.<String, String>builder()
-                        .putAll(properties())
-                        .putAll(optionalOAuthParams())
-                        .put(OAuth2Properties.OAUTH2_SERVER_URI, oauth2ServerUri())
-                        .put(
-                            OAuth2Properties.TOKEN_REFRESH_ENABLED,
-                            String.valueOf(keepTokenRefreshed()))
-                        .put(OAuth2Properties.CREDENTIAL, credential())
-                        .put(OAuth2Properties.SCOPE, SCOPE)
-                        .buildKeepingLast();
-                return authManager().catalogSession(httpClient(), properties);
-              });
-    }
-
-    return AuthSession.EMPTY;
   }
 
   private boolean credentialProvided() {
@@ -298,7 +236,6 @@ public abstract class S3V4RestSignerClient
       Consumer<Map<String, String>> responseHeadersConsumer = responseHeaders::putAll;
       S3SignResponse s3SignResponse =
           httpClient()
-              .withAuthSession(authSession())
               .post(
                   endpoint(),
                   remoteSigningRequest,
