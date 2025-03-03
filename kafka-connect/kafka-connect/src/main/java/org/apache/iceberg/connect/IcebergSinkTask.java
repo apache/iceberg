@@ -56,27 +56,17 @@ public class IcebergSinkTask extends SinkTask {
 
   @Override
   public void open(Collection<TopicPartition> partitions) {
-    // We should be starting co-ordinator only the list of partitions has the zeroth partition.
-    if(committer.isCoordinator(partitions)) {
-      committer.startCoordinator();
-    }
-    committer.syncLastCommittedOffsets();
+    committer.start(partitions);
   }
 
   @Override
   public void close(Collection<TopicPartition> partitions) {
-    // We need to close worker here in every case to ensure exactly once otherwise this will lead to duplicate records.
-    committer.stopWorker();
-    // Coordinator should only be closed if this received closed partitions has the partition which elected this task as coordinator.
-    if(committer.isCoordinator(partitions)) {
-      committer.stopCoordinator();
-    }
+    committer.stop(partitions);
   }
 
   private void close() {
     if (committer != null) {
-      committer.stopWorker();
-      committer.stopCoordinator();
+      committer.stop(context.assignment());
       committer = null;
     }
 

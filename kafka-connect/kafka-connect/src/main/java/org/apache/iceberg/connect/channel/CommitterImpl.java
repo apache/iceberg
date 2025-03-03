@@ -81,8 +81,8 @@ public class CommitterImpl implements Committer {
     }
   }
 
-  @Override
-  public boolean isCoordinator(Collection<TopicPartition> currentAssignedPartitions) {
+
+  public boolean hasLeaderPartitions(Collection<TopicPartition> currentAssignedPartitions) {
     ConsumerGroupDescription groupDesc;
     try (Admin admin = clientFactory.createAdmin()) {
       groupDesc = KafkaUtils.consumerGroupDescription(config.connectGroupId(), admin);
@@ -99,6 +99,34 @@ public class CommitterImpl implements Committer {
   }
 
   @Override
+  public void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
+    // No-Op
+  }
+
+  @Override
+  public void start(Collection<TopicPartition> addedPartitions) {
+    syncLastCommittedOffsets();
+    if (hasLeaderPartitions(addedPartitions)) {
+      LOG.info("committer received leader partitions, starting coordinator");
+      startCoordinator();
+    }
+  }
+
+  @Override
+  public void stop() {
+    // No-Op
+  }
+
+  @Override
+  public void stop(Collection<TopicPartition> closedPartitions) {
+    stopWorker();
+    if (hasLeaderPartitions(closedPartitions)) {
+      LOG.info("Committer lost leader partitions. Stopping Coordinator");
+      startCoordinator();
+    }
+  }
+
+  @Override
   public void save(Collection<SinkRecord> sinkRecords) {
     if (sinkRecords != null && !sinkRecords.isEmpty()) {
       startWorker();
@@ -107,7 +135,7 @@ public class CommitterImpl implements Committer {
     processControlEvents();
   }
 
-  @Override
+
   public void syncLastCommittedOffsets() {
     Map<TopicPartition, Long> stableConsumerOffsets;
     try (Admin admin = clientFactory.createAdmin()) {
@@ -147,7 +175,6 @@ public class CommitterImpl implements Committer {
     }
   }
 
-  @Override
   public void startWorker() {
     if(null == this.worker) {
       LOG.info("Starting commit worker");
@@ -157,7 +184,7 @@ public class CommitterImpl implements Committer {
     }
   }
 
-  @Override
+
   public void startCoordinator() {
     LOG.info("Task elected leader, starting commit coordinator");
     Coordinator coordinator = new Coordinator(catalog, config, membersWhenWorkerIsCoordinator, clientFactory, context);
@@ -165,7 +192,7 @@ public class CommitterImpl implements Committer {
     coordinatorThread.start();
   }
 
-  @Override
+
   public void stopWorker() {
     if (worker != null) {
       worker.stop();
@@ -173,7 +200,7 @@ public class CommitterImpl implements Committer {
     }
   }
 
-  @Override
+
   public void stopCoordinator() {
     if (coordinatorThread != null) {
       coordinatorThread.terminate();

@@ -19,21 +19,26 @@
 package org.apache.iceberg.connect;
 
 import java.util.Collection;
-import org.apache.kafka.connect.sink.SinkRecord;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.sink.SinkRecord;
+import org.apache.kafka.connect.sink.SinkTaskContext;
 
 public interface Committer {
-  void startCoordinator();
 
-  void startWorker();
+  @Deprecated
+  void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context);
 
-  void stopCoordinator();
+  default void start(Collection<TopicPartition> addedPartitions) {
+    start(null, null, null);
+  }
 
-  void stopWorker();
+  @Deprecated
+  void stop();
+
+  default void stop(Collection<TopicPartition> closedPartitions) {
+    stop();
+  }
 
   void save(Collection<SinkRecord> sinkRecords);
-
-  boolean isCoordinator(Collection<TopicPartition> currentAssignedPartitions);
-
-  void syncLastCommittedOffsets();
 }
