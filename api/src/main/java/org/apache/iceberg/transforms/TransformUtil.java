@@ -26,7 +26,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
-import java.util.Locale;
 import org.apache.iceberg.util.DateTimeUtil;
 
 class TransformUtil {
