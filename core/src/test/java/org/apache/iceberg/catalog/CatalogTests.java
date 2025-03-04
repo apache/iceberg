@@ -188,6 +188,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     return false;
   }
 
+  protected boolean validateToIdentifier() {
+    return false;
+  }
+
   @Test
   public void testCreateNamespace() {
     C catalog = catalog();
@@ -803,6 +807,32 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThatThrownBy(() -> catalog().renameTable(from, to))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessageContaining("Namespace does not exist: non_existing");
+  }
+
+  @Test
+  public void renameTableNamespaceWithCatalogName() {
+    assumeThat(validateToIdentifier())
+        .as("Test scenario only works with catalogs that validate to identifier")
+        .isTrue();
+    TableIdentifier from = TableIdentifier.of("ns", "table");
+    TableIdentifier to = TableIdentifier.of("ns", "renamedTable");
+    TableIdentifier toWithCatalogName = TableIdentifier.of(catalog().name(), "ns", "renamedTable");
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(from.namespace());
+    }
+
+    assertThat(catalog().tableExists(from)).as("Table should not exist").isFalse();
+
+    catalog().buildTable(from, SCHEMA).create();
+
+    assertThat(catalog().tableExists(from)).as("Table should exist").isTrue();
+    assertThat(catalog().tableExists(to))
+            .as("Destination table should not exist before rename")
+            .isFalse();
+
+    catalog().renameTable(from, toWithCatalogName);
+    assertThat(catalog().tableExists(to)).as("Table should exist with new name").isTrue();
+    assertThat(catalog().tableExists(from)).as("Original table should no longer exist").isFalse();
   }
 
   @Test

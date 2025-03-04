@@ -253,6 +253,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     return true;
   }
 
+  @Override
+  protected boolean validateToIdentifier() {
+    return true;
+  }
+
   /* RESTCatalog specific tests */
 
   @Test
@@ -2504,29 +2509,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any(),
             any(),
             any());
-  }
-
-  @Test
-  public void renameTableNamespaceWithCatalogName() {
-    TableIdentifier from = TableIdentifier.of("ns", "table");
-    TableIdentifier to = TableIdentifier.of("ns", "renamedTable");
-    TableIdentifier toWithCatalogName = TableIdentifier.of(catalog().name(), "ns", "renamedTable");
-    if (requiresNamespaceCreate()) {
-      catalog().createNamespace(from.namespace());
-    }
-
-    assertThat(catalog().tableExists(from)).as("Table should not exist").isFalse();
-
-    catalog().buildTable(from, SCHEMA).create();
-
-    assertThat(catalog().tableExists(from)).as("Table should exist").isTrue();
-    assertThat(catalog().tableExists(to))
-        .as("Destination table should not exist before rename")
-        .isFalse();
-
-    catalog().renameTable(from, toWithCatalogName);
-    assertThat(catalog().tableExists(to)).as("Table should exist with new name").isTrue();
-    assertThat(catalog().tableExists(from)).as("Original table should no longer exist").isFalse();
   }
 
   @Test
