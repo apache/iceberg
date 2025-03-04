@@ -295,7 +295,7 @@ public class TestAlterTable extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testTableRenameInMultiLevelNameSpace() {
+  public void testTableRenameWithNestedNamespace() {
     assumeThat(catalogConfig.get(ICEBERG_CATALOG_TYPE)).isEqualTo(ICEBERG_CATALOG_TYPE_REST);
 
     assertThat(validationCatalog.tableExists(tableIdent)).as("Initial name should exist").isTrue();

@@ -814,6 +814,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assumeThat(validateToIdentifier())
         .as("Test scenario only works with catalogs that validate to identifier")
         .isTrue();
+
     TableIdentifier from = TableIdentifier.of("ns", "table");
     TableIdentifier to = TableIdentifier.of("ns", "renamedTable");
     TableIdentifier toWithCatalogName = TableIdentifier.of(catalog().name(), "ns", "renamedTable");
@@ -831,6 +832,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
             .isFalse();
 
     catalog().renameTable(from, toWithCatalogName);
+
     assertThat(catalog().tableExists(to)).as("Table should exist with new name").isTrue();
     assertThat(catalog().tableExists(from)).as("Original table should no longer exist").isFalse();
   }
