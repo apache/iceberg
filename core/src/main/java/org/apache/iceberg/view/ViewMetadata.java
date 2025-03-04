@@ -465,12 +465,15 @@ public interface ViewMetadata extends Serializable {
 
       // expire old versions, but keep at least the versions added in this builder and the current
       // version
-      Set<Integer> addedVersions =
-          changes(MetadataUpdate.AddViewVersion.class)
-              .map(v -> v.viewVersion().versionId())
-              .collect(Collectors.toSet());
       int numVersions =
-          ImmutableSet.builder().addAll(addedVersions).add(currentVersionId).build().size();
+          ImmutableSet.builder()
+              .addAll(
+                  changes(MetadataUpdate.AddViewVersion.class)
+                      .map(v -> v.viewVersion().versionId())
+                      .collect(Collectors.toSet()))
+              .add(currentVersionId)
+              .build()
+              .size();
       int numVersionsToKeep = Math.max(numVersions, historySize);
 
       List<ViewVersion> retainedVersions;
