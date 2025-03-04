@@ -21,6 +21,8 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -48,8 +50,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestRemoveSnapshots extends TestBase {
@@ -1703,6 +1707,77 @@ public class TestRemoveSnapshots extends TestBase {
     assertThat(table.specs().keySet())
         .as("Only data_bucket transform should exist")
         .containsExactly(dataBucketSpec.specId());
+  }
+
+  @TestTemplate
+  public void testRemoveSchemas() {
+    table.newAppend().appendFile(FILE_A).commit();
+
+    Set<String> expectedDeletedFiles = Sets.newHashSet();
+    expectedDeletedFiles.add(table.currentSnapshot().manifestListLocation());
+
+    table.updateSchema().addColumn("extra_col1", Types.StringType.get()).commit();
+
+    table.newAppend().appendFile(FILE_B).commit();
+    expectedDeletedFiles.add(table.currentSnapshot().manifestListLocation());
+
+    table.updateSchema().addColumn("extra_col2", Types.LongType.get()).deleteColumn("id").commit();
+
+    table.newAppend().appendFile(FILE_A2).commit();
+
+    assertThat(table.schemas()).hasSize(3);
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    // Expire all snapshots and schemas except the current ones.
+    removeSnapshots(table)
+        .expireOlderThan(System.currentTimeMillis())
+        .cleanExpiredMetadata(true)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles).containsExactlyInAnyOrderElementsOf(expectedDeletedFiles);
+    assertThat(table.schemas().values()).containsExactly(table.schema());
+  }
+
+  @TestTemplate
+  public void testNoSchemasToRemove() {
+    String tableName = "test_no_schemas_to_remove";
+    TestTables.TestTableOperations ops =
+        Mockito.spy(new TestTables.TestTableOperations(tableName, tableDir));
+    TestTables.TestTable table =
+        TestTables.create(
+            tableDir,
+            tableName,
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            formatVersion,
+            ops);
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    Set<String> expectedDeletedFiles = Sets.newHashSet();
+    expectedDeletedFiles.add(table.currentSnapshot().manifestListLocation());
+
+    table.newAppend().appendFile(FILE_B).commit();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    // Expire all snapshots except the current one. No unused schemas to be removed.
+    removeSnapshots(table)
+        .expireOlderThan(System.currentTimeMillis())
+        .cleanExpiredMetadata(true)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles).containsExactlyInAnyOrderElementsOf(expectedDeletedFiles);
+    assertThat(table.schemas().values()).containsExactly(table.schema());
+    Mockito.verify(ops, Mockito.never())
+        .commit(
+            any(),
+            argThat(
+                meta ->
+                    meta.changes().stream()
+                        .anyMatch(u -> u instanceof MetadataUpdate.RemoveSchemas)));
   }
 
   private Set<String> manifestPaths(Snapshot snapshot, FileIO io) {

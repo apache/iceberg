@@ -59,7 +59,22 @@ public class TestTables {
       PartitionSpec spec,
       SortOrder sortOrder,
       int formatVersion) {
-    return createTable(temp, name, schema, spec, formatVersion, ImmutableMap.of(), sortOrder, null);
+    TestTableOperations ops = new TestTableOperations(name, temp);
+
+    return createTable(
+        temp, name, schema, spec, formatVersion, ImmutableMap.of(), sortOrder, null, ops);
+  }
+
+  public static TestTable create(
+      File temp,
+      String name,
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      int formatVersion,
+      TestTableOperations ops) {
+    return createTable(
+        temp, name, schema, spec, formatVersion, ImmutableMap.of(), sortOrder, null, ops);
   }
 
   public static TestTable create(
@@ -70,8 +85,10 @@ public class TestTables {
       SortOrder sortOrder,
       int formatVersion,
       MetricsReporter reporter) {
+    TestTableOperations ops = new TestTableOperations(name, temp);
+
     return createTable(
-        temp, name, schema, spec, formatVersion, ImmutableMap.of(), sortOrder, reporter);
+        temp, name, schema, spec, formatVersion, ImmutableMap.of(), sortOrder, reporter, ops);
   }
 
   public static TestTable create(
@@ -81,8 +98,10 @@ public class TestTables {
       PartitionSpec spec,
       int formatVersion,
       Map<String, String> properties) {
+    TestTableOperations ops = new TestTableOperations(name, temp);
+
     return createTable(
-        temp, name, schema, spec, formatVersion, properties, SortOrder.unsorted(), null);
+        temp, name, schema, spec, formatVersion, properties, SortOrder.unsorted(), null, ops);
   }
 
   private static TestTable createTable(
@@ -93,8 +112,8 @@ public class TestTables {
       int formatVersion,
       Map<String, String> properties,
       SortOrder sortOrder,
-      MetricsReporter reporter) {
-    TestTableOperations ops = new TestTableOperations(name, temp);
+      MetricsReporter reporter,
+      TestTableOperations ops) {
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
