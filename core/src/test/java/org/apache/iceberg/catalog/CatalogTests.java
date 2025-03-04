@@ -828,8 +828,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     assertThat(catalog().tableExists(from)).as("Table should exist").isTrue();
     assertThat(catalog().tableExists(to))
-            .as("Destination table should not exist before rename")
-            .isFalse();
+        .as("Destination table should not exist before rename")
+        .isFalse();
 
     catalog().renameTable(from, toWithCatalogName);
 

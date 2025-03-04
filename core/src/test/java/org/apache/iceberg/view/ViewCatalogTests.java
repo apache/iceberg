@@ -618,9 +618,9 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
   @Test
   public void renameViewNamespaceWithCatalogName() {
-    assumeThat(validateToIdentifier() )
-            .as("Test scenario only works with catalogs that validate to identifier")
-            .isTrue();
+    assumeThat(validateToIdentifier())
+        .as("Test scenario only works with catalogs that validate to identifier")
+        .isTrue();
 
     TableIdentifier from = TableIdentifier.of("ns", "table");
     TableIdentifier to = TableIdentifier.of("ns", "renamedTable");
@@ -632,16 +632,16 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
 
     assertThat(catalog().viewExists(from)).as("View should not exist").isFalse();
     catalog()
-            .buildView(from)
-            .withSchema(SCHEMA)
-            .withDefaultNamespace(from.namespace())
-            .withQuery("spark", "select 1")
-            .create();
+        .buildView(from)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(from.namespace())
+        .withQuery("spark", "select 1")
+        .create();
 
     assertThat(catalog().viewExists(from)).as("View should exist").isTrue();
     assertThat(catalog().viewExists(to))
-            .as("Destination View should not exist before rename")
-            .isFalse();
+        .as("Destination View should not exist before rename")
+        .isFalse();
 
     catalog().renameView(from, toWithCatalogName);
 
