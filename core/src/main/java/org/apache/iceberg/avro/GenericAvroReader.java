@@ -181,7 +181,8 @@ public class GenericAvroReader<T>
             return (ValueReader<Long>) (decoder, ignored) -> longs.read(decoder, null) * 1000L;
 
           case "timestamp-micros":
-            // Spark uses the same representation
+          case "timestamp-nanos":
+            // both are handled in memory as long values, using the type to track units
             return ValueReaders.longs();
 
           case "decimal":

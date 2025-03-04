@@ -105,6 +105,10 @@ public class DateTimeUtil {
     return ChronoUnit.MICROS.addTo(EPOCH, microsFromEpoch);
   }
 
+  public static OffsetDateTime timestamptzFromNanos(long nanosFromEpoch) {
+    return ChronoUnit.NANOS.addTo(EPOCH, nanosFromEpoch);
+  }
+
   public static long microsFromTimestamptz(OffsetDateTime dateTime) {
     return ChronoUnit.MICROS.between(EPOCH, dateTime);
   }
