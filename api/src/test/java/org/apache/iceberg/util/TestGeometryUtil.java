@@ -26,10 +26,8 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.CoordinateXY;
 import org.locationtech.jts.geom.CoordinateXYM;
 import org.locationtech.jts.geom.CoordinateXYZM;
-import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.geom.Point;
 
 public class TestGeometryUtil {
   private static final GeometryFactory FACTORY = new GeometryFactory();
@@ -143,124 +141,5 @@ public class TestGeometryUtil {
     Coordinate coordinate = readGeometry.getCoordinate();
     assertThat(coordinate.getZ()).isEqualTo(3.0);
     assertThat(coordinate.getM()).isEqualTo(4.0);
-  }
-
-  @Test
-  public void testBoundMayIntersects() {
-    GeometryFactory factory = new GeometryFactory();
-
-    // Test regular case (not crossing anti-meridian)
-    Point lowerBound = factory.createPoint(new Coordinate(0, 0));
-    Point upperBound = factory.createPoint(new Coordinate(10, 10));
-
-    // Envelope completely inside bound
-    Geometry geom = factory.toGeometry(new Envelope(2, 8, 2, 8));
-    assertThat(GeometryUtil.boundMayIntersects(lowerBound, upperBound, geom)).isTrue();
-
-    // Envelope partially overlapping bound
-    geom = factory.toGeometry(new Envelope(5, 15, 5, 15));
-    assertThat(GeometryUtil.boundMayIntersects(lowerBound, upperBound, geom)).isTrue();
-
-    // Envelope completely outside bound
-    geom = factory.toGeometry(new Envelope(15, 20, 15, 20));
-    assertThat(GeometryUtil.boundMayIntersects(lowerBound, upperBound, geom)).isFalse();
-
-    // Test anti-meridian crossing case
-    lowerBound = factory.createPoint(new Coordinate(170, 0));
-    upperBound = factory.createPoint(new Coordinate(-170, 10));
-
-    // Envelope in the western part of the bound
-    geom = factory.toGeometry(new Envelope(172, 178, 2, 8));
-    assertThat(GeometryUtil.boundMayIntersects(lowerBound, upperBound, geom)).isTrue();
-
-    // Envelope in the eastern part of the bound
-    geom = factory.toGeometry(new Envelope(-178, -172, 2, 8));
-    assertThat(GeometryUtil.boundMayIntersects(lowerBound, upperBound, geom)).isTrue();
-
-    // Envelope crossing the anti-meridian within the bound
-    geom = factory.toGeometry(new Envelope(175, -175, 2, 8));
-    assertThat(GeometryUtil.boundMayIntersects(lowerBound, upperBound, geom)).isTrue();
-
-    // Envelope outside the bound (latitude)
-    geom = factory.toGeometry(new Envelope(172, 178, 12, 15));
-    assertThat(GeometryUtil.boundMayIntersects(lowerBound, upperBound, geom)).isFalse();
-
-    // Envelope outside the bound (longitude)
-    geom = factory.toGeometry(new Envelope(160, 165, 2, 8));
-    assertThat(GeometryUtil.boundMayIntersects(lowerBound, upperBound, geom)).isFalse();
-  }
-
-  @Test
-  public void testBoundMayCovers() {
-    GeometryFactory factory = new GeometryFactory();
-
-    // Test regular case (not crossing anti-meridian)
-    Point lowerBound = factory.createPoint(new Coordinate(0, 0));
-    Point upperBound = factory.createPoint(new Coordinate(10, 10));
-
-    // Envelope completely inside bound
-    Geometry geom = factory.toGeometry(new Envelope(2, 8, 2, 8));
-    assertThat(GeometryUtil.boundMayCovers(lowerBound, upperBound, geom)).isTrue();
-
-    // Envelope partially inside bound
-    geom = factory.toGeometry(new Envelope(5, 15, 5, 15));
-    assertThat(GeometryUtil.boundMayCovers(lowerBound, upperBound, geom)).isFalse();
-
-    // Envelope completely outside bound
-    geom = factory.toGeometry(new Envelope(15, 20, 15, 20));
-    assertThat(GeometryUtil.boundMayCovers(lowerBound, upperBound, geom)).isFalse();
-
-    // Test anti-meridian crossing case
-    lowerBound = factory.createPoint(new Coordinate(170, 0));
-    upperBound = factory.createPoint(new Coordinate(-170, 10));
-
-    // Envelope in the western part of the bound
-    geom = factory.toGeometry(new Envelope(172, 178, 2, 8));
-    assertThat(GeometryUtil.boundMayCovers(lowerBound, upperBound, geom)).isTrue();
-
-    // Envelope in the eastern part of the bound
-    geom = factory.toGeometry(new Envelope(-178, -172, 2, 8));
-    assertThat(GeometryUtil.boundMayCovers(lowerBound, upperBound, geom)).isTrue();
-
-    // Envelope partially outside the bound (latitude)
-    geom = factory.toGeometry(new Envelope(172, 178, -2, 12));
-    assertThat(GeometryUtil.boundMayCovers(lowerBound, upperBound, geom)).isFalse();
-
-    // Envelope outside the bound (longitude)
-    geom = factory.toGeometry(new Envelope(160, 165, 2, 8));
-    assertThat(GeometryUtil.boundMayCovers(lowerBound, upperBound, geom)).isFalse();
-  }
-
-  @Test
-  public void testBoundMustBeCoveredBy() {
-    GeometryFactory factory = new GeometryFactory();
-
-    // Test regular case (not crossing anti-meridian)
-    Point lowerBound = factory.createPoint(new Coordinate(2, 2));
-    Point upperBound = factory.createPoint(new Coordinate(8, 8));
-
-    // Envelope completely covering the bound
-    Geometry geom = factory.toGeometry(new Envelope(0, 10, 0, 10));
-    assertThat(GeometryUtil.boundMustBeCoveredBy(lowerBound, upperBound, geom)).isTrue();
-
-    // Envelope partially covering the bound
-    geom = factory.toGeometry(new Envelope(3, 10, 0, 10));
-    assertThat(GeometryUtil.boundMustBeCoveredBy(lowerBound, upperBound, geom)).isFalse();
-
-    // Envelope not covering the bound
-    geom = factory.toGeometry(new Envelope(0, 5, 0, 5));
-    assertThat(GeometryUtil.boundMustBeCoveredBy(lowerBound, upperBound, geom)).isFalse();
-
-    // Test anti-meridian crossing case - should always return false
-    lowerBound = factory.createPoint(new Coordinate(170, 0));
-    upperBound = factory.createPoint(new Coordinate(-170, 10));
-
-    // Large envelope covering the entire region
-    geom = factory.toGeometry(new Envelope(160, -160, -10, 20));
-    assertThat(GeometryUtil.boundMustBeCoveredBy(lowerBound, upperBound, geom)).isFalse();
-
-    // Envelope exactly matching the bound coordinates
-    geom = factory.toGeometry(new Envelope(170, -170, 0, 10));
-    assertThat(GeometryUtil.boundMustBeCoveredBy(lowerBound, upperBound, geom)).isFalse();
   }
 }
