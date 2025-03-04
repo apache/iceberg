@@ -441,8 +441,7 @@ public class FlinkCatalog extends AbstractCatalog {
         properties.put(entry.getKey(), entry.getValue());
       } else {
         // Filtering reserved properties like catalog properties(added to support CREATE TABLE LIKE
-        // in getTable()),
-        // location and not persisting on table properties.
+        // in getTable()), location and not persisting on table properties.
         if ("location".equalsIgnoreCase(entry.getKey())) {
           location = entry.getValue();
         }

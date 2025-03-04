@@ -191,15 +191,17 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   @TestTemplate
   public void testCreateTableLikeInDiffIcebergCatalog() throws TableNotExistException {
     sql("CREATE TABLE tl(id BIGINT)");
-    sql("CREATE TABLE tl2 LIKE tl");
 
-    Table table = table("tl2");
-    assertThat(table.schema().asStruct())
-        .isEqualTo(
-            new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct());
-    CatalogTable catalogTable = catalogTable("tl2");
+    String catalog2 = catalogName + "2";
+    sql("CREATE CATALOG %s WITH %s", catalog2, toWithClause(config));
+    sql("CREATE DATABASE %s", catalog2 + ".testdb");
+    sql("CREATE TABLE %s LIKE tl", catalog2 + ".testdb.tl2");
+
+    CatalogTable catalogTable = catalogTable(catalog2, "testdb", "tl2");
     assertThat(catalogTable.getSchema())
         .isEqualTo(TableSchema.builder().field("id", DataTypes.BIGINT()).build());
+
+    dropCatalog(catalog2, true);
   }
 
   @TestTemplate
@@ -214,7 +216,8 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
 
     String srcCatalogProps = FlinkCreateTableOptions.toJson(catalogName, DATABASE, "tl", config);
     Map<String, String> options = catalogTable.getOptions();
-    assertThat(options.get("connector")).isEqualTo("iceberg");
+    assertThat(options.get(FlinkCreateTableOptions.CONNECTOR_PROPS_KEY))
+        .isEqualTo(FlinkDynamicTableFactory.FACTORY_IDENTIFIER);
     assertThat(options.get(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY))
         .isEqualTo(srcCatalogProps);
   }
