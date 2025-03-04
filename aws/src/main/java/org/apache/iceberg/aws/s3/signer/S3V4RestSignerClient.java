@@ -153,9 +153,12 @@ public abstract class S3V4RestSignerClient
           String token = token().get();
           if (null != token) {
             properties.put(OAuth2Properties.TOKEN, token);
-          } else if (credentialProvided()) {
+          }
+
+          if (credentialProvided()) {
             properties.put(OAuth2Properties.CREDENTIAL, credential());
           }
+
           authSession = authManager.catalogSession(client, properties.buildKeepingLast());
           httpClient = client.withAuthSession(authSession);
         }
