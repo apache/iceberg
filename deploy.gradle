@@ -122,17 +122,26 @@ subprojects {
       }
 
       repositories {
+        // Grepr is not publishing to apache maven repo
+//        maven {
+//          credentials {
+//            username project.hasProperty('mavenUser') ? "$mavenUser" : ""
+//            password project.hasProperty('mavenPassword') ? "$mavenPassword" : ""
+//          }
+//          // upload to the releases repository using ./gradlew -Prelease publish
+//          def apacheSnapshotsRepoUrl = 'https://repository.apache.org/content/repositories/snapshots'
+//          def apacheReleasesRepoUrl = 'https://repository.apache.org/service/local/staging/deploy/maven2'
+//          def snapshotsRepoUrl = project.hasProperty('mavenSnapshotsRepo') ? "$mavenSnapshotsRepo" : "$apacheSnapshotsRepoUrl"
+//          def releasesRepoUrl = project.hasProperty('mavenReleasesRepo') ? "$mavenReleasesRepo" : "$apacheReleasesRepoUrl"
+//          url = project.hasProperty('release') ? releasesRepoUrl : snapshotsRepoUrl
+//        }
         maven {
+          name = "GitHubPackages"
+          url = "https://maven.pkg.github.com/grepr/iceberg"
           credentials {
-            username project.hasProperty('mavenUser') ? "$mavenUser" : ""
-            password project.hasProperty('mavenPassword') ? "$mavenPassword" : ""
+            username = System.getenv("GITHUB_ACTOR")
+            password = System.getenv("GITHUB_TOKEN")
           }
-          // upload to the releases repository using ./gradlew -Prelease publish
-          def apacheSnapshotsRepoUrl = 'https://repository.apache.org/content/repositories/snapshots'
-          def apacheReleasesRepoUrl = 'https://repository.apache.org/service/local/staging/deploy/maven2'
-          def snapshotsRepoUrl = project.hasProperty('mavenSnapshotsRepo') ? "$mavenSnapshotsRepo" : "$apacheSnapshotsRepoUrl"
-          def releasesRepoUrl = project.hasProperty('mavenReleasesRepo') ? "$mavenReleasesRepo" : "$apacheReleasesRepoUrl"
-          url = project.hasProperty('release') ? releasesRepoUrl : snapshotsRepoUrl
         }
       }
     }
