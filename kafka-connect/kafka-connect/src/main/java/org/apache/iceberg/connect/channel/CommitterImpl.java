@@ -89,8 +89,7 @@ public class CommitterImpl implements Committer {
     }
       if (groupDesc.state() == ConsumerGroupState.STABLE) {
       Collection<MemberDescription> members = groupDesc.members();
-      Set<TopicPartition> partitions = context.assignment();
-      if (isLeader(members, partitions)) {
+      if (isLeader(members, currentAssignedPartitions)) {
         membersWhenWorkerIsCoordinator = members;
         return true;
       }
@@ -107,7 +106,7 @@ public class CommitterImpl implements Committer {
   public void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context, Collection<TopicPartition> addedPartitions) {
     syncLastCommittedOffsets();
     if (hasLeaderPartitions(addedPartitions)) {
-      LOG.info("committer received leader partitions, starting coordinator");
+      LOG.info("committer received leader partitions, starting coordinator.");
       startCoordinator();
     }
   }
@@ -121,8 +120,8 @@ public class CommitterImpl implements Committer {
   public void stop(Collection<TopicPartition> closedPartitions) {
     stopWorker();
     if (hasLeaderPartitions(closedPartitions)) {
-      LOG.info("Committer lost leader partitions. Stopping Coordinator");
-      startCoordinator();
+      LOG.info("Committer lost leader partitions. Stopping Coordinator.");
+      stopCoordinator();
     }
   }
 
