@@ -73,6 +73,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.ImmutableParquetBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.ParquetReaderType;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkStructLike;
 import org.apache.iceberg.spark.data.RandomData;
@@ -111,15 +112,26 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   @Parameter(index = 3)
   private PlanningMode planningMode;
 
-  @Parameters(name = "fileFormat = {0}, formatVersion = {1}, vectorized = {2}, planningMode = {3}")
+  @Parameter(index = 4)
+  private ParquetReaderType parquetReaderType;
+
+  @Parameters(
+      name =
+          "fileFormat = {0}, formatVersion = {1}, vectorized = {2}, planningMode = {3}, parquetReaderType = {4}")
   public static Object[][] parameters() {
     return new Object[][] {
-      new Object[] {FileFormat.PARQUET, 2, false, PlanningMode.DISTRIBUTED},
-      new Object[] {FileFormat.PARQUET, 2, true, PlanningMode.LOCAL},
-      new Object[] {FileFormat.ORC, 2, false, PlanningMode.DISTRIBUTED},
-      new Object[] {FileFormat.AVRO, 2, false, PlanningMode.LOCAL},
-      new Object[] {FileFormat.PARQUET, 3, false, PlanningMode.DISTRIBUTED},
-      new Object[] {FileFormat.PARQUET, 3, true, PlanningMode.LOCAL},
+      new Object[] {
+        FileFormat.PARQUET, 2, false, PlanningMode.DISTRIBUTED, ParquetReaderType.ICEBERG
+      },
+      new Object[] {FileFormat.PARQUET, 2, true, PlanningMode.LOCAL, ParquetReaderType.ICEBERG},
+      new Object[] {FileFormat.PARQUET, 2, true, PlanningMode.LOCAL, ParquetReaderType.COMET},
+      new Object[] {FileFormat.ORC, 2, false, PlanningMode.DISTRIBUTED, ParquetReaderType.ICEBERG},
+      new Object[] {FileFormat.AVRO, 2, false, PlanningMode.LOCAL, ParquetReaderType.ICEBERG},
+      new Object[] {
+        FileFormat.PARQUET, 3, false, PlanningMode.DISTRIBUTED, ParquetReaderType.ICEBERG
+      },
+      new Object[] {FileFormat.PARQUET, 3, true, PlanningMode.LOCAL, ParquetReaderType.ICEBERG},
+      new Object[] {FileFormat.PARQUET, 3, true, PlanningMode.LOCAL, ParquetReaderType.COMET},
     };
   }
 
@@ -195,6 +207,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         table.updateProperties().set(batchSize, "4").commit();
       }
     }
+
+    spark.conf().set(SparkSQLProperties.PARQUET_READER_TYPE, parquetReaderType.name());
     return table;
   }
 

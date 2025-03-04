@@ -56,6 +56,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.ParquetReaderType;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -87,19 +89,22 @@ public class TestSparkMetadataColumns extends TestBase {
           .addField("zero", 1, "id_zero")
           .build();
 
-  @Parameters(name = "fileFormat = {0}, vectorized = {1}, formatVersion = {2}")
+  @Parameters(
+      name = "fileFormat = {0}, vectorized = {1}, formatVersion = {2}, parquetReaderType = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {FileFormat.PARQUET, false, 1},
-      {FileFormat.PARQUET, true, 1},
-      {FileFormat.PARQUET, false, 2},
-      {FileFormat.PARQUET, true, 2},
-      {FileFormat.AVRO, false, 1},
-      {FileFormat.AVRO, false, 2},
-      {FileFormat.ORC, false, 1},
-      {FileFormat.ORC, true, 1},
-      {FileFormat.ORC, false, 2},
-      {FileFormat.ORC, true, 2},
+      {FileFormat.PARQUET, false, 1, ParquetReaderType.ICEBERG},
+      {FileFormat.PARQUET, true, 1, ParquetReaderType.ICEBERG},
+      {FileFormat.PARQUET, true, 1, ParquetReaderType.COMET},
+      {FileFormat.PARQUET, false, 2, ParquetReaderType.ICEBERG},
+      {FileFormat.PARQUET, true, 2, ParquetReaderType.ICEBERG},
+      {FileFormat.PARQUET, true, 2, ParquetReaderType.COMET},
+      {FileFormat.AVRO, false, 1, ParquetReaderType.ICEBERG},
+      {FileFormat.AVRO, false, 2, ParquetReaderType.ICEBERG},
+      {FileFormat.ORC, false, 1, ParquetReaderType.ICEBERG},
+      {FileFormat.ORC, true, 1, ParquetReaderType.ICEBERG},
+      {FileFormat.ORC, false, 2, ParquetReaderType.ICEBERG},
+      {FileFormat.ORC, true, 2, ParquetReaderType.ICEBERG},
     };
   }
 
@@ -113,6 +118,9 @@ public class TestSparkMetadataColumns extends TestBase {
 
   @Parameter(index = 2)
   private int formatVersion;
+
+  @Parameter(index = 3)
+  private ParquetReaderType parquetReaderType;
 
   private Table table = null;
 
@@ -335,5 +343,7 @@ public class TestSparkMetadataColumns extends TestBase {
             SCHEMA,
             SPEC,
             properties);
+
+    spark.conf().set(SparkSQLProperties.PARQUET_READER_TYPE, parquetReaderType.name());
   }
 }

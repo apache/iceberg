@@ -35,6 +35,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.spark.ParquetReaderType;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
@@ -43,8 +45,13 @@ public class TestParquetScan extends ScanTestBase {
     return false;
   }
 
+  protected ParquetReaderType parquetReaderType() {
+    return ParquetReaderType.ICEBERG;
+  }
+
   @Override
   protected void configureTable(Table table) {
+    spark.conf().set(SparkSQLProperties.PARQUET_READER_TYPE, parquetReaderType().name());
     table
         .updateProperties()
         .set(TableProperties.PARQUET_VECTORIZATION_ENABLED, String.valueOf(vectorized()))
