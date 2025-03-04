@@ -46,6 +46,15 @@ class AvroTestHelpers {
     return Schema.createRecord(name, null, null, false, Arrays.asList(fields));
   }
 
+  static Schema variant(String name) {
+    Schema schema =
+        record(
+            name,
+            new Schema.Field("metadata", Schema.create(Schema.Type.BYTES), null, null),
+            new Schema.Field("value", Schema.create(Schema.Type.BYTES), null, null));
+    return VariantLogicalType.get().addToSchema(schema);
+  }
+
   static Schema.Field addId(int id, Schema.Field field) {
     field.addProp(AvroSchemaUtil.FIELD_ID_PROP, id);
     return field;
