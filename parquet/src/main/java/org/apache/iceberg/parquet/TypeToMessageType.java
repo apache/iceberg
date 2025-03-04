@@ -68,7 +68,7 @@ public class TypeToMessageType {
     this.variantShreddingFunc = null;
   }
 
-  public TypeToMessageType(BiFunction<Integer, String, Type> variantShreddingFunc) {
+  TypeToMessageType(BiFunction<Integer, String, Type> variantShreddingFunc) {
     this.variantShreddingFunc = variantShreddingFunc;
   }
 

@@ -194,6 +194,14 @@ public class Parquet {
       return this;
     }
 
+    /**
+     * Set a {@link BiFunction} that is called with each variant field's name and field ID to
+     * produce the shredding type as a {@code typed_value} field. This field is added to the result
+     * variant struct alongside the {@code metadata} and {@code value} fields.
+     *
+     * @param func {@link BiFunction} that produces a shredded {@code typed_value}
+     * @return this for method chaining
+     */
     public WriteBuilder variantShreddingFunc(BiFunction<Integer, String, Type> func) {
       this.variantShreddingFunc = func;
       return this;
