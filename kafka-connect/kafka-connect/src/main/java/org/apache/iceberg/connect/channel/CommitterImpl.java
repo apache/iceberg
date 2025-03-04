@@ -113,9 +113,7 @@ public class CommitterImpl implements Committer {
   @Override
   public void stop(Collection<TopicPartition> closedPartitions) {
     stopWorker();
-    Set<TopicPartition> currentOwnedPartitions = Sets.newHashSet(context.assignment());
-    currentOwnedPartitions.removeAll(closedPartitions);
-    KafkaUtils.seekToLastCommittedOffsetsForCurrentlyOwnedPartitions(context, currentOwnedPartitions);
+    KafkaUtils.seekToLastCommittedOffsetsForCurrentlyOwnedPartitions(context);
     if (hasLeaderPartitions(closedPartitions)) {
       LOG.info("Committer lost leader partition. Stopping Coordinator.");
       stopCoordinator();

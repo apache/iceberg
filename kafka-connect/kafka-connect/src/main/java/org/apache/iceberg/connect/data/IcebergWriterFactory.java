@@ -129,7 +129,7 @@ class IcebergWriterFactory {
       Namespace namespace = Namespace.of(Arrays.copyOfRange(levels, 0, index + 1));
       try {
         ((SupportsNamespaces) catalog).createNamespace(namespace);
-      } catch (AlreadyExistsException | ForbiddenException ex) {
+      } catch (Exception ex) {
         // Ignoring the error as forcefully creating the namespace even if it exists
         // to avoid double namespaceExists() check.
       }

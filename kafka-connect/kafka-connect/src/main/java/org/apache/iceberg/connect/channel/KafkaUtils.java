@@ -58,13 +58,13 @@ class KafkaUtils {
     return kafkaConsumer(context).groupMetadata();
   }
 
-  static void seekToLastCommittedOffsetsForCurrentlyOwnedPartitions(SinkTaskContext context, Set<TopicPartition> currentOwnedPartitions) {
+  static void seekToLastCommittedOffsetsForCurrentlyOwnedPartitions(SinkTaskContext context) {
     Consumer<byte[], byte[]> consumer = kafkaConsumer(context);
-    if (consumer == null || currentOwnedPartitions == null || currentOwnedPartitions.isEmpty()) {
+    if (consumer == null) {
       return;
     }
 
-    Map<TopicPartition, OffsetAndMetadata> committedOffsets = consumer.committed(currentOwnedPartitions);
+    Map<TopicPartition, OffsetAndMetadata> committedOffsets = consumer.committed(consumer.assignment());
     if (committedOffsets == null || committedOffsets.isEmpty()) {
       return;
     }
