@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.connect.channel;
 
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -26,6 +28,8 @@ import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.DescribeConsumerGroupsResult;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerGroupMetadata;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 
@@ -48,6 +52,25 @@ class KafkaUtils {
 
   static ConsumerGroupMetadata consumerGroupMetadata(SinkTaskContext context) {
     return kafkaConsumer(context).groupMetadata();
+  }
+
+  static void seekToLastCommittedOffsetsForCurrentlyOwnedPartitions(SinkTaskContext context, Set<TopicPartition> currentOwnedPartitions) {
+    Consumer<byte[], byte[]> consumerForThisTask = kafkaConsumer(context);
+    Map<TopicPartition, OffsetAndMetadata> committedOffsets = consumerForThisTask.committed(currentOwnedPartitions);
+    if(null != committedOffsets && !committedOffsets.isEmpty()) {
+      committedOffsets.forEach(((topicPartition, offsetAndMetadata) -> {
+        if(null != offsetAndMetadata) {
+          try {
+            consumerForThisTask.seek(topicPartition, offsetAndMetadata.offset());
+          } catch (IllegalStateException illegalStateException) {
+            /*
+            This can happen that during syncing offsets a re-balance happens at the consumer level and it lost some of the partitions
+            but that will be assigned to some other task and it will poll only from the last committed offset.
+             */
+          }
+        }
+      }));
+    }
   }
 
   @SuppressWarnings("unchecked")

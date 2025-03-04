@@ -20,9 +20,7 @@ package org.apache.iceberg.connect.channel;
 
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.Committer;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -30,8 +28,6 @@ import org.apache.iceberg.connect.data.SinkWriter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
-import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsOptions;
-import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsResult;
 import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.common.ConsumerGroupState;
 import org.apache.kafka.common.TopicPartition;
@@ -40,8 +36,7 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static java.util.stream.Collectors.toMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 public class CommitterImpl implements Committer {
 
@@ -104,9 +99,8 @@ public class CommitterImpl implements Committer {
 
   @Override
   public void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context, Collection<TopicPartition> addedPartitions) {
-    syncLastCommittedOffsets();
     if (hasLeaderPartitions(addedPartitions)) {
-      LOG.info("committer received leader partitions, starting coordinator.");
+      LOG.info("Committer received leader partition. Starting Coordinator.");
       startCoordinator();
     }
   }
@@ -119,8 +113,11 @@ public class CommitterImpl implements Committer {
   @Override
   public void stop(Collection<TopicPartition> closedPartitions) {
     stopWorker();
+    Set<TopicPartition> currentOwnedPartitions = Sets.newHashSet(context.assignment());
+    currentOwnedPartitions.removeAll(closedPartitions);
+    KafkaUtils.seekToLastCommittedOffsetsForCurrentlyOwnedPartitions(context, currentOwnedPartitions);
     if (hasLeaderPartitions(closedPartitions)) {
-      LOG.info("Committer lost leader partitions. Stopping Coordinator.");
+      LOG.info("Committer lost leader partition. Stopping Coordinator.");
       stopCoordinator();
     }
   }
@@ -132,23 +129,6 @@ public class CommitterImpl implements Committer {
       worker.save(sinkRecords);
     }
     processControlEvents();
-  }
-
-
-  public void syncLastCommittedOffsets() {
-    Map<TopicPartition, Long> stableConsumerOffsets;
-    try (Admin admin = clientFactory.createAdmin()) {
-      ListConsumerGroupOffsetsResult response =
-              admin.listConsumerGroupOffsets(
-                      config.connectGroupId(), new ListConsumerGroupOffsetsOptions().requireStable(true));
-      stableConsumerOffsets =
-              response.partitionsToOffsetAndMetadata().get().entrySet().stream()
-                      .filter(entry -> context.assignment().contains(entry.getKey()))
-                      .collect(toMap(Map.Entry::getKey, entry -> entry.getValue().offset()));
-    } catch (InterruptedException | ExecutionException e) {
-      throw new ConnectException(e);
-    }
-    context.offset(stableConsumerOffsets);
   }
 
   @VisibleForTesting
