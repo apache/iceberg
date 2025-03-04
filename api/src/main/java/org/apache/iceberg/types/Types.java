@@ -453,7 +453,7 @@ public class Types {
     }
 
     Object writeReplace() throws ObjectStreamException {
-      return new PrimitiveHolder(toString());
+      return new PrimitiveLikeHolder(toString());
     }
 
     @Override
