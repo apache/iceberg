@@ -36,8 +36,12 @@ import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.connect.events.TopicPartitionOffset;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class Worker extends Channel {
+
+  private static final Logger LOG = LoggerFactory.getLogger(Worker.class);
 
   private final IcebergSinkConfig config;
   private final SinkTaskContext context;
@@ -51,7 +55,7 @@ class Worker extends Channel {
     // pass transient consumer group ID to which we never commit offsets
     super(
         "worker",
-        config.controlGroupIdPrefix() + UUID.randomUUID(),
+        config.controlGroupIdPrefix() + config.connectorName() + "-" + UUID.randomUUID(),
         config,
         clientFactory,
         context);
@@ -72,6 +76,8 @@ class Worker extends Channel {
       return false;
     }
 
+    LOG.debug("Handling START_COMMIT by the worker for groupID: {}", event.groupId());
+
     SinkWriterResult results = sinkWriter.completeWrite();
 
     // include all assigned topic partitions even if no messages were read
@@ -84,6 +90,16 @@ class Worker extends Channel {
                   Offset offset = results.sourceOffsets().get(tp);
                   if (offset == null) {
                     offset = Offset.NULL_OFFSET;
+                    LOG.debug(
+                        "SinkWriter result for topic partition {}-{} is null",
+                        tp.topic(),
+                        tp.partition());
+                  } else {
+                    LOG.debug(
+                        "SinkWriter result for topic partition {}-{} is {}",
+                        tp.topic(),
+                        tp.partition(),
+                        offset.offset());
                   }
                   return new TopicPartitionOffset(
                       tp.topic(), tp.partition(), offset.offset(), offset.timestamp());
