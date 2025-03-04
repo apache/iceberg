@@ -564,8 +564,6 @@ public class Types {
 
   public static class GeometryType extends PrimitiveType {
 
-    public static final String DEFAULT_CRS = "OGC:CRS84";
-
     private final String crs;
 
     private GeometryType(String crs) {
@@ -573,11 +571,11 @@ public class Types {
     }
 
     public static GeometryType get() {
-      return of(DEFAULT_CRS);
+      return of("");
     }
 
     public static GeometryType of(String crs) {
-      return new GeometryType(crs == null ? DEFAULT_CRS : crs);
+      return new GeometryType(crs == null ? "" : crs);
     }
 
     @Override
@@ -614,7 +612,6 @@ public class Types {
 
   public static class GeographyType extends PrimitiveType {
 
-    public static final String DEFAULT_CRS = "OGC:CRS84";
     public static final Geography.EdgeInterpolationAlgorithm DEFAULT_ALGORITHM =
         Geography.EdgeInterpolationAlgorithm.SPHERICAL;
 
@@ -627,7 +624,7 @@ public class Types {
     }
 
     public static GeographyType get() {
-      return of(DEFAULT_CRS);
+      return of("");
     }
 
     public static GeographyType of(String crs) {
@@ -643,7 +640,7 @@ public class Types {
           (algorithmName == null
               ? DEFAULT_ALGORITHM
               : Geography.EdgeInterpolationAlgorithm.fromName(algorithmName));
-      return new GeographyType(crs == null ? DEFAULT_CRS : crs, algorithm);
+      return new GeographyType(crs == null ? "" : crs, algorithm);
     }
 
     @Override

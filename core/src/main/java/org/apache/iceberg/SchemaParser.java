@@ -147,13 +147,19 @@ public class SchemaParser {
       Types.GeometryType geometryType = (Types.GeometryType) primitive;
       generator.writeStartObject();
       generator.writeStringField("type", "geometry");
-      generator.writeStringField("crs", geometryType.crs());
+      String crs = geometryType.crs();
+      if (!crs.isEmpty()) {
+        generator.writeStringField("crs", geometryType.crs());
+      }
       generator.writeEndObject();
     } else if (primitive.typeId() == Type.TypeID.GEOGRAPHY) {
       Types.GeographyType geographyType = (Types.GeographyType) primitive;
       generator.writeStartObject();
       generator.writeStringField("type", "geography");
-      generator.writeStringField("crs", geographyType.crs());
+      String crs = geographyType.crs();
+      if (!crs.isEmpty()) {
+        generator.writeStringField("crs", geographyType.crs());
+      }
       generator.writeStringField("algorithm", geographyType.algorithm().name());
       generator.writeEndObject();
     } else {
@@ -162,7 +168,9 @@ public class SchemaParser {
   }
 
   static void toJson(Type type, JsonGenerator generator) throws IOException {
-    if (type.isPrimitiveType() || type.isVariantType()) {
+    if (type.isPrimitiveType()) {
+      toJson(type.asPrimitiveType(), generator);
+    } else if (type.isVariantType()) {
       generator.writeString(type.toString());
     } else {
       Type.NestedType nested = type.asNestedType();

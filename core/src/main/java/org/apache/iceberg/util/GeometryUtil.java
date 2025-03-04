@@ -57,7 +57,7 @@ public class GeometryUtil {
     }
   }
 
-  public static int getOutputDimension(Geometry geom) {
+  private static int getOutputDimension(Geometry geom) {
     int dimension = 2;
     Coordinate coordinate = geom.getCoordinate();
 

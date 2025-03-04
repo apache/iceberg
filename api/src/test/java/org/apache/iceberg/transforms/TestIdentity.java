@@ -183,4 +183,32 @@ public class TestIdentity {
 
     assertThat(Transforms.identity().canTransform(Types.VariantType.get())).isFalse();
   }
+
+  @Test
+  public void testGeometryUnsupported() {
+    assertThatThrownBy(() -> Transforms.identity().bind(Types.GeometryType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot bind to unsupported type: geometry");
+    assertThatThrownBy(() -> Transforms.fromString(Types.GeometryType.get(), "identity"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unsupported type for identity: geometry");
+    assertThatThrownBy(() -> Transforms.identity(Types.GeometryType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unsupported type for identity: geometry");
+    assertThat(Transforms.identity().canTransform(Types.GeometryType.get())).isFalse();
+  }
+
+  @Test
+  public void testGeographyUnsupported() {
+    assertThatThrownBy(() -> Transforms.identity().bind(Types.GeographyType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot bind to unsupported type: geography");
+    assertThatThrownBy(() -> Transforms.fromString(Types.GeographyType.get(), "identity"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unsupported type for identity: geography");
+    assertThatThrownBy(() -> Transforms.identity(Types.GeographyType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unsupported type for identity: geography");
+    assertThat(Transforms.identity().canTransform(Types.GeographyType.get())).isFalse();
+  }
 }

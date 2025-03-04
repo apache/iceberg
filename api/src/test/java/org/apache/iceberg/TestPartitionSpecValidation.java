@@ -37,7 +37,9 @@ public class TestPartitionSpecValidation {
           NestedField.required(5, "another_d", Types.TimestampType.withZone()),
           NestedField.required(6, "s", Types.StringType.get()),
           NestedField.required(7, "v", Types.VariantType.get()),
-          NestedField.optional(8, "u", Types.UnknownType.get()));
+          NestedField.required(8, "geom", Types.GeometryType.get()),
+          NestedField.required(9, "geog", Types.GeographyType.get()),
+          NestedField.optional(10, "u", Types.UnknownType.get()));
 
   @Test
   public void testMultipleTimestampPartitions() {
@@ -328,11 +330,33 @@ public class TestPartitionSpecValidation {
   }
 
   @Test
+  public void testGeometryUnsupported() {
+    assertThatThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA)
+                    .add(8, 1005, "geom_partition1", Transforms.bucket(5))
+                    .build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageMatching("Invalid source type geometry.* for transform: bucket.*");
+  }
+
+  @Test
+  public void testGeographyUnsupported() {
+    assertThatThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA)
+                    .add(9, 1005, "geog_partition1", Transforms.bucket(5))
+                    .build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageMatching("Invalid source type geography.* for transform: bucket.*");
+  }
+
+  @Test
   public void testUnknownUnsupported() {
     assertThatThrownBy(
             () ->
                 PartitionSpec.builderFor(SCHEMA)
-                    .add(8, 1005, "unknown_partition1", Transforms.bucket(5))
+                    .add(10, 1005, "unknown_partition1", Transforms.bucket(5))
                     .build())
         .isInstanceOf(ValidationException.class)
         .hasMessage("Invalid source type unknown for transform: bucket[5]");

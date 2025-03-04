@@ -539,6 +539,8 @@ public class TypeUtil {
         return ((Types.FixedType) type).length();
       case BINARY:
       case VARIANT:
+      case GEOMETRY:
+      case GEOGRAPHY:
         return 80;
       case UNKNOWN:
         // Consider Unknown as null
