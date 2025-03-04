@@ -105,7 +105,6 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
             ? tableCache.schema(data.tableIdentifier(), data.schema())
             : TableDataCache.NOT_FOUND;
 
-    adjustPartitionSpecToTableSchema(foundSchema.f0, data);
     PartitionSpec foundSpec = exists ? tableCache.spec(data.tableIdentifier(), data.spec()) : null;
 
     if (!exists
@@ -138,14 +137,6 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
       }
     } else {
       emit(collector, data, foundSchema.f0, foundSchema.f1, foundSpec);
-    }
-  }
-
-  private static void adjustPartitionSpecToTableSchema(Schema schema, DynamicRecord data) {
-    if (schema != null) {
-      PartitionSpec adjustedSpec =
-          PartitionSpecAdjustment.adjustPartitionSpecToTableSchema(schema, data.spec());
-      data.setSpec(adjustedSpec);
     }
   }
 

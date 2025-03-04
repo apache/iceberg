@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import java.util.List;
-import java.util.Objects;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -30,29 +29,28 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /** Checks compatibility of PartitionSpecs and evolves one into the other. */
-public class PartitionSpecEvolver {
+public class PartitionSpecEvolution {
 
-  private PartitionSpecEvolver() {}
+  private PartitionSpecEvolution() {}
 
   /**
    * Checks whether two PartitionSpecs are compatible with each other. Less strict than {@code
    * PartitionSpec#compatible} in the sense that it tolerates differently named partition fields, as
-   * long as their transforms and source ids match.
+   * long as their transforms and field names corresponding to their source ids match.
    */
-  public static boolean checkCompatibility(PartitionSpec first, PartitionSpec second) {
-    if (first.equals(second)) {
+  public static boolean checkCompatibility(PartitionSpec spec1, PartitionSpec spec2) {
+    if (spec1.equals(spec2)) {
       return true;
     }
 
-    if (first.fields().size() != second.fields().size()) {
+    if (spec1.fields().size() != spec2.fields().size()) {
       return false;
     }
 
-    for (int i = 0; i < first.fields().size(); i++) {
-      PartitionField firstField = first.fields().get(i);
-      PartitionField secondField = second.fields().get(i);
-      if (firstField.sourceId() != secondField.sourceId()
-          || !firstField.transform().toString().equals(secondField.transform().toString())) {
+    for (int i = 0; i < spec1.fields().size(); i++) {
+      PartitionField field1 = spec1.fields().get(i);
+      PartitionField field2 = spec2.fields().get(i);
+      if (!specFieldsAreCompatible(field1, spec1.schema(), field2, spec2.schema())) {
         return false;
       }
     }
@@ -60,26 +58,27 @@ public class PartitionSpecEvolver {
     return true;
   }
 
-  public static PartitionSpecEvolverResult evolve(
-      PartitionSpec currentSpec, PartitionSpec targetSpec, Schema schema) {
+  static PartitionSpecChanges evolve(PartitionSpec currentSpec, PartitionSpec targetSpec) {
     if (currentSpec.compatibleWith(targetSpec)) {
-      return new PartitionSpecEvolverResult();
+      return new PartitionSpecChanges();
     }
 
-    PartitionSpecEvolverResult result = new PartitionSpecEvolverResult();
+    PartitionSpecChanges result = new PartitionSpecChanges();
 
     int maxNumFields = Math.max(currentSpec.fields().size(), targetSpec.fields().size());
     for (int i = 0; i < maxNumFields; i++) {
       PartitionField currentField = Iterables.get(currentSpec.fields(), i, null);
       PartitionField targetField = Iterables.get(targetSpec.fields(), i, null);
 
-      if (!Objects.equals(currentField, targetField)) {
+      if (!specFieldsAreCompatible(
+          currentField, currentSpec.schema(), targetField, targetSpec.schema())) {
+
         if (currentField != null) {
-          result.remove(toTerm(currentField, schema));
+          result.remove(toTerm(currentField, currentSpec.schema()));
         }
 
         if (targetField != null) {
-          result.add(toTerm(targetField, schema));
+          result.add(toTerm(targetField, targetSpec.schema()));
         }
       }
     }
@@ -87,7 +86,7 @@ public class PartitionSpecEvolver {
     return result;
   }
 
-  public static class PartitionSpecEvolverResult {
+  static class PartitionSpecChanges {
     private final List<Term> termsToAdd = Lists.newArrayList();
     private final List<Term> termsToRemove = Lists.newArrayList();
 
@@ -110,10 +109,31 @@ public class PartitionSpecEvolver {
     public boolean isEmpty() {
       return termsToAdd.isEmpty() && termsToRemove.isEmpty();
     }
+
+    @Override
+    public String toString() {
+      return "PartitionSpecChanges{"
+          + "termsToAdd="
+          + termsToAdd
+          + ", termsToRemove="
+          + termsToRemove
+          + '}';
+    }
   }
 
   private static Term toTerm(PartitionField field, Schema schema) {
-    String sourceName = schema.findField(field.sourceId()).name();
+    String sourceName = schema.idToName().get(field.sourceId());
     return new UnboundTransform<>(new NamedReference<>(sourceName), field.transform());
+  }
+
+  private static boolean specFieldsAreCompatible(
+      PartitionField field1, Schema schemaField1, PartitionField field2, Schema schemaField2) {
+    if (field1 == null || field2 == null) {
+      return false;
+    }
+    String firstFieldSourceName = schemaField1.idToName().get(field1.sourceId());
+    String secondFieldSourceName = schemaField2.idToName().get(field2.sourceId());
+    return firstFieldSourceName.equals(secondFieldSourceName)
+        && field1.transform().toString().equals(field2.transform().toString());
   }
 }

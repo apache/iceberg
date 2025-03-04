@@ -146,7 +146,7 @@ class TableDataCache {
     CacheItem cached = cache.getIfPresent(identifier);
     if (cached != null && cached.tableExists) {
       for (PartitionSpec tableSpec : cached.specs.values()) {
-        if (PartitionSpecEvolver.checkCompatibility(tableSpec, spec)) {
+        if (PartitionSpecEvolution.checkCompatibility(tableSpec, spec)) {
           return tableSpec;
         }
       }

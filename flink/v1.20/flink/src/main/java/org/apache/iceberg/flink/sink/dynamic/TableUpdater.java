@@ -58,9 +58,7 @@ class TableUpdater {
     findOrCreateBranch(tableIdentifier, branch);
     Tuple2<Schema, CompareSchemasVisitor.Result> newSchema =
         findOrCreateSchema(tableIdentifier, schema);
-    PartitionSpec adjustedSpec =
-        PartitionSpecAdjustment.adjustPartitionSpecToTableSchema(newSchema.f0, spec);
-    PartitionSpec newSpec = findOrCreateSpec(tableIdentifier, adjustedSpec, newSchema.f0);
+    PartitionSpec newSpec = findOrCreateSpec(tableIdentifier, spec);
     return Tuple3.of(newSchema.f0, newSchema.f1, newSpec);
   }
 
@@ -156,8 +154,7 @@ class TableUpdater {
     }
   }
 
-  private PartitionSpec findOrCreateSpec(
-      TableIdentifier identifier, PartitionSpec targetSpec, Schema newSchema) {
+  private PartitionSpec findOrCreateSpec(TableIdentifier identifier, PartitionSpec targetSpec) {
     PartitionSpec currentSpec = cache.spec(identifier, targetSpec);
     if (currentSpec != null) {
       return currentSpec;
@@ -166,8 +163,8 @@ class TableUpdater {
     Table table = catalog.loadTable(identifier);
     currentSpec = table.spec();
 
-    PartitionSpecEvolver.PartitionSpecEvolverResult result =
-        PartitionSpecEvolver.evolve(currentSpec, targetSpec, newSchema);
+    PartitionSpecEvolution.PartitionSpecChanges result =
+        PartitionSpecEvolution.evolve(currentSpec, targetSpec);
     if (result.isEmpty()) {
       LOG.info("Returning equivalent existing spec {} for {}", currentSpec, targetSpec);
       return currentSpec;
@@ -192,8 +189,7 @@ class TableUpdater {
           targetSpec,
           e);
       PartitionSpec newSpec = cache.spec(identifier, targetSpec);
-      Schema maybeUpdatedSchema = cache.schema(identifier, newSchema).f0;
-      result = PartitionSpecEvolver.evolve(targetSpec, newSpec, maybeUpdatedSchema);
+      result = PartitionSpecEvolution.evolve(targetSpec, newSpec);
       if (result.isEmpty()) {
         LOG.info("Table {} partition spec updated concurrently to {}", identifier, newSpec);
         return newSpec;
