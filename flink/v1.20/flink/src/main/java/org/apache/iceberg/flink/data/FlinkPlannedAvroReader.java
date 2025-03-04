@@ -142,6 +142,9 @@ public class FlinkPlannedAvroReader implements DatumReader<RowData>, SupportsRow
           case "timestamp-micros":
             return FlinkValueReaders.timestampMicros();
 
+          case "timestamp-nanos":
+            return FlinkValueReaders.timestampNanos();
+
           case "decimal":
             LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
             return FlinkValueReaders.decimal(

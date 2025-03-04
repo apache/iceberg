@@ -47,6 +47,8 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Type.TypeID;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
@@ -54,6 +56,7 @@ import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
+import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 public class TestFlinkParquetReader extends DataTest {
@@ -206,6 +209,10 @@ public class TestFlinkParquetReader extends DataTest {
 
   private void writeAndValidate(
       Iterable<Record> iterable, Schema writeSchema, Schema expectedSchema) throws IOException {
+    Assumptions.assumeThat(
+            TypeUtil.find(writeSchema, type -> type.typeId() == TypeID.TIMESTAMP_NANO))
+        .as("timestamp_ns is not yet implemented")
+        .isNull();
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).isTrue();
 

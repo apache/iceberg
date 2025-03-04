@@ -20,12 +20,17 @@ package org.apache.iceberg.flink;
 
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.NullType;
 
 public class FlinkRowData {
 
   private FlinkRowData() {}
 
   public static RowData.FieldGetter createFieldGetter(LogicalType fieldType, int fieldPos) {
+    if (fieldType instanceof NullType) {
+      return rowData -> null;
+    }
+
     RowData.FieldGetter flinkFieldGetter = RowData.createFieldGetter(fieldType, fieldPos);
     return rowData -> {
       // Be sure to check for null values, even if the field is required. Flink
