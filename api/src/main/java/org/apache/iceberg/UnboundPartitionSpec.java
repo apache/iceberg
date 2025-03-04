@@ -71,11 +71,11 @@ public class UnboundPartitionSpec {
     return builder;
   }
 
-  public static Builder builder() {
+  static Builder builder() {
     return new Builder();
   }
 
-  public static class Builder {
+  static class Builder {
     private final List<UnboundPartitionField> fields;
     private int specId = 0;
 
@@ -83,12 +83,12 @@ public class UnboundPartitionSpec {
       this.fields = Lists.newArrayList();
     }
 
-    public Builder withSpecId(int newSpecId) {
+    Builder withSpecId(int newSpecId) {
       this.specId = newSpecId;
       return this;
     }
 
-    public Builder addField(String transformAsString, int sourceId, int partitionId, String name) {
+    Builder addField(String transformAsString, int sourceId, int partitionId, String name) {
       fields.add(new UnboundPartitionField(transformAsString, sourceId, partitionId, name));
       return this;
     }
@@ -98,12 +98,12 @@ public class UnboundPartitionSpec {
       return this;
     }
 
-    public UnboundPartitionSpec build() {
+    UnboundPartitionSpec build() {
       return new UnboundPartitionSpec(specId, fields);
     }
   }
 
-  public static class UnboundPartitionField {
+  static class UnboundPartitionField {
     private final Transform<?, ?> transform;
     private final int sourceId;
     private final Integer partitionId;
