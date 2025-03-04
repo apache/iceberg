@@ -38,6 +38,16 @@ public class TestInternalAvro extends DataTest {
   }
 
   @Override
+  protected boolean supportsUnknown() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsTimestampNanos() {
+    return true;
+  }
+
+  @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomInternalData.generate(schema, 100, 42L);
     writeAndValidate(schema, expected);

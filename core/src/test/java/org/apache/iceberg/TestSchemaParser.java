@@ -41,6 +41,21 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestSchemaParser extends DataTest {
   @Override
+  protected boolean supportsUnknown() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsTimestampNanos() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsVariant() {
+    return true;
+  }
+
+  @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     Schema serialized = SchemaParser.fromJson(SchemaParser.toJson(schema));
     assertThat(serialized.asStruct()).isEqualTo(schema.asStruct());
@@ -126,15 +141,5 @@ public class TestSchemaParser extends DataTest {
         .isEqualTo(defaultValue.value());
     assertThat(serialized.findField("col_with_default").writeDefault())
         .isEqualTo(defaultValue.value());
-  }
-
-  @Test
-  public void testVariantType() throws IOException {
-    Schema schema =
-        new Schema(
-            Types.NestedField.required(1, "id", Types.IntegerType.get()),
-            Types.NestedField.optional(2, "data", Types.VariantType.get()));
-
-    writeAndValidate(schema);
   }
 }

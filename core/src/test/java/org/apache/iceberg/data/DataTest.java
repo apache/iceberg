@@ -114,11 +114,40 @@ public abstract class DataTest {
         Types.DecimalType.of(9, 0),
         Types.DecimalType.of(11, 2),
         Types.DecimalType.of(38, 10),
+        Types.VariantType.get(),
       };
+
+  protected boolean supportsUnknown() {
+    return false;
+  }
+
+  protected boolean supportsTimestampNanos() {
+    return false;
+  }
+
+  protected boolean supportsVariant() {
+    return false;
+  }
 
   @ParameterizedTest
   @FieldSource("SIMPLE_TYPES")
   public void testTypeSchema(Type type) throws IOException {
+    Assumptions.assumeThat(
+            supportsUnknown()
+                || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.UNKNOWN) == null)
+        .as("unknown is not yet implemented")
+        .isTrue();
+    Assumptions.assumeThat(
+            supportsTimestampNanos()
+                || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.TIMESTAMP_NANO) == null)
+        .as("timestamp_ns is not yet implemented")
+        .isTrue();
+    Assumptions.assumeThat(
+            supportsVariant()
+                || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.VARIANT) == null)
+        .as("variant is not yet implemented")
+        .isTrue();
+
     writeAndValidate(new Schema(required(1, "id", LongType.get()), optional(2, "test_type", type)));
   }
 
