@@ -134,11 +134,11 @@ public class CommitterImpl implements Committer {
     // there should only be one task assigned partition 0 of the first topic,
     // so elect that one the leader
     TopicPartition firstTopicPartition =
-            members.stream()
-                    .flatMap(member -> member.assignment().topicPartitions().stream())
-                    .min(new TopicPartitionComparator())
-                    .orElseThrow(
-                            () -> new ConnectException("No partitions assigned, cannot determine leader"));
+        members.stream()
+            .flatMap(member -> member.assignment().topicPartitions().stream())
+            .min(new TopicPartitionComparator())
+            .orElseThrow(
+                () -> new ConnectException("No partitions assigned, cannot determine leader"));
 
     return partitions.contains(firstTopicPartition);
   }
