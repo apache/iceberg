@@ -28,6 +28,8 @@ import static org.apache.iceberg.TableProperties.DEFAULT_PARTITION_SPEC;
 import static org.apache.iceberg.TableProperties.DEFAULT_SORT_ORDER;
 import static org.apache.iceberg.TableProperties.SNAPSHOT_COUNT;
 import static org.apache.iceberg.expressions.Expressions.bucket;
+import static org.apache.iceberg.hive.HiveOperationsBase.HIVE_TABLE_PROPERTY_MAX_SIZE;
+import static org.apache.iceberg.hive.HiveOperationsBase.HIVE_TABLE_PROPERTY_MAX_SIZE_DEFAULT;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
@@ -1028,7 +1030,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     }
     assertThat(JsonUtil.mapper().writeValueAsString(summary).length()).isLessThan(4000);
     Map<String, String> parameters = Maps.newHashMap();
-    ops.setSnapshotSummary(parameters, snapshot);
+    ops.getIcebergTableConverter().setSnapshotSummary(parameters, snapshot);
     assertThat(parameters).as("The snapshot summary must be in parameters").hasSize(1);
 
     // create a snapshot summary whose json string size exceeds the limit
@@ -1039,7 +1041,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     // the limit has been updated to 4000 instead of the default value(32672)
     assertThat(summarySize).isGreaterThan(4000).isLessThan(32672);
     parameters.remove(CURRENT_SNAPSHOT_SUMMARY);
-    ops.setSnapshotSummary(parameters, snapshot);
+    ops.getIcebergTableConverter().setSnapshotSummary(parameters, snapshot);
     assertThat(parameters)
         .as("The snapshot summary must not be in parameters due to the size limit")
         .isEmpty();
@@ -1048,6 +1050,8 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
   @Test
   public void testNotExposeTableProperties() {
     Configuration conf = new Configuration();
+    long maxHiveTablePropertySize =
+        conf.getLong(HIVE_TABLE_PROPERTY_MAX_SIZE, HIVE_TABLE_PROPERTY_MAX_SIZE_DEFAULT);
     conf.set("iceberg.hive.table-property-max-size", "0");
     HiveTableOperations ops =
         new HiveTableOperations(conf, null, null, catalog.name(), DB_NAME, "tbl");
@@ -1060,7 +1064,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     parameters.put(DEFAULT_PARTITION_SPEC, "partitionSpec");
     parameters.put(DEFAULT_SORT_ORDER, "sortOrder");
 
-    ops.setSnapshotStats(metadata, parameters);
+    HMSTablePropertyHelper.setSnapshotStats(metadata, parameters, maxHiveTablePropertySize);
     assertThat(parameters)
         .doesNotContainKey(CURRENT_SNAPSHOT_SUMMARY)
         .doesNotContainKey(CURRENT_SNAPSHOT_ID)
@@ -1069,10 +1073,10 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     ops.setSchema(metadata.schema(), parameters);
     assertThat(parameters).doesNotContainKey(CURRENT_SCHEMA);
 
-    ops.setPartitionSpec(metadata, parameters);
+    HMSTablePropertyHelper.setSortOrder(metadata, parameters, maxHiveTablePropertySize);
     assertThat(parameters).doesNotContainKey(DEFAULT_PARTITION_SPEC);
 
-    ops.setSortOrder(metadata, parameters);
+    HMSTablePropertyHelper.setSortOrder(metadata, parameters, maxHiveTablePropertySize);
     assertThat(parameters).doesNotContainKey(DEFAULT_SORT_ORDER);
   }
 
