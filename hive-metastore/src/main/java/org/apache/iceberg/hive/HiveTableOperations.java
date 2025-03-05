@@ -20,12 +20,8 @@ package org.apache.iceberg.hive;
 
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import java.util.Collections;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
@@ -35,14 +31,9 @@ import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Table;
-import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreOperations;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.ClientPool;
-import org.apache.iceberg.PartitionSpecParser;
-import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotSummary;
-import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -55,9 +46,6 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.JsonUtil;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,6 +61,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   private static final String HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES =
       "iceberg.hive.metadata-refresh-max-retries";
   private static final int HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT = 2;
+  private final IcebergTableConverter icebergTableConverter;
   private static final BiMap<String, String> ICEBERG_TO_HMS_TRANSLATION =
       ImmutableBiMap.of(
           // gc.enabled in Iceberg and external.table.purge in Hive are meant to do the same things
@@ -128,6 +117,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
             HIVE_ICEBERG_METADATA_REFRESH_MAX_RETRIES_DEFAULT);
     this.maxHiveTablePropertySize =
         conf.getLong(HIVE_TABLE_PROPERTY_MAX_SIZE, HIVE_TABLE_PROPERTY_MAX_SIZE_DEFAULT);
+    this.icebergTableConverter = new IcebergTableConverter(maxHiveTablePropertySize);
   }
 
   @Override
@@ -230,12 +220,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
                 .collect(Collectors.toSet());
       }
 
-      Map<String, String> summary =
-          Optional.ofNullable(metadata.currentSnapshot())
-              .map(Snapshot::summary)
-              .orElseGet(ImmutableMap::of);
-      setHmsTableParameters(
-          newMetadataLocation, tbl, metadata, removedProps, hiveEngineEnabled, summary);
+      icebergTableConverter.setHmsTableParameters(newMetadataLocation, tbl,
+          metadata, removedProps, hiveEngineEnabled);
+      if (currentMetadataLocation() != null && !currentMetadataLocation().isEmpty()) {
+        tbl.getParameters().put(PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation());
+      }
+
 
       if (!keepHiveStats) {
         tbl.getParameters().remove(StatsSetupConst.COLUMN_STATS_ACCURATE);
@@ -323,126 +313,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     LOG.info(
         "Committed to table {} with the new metadata location {}", fullName, newMetadataLocation);
   }
-
-  private void setHmsTableParameters(
-      String newMetadataLocation,
-      Table tbl,
-      TableMetadata metadata,
-      Set<String> obsoleteProps,
-      boolean hiveEngineEnabled,
-      Map<String, String> summary) {
-    Map<String, String> parameters =
-        Optional.ofNullable(tbl.getParameters()).orElseGet(Maps::newHashMap);
-
-    // push all Iceberg table properties into HMS
-    metadata.properties().entrySet().stream()
-        .filter(entry -> !entry.getKey().equalsIgnoreCase(HiveCatalog.HMS_TABLE_OWNER))
-        .forEach(
-            entry -> {
-              String key = entry.getKey();
-              // translate key names between Iceberg and HMS where needed
-              String hmsKey = ICEBERG_TO_HMS_TRANSLATION.getOrDefault(key, key);
-              parameters.put(hmsKey, entry.getValue());
-            });
-    if (metadata.uuid() != null) {
-      parameters.put(TableProperties.UUID, metadata.uuid());
-    }
-
-    // remove any props from HMS that are no longer present in Iceberg table props
-    obsoleteProps.forEach(parameters::remove);
-
-    parameters.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
-    parameters.put(METADATA_LOCATION_PROP, newMetadataLocation);
-
-    if (currentMetadataLocation() != null && !currentMetadataLocation().isEmpty()) {
-      parameters.put(PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation());
-    }
-
-    // If needed set the 'storage_handler' property to enable query from Hive
-    if (hiveEngineEnabled) {
-      parameters.put(
-          hive_metastoreConstants.META_TABLE_STORAGE,
-          "org.apache.iceberg.mr.hive.HiveIcebergStorageHandler");
-    } else {
-      parameters.remove(hive_metastoreConstants.META_TABLE_STORAGE);
-    }
-
-    // Set the basic statistics
-    if (summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP) != null) {
-      parameters.put(StatsSetupConst.NUM_FILES, summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
-    }
-    if (summary.get(SnapshotSummary.TOTAL_RECORDS_PROP) != null) {
-      parameters.put(StatsSetupConst.ROW_COUNT, summary.get(SnapshotSummary.TOTAL_RECORDS_PROP));
-    }
-    if (summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP) != null) {
-      parameters.put(StatsSetupConst.TOTAL_SIZE, summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
-    }
-
-    setSnapshotStats(metadata, parameters);
-    setSchema(metadata.schema(), parameters);
-    setPartitionSpec(metadata, parameters);
-    setSortOrder(metadata, parameters);
-
-    tbl.setParameters(parameters);
-  }
-
+  
   @VisibleForTesting
-  void setSnapshotStats(TableMetadata metadata, Map<String, String> parameters) {
-    parameters.remove(TableProperties.CURRENT_SNAPSHOT_ID);
-    parameters.remove(TableProperties.CURRENT_SNAPSHOT_TIMESTAMP);
-    parameters.remove(TableProperties.CURRENT_SNAPSHOT_SUMMARY);
-
-    Snapshot currentSnapshot = metadata.currentSnapshot();
-    if (exposeInHmsProperties() && currentSnapshot != null) {
-      parameters.put(
-          TableProperties.CURRENT_SNAPSHOT_ID, String.valueOf(currentSnapshot.snapshotId()));
-      parameters.put(
-          TableProperties.CURRENT_SNAPSHOT_TIMESTAMP,
-          String.valueOf(currentSnapshot.timestampMillis()));
-      setSnapshotSummary(parameters, currentSnapshot);
-    }
-
-    parameters.put(TableProperties.SNAPSHOT_COUNT, String.valueOf(metadata.snapshots().size()));
-  }
-
-  @VisibleForTesting
-  void setSnapshotSummary(Map<String, String> parameters, Snapshot currentSnapshot) {
-    try {
-      String summary = JsonUtil.mapper().writeValueAsString(currentSnapshot.summary());
-      if (summary.length() <= maxHiveTablePropertySize) {
-        parameters.put(TableProperties.CURRENT_SNAPSHOT_SUMMARY, summary);
-      } else {
-        LOG.warn(
-            "Not exposing the current snapshot({}) summary in HMS since it exceeds {} characters",
-            currentSnapshot.snapshotId(),
-            maxHiveTablePropertySize);
-      }
-    } catch (JsonProcessingException e) {
-      LOG.warn(
-          "Failed to convert current snapshot({}) summary to a json string",
-          currentSnapshot.snapshotId(),
-          e);
-    }
-  }
-
-  @VisibleForTesting
-  void setPartitionSpec(TableMetadata metadata, Map<String, String> parameters) {
-    parameters.remove(TableProperties.DEFAULT_PARTITION_SPEC);
-    if (exposeInHmsProperties() && metadata.spec() != null && metadata.spec().isPartitioned()) {
-      String spec = PartitionSpecParser.toJson(metadata.spec());
-      setField(parameters, TableProperties.DEFAULT_PARTITION_SPEC, spec);
-    }
-  }
-
-  @VisibleForTesting
-  void setSortOrder(TableMetadata metadata, Map<String, String> parameters) {
-    parameters.remove(TableProperties.DEFAULT_SORT_ORDER);
-    if (exposeInHmsProperties()
-        && metadata.sortOrder() != null
-        && metadata.sortOrder().isSorted()) {
-      String sortOrder = SortOrderParser.toJson(metadata.sortOrder());
-      setField(parameters, TableProperties.DEFAULT_SORT_ORDER, sortOrder);
-    }
+  IcebergTableConverter getIcebergTableConverter() {
+    return icebergTableConverter;
   }
 
   @Override
