@@ -1014,10 +1014,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
   @Test
   public void testSetSnapshotSummary() throws Exception {
-    Configuration conf = new Configuration();
-    conf.set("iceberg.hive.table-property-max-size", "4000");
-    HiveTableOperations ops =
-        new HiveTableOperations(conf, null, null, catalog.name(), DB_NAME, "tbl");
+    final long maxHiveTablePropertySize = 4000;
     Snapshot snapshot = mock(Snapshot.class);
     Map<String, String> summary = Maps.newHashMap();
     when(snapshot.summary()).thenReturn(summary);
@@ -1028,7 +1025,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     }
     assertThat(JsonUtil.mapper().writeValueAsString(summary).length()).isLessThan(4000);
     Map<String, String> parameters = Maps.newHashMap();
-    ops.setSnapshotSummary(parameters, snapshot);
+    HMSTablePropertyHelper.setSnapshotSummary(parameters, snapshot, maxHiveTablePropertySize);
     assertThat(parameters).as("The snapshot summary must be in parameters").hasSize(1);
 
     // create a snapshot summary whose json string size exceeds the limit
@@ -1039,7 +1036,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     // the limit has been updated to 4000 instead of the default value(32672)
     assertThat(summarySize).isGreaterThan(4000).isLessThan(32672);
     parameters.remove(CURRENT_SNAPSHOT_SUMMARY);
-    ops.setSnapshotSummary(parameters, snapshot);
+    HMSTablePropertyHelper.setSnapshotSummary(parameters, snapshot, maxHiveTablePropertySize);
     assertThat(parameters)
         .as("The snapshot summary must not be in parameters due to the size limit")
         .isEmpty();
@@ -1047,10 +1044,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
   @Test
   public void testNotExposeTableProperties() {
-    Configuration conf = new Configuration();
-    conf.set("iceberg.hive.table-property-max-size", "0");
-    HiveTableOperations ops =
-        new HiveTableOperations(conf, null, null, catalog.name(), DB_NAME, "tbl");
+    final long maxHiveTablePropertySize = 0;
     TableMetadata metadata = mock(TableMetadata.class);
     Map<String, String> parameters = Maps.newHashMap();
     parameters.put(CURRENT_SNAPSHOT_SUMMARY, "summary");
@@ -1060,19 +1054,19 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     parameters.put(DEFAULT_PARTITION_SPEC, "partitionSpec");
     parameters.put(DEFAULT_SORT_ORDER, "sortOrder");
 
-    ops.setSnapshotStats(metadata, parameters);
+    HMSTablePropertyHelper.setSnapshotStats(metadata, parameters, maxHiveTablePropertySize);
     assertThat(parameters)
         .doesNotContainKey(CURRENT_SNAPSHOT_SUMMARY)
         .doesNotContainKey(CURRENT_SNAPSHOT_ID)
         .doesNotContainKey(CURRENT_SNAPSHOT_TIMESTAMP);
 
-    ops.setSchema(metadata.schema(), parameters);
+    HMSTablePropertyHelper.setSchema(metadata.schema(), parameters, maxHiveTablePropertySize);
     assertThat(parameters).doesNotContainKey(CURRENT_SCHEMA);
 
-    ops.setPartitionSpec(metadata, parameters);
+    HMSTablePropertyHelper.setPartitionSpec(metadata, parameters, maxHiveTablePropertySize);
     assertThat(parameters).doesNotContainKey(DEFAULT_PARTITION_SPEC);
 
-    ops.setSortOrder(metadata, parameters);
+    HMSTablePropertyHelper.setSortOrder(metadata, parameters, maxHiveTablePropertySize);
     assertThat(parameters).doesNotContainKey(DEFAULT_SORT_ORDER);
   }
 
