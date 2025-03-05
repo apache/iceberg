@@ -839,7 +839,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
     assertThatThrownBy(
             () ->
                 scalarSql(
-                    "CALL %s.system.add_files(table => '%s', source_table => '%s', partition_filter => map('id', '0','dept', '1'))",
+                    "CALL %s.system.add_files('%s', '%s', map('id', '0','dept', '1'))",
                     catalogName, tableName, sourceTableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot add data files to target table")
@@ -859,13 +859,13 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
     assertThatThrownBy(
             () ->
                 scalarSql(
-                    "CALL %s.system.add_files(table => '%s', source_table => '%s', partition_filter => map('dept', '1'))",
+                    "CALL %s.system.add_files('%s', '%s', map('dept', '1'))",
                     catalogName, tableName, sourceTableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot add files to target table")
         .hasMessageContaining(
-            "specified partition filter refers to columns that are not partitioned: '[%s]'", "dept")
-        .hasMessageContaining("Valid partition columns: '%s'", icebergTablePartitionNames);
+            "specified partition filter refers to columns that are not partitioned: [dept]")
+        .hasMessageContaining("Valid partition columns: [%s]", icebergTablePartitionNames);
   }
 
   @TestTemplate
