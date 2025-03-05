@@ -16,25 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.encryption;
+package org.apache.iceberg;
 
-import java.util.Map;
-import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import java.nio.ByteBuffer;
+import org.apache.iceberg.encryption.EncryptionManager;
 
-public class EncryptionTestHelpers {
+public interface ManifestListFile {
 
-  private EncryptionTestHelpers() {}
+  /** Location of manifest list file. */
+  String location();
 
-  public static EncryptionManager createEncryptionManager() {
-    Map<String, String> catalogProperties = Maps.newHashMap();
-    catalogProperties.put(
-        CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getCanonicalName());
+  /** Snapshot ID of the manifest list. */
+  long snapshotId();
 
-    return EncryptionUtil.createEncryptionManager(
-        UnitestKMS.MASTER_KEY_NAME1,
-        TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT,
-        EncryptionUtil.createKmsClient(catalogProperties));
-  }
+  /** The manifest list key metadata is encrypted. Returns the ID of the encryption key */
+  String metadataEncryptionKeyID();
+
+  /** Returns the encrypted manifest list key metadata */
+  ByteBuffer encryptedKeyMetadata();
+
+  /** Decrypt and return the encrypted key metadata */
+  ByteBuffer decryptKeyMetadata(EncryptionManager em);
 }
