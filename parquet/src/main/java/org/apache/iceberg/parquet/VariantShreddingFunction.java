@@ -16,28 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.variants;
+package org.apache.iceberg.parquet;
 
-import java.nio.ByteBuffer;
+import java.util.function.BiFunction;
+import org.apache.parquet.schema.Type;
 
-/** A variant metadata and value pair. */
-public interface Variant {
-  /** Returns the metadata for all values in the variant. */
-  VariantMetadata metadata();
-
-  /** Returns the variant value. */
-  VariantValue value();
-
-  static Variant of(VariantMetadata metadata, VariantValue value) {
-    return new VariantData(metadata, value);
-  }
-
-  static Variant from(ByteBuffer buffer) {
-    VariantMetadata metadata = VariantMetadata.from(buffer);
-    ByteBuffer valueBuffer =
-        VariantUtil.slice(
-            buffer, metadata.sizeInBytes(), buffer.remaining() - metadata.sizeInBytes());
-    VariantValue value = VariantValue.from(metadata, valueBuffer);
-    return of(metadata, value);
-  }
+public interface VariantShreddingFunction extends BiFunction<Integer, String, Type> {
+  /**
+   * A function to produce the shredded type for a variant field. This function is called with the
+   * ID and name of a variant field to produce the shredded type as a {@code typed_value} field.
+   * This field is added to the result variant struct alongside the {@code metadata} and {@code
+   * value} fields.
+   *
+   * @param fieldId field ID of the variant field to shred
+   * @param name name of the variant field to shred
+   * @return a Parquet {@link Type} to use as the Variant's {@code typed_value} field
+   */
+  @Override
+  Type apply(Integer fieldId, String name);
 }
