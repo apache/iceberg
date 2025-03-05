@@ -137,6 +137,7 @@ public class ParquetValueReaders {
       case MILLIS:
         return new TimestampMillisReader(desc);
       case MICROS:
+      case NANOS:
         return new UnboxedReader<>(desc);
     }
 
