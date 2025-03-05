@@ -617,11 +617,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   }
 
   @Test
-  public void renameViewNamespaceWithCatalogName() {
-    assumeThat(validateToIdentifier())
-        .as("Test scenario only works with catalogs that validate to identifier")
-        .isTrue();
-
+  public void renameViewToIdentifierWithCatalogName() {
     TableIdentifier from = TableIdentifier.of("ns", "table");
     TableIdentifier to = TableIdentifier.of("ns", "renamedTable");
     TableIdentifier toWithCatalogName = TableIdentifier.of(catalog().name(), "ns", "renamedTable");

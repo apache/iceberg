@@ -811,11 +811,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
-  public void renameTableNamespaceWithCatalogName() {
-    assumeThat(validateToIdentifier())
-        .as("Test scenario only works with catalogs that validate to identifier")
-        .isTrue();
-
+  public void renameTableToIdentifierWithCatalogName() {
     TableIdentifier from = TableIdentifier.of("ns", "table");
     TableIdentifier to = TableIdentifier.of("ns", "renamedTable");
     TableIdentifier toWithCatalogName = TableIdentifier.of(catalog().name(), "ns", "renamedTable");
