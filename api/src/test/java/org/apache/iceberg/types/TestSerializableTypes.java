@@ -67,8 +67,10 @@ public class TestSerializableTypes {
           Types.FixedType.ofLength(34),
           Types.GeometryType.get(),
           Types.GeometryType.of("srid:3857"),
+          Types.GeometryType.of("projjson:Test_Identifier"),
           Types.GeographyType.get(),
           Types.GeographyType.of("srid:4269"),
+          Types.GeographyType.of("projjson:Test_Identifier"),
           Types.GeographyType.of("srid:4269", Geography.EdgeInterpolationAlgorithm.KARNEY),
         };
 

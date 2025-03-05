@@ -65,7 +65,7 @@ public class Types {
   private static final Pattern GEOMETRY_PARAMETERS =
       Pattern.compile("(?:\\(\\s*([^, ]+)?\\s*\\))?");
   private static final Pattern GEOGRAPHY_PARAMETERS =
-      Pattern.compile("(?:\\(\\s*([^, ]+)?\\s*(?:,\\s*(\\w+)\\s*)?\\))?");
+      Pattern.compile("(?:\\(\\s*([^, ]+)?\\s*(?:,\\s*(\\w*)\\s*)?\\))?");
   private static final Pattern DECIMAL =
       Pattern.compile("decimal\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)");
 
@@ -628,7 +628,7 @@ public class Types {
     }
 
     public static GeographyType of(String crs) {
-      return of(crs, DEFAULT_ALGORITHM);
+      return new GeographyType(crs, null);
     }
 
     public static GeographyType of(String crs, Geography.EdgeInterpolationAlgorithm algorithm) {
@@ -637,8 +637,8 @@ public class Types {
 
     public static GeographyType of(String crs, String algorithmName) {
       Geography.EdgeInterpolationAlgorithm algorithm =
-          (algorithmName == null
-              ? DEFAULT_ALGORITHM
+          ((algorithmName == null || algorithmName.isEmpty())
+              ? null
               : Geography.EdgeInterpolationAlgorithm.fromName(algorithmName));
       return new GeographyType(crs == null ? "" : crs, algorithm);
     }
@@ -665,7 +665,7 @@ public class Types {
       }
 
       GeographyType that = (GeographyType) o;
-      return crs.equals(that.crs) && algorithm.equals(that.algorithm);
+      return Objects.equals(crs, that.crs) && Objects.equals(algorithm, that.algorithm);
     }
 
     @Override
@@ -675,7 +675,7 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("geography(%s, %s)", crs, algorithm.value());
+      return String.format("geography(%s, %s)", crs, algorithm != null ? algorithm.value() : "");
     }
   }
 
