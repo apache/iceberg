@@ -834,10 +834,8 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
   public void partitionColumnCountMismatchInFilter() {
     createPartitionedHiveTable();
 
-    String icebergTablePartitionNames = "id";
     createIcebergTable(
-        "id Integer, name String, dept String, subdept String",
-        String.format("PARTITIONED BY (%s)", icebergTablePartitionNames));
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
     assertThatThrownBy(
             () ->
                 scalarSql(
