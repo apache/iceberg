@@ -19,7 +19,6 @@
 package org.apache.iceberg.connect.channel;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
