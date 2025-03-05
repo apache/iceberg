@@ -438,11 +438,16 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   public static class SerializableMetadataTable extends SerializableTable {
     private final MetadataTableType type;
     private final String baseTableName;
+    private final int baseTableFormatVersion;
 
     protected SerializableMetadataTable(BaseMetadataTable metadataTable) {
       super(metadataTable);
       this.type = metadataTable.metadataTableType();
       this.baseTableName = metadataTable.table().name();
+      this.baseTableFormatVersion =
+          metadataTable instanceof PositionDeletesTable
+              ? TableUtil.formatVersion(metadataTable.table())
+              : UNKNOWN_FORMAT_VERSION;
     }
 
     @Override
@@ -458,6 +463,15 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
 
     public MetadataTableType type() {
       return type;
+    }
+
+    @Override
+    public int formatVersion() {
+      if (baseTableFormatVersion == UNKNOWN_FORMAT_VERSION) {
+        throw new UnsupportedOperationException(
+            this.getClass().getName() + " does not have a format version");
+      }
+      return baseTableFormatVersion;
     }
   }
 

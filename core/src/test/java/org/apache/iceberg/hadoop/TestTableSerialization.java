@@ -112,11 +112,16 @@ public class TestTableSerialization extends HadoopTableTestBase {
     assertThatThrownBy(() -> ((HasTableOperations) serializableTable).operations())
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageEndingWith("does not support operations()");
-    assertThatThrownBy(() -> TableUtil.formatVersion(serializableTable))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageEndingWith("does not have a format version");
     assertThat(TableUtil.metadataFileLocation(serializableTable))
         .isEqualTo(TableUtil.metadataFileLocation(table));
+    if (MetadataTableType.POSITION_DELETES == type) {
+      assertThat(TableUtil.formatVersion(serializableTable))
+          .isEqualTo(((HasTableOperations) table).operations().current().formatVersion());
+    } else {
+      assertThatThrownBy(() -> TableUtil.formatVersion(serializableTable))
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessageEndingWith("does not have a format version");
+    }
   }
 
   @Test

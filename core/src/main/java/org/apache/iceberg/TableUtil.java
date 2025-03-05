@@ -30,6 +30,9 @@ public class TableUtil {
     if (table instanceof SerializableTable) {
       SerializableTable serializableTable = (SerializableTable) table;
       return serializableTable.formatVersion();
+    } else if (table instanceof PositionDeletesTable) {
+      PositionDeletesTable positionDeletesTable = (PositionDeletesTable) table;
+      return positionDeletesTable.table().operations().current().formatVersion();
     } else if (table instanceof HasTableOperations) {
       HasTableOperations ops = (HasTableOperations) table;
       return ops.operations().current().formatVersion();
