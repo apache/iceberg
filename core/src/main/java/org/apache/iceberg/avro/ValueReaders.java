@@ -667,7 +667,7 @@ public class ValueReaders {
     private final ValueReader<ByteBuffer> metadataReader;
     private final ValueReader<ByteBuffer> valueReader;
 
-    public VariantReader(
+    private VariantReader(
         ValueReader<ByteBuffer> metadataReader, ValueReader<ByteBuffer> valueReader) {
       this.metadataReader = metadataReader;
       this.valueReader = valueReader;
