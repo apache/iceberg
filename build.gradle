@@ -292,7 +292,6 @@ project(':iceberg-api') {
 
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    api libs.jts.core
     compileOnly libs.errorprone.annotations
     compileOnly libs.findbugs.jsr305
     testImplementation libs.avro.avro
@@ -349,6 +348,7 @@ project(':iceberg-core') {
     implementation libs.jackson.databind
     implementation libs.caffeine
     implementation libs.roaringbitmap
+    implementation libs.jts.core
     compileOnly(libs.hadoop3.client) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'

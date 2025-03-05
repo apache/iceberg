@@ -31,10 +31,10 @@ import org.apache.iceberg.data.DataTest;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.EdgeInterpolationAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.apache.iceberg.util.GeometryUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -121,11 +121,7 @@ public class TestSchemaParser extends DataTest {
             Types.FixedType.ofLength(4),
             Literal.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d}))),
         Arguments.of(Types.BinaryType.get(), Literal.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b}))),
-        Arguments.of(Types.DecimalType.of(9, 2), Literal.of(new BigDecimal("12.34"))),
-        Arguments.of(Types.GeometryType.get(), Literal.of(GeometryUtil.fromWKT("POINT (1 2)"))),
-        Arguments.of(
-            Types.GeographyType.get(),
-            Literal.of(new Geography(GeometryUtil.fromWKT("POINT (1 2)")))));
+        Arguments.of(Types.DecimalType.of(9, 2), Literal.of(new BigDecimal("12.34"))));
   }
 
   @ParameterizedTest
@@ -170,7 +166,7 @@ public class TestSchemaParser extends DataTest {
             Types.NestedField.optional(
                 6,
                 "geog2",
-                Types.GeographyType.of("srid:4269", Geography.EdgeInterpolationAlgorithm.KARNEY)));
+                Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.KARNEY)));
 
     writeAndValidate(schema);
   }

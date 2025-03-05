@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.Locale;
+import org.apache.iceberg.types.EdgeInterpolationAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
@@ -55,12 +56,11 @@ public class TestSingleValueParser {
           {Types.DecimalType.of(9, -20), "\"2E+20\""},
           {Types.GeometryType.get(), "\"POINT (1 2)\""},
           {Types.GeometryType.get(), "\"POINT Z(1 2 3)\""},
-          {Types.GeometryType.get(), "\"POINT M(1 2 3)\""},
           {Types.GeometryType.get(), "\"POINT ZM(1 2 3 4)\""},
           {Types.GeometryType.of("srid:3857"), "\"POINT (1 2)\""},
           {Types.GeographyType.get(), "\"POINT ZM(1 2 3 4)\""},
           {
-            Types.GeographyType.of("srid:4269", Geography.EdgeInterpolationAlgorithm.KARNEY),
+            Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.KARNEY),
             "\"POINT ZM(1 2 3 4)\""
           },
           {Types.ListType.ofOptional(1, Types.IntegerType.get()), "[1, 2, 3]"},

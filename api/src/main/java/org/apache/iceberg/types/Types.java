@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.apache.iceberg.Geography;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
@@ -612,13 +611,10 @@ public class Types {
 
   public static class GeographyType extends PrimitiveType {
 
-    public static final Geography.EdgeInterpolationAlgorithm DEFAULT_ALGORITHM =
-        Geography.EdgeInterpolationAlgorithm.SPHERICAL;
-
     private final String crs;
-    private final Geography.EdgeInterpolationAlgorithm algorithm;
+    private final EdgeInterpolationAlgorithm algorithm;
 
-    private GeographyType(String crs, Geography.EdgeInterpolationAlgorithm algorithm) {
+    private GeographyType(String crs, EdgeInterpolationAlgorithm algorithm) {
       this.crs = crs;
       this.algorithm = algorithm;
     }
@@ -631,15 +627,15 @@ public class Types {
       return new GeographyType(crs, null);
     }
 
-    public static GeographyType of(String crs, Geography.EdgeInterpolationAlgorithm algorithm) {
+    public static GeographyType of(String crs, EdgeInterpolationAlgorithm algorithm) {
       return new GeographyType(crs, algorithm);
     }
 
     public static GeographyType of(String crs, String algorithmName) {
-      Geography.EdgeInterpolationAlgorithm algorithm =
+      EdgeInterpolationAlgorithm algorithm =
           ((algorithmName == null || algorithmName.isEmpty())
               ? null
-              : Geography.EdgeInterpolationAlgorithm.fromName(algorithmName));
+              : EdgeInterpolationAlgorithm.fromName(algorithmName));
       return new GeographyType(crs == null ? "" : crs, algorithm);
     }
 
@@ -652,7 +648,7 @@ public class Types {
       return crs;
     }
 
-    public Geography.EdgeInterpolationAlgorithm algorithm() {
+    public EdgeInterpolationAlgorithm algorithm() {
       return algorithm;
     }
 

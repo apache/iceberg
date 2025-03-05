@@ -27,6 +27,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTableTestBase;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.EdgeInterpolationAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -43,7 +44,7 @@ public class TestGeospatialTable extends HadoopTableTestBase {
             required(
                 6,
                 "geog",
-                Types.GeographyType.of("srid:4269", Geography.EdgeInterpolationAlgorithm.KARNEY),
+                Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.KARNEY),
                 "geography column"));
 
     TableIdentifier identifier = TableIdentifier.of("a", "geos_t1");
@@ -61,7 +62,7 @@ public class TestGeospatialTable extends HadoopTableTestBase {
       assertThat(geogField.type().typeId()).isEqualTo(Type.TypeID.GEOGRAPHY);
       Types.GeographyType geogType = (Types.GeographyType) geogField.type();
       assertThat(geogType.crs()).isEqualTo("srid:4269");
-      assertThat(geogType.algorithm()).isEqualTo(Geography.EdgeInterpolationAlgorithm.KARNEY);
+      assertThat(geogType.algorithm()).isEqualTo(EdgeInterpolationAlgorithm.KARNEY);
       assertThat(catalog.dropTable(identifier)).isTrue();
     }
   }
