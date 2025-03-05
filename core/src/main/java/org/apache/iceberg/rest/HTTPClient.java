@@ -78,6 +78,8 @@ public class HTTPClient extends BaseHTTPClient {
   static final int REST_MAX_CONNECTIONS_DEFAULT = 100;
   static final String REST_MAX_CONNECTIONS_PER_ROUTE = "rest.client.connections-per-route";
   static final int REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT = 100;
+  private static final String REST_USE_SYSTEM_PROPERTIES = "rest.client.use-system-properties";
+  private static final boolean REST_USE_SYSTEM_PROPERTIES_DEFAULT = true;
 
   @VisibleForTesting
   static final String REST_CONNECTION_TIMEOUT_MS = "rest.client.connection-timeout-ms";
@@ -124,9 +126,18 @@ public class HTTPClient extends BaseHTTPClient {
       clientBuilder.setProxy(proxy);
     }
 
+    if (shouldUseSystemProperties(properties)) {
+      clientBuilder.useSystemProperties();
+    }
+
     this.httpClient = clientBuilder.build();
   }
 
+  private static boolean shouldUseSystemProperties(Map<String, String> properties) {
+    return PropertyUtil.propertyAsBoolean(
+        properties, REST_USE_SYSTEM_PROPERTIES, REST_USE_SYSTEM_PROPERTIES_DEFAULT);
+  }
+  
   /**
    * Constructor for creating a child HTTPClient associated with an AuthSession. The returned child
    * shares the same base uri, mapper, and HTTP client as the parent, thus not requiring any
@@ -381,9 +392,11 @@ public class HTTPClient extends BaseHTTPClient {
     if (connectionConfig != null) {
       connectionManagerBuilder.setDefaultConnectionConfig(connectionConfig);
     }
+    if (shouldUseSystemProperties(properties)) {
+      connectionManagerBuilder.useSystemProperties();
+    }
 
     return connectionManagerBuilder
-        .useSystemProperties()
         .setMaxConnTotal(
             Integer.getInteger(
                 REST_MAX_CONNECTIONS,
