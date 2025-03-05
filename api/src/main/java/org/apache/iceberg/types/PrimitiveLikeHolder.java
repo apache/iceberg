@@ -21,14 +21,14 @@ package org.apache.iceberg.types;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 
-/** Replacement for primitive types in Java Serialization. */
-class PrimitiveHolder implements Serializable {
+/** Replacement for primitive types and Variant type in Java Serialization. */
+class PrimitiveLikeHolder implements Serializable {
   private String typeAsString = null;
 
   /** Constructor for Java serialization. */
-  PrimitiveHolder() {}
+  PrimitiveLikeHolder() {}
 
-  PrimitiveHolder(String typeAsString) {
+  PrimitiveLikeHolder(String typeAsString) {
     this.typeAsString = typeAsString;
   }
 
