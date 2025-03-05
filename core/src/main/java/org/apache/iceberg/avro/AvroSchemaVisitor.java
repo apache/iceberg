@@ -40,10 +40,12 @@ public abstract class AvroSchemaVisitor<T> {
           Preconditions.checkArgument(
               AvroSchemaUtil.isVariantSchema(schema), "Invalid variant record: %s", schema);
 
-          return visitor.variant(
-              schema,
-              visit(schema.getField(METADATA).schema(), visitor),
-              visit(schema.getField(VALUE).schema(), visitor));
+          visitor.recordLevels.push(name);
+          T metadataResult = visitWithName(METADATA, schema.getField(METADATA).schema(), visitor);
+          T valueResult = visitWithName(VALUE, schema.getField(VALUE).schema(), visitor);
+          visitor.recordLevels.pop();
+
+          return visitor.variant(schema, metadataResult, valueResult);
         } else {
           visitor.recordLevels.push(name);
 
