@@ -18,47 +18,16 @@
  */
 package org.apache.iceberg.aws.s3;
 
-import java.util.Map;
-import org.apache.iceberg.aws.AwsClientFactory;
-import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
-import software.amazon.awssdk.services.glue.GlueClient;
-import software.amazon.awssdk.services.kms.KmsClient;
-import software.amazon.awssdk.services.s3.S3AsyncClient;
+import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.metrics.MetricsContext;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 
-class StaticClientFactory implements AwsClientFactory {
-  static S3Client client;
-
-  @Override
-  public S3Client s3() {
-    return client;
-  }
-
-  @Override
-  public S3AsyncClient s3Async() {
-    return null;
-  }
-
-  @Override
-  public S3AsyncClient s3CrtAsync() {
-    return null;
-  }
-
-  @Override
-  public GlueClient glue() {
-    return null;
-  }
-
-  @Override
-  public KmsClient kms() {
-    return null;
-  }
-
-  @Override
-  public DynamoDbClient dynamo() {
-    return null;
-  }
-
-  @Override
-  public void initialize(Map<String, String> properties) {}
+public interface S3InputStreamFactory {
+  SeekableInputStream createStream(
+      S3Client client,
+      S3URI uri,
+      S3FileIOProperties properties,
+      MetricsContext metrics,
+      HeadObjectResponse metadata);
 }

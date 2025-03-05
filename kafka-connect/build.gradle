@@ -175,6 +175,7 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     integrationImplementation libs.testcontainers
     integrationImplementation libs.httpcomponents.httpclient5
     integrationImplementation libs.awaitility
+    integrationImplementation libs.analyticsaccelerator.s3
   }
 
   task integrationTest(type: Test) {

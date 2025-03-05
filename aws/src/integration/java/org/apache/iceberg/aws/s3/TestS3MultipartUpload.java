@@ -54,7 +54,7 @@ public class TestS3MultipartUpload {
     properties = new S3FileIOProperties();
     properties.setMultiPartSize(S3FileIOProperties.MULTIPART_SIZE_MIN);
     properties.setChecksumEnabled(true);
-    io = new S3FileIO(() -> s3, properties);
+    io = S3FileIO.builder().s3(() -> s3).s3FileIOProperties(properties).build();
   }
 
   @AfterAll

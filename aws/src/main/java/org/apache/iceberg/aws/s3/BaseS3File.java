@@ -18,23 +18,30 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.metrics.MetricsContext;
-import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 abstract class BaseS3File {
   private final S3Client client;
+  private final S3InputStreamFactory inputStreamFactory;
   private final S3URI uri;
   private final S3FileIOProperties s3FileIOProperties;
   private HeadObjectResponse metadata;
   private final MetricsContext metrics;
 
   BaseS3File(
-      S3Client client, S3URI uri, S3FileIOProperties s3FileIOProperties, MetricsContext metrics) {
+      S3Client client,
+      S3InputStreamFactory inputStreamFactory,
+      S3URI uri,
+      S3FileIOProperties s3FileIOProperties,
+      MetricsContext metrics) {
     this.client = client;
+    this.inputStreamFactory = inputStreamFactory;
     this.uri = uri;
     this.s3FileIOProperties = s3FileIOProperties;
     this.metrics = metrics;
@@ -46,6 +53,10 @@ abstract class BaseS3File {
 
   S3Client client() {
     return client;
+  }
+
+  S3InputStreamFactory inputStreamFactory() {
+    return inputStreamFactory;
   }
 
   S3URI uri() {
@@ -68,24 +79,23 @@ abstract class BaseS3File {
   public boolean exists() {
     try {
       return getObjectMetadata() != null;
-    } catch (S3Exception e) {
-      if (e.statusCode() == HttpStatusCode.NOT_FOUND) {
-        return false;
-      } else {
-        throw e; // return null if 404 Not Found, otherwise rethrow
-      }
+    } catch (NotFoundException e) {
+      return false;
     }
   }
 
   protected HeadObjectResponse getObjectMetadata() throws S3Exception {
-    if (metadata == null) {
-      HeadObjectRequest.Builder requestBuilder =
-          HeadObjectRequest.builder().bucket(uri().bucket()).key(uri().key());
-      S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
-      metadata = client().headObject(requestBuilder.build());
+    try {
+      if (metadata == null) {
+        HeadObjectRequest.Builder requestBuilder =
+            HeadObjectRequest.builder().bucket(uri().bucket()).key(uri().key());
+        S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
+        metadata = client().headObject(requestBuilder.build());
+      }
+      return metadata;
+    } catch (NoSuchKeyException e) {
+      throw new NotFoundException(e, "Location does not exist: %s", uri().toString());
     }
-
-    return metadata;
   }
 
   @Override
