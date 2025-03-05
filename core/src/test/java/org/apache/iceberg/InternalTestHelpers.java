@@ -93,6 +93,14 @@ public class InternalTestHelpers {
       case DECIMAL:
         assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
         break;
+      case VARIANT:
+        assertThat(expected).as("Expected should be a Variant").isInstanceOf(Variant.class);
+        assertThat(actual).as("Actual should be a Variant").isInstanceOf(Variant.class);
+        Variant expectedVariant = (Variant) expected;
+        Variant actualVariant = (Variant) actual;
+        VariantTestUtil.assertEqual(expectedVariant.metadata(), actualVariant.metadata());
+        VariantTestUtil.assertEqual(expectedVariant.value(), actualVariant.value());
+        break;
       case STRUCT:
         assertThat(expected).as("Expected should be a StructLike").isInstanceOf(StructLike.class);
         assertThat(actual).as("Actual should be a StructLike").isInstanceOf(StructLike.class);

@@ -144,9 +144,11 @@ public class ValueReaders {
     }
   }
 
+  @SuppressWarnings("unchecked")
   public static ValueReader<Variant> variants(
-      ValueReader<ByteBuffer> metadataReader, ValueReader<ByteBuffer> valueReader) {
-    return new VariantReader(metadataReader, valueReader);
+      ValueReader<?> metadataReader, ValueReader<?> valueReader) {
+    return new VariantReader(
+        (ValueReader<ByteBuffer>) metadataReader, (ValueReader<ByteBuffer>) valueReader);
   }
 
   public static ValueReader<Object> union(List<ValueReader<?>> readers) {
@@ -673,8 +675,11 @@ public class ValueReaders {
 
     @Override
     public Variant read(Decoder decoder, Object reuse) throws IOException {
-      VariantMetadata metadata = VariantMetadata.from(metadataReader.read(decoder, null));
-      VariantValue value = VariantValue.from(metadata, metadataReader.read(decoder, null));
+      VariantMetadata metadata =
+          VariantMetadata.from(metadataReader.read(decoder, null).order(ByteOrder.LITTLE_ENDIAN));
+      VariantValue value =
+          VariantValue.from(
+              metadata, metadataReader.read(decoder, null).order(ByteOrder.LITTLE_ENDIAN));
       return Variant.of(metadata, value);
     }
 
