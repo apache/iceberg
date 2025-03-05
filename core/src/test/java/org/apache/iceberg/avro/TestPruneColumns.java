@@ -28,32 +28,32 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestPruneColumns {
+  private static final String TABLE_NAME = "table";
   private static final org.apache.avro.Schema TEST_SCHEMA =
       AvroSchemaUtil.convert(
           new Schema(
-                  Types.NestedField.required(0, "id", Types.LongType.get()),
-                  Types.NestedField.optional(
-                      2,
-                      "properties",
-                      Types.MapType.ofOptional(
-                          3, 4, Types.StringType.get(), Types.IntegerType.get())),
-                  Types.NestedField.required(
-                      5,
-                      "location",
-                      Types.StructType.of(
-                          Types.NestedField.required(6, "lat", Types.FloatType.get()),
-                          Types.NestedField.optional(7, "long", Types.FloatType.get()))),
-                  Types.NestedField.required(
-                      8, "tags", Types.ListType.ofRequired(9, Types.StringType.get())),
-                  Types.NestedField.optional(10, "payload", Types.VariantType.get()))
-              .asStruct());
+              Types.NestedField.required(0, "id", Types.LongType.get()),
+              Types.NestedField.optional(
+                  2,
+                  "properties",
+                  Types.MapType.ofOptional(3, 4, Types.StringType.get(), Types.IntegerType.get())),
+              Types.NestedField.required(
+                  5,
+                  "location",
+                  Types.StructType.of(
+                      Types.NestedField.required(6, "lat", Types.FloatType.get()),
+                      Types.NestedField.optional(7, "long", Types.FloatType.get()))),
+              Types.NestedField.required(
+                  8, "tags", Types.ListType.ofRequired(9, Types.StringType.get())),
+              Types.NestedField.optional(10, "payload", Types.VariantType.get())),
+          TABLE_NAME);
 
   @Test
   public void testSimple() {
     Schema expected = new Schema(Types.NestedField.required(0, "id", Types.LongType.get()));
     org.apache.avro.Schema prunedSchema =
         AvroSchemaUtil.pruneColumns(TEST_SCHEMA, Sets.newHashSet(0));
-    assertThat(prunedSchema).isEqualTo(AvroSchemaUtil.convert(expected.asStruct()));
+    assertThat(prunedSchema).isEqualTo(AvroSchemaUtil.convert(expected, TABLE_NAME));
   }
 
   @ParameterizedTest
@@ -67,7 +67,7 @@ public class TestPruneColumns {
                 Types.MapType.ofOptional(3, 4, Types.StringType.get(), Types.IntegerType.get())));
     org.apache.avro.Schema prunedSchema =
         AvroSchemaUtil.pruneColumns(TEST_SCHEMA, Sets.newHashSet(selectedId));
-    assertThat(prunedSchema).isEqualTo(AvroSchemaUtil.convert(expected.asStruct()));
+    assertThat(prunedSchema).isEqualTo(AvroSchemaUtil.convert(expected, TABLE_NAME));
   }
 
   @Test
@@ -75,7 +75,7 @@ public class TestPruneColumns {
     Schema expected = new Schema(Types.NestedField.required(5, "location", Types.StructType.of()));
     org.apache.avro.Schema prunedSchema =
         AvroSchemaUtil.pruneColumns(TEST_SCHEMA, Sets.newHashSet(5));
-    assertThat(prunedSchema).isEqualTo(AvroSchemaUtil.convert(expected.asStruct()));
+    assertThat(prunedSchema).isEqualTo(AvroSchemaUtil.convert(expected, TABLE_NAME));
   }
 
   @Test
@@ -88,7 +88,7 @@ public class TestPruneColumns {
                 Types.StructType.of(Types.NestedField.optional(7, "long", Types.FloatType.get()))));
     org.apache.avro.Schema prunedSchema =
         AvroSchemaUtil.pruneColumns(TEST_SCHEMA, Sets.newHashSet(7));
-    assertThat(prunedSchema).isEqualTo(AvroSchemaUtil.convert(expected.asStruct()));
+    assertThat(prunedSchema).isEqualTo(AvroSchemaUtil.convert(expected, TABLE_NAME));
   }
 
   @ParameterizedTest
@@ -100,7 +100,7 @@ public class TestPruneColumns {
                 8, "tags", Types.ListType.ofRequired(9, Types.StringType.get())));
     org.apache.avro.Schema prunedSchema =
         AvroSchemaUtil.pruneColumns(TEST_SCHEMA, Sets.newHashSet(selectedId));
-    assertThat(prunedSchema).isEqualTo(AvroSchemaUtil.convert(expected.asStruct()));
+    assertThat(prunedSchema).isEqualTo(AvroSchemaUtil.convert(expected, TABLE_NAME));
   }
 
   @Test
@@ -109,6 +109,6 @@ public class TestPruneColumns {
         new Schema(Types.NestedField.optional(10, "payload", Types.VariantType.get()));
     org.apache.avro.Schema prunedSchema =
         AvroSchemaUtil.pruneColumns(TEST_SCHEMA, Sets.newHashSet(10));
-    assertThat(prunedSchema).isEqualTo(AvroSchemaUtil.convert(expected.asStruct()));
+    assertThat(prunedSchema).isEqualTo(AvroSchemaUtil.convert(expected, TABLE_NAME));
   }
 }

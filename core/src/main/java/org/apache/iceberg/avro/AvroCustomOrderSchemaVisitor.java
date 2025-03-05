@@ -38,17 +38,19 @@ abstract class AvroCustomOrderSchemaVisitor<T, F> {
         Preconditions.checkState(
             !visitor.recordLevels.contains(name), "Cannot process recursive Avro record %s", name);
 
+        visitor.recordLevels.push(name);
+
+        T result = null;
         if (schema.getLogicalType() instanceof VariantLogicalType) {
           Preconditions.checkArgument(
               AvroSchemaUtil.isVariantSchema(schema), "Invalid variant record: %s", schema);
 
-          return visitor.variant(
-              schema,
-              new VisitFuture<>(schema.getField(METADATA).schema(), visitor),
-              new VisitFuture<>(schema.getField(VALUE).schema(), visitor));
+          result =
+              visitor.variant(
+                  schema,
+                  new VisitFuture<>(schema.getField(METADATA).schema(), visitor),
+                  new VisitFuture<>(schema.getField(VALUE).schema(), visitor));
         } else {
-          visitor.recordLevels.push(name);
-
           List<Schema.Field> fields = schema.getFields();
           List<String> names = Lists.newArrayListWithExpectedSize(fields.size());
           List<Supplier<F>> results = Lists.newArrayListWithExpectedSize(fields.size());
@@ -57,9 +59,11 @@ abstract class AvroCustomOrderSchemaVisitor<T, F> {
             results.add(new VisitFieldFuture<>(field, visitor));
           }
 
-          visitor.recordLevels.pop();
-          return visitor.record(schema, names, Iterables.transform(results, Supplier::get));
+          result = visitor.record(schema, names, Iterables.transform(results, Supplier::get));
         }
+
+        visitor.recordLevels.pop();
+        return result;
 
       case UNION:
         List<Schema> types = schema.getTypes();
