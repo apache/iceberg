@@ -27,6 +27,7 @@ import java.util.function.Supplier;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.RandomVariants;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
@@ -91,6 +92,11 @@ public class RandomAvroData {
     @Override
     public Object map(Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
       return RandomUtil.generateMap(random, map, keyResult, valueResult);
+    }
+
+    @Override
+    public Object variant(Types.VariantType variant) {
+      return RandomVariants.randomVariant(random);
     }
 
     @Override

@@ -37,6 +37,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.iceberg.variants.Serialized;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantValue;
 
 public class ValueWriters {
   private ValueWriters() {}
@@ -107,6 +111,13 @@ public class ValueWriters {
 
   public static ValueWriter<BigDecimal> decimal(int precision, int scale) {
     return new DecimalWriter(precision, scale);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static ValueWriter<Variant> variants(
+      ValueWriter<?> metadataWriter, ValueWriter<?> valueWriter) {
+    return new VariantWriter(
+        (ValueWriter<ByteBuffer>) metadataWriter, (ValueWriter<ByteBuffer>) valueWriter);
   }
 
   public static <T> ValueWriter<T> option(int nullIndex, ValueWriter<T> writer) {
@@ -370,6 +381,41 @@ public class ValueWriters {
     public void write(BigDecimal decimal, Encoder encoder) throws IOException {
       encoder.writeFixed(
           DecimalUtil.toReusedFixLengthBytes(precision, scale, decimal, bytes.get()));
+    }
+  }
+
+  private static class VariantWriter implements ValueWriter<Variant> {
+    private final ValueWriter<ByteBuffer> metadataWriter;
+    private final ValueWriter<ByteBuffer> valueWriter;
+
+    private VariantWriter(
+        ValueWriter<ByteBuffer> metadataWriter, ValueWriter<ByteBuffer> valueWriter) {
+      this.metadataWriter = metadataWriter;
+      this.valueWriter = valueWriter;
+    }
+
+    @Override
+    public void write(Variant variant, Encoder encoder) throws IOException {
+      VariantMetadata metadata = variant.metadata();
+      if (metadata instanceof Serialized) {
+        metadataWriter.write(((Serialized) metadata).buffer(), encoder);
+      } else {
+        // TODO: reuse buffers using buffer size code from Parquet
+        ByteBuffer metadataBuffer =
+            ByteBuffer.allocate(metadata.sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
+        variant.metadata().writeTo(metadataBuffer, 0);
+        metadataWriter.write(metadataBuffer, encoder);
+      }
+
+      VariantValue value = variant.value();
+      if (value instanceof Serialized) {
+        valueWriter.write(((Serialized) value).buffer(), encoder);
+      } else {
+        ByteBuffer valueBuffer =
+            ByteBuffer.allocate(variant.value().sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
+        variant.value().writeTo(valueBuffer, 0);
+        valueWriter.write(valueBuffer, encoder);
+      }
     }
   }
 
