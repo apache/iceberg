@@ -36,29 +36,33 @@ public abstract class AvroSchemaVisitor<T> {
         Preconditions.checkState(
             !visitor.recordLevels.contains(name), "Cannot process recursive Avro record %s", name);
 
+        visitor.recordLevels.push(name);
+
+        T result = null;
         if (schema.getLogicalType() instanceof VariantLogicalType) {
           Preconditions.checkArgument(
               AvroSchemaUtil.isVariantSchema(schema), "Invalid variant record: %s", schema);
 
-          return visitor.variant(
-              schema,
-              visit(schema.getField(METADATA).schema(), visitor),
-              visit(schema.getField(VALUE).schema(), visitor));
+          result =
+              visitor.variant(
+                  schema,
+                  visitWithName(METADATA, schema.getField(METADATA).schema(), visitor),
+                  visitWithName(VALUE, schema.getField(VALUE).schema(), visitor));
         } else {
-          visitor.recordLevels.push(name);
-
           List<Schema.Field> fields = schema.getFields();
           List<String> names = Lists.newArrayListWithExpectedSize(fields.size());
-          List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
+          List<T> fieldResults = Lists.newArrayListWithExpectedSize(fields.size());
           for (Schema.Field field : schema.getFields()) {
             names.add(field.name());
-            T result = visitWithName(field.name(), field.schema(), visitor);
-            results.add(result);
+            T fieldResult = visitWithName(field.name(), field.schema(), visitor);
+            fieldResults.add(fieldResult);
           }
 
-          visitor.recordLevels.pop();
-          return visitor.record(schema, names, results);
+          result = visitor.record(schema, names, fieldResults);
         }
+
+        visitor.recordLevels.pop();
+        return result;
 
       case UNION:
         List<Schema> types = schema.getTypes();
