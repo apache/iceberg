@@ -90,5 +90,42 @@ public class TestTypes {
     assertThatExceptionOfType(NullPointerException.class)
         .isThrownBy(() -> required("field").ofType(Types.StringType.get()).build())
         .withMessage("Id cannot be null");
+
+    assertThat(Types.fromPrimitiveString("geometry")).isEqualTo(Types.GeometryType.get());
+    assertThat(Types.fromPrimitiveString("geometry()")).isEqualTo(Types.GeometryType.get());
+    assertThat(Types.fromPrimitiveString("geometry(srid:3857)"))
+        .isEqualTo(Types.GeometryType.of("srid:3857"));
+    assertThat(Types.fromPrimitiveString("geometry( srid:3857 )"))
+        .isEqualTo(Types.GeometryType.of("srid:3857"));
+
+    assertThat(Types.fromPrimitiveString("geography")).isEqualTo(Types.GeographyType.get());
+    assertThat(Types.fromPrimitiveString("geography()")).isEqualTo(Types.GeographyType.get());
+    assertThat(Types.fromPrimitiveString("geography(srid:4269)"))
+        .isEqualTo(Types.GeographyType.of("srid:4269"));
+    assertThat(Types.fromPrimitiveString("geography(srid:4269, spherical)"))
+        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.SPHERICAL));
+    assertThat(Types.fromPrimitiveString("geography(srid:4269, vincenty)"))
+        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.VINCENTY));
+    assertThat(Types.fromPrimitiveString("geography(srid:4269, thomas)"))
+        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.THOMAS));
+    assertThat(Types.fromPrimitiveString("geography(srid:4269, andoyer)"))
+        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.ANDOYER));
+    assertThat(Types.fromPrimitiveString("geography(srid:4269, karney)"))
+        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.KARNEY));
+
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.fromPrimitiveString("geography(srid:4269, BadAlgorithm)"))
+        .withMessageContaining("Invalid edge interpolation algorithm name")
+        .withMessageContaining("BadAlgorithm");
+
+    // Test geography type with various spacing
+    assertThat(Types.fromPrimitiveString("geography( srid:4269 )"))
+        .isEqualTo(Types.GeographyType.of("srid:4269"));
+    assertThat(Types.fromPrimitiveString("geography( srid:4269 , spherical )"))
+        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.SPHERICAL));
+    assertThat(Types.fromPrimitiveString("geography(srid:4269,vincenty)"))
+        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.VINCENTY));
+    assertThat(Types.fromPrimitiveString("geography( srid:4269  ,  karney  )"))
+        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.KARNEY));
   }
 }

@@ -62,6 +62,10 @@ public class Types {
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
+  private static final Pattern GEOMETRY_PARAMETERS =
+      Pattern.compile("(?:\\(\\s*([^, ]+)?\\s*\\))?");
+  private static final Pattern GEOGRAPHY_PARAMETERS =
+      Pattern.compile("(?:\\(\\s*([^, ]+)?\\s*(?:,\\s*(\\w*)\\s*)?\\))?");
   private static final Pattern DECIMAL =
       Pattern.compile("decimal\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)");
 
@@ -69,6 +73,20 @@ public class Types {
     String lowerTypeString = typeString.toLowerCase(Locale.ROOT);
     if (TYPES.containsKey(lowerTypeString)) {
       return TYPES.get(lowerTypeString);
+    }
+
+    if (lowerTypeString.startsWith("geometry")) {
+      Matcher geometry = GEOMETRY_PARAMETERS.matcher(typeString.substring(8));
+      if (geometry.matches()) {
+        return GeometryType.of(geometry.group(1));
+      }
+    }
+
+    if (lowerTypeString.startsWith("geography")) {
+      Matcher geography = GEOGRAPHY_PARAMETERS.matcher(typeString.substring(9));
+      if (geography.matches()) {
+        return GeographyType.of(geography.group(1), geography.group(2));
+      }
     }
 
     Matcher fixed = FIXED.matcher(lowerTypeString);
@@ -545,6 +563,120 @@ public class Types {
     @Override
     public int hashCode() {
       return Objects.hash(DecimalType.class, scale, precision);
+    }
+  }
+
+  public static class GeometryType extends PrimitiveType {
+
+    private final String crs;
+
+    private GeometryType(String crs) {
+      this.crs = crs;
+    }
+
+    public static GeometryType get() {
+      return of("");
+    }
+
+    public static GeometryType of(String crs) {
+      return new GeometryType(crs == null ? "" : crs);
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.GEOMETRY;
+    }
+
+    public String crs() {
+      return crs;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      } else if (!(o instanceof GeometryType)) {
+        return false;
+      }
+
+      GeometryType that = (GeometryType) o;
+      return crs.equals(that.crs);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(GeometryType.class, crs);
+    }
+
+    @Override
+    public String toString() {
+      return String.format("geometry(%s)", crs);
+    }
+  }
+
+  public static class GeographyType extends PrimitiveType {
+
+    private final String crs;
+    private final EdgeInterpolationAlgorithm algorithm;
+
+    private GeographyType(String crs, EdgeInterpolationAlgorithm algorithm) {
+      this.crs = crs;
+      this.algorithm = algorithm;
+    }
+
+    public static GeographyType get() {
+      return of("");
+    }
+
+    public static GeographyType of(String crs) {
+      return new GeographyType(crs, null);
+    }
+
+    public static GeographyType of(String crs, EdgeInterpolationAlgorithm algorithm) {
+      return new GeographyType(crs, algorithm);
+    }
+
+    public static GeographyType of(String crs, String algorithmName) {
+      EdgeInterpolationAlgorithm algorithm =
+          ((algorithmName == null || algorithmName.isEmpty())
+              ? null
+              : EdgeInterpolationAlgorithm.fromName(algorithmName));
+      return new GeographyType(crs == null ? "" : crs, algorithm);
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.GEOGRAPHY;
+    }
+
+    public String crs() {
+      return crs;
+    }
+
+    public EdgeInterpolationAlgorithm algorithm() {
+      return algorithm;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      } else if (!(o instanceof GeographyType)) {
+        return false;
+      }
+
+      GeographyType that = (GeographyType) o;
+      return Objects.equals(crs, that.crs) && Objects.equals(algorithm, that.algorithm);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(GeographyType.class, crs, algorithm);
+    }
+
+    @Override
+    public String toString() {
+      return String.format("geography(%s, %s)", crs, algorithm != null ? algorithm.value() : "");
     }
   }
 
