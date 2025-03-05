@@ -29,6 +29,7 @@ import java.io.ObjectOutputStream;
 import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
@@ -112,11 +113,10 @@ public class TestTableSerialization extends HadoopTableTestBase {
     assertThatThrownBy(() -> ((HasTableOperations) serializableTable).operations())
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageEndingWith("does not support operations()");
-    assertThatThrownBy(() -> TableUtil.formatVersion(serializableTable))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageEndingWith("does not have a format version");
     assertThat(TableUtil.metadataFileLocation(serializableTable))
         .isEqualTo(TableUtil.metadataFileLocation(table));
+    assertThat(TableUtil.formatVersion(serializableTable))
+        .isEqualTo(((BaseTable) table).operations().current().formatVersion());
   }
 
   @Test
