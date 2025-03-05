@@ -79,10 +79,10 @@ public abstract class S3V4RestSignerClient
   private volatile AuthManager authManager;
 
   @SuppressWarnings("immutables:incompat")
-  private volatile AuthSession authSession;
+  private static volatile RESTClient httpClient;
 
   @SuppressWarnings("immutables:incompat")
-  private volatile RESTClient httpClient;
+  private volatile AuthSession authSession;
 
   public abstract Map<String, String> properties();
 
@@ -137,12 +137,23 @@ public abstract class S3V4RestSignerClient
     if (null == httpClient) {
       synchronized (S3V4RestSignerClient.class) {
         if (null == httpClient) {
-          authManager = AuthManagers.loadAuthManager("s3-signer", properties());
-          HTTPClient client =
+          httpClient =
               HTTPClient.builder(properties())
                   .uri(baseSignerUri())
                   .withObjectMapper(S3ObjectMapper.mapper())
                   .build();
+        }
+      }
+    }
+
+    return httpClient;
+  }
+
+  private AuthSession authSession() {
+    if (null == authSession) {
+      synchronized (S3V4RestSignerClient.class) {
+        if (null == authSession) {
+          authManager = AuthManagers.loadAuthManager("s3-signer", properties());
           ImmutableMap.Builder<String, String> properties =
               ImmutableMap.<String, String>builder()
                   .putAll(properties())
@@ -159,13 +170,12 @@ public abstract class S3V4RestSignerClient
             properties.put(OAuth2Properties.CREDENTIAL, credential());
           }
 
-          authSession = authManager.catalogSession(client, properties.buildKeepingLast());
-          httpClient = client.withAuthSession(authSession);
+          authSession = authManager.catalogSession(httpClient(), properties.buildKeepingLast());
         }
       }
     }
 
-    return httpClient;
+    return authSession;
   }
 
   private boolean credentialProvided() {
@@ -239,6 +249,7 @@ public abstract class S3V4RestSignerClient
       Consumer<Map<String, String>> responseHeadersConsumer = responseHeaders::putAll;
       S3SignResponse s3SignResponse =
           httpClient()
+              .withAuthSession(authSession())
               .post(
                   endpoint(),
                   remoteSigningRequest,
@@ -272,7 +283,6 @@ public abstract class S3V4RestSignerClient
   public void close() throws Exception {
     IoUtils.closeQuietlyV2(authSession, null);
     IoUtils.closeQuietlyV2(authManager, null);
-    IoUtils.closeQuietlyV2(httpClient, null);
   }
 
   /**
