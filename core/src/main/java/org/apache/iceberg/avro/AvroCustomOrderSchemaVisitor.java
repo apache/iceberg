@@ -42,10 +42,14 @@ abstract class AvroCustomOrderSchemaVisitor<T, F> {
           Preconditions.checkArgument(
               AvroSchemaUtil.isVariantSchema(schema), "Invalid variant record: %s", schema);
 
-          return visitor.variant(
-              schema,
-              new VisitFuture<>(schema.getField(METADATA).schema(), visitor),
-              new VisitFuture<>(schema.getField(VALUE).schema(), visitor));
+          visitor.recordLevels.push(name);
+          VisitFuture<T, F> metadataResult =
+              new VisitFuture<>(schema.getField(METADATA).schema(), visitor);
+          VisitFuture<T, F> valueResult =
+              new VisitFuture<>(schema.getField(VALUE).schema(), visitor);
+          visitor.recordLevels.pop();
+
+          return visitor.variant(schema, metadataResult, valueResult);
         } else {
           visitor.recordLevels.push(name);
 
@@ -57,8 +61,10 @@ abstract class AvroCustomOrderSchemaVisitor<T, F> {
             results.add(new VisitFieldFuture<>(field, visitor));
           }
 
+          Iterable<F> itFields = Iterables.transform(results, Supplier::get);
           visitor.recordLevels.pop();
-          return visitor.record(schema, names, Iterables.transform(results, Supplier::get));
+
+          return visitor.record(schema, names, itFields);
         }
 
       case UNION:
