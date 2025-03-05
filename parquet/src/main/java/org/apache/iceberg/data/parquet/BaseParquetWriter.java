@@ -51,25 +51,14 @@ abstract class BaseParquetWriter<T> {
   protected abstract ParquetValueWriters.StructWriter<T> createStructWriter(
       List<ParquetValueWriter<?>> writers);
 
-  protected ParquetValueWriter<?> fixedWriter(ColumnDescriptor desc) {
-    return new GenericParquetWriter.FixedWriter(desc);
-  }
+  protected abstract ParquetValueWriter<?> fixedWriter(ColumnDescriptor desc);
 
-  protected ParquetValueWriter<?> dateWriter(ColumnDescriptor desc) {
-    return new GenericParquetWriter.DateWriter(desc);
-  }
+  protected abstract ParquetValueWriter<?> dateWriter(ColumnDescriptor desc);
 
-  protected ParquetValueWriter<?> timeWriter(ColumnDescriptor desc) {
-    return new GenericParquetWriter.TimeWriter(desc);
-  }
+  protected abstract ParquetValueWriter<?> timeWriter(ColumnDescriptor desc);
 
-  protected ParquetValueWriter<?> timestampWriter(ColumnDescriptor desc, boolean isAdjustedToUTC) {
-    if (isAdjustedToUTC) {
-      return new GenericParquetWriter.TimestamptzWriter(desc);
-    } else {
-      return new GenericParquetWriter.TimestampWriter(desc);
-    }
-  }
+  protected abstract ParquetValueWriter<?> timestampWriter(
+      ColumnDescriptor desc, boolean isAdjustedToUTC);
 
   private class WriteBuilder extends TypeWithSchemaVisitor<ParquetValueWriter<?>> {
     private final MessageType type;
@@ -244,8 +233,8 @@ abstract class BaseParquetWriter<T> {
     public Optional<ParquetValueWriter<?>> visit(
         LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampType) {
       Preconditions.checkArgument(
-          LogicalTypeAnnotation.TimeUnit.MICROS.equals(timestampType.getUnit()),
-          "Cannot write timestamp in %s, only MICROS is supported",
+          !LogicalTypeAnnotation.TimeUnit.MILLIS.equals(timestampType.getUnit()),
+          "Cannot write timestamp in %s, only MICROS and NANOS are supported",
           timestampType.getUnit());
       return Optional.of(timestampWriter(desc, timestampType.isAdjustedToUTC()));
     }

@@ -32,6 +32,7 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type.NestedType;
 import org.apache.iceberg.types.Type.PrimitiveType;
+import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.DecimalType;
 import org.apache.iceberg.types.Types.FixedType;
@@ -39,6 +40,7 @@ import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.types.Types.TimestampNanoType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -58,6 +60,10 @@ public class TypeToMessageType {
       LogicalTypeAnnotation.timestampType(false /* not adjusted to UTC */, TimeUnit.MICROS);
   private static final LogicalTypeAnnotation TIMESTAMPTZ_MICROS =
       LogicalTypeAnnotation.timestampType(true /* adjusted to UTC */, TimeUnit.MICROS);
+  private static final LogicalTypeAnnotation TIMESTAMP_NANOS =
+      LogicalTypeAnnotation.timestampType(false /* not adjusted to UTC */, TimeUnit.NANOS);
+  private static final LogicalTypeAnnotation TIMESTAMPTZ_NANOS =
+      LogicalTypeAnnotation.timestampType(true /* adjusted to UTC */, TimeUnit.NANOS);
   private static final String METADATA = "metadata";
   private static final String VALUE = "value";
   private static final String TYPED_VALUE = "typed_value";
@@ -76,7 +82,11 @@ public class TypeToMessageType {
     Types.MessageTypeBuilder builder = Types.buildMessage();
 
     for (NestedField field : schema.columns()) {
-      builder.addField(field(field));
+      // unknown type is not written to data files
+      Type fieldType = field(field);
+      if (fieldType != null) {
+        builder.addField(field(field));
+      }
     }
 
     return builder.named(AvroSchemaUtil.makeCompatibleName(name));
@@ -86,7 +96,11 @@ public class TypeToMessageType {
     Types.GroupBuilder<GroupType> builder = Types.buildGroup(repetition);
 
     for (NestedField field : struct.fields()) {
-      builder.addField(field(field));
+      // unknown type is not written to data files
+      Type fieldType = field(field);
+      if (fieldType != null) {
+        builder.addField(field(field));
+      }
     }
 
     return builder.id(id).named(AvroSchemaUtil.makeCompatibleName(name));
@@ -98,7 +112,10 @@ public class TypeToMessageType {
     int id = field.fieldId();
     String name = field.name();
 
-    if (field.type().isPrimitiveType()) {
+    if (field.type().typeId() == TypeID.UNKNOWN) {
+      return null;
+
+    } else if (field.type().isPrimitiveType()) {
       return primitive(field.type().asPrimitiveType(), repetition, id, name);
 
     } else if (field.type().isVariantType()) {
@@ -119,8 +136,12 @@ public class TypeToMessageType {
 
   public GroupType list(ListType list, Type.Repetition repetition, int id, String name) {
     NestedField elementField = list.fields().get(0);
+    Type elementType = field(elementField);
+    Preconditions.checkArgument(
+        elementType != null, "Cannot convert element Parquet: %s", elementField.type());
+
     return Types.list(repetition)
-        .element(field(elementField))
+        .element(elementType)
         .id(id)
         .named(AvroSchemaUtil.makeCompatibleName(name));
   }
@@ -128,6 +149,12 @@ public class TypeToMessageType {
   public GroupType map(MapType map, Type.Repetition repetition, int id, String name) {
     NestedField keyField = map.fields().get(0);
     NestedField valueField = map.fields().get(1);
+    Type keyType = field(keyField);
+    Preconditions.checkArgument(keyType != null, "Cannot convert key Parquet: %s", keyField.type());
+    Type valueType = field(valueField);
+    Preconditions.checkArgument(
+        valueType != null, "Cannot convert value Parquet: %s", valueField.type());
+
     return Types.map(repetition)
         .key(field(keyField))
         .value(field(valueField))
@@ -197,6 +224,12 @@ public class TypeToMessageType {
           return Types.primitive(INT64, repetition).as(TIMESTAMPTZ_MICROS).id(id).named(name);
         } else {
           return Types.primitive(INT64, repetition).as(TIMESTAMP_MICROS).id(id).named(name);
+        }
+      case TIMESTAMP_NANO:
+        if (((TimestampNanoType) primitive).shouldAdjustToUTC()) {
+          return Types.primitive(INT64, repetition).as(TIMESTAMPTZ_NANOS).id(id).named(name);
+        } else {
+          return Types.primitive(INT64, repetition).as(TIMESTAMP_NANOS).id(id).named(name);
         }
       case STRING:
         return Types.primitive(BINARY, repetition).as(STRING).id(id).named(name);
