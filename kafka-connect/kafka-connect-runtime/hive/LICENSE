@@ -273,14 +273,14 @@ License (from POM): The MIT License (MIT) - http://opensource.org/licenses/MIT
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.core  Name: jackson-annotations  Version: 2.18.2
+Group: com.fasterxml.jackson.core  Name: jackson-annotations  Version: 2.18.3
 Project URL (from manifest): https://github.com/FasterXML/jackson
 Project URL (from POM): https://github.com/FasterXML/jackson
 License (from POM): The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.core  Name: jackson-core  Version: 2.18.2
+Group: com.fasterxml.jackson.core  Name: jackson-core  Version: 2.18.3
 Project URL (from manifest): https://github.com/FasterXML/jackson-core
 Project URL (from POM): https://github.com/FasterXML/jackson-core
 License (from POM): Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
@@ -288,7 +288,7 @@ License (from POM): The Apache Software License, Version 2.0 - https://www.apach
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.core  Name: jackson-databind  Version: 2.18.2
+Group: com.fasterxml.jackson.core  Name: jackson-databind  Version: 2.18.3
 Project URL (from manifest): https://github.com/FasterXML/jackson
 Project URL (from POM): https://github.com/FasterXML/jackson
 License (from POM): Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
@@ -296,28 +296,28 @@ License (from POM): The Apache Software License, Version 2.0 - https://www.apach
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.datatype  Name: jackson-datatype-jsr310  Version: 2.18.2
+Group: com.fasterxml.jackson.datatype  Name: jackson-datatype-jsr310  Version: 2.18.3
 Project URL (from manifest): https://github.com/FasterXML/jackson-modules-java8/jackson-datatype-jsr310
 License (from POM): Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.jaxrs  Name: jackson-jaxrs-base  Version: 2.18.2
+Group: com.fasterxml.jackson.jaxrs  Name: jackson-jaxrs-base  Version: 2.18.3
 Project URL (from manifest): https://github.com/FasterXML/jackson-jaxrs-providers/jackson-jaxrs-base
 License (from POM): Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.jaxrs  Name: jackson-jaxrs-json-provider  Version: 2.18.2
+Group: com.fasterxml.jackson.jaxrs  Name: jackson-jaxrs-json-provider  Version: 2.18.3
 Project URL (from manifest): https://github.com/FasterXML/jackson-jaxrs-providers/jackson-jaxrs-json-provider
 License (from POM): Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 License (from POM): The Apache Software License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.module  Name: jackson-module-jaxb-annotations  Version: 2.18.2
+Group: com.fasterxml.jackson.module  Name: jackson-module-jaxb-annotations  Version: 2.18.3
 Project URL (from manifest): https://github.com/FasterXML/jackson-modules-base
 Project URL (from POM): https://github.com/FasterXML/jackson-modules-base
 License (from POM): Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
@@ -831,13 +831,13 @@ License (from POM): Apache 2.0 - https://opensource.org/licenses/Apache-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-buffer  Version: 4.1.118.Final
+Group: io.netty  Name: netty-buffer  Version: 4.1.119.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-codec  Version: 4.1.118.Final
+Group: io.netty  Name: netty-codec  Version: 4.1.119.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
@@ -855,13 +855,13 @@ License (from POM): Apache License, Version 2.0 - https://www.apache.org/license
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-codec-http  Version: 4.1.118.Final
+Group: io.netty  Name: netty-codec-http  Version: 4.1.119.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-codec-http2  Version: 4.1.118.Final
+Group: io.netty  Name: netty-codec-http2  Version: 4.1.119.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
@@ -891,7 +891,7 @@ License (from POM): Apache License, Version 2.0 - https://www.apache.org/license
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-codec-socks  Version: 4.1.118.Final
+Group: io.netty  Name: netty-codec-socks  Version: 4.1.119.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
@@ -909,19 +909,19 @@ License (from POM): Apache License, Version 2.0 - https://www.apache.org/license
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-common  Version: 4.1.118.Final
+Group: io.netty  Name: netty-common  Version: 4.1.119.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-handler  Version: 4.1.118.Final
+Group: io.netty  Name: netty-handler  Version: 4.1.119.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-handler-proxy  Version: 4.1.118.Final
+Group: io.netty  Name: netty-handler-proxy  Version: 4.1.119.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
@@ -933,7 +933,7 @@ License (from POM): Apache License, Version 2.0 - https://www.apache.org/license
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-resolver  Version: 4.1.118.Final
+Group: io.netty  Name: netty-resolver  Version: 4.1.119.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
@@ -970,37 +970,37 @@ License (from POM): The Apache Software License, Version 2.0 - http://www.apache
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport  Version: 4.1.118.Final
+Group: io.netty  Name: netty-transport  Version: 4.1.119.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport-classes-epoll  Version: 4.1.118.Final
+Group: io.netty  Name: netty-transport-classes-epoll  Version: 4.1.119.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport-classes-kqueue  Version: 4.1.118.Final
+Group: io.netty  Name: netty-transport-classes-kqueue  Version: 4.1.119.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport-native-epoll  Version: 4.1.118.Final
+Group: io.netty  Name: netty-transport-native-epoll  Version: 4.1.119.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport-native-kqueue  Version: 4.1.118.Final
+Group: io.netty  Name: netty-transport-native-kqueue  Version: 4.1.119.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport-native-unix-common  Version: 4.1.118.Final
+Group: io.netty  Name: netty-transport-native-unix-common  Version: 4.1.119.Final
 Project URL (from manifest): https://netty.io/
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
@@ -1677,7 +1677,7 @@ License (from POM): Apache 2 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: org.slf4j  Name: slf4j-api  Version: 2.0.16
+Group: org.slf4j  Name: slf4j-api  Version: 2.0.17
 Project URL (from manifest): http://www.slf4j.org
 Project URL (from POM): http://www.slf4j.org
 License (from POM): MIT License - http://www.opensource.org/licenses/mit-license.php

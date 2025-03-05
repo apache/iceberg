@@ -78,7 +78,7 @@ subprojects {
     tasks.withType(JavaCompile).configureEach {
       options.errorprone.errorproneArgs.addAll (
           // error-prone is slow, don't run on tests/generated-src/generated
-          '-XepExcludedPaths:.*/(test|generated-src|generated)/.*',
+          '-XepExcludedPaths:.*/(test|integration|generated-src|generated)/.*',
           '-Xep:AnnotateFormatMethod:ERROR',
           '-Xep:BadComparable:ERROR',
           '-Xep:BadInstanceof:ERROR',

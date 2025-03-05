@@ -1858,4 +1858,20 @@ public class TestTableMetadata {
     assertThat(updatedMetadata.metadataFileLocation()).isEqualTo("updated-metadata-location");
     assertThat(updatedMetadata.previousFiles()).isEmpty();
   }
+
+  @Test
+  public void testMetadataWithRemoveSchemas() {
+    TableMetadata meta =
+        TableMetadata.buildFrom(
+                TableMetadata.newTableMetadata(
+                    TestBase.SCHEMA, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
+            .removeSchemas(Sets.newHashSet())
+            .build();
+
+    assertThat(meta.changes()).noneMatch(u -> u instanceof MetadataUpdate.RemoveSchemas);
+
+    meta = TableMetadata.buildFrom(meta).removeSchemas(Sets.newHashSet(1, 2)).build();
+
+    assertThat(meta.changes()).anyMatch(u -> u instanceof MetadataUpdate.RemoveSchemas);
+  }
 }

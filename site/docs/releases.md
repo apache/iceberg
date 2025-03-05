@@ -34,15 +34,12 @@ The latest version of Iceberg is [{{ icebergVersion }}](https://github.com/apach
 * [{{ icebergVersion }} Flink 1.20 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.20/{{ icebergVersion }}/iceberg-flink-runtime-1.20-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} Flink 1.19 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.19/{{ icebergVersion }}/iceberg-flink-runtime-1.19-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} Flink 1.18 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime-1.18/{{ icebergVersion }}/iceberg-flink-runtime-1.18-{{ icebergVersion }}.jar)
-* [{{ icebergVersion }} Hive runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime/{{ icebergVersion }}/iceberg-hive-runtime-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} aws-bundle Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-aws-bundle/{{ icebergVersion }}/iceberg-aws-bundle-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} gcp-bundle Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-gcp-bundle/{{ icebergVersion }}/iceberg-gcp-bundle-{{ icebergVersion }}.jar)
 * [{{ icebergVersion }} azure-bundle Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-azure-bundle/{{ icebergVersion }}/iceberg-azure-bundle-{{ icebergVersion }}.jar)
 
 
 To use Iceberg in Spark or Flink, download the runtime JAR for your engine version and add it to the jars folder of your installation.
-
-To use Iceberg in Hive 2 or Hive 3, download the Hive runtime JAR and add it to Hive using `ADD JAR`.
 
 ### Gradle
 
@@ -71,6 +68,25 @@ To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:
   ...
 </dependencies>
 ```
+
+### 1.8.1 release
+
+Apache Iceberg 1.8.1 was released on February 28, 2025.
+
+The 1.8.1 release contains bug fixes and fixes to LICENSE/NOTICE files. For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.8.1)
+
+* Core
+    - Don't remove trailing slash from absolute paths ([\#12390](https://github.com/apache/iceberg/pull/12390))
+    - Fallback to GET requests for namespace/table/view exists checks ([\#12328](https://github.com/apache/iceberg/pull/12328))
+    - Remove namespace/table/view HEAD endpoints from defaults ([\#12368](https://github.com/apache/iceberg/pull/12368))
+    - Adjust Jackson settings to handle large metadata json ([\#12330](https://github.com/apache/iceberg/pull/12330))
+    - Write "-1" again when there's no current snapshot ([\#12313](https://github.com/apache/iceberg/pull/12313))
+* Parquet
+    - Fix performance regression in reader init ([\#12329](https://github.com/apache/iceberg/pull/12329))
+* Dependencies
+    - downgraded AWS SDK to 2.29.52 ([\#12339](https://github.com/apache/iceberg/pull/12339))
+
+## Past releases
 
 ### 1.8.0 release
 
@@ -141,8 +157,6 @@ The 1.8.0 release contains bug fixes and new features. For full release notes vi
     - ORC to 1.9.5
     - Sqllite JDBC to 3.48.0.0
     - Jackson to 2.18.2
-
-## Past releases
 
 ### 1.7.1 release
 
