@@ -114,6 +114,10 @@ public class OAuth2Manager extends RefreshingAuthManager {
     if (authResponse != null) {
       return OAuth2Util.AuthSession.fromTokenResponse(
           client, refreshExecutor(), authResponse, startTimeMillis, session);
+    } else if (config.token() != null) {
+      // If both a token and a credential are provided, prefer the token.
+      return OAuth2Util.AuthSession.fromAccessToken(
+          client, refreshExecutor(), config.token(), config.expiresAtMillis(), session);
     } else if (config.credential() != null && !config.credential().isEmpty()) {
       OAuthTokenResponse response =
           OAuth2Util.fetchToken(
@@ -125,9 +129,6 @@ public class OAuth2Manager extends RefreshingAuthManager {
               config.optionalOAuthParams());
       return OAuth2Util.AuthSession.fromTokenResponse(
           client, refreshExecutor(), response, System.currentTimeMillis(), session);
-    } else if (config.token() != null) {
-      return OAuth2Util.AuthSession.fromAccessToken(
-          client, refreshExecutor(), config.token(), config.expiresAtMillis(), session);
     }
     return session;
   }
