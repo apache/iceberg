@@ -113,9 +113,7 @@ public class CommitterImpl implements Committer {
   @Override
   public void stop(Collection<TopicPartition> closedPartitions) {
     stopWorker();
-    Set<TopicPartition> currentOwnedPartitions = Sets.newHashSet(context.assignment());
-    currentOwnedPartitions.removeAll(closedPartitions);
-    KafkaUtils.seekToLastCommittedOffsetsForCurrentlyOwnedPartitions(context, currentOwnedPartitions);
+    KafkaUtils.seekToLastCommittedOffsetsForCurrentlyOwnedPartitions(context);
     if (hasLeaderPartitions(closedPartitions)) {
       LOG.info("Committer lost leader partition. Stopping Coordinator.");
       stopCoordinator();
@@ -136,11 +134,11 @@ public class CommitterImpl implements Committer {
     // there should only be one task assigned partition 0 of the first topic,
     // so elect that one the leader
     TopicPartition firstTopicPartition =
-            members.stream()
-                    .flatMap(member -> member.assignment().topicPartitions().stream())
-                    .min(new TopicPartitionComparator())
-                    .orElseThrow(
-                            () -> new ConnectException("No partitions assigned, cannot determine leader"));
+        members.stream()
+            .flatMap(member -> member.assignment().topicPartitions().stream())
+            .min(new TopicPartitionComparator())
+            .orElseThrow(
+                () -> new ConnectException("No partitions assigned, cannot determine leader"));
 
     return partitions.contains(firstTopicPartition);
   }
