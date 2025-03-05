@@ -27,6 +27,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.catalog.AbstractCatalog;
 import org.apache.flink.table.catalog.CatalogBaseTable;
@@ -91,6 +92,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
  * <p>The Iceberg table manages its partitions by itself. The partition of the Iceberg table is
  * independent of the partition of Flink.
  */
+@Internal
 public class FlinkCatalog extends AbstractCatalog {
   private final CatalogLoader catalogLoader;
   private final Catalog icebergCatalog;
@@ -350,7 +352,8 @@ public class FlinkCatalog extends AbstractCatalog {
         || tableProps.containsKey(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY)) {
       throw new IllegalArgumentException(
           String.format(
-              "Source table %s contains one/all of the reserved property keys: %s, %s." + tablePath,
+              "Source table %s contains one/all of the reserved property keys: %s, %s.",
+              tablePath,
               FlinkCreateTableOptions.CONNECTOR_PROPS_KEY,
               FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY));
     }
@@ -442,7 +445,7 @@ public class FlinkCatalog extends AbstractCatalog {
       } else {
         // Filtering reserved properties like catalog properties(added to support CREATE TABLE LIKE
         // in getTable()), location and not persisting on table properties.
-        if ("location".equalsIgnoreCase(entry.getKey())) {
+        if (FlinkCreateTableOptions.LOCATION_KEY.equalsIgnoreCase(entry.getKey())) {
           location = entry.getValue();
         }
       }
@@ -459,7 +462,7 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   private boolean isReservedProperty(String prop) {
-    return "location".equalsIgnoreCase(prop)
+    return FlinkCreateTableOptions.LOCATION_KEY.equalsIgnoreCase(prop)
         || FlinkCreateTableOptions.CONNECTOR_PROPS_KEY.equalsIgnoreCase(prop)
         || FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY.equalsIgnoreCase(prop);
   }
@@ -544,7 +547,7 @@ public class FlinkCatalog extends AbstractCatalog {
         continue;
       }
 
-      if ("location".equalsIgnoreCase(key)) {
+      if (FlinkCreateTableOptions.LOCATION_KEY.equalsIgnoreCase(key)) {
         setLocation = value;
       } else if ("current-snapshot-id".equalsIgnoreCase(key)) {
         setSnapshotId = value;
@@ -601,7 +604,7 @@ public class FlinkCatalog extends AbstractCatalog {
       if (change instanceof TableChange.SetOption) {
         TableChange.SetOption set = (TableChange.SetOption) change;
 
-        if ("location".equalsIgnoreCase(set.getKey())) {
+        if (FlinkCreateTableOptions.LOCATION_KEY.equalsIgnoreCase(set.getKey())) {
           setLocation = set.getValue();
         } else if ("current-snapshot-id".equalsIgnoreCase(set.getKey())) {
           setSnapshotId = set.getValue();

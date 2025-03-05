@@ -69,6 +69,7 @@ class FlinkCreateTableOptions {
 
   public static final String SRC_CATALOG_PROPS_KEY = "src-catalog";
   public static final String CONNECTOR_PROPS_KEY = "connector";
+  public static final String LOCATION_KEY = "location";
 
   static String toJson(
       String catalogName, String catalogDb, String catalogTable, Map<String, String> catalogProps) {
