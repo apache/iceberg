@@ -54,6 +54,10 @@ public interface VariantMetadata {
     return SerializedMetadata.from(buffer);
   }
 
+  static VariantMetadata empty() {
+    return SerializedMetadata.EMPTY_V1_METADATA;
+  }
+
   static String asString(VariantMetadata metadata) {
     StringBuilder builder = new StringBuilder();
 
