@@ -21,7 +21,6 @@ package org.apache.iceberg.parquet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.NameMapping;
@@ -53,17 +52,18 @@ public class ParquetSchemaUtil {
   /**
    * Convert an Iceberg schema to Parquet.
    *
-   * <p>Variant fields are converted by calling the function with the variant's name and field ID to
-   * produce the shredding type as a {@code typed_value} field. This field is added to the variant
-   * struct alongside the {@code metadata} and {@code value} fields.
+   * <p>Variant fields are converted by calling the {@link VariantShreddingFunction} with the
+   * variant's and field ID and name to produce the shredding type as a {@code typed_value} field.
+   * This field is added to the variant struct alongside the {@code metadata} and {@code value}
+   * fields.
    *
    * @param schema an Iceberg {@link Schema}
    * @param name name for the Parquet schema
-   * @param variantShreddingFunc {@link BiFunction} that produces a shredded {@code typed_value}
+   * @param variantShreddingFunc {@link VariantShreddingFunction} that produces a shredded type
    * @return the schema converted to a Parquet {@link MessageType}
    */
   public static MessageType convert(
-      Schema schema, String name, BiFunction<Integer, String, Type> variantShreddingFunc) {
+      Schema schema, String name, VariantShreddingFunction variantShreddingFunc) {
     return new TypeToMessageType(variantShreddingFunc).convert(schema, name);
   }
 

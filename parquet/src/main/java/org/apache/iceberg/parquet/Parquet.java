@@ -120,7 +120,6 @@ import org.apache.parquet.hadoop.api.ReadSupport;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -161,7 +160,7 @@ public class Parquet {
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
     private final Map<String, String> config = Maps.newLinkedHashMap();
     private Schema schema = null;
-    private BiFunction<Integer, String, Type> variantShreddingFunc = null;
+    private VariantShreddingFunction variantShreddingFunc = null;
     private String name = "table";
     private WriteSupport<?> writeSupport = null;
     private BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc = null;
@@ -195,14 +194,14 @@ public class Parquet {
     }
 
     /**
-     * Set a {@link BiFunction} that is called with each variant field's name and field ID to
-     * produce the shredding type as a {@code typed_value} field. This field is added to the result
-     * variant struct alongside the {@code metadata} and {@code value} fields.
+     * Set a {@link VariantShreddingFunction} that is called with each variant field's name and
+     * field ID to produce the shredding type as a {@code typed_value} field. This field is added to
+     * the result variant struct alongside the {@code metadata} and {@code value} fields.
      *
-     * @param func {@link BiFunction} that produces a shredded {@code typed_value}
+     * @param func {@link VariantShreddingFunction} that produces a shredded {@code typed_value}
      * @return this for method chaining
      */
-    public WriteBuilder variantShreddingFunc(BiFunction<Integer, String, Type> func) {
+    public WriteBuilder variantShreddingFunc(VariantShreddingFunction func) {
       this.variantShreddingFunc = func;
       return this;
     }

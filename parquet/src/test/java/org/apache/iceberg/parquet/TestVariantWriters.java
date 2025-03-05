@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.InternalTestHelpers;
@@ -171,13 +170,13 @@ public class TestVariantWriters {
     }
   }
 
-  private static Record writeAndRead(BiFunction<Integer, String, Type> shreddingFunc, Record record)
+  private static Record writeAndRead(VariantShreddingFunction shreddingFunc, Record record)
       throws IOException {
     return Iterables.getOnlyElement(writeAndRead(shreddingFunc, List.of(record)));
   }
 
   private static List<Record> writeAndRead(
-      BiFunction<Integer, String, Type> shreddingFunc, List<Record> records) throws IOException {
+      VariantShreddingFunction shreddingFunc, List<Record> records) throws IOException {
     OutputFile outputFile = new InMemoryOutputFile();
 
     try (FileAppender<Record> writer =
