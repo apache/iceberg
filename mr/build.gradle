@@ -37,7 +37,7 @@ project(':iceberg-mr') {
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
 
-    compileOnly(libs.hadoop2.client) {
+    compileOnly(libs.hadoop3.client) {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 

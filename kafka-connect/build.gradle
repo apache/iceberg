@@ -92,6 +92,7 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
 
   dependencies {
     implementation project(':iceberg-kafka-connect:iceberg-kafka-connect')
+    implementation project(':iceberg-kafka-connect:iceberg-kafka-connect-transforms')
     implementation(libs.hadoop3.common) {
       exclude group: 'log4j'
       exclude group: 'org.slf4j'
@@ -241,4 +242,20 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
   check.dependsOn integrationTest
 
   assemble.dependsOn distZip, hiveDistZip
+}
+
+project(':iceberg-kafka-connect:iceberg-kafka-connect-transforms') {
+  dependencies {
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    implementation libs.bson
+    implementation libs.slf4j.api
+    compileOnly libs.kafka.clients
+    compileOnly libs.kafka.connect.api
+    compileOnly libs.kafka.connect.json
+    compileOnly libs.kafka.connect.transforms
+  }
+
+  test {
+    useJUnitPlatform()
+  }
 }
