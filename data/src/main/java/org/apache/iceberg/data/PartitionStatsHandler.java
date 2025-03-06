@@ -130,7 +130,7 @@ public class PartitionStatsHandler {
    * Computes and writes the {@link PartitionStatisticsFile} for a given table and snapshot.
    *
    * @param table The {@link Table} for which the partition statistics is computed.
-   * @param snapshotId snapshot for which partition statistics is computed.
+   * @param snapshotId snapshot for which partition statistics are computed.
    * @return {@link PartitionStatisticsFile} for the given snapshot, or null if no statistics are
    *     present.
    */
