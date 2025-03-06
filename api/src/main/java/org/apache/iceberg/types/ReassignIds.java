@@ -158,6 +158,11 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   }
 
   @Override
+  public Type variant(Types.VariantType variant) {
+    return variant;
+  }
+
+  @Override
   public Type primitive(Type.PrimitiveType primitive) {
     return primitive; // nothing to reassign
   }

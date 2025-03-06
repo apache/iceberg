@@ -26,8 +26,6 @@ INFRA:
       '.gitignore',
       'baseline.gradle',
       'deploy.gradle',
-      'jitpack.yml',
-      'travis.yml',
       '.baseline/**/*',
       '.github/**/*',
       'dev/**/*'

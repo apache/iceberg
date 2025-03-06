@@ -24,7 +24,7 @@ lint:
 generate:
 	datamodel-codegen \
                 --enum-field-as-literal all \
-	        --target-python-version 3.8 \
+	        --target-python-version 3.9 \
 	        --use-schema-description \
 	        --field-constraints \
 	        --input rest-catalog-open-api.yaml \

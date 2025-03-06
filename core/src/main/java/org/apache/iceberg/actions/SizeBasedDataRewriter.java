@@ -47,9 +47,25 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
   public static final String DELETE_FILE_THRESHOLD = "delete-file-threshold";
 
   public static final int DELETE_FILE_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
-  private static final double DELETE_RATIO_THRESHOLD = 0.3;
+
+  /**
+   * The minimum deletion ratio that needs to be associated with a data file for it to be considered
+   * for rewriting. If the deletion ratio of a data file is greater than or equal to this value, it
+   * will be rewritten regardless of its file size determined by {@link #MIN_FILE_SIZE_BYTES} and
+   * {@link #MAX_FILE_SIZE_BYTES}. If a file group contains a file that satisfies this condition,
+   * the file group will be rewritten regardless of the number of files in the file group determined
+   * by {@link #MIN_INPUT_FILES}.
+   *
+   * <p>Defaults to 0.3, which means that if the deletion ratio of a file reaches or exceeds 30%, it
+   * may trigger the rewriting operation.
+   */
+  public static final String DELETE_RATIO_THRESHOLD = "delete-ratio-threshold";
+
+  public static final double DELETE_RATIO_THRESHOLD_DEFAULT = 0.3;
 
   private int deleteFileThreshold;
+
+  private double deleteRatioThreshold;
 
   protected SizeBasedDataRewriter(Table table) {
     super(table);
@@ -60,6 +76,7 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
     return ImmutableSet.<String>builder()
         .addAll(super.validOptions())
         .add(DELETE_FILE_THRESHOLD)
+        .add(DELETE_RATIO_THRESHOLD)
         .build();
   }
 
@@ -67,6 +84,18 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
   public void init(Map<String, String> options) {
     super.init(options);
     this.deleteFileThreshold = deleteFileThreshold(options);
+    this.deleteRatioThreshold = deleteRatioThreshold(options);
+  }
+
+  private double deleteRatioThreshold(Map<String, String> options) {
+    double value =
+        PropertyUtil.propertyAsDouble(
+            options, DELETE_RATIO_THRESHOLD, DELETE_RATIO_THRESHOLD_DEFAULT);
+    Preconditions.checkArgument(
+        value > 0, "'%s' is set to %s but must be > 0", DELETE_RATIO_THRESHOLD, value);
+    Preconditions.checkArgument(
+        value <= 1, "'%s' is set to %s but must be <= 1", DELETE_RATIO_THRESHOLD, value);
+    return value;
   }
 
   @Override
@@ -116,7 +145,7 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
 
     double deletedRecords = (double) Math.min(knownDeletedRecordCount, task.file().recordCount());
     double deleteRatio = deletedRecords / task.file().recordCount();
-    return deleteRatio >= DELETE_RATIO_THRESHOLD;
+    return deleteRatio >= deleteRatioThreshold;
   }
 
   @Override

@@ -55,6 +55,13 @@ public class BoundTransform<S, T> implements BoundTerm<T> {
   }
 
   @Override
+  public boolean producesNull() {
+    // transforms must produce null for null input values
+    // transforms may produce null for non-null inputs when not order-preserving
+    return ref.producesNull() || !transform.preservesOrder();
+  }
+
+  @Override
   public Type type() {
     return transform.getResultType(ref.type());
   }

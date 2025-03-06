@@ -43,7 +43,12 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
                 .map(Optional::get)
                 .collect(Collectors.toList()));
     return Optional.of(
-        Types.NestedField.of(icebergIdOpt.get(), isOptional, currentFieldName(), structType));
+        Types.NestedField.builder()
+            .withId(icebergIdOpt.get())
+            .isOptional(isOptional)
+            .withName(currentFieldName())
+            .ofType(structType)
+            .build());
   }
 
   @Override
@@ -63,7 +68,12 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
             : Types.ListType.ofRequired(foundElement.fieldId(), foundElement.type());
 
     return Optional.of(
-        Types.NestedField.of(icebergIdOpt.get(), isOptional, currentFieldName(), listTypeWithElem));
+        Types.NestedField.builder()
+            .withId(icebergIdOpt.get())
+            .isOptional(isOptional)
+            .withName(currentFieldName())
+            .ofType(listTypeWithElem)
+            .build());
   }
 
   @Override
@@ -86,7 +96,12 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
                 foundKey.fieldId(), foundValue.fieldId(), foundKey.type(), foundValue.type());
 
     return Optional.of(
-        Types.NestedField.of(icebergIdOpt.get(), isOptional, currentFieldName(), mapTypeWithKV));
+        Types.NestedField.builder()
+            .withId(icebergIdOpt.get())
+            .isOptional(isOptional)
+            .withName(currentFieldName())
+            .ofType(mapTypeWithKV)
+            .build());
   }
 
   @Override
@@ -98,17 +113,19 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
       return Optional.empty();
     }
 
-    final Types.NestedField foundField;
-    int icebergID = icebergIdOpt.get();
-    String name = currentFieldName();
+    Types.NestedField.Builder builder =
+        Types.NestedField.builder()
+            .withId(icebergIdOpt.get())
+            .isOptional(isOptional)
+            .withName(currentFieldName());
     switch (primitive.getCategory()) {
       case BOOLEAN:
-        foundField = Types.NestedField.of(icebergID, isOptional, name, Types.BooleanType.get());
+        builder.ofType(Types.BooleanType.get());
         break;
       case BYTE:
       case SHORT:
       case INT:
-        foundField = Types.NestedField.of(icebergID, isOptional, name, Types.IntegerType.get());
+        builder.ofType(Types.IntegerType.get());
         break;
       case LONG:
         String longAttributeValue =
@@ -119,25 +136,25 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
                 : ORCSchemaUtil.LongType.valueOf(longAttributeValue);
         switch (longType) {
           case TIME:
-            foundField = Types.NestedField.of(icebergID, isOptional, name, Types.TimeType.get());
+            builder.ofType(Types.TimeType.get());
             break;
           case LONG:
-            foundField = Types.NestedField.of(icebergID, isOptional, name, Types.LongType.get());
+            builder.ofType(Types.LongType.get());
             break;
           default:
             throw new IllegalStateException("Invalid Long type found in ORC type attribute");
         }
         break;
       case FLOAT:
-        foundField = Types.NestedField.of(icebergID, isOptional, name, Types.FloatType.get());
+        builder.ofType(Types.FloatType.get());
         break;
       case DOUBLE:
-        foundField = Types.NestedField.of(icebergID, isOptional, name, Types.DoubleType.get());
+        builder.ofType(Types.DoubleType.get());
         break;
       case STRING:
       case CHAR:
       case VARCHAR:
-        foundField = Types.NestedField.of(icebergID, isOptional, name, Types.StringType.get());
+        builder.ofType(Types.StringType.get());
         break;
       case BINARY:
         String binaryAttributeValue =
@@ -148,44 +165,36 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
                 : ORCSchemaUtil.BinaryType.valueOf(binaryAttributeValue);
         switch (binaryType) {
           case UUID:
-            foundField = Types.NestedField.of(icebergID, isOptional, name, Types.UUIDType.get());
+            builder.ofType(Types.UUIDType.get());
             break;
           case FIXED:
             int fixedLength =
                 Integer.parseInt(primitive.getAttributeValue(ORCSchemaUtil.ICEBERG_FIELD_LENGTH));
-            foundField =
-                Types.NestedField.of(
-                    icebergID, isOptional, name, Types.FixedType.ofLength(fixedLength));
+            builder.ofType(Types.FixedType.ofLength(fixedLength));
             break;
           case BINARY:
-            foundField = Types.NestedField.of(icebergID, isOptional, name, Types.BinaryType.get());
+            builder.ofType(Types.BinaryType.get());
             break;
           default:
             throw new IllegalStateException("Invalid Binary type found in ORC type attribute");
         }
         break;
       case DATE:
-        foundField = Types.NestedField.of(icebergID, isOptional, name, Types.DateType.get());
+        builder.ofType(Types.DateType.get());
         break;
       case TIMESTAMP:
-        foundField =
-            Types.NestedField.of(icebergID, isOptional, name, Types.TimestampType.withoutZone());
+        builder.ofType(Types.TimestampType.withoutZone());
         break;
       case TIMESTAMP_INSTANT:
-        foundField =
-            Types.NestedField.of(icebergID, isOptional, name, Types.TimestampType.withZone());
+        builder.ofType(Types.TimestampType.withZone());
         break;
       case DECIMAL:
-        foundField =
-            Types.NestedField.of(
-                icebergID,
-                isOptional,
-                name,
-                Types.DecimalType.of(primitive.getPrecision(), primitive.getScale()));
+        builder.ofType(Types.DecimalType.of(primitive.getPrecision(), primitive.getScale()));
         break;
       default:
         throw new IllegalArgumentException("Can't handle " + primitive);
     }
-    return Optional.of(foundField);
+
+    return Optional.of(builder.build());
   }
 }

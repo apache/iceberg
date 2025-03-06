@@ -96,7 +96,10 @@ public class PartitionStatsUtil {
         StructLike key = keyTemplate.copyFor(coercedPartition);
         Snapshot snapshot = table.snapshot(entry.snapshotId());
         PartitionStats stats =
-            statsMap.computeIfAbsent(specId, key, () -> new PartitionStats(key, specId));
+            statsMap.computeIfAbsent(
+                specId,
+                ((PartitionData) file.partition()).copy(),
+                () -> new PartitionStats(key, specId));
         if (entry.isLive()) {
           stats.liveEntry(file, snapshot);
         } else {

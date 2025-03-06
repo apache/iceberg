@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.variants.Variant;
 
 public interface Type extends Serializable {
   enum TypeID {
@@ -46,7 +47,7 @@ public interface Type extends Serializable {
     STRUCT(StructLike.class),
     LIST(List.class),
     MAP(Map.class),
-    VARIANT(Object.class),
+    VARIANT(Variant.class),
     UNKNOWN(Object.class);
 
     private final Class<?> javaClass;
@@ -82,6 +83,10 @@ public interface Type extends Serializable {
     throw new IllegalArgumentException("Not a map type: " + this);
   }
 
+  default Types.VariantType asVariantType() {
+    throw new IllegalArgumentException("Not a variant type: " + this);
+  }
+
   default boolean isNestedType() {
     return false;
   }
@@ -95,6 +100,10 @@ public interface Type extends Serializable {
   }
 
   default boolean isMapType() {
+    return false;
+  }
+
+  default boolean isVariantType() {
     return false;
   }
 
@@ -114,7 +123,7 @@ public interface Type extends Serializable {
     }
 
     Object writeReplace() throws ObjectStreamException {
-      return new PrimitiveHolder(toString());
+      return new PrimitiveLikeHolder(toString());
     }
 
     @Override

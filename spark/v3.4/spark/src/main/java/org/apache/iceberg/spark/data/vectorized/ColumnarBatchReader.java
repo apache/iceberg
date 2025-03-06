@@ -52,12 +52,6 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
 
   @Override
   public void setRowGroupInfo(
-      PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData, long rowPosition) {
-    setRowGroupInfo(pageStore, metaData);
-  }
-
-  @Override
-  public void setRowGroupInfo(
       PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData) {
     super.setRowGroupInfo(pageStore, metaData);
     this.rowStartPosInBatch =
@@ -94,43 +88,42 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
     }
 
     ColumnarBatch loadDataToColumnBatch() {
-      ColumnVector[] arrowColumnVectors = readDataToColumnVectors();
+      ColumnVector[] vectors = readDataToColumnVectors();
       int numLiveRows = batchSize;
+
       if (hasIsDeletedColumn) {
-        boolean[] isDeleted =
-            ColumnarBatchUtil.buildIsDeleted(
-                arrowColumnVectors, deletes, rowStartPosInBatch, batchSize);
-        for (int i = 0; i < arrowColumnVectors.length; i++) {
-          ColumnVector vector = arrowColumnVectors[i];
+        boolean[] isDeleted = buildIsDeleted(vectors);
+        for (ColumnVector vector : vectors) {
           if (vector instanceof DeletedColumnVector) {
             ((DeletedColumnVector) vector).setValue(isDeleted);
           }
         }
       } else {
-        Pair<int[], Integer> pair =
-            ColumnarBatchUtil.buildRowIdMapping(
-                arrowColumnVectors, deletes, rowStartPosInBatch, batchSize);
+        Pair<int[], Integer> pair = buildRowIdMapping(vectors);
         if (pair != null) {
           int[] rowIdMapping = pair.first();
           numLiveRows = pair.second();
-          for (int i = 0; i < arrowColumnVectors.length; i++) {
-            ColumnVector vector = arrowColumnVectors[i];
-            if (vector instanceof IcebergArrowColumnVector) {
-              arrowColumnVectors[i] =
-                  new ColumnVectorWithFilter(
-                      ((IcebergArrowColumnVector) vector).vector(), rowIdMapping);
-            }
+          for (int i = 0; i < vectors.length; i++) {
+            vectors[i] = new ColumnVectorWithFilter(vectors[i], rowIdMapping);
           }
         }
       }
 
       if (deletes != null && deletes.hasEqDeletes()) {
-        arrowColumnVectors = ColumnarBatchUtil.removeExtraColumns(deletes, arrowColumnVectors);
+        vectors = ColumnarBatchUtil.removeExtraColumns(deletes, vectors);
       }
 
-      ColumnarBatch newColumnarBatch = new ColumnarBatch(arrowColumnVectors);
-      newColumnarBatch.setNumRows(numLiveRows);
-      return newColumnarBatch;
+      ColumnarBatch batch = new ColumnarBatch(vectors);
+      batch.setNumRows(numLiveRows);
+      return batch;
+    }
+
+    private boolean[] buildIsDeleted(ColumnVector[] vectors) {
+      return ColumnarBatchUtil.buildIsDeleted(vectors, deletes, rowStartPosInBatch, batchSize);
+    }
+
+    private Pair<int[], Integer> buildRowIdMapping(ColumnVector[] vectors) {
+      return ColumnarBatchUtil.buildRowIdMapping(vectors, deletes, rowStartPosInBatch, batchSize);
     }
 
     ColumnVector[] readDataToColumnVectors() {

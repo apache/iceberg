@@ -944,7 +944,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     }
 
     Transaction transaction = table.newTransaction();
-    transaction.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    transaction.updateStatistics().setStatistics(statisticsFile).commit();
     transaction.commitTransaction();
 
     SparkActions.get()

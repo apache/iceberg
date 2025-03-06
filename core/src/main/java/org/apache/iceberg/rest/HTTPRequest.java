@@ -53,13 +53,17 @@ public interface HTTPRequest {
    */
   @Value.Lazy
   default URI requestUri() {
-    // if full path is provided, use the input path as path
-    String fullPath =
-        (path().startsWith("https://") || path().startsWith("http://"))
-            ? path()
-            : String.format("%s/%s", baseUri(), path());
+    String fullPath;
+    if (path().startsWith("https://") || path().startsWith("http://")) {
+      // if path is an absolute URI, use it as is
+      fullPath = path();
+    } else {
+      String baseUri = RESTUtil.stripTrailingSlash(baseUri().toString());
+      fullPath = RESTUtil.stripTrailingSlash(String.format("%s/%s", baseUri, path()));
+    }
+
     try {
-      URIBuilder builder = new URIBuilder(RESTUtil.stripTrailingSlash(fullPath));
+      URIBuilder builder = new URIBuilder(fullPath);
       queryParameters().forEach(builder::addParameter);
       return builder.build();
     } catch (URISyntaxException e) {

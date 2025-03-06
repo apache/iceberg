@@ -35,6 +35,7 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.RowType.RowField;
 import org.apache.flink.table.types.logical.SmallIntType;
 import org.apache.flink.table.types.logical.TinyIntType;
+import org.apache.iceberg.flink.FlinkRowData;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
@@ -492,7 +493,7 @@ public class FlinkParquetWriters {
       super(writers);
       fieldGetter = new RowData.FieldGetter[types.size()];
       for (int i = 0; i < types.size(); i += 1) {
-        fieldGetter[i] = RowData.createFieldGetter(types.get(i), i);
+        fieldGetter[i] = FlinkRowData.createFieldGetter(types.get(i), i);
       }
     }
 

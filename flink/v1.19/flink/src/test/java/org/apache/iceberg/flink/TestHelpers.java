@@ -89,7 +89,7 @@ public class TestHelpers {
             .toArray(TypeSerializer[]::new);
     RowData.FieldGetter[] fieldGetters = new RowData.FieldGetter[rowType.getFieldCount()];
     for (int i = 0; i < rowType.getFieldCount(); ++i) {
-      fieldGetters[i] = RowData.createFieldGetter(rowType.getTypeAt(i), i);
+      fieldGetters[i] = FlinkRowData.createFieldGetter(rowType.getTypeAt(i), i);
     }
 
     return RowDataUtil.clone(from, null, rowType, fieldSerializers, fieldGetters);
@@ -190,17 +190,7 @@ public class TestHelpers {
     for (int i = 0; i < types.size(); i += 1) {
       LogicalType logicalType = ((RowType) rowType).getTypeAt(i);
       Object expected = expectedRecord.get(i, Object.class);
-      // The RowData.createFieldGetter won't return null for the required field. But in the
-      // projection case, if we are
-      // projecting a nested required field from an optional struct, then we should give a null for
-      // the projected field
-      // if the outer struct value is null. So we need to check the nullable for actualRowData here.
-      // For more details
-      // please see issue #2738.
-      Object actual =
-          actualRowData.isNullAt(i)
-              ? null
-              : RowData.createFieldGetter(logicalType, i).getFieldOrNull(actualRowData);
+      Object actual = FlinkRowData.createFieldGetter(logicalType, i).getFieldOrNull(actualRowData);
       assertEquals(types.get(i), logicalType, expected, actual);
     }
   }

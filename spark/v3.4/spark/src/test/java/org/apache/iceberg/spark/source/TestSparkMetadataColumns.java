@@ -186,10 +186,7 @@ public class TestSparkMetadataColumns extends SparkTestBase {
 
     TableOperations ops = ((HasTableOperations) table).operations();
     TableMetadata base = ops.current();
-    ops.commit(
-        base,
-        base.updateSchema(manyColumnsSchema, manyColumnsSchema.highestFieldId())
-            .updatePartitionSpec(spec));
+    ops.commit(base, base.updateSchema(manyColumnsSchema).updatePartitionSpec(spec));
 
     Dataset<Row> df =
         spark

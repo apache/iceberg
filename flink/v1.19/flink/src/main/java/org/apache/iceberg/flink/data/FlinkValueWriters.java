@@ -31,6 +31,7 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.iceberg.avro.ValueWriter;
+import org.apache.iceberg.flink.FlinkRowData;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
 
@@ -229,7 +230,7 @@ public class FlinkValueWriters {
       this.getters = new RowData.FieldGetter[writers.size()];
       for (int i = 0; i < writers.size(); i += 1) {
         this.writers[i] = writers.get(i);
-        this.getters[i] = RowData.createFieldGetter(types.get(i), i);
+        this.getters[i] = FlinkRowData.createFieldGetter(types.get(i), i);
       }
     }
 

@@ -80,7 +80,7 @@ public class TestSetStatistics extends TestBase {
                     ImmutableList.of(1, 2),
                     ImmutableMap.of("a-property", "some-property-value"))));
 
-    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
 
     TableMetadata metadata = readMetadata();
     assertThat(version()).isEqualTo(2);
@@ -100,7 +100,7 @@ public class TestSetStatistics extends TestBase {
         new GenericStatisticsFile(
             snapshotId, "/some/statistics/file.puffin", 100, 42, ImmutableList.of());
 
-    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
 
     TableMetadata metadata = readMetadata();
     assertThat(version()).isEqualTo(2);

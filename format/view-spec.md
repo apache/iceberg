@@ -66,7 +66,7 @@ The view version metadata file has the following fields:
 
 Notes:
 
-1. The number of versions to retain is controlled by the table property: `version.history.num-entries`.
+1. The number of versions to retain is controlled by the view property: `version.history.num-entries`.
 2. Properties are used for metadata such as `comment` and for settings that affect view maintenance. This is not intended to be used for arbitrary metadata.
 
 #### Versions
@@ -263,7 +263,7 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
   "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
   "format-version" : 1,
   "location" : "s3://bucket/warehouse/default.db/event_agg",
-  "current-version-id" : 1,
+  "current-version-id" : 2,
   "properties" : {
     "comment" : "Daily event counts"
   },

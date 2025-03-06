@@ -37,7 +37,7 @@ public class TestPartitionSpecValidation {
           NestedField.required(5, "another_d", Types.TimestampType.withZone()),
           NestedField.required(6, "s", Types.StringType.get()),
           NestedField.required(7, "v", Types.VariantType.get()),
-          NestedField.required(8, "u", Types.UnknownType.get()));
+          NestedField.optional(8, "u", Types.UnknownType.get()));
 
   @Test
   public void testMultipleTimestampPartitions() {

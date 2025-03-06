@@ -284,7 +284,7 @@ You can create Iceberg partitions using the following Iceberg partition specific
 (supported only from Hive 4.0.0-alpha-1):
 
 ```sql
-CREATE TABLE x (i int, ts timestamp) PARTITIONED BY SPEC (month(ts), bucket(2, i)) STORED AS ICEBERG;
+CREATE TABLE x (i int, ts timestamp) PARTITIONED BY SPEC (month(ts), bucket(2, i)) STORED BY ICEBERG;
 DESCRIBE x;
 ```
 The result is:

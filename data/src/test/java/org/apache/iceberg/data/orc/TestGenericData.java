@@ -54,11 +54,22 @@ import org.junit.jupiter.api.Test;
 
 public class TestGenericData extends DataTest {
 
+  /** Orc writers don't have notion of non-null / required fields. */
+  @Override
+  protected boolean allowsWritingNullValuesForRequiredFields() {
+    return true;
+  }
+
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomGenericData.generate(schema, 100, 0L);
 
     writeAndValidateRecords(schema, expected);
+  }
+
+  @Override
+  protected void writeAndValidate(Schema schema, List<Record> expectedData) throws IOException {
+    writeAndValidateRecords(schema, expectedData);
   }
 
   @Test

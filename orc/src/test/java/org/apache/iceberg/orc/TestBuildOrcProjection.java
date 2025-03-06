@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
 import org.junit.jupiter.api.Test;
@@ -184,7 +185,7 @@ public class TestBuildOrcProjection {
                     Types.NestedField.required("d")
                         .withId(4)
                         .ofType(Types.LongType.get())
-                        .withInitialDefault(34L)
+                        .withInitialDefault(Literal.of(34L))
                         .build())));
 
     assertThatThrownBy(() -> ORCSchemaUtil.buildOrcProjection(evolvedSchema, baseOrcSchema))

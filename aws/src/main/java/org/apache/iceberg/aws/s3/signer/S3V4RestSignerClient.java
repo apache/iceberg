@@ -206,21 +206,26 @@ public abstract class S3V4RestSignerClient
       return authSessionCache()
           .get(
               token,
-              id ->
-                  AuthSession.fromAccessToken(
-                      httpClient(),
-                      tokenRefreshExecutor(),
-                      token,
-                      expiresAtMillis(properties()),
-                      new AuthSession(
-                          ImmutableMap.of(),
-                          AuthConfig.builder()
-                              .token(token)
-                              .credential(credential())
-                              .scope(SCOPE)
-                              .oauth2ServerUri(oauth2ServerUri())
-                              .optionalOAuthParams(optionalOAuthParams())
-                              .build())));
+              id -> {
+                // this client will be reused for token refreshes; it must contain an empty auth
+                // session in order to avoid interfering with refreshed tokens
+                RESTClient refreshClient =
+                    httpClient().withAuthSession(org.apache.iceberg.rest.auth.AuthSession.EMPTY);
+                return AuthSession.fromAccessToken(
+                    refreshClient,
+                    tokenRefreshExecutor(),
+                    token,
+                    expiresAtMillis(properties()),
+                    new AuthSession(
+                        ImmutableMap.of(),
+                        AuthConfig.builder()
+                            .token(token)
+                            .credential(credential())
+                            .scope(SCOPE)
+                            .oauth2ServerUri(oauth2ServerUri())
+                            .optionalOAuthParams(optionalOAuthParams())
+                            .build()));
+              });
     }
 
     if (credentialProvided()) {
@@ -238,16 +243,20 @@ public abstract class S3V4RestSignerClient
                             .optionalOAuthParams(optionalOAuthParams())
                             .build());
                 long startTimeMillis = System.currentTimeMillis();
+                // this client will be reused for token refreshes; it must contain an empty auth
+                // session in order to avoid interfering with refreshed tokens
+                RESTClient refreshClient =
+                    httpClient().withAuthSession(org.apache.iceberg.rest.auth.AuthSession.EMPTY);
                 OAuthTokenResponse authResponse =
                     OAuth2Util.fetchToken(
-                        httpClient(),
+                        refreshClient,
                         session.headers(),
                         credential(),
                         SCOPE,
                         oauth2ServerUri(),
                         optionalOAuthParams());
                 return AuthSession.fromTokenResponse(
-                    httpClient(), tokenRefreshExecutor(), authResponse, startTimeMillis, session);
+                    refreshClient, tokenRefreshExecutor(), authResponse, startTimeMillis, session);
               });
     }
 
@@ -338,11 +347,12 @@ public abstract class S3V4RestSignerClient
       Consumer<Map<String, String>> responseHeadersConsumer = responseHeaders::putAll;
       S3SignResponse s3SignResponse =
           httpClient()
+              .withAuthSession(authSession())
               .post(
                   endpoint(),
                   remoteSigningRequest,
                   S3SignResponse.class,
-                  () -> authSession().headers(),
+                  Map.of(),
                   ErrorHandlers.defaultErrorHandler(),
                   responseHeadersConsumer);
 

@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
@@ -55,7 +56,7 @@ class SchemaUpdate implements UpdateSchema {
   private final Map<Integer, Integer> idToParent;
   private final List<Integer> deletes = Lists.newArrayList();
   private final Map<Integer, Types.NestedField> updates = Maps.newHashMap();
-  private final Multimap<Integer, Types.NestedField> adds =
+  private final Multimap<Integer, Integer> parentToAddedIds =
       Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
   private final Map<String, Integer> addedNameToId = Maps.newHashMap();
   private final Multimap<Integer, Move> moves =
@@ -94,40 +95,26 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   @Override
-  public UpdateSchema addColumn(String name, Type type, String doc) {
-    Preconditions.checkArgument(
-        !name.contains("."),
-        "Cannot add column with ambiguous name: %s, use addColumn(parent, name, type)",
-        name);
-    return addColumn(null, name, type, doc);
-  }
-
-  @Override
-  public UpdateSchema addColumn(String parent, String name, Type type, String doc) {
-    internalAddColumn(parent, name, true, type, doc);
+  public UpdateSchema addColumn(
+      String parent, String name, Type type, String doc, Literal<?> defaultValue) {
+    internalAddColumn(parent, name, true, type, doc, defaultValue);
     return this;
   }
 
   @Override
-  public UpdateSchema addRequiredColumn(String name, Type type, String doc) {
-    Preconditions.checkArgument(
-        !name.contains("."),
-        "Cannot add column with ambiguous name: %s, use addColumn(parent, name, type)",
-        name);
-    addRequiredColumn(null, name, type, doc);
-    return this;
-  }
-
-  @Override
-  public UpdateSchema addRequiredColumn(String parent, String name, Type type, String doc) {
-    Preconditions.checkArgument(
-        allowIncompatibleChanges, "Incompatible change: cannot add required column: %s", name);
-    internalAddColumn(parent, name, false, type, doc);
+  public UpdateSchema addRequiredColumn(
+      String parent, String name, Type type, String doc, Literal<?> defaultValue) {
+    internalAddColumn(parent, name, false, type, doc, defaultValue);
     return this;
   }
 
   private void internalAddColumn(
-      String parent, String name, boolean isOptional, Type type, String doc) {
+      String parent,
+      String name,
+      boolean isOptional,
+      Type type,
+      String doc,
+      Literal<?> defaultValue) {
     int parentId = TABLE_ROOT_ID;
     String fullName;
     if (parent != null) {
@@ -168,6 +155,11 @@ class SchemaUpdate implements UpdateSchema {
       fullName = name;
     }
 
+    Preconditions.checkArgument(
+        defaultValue != null || isOptional || allowIncompatibleChanges,
+        "Incompatible change: cannot add required column without a default value: %s",
+        fullName);
+
     // assign new IDs in order
     int newId = assignNewColumnId();
 
@@ -177,10 +169,19 @@ class SchemaUpdate implements UpdateSchema {
       idToParent.put(newId, parentId);
     }
 
-    adds.put(
-        parentId,
-        Types.NestedField.of(
-            newId, isOptional, name, TypeUtil.assignFreshIds(type, this::assignNewColumnId), doc));
+    Types.NestedField newField =
+        Types.NestedField.builder()
+            .withName(name)
+            .isOptional(isOptional)
+            .withId(newId)
+            .ofType(TypeUtil.assignFreshIds(type, this::assignNewColumnId))
+            .withDoc(doc)
+            .withInitialDefault(defaultValue)
+            .withWriteDefault(defaultValue)
+            .build();
+
+    updates.put(newId, newField);
+    parentToAddedIds.put(parentId, newId);
   }
 
   @Override
@@ -188,7 +189,9 @@ class SchemaUpdate implements UpdateSchema {
     Types.NestedField field = findField(name);
     Preconditions.checkArgument(field != null, "Cannot delete missing column: %s", name);
     Preconditions.checkArgument(
-        !adds.containsKey(field.fieldId()), "Cannot delete a column that has additions: %s", name);
+        !parentToAddedIds.containsKey(field.fieldId()),
+        "Cannot delete a column that has additions: %s",
+        name);
     Preconditions.checkArgument(
         !updates.containsKey(field.fieldId()), "Cannot delete a column that has updates: %s", name);
     deletes.add(field.fieldId());
@@ -209,15 +212,9 @@ class SchemaUpdate implements UpdateSchema {
     // merge with an update, if present
     int fieldId = field.fieldId();
     Types.NestedField update = updates.get(fieldId);
-    if (update != null) {
-      updates.put(
-          fieldId,
-          Types.NestedField.of(fieldId, update.isOptional(), newName, update.type(), update.doc()));
-    } else {
-      updates.put(
-          fieldId,
-          Types.NestedField.of(fieldId, field.isOptional(), newName, field.type(), field.doc()));
-    }
+    Types.NestedField newField =
+        Types.NestedField.from(update != null ? update : field).withName(newName).build();
+    updates.put(fieldId, newField);
 
     if (identifierFieldNames.contains(name)) {
       identifierFieldNames.remove(name);
@@ -240,7 +237,7 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private void internalUpdateColumnRequirement(String name, boolean isOptional) {
-    Types.NestedField field = findField(name);
+    Types.NestedField field = findForUpdate(name);
     Preconditions.checkArgument(field != null, "Cannot update missing column: %s", name);
 
     if ((!isOptional && field.isRequired()) || (isOptional && field.isOptional())) {
@@ -248,8 +245,10 @@ class SchemaUpdate implements UpdateSchema {
       return;
     }
 
+    boolean isDefaultedAdd = isAdded(name) && field.initialDefault() != null;
+
     Preconditions.checkArgument(
-        isOptional || allowIncompatibleChanges,
+        isOptional || isDefaultedAdd || allowIncompatibleChanges,
         "Cannot change column nullability: %s: optional -> required",
         name);
     Preconditions.checkArgument(
@@ -258,22 +257,19 @@ class SchemaUpdate implements UpdateSchema {
         field.name());
 
     int fieldId = field.fieldId();
-    Types.NestedField update = updates.get(fieldId);
-
-    if (update != null) {
-      updates.put(
-          fieldId,
-          Types.NestedField.of(fieldId, isOptional, update.name(), update.type(), update.doc()));
+    Types.NestedField.Builder builder = Types.NestedField.from(field);
+    if (isOptional) {
+      builder.asOptional();
     } else {
-      updates.put(
-          fieldId,
-          Types.NestedField.of(fieldId, isOptional, field.name(), field.type(), field.doc()));
+      builder.asRequired();
     }
+
+    updates.put(fieldId, builder.build());
   }
 
   @Override
   public UpdateSchema updateColumn(String name, Type.PrimitiveType newType) {
-    Types.NestedField field = findField(name);
+    Types.NestedField field = findForUpdate(name);
     Preconditions.checkArgument(field != null, "Cannot update missing column: %s", name);
     Preconditions.checkArgument(
         !deletes.contains(field.fieldId()),
@@ -293,23 +289,15 @@ class SchemaUpdate implements UpdateSchema {
 
     // merge with a rename, if present
     int fieldId = field.fieldId();
-    Types.NestedField update = updates.get(fieldId);
-    if (update != null) {
-      updates.put(
-          fieldId,
-          Types.NestedField.of(fieldId, update.isOptional(), update.name(), newType, update.doc()));
-    } else {
-      updates.put(
-          fieldId,
-          Types.NestedField.of(fieldId, field.isOptional(), field.name(), newType, field.doc()));
-    }
+    Types.NestedField newField = Types.NestedField.from(field).ofType(newType).build();
+    updates.put(fieldId, newField);
 
     return this;
   }
 
   @Override
   public UpdateSchema updateColumnDoc(String name, String doc) {
-    Types.NestedField field = findField(name);
+    Types.NestedField field = findForUpdate(name);
     Preconditions.checkArgument(field != null, "Cannot update missing column: %s", name);
     Preconditions.checkArgument(
         !deletes.contains(field.fieldId()),
@@ -322,16 +310,32 @@ class SchemaUpdate implements UpdateSchema {
 
     // merge with a rename or update, if present
     int fieldId = field.fieldId();
-    Types.NestedField update = updates.get(fieldId);
-    if (update != null) {
-      updates.put(
-          fieldId,
-          Types.NestedField.of(fieldId, update.isOptional(), update.name(), update.type(), doc));
-    } else {
-      updates.put(
-          fieldId,
-          Types.NestedField.of(fieldId, field.isOptional(), field.name(), field.type(), doc));
+    Types.NestedField newField = Types.NestedField.from(field).withDoc(doc).build();
+    updates.put(fieldId, newField);
+
+    return this;
+  }
+
+  @Override
+  public UpdateSchema updateColumnDefault(String name, Literal<?> newDefault) {
+    Types.NestedField field = findForUpdate(name);
+    Preconditions.checkArgument(field != null, "Cannot update missing column: %s", name);
+    Preconditions.checkArgument(
+        !deletes.contains(field.fieldId()),
+        "Cannot update a column that will be deleted: %s",
+        field.name());
+
+    // if the value can be converted to the expected type, check if it is already set
+    // if it can't be converted, the builder will throw an exception
+    Literal<?> converted = newDefault != null ? newDefault.to(field.type()) : null;
+    if (converted != null && Objects.equals(field.writeDefault(), converted.value())) {
+      return this;
     }
+
+    // write default is always set and initial default is only set if the field requires one
+    int fieldId = field.fieldId();
+    Types.NestedField newField = Types.NestedField.from(field).withWriteDefault(newDefault).build();
+    updates.put(fieldId, newField);
 
     return this;
   }
@@ -386,6 +390,29 @@ class SchemaUpdate implements UpdateSchema {
     return this;
   }
 
+  private boolean isAdded(String name) {
+    return addedNameToId.containsKey(name);
+  }
+
+  private Types.NestedField findForUpdate(String name) {
+    Types.NestedField existing = findField(name);
+    if (existing != null) {
+      Types.NestedField pendingUpdate = updates.get(existing.fieldId());
+      if (pendingUpdate != null) {
+        return pendingUpdate;
+      }
+
+      return existing;
+    }
+
+    Integer addedId = addedNameToId.get(name);
+    if (addedId != null) {
+      return updates.get(addedId);
+    }
+
+    return null;
+  }
+
   private Integer findForMove(String name) {
     Integer addedId = addedNameToId.get(name);
     if (addedId != null) {
@@ -436,10 +463,8 @@ class SchemaUpdate implements UpdateSchema {
    */
   @Override
   public Schema apply() {
-    Schema newSchema =
-        applyChanges(schema, deletes, updates, adds, moves, identifierFieldNames, caseSensitive);
-
-    return newSchema;
+    return applyChanges(
+        schema, deletes, updates, parentToAddedIds, moves, identifierFieldNames, caseSensitive);
   }
 
   @Override
@@ -461,7 +486,7 @@ class SchemaUpdate implements UpdateSchema {
       try {
         // parse and update the mapping
         NameMapping mapping = NameMappingParser.fromJson(mappingJson);
-        NameMapping updated = MappingUtil.update(mapping, updates, adds);
+        NameMapping updated = MappingUtil.update(mapping, updates, parentToAddedIds);
 
         // replace the table property
         Map<String, String> updatedProperties = Maps.newHashMap();
@@ -484,6 +509,7 @@ class SchemaUpdate implements UpdateSchema {
           deletes.stream().map(schema::findColumnName).collect(Collectors.toList());
       Map<String, String> renamedColumns =
           updates.keySet().stream()
+              .filter(id -> !addedNameToId.containsValue(id)) // remove added columns
               .filter(id -> !schema.findColumnName(id).equals(newSchema.findColumnName(id)))
               .collect(Collectors.toMap(schema::findColumnName, newSchema::findColumnName));
       if (!deletedColumns.isEmpty() || !renamedColumns.isEmpty()) {
@@ -505,7 +531,7 @@ class SchemaUpdate implements UpdateSchema {
       Schema schema,
       List<Integer> deletes,
       Map<Integer, Types.NestedField> updates,
-      Multimap<Integer, Types.NestedField> adds,
+      Multimap<Integer, Integer> parentToAddedIds,
       Multimap<Integer, Move> moves,
       Set<String> identifierFieldNames,
       boolean caseSensitive) {
@@ -535,7 +561,7 @@ class SchemaUpdate implements UpdateSchema {
 
     // apply schema changes
     Types.StructType struct =
-        TypeUtil.visit(schema, new ApplyChanges(deletes, updates, adds, moves))
+        TypeUtil.visit(schema, new ApplyChanges(deletes, updates, parentToAddedIds, moves))
             .asNestedType()
             .asStructType();
 
@@ -560,27 +586,29 @@ class SchemaUpdate implements UpdateSchema {
   private static class ApplyChanges extends TypeUtil.SchemaVisitor<Type> {
     private final List<Integer> deletes;
     private final Map<Integer, Types.NestedField> updates;
-    private final Multimap<Integer, Types.NestedField> adds;
+    private final Multimap<Integer, Integer> parentToAddedIds;
     private final Multimap<Integer, Move> moves;
 
     private ApplyChanges(
         List<Integer> deletes,
         Map<Integer, Types.NestedField> updates,
-        Multimap<Integer, Types.NestedField> adds,
+        Multimap<Integer, Integer> parentToAddedIds,
         Multimap<Integer, Move> moves) {
       this.deletes = deletes;
       this.updates = updates;
-      this.adds = adds;
+      this.parentToAddedIds = parentToAddedIds;
       this.moves = moves;
     }
 
     @Override
     public Type schema(Schema schema, Type structResult) {
+      List<Types.NestedField> addedFields =
+          parentToAddedIds.get(TABLE_ROOT_ID).stream()
+              .map(updates::get)
+              .collect(Collectors.toList());
       List<Types.NestedField> fields =
           addAndMoveFields(
-              structResult.asStructType().fields(),
-              adds.get(TABLE_ROOT_ID),
-              moves.get(TABLE_ROOT_ID));
+              structResult.asStructType().fields(), addedFields, moves.get(TABLE_ROOT_ID));
 
       if (fields != null) {
         return Types.StructType.of(fields);
@@ -601,24 +629,15 @@ class SchemaUpdate implements UpdateSchema {
         }
 
         Types.NestedField field = struct.fields().get(i);
-        String name = field.name();
-        String doc = field.doc();
-        boolean isOptional = field.isOptional();
         Types.NestedField update = updates.get(field.fieldId());
-        if (update != null) {
-          name = update.name();
-          doc = update.doc();
-          isOptional = update.isOptional();
-        }
+        Types.NestedField updated =
+            Types.NestedField.from(update != null ? update : field).ofType(resultType).build();
 
-        if (name.equals(field.name())
-            && isOptional == field.isOptional()
-            && field.type() == resultType
-            && Objects.equals(doc, field.doc())) {
+        if (field.equals(updated)) {
           newFields.add(field);
         } else {
           hasChange = true;
-          newFields.add(Types.NestedField.of(field.fieldId(), isOptional, name, resultType, doc));
+          newFields.add(updated);
         }
       }
 
@@ -647,7 +666,8 @@ class SchemaUpdate implements UpdateSchema {
       }
 
       // handle adds
-      Collection<Types.NestedField> newFields = adds.get(fieldId);
+      Collection<Types.NestedField> newFields =
+          parentToAddedIds.get(fieldId).stream().map(updates::get).collect(Collectors.toList());
       Collection<Move> columnsToMove = moves.get(fieldId);
       if (!newFields.isEmpty() || !columnsToMove.isEmpty()) {
         // if either collection is non-null, then this must be a struct type. try to apply the
@@ -694,7 +714,7 @@ class SchemaUpdate implements UpdateSchema {
         throw new IllegalArgumentException("Cannot delete map keys: " + map);
       } else if (updates.containsKey(keyId)) {
         throw new IllegalArgumentException("Cannot update map keys: " + map);
-      } else if (adds.containsKey(keyId)) {
+      } else if (parentToAddedIds.containsKey(keyId)) {
         throw new IllegalArgumentException("Cannot add fields to map keys: " + map);
       } else if (!map.keyType().equals(kResult)) {
         throw new IllegalArgumentException("Cannot alter map keys: " + map);
@@ -720,6 +740,11 @@ class SchemaUpdate implements UpdateSchema {
       } else {
         return Types.MapType.ofRequired(map.keyId(), map.valueId(), map.keyType(), valueType);
       }
+    }
+
+    @Override
+    public Type variant(Types.VariantType variant) {
+      return variant;
     }
 
     @Override

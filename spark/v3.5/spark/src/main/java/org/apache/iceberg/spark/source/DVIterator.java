@@ -84,6 +84,9 @@ class DVIterator implements CloseableIterator<InternalRow> {
           rowValues.add(deleteFile.contentOffset());
         } else if (fieldId == MetadataColumns.CONTENT_SIZE_IN_BYTES_COLUMN_ID) {
           rowValues.add(ScanTaskUtil.contentSizeInBytes(deleteFile));
+        } else if (fieldId == MetadataColumns.DELETE_FILE_ROW_FIELD_ID) {
+          // DVs don't track the row that was deleted
+          rowValues.add(null);
         }
       }
 
