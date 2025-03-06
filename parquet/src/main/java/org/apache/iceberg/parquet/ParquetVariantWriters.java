@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -157,7 +158,7 @@ class ParquetVariantWriters {
 
     private void ensureCapacity(int requiredSize) {
       if (reusedBuffer.capacity() < requiredSize) {
-        int newCapacity = capacityFor(requiredSize);
+        int newCapacity = IOUtil.capacityFor(requiredSize);
         this.reusedBuffer = ByteBuffer.allocate(newCapacity).order(ByteOrder.LITTLE_ENDIAN);
       } else {
         reusedBuffer.limit(requiredSize);
@@ -373,14 +374,5 @@ class ParquetVariantWriters {
   private static List<TripleWriter<?>> children(Iterable<ParquetValueWriter<?>> writers) {
     return ImmutableList.copyOf(
         Iterables.concat(Iterables.transform(writers, ParquetValueWriter::columns)));
-  }
-
-  private static final double LN2 = Math.log(2);
-
-  private static int capacityFor(int valueSize) {
-    // find the power of 2 size that fits the value
-    int nextPow2 = (int) Math.ceil(Math.log(valueSize) / LN2);
-    // return a capacity that is 2 the next power of 2 size up to the max
-    return Math.min(1 << (nextPow2 + 1), Integer.MAX_VALUE - 1);
   }
 }

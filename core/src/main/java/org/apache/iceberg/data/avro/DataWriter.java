@@ -104,7 +104,7 @@ public class DataWriter<T> implements MetricsAwareDatumWriter<T> {
     @Override
     public ValueWriter<?> variant(
         Schema variant, ValueWriter<?> metadataResult, ValueWriter<?> valueResult) {
-      return ValueWriters.variants(metadataResult, valueResult);
+      return ValueWriters.variants();
     }
 
     @Override
