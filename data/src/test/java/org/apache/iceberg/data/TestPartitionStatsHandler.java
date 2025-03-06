@@ -104,17 +104,17 @@ public class TestPartitionStatsHandler {
   public void testPartitionStatsOnEmptyBranch() throws Exception {
     Table testTable = TestTables.create(tempDir("empty_branch"), "empty_branch", SCHEMA, SPEC, 2);
     testTable.manageSnapshots().createBranch("b1").commit();
-    assertThat(PartitionStatsHandler.computeAndWriteStatsFile(testTable, "b1")).isNull();
+    long branchSnapshot = testTable.refs().get("b1").snapshotId();
+    assertThat(PartitionStatsHandler.computeAndWriteStatsFile(testTable, branchSnapshot)).isNull();
   }
 
   @Test
   public void testPartitionStatsOnInvalidSnapshot() throws Exception {
     Table testTable =
         TestTables.create(tempDir("invalid_snapshot"), "invalid_snapshot", SCHEMA, SPEC, 2);
-    assertThatThrownBy(
-            () -> PartitionStatsHandler.computeAndWriteStatsFile(testTable, "INVALID_BRANCH"))
+    assertThatThrownBy(() -> PartitionStatsHandler.computeAndWriteStatsFile(testTable, 42L))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Couldn't find the snapshot for the branch INVALID_BRANCH");
+        .hasMessage("Snapshot not found: 42");
   }
 
   @Test
