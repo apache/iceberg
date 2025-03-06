@@ -180,6 +180,23 @@ public interface MetadataUpdate extends Serializable {
     }
   }
 
+  class RemoveSchemas implements MetadataUpdate {
+    private final Set<Integer> schemaIds;
+
+    public RemoveSchemas(Set<Integer> schemaIds) {
+      this.schemaIds = schemaIds;
+    }
+
+    public Set<Integer> schemaIds() {
+      return schemaIds;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.removeSchemas(schemaIds);
+    }
+  }
+
   class AddSortOrder implements MetadataUpdate {
     private final UnboundSortOrder sortOrder;
 

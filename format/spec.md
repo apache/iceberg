@@ -627,7 +627,7 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 | _optional_ | _optional_ | _optional_ | **`109  value_counts`**           | `map<119: int, 120: long>`                                                  | Map from column id to number of values in the column (including null and NaN values)                                                                                                                               |
 | _optional_ | _optional_ | _optional_ | **`110  null_value_counts`**      | `map<121: int, 122: long>`                                                  | Map from column id to number of null values in the column                                                                                                                                                          |
 | _optional_ | _optional_ | _optional_ | **`137  nan_value_counts`**       | `map<138: int, 139: long>`                                                  | Map from column id to number of NaN values in the column                                                                                                                                                           |
-| _optional_ | _optional_ | _optional_ | **`111  distinct_counts`**        | `map<123: int, 124: long>`                                                  | Map from column id to number of distinct values in the column; distinct counts must be derived using values in the file by counting or using sketches, but not using methods like merging existing distinct counts |
+| _optional_ | _optional_ |            | ~~**`111  distinct_counts`**~~    | `map<123: int, 124: long>`                                                  | **Deprecated. Do not write.**                                                                                                                                                                                      |
 | _optional_ | _optional_ | _optional_ | **`125  lower_bounds`**           | `map<126: int, 127: binary>`                                                | Map from column id to lower bound in the column serialized as binary [1]. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2]                                     |
 | _optional_ | _optional_ | _optional_ | **`128  upper_bounds`**           | `map<129: int, 130: binary>`                                                | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file [2]                                  |
 | _optional_ | _optional_ | _optional_ | **`131  key_metadata`**           | `binary`                                                                    | Implementation-specific key metadata for encryption                                                                                                                                                                |
@@ -1752,6 +1752,14 @@ Snapshot summary can include metrics fields to track numeric stats of the snapsh
 | **`source-snapshot-id`** | "12345678" | The original id of a cherry-picked snapshot                     |
 | **`engine-name`**        | "spark"    | Name of the engine that created the snapshot                    |
 | **`engine-version`**     | "3.5.4"    | Version of the engine that created the snapshot                 |
+
+### Assignment of Snapshot IDs and `current-snapshot-id`
+
+Writers should produce positive values for snapshot ids in a manner that minimizes the probability of id collisions and should verify the id does not conflict with existing snapshots. Producing snapshot ids based on timestamps alone is not recommended as it increases the potential for collisions.
+
+The reference Java implementation uses a type 4 uuid and XORs the 4 most significant bytes with the 4 least significant bytes then ANDs with the maximum long value to arrive at a pseudo-random snapshot id with a low probability of collision.
+
+Java writes `-1` for "no current snapshot" with V1 and V2 tables and considers this equivalent to omitted or `null`. This has never been formalized in the spec, but for compatibility, other implementations can accept `-1` as `null`. Java will no longer write `-1` and will use `null` for "no current snapshot" for all tables with a version greater than or equal to V3.
 
 ## Appendix G: Geospatial Notes
 

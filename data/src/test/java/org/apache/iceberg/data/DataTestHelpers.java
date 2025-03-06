@@ -76,6 +76,7 @@ public class DataTestHelpers {
     }
 
     switch (type.typeId()) {
+      case UNKNOWN:
       case BOOLEAN:
       case INTEGER:
       case LONG:
@@ -85,6 +86,7 @@ public class DataTestHelpers {
       case DATE:
       case TIME:
       case TIMESTAMP:
+      case TIMESTAMP_NANO:
       case UUID:
       case BINARY:
       case DECIMAL:
@@ -94,7 +96,7 @@ public class DataTestHelpers {
         break;
       case FIXED:
         assertThat(expected).as("Expected should be a byte[]").isInstanceOf(byte[].class);
-        assertThat(expected).as("Actual should be a byte[]").isInstanceOf(byte[].class);
+        assertThat(actual).as("Actual should be a byte[]").isInstanceOf(byte[].class);
         assertThat(actual).as("Array contents should be equal").isEqualTo(expected);
         break;
       case STRUCT:

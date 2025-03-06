@@ -16,28 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.variants;
+package org.apache.iceberg.avro;
 
-import java.nio.ByteBuffer;
+import org.apache.avro.LogicalType;
+import org.apache.avro.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/** A variant metadata and value pair. */
-public interface Variant {
-  /** Returns the metadata for all values in the variant. */
-  VariantMetadata metadata();
+public class VariantLogicalType extends LogicalType {
+  static final String NAME = "variant";
+  private static final VariantLogicalType INSTANCE = new VariantLogicalType();
 
-  /** Returns the variant value. */
-  VariantValue value();
-
-  static Variant of(VariantMetadata metadata, VariantValue value) {
-    return new VariantData(metadata, value);
+  static VariantLogicalType get() {
+    return INSTANCE;
   }
 
-  static Variant from(ByteBuffer buffer) {
-    VariantMetadata metadata = VariantMetadata.from(buffer);
-    ByteBuffer valueBuffer =
-        VariantUtil.slice(
-            buffer, metadata.sizeInBytes(), buffer.remaining() - metadata.sizeInBytes());
-    VariantValue value = VariantValue.from(metadata, valueBuffer);
-    return of(metadata, value);
+  private VariantLogicalType() {
+    super(NAME);
+  }
+
+  @Override
+  public void validate(Schema schema) {
+    super.validate(schema);
+    Preconditions.checkArgument(
+        AvroSchemaUtil.isVariantSchema(schema), "Invalid variant record: %s", schema);
   }
 }

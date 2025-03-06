@@ -16,28 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.variants;
+package org.apache.iceberg.types;
 
-import java.nio.ByteBuffer;
+import java.io.ObjectStreamException;
+import java.io.Serializable;
 
-/** A variant metadata and value pair. */
-public interface Variant {
-  /** Returns the metadata for all values in the variant. */
-  VariantMetadata metadata();
+/** Replacement for primitive types and Variant type in Java Serialization. */
+class PrimitiveLikeHolder implements Serializable {
+  private String typeAsString = null;
 
-  /** Returns the variant value. */
-  VariantValue value();
+  /** Constructor for Java serialization. */
+  PrimitiveLikeHolder() {}
 
-  static Variant of(VariantMetadata metadata, VariantValue value) {
-    return new VariantData(metadata, value);
+  PrimitiveLikeHolder(String typeAsString) {
+    this.typeAsString = typeAsString;
   }
 
-  static Variant from(ByteBuffer buffer) {
-    VariantMetadata metadata = VariantMetadata.from(buffer);
-    ByteBuffer valueBuffer =
-        VariantUtil.slice(
-            buffer, metadata.sizeInBytes(), buffer.remaining() - metadata.sizeInBytes());
-    VariantValue value = VariantValue.from(metadata, valueBuffer);
-    return of(metadata, value);
+  Object readResolve() throws ObjectStreamException {
+    return Types.fromTypeName(typeAsString);
   }
 }
