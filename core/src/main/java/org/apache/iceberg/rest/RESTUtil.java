@@ -115,8 +115,22 @@ public class RESTUtil {
     ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
     formData.forEach(
         (key, value) ->
-            builder.put(encodeString(String.valueOf(key)), encodeString(String.valueOf(value))));
+            builder.put(
+                encodeFormData(String.valueOf(key)), encodeFormData(String.valueOf(value))));
     return FORM_JOINER.join(builder.build());
+  }
+
+  /**
+   * Encodes a string as application/x-www-form-urlencoded.
+   *
+   * <p>{@link #decodeString(String)} should be used to decode.
+   *
+   * @param toEncode string to encode
+   * @return UTF-8 encoded string, suitable for use as a URL parameter or form data
+   */
+  public static String encodeFormData(String toEncode) {
+    Preconditions.checkArgument(toEncode != null, "Invalid string to encode: null");
+    return URLEncoder.encode(toEncode, StandardCharsets.UTF_8);
   }
 
   /**
@@ -135,7 +149,10 @@ public class RESTUtil {
   }
 
   /**
-   * Encodes a string using URL encoding
+   * Encodes a string as application/x-www-form-urlencoded.
+   *
+   * <p>Note that spaces are encoded as "%20" to increase compatibility with URL path encoding per
+   * RFC-3986. But some encoding differences remain, e.g. with characters "*" and "~".
    *
    * <p>{@link #decodeString(String)} should be used to decode.
    *
@@ -144,7 +161,19 @@ public class RESTUtil {
    */
   public static String encodeString(String toEncode) {
     Preconditions.checkArgument(toEncode != null, "Invalid string to encode: null");
-    return URLEncoder.encode(toEncode, StandardCharsets.UTF_8);
+    return URLEncoder.encode(toEncode, StandardCharsets.UTF_8)
+        // Encode '+' as '%20' to improve compatibility with RFC-3986 which governs encoding for URI
+        // paths and requires that spaces be encoded as '%20' instead of '+'. URLEncoder#encode
+        // encodes according 'x-www-form-urlencoded' which encodes spaces as '+'. That's valid for
+        // form data and URI query parameters, but disagrees with RFC-3986 which considers '+' a
+        // reserved character and won't decode to space.
+        //
+        // Encoding spaces as '%20' is valid both in RFC-3986 and 'x-www-form-urlencoded' and thus
+        // works for path parameters and query parameters and form data. URLDecoder#decode will
+        // decode '%20' to space.
+        //
+        // Note that the '+' character would be encoded as '%2B' before this replacement.
+        .replace("+", "%20");
   }
 
   /**
