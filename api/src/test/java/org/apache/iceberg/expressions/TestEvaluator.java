@@ -43,15 +43,22 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.stream.Stream;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.geospatial.GeospatialBound;
+import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestEvaluator {
   private static final StructType STRUCT =
@@ -808,5 +815,59 @@ public class TestEvaluator {
             () -> new Evaluator(STRUCT, predicate(Expression.Operation.NOT_IN, "x", 5.1)))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Invalid value for conversion to type int");
+  }
+
+  private static Stream<Arguments> geospatialPredicateParameters() {
+    return Stream.of(
+        Arguments.of(Expression.Operation.ST_INTERSECTS, "geom"),
+        Arguments.of(Expression.Operation.ST_INTERSECTS, "geog"),
+        Arguments.of(Expression.Operation.ST_DISJOINT, "geom"),
+        Arguments.of(Expression.Operation.ST_DISJOINT, "geog"));
+  }
+
+  @ParameterizedTest
+  @MethodSource("geospatialPredicateParameters")
+  public void testGeospatialPredicates(Expression.Operation operation, String columnName) {
+    StructType geoStruct =
+        StructType.of(
+            required(1, "geom", Types.GeometryType.crs84()),
+            required(2, "geog", Types.GeographyType.crs84()));
+
+    GeospatialBoundingBox bbox =
+        new GeospatialBoundingBox(
+            GeospatialBound.createXY(1.0, 2.0), GeospatialBound.createXY(3.0, 4.0));
+
+    // Create a WKB point at (2, 3)
+    ByteBuffer wkb =
+        ByteBuffer.wrap(
+            new byte[] {
+              1, // little endian byte order
+              1,
+              0,
+              0,
+              0, // type: Point (1)
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              64, // X coordinate: 2.0 in IEEE 754
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              8,
+              64 // Y coordinate: 3.0 in IEEE 754
+            });
+
+    Evaluator evaluator =
+        new Evaluator(geoStruct, Expressions.geospatialPredicate(operation, columnName, bbox));
+    assertThat(evaluator.eval(TestHelpers.Row.of(wkb, wkb)))
+        .as("Geospatial predicates always evaluate to true")
+        .isTrue();
   }
 }

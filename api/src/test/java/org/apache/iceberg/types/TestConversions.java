@@ -189,6 +189,13 @@ public class TestConversions {
     assertConversion(new BigDecimal("0.011"), DecimalType.of(10, 3), new byte[] {11});
     assertThat(Literal.of(new BigDecimal("0.011")).toByteBuffer().array())
         .isEqualTo(new byte[] {11});
+
+    // geospatial bounds were kept as-is
+    // this is a geospatial bound with x = 10.0, y = 20.0
+    byte[] geospatialBound = new byte[] {0, 0, 0, 0, 0, 0, 36, 64, 0, 0, 0, 0, 0, 0, 52, 64};
+    assertConversion(ByteBuffer.wrap(geospatialBound), Types.GeometryType.crs84(), geospatialBound);
+    assertConversion(
+        ByteBuffer.wrap(geospatialBound), Types.GeographyType.crs84(), geospatialBound);
   }
 
   private <T> void assertConversion(T value, Type type, byte[] expectedBinary) {

@@ -23,6 +23,7 @@ import java.util.Comparator;
 import java.util.Set;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundVisitor;
+import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
 
@@ -155,6 +156,20 @@ public class Evaluator implements Serializable {
     @Override
     public <T> Boolean notStartsWith(Bound<T> valueExpr, Literal<T> lit) {
       return !startsWith(valueExpr, lit);
+    }
+
+    @Override
+    public <T> Boolean stIntersects(Bound<T> valueExpr, Literal<GeospatialBoundingBox> literal) {
+      // We don't know how to evaluate ST_Intersects, so we return true to be safe.
+      // Reading data using GenericReader with spaital filters will yield false positives.
+      return true;
+    }
+
+    @Override
+    public <T> Boolean stDisjoint(Bound<T> valueExpr, Literal<GeospatialBoundingBox> literal) {
+      // We don't know how to evaluate ST_Disjoint, so we return true to be safe.
+      // Reading data using GenericReader with spaital filters will yield false positives.
+      return true;
     }
   }
 }

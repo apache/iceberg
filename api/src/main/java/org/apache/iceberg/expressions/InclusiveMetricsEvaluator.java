@@ -29,6 +29,8 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.geospatial.GeospatialBoundingBox;
+import org.apache.iceberg.geospatial.GeospatialPredicateEvaluators;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
@@ -468,6 +470,37 @@ public class InclusiveMetricsEvaluator {
         }
       }
 
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stIntersects(Bound<T> term, Literal<GeospatialBoundingBox> lit) {
+      T lower = lowerBound(term);
+      T upper = upperBound(term);
+
+      if (lower == null || upper == null) {
+        return ROWS_MIGHT_MATCH; // no information
+      }
+
+      if (lit.value() != null && lower instanceof ByteBuffer && upper instanceof ByteBuffer) {
+        // Construct a bounding box from the min/max bounds
+        GeospatialBoundingBox dataBox =
+            GeospatialBoundingBox.create((ByteBuffer) lower, (ByteBuffer) upper);
+        GeospatialBoundingBox queryBox = lit.value();
+
+        // If the data box and query box don't intersect, no records can match
+        GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
+            GeospatialPredicateEvaluators.create(term.ref().type());
+        if (!evaluator.intersects(dataBox, queryBox)) {
+          return ROWS_CANNOT_MATCH;
+        }
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stDisjoint(Bound<T> term, Literal<GeospatialBoundingBox> lit) {
       return ROWS_MIGHT_MATCH;
     }
 

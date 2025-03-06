@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -117,6 +119,10 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
 
     if (op() == Operation.IN || op() == Operation.NOT_IN) {
       return bindInOperation(bound);
+    }
+
+    if (op() == Operation.ST_INTERSECTS || op() == Operation.ST_DISJOINT) {
+      return bindGeospatialOperation(bound);
     }
 
     return bindLiteralOperation(bound);
@@ -249,6 +255,36 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
     return new BoundSetPredicate<>(op(), boundTerm, literalSet);
   }
 
+  @SuppressWarnings("unchecked")
+  private Expression bindGeospatialOperation(BoundTerm<T> boundTerm) {
+    Type.TypeID typeId = boundTerm.type().typeId();
+    if (typeId != Type.TypeID.GEOMETRY && typeId != Type.TypeID.GEOGRAPHY) {
+      throw new ValidationException(
+          "Cannot bind geospatial operation to non-geospatial type: %s", boundTerm);
+    }
+
+    Literal<?> minLiteral = literals.get(0);
+    Literal<ByteBuffer> min = minLiteral.to(Types.BinaryType.get());
+    if (min == null) {
+      throw new ValidationException(
+          "Invalid value for conversion to type %s: %s (%s)",
+          Types.BinaryType.get(), minLiteral.value(), minLiteral.value().getClass().getName());
+    }
+
+    Literal<?> maxLiteral = literals.get(1);
+    Literal<ByteBuffer> max = maxLiteral.to(Types.BinaryType.get());
+    if (max == null) {
+      throw new ValidationException(
+          "Invalid value for conversion to type %s: %s (%s)",
+          Types.BinaryType.get(), maxLiteral.value(), maxLiteral.value().getClass().getName());
+    }
+
+    return new BoundGeospatialPredicate(
+        op(),
+        (BoundTerm<ByteBuffer>) boundTerm,
+        Literals.from(GeospatialBoundingBox.create(min.value(), max.value())));
+  }
+
   @Override
   public String toString() {
     switch (op()) {
@@ -276,6 +312,14 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
         return term() + " startsWith \"" + literal() + "\"";
       case NOT_STARTS_WITH:
         return term() + " notStartsWith \"" + literal() + "\"";
+      case ST_INTERSECTS:
+      case ST_DISJOINT:
+        Literal<ByteBuffer> minLiteral = literals.get(0).to(Types.BinaryType.get());
+        Literal<ByteBuffer> maxLiteral = literals.get(1).to(Types.BinaryType.get());
+        String opName = op() == Operation.ST_INTERSECTS ? " stIntersects " : " stDisjoint ";
+        return term()
+            + opName
+            + GeospatialBoundingBox.create(minLiteral.value(), maxLiteral.value());
       case IN:
         return term() + " in (" + COMMA.join(literals()) + ")";
       case NOT_IN:

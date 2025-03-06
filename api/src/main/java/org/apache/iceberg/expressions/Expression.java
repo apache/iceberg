@@ -44,6 +44,8 @@ public interface Expression extends Serializable {
     OR,
     STARTS_WITH,
     NOT_STARTS_WITH,
+    ST_INTERSECTS,
+    ST_DISJOINT,
     COUNT,
     COUNT_STAR,
     MAX,
@@ -90,6 +92,10 @@ public interface Expression extends Serializable {
           return Operation.NOT_STARTS_WITH;
         case NOT_STARTS_WITH:
           return Operation.STARTS_WITH;
+        case ST_INTERSECTS:
+          return Operation.ST_DISJOINT;
+        case ST_DISJOINT:
+          return Operation.ST_INTERSECTS;
         default:
           throw new IllegalArgumentException("No negation for operation: " + this);
       }

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -34,6 +35,7 @@ import java.util.stream.StreamSupport;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transforms;
@@ -318,6 +320,10 @@ public class ExpressionUtil {
                     .map(lit -> (T) sanitize(bound.term().type(), lit, now, today))
                     .iterator();
         return new UnboundPredicate<>(pred.op(), unbind(pred.term()), iter);
+      } else if (pred.isGeospatialPredicate()) {
+        BoundGeospatialPredicate bound = (BoundGeospatialPredicate) pred;
+        return Expressions.geospatialPredicate(
+            pred.op(), unbind(bound.term()), GeospatialBoundingBox.SANITIZED);
       }
 
       throw new UnsupportedOperationException("Cannot sanitize bound predicate type: " + pred.op());
@@ -343,6 +349,10 @@ public class ExpressionUtil {
         case NOT_STARTS_WITH:
           return new UnboundPredicate<>(
               pred.op(), pred.term(), (T) sanitize(pred.literal(), now, today));
+        case ST_INTERSECTS:
+        case ST_DISJOINT:
+          return Expressions.geospatialPredicate(
+              pred.op(), (UnboundTerm<ByteBuffer>) pred.term(), GeospatialBoundingBox.SANITIZED);
         case IN:
         case NOT_IN:
           Iterable<T> iter =
@@ -493,6 +503,10 @@ public class ExpressionUtil {
           return term + " STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
         case NOT_STARTS_WITH:
           return term + " NOT STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
+        case ST_INTERSECTS:
+          return term + " ST_INTERSECTS WITH " + GeospatialBoundingBox.SANITIZED;
+        case ST_DISJOINT:
+          return term + " ST_DISJOINT WITH " + GeospatialBoundingBox.SANITIZED;
         default:
           throw new UnsupportedOperationException(
               "Cannot sanitize unsupported predicate type: " + pred.op());

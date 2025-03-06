@@ -25,6 +25,8 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import org.apache.iceberg.geospatial.GeospatialBound;
+import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -302,7 +304,9 @@ public class TestMiscLiteralConversions {
         Types.FloatType.get(),
         Types.DoubleType.get(),
         Types.FixedType.ofLength(1),
-        Types.BinaryType.get());
+        Types.BinaryType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -344,7 +348,9 @@ public class TestMiscLiteralConversions {
         Types.DecimalType.of(9, 2),
         Types.StringType.get(),
         Types.UUIDType.get(),
-        Types.FixedType.ofLength(1));
+        Types.FixedType.ofLength(1),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   @Test
@@ -365,7 +371,35 @@ public class TestMiscLiteralConversions {
         Types.DecimalType.of(9, 2),
         Types.StringType.get(),
         Types.UUIDType.get(),
-        Types.FixedType.ofLength(1));
+        Types.FixedType.ofLength(1),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
+  }
+
+  @Test
+  public void testInvalidGeospatialBoundingBoxConversions() {
+    GeospatialBound min = GeospatialBound.createXY(1.0, 2.0);
+    GeospatialBound max = GeospatialBound.createXY(3.0, 4.0);
+    Literal<GeospatialBoundingBox> geoBoundingBoxLiteral =
+        Literal.of(new GeospatialBoundingBox(min, max));
+
+    // Test that geospatial bounding box literals cannot be converted to other types
+    testInvalidConversions(
+        geoBoundingBoxLiteral,
+        Types.BooleanType.get(),
+        Types.IntegerType.get(),
+        Types.LongType.get(),
+        Types.FloatType.get(),
+        Types.DoubleType.get(),
+        Types.DateType.get(),
+        Types.TimeType.get(),
+        Types.DecimalType.of(9, 2),
+        Types.StringType.get(),
+        Types.UUIDType.get(),
+        Types.BinaryType.get(),
+        Types.FixedType.ofLength(1),
+        Types.GeometryType.crs84(),
+        Types.GeographyType.crs84());
   }
 
   private void testInvalidConversions(Literal<?> lit, Type... invalidTypes) {

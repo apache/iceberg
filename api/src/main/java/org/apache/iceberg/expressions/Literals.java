@@ -32,6 +32,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.UUID;
+import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.types.Comparators;
@@ -85,6 +86,8 @@ class Literals {
       return (Literal<T>) new Literals.DecimalLiteral((BigDecimal) value);
     } else if (value instanceof Variant) {
       return (Literal<T>) new Literals.VariantLiteral((Variant) value);
+    } else if (value instanceof GeospatialBoundingBox) {
+      return (Literal<T>) new Literals.GeospatialBoundingBoxLiteral((GeospatialBoundingBox) value);
     }
 
     throw new IllegalArgumentException(
@@ -717,6 +720,37 @@ class Literals {
     public String toString() {
       byte[] bytes = ByteBuffers.toByteArray(value());
       return "X'" + BaseEncoding.base16().encode(bytes) + "'";
+    }
+  }
+
+  static class GeospatialBoundingBoxLiteral implements Literal<GeospatialBoundingBox> {
+    private static final Comparator<GeospatialBoundingBox> CMP =
+        Comparators.<GeospatialBoundingBox>nullsFirst().thenComparing(Comparator.naturalOrder());
+
+    private final GeospatialBoundingBox value;
+
+    GeospatialBoundingBoxLiteral(GeospatialBoundingBox value) {
+      this.value = value;
+    }
+
+    @Override
+    public GeospatialBoundingBox value() {
+      return value;
+    }
+
+    @Override
+    public <T> Literal<T> to(Type type) {
+      return null;
+    }
+
+    @Override
+    public Comparator<GeospatialBoundingBox> comparator() {
+      return CMP;
+    }
+
+    @Override
+    public String toString() {
+      return String.valueOf(value());
     }
   }
 }
