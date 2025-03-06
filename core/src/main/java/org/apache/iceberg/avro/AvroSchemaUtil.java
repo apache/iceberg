@@ -192,7 +192,7 @@ public class AvroSchemaUtil {
     switch (schema.getType()) {
       case UNION:
         Preconditions.checkArgument(
-                isOptionSchema(schema), "Union schemas are not supported: %s", schema);
+            isOptionSchema(schema), "Union schemas are not supported: %s", schema);
         return schema;
       case NULL:
         return schema;
