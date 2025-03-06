@@ -1740,8 +1740,8 @@ public class TestRemoveSnapshots extends TestBase {
   }
 
   @TestTemplate
-  public void testNoSchemasToRemove() {
-    String tableName = "test_no_schemas_to_remove";
+  public void testNoSchemasOrSpecsToRemove() {
+    String tableName = "test_no_schemas_or_specs_to_remove";
     TestTables.TestTableOperations ops =
         Mockito.spy(new TestTables.TestTableOperations(tableName, tableDir));
     TestTables.TestTable table =
@@ -1762,7 +1762,7 @@ public class TestRemoveSnapshots extends TestBase {
     table.newAppend().appendFile(FILE_B).commit();
 
     Set<String> deletedFiles = Sets.newHashSet();
-    // Expire all snapshots except the current one. No unused schemas to be removed.
+    // Expire all snapshots except the current one. No unused schemas or specs to be removed.
     removeSnapshots(table)
         .expireOlderThan(System.currentTimeMillis())
         .cleanExpiredMetadata(true)
@@ -1771,6 +1771,13 @@ public class TestRemoveSnapshots extends TestBase {
 
     assertThat(deletedFiles).containsExactlyInAnyOrderElementsOf(expectedDeletedFiles);
     assertThat(table.schemas().values()).containsExactly(table.schema());
+    Mockito.verify(ops, Mockito.never())
+        .commit(
+            any(),
+            argThat(
+                meta ->
+                    meta.changes().stream()
+                        .anyMatch(u -> u instanceof MetadataUpdate.RemovePartitionSpecs)));
     Mockito.verify(ops, Mockito.never())
         .commit(
             any(),
