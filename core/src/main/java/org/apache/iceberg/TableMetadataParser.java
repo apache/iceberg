@@ -112,6 +112,7 @@ public class TableMetadataParser {
   static final String PARTITION_STATISTICS = "partition-statistics";
   static final String ROW_LINEAGE = "row-lineage";
   static final String NEXT_ROW_ID = "next-row-id";
+  static final int MIN_NULL_CURRENT_SNAPSHOT_VERSION = 3;
 
   public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
     internalWrite(metadata, outputFile, true);
@@ -215,9 +216,15 @@ public class TableMetadataParser {
     // write properties map
     JsonUtil.writeStringMap(PROPERTIES, metadata.properties(), generator);
 
-    generator.writeNumberField(
-        CURRENT_SNAPSHOT_ID,
-        metadata.currentSnapshot() != null ? metadata.currentSnapshot().snapshotId() : -1);
+    if (metadata.currentSnapshot() != null) {
+      generator.writeNumberField(CURRENT_SNAPSHOT_ID, metadata.currentSnapshot().snapshotId());
+    } else {
+      if (metadata.formatVersion() >= MIN_NULL_CURRENT_SNAPSHOT_VERSION) {
+        generator.writeNullField(CURRENT_SNAPSHOT_ID);
+      } else {
+        generator.writeNumberField(CURRENT_SNAPSHOT_ID, -1L);
+      }
+    }
 
     if (metadata.rowLineageEnabled()) {
       generator.writeBooleanField(ROW_LINEAGE, metadata.rowLineageEnabled());
