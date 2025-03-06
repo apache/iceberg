@@ -29,6 +29,7 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
@@ -469,6 +470,16 @@ public class StrictMetricsEvaluator {
     public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
       // TODO: Handle cases that definitely cannot match, such as notStartsWith("x") when the bounds
       // are ["a", "b"].
+      return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stIntersects(BoundReference<T> ref, Literal<GeospatialBoundingBox> lit) {
+      return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stDisjoint(BoundReference<T> ref, Literal<GeospatialBoundingBox> lit) {
       return ROWS_MIGHT_NOT_MATCH;
     }
 
