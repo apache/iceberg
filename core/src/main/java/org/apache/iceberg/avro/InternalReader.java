@@ -163,7 +163,7 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition, S
     @Override
     public ValueReader<?> variant(
         Pair<Integer, Type> partner, ValueReader<?> metadataReader, ValueReader<?> valueReader) {
-      return ValueReaders.variants(metadataReader, valueReader);
+      return ValueReaders.variants();
     }
 
     @Override

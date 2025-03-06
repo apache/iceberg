@@ -19,14 +19,18 @@
 package org.apache.iceberg.parquet;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import org.apache.curator.shaded.com.google.common.collect.Maps;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.io.InvalidRecordException;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
@@ -275,5 +279,66 @@ public class ParquetSchemaUtil {
         //    }
         //
         repeatedType.getName().equals(parentName + "_tuple");
+  }
+
+  private static Map<ColumnPath, Pair<Integer, String>> indexVariantFields(Type type) {
+    IndexVariantFields indexer = new IndexVariantFields();
+    TypeWithSchemaVisitor.visit(null, type, indexer);
+    return indexer.result();
+  }
+
+  private static class IndexVariantFields extends TypeWithSchemaVisitor<Void> {
+    private final Map<ColumnPath, Pair<Integer, String>> result = Maps.newHashMap();
+
+    Map<ColumnPath, Pair<Integer, String>> result() {
+      return result;
+    }
+
+    @Override
+    public Void variant(Types.VariantType iVariant, Void result) {
+      return super.variant(iVariant, result);
+    }
+
+    @Override
+    public ParquetVariantVisitor<Void> variantVisitor() {
+      return new VariantFieldIndexer();
+    }
+
+    private class VariantFieldIndexer extends ParquetVariantVisitor<Void> {
+      @Override
+      public Void array(GroupType array, Void valueResult, Void elementResult) {
+        return super.array(array, valueResult, elementResult);
+      }
+
+      @Override
+      public Void object(GroupType object, Void valueResult, List<Void> fieldResults) {
+        return super.object(object, valueResult, fieldResults);
+      }
+
+      @Override
+      public Void value(GroupType value, Void valueResult, Void typedResult) {
+        return super.value(value, valueResult, typedResult);
+      }
+
+      @Override
+      public Void primitive(PrimitiveType primitive) {
+        return super.primitive(primitive);
+      }
+
+      @Override
+      public Void serialized(PrimitiveType value) {
+        return super.serialized(value);
+      }
+
+      @Override
+      public Void metadata(PrimitiveType metadata) {
+        return super.metadata(metadata);
+      }
+
+      @Override
+      public Void variant(GroupType variant, Void metadataResult, Void valueResult) {
+        return super.variant(variant, metadataResult, valueResult);
+      }
+    }
   }
 }

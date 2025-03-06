@@ -144,11 +144,8 @@ public class ValueReaders {
     }
   }
 
-  @SuppressWarnings("unchecked")
-  public static ValueReader<Variant> variants(
-      ValueReader<?> metadataReader, ValueReader<?> valueReader) {
-    return new VariantReader(
-        (ValueReader<ByteBuffer>) metadataReader, (ValueReader<ByteBuffer>) valueReader);
+  public static ValueReader<Variant> variants() {
+    return VariantReader.INSTANCE;
   }
 
   public static ValueReader<Object> union(List<ValueReader<?>> readers) {
@@ -664,13 +661,14 @@ public class ValueReaders {
   }
 
   private static class VariantReader implements ValueReader<Variant> {
+    private static final VariantReader INSTANCE = new VariantReader();
+
     private final ValueReader<ByteBuffer> metadataReader;
     private final ValueReader<ByteBuffer> valueReader;
 
-    private VariantReader(
-        ValueReader<ByteBuffer> metadataReader, ValueReader<ByteBuffer> valueReader) {
-      this.metadataReader = metadataReader;
-      this.valueReader = valueReader;
+    private VariantReader() {
+      this.metadataReader = ByteBufferReader.INSTANCE;
+      this.valueReader = ByteBufferReader.INSTANCE;
     }
 
     @Override

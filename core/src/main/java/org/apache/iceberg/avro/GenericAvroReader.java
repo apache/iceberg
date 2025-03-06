@@ -166,7 +166,7 @@ public class GenericAvroReader<T>
     @Override
     public ValueReader<?> variant(
         Type partner, ValueReader<?> metadataReader, ValueReader<?> valueReader) {
-      return ValueReaders.variants(metadataReader, valueReader);
+      return ValueReaders.variants();
     }
 
     @Override

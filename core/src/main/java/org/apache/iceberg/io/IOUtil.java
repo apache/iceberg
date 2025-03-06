@@ -90,7 +90,6 @@ public class IOUtil {
     return length - remaining;
   }
 
-
   private static final double LN2 = Math.log(2);
 
   /**
