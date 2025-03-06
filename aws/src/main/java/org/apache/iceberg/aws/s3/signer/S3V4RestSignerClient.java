@@ -31,6 +31,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -78,8 +79,9 @@ public abstract class S3V4RestSignerClient
   @SuppressWarnings("immutables:incompat")
   private volatile AuthManager authManager;
 
-  @SuppressWarnings("immutables:incompat")
-  private static volatile RESTClient httpClient;
+  @SuppressWarnings({"immutables:incompat", "VisibilityModifier"})
+  @VisibleForTesting
+  static volatile RESTClient httpClient;
 
   @SuppressWarnings("immutables:incompat")
   private volatile AuthSession authSession;
@@ -149,7 +151,8 @@ public abstract class S3V4RestSignerClient
     return httpClient;
   }
 
-  private AuthSession authSession() {
+  @VisibleForTesting
+  AuthSession authSession() {
     if (null == authSession) {
       synchronized (S3V4RestSignerClient.class) {
         if (null == authSession) {
