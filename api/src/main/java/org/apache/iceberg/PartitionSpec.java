@@ -475,7 +475,8 @@ public class PartitionSpec implements Serializable {
     private Builder year(Types.NestedField sourceColumn, String targetName) {
       checkAndAddPartitionName(targetName);
       PartitionField field =
-          new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.year());
+          new PartitionField(
+              sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.year());
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -494,7 +495,8 @@ public class PartitionSpec implements Serializable {
     private Builder month(Types.NestedField sourceColumn, String targetName) {
       checkAndAddPartitionName(targetName);
       PartitionField field =
-          new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.month());
+          new PartitionField(
+              sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.month());
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -513,7 +515,8 @@ public class PartitionSpec implements Serializable {
     private Builder day(Types.NestedField sourceColumn, String targetName) {
       checkAndAddPartitionName(targetName);
       PartitionField field =
-          new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.day());
+          new PartitionField(
+              sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.day());
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
@@ -532,7 +535,8 @@ public class PartitionSpec implements Serializable {
     private Builder hour(Types.NestedField sourceColumn, String targetName) {
       checkAndAddPartitionName(targetName);
       PartitionField field =
-          new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.hour());
+          new PartitionField(
+              sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.hour());
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;

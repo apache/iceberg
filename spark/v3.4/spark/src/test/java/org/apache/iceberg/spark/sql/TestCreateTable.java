@@ -385,4 +385,103 @@ public class TestCreateTable extends SparkCatalogTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot downgrade v2 table to v1");
   }
+
+  @Test
+  public void testCreateTablePartitionedByYearAndMonth() {
+    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
+
+    sql(
+        "CREATE TABLE %s "
+            + "(id BIGINT NOT NULL, completion_date TIMESTAMP) "
+            + "USING iceberg "
+            + "PARTITIONED BY (year(completion_date), month(completion_date))",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertNotNull("Should load the new table", table);
+
+    StructType expectedSchema =
+        StructType.of(
+            NestedField.required(1, "id", Types.LongType.get()),
+            NestedField.optional(2, "completion_date", Types.TimestampType.withZone()));
+    Assert.assertEquals(
+        "Should have the expected schema", expectedSchema, table.schema().asStruct());
+
+    PartitionSpec expectedSpec =
+        PartitionSpec.builderFor(new Schema(expectedSchema.fields()))
+            .year("completion_date")
+            .month("completion_date")
+            .build();
+    Assert.assertEquals("Should be partitioned correctly", expectedSpec, table.spec());
+
+    Assert.assertNull(
+        "Should not have the default format set",
+        table.properties().get(TableProperties.DEFAULT_FILE_FORMAT));
+  }
+
+  @Test
+  public void testCreateTablePartitionedByYearAndMonthSingular() {
+    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
+
+    sql(
+        "CREATE TABLE %s "
+            + "(id BIGINT NOT NULL, completion_date TIMESTAMP) "
+            + "USING iceberg "
+            + "PARTITIONED BY (year(completion_date), month(completion_date))",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertNotNull("Should load the new table", table);
+
+    StructType expectedSchema =
+        StructType.of(
+            NestedField.required(1, "id", Types.LongType.get()),
+            NestedField.optional(2, "completion_date", Types.TimestampType.withZone()));
+    Assert.assertEquals(
+        "Should have the expected schema", expectedSchema, table.schema().asStruct());
+
+    PartitionSpec expectedSpec =
+        PartitionSpec.builderFor(new Schema(expectedSchema.fields()))
+            .year("completion_date")
+            .month("completion_date")
+            .build();
+    Assert.assertEquals("Should be partitioned correctly", expectedSpec, table.spec());
+
+    Assert.assertNull(
+        "Should not have the default format set",
+        table.properties().get(TableProperties.DEFAULT_FILE_FORMAT));
+  }
+
+  @Test
+  public void testCreateTablePartitionedByYearAndMonthPlural() {
+    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
+
+    sql(
+        "CREATE TABLE %s "
+            + "(id BIGINT NOT NULL, completion_date TIMESTAMP) "
+            + "USING iceberg "
+            + "PARTITIONED BY (years(completion_date), months(completion_date))",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertNotNull("Should load the new table", table);
+
+    StructType expectedSchema =
+        StructType.of(
+            NestedField.required(1, "id", Types.LongType.get()),
+            NestedField.optional(2, "completion_date", Types.TimestampType.withZone()));
+    Assert.assertEquals(
+        "Should have the expected schema", expectedSchema, table.schema().asStruct());
+
+    PartitionSpec expectedSpec =
+        PartitionSpec.builderFor(new Schema(expectedSchema.fields()))
+            .year("completion_date")
+            .month("completion_date")
+            .build();
+    Assert.assertEquals("Should be partitioned correctly", expectedSpec, table.spec());
+
+    Assert.assertNull(
+        "Should not have the default format set",
+        table.properties().get(TableProperties.DEFAULT_FILE_FORMAT));
+  }
 }
