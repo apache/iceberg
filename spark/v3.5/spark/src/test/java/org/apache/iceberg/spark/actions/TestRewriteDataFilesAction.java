@@ -1365,6 +1365,15 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testIgnoreInvalidOptions() {
+    Table table = createTable(20);
+    basicRewrite(table)
+        .option("ignore-invalid-options", "true")
+        .option("foobarity", "-5")
+        .execute();
+  }
+
+  @TestTemplate
   public void testSortMultipleGroups() {
     Table table = createTable(20);
     shouldHaveFiles(table, 20);
