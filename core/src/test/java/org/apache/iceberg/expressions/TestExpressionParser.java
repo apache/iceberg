@@ -28,6 +28,8 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.geospatial.GeospatialBound;
+import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -51,7 +53,9 @@ public class TestExpressionParser {
           required(114, "dec_9_0", Types.DecimalType.of(9, 0)),
           required(115, "dec_11_2", Types.DecimalType.of(11, 2)),
           required(116, "dec_38_10", Types.DecimalType.of(38, 10)), // maximum precision
-          required(117, "time", Types.TimeType.get()));
+          required(117, "time", Types.TimeType.get()),
+          required(118, "geom", Types.GeometryType.crs84()),
+          required(119, "geog", Types.GeographyType.crs84()));
   private static final Schema SCHEMA = new Schema(SUPPORTED_PRIMITIVES.fields());
 
   @Test
@@ -94,7 +98,23 @@ public class TestExpressionParser {
           Expressions.or(
               Expressions.greaterThan(Expressions.day("ts"), "2022-08-14"),
               Expressions.equal("date", "2022-08-14")),
-          Expressions.not(Expressions.in("l", 1, 2, 3, 4))
+          Expressions.not(Expressions.in("l", 1, 2, 3, 4)),
+          Expressions.stIntersects(
+              "geom",
+              new GeospatialBoundingBox(
+                  GeospatialBound.createXY(1, 2), GeospatialBound.createXY(3, 4))),
+          Expressions.stDisjoint(
+              "geom",
+              new GeospatialBoundingBox(
+                  GeospatialBound.createXYM(1, 2, 3), GeospatialBound.createXYM(3, 4, 5))),
+          Expressions.stIntersects(
+              "geog",
+              new GeospatialBoundingBox(
+                  GeospatialBound.createXYZ(1, 2, 3), GeospatialBound.createXYZ(3, 4, 5))),
+          Expressions.stDisjoint(
+              "geog",
+              new GeospatialBoundingBox(
+                  GeospatialBound.createXYZM(1, 2, 3, 4), GeospatialBound.createXYZM(3, 4, 5, 6)))
         };
 
     for (Expression expr : expressions) {
@@ -540,6 +560,125 @@ public class TestExpressionParser {
 
     Expression expression = Expressions.in("column-name", new BigDecimal("3.14E+4"));
 
+    assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
+        .isEqualTo(expected);
+  }
+
+  @Test
+  public void testSpatialPredicate() {
+    String expected =
+        "{\n"
+            + "  \"type\" : \"st-intersects\",\n"
+            + "  \"term\" : \"column-name\",\n"
+            + "  \"value\" : {\n"
+            + "    \"x\" : {\n"
+            + "      \"min\" : 1.0,\n"
+            + "      \"max\" : 3.0\n"
+            + "    },\n"
+            + "    \"y\" : {\n"
+            + "      \"min\" : 2.0,\n"
+            + "      \"max\" : 4.0\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
+
+    Expression expression =
+        Expressions.stIntersects(
+            "column-name",
+            new GeospatialBoundingBox(
+                GeospatialBound.createXY(1, 2), GeospatialBound.createXY(3, 4)));
+    assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
+        .isEqualTo(expected);
+
+    expected =
+        "{\n"
+            + "  \"type\" : \"st-intersects\",\n"
+            + "  \"term\" : \"column-name\",\n"
+            + "  \"value\" : {\n"
+            + "    \"x\" : {\n"
+            + "      \"min\" : 1.0,\n"
+            + "      \"max\" : 3.0\n"
+            + "    },\n"
+            + "    \"y\" : {\n"
+            + "      \"min\" : 2.0,\n"
+            + "      \"max\" : 4.0\n"
+            + "    },\n"
+            + "    \"m\" : {\n"
+            + "      \"min\" : 3.0,\n"
+            + "      \"max\" : 5.0\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
+
+    expression =
+        Expressions.stIntersects(
+            "column-name",
+            new GeospatialBoundingBox(
+                GeospatialBound.createXYM(1, 2, 3), GeospatialBound.createXYM(3, 4, 5)));
+    assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
+        .isEqualTo(expected);
+
+    expected =
+        "{\n"
+            + "  \"type\" : \"st-intersects\",\n"
+            + "  \"term\" : \"column-name\",\n"
+            + "  \"value\" : {\n"
+            + "    \"x\" : {\n"
+            + "      \"min\" : 1.0,\n"
+            + "      \"max\" : 3.0\n"
+            + "    },\n"
+            + "    \"y\" : {\n"
+            + "      \"min\" : 2.0,\n"
+            + "      \"max\" : 4.0\n"
+            + "    },\n"
+            + "    \"z\" : {\n"
+            + "      \"min\" : 3.0,\n"
+            + "      \"max\" : 5.0\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
+
+    expression =
+        Expressions.stIntersects(
+            "column-name",
+            new GeospatialBoundingBox(
+                GeospatialBound.createXYZ(1, 2, 3), GeospatialBound.createXYZ(3, 4, 5)));
+    assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
+        .isEqualTo(expected);
+
+    expected =
+        "{\n"
+            + "  \"type\" : \"st-intersects\",\n"
+            + "  \"term\" : \"column-name\",\n"
+            + "  \"value\" : {\n"
+            + "    \"x\" : {\n"
+            + "      \"min\" : 1.0,\n"
+            + "      \"max\" : 3.0\n"
+            + "    },\n"
+            + "    \"y\" : {\n"
+            + "      \"min\" : 2.0,\n"
+            + "      \"max\" : 4.0\n"
+            + "    },\n"
+            + "    \"z\" : {\n"
+            + "      \"min\" : 3.0,\n"
+            + "      \"max\" : 5.0\n"
+            + "    },\n"
+            + "    \"m\" : {\n"
+            + "      \"min\" : 4.0,\n"
+            + "      \"max\" : 6.0\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
+
+    expression =
+        Expressions.stIntersects(
+            "column-name",
+            new GeospatialBoundingBox(
+                GeospatialBound.createXYZM(1, 2, 3, 4), GeospatialBound.createXYZM(3, 4, 5, 6)));
     assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
     assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
         .isEqualTo(expected);
