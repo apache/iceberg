@@ -26,7 +26,7 @@ import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthSession;
-import software.amazon.awssdk.auth.signer.Aws4Signer;
+import software.amazon.awssdk.http.auth.aws.signer.AwsV4HttpSigner;
 
 /**
  * An AuthManager that authenticates requests with SigV4.
@@ -36,7 +36,7 @@ import software.amazon.awssdk.auth.signer.Aws4Signer;
 @SuppressWarnings("unused") // loaded by reflection
 public class RESTSigV4AuthManager implements AuthManager {
 
-  private final Aws4Signer signer = Aws4Signer.create();
+  private final AwsV4HttpSigner signer = AwsV4HttpSigner.create();
   private final AuthManager delegate;
 
   private Map<String, String> catalogProperties = Map.of();

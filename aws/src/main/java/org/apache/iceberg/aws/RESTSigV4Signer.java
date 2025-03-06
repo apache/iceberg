@@ -34,14 +34,16 @@ import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.iceberg.exceptions.RESTException;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.signer.Aws4Signer;
-import software.amazon.awssdk.auth.signer.internal.SignerConstant;
-import software.amazon.awssdk.auth.signer.params.Aws4SignerParams;
-import software.amazon.awssdk.auth.signer.params.SignerChecksumParams;
-import software.amazon.awssdk.core.checksums.Algorithm;
-import software.amazon.awssdk.http.SdkHttpFullRequest;
+import software.amazon.awssdk.checksums.DefaultChecksumAlgorithm;
+import software.amazon.awssdk.http.ContentStreamProvider;
 import software.amazon.awssdk.http.SdkHttpMethod;
+import software.amazon.awssdk.http.SdkHttpRequest;
+import software.amazon.awssdk.http.auth.aws.signer.AwsV4FamilyHttpSigner;
+import software.amazon.awssdk.http.auth.aws.signer.AwsV4HttpSigner;
+import software.amazon.awssdk.http.auth.spi.signer.SignRequest;
+import software.amazon.awssdk.http.auth.spi.signer.SignedRequest;
 import software.amazon.awssdk.regions.Region;
 
 /**
@@ -57,7 +59,7 @@ public class RESTSigV4Signer implements HttpRequestInterceptor {
       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
   static final String RELOCATED_HEADER_PREFIX = "Original-";
 
-  private final Aws4Signer signer = Aws4Signer.create();
+  private final AwsV4HttpSigner signer = AwsV4HttpSigner.create();
   private AwsCredentialsProvider credentialsProvider;
 
   private String signingName;
@@ -81,46 +83,36 @@ public class RESTSigV4Signer implements HttpRequestInterceptor {
       throw new RESTException(e, "Invalid uri for request: %s", request);
     }
 
-    Aws4SignerParams params =
-        Aws4SignerParams.builder()
-            .signingName(signingName)
-            .signingRegion(signingRegion)
-            .awsCredentials(credentialsProvider.resolveCredentials())
-            .checksumParams(
-                SignerChecksumParams.builder()
-                    .algorithm(Algorithm.SHA256)
-                    .isStreamingRequest(false)
-                    .checksumHeaderName(SignerConstant.X_AMZ_CONTENT_SHA256)
-                    .build())
+    SdkHttpRequest sdkHttpRequest =
+        SdkHttpRequest.builder()
+            .method(SdkHttpMethod.fromValue(request.getMethod()))
+            .protocol(request.getScheme())
+            .uri(requestUri)
+            .headers(convertHeaders(request.getHeaders()))
             .build();
 
-    SdkHttpFullRequest.Builder sdkRequestBuilder = SdkHttpFullRequest.builder();
-
-    sdkRequestBuilder
-        .method(SdkHttpMethod.fromValue(request.getMethod()))
-        .protocol(request.getScheme())
-        .uri(requestUri)
-        .headers(convertHeaders(request.getHeaders()));
+    SignRequest.Builder<AwsCredentials> signRequestBuilder =
+        SignRequest.builder(credentialsProvider.resolveCredentials())
+            .request(sdkHttpRequest)
+            .putProperty(AwsV4FamilyHttpSigner.CHECKSUM_ALGORITHM, DefaultChecksumAlgorithm.SHA256)
+            .putProperty(AwsV4FamilyHttpSigner.SERVICE_SIGNING_NAME, signingName)
+            .putProperty(AwsV4HttpSigner.REGION_NAME, signingRegion.toString());
 
     if (entity == null) {
-      // This is a workaround for the signer implementation incorrectly producing
-      // an invalid content checksum for empty body requests.
-      sdkRequestBuilder.putHeader(SignerConstant.X_AMZ_CONTENT_SHA256, EMPTY_BODY_SHA256);
+      signRequestBuilder.payload(null);
     } else if (entity instanceof StringEntity) {
-      sdkRequestBuilder.contentStreamProvider(
-          () -> {
-            try {
-              return ((StringEntity) entity).getContent();
-            } catch (IOException e) {
-              throw new UncheckedIOException(e);
-            }
-          });
+      try {
+        signRequestBuilder.payload(
+            ContentStreamProvider.fromInputStream(((StringEntity) entity).getContent()));
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
     } else {
       throw new UnsupportedOperationException("Unsupported entity type: " + entity.getClass());
     }
 
-    SdkHttpFullRequest signedSdkRequest = signer.sign(sdkRequestBuilder.build(), params);
-    updateRequestHeaders(request, signedSdkRequest.headers());
+    SignedRequest signedRequest = signer.sign(signRequestBuilder.build());
+    updateRequestHeaders(request, signedRequest.request().headers());
   }
 
   private Map<String, List<String>> convertHeaders(Header[] headers) {
