@@ -115,7 +115,7 @@ public class TestTypes {
 
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("geography(srid:4269, BadAlgorithm)"))
-        .withMessageContaining("Invalid edge interpolation algorithm name")
+        .withMessageContaining("Invalid edge interpolation algorithm")
         .withMessageContaining("BadAlgorithm");
 
     // Test geography type with various spacing

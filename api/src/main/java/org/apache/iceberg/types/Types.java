@@ -58,6 +58,8 @@ public class Types {
           .put(BinaryType.get().toString(), BinaryType.get())
           .put(UnknownType.get().toString(), UnknownType.get())
           .put(VariantType.get().toString(), VariantType.get())
+          .put(GeometryType.get().toString(), GeometryType.get())
+          .put(GeographyType.get().toString(), GeographyType.get())
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
@@ -566,11 +568,12 @@ public class Types {
     private final String crs;
 
     private GeometryType(String crs) {
+      Preconditions.checkNotNull(crs, "CRS cannot be null");
       this.crs = crs;
     }
 
     public static GeometryType get() {
-      return of("");
+      return new GeometryType("");
     }
 
     public static GeometryType of(String crs) {
@@ -615,12 +618,13 @@ public class Types {
     private final EdgeInterpolationAlgorithm algorithm;
 
     private GeographyType(String crs, EdgeInterpolationAlgorithm algorithm) {
+      Preconditions.checkNotNull(crs, "CRS cannot be null");
       this.crs = crs;
       this.algorithm = algorithm;
     }
 
     public static GeographyType get() {
-      return of("");
+      return new GeographyType("", null);
     }
 
     public static GeographyType of(String crs) {
