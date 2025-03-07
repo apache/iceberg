@@ -31,8 +31,11 @@ import org.apache.iceberg.spark.data.SparkOrcWriter;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.iceberg.spark.data.SparkPlannedAvroReader;
+import org.apache.iceberg.spark.data.SparkVortexReader;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
+import org.apache.iceberg.spark.data.vectorized.VectorizedSparkVortexReaders;
+import org.apache.iceberg.vortex.Vortex;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
@@ -74,6 +77,14 @@ public class SparkObjectModels {
     ObjectModelRegistry.registerObjectModel(
         new ORC.ObjectModel<ColumnarBatch, StructType>(
             SPARK_VECTORIZED_OBJECT_MODEL, VectorizedSparkOrcReaders::buildReader));
+
+    ObjectModelRegistry.registerObjectModel(
+        new Vortex.ObjectModel<InternalRow, StructType>(
+            SPARK_OBJECT_MODEL, SparkVortexReader::new));
+
+    ObjectModelRegistry.registerObjectModel(
+        new Vortex.ObjectModel<ColumnarBatch, StructType>(
+            SPARK_VECTORIZED_OBJECT_MODEL, VectorizedSparkVortexReaders::buildReader));
   }
 
   private SparkObjectModels() {}

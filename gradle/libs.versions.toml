@@ -84,6 +84,7 @@ spark35 = "3.5.5"
 sqlite-jdbc = "3.49.1.0"
 testcontainers = "1.20.6"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
+vortex = "0.25.2-227-g0950140" # todo(aduffy): replace with stable published version
 
 [libraries]
 activation = { module = "javax.activation:activation", version.ref = "activation" }
@@ -127,6 +128,7 @@ flink120-streaming-java = { module = "org.apache.flink:flink-streaming-java", ve
 flink120-table-api-java-bridge = { module = "org.apache.flink:flink-table-api-java-bridge", version.ref = "flink120" }
 google-libraries-bom = { module = "com.google.cloud:libraries-bom", version.ref = "google-libraries-bom" }
 guava-guava = { module = "com.google.guava:guava", version.ref = "guava" }
+hadoop3-aws = { module = "org.apache.hadoop:hadoop-aws", version.ref = "hadoop3" }
 hadoop3-client = { module = "org.apache.hadoop:hadoop-client", version.ref = "hadoop3" }
 hadoop3-common = { module = "org.apache.hadoop:hadoop-common", version.ref = "hadoop3" }
 hadoop3-hdfs = { module = "org.apache.hadoop:hadoop-hdfs", version.ref = "hadoop3" }
@@ -165,6 +167,8 @@ scala-collection-compat = { module = "org.scala-lang.modules:scala-collection-co
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 snowflake-jdbc = { module = "net.snowflake:snowflake-jdbc", version.ref = "snowflake-jdbc" }
+vortex-jni = { module = "dev.vortex:vortex-jni", version.ref = "vortex" }
+vortex-spark = { module = "dev.vortex:vortex-spark", version.ref = "vortex" }
 
 # test libraries
 apiguardian = { module = "org.apiguardian:apiguardian-api", version.ref = "apiguardian" }

@@ -17,7 +17,9 @@
  * under the License.
  */
 
+
 import groovy.transform.Memoized
+
 import java.util.regex.Matcher
 import java.util.regex.Pattern
 
@@ -819,6 +821,29 @@ project(':iceberg-parquet') {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-data')
+  }
+}
+
+project(':iceberg-vortex') {
+  test {
+    useJUnitPlatform()
+  }
+  dependencies {
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    api project(':iceberg-api')
+    implementation project(':iceberg-core')
+    implementation project(':iceberg-common')
+    implementation(libs.vortex.jni)
+
+    annotationProcessor libs.immutables.value
+    compileOnly libs.immutables.value
+    compileOnly(libs.hadoop3.client) {
+      exclude group: 'org.apache.avro', module: 'avro'
+    }
+
+
+    testImplementation libs.hadoop3.common
   }
 }
 

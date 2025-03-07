@@ -84,7 +84,7 @@ public class GenericObjectModels {
   private static void logAngIgnoreNoClassDefFoundError(Runnable runnable) {
     try {
       runnable.run();
-    } catch (NoClassDefFoundError e) {
+    } catch (LinkageError e) {
       // Log the exception and ignore it
       LOG.info("Exception occurred when trying to register object models: {}", e.getMessage());
     }

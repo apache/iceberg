@@ -32,12 +32,14 @@ import org.apache.iceberg.io.ReadBuilder;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
+import org.apache.iceberg.spark.VortexBatchReadConf;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
   private final ParquetBatchReadConf parquetConf;
   private final OrcBatchReadConf orcConf;
+  private final VortexBatchReadConf vortexConf;
 
   BaseBatchReader(
       Table table,
@@ -46,10 +48,12 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Schema expectedSchema,
       boolean caseSensitive,
       ParquetBatchReadConf parquetConf,
-      OrcBatchReadConf orcConf) {
+      OrcBatchReadConf orcConf,
+      VortexBatchReadConf vortexConf) {
     super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
     this.parquetConf = parquetConf;
     this.orcConf = orcConf;
+    this.vortexConf = vortexConf;
   }
 
   @SuppressWarnings("unchecked")

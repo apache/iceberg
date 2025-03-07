@@ -28,6 +28,8 @@ public enum FileFormat {
   ORC("orc", true),
   PARQUET("parquet", true),
   AVRO("avro", true),
+  // TODO(aduffy): Make Vortex splittable once I update FFI to allow providing split sizes.
+  VORTEX("vortex", false),
   METADATA("metadata.json", false);
 
   private final String ext;

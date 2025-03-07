@@ -59,6 +59,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     implementation project(':iceberg-data')
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
+    implementation project(':iceberg-vortex')
     implementation project(':iceberg-arrow')
     implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}")
     implementation("org.apache.datasketches:datasketches-java:${libs.versions.datasketches.get()}")
@@ -79,6 +80,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
 
     implementation libs.parquet.column
     implementation libs.parquet.hadoop
+    implementation libs.vortex.jni;
 
     implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
       exclude group: 'org.apache.hadoop'

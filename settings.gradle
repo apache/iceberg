@@ -42,6 +42,7 @@ include 'snowflake'
 include 'delta-lake'
 include 'open-api'
 include 'mr'
+include 'vortex'
 
 project(':bom').name = 'iceberg-bom'
 project(':api').name = 'iceberg-api'
@@ -67,6 +68,7 @@ project(':snowflake').name = 'iceberg-snowflake'
 project(':delta-lake').name = 'iceberg-delta-lake'
 project(':open-api').name = 'iceberg-open-api'
 project(':mr').name = 'iceberg-mr'
+project(':vortex').name = 'iceberg-vortex'
 
 if (null != System.getProperty("allModules")) {
   System.setProperty("flinkVersions", System.getProperty("knownFlinkVersions"))

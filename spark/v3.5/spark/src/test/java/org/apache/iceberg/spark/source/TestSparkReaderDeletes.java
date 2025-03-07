@@ -683,6 +683,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
               dateTable.schema().select("id"),
               false,
               conf,
+              null,
               null)) {
         while (reader.next()) {
           ColumnarBatch columnarBatch = reader.get();
