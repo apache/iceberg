@@ -132,7 +132,7 @@ public class HTTPClient extends BaseHTTPClient {
    * shares the same base uri, mapper, and HTTP client as the parent, thus not requiring any
    * additional resource allocation.
    */
-  private HTTPClient(HTTPClient parent, AuthSession authSession) {
+  HTTPClient(HTTPClient parent, AuthSession authSession) {
     this.baseUri = parent.baseUri;
     this.httpClient = parent.httpClient;
     this.mapper = parent.mapper;
