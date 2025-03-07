@@ -22,11 +22,13 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynConstructors;
@@ -559,5 +561,19 @@ public class CatalogUtil {
             .run(previousMetadataFile -> io.deleteFile(previousMetadataFile.file()));
       }
     }
+  }
+
+  public static TableIdentifier removeCatalogName(String catalogName, TableIdentifier to) {
+    // check if the identifier includes the catalog name and remove it
+    if (to.namespace().levels().length >= 2
+        && catalogName.equalsIgnoreCase(to.namespace().level(0))) {
+      Namespace trimmedNamespace =
+          Namespace.of(
+              Arrays.copyOfRange(to.namespace().levels(), 1, to.namespace().levels().length));
+      return TableIdentifier.of(trimmedNamespace, to.name());
+    }
+
+    // return the original unmodified
+    return to;
   }
 }
