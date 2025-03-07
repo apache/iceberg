@@ -29,6 +29,8 @@ import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantTestUtil;
 
 class AvroTestHelpers {
 
@@ -134,6 +136,14 @@ class AvroTestHelpers {
       case BINARY:
       case DECIMAL:
         assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
+        break;
+      case VARIANT:
+        assertThat(expected).as("Expected should be a Variant").isInstanceOf(Variant.class);
+        assertThat(actual).as("Actual should be a Variant").isInstanceOf(Variant.class);
+        Variant expectedVariant = (Variant) expected;
+        Variant actualVariant = (Variant) actual;
+        VariantTestUtil.assertEqual(expectedVariant.metadata(), actualVariant.metadata());
+        VariantTestUtil.assertEqual(expectedVariant.value(), actualVariant.value());
         break;
       case STRUCT:
         assertThat(expected).as("Expected should be a Record").isInstanceOf(Record.class);

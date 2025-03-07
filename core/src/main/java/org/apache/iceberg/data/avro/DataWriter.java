@@ -102,6 +102,12 @@ public class DataWriter<T> implements MetricsAwareDatumWriter<T> {
     }
 
     @Override
+    public ValueWriter<?> variant(
+        Schema variant, ValueWriter<?> metadataWriter, ValueWriter<?> valueWriter) {
+      return ValueWriters.variants();
+    }
+
+    @Override
     public ValueWriter<?> primitive(Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
