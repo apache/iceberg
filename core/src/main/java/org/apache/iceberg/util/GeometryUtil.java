@@ -29,6 +29,8 @@ public class GeometryUtil {
 
   private GeometryUtil() {}
 
+  private static final int DEFAULT_DIMENSION = 2;
+
   public static byte[] toWKB(Geometry geom) {
     WKBWriter wkbWriter = new WKBWriter(getOutputDimension(geom), false);
     return wkbWriter.write(geom);
@@ -58,7 +60,7 @@ public class GeometryUtil {
   }
 
   private static int getOutputDimension(Geometry geom) {
-    int dimension = 2;
+    int dimension = DEFAULT_DIMENSION;
     Coordinate coordinate = geom.getCoordinate();
 
     // We need to set outputDimension = 4 for XYM geometries to make JTS WKTWriter or WKBWriter work

@@ -82,15 +82,7 @@ public class TestTypes {
   }
 
   @Test
-  public void testNestedFieldBuilderIdCheck() {
-    assertThatExceptionOfType(NullPointerException.class)
-        .isThrownBy(() -> optional("field").ofType(Types.StringType.get()).build())
-        .withMessage("Id cannot be null");
-
-    assertThatExceptionOfType(NullPointerException.class)
-        .isThrownBy(() -> required("field").ofType(Types.StringType.get()).build())
-        .withMessage("Id cannot be null");
-
+  public void geospatialTypeFromTypeName() {
     assertThat(Types.fromPrimitiveString("geometry")).isEqualTo(Types.GeometryType.get());
     assertThat(Types.fromPrimitiveString("geometry()")).isEqualTo(Types.GeometryType.get());
     assertThat(Types.fromPrimitiveString("geometry(srid:3857)"))
@@ -115,7 +107,7 @@ public class TestTypes {
 
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("geography(srid:4269, BadAlgorithm)"))
-        .withMessageContaining("Invalid edge interpolation algorithm name")
+        .withMessageContaining("Invalid edge interpolation algorithm")
         .withMessageContaining("BadAlgorithm");
 
     // Test geography type with various spacing
@@ -127,5 +119,16 @@ public class TestTypes {
         .isEqualTo(Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.VINCENTY));
     assertThat(Types.fromPrimitiveString("geography( srid:4269  ,  karney  )"))
         .isEqualTo(Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.KARNEY));
+  }
+
+  @Test
+  public void testNestedFieldBuilderIdCheck() {
+    assertThatExceptionOfType(NullPointerException.class)
+        .isThrownBy(() -> optional("field").ofType(Types.StringType.get()).build())
+        .withMessage("Id cannot be null");
+
+    assertThatExceptionOfType(NullPointerException.class)
+        .isThrownBy(() -> required("field").ofType(Types.StringType.get()).build())
+        .withMessage("Id cannot be null");
   }
 }

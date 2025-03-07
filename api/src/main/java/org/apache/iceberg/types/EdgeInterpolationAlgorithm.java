@@ -19,6 +19,7 @@
 package org.apache.iceberg.types;
 
 import java.util.Locale;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /** The algorithm for interpolating edges. */
 public enum EdgeInterpolationAlgorithm {
@@ -54,11 +55,12 @@ public enum EdgeInterpolationAlgorithm {
   }
 
   public static EdgeInterpolationAlgorithm fromName(String algorithmName) {
+    Preconditions.checkNotNull(algorithmName, "Edge interpolation algorithm cannot be null");
     try {
       return EdgeInterpolationAlgorithm.valueOf(algorithmName.toUpperCase(Locale.ENGLISH));
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(
-          String.format("Invalid edge interpolation algorithm name: %s", algorithmName), e);
+          String.format("Invalid edge interpolation algorithm: %s", algorithmName), e);
     }
   }
 }
