@@ -410,7 +410,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()),
         Tuple.tuple(
@@ -423,7 +423,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()));
 
@@ -459,7 +459,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()),
         Tuple.tuple(
@@ -472,7 +472,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()),
         Tuple.tuple(
@@ -485,7 +485,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot2.timestampMillis(),
             snapshot2.snapshotId()),
         Tuple.tuple(
@@ -498,7 +498,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot2.timestampMillis(),
             snapshot2.snapshotId()),
         Tuple.tuple(
@@ -511,7 +511,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot2.timestampMillis(),
             snapshot2.snapshotId()),
         Tuple.tuple(
@@ -524,7 +524,7 @@ public class TestPartitionStatsUtil {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot2.timestampMillis(),
             snapshot2.snapshotId()));
   }
