@@ -75,7 +75,7 @@ public class CommitterImpl implements Committer {
   }
 
 
-  public boolean hasLeaderPartitions(Collection<TopicPartition> currentAssignedPartitions) {
+  public boolean hasLeaderPartition(Collection<TopicPartition> currentAssignedPartitions) {
     ConsumerGroupDescription groupDesc;
     try (Admin admin = clientFactory.createAdmin()) {
       groupDesc = KafkaUtils.consumerGroupDescription(config.connectGroupId(), admin);
@@ -92,12 +92,15 @@ public class CommitterImpl implements Committer {
 
   @Override
   public void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
-    // No-Op
+    throw new UnsupportedOperationException(
+            "The method start(Catalog, IcebergSinkConfig, SinkTaskContext) is deprecated and will be removed in 2.0.0. "
+                    + "Use start(Catalog, IcebergSinkConfig, SinkTaskContext, Collection<TopicPartition>) instead."
+    );
   }
 
   @Override
   public void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context, Collection<TopicPartition> addedPartitions) {
-    if (hasLeaderPartitions(addedPartitions)) {
+    if (hasLeaderPartition(addedPartitions)) {
       LOG.info("Committer received leader partition. Starting Coordinator.");
       startCoordinator();
     }
@@ -105,14 +108,17 @@ public class CommitterImpl implements Committer {
 
   @Override
   public void stop() {
-    // No-Op
+    throw new UnsupportedOperationException(
+            "The method stop() is deprecated and will be removed in 2.0.0. "
+                    + "Use stop(Collection<TopicPartition>) instead."
+    );
   }
 
   @Override
   public void stop(Collection<TopicPartition> closedPartitions) {
     stopWorker();
-    KafkaUtils.seekToLastCommittedOffsetsForCurrentlyOwnedPartitions(context);
-    if (hasLeaderPartitions(closedPartitions)) {
+    KafkaUtils.seekToLastCommittedOffsets(context);
+    if (hasLeaderPartition(closedPartitions)) {
       LOG.info("Committer lost leader partition. Stopping Coordinator.");
       stopCoordinator();
     }

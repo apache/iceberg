@@ -57,7 +57,7 @@ class KafkaUtils {
     return kafkaConsumer(context).groupMetadata();
   }
 
-  static void seekToLastCommittedOffsetsForCurrentlyOwnedPartitions(SinkTaskContext context) {
+  static void seekToLastCommittedOffsets(SinkTaskContext context) {
     Consumer<byte[], byte[]> consumer = kafkaConsumer(context);
     if (consumer == null) {
       return;
