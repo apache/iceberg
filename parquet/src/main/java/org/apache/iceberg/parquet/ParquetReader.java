@@ -19,13 +19,14 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.Function;
+import org.apache.iceberg.InternalData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableGroup;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
@@ -34,7 +35,7 @@ import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.schema.MessageType;
 
-public class ParquetReader<T> extends CloseableGroup implements CloseableIterable<T> {
+public class ParquetReader<T> extends CloseableGroup implements InternalData.DataIterable<T> {
   private final InputFile input;
   private final Schema expectedSchema;
   private final ParquetReadOptions options;
@@ -91,6 +92,11 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     FileIterator<T> iter = new FileIterator<>(init());
     addCloseable(iter);
     return iter;
+  }
+
+  @Override
+  public Map<String, String> metadata() {
+    return conf.metadata().getKeyValueMetaData();
   }
 
   private static class FileIterator<T> implements CloseableIterator<T> {
