@@ -18,13 +18,13 @@
  */
 package org.apache.iceberg.azure.adlsv2;
 
-import com.azure.core.credential.AzureSasCredential;
+import com.azure.core.credential.AccessToken;
+import com.azure.core.credential.SimpleTokenCache;
 import java.io.Serializable;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.azure.AzureProperties;
@@ -32,51 +32,48 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
+import org.apache.iceberg.rest.HTTPHeaders;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.auth.DefaultAuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.SerializableMap;
-import org.apache.iceberg.util.ThreadPools;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Mono;
 
 public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable {
-  private static final Logger LOG = LoggerFactory.getLogger(VendedAdlsCredentialProvider.class);
 
-  private static final String THREAD_PREFIX = "adls-vended-credential-refresh";
   public static final String URI = "credentials.uri";
 
   private final SerializableMap<String, String> properties;
-  private transient volatile Map<String, AzureSasCredentialRefresher>
-      azureSasCredentialRefresherMap;
+  private transient volatile Map<String, SimpleTokenCache> azureSasCredentialMap;
   private transient volatile RESTClient client;
-  private transient volatile ScheduledExecutorService refreshExecutor;
 
   public VendedAdlsCredentialProvider(Map<String, String> properties) {
     Preconditions.checkArgument(null != properties, "Invalid properties: null");
     Preconditions.checkArgument(null != properties.get(URI), "Invalid URI: null");
     this.properties = SerializableMap.copyOf(properties);
-    azureSasCredentialRefresherMap = Maps.newHashMap();
+    azureSasCredentialMap = Maps.newHashMap();
   }
 
-  public AzureSasCredential credentialForAccount(String storageAccount) {
-    Map<String, AzureSasCredentialRefresher> refresherForAccountMap =
-        azureSasCredentialRefresherMap();
-    if (refresherForAccountMap.containsKey(storageAccount)) {
-      return refresherForAccountMap.get(storageAccount).azureSasCredential();
+  public String credentialForAccount(String storageAccount) {
+    Map<String, SimpleTokenCache> tokenCacheForAccountMap = azureSasCredentialMap();
+    if (tokenCacheForAccountMap.containsKey(storageAccount)) {
+      return tokenFromCache(tokenCacheForAccountMap.get(storageAccount));
     } else {
-      AzureSasCredentialRefresher azureSasCredentialRefresher =
-          new AzureSasCredentialRefresher(
-              () -> this.sasTokenWithExpiration(storageAccount), credentialRefreshExecutor());
-      refresherForAccountMap.put(storageAccount, azureSasCredentialRefresher);
-      return azureSasCredentialRefresher.azureSasCredential();
+      SimpleTokenCache tokenCache =
+          new SimpleTokenCache(() -> Mono.fromSupplier(() -> sasTokenSupplier(storageAccount)));
+      tokenCacheForAccountMap.put(storageAccount, tokenCache);
+      return tokenFromCache(tokenCache);
     }
   }
 
-  private Pair<String, Long> sasTokenWithExpiration(String storageAccount) {
+  private String tokenFromCache(SimpleTokenCache simpleTokenCache) {
+    return simpleTokenCache.getToken().map(AccessToken::getToken).block();
+  }
+
+  private AccessToken sasTokenSupplier(String storageAccount) {
     LoadCredentialsResponse response = fetchCredentials();
     List<Credential> adlsCredentials =
         response.credentials().stream()
@@ -102,36 +99,33 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
                 .config()
                 .get(AzureProperties.ADLS_SAS_TOKEN_EXPIRES_AT_MS_PREFIX + storageAccount));
 
-    return Pair.of(updatedSasToken, tokenExpiresAtMillis);
+    return new AccessToken(
+        updatedSasToken, Instant.ofEpochMilli(tokenExpiresAtMillis).atOffset(ZoneOffset.UTC));
   }
 
-  private Map<String, AzureSasCredentialRefresher> azureSasCredentialRefresherMap() {
-    if (this.azureSasCredentialRefresherMap == null) {
+  private Map<String, SimpleTokenCache> azureSasCredentialMap() {
+    if (this.azureSasCredentialMap == null) {
       synchronized (this) {
-        if (this.azureSasCredentialRefresherMap == null) {
-          this.azureSasCredentialRefresherMap = Maps.newHashMap();
+        if (this.azureSasCredentialMap == null) {
+          this.azureSasCredentialMap = Maps.newHashMap();
         }
       }
     }
-    return this.azureSasCredentialRefresherMap;
-  }
-
-  private ScheduledExecutorService credentialRefreshExecutor() {
-    if (this.refreshExecutor == null) {
-      synchronized (this) {
-        if (this.refreshExecutor == null) {
-          this.refreshExecutor = ThreadPools.newScheduledPool(THREAD_PREFIX, 1);
-        }
-      }
-    }
-    return this.refreshExecutor;
+    return this.azureSasCredentialMap;
   }
 
   private RESTClient httpClient() {
     if (null == client) {
       synchronized (this) {
         if (null == client) {
-          client = HTTPClient.builder(properties).uri(properties.get(URI)).build();
+          DefaultAuthSession authSession =
+              DefaultAuthSession.of(
+                  HTTPHeaders.of(OAuth2Util.authHeaders(properties.get(OAuth2Properties.TOKEN))));
+          client =
+              HTTPClient.builder(properties)
+                  .uri(properties.get(URI))
+                  .withAuthSession(authSession)
+                  .build();
         }
       }
     }
@@ -145,7 +139,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
             properties.get(URI),
             null,
             LoadCredentialsResponse.class,
-            OAuth2Util.authHeaders(properties.get(OAuth2Properties.TOKEN)),
+            Map.of(),
             ErrorHandlers.defaultErrorHandler());
   }
 
@@ -159,30 +153,5 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
   @Override
   public void close() {
     IOUtils.closeQuietly(client);
-    shutdownRefreshExecutor();
-  }
-
-  private void shutdownRefreshExecutor() {
-    if (refreshExecutor != null) {
-      ScheduledExecutorService service = refreshExecutor;
-      this.refreshExecutor = null;
-
-      List<Runnable> tasks = service.shutdownNow();
-      tasks.forEach(
-          task -> {
-            if (task instanceof Future) {
-              ((Future<?>) task).cancel(true);
-            }
-          });
-
-      try {
-        if (!service.awaitTermination(1, TimeUnit.MINUTES)) {
-          LOG.warn("Timed out waiting for refresh executor to terminate");
-        }
-      } catch (InterruptedException e) {
-        LOG.warn("Interrupted while waiting for refresh executor to terminate", e);
-        Thread.currentThread().interrupt();
-      }
-    }
   }
 }

@@ -25,10 +25,13 @@ import java.io.Serializable;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.azure.adlsv2.VendedAdlsCredentialProvider;
+import org.apache.iceberg.azure.adlsv2.VendedAzureSasCredentialPolicy;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class AzureProperties implements Serializable {
@@ -57,8 +60,6 @@ public class AzureProperties implements Serializable {
   private Long adlsWriteBlockSize;
 
   private VendedAdlsCredentialProvider vendedAdlsCredentialProvider;
-  private String adlsRefreshCredentialsEndpoint;
-  private boolean adlsRefreshCredentialsEnabled;
 
   public AzureProperties() {}
 
@@ -84,8 +85,11 @@ public class AzureProperties implements Serializable {
     if (properties.containsKey(ADLS_WRITE_BLOCK_SIZE)) {
       this.adlsWriteBlockSize = Long.parseLong(properties.get(ADLS_WRITE_BLOCK_SIZE));
     }
-    this.adlsRefreshCredentialsEndpoint = properties.get(ADLS_REFRESH_CREDENTIALS_ENDPOINT);
-    this.adlsRefreshCredentialsEnabled =
+    String adlsRefreshCredentialsEndpoint =
+        RESTUtil.resolveEndpoint(
+            properties.get(CatalogProperties.URI),
+            properties.get(ADLS_REFRESH_CREDENTIALS_ENDPOINT));
+    boolean adlsRefreshCredentialsEnabled =
         PropertyUtil.propertyAsBoolean(properties, ADLS_REFRESH_CREDENTIALS_ENABLED, true);
     if (adlsRefreshCredentialsEnabled && !Strings.isNullOrEmpty(adlsRefreshCredentialsEndpoint)) {
       Map<String, String> credentialProviderProperties = Maps.newHashMap(properties);
@@ -116,7 +120,7 @@ public class AzureProperties implements Serializable {
   public void applyClientConfiguration(String account, DataLakeFileSystemClientBuilder builder) {
     String sasToken = adlsSasTokens.get(account);
     if (vendedAdlsCredentialProvider != null) {
-      builder.credential(vendedAdlsCredentialProvider.credentialForAccount(account));
+      builder.addPolicy(new VendedAzureSasCredentialPolicy(account, vendedAdlsCredentialProvider));
     } else if (sasToken != null && !sasToken.isEmpty()) {
       builder.sasToken(sasToken);
     } else if (namedKeyCreds != null) {
