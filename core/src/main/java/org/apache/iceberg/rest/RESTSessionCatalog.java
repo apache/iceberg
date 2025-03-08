@@ -71,6 +71,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.auth.AuthConfig;
+import org.apache.iceberg.rest.auth.DefaultAuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
@@ -134,6 +135,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           .addAll(TOKEN_PREFERENCE_ORDER)
           .build();
 
+  // these default endpoints must not be updated in order to maintain backwards compatibility with
+  // legacy servers
   private static final Set<Endpoint> DEFAULT_ENDPOINTS =
       ImmutableSet.<Endpoint>builder()
           .add(Endpoint.V1_LIST_NAMESPACES)
@@ -149,8 +152,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           .add(Endpoint.V1_RENAME_TABLE)
           .add(Endpoint.V1_REGISTER_TABLE)
           .add(Endpoint.V1_REPORT_METRICS)
+          .add(Endpoint.V1_COMMIT_TRANSACTION)
           .build();
 
+  // these view endpoints must not be updated in order to maintain backwards compatibility with
+  // legacy servers
   private static final Set<Endpoint> VIEW_ENDPOINTS =
       ImmutableSet.<Endpoint>builder()
           .add(Endpoint.V1_LIST_VIEWS)
@@ -228,20 +234,21 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         && (hasInitToken || hasCredential)
         && !PropertyUtil.propertyAsBoolean(props, "rest.sigv4-enabled", false)) {
       LOG.warn(
-          "Iceberg REST client is missing the OAuth2 server URI configuration and defaults to {}{}. "
+          "Iceberg REST client is missing the OAuth2 server URI configuration and defaults to {}/{}. "
               + "This automatic fallback will be removed in a future Iceberg release."
               + "It is recommended to configure the OAuth2 endpoint using the '{}' property to be prepared. "
               + "This warning will disappear if the OAuth2 endpoint is explicitly configured. "
               + "See https://github.com/apache/iceberg/issues/10537",
-          props.get(CatalogProperties.URI),
+          RESTUtil.stripTrailingSlash(props.get(CatalogProperties.URI)),
           ResourcePaths.tokens(),
           OAuth2Properties.OAUTH2_SERVER_URI);
     }
     String oauth2ServerUri =
         props.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
-    try (RESTClient initClient = clientBuilder.apply(props)) {
-      Map<String, String> initHeaders =
-          RESTUtil.merge(configHeaders(props), OAuth2Util.authHeaders(initToken));
+    try (DefaultAuthSession initSession =
+            DefaultAuthSession.of(HTTPHeaders.of(OAuth2Util.authHeaders(initToken)));
+        RESTClient initClient = clientBuilder.apply(props).withAuthSession(initSession)) {
+      Map<String, String> initHeaders = configHeaders(props);
       if (hasCredential) {
         authResponse =
             OAuth2Util.fetchToken(
@@ -280,7 +287,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             mergedProps,
             OAuth2Properties.TOKEN_REFRESH_ENABLED,
             OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
-    this.client = clientBuilder.apply(mergedProps);
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
 
     String token = mergedProps.get(OAuth2Properties.TOKEN);
@@ -293,14 +299,19 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 .oauth2ServerUri(oauth2ServerUri)
                 .optionalOAuthParams(optionalOAuthParams)
                 .build());
+
+    this.client = clientBuilder.apply(mergedProps).withAuthSession(catalogAuth);
+
     if (authResponse != null) {
       this.catalogAuth =
           AuthSession.fromTokenResponse(
               client, tokenRefreshExecutor(name), authResponse, startTimeMillis, catalogAuth);
+      this.client = client.withAuthSession(catalogAuth);
     } else if (token != null) {
       this.catalogAuth =
           AuthSession.fromAccessToken(
               client, tokenRefreshExecutor(name), token, expiresAtMillis(mergedProps), catalogAuth);
+      this.client = client.withAuthSession(catalogAuth);
     }
 
     this.pageSize = PropertyUtil.propertyAsNullableInt(mergedProps, REST_PAGE_SIZE);
@@ -430,6 +441,22 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     // for now, ignore the response because there is no way to return it
     client.post(paths.rename(), request, null, headers(context), ErrorHandlers.tableErrorHandler());
+  }
+
+  @Override
+  public boolean tableExists(SessionContext context, TableIdentifier identifier) {
+    try {
+      checkIdentifierIsValid(identifier);
+      if (endpoints.contains(Endpoint.V1_TABLE_EXISTS)) {
+        client.head(paths.table(identifier), headers(context), ErrorHandlers.tableErrorHandler());
+        return true;
+      } else {
+        // fallback in order to work with 1.7.x and older servers
+        return super.tableExists(context, identifier);
+      }
+    } catch (NoSuchTableException e) {
+      return false;
+    }
   }
 
   private LoadTableResponse loadInternal(
@@ -615,7 +642,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     Map<String, String> queryParams = Maps.newHashMap();
     if (!namespace.isEmpty()) {
-      queryParams.put("parent", RESTUtil.encodeNamespace(namespace));
+      queryParams.put("parent", RESTUtil.NAMESPACE_JOINER.join(namespace.levels()));
     }
 
     ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
@@ -638,6 +665,23 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     } while (pageToken != null);
 
     return namespaces.build();
+  }
+
+  @Override
+  public boolean namespaceExists(SessionContext context, Namespace namespace) {
+    try {
+      checkNamespaceIsValid(namespace);
+      if (endpoints.contains(Endpoint.V1_NAMESPACE_EXISTS)) {
+        client.head(
+            paths.namespace(namespace), headers(context), ErrorHandlers.namespaceErrorHandler());
+        return true;
+      } else {
+        // fallback in order to work with 1.7.x and older servers
+        return super.namespaceExists(context, namespace);
+      }
+    } catch (NoSuchNamespaceException e) {
+      return false;
+    }
   }
 
   @Override
@@ -954,7 +998,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     changes.add(new MetadataUpdate.UpgradeFormatVersion(meta.formatVersion()));
 
     Schema schema = meta.schema();
-    changes.add(new MetadataUpdate.AddSchema(schema, schema.highestFieldId()));
+    changes.add(new MetadataUpdate.AddSchema(schema));
     changes.add(new MetadataUpdate.SetCurrentSchema(-1));
 
     PartitionSpec spec = meta.spec();
@@ -1201,6 +1245,22 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   @Override
+  public boolean viewExists(SessionContext context, TableIdentifier identifier) {
+    try {
+      checkViewIdentifierIsValid(identifier);
+      if (endpoints.contains(Endpoint.V1_VIEW_EXISTS)) {
+        client.head(paths.view(identifier), headers(context), ErrorHandlers.viewErrorHandler());
+        return true;
+      } else {
+        // fallback in order to work with 1.7.x and older servers
+        return super.viewExists(context, identifier);
+      }
+    } catch (NoSuchViewException e) {
+      return false;
+    }
+  }
+
+  @Override
   public View loadView(SessionContext context, TableIdentifier identifier) {
     Endpoint.check(
         endpoints,
@@ -1275,6 +1335,21 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       checkViewIdentifierIsValid(identifier);
       this.identifier = identifier;
       this.context = context;
+      this.properties.putAll(viewDefaultProperties());
+    }
+
+    /**
+     * Get default view properties set at Catalog level through catalog properties.
+     *
+     * @return default view properties specified in catalog properties
+     */
+    private Map<String, String> viewDefaultProperties() {
+      Map<String, String> viewDefaultProperties =
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.VIEW_DEFAULT_PREFIX);
+      LOG.info(
+          "View properties set at catalog level through catalog properties: {}",
+          viewDefaultProperties);
+      return viewDefaultProperties;
     }
 
     @Override

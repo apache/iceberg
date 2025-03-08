@@ -42,10 +42,12 @@ public interface VectorizedReader<T> {
    *
    * @param pages row group information for all the columns
    * @param metadata map of {@link ColumnPath} -&gt; {@link ColumnChunkMetaData} for the row group
-   * @param rowPosition the row group's row offset in the parquet file
    */
-  void setRowGroupInfo(
-      PageReadStore pages, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition);
+  default void setRowGroupInfo(PageReadStore pages, Map<ColumnPath, ColumnChunkMetaData> metadata) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName()
+            + " doesn't implement setRowGroupInfo(PageReadStore, Map<ColumnPath, ColumnChunkMetaData>)");
+  }
 
   /** Release any resources allocated. */
   void close();

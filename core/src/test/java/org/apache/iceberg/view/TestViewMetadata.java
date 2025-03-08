@@ -62,11 +62,11 @@ public class TestViewMetadata {
     ViewVersion v2 = newViewVersion(2, "select count(1) as count from t2");
     Map<Integer, ViewVersion> versionsById = ImmutableMap.of(1, v1, 2, v2, 3, v3);
 
-    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 3))
+    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 3, v1))
         .containsExactlyInAnyOrder(v1, v2, v3);
-    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 2))
-        .containsExactlyInAnyOrder(v2, v3);
-    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 1)).containsExactly(v3);
+    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 2, v1))
+        .containsExactlyInAnyOrder(v1, v3);
+    assertThat(ViewMetadata.Builder.expireVersions(versionsById, 1, v1)).containsExactly(v1);
   }
 
   @Test
@@ -394,6 +394,31 @@ public class TestViewMetadata {
     assertThatThrownBy(() -> ViewMetadata.buildFrom(view).setCurrentVersionId(1).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot set current version to unknown version: 1");
+  }
+
+  @Test
+  public void versionsAddedInCurrentBuildAreRetained() {
+    ViewVersion v1 = newViewVersion(1, "select 1 as count");
+    ViewVersion v2 = newViewVersion(2, "select count from t1");
+    ViewVersion v3 = newViewVersion(3, "select count(1) as count from t2");
+
+    ViewMetadata metadata =
+        ViewMetadata.builder()
+            .setLocation("location")
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addVersion(v1)
+            .setCurrentVersionId(v1.versionId())
+            .setProperties(ImmutableMap.of(ViewProperties.VERSION_HISTORY_SIZE, "2"))
+            .build();
+    assertThat(metadata.versions()).containsOnly(v1);
+
+    // make sure all currently added versions are retained
+    ViewMetadata updated = ViewMetadata.buildFrom(metadata).addVersion(v2).addVersion(v3).build();
+    assertThat(updated.versions()).containsExactlyInAnyOrder(v1, v2, v3);
+
+    // rebuild the metadata to expire older versions
+    updated = ViewMetadata.buildFrom(updated).build();
+    assertThat(updated.versions()).containsExactlyInAnyOrder(v1, v3);
   }
 
   @Test
@@ -1180,5 +1205,45 @@ public class TestViewMetadata {
             "Cannot replace view due to loss of view dialects (replace.drop-dialect.allowed=false):\n"
                 + "Previous dialects: [trino]\n"
                 + "New dialects: [spark]");
+  }
+
+  @Test
+  public void currentViewVersionIsNeverExpired() {
+    Map<String, String> properties = ImmutableMap.of(ViewProperties.VERSION_HISTORY_SIZE, "1");
+    ViewVersion viewVersionOne = newViewVersion(1, "select * from ns.tbl");
+    ViewVersion viewVersionTwo = newViewVersion(2, "select count(*) from ns.tbl");
+    ViewVersion viewVersionThree = newViewVersion(3, "select count(*) as count from ns.tbl");
+
+    ViewMetadata originalViewMetadata =
+        ViewMetadata.builder()
+            .setProperties(properties)
+            .setLocation("location")
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addVersion(viewVersionOne)
+            .addVersion(viewVersionTwo)
+            .addVersion(viewVersionThree)
+            .setCurrentVersionId(1)
+            .build();
+
+    // the first build will not expire versions that were added in the builder
+    assertThat(originalViewMetadata.versions()).hasSize(3);
+    assertThat(originalViewMetadata.history())
+        .hasSize(1)
+        .element(0)
+        .extracting(ViewHistoryEntry::versionId)
+        .isEqualTo(1);
+
+    // rebuild the metadata to expire older versions
+    ViewMetadata viewMetadata = ViewMetadata.buildFrom(originalViewMetadata).build();
+    assertThat(viewMetadata.versions()).hasSize(1);
+
+    // make sure history and current version are retained
+    assertThat(viewMetadata.currentVersionId()).isEqualTo(1);
+    assertThat(viewMetadata.currentVersion()).isEqualTo(viewVersionOne);
+    assertThat(viewMetadata.history())
+        .hasSize(1)
+        .element(0)
+        .extracting(ViewHistoryEntry::versionId)
+        .isEqualTo(1);
   }
 }

@@ -52,9 +52,12 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
   private final int size;
   private final Types.NestedField[] transformedFields;
 
+  private int version;
+
   private transient SortKey sortKey;
 
-  SortKeySerializer(Schema schema, SortOrder sortOrder) {
+  SortKeySerializer(Schema schema, SortOrder sortOrder, int version) {
+    this.version = version;
     this.schema = schema;
     this.sortOrder = sortOrder;
     this.size = sortOrder.fields().size();
@@ -65,14 +68,13 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
       Types.NestedField sourceField = schema.findField(sortField.sourceId());
       Type resultType = sortField.transform().getResultType(sourceField.type());
       Types.NestedField transformedField =
-          Types.NestedField.of(
-              sourceField.fieldId(),
-              sourceField.isOptional(),
-              sourceField.name(),
-              resultType,
-              sourceField.doc());
+          Types.NestedField.from(sourceField).ofType(resultType).build();
       transformedFields[i] = transformedField;
     }
+  }
+
+  SortKeySerializer(Schema schema, SortOrder sortOrder) {
+    this(schema, sortOrder, SortKeySerializerSnapshot.CURRENT_VERSION);
   }
 
   private SortKey lazySortKey() {
@@ -81,6 +83,18 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
     }
 
     return sortKey;
+  }
+
+  public int getLatestVersion() {
+    return snapshotConfiguration().getCurrentVersion();
+  }
+
+  public void restoreToLatestVersion() {
+    this.version = snapshotConfiguration().getCurrentVersion();
+  }
+
+  public void setVersion(int version) {
+    this.version = version;
   }
 
   @Override
@@ -124,6 +138,16 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
     for (int i = 0; i < size; ++i) {
       int fieldId = transformedFields[i].fieldId();
       Type.TypeID typeId = transformedFields[i].type().typeId();
+      if (version > 1) {
+        Object value = record.get(i, Object.class);
+        if (value == null) {
+          target.writeBoolean(true);
+          continue;
+        } else {
+          target.writeBoolean(false);
+        }
+      }
+
       switch (typeId) {
         case BOOLEAN:
           target.writeBoolean(record.get(i, Boolean.class));
@@ -192,6 +216,14 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
         reuse.size(),
         size);
     for (int i = 0; i < size; ++i) {
+      if (version > 1) {
+        boolean isNull = source.readBoolean();
+        if (isNull) {
+          reuse.set(i, null);
+          continue;
+        }
+      }
+
       int fieldId = transformedFields[i].fieldId();
       Type.TypeID typeId = transformedFields[i].type().typeId();
       switch (typeId) {
@@ -276,10 +308,12 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
   }
 
   public static class SortKeySerializerSnapshot implements TypeSerializerSnapshot<SortKey> {
-    private static final int CURRENT_VERSION = 1;
+    private static final int CURRENT_VERSION = 2;
 
     private Schema schema;
     private SortOrder sortOrder;
+
+    private int version = CURRENT_VERSION;
 
     /** Constructor for read instantiation. */
     @SuppressWarnings({"unused", "checkstyle:RedundantModifier"})
@@ -310,10 +344,16 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
     @Override
     public void readSnapshot(int readVersion, DataInputView in, ClassLoader userCodeClassLoader)
         throws IOException {
-      if (readVersion == 1) {
-        readV1(in);
-      } else {
-        throw new IllegalArgumentException("Unknown read version: " + readVersion);
+      switch (readVersion) {
+        case 1:
+          read(in);
+          this.version = 1;
+          break;
+        case 2:
+          read(in);
+          break;
+        default:
+          throw new IllegalArgumentException("Unknown read version: " + readVersion);
       }
     }
 
@@ -322,6 +362,10 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
         TypeSerializerSnapshot<SortKey> oldSerializerSnapshot) {
       if (!(oldSerializerSnapshot instanceof SortKeySerializerSnapshot)) {
         return TypeSerializerSchemaCompatibility.incompatible();
+      }
+
+      if (oldSerializerSnapshot.getCurrentVersion() == 1 && this.getCurrentVersion() == 2) {
+        return TypeSerializerSchemaCompatibility.compatibleAfterMigration();
       }
 
       // Sort order should be identical
@@ -349,10 +393,10 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
     public TypeSerializer<SortKey> restoreSerializer() {
       Preconditions.checkState(schema != null, "Invalid schema: null");
       Preconditions.checkState(sortOrder != null, "Invalid sort order: null");
-      return new SortKeySerializer(schema, sortOrder);
+      return new SortKeySerializer(schema, sortOrder, version);
     }
 
-    private void readV1(DataInputView in) throws IOException {
+    private void read(DataInputView in) throws IOException {
       String schemaJson = StringUtils.readString(in);
       String sortOrderJson = StringUtils.readString(in);
       this.schema = SchemaParser.fromJson(schemaJson);

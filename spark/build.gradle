@@ -20,10 +20,6 @@
 // add enabled Spark version modules to the build
 def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
 
-if (sparkVersions.contains("3.3")) {
-  apply from: file("$projectDir/v3.3/build.gradle")
-}
-
 if (sparkVersions.contains("3.4")) {
   apply from: file("$projectDir/v3.4/build.gradle")
 }

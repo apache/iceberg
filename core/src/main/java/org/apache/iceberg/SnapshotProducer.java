@@ -41,6 +41,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
@@ -157,6 +158,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   public ThisT scanManifestsWith(ExecutorService executorService) {
     this.workerPool = executorService;
     return self();
+  }
+
+  protected TableOperations ops() {
+    return ops;
   }
 
   protected CommitMetrics commitMetrics() {
@@ -278,6 +283,13 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       throw new RuntimeIOException(e, "Failed to write manifest list file");
     }
 
+    Long addedRows = null;
+    Long lastRowId = null;
+    if (base.rowLineageEnabled()) {
+      addedRows = calculateAddedRows(manifests);
+      lastRowId = base.nextRowId();
+    }
+
     return new BaseSnapshot(
         sequenceNumber,
         snapshotId(),
@@ -286,7 +298,27 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         operation(),
         summary(base),
         base.currentSchemaId(),
-        manifestList.location());
+        manifestList.location(),
+        lastRowId,
+        addedRows);
+  }
+
+  private Long calculateAddedRows(List<ManifestFile> manifests) {
+    return manifests.stream()
+        .filter(
+            manifest ->
+                manifest.snapshotId() == null
+                    || Objects.equals(manifest.snapshotId(), this.snapshotId))
+        .mapToLong(
+            manifest -> {
+              Preconditions.checkArgument(
+                  manifest.addedRowsCount() != null,
+                  "Cannot determine number of added rows in snapshot because"
+                      + " the entry for manifest %s is missing the field `added-rows-count`",
+                  manifest.path());
+              return manifest.addedRowsCount();
+            })
+        .sum();
   }
 
   protected abstract Map<String, String> summary();
@@ -846,7 +878,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     @Override
     public CharSequence path() {
-      return deleteFile.path();
+      return deleteFile.location();
     }
 
     @Override

@@ -73,6 +73,22 @@ public class MockFileScanTask extends BaseFileScanTask {
     return new MockFileScanTask(mockFile, mockDeletes);
   }
 
+  public static MockFileScanTask mockTaskWithFileScopedDeleteRecords(
+      long length, long recordCount, int numDeleteFiles, long deletedRecords) {
+    DeleteFile[] mockDeletes = new DeleteFile[numDeleteFiles];
+    for (int i = 0; i < numDeleteFiles; i++) {
+      DeleteFile deleteFile = Mockito.mock(DeleteFile.class);
+      Mockito.when(deleteFile.recordCount()).thenReturn(deletedRecords);
+      Mockito.when(deleteFile.referencedDataFile()).thenReturn("random data file");
+      mockDeletes[i] = deleteFile;
+    }
+
+    DataFile dataFile = Mockito.mock(DataFile.class);
+    Mockito.when(dataFile.fileSizeInBytes()).thenReturn(length);
+    Mockito.when(dataFile.recordCount()).thenReturn(recordCount);
+    return new MockFileScanTask(dataFile, mockDeletes);
+  }
+
   @Override
   public long length() {
     return length;

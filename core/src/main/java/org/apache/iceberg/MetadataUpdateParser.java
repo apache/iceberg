@@ -59,6 +59,9 @@ public class MetadataUpdateParser {
   static final String SET_CURRENT_VIEW_VERSION = "set-current-view-version";
   static final String SET_PARTITION_STATISTICS = "set-partition-statistics";
   static final String REMOVE_PARTITION_STATISTICS = "remove-partition-statistics";
+  static final String REMOVE_PARTITION_SPECS = "remove-partition-specs";
+  static final String REMOVE_SCHEMAS = "remove-schemas";
+  static final String ENABLE_ROW_LINEAGE = "enable-row-lineage";
 
   // AssignUUID
   private static final String UUID = "uuid";
@@ -126,6 +129,12 @@ public class MetadataUpdateParser {
   // SetCurrentViewVersion
   private static final String VIEW_VERSION_ID = "view-version-id";
 
+  // RemovePartitionSpecs
+  private static final String SPEC_IDS = "spec-ids";
+
+  // RemoveSchemas
+  private static final String SCHEMA_IDS = "schema-ids";
+
   private static final Map<Class<? extends MetadataUpdate>, String> ACTIONS =
       ImmutableMap.<Class<? extends MetadataUpdate>, String>builder()
           .put(MetadataUpdate.AssignUUID.class, ASSIGN_UUID)
@@ -149,6 +158,9 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.SetLocation.class, SET_LOCATION)
           .put(MetadataUpdate.AddViewVersion.class, ADD_VIEW_VERSION)
           .put(MetadataUpdate.SetCurrentViewVersion.class, SET_CURRENT_VIEW_VERSION)
+          .put(MetadataUpdate.RemovePartitionSpecs.class, REMOVE_PARTITION_SPECS)
+          .put(MetadataUpdate.RemoveSchemas.class, REMOVE_SCHEMAS)
+          .put(MetadataUpdate.EnableRowLineage.class, ENABLE_ROW_LINEAGE)
           .buildOrThrow();
 
   public static String toJson(MetadataUpdate metadataUpdate) {
@@ -241,6 +253,14 @@ public class MetadataUpdateParser {
         writeSetCurrentViewVersionId(
             (MetadataUpdate.SetCurrentViewVersion) metadataUpdate, generator);
         break;
+      case REMOVE_PARTITION_SPECS:
+        writeRemovePartitionSpecs((MetadataUpdate.RemovePartitionSpecs) metadataUpdate, generator);
+        break;
+      case REMOVE_SCHEMAS:
+        writeRemoveSchemas((MetadataUpdate.RemoveSchemas) metadataUpdate, generator);
+        break;
+      case ENABLE_ROW_LINEAGE:
+        break;
       default:
         throw new IllegalArgumentException(
             String.format(
@@ -312,6 +332,12 @@ public class MetadataUpdateParser {
         return readAddViewVersion(jsonNode);
       case SET_CURRENT_VIEW_VERSION:
         return readCurrentViewVersionId(jsonNode);
+      case REMOVE_PARTITION_SPECS:
+        return readRemovePartitionSpecs(jsonNode);
+      case REMOVE_SCHEMAS:
+        return readRemoveSchemas(jsonNode);
+      case ENABLE_ROW_LINEAGE:
+        return new MetadataUpdate.EnableRowLineage();
       default:
         throw new UnsupportedOperationException(
             String.format("Cannot convert metadata update action to json: %s", action));
@@ -447,6 +473,16 @@ public class MetadataUpdateParser {
     gen.writeNumberField(VIEW_VERSION_ID, metadataUpdate.versionId());
   }
 
+  private static void writeRemovePartitionSpecs(
+      MetadataUpdate.RemovePartitionSpecs metadataUpdate, JsonGenerator gen) throws IOException {
+    JsonUtil.writeIntegerArray(SPEC_IDS, metadataUpdate.specIds(), gen);
+  }
+
+  private static void writeRemoveSchemas(
+      MetadataUpdate.RemoveSchemas metadataUpdate, JsonGenerator gen) throws IOException {
+    JsonUtil.writeIntegerArray(SCHEMA_IDS, metadataUpdate.schemaIds(), gen);
+  }
+
   private static MetadataUpdate readAssignUUID(JsonNode node) {
     String uuid = JsonUtil.getString(UUID, node);
     return new MetadataUpdate.AssignUUID(uuid);
@@ -460,13 +496,7 @@ public class MetadataUpdateParser {
   private static MetadataUpdate readAddSchema(JsonNode node) {
     JsonNode schemaNode = JsonUtil.get(SCHEMA, node);
     Schema schema = SchemaParser.fromJson(schemaNode);
-    int lastColumnId;
-    if (node.has(LAST_COLUMN_ID)) {
-      lastColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
-    } else {
-      lastColumnId = schema.highestFieldId();
-    }
-    return new MetadataUpdate.AddSchema(schema, lastColumnId);
+    return new MetadataUpdate.AddSchema(schema);
   }
 
   private static MetadataUpdate readSetCurrentSchema(JsonNode node) {
@@ -497,10 +527,9 @@ public class MetadataUpdateParser {
   }
 
   private static MetadataUpdate readSetStatistics(JsonNode node) {
-    long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
     JsonNode statisticsFileNode = JsonUtil.get(STATISTICS, node);
     StatisticsFile statisticsFile = StatisticsFileParser.fromJson(statisticsFileNode);
-    return new MetadataUpdate.SetStatistics(snapshotId, statisticsFile);
+    return new MetadataUpdate.SetStatistics(statisticsFile);
   }
 
   private static MetadataUpdate readRemoveStatistics(JsonNode node) {
@@ -595,5 +624,13 @@ public class MetadataUpdateParser {
 
   private static MetadataUpdate readCurrentViewVersionId(JsonNode node) {
     return new MetadataUpdate.SetCurrentViewVersion(JsonUtil.getInt(VIEW_VERSION_ID, node));
+  }
+
+  private static MetadataUpdate readRemovePartitionSpecs(JsonNode node) {
+    return new MetadataUpdate.RemovePartitionSpecs(JsonUtil.getIntegerSet(SPEC_IDS, node));
+  }
+
+  private static MetadataUpdate readRemoveSchemas(JsonNode node) {
+    return new MetadataUpdate.RemoveSchemas(JsonUtil.getIntegerSet(SCHEMA_IDS, node));
   }
 }

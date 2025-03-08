@@ -187,7 +187,6 @@ public class ViewMetadataParser {
         new OutputStreamWriter(
             isGzip ? new GZIPOutputStream(stream) : stream, StandardCharsets.UTF_8)) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-      generator.useDefaultPrettyPrinter();
       toJson(metadata, generator);
       generator.flush();
     } catch (IOException e) {

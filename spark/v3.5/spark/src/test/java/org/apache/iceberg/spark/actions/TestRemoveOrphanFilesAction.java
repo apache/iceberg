@@ -33,10 +33,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -726,8 +726,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
   @TestTemplate
   public void testHiveCatalogTable() throws IOException {
-    TableIdentifier identifier =
-        TableIdentifier.of("default", "hivetestorphan" + ThreadLocalRandom.current().nextInt(1000));
+    TableIdentifier identifier = TableIdentifier.of("default", randomName("hivetestorphan"));
     Table table = catalog.createTable(identifier, SCHEMA, SPEC, tableLocation, properties);
 
     List<ThreeColumnRecord> records =
@@ -945,7 +944,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     }
 
     Transaction transaction = table.newTransaction();
-    transaction.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    transaction.updateStatistics().setStatistics(statisticsFile).commit();
     transaction.commitTransaction();
 
     SparkActions.get()
@@ -1066,6 +1065,10 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         ImmutableMap.of(),
         ImmutableMap.of(),
         DeleteOrphanFiles.PrefixMismatchMode.DELETE);
+  }
+
+  protected String randomName(String prefix) {
+    return prefix + UUID.randomUUID().toString().replace("-", "");
   }
 
   private void executeTest(

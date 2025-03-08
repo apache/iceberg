@@ -224,7 +224,7 @@ public class TestIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
         new String(
             deleteFile.lowerBounds().get(MetadataColumns.DELETE_FILE_PATH.fieldId()).array());
     DataFile dataFile = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
-    assumeThat(fromStat).isEqualTo(dataFile.path().toString());
+    assumeThat(fromStat).isEqualTo(dataFile.location());
   }
 
   protected void testChangeLogs(

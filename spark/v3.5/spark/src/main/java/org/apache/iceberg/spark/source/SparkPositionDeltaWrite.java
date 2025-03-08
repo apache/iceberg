@@ -61,6 +61,7 @@ import org.apache.iceberg.io.FanoutDataWriter;
 import org.apache.iceberg.io.FanoutPositionOnlyDeleteWriter;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.io.PartitioningDVWriter;
 import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.PositionDeltaWriter;
 import org.apache.iceberg.io.WriteResult;
@@ -182,13 +183,18 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     }
 
     private Broadcast<Map<String, DeleteFileSet>> broadcastRewritableDeletes() {
-      if (context.deleteGranularity() == DeleteGranularity.FILE && scan != null) {
-        Map<String, DeleteFileSet> rewritableDeletes = scan.rewritableDeletes();
+      if (scan != null && shouldRewriteDeletes()) {
+        Map<String, DeleteFileSet> rewritableDeletes = scan.rewritableDeletes(context.useDVs());
         if (rewritableDeletes != null && !rewritableDeletes.isEmpty()) {
           return sparkContext.broadcast(rewritableDeletes);
         }
       }
       return null;
+    }
+
+    private boolean shouldRewriteDeletes() {
+      // deletes must be rewritten when there are DVs and file-scoped deletes
+      return context.useDVs() || context.deleteGranularity() == DeleteGranularity.FILE;
     }
 
     @Override
@@ -474,7 +480,8 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       }
     }
 
-    // the spec requires position deletes to be ordered by file and position
+    // Use the DV writer for V3+ tables
+    // The spec requires position deletes to be ordered by file and position for V2 tables
     // use a fanout writer if the input is unordered no matter whether fanout writers are enabled
     // clustered writers assume that the position deletes are already ordered by file and position
     protected PartitioningWriter<PositionDelete<InternalRow>, DeleteWriteResult> newDeleteWriter(
@@ -483,25 +490,21 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
         SparkFileWriterFactory writers,
         OutputFileFactory files,
         Context context) {
-
+      Function<CharSequence, PositionDeleteIndex> previousDeleteLoader =
+          PreviousDeleteLoader.create(table, rewritableDeletes);
       FileIO io = table.io();
       boolean inputOrdered = context.inputOrdered();
       long targetFileSize = context.targetDeleteFileSize();
       DeleteGranularity deleteGranularity = context.deleteGranularity();
 
-      if (inputOrdered && rewritableDeletes == null) {
+      if (context.useDVs()) {
+        return new PartitioningDVWriter<>(files, previousDeleteLoader);
+      } else if (inputOrdered && rewritableDeletes == null) {
         return new ClusteredPositionDeleteWriter<>(
             writers, files, io, targetFileSize, deleteGranularity);
       } else {
         return new FanoutPositionOnlyDeleteWriter<>(
-            writers,
-            files,
-            io,
-            targetFileSize,
-            deleteGranularity,
-            rewritableDeletes != null
-                ? new PreviousDeleteLoader(table, rewritableDeletes)
-                : path -> null /* no previous file scoped deletes */);
+            writers, files, io, targetFileSize, deleteGranularity, previousDeleteLoader);
       }
     }
   }
@@ -510,7 +513,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     private final Map<String, DeleteFileSet> deleteFiles;
     private final DeleteLoader deleteLoader;
 
-    PreviousDeleteLoader(Table table, Map<String, DeleteFileSet> deleteFiles) {
+    private PreviousDeleteLoader(Table table, Map<String, DeleteFileSet> deleteFiles) {
       this.deleteFiles = deleteFiles;
       this.deleteLoader =
           new BaseDeleteLoader(
@@ -527,6 +530,15 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       }
 
       return deleteLoader.loadPositionDeletes(deleteFileSet, path);
+    }
+
+    public static Function<CharSequence, PositionDeleteIndex> create(
+        Table table, Map<String, DeleteFileSet> deleteFiles) {
+      if (deleteFiles == null) {
+        return path -> null;
+      }
+
+      return new PreviousDeleteLoader(table, deleteFiles);
     }
   }
 
@@ -836,6 +848,10 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     boolean inputOrdered() {
       return inputOrdered;
+    }
+
+    boolean useDVs() {
+      return deleteFileFormat == FileFormat.PUFFIN;
     }
 
     int specIdOrdinal() {

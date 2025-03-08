@@ -160,6 +160,9 @@
         <module name="ClassTypeParameterName"> <!-- Java Style Guide: Type variable names -->
             <property name="format" value="(^[A-Z][0-9]?)$|([A-Z][a-zA-Z0-9]*[T]$)"/>
         </module>
+        <module name="InterfaceTypeParameterName"> <!-- Java Style Guide: Type variable names -->
+            <property name="format" value="(^[A-Z][0-9]?)$|([A-Z][a-zA-Z0-9]*[T]$)"/>
+        </module>
         <module name="CovariantEquals"/> <!-- Java Coding Guidelines: Override ``Object#equals`` consistently -->
         <module name="DefaultComesLast"/> <!-- Java Style Guide: The default case is present -->
         <module name="EmptyBlock"> <!-- Java Style Guide: Empty blocks: documented -->

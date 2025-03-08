@@ -141,13 +141,11 @@ public class AzurePropertiesTest {
   @Test
   public void testWithConnectionString() {
     AzureProperties props =
-        new AzureProperties(
-            ImmutableMap.of(
-                "adls.connection-string.account1", "https://account1.dfs.core.usgovcloudapi.net"));
+        new AzureProperties(ImmutableMap.of("adls.connection-string.account1", "http://endpoint"));
 
     DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
     props.applyClientConfiguration("account1", clientBuilder);
-    verify(clientBuilder).endpoint("https://account1.dfs.core.usgovcloudapi.net");
+    verify(clientBuilder).endpoint("http://endpoint");
   }
 
   @Test
@@ -157,7 +155,7 @@ public class AzurePropertiesTest {
 
     DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
     props.applyClientConfiguration("account1", clientBuilder);
-    verify(clientBuilder).endpoint("https://account1.dfs.core.windows.net");
+    verify(clientBuilder).endpoint("https://account1");
   }
 
   @Test
@@ -166,7 +164,7 @@ public class AzurePropertiesTest {
 
     DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
     props.applyClientConfiguration("account", clientBuilder);
-    verify(clientBuilder).endpoint("https://account.dfs.core.windows.net");
+    verify(clientBuilder).endpoint("https://account");
   }
 
   @Test

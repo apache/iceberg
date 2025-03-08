@@ -21,6 +21,8 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -37,6 +39,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.puffin.Blob;
@@ -47,8 +50,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestRemoveSnapshots extends TestBase {
@@ -1620,6 +1625,168 @@ public class TestRemoveSnapshots extends TestBase {
     assertThat(deletedFiles).isEqualTo(expectedDeletes);
   }
 
+  @TestTemplate
+  public void testRemoveSpecDuringExpiration() {
+    DataFile file =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data-0.parquet")
+            .withPartitionPath("data_bucket=0")
+            .withFileSizeInBytes(10)
+            .withRecordCount(100)
+            .build();
+    table.newAppend().appendFile(file).commit();
+    Snapshot append = table.currentSnapshot();
+    String appendManifest =
+        Iterables.getOnlyElement(
+            table.currentSnapshot().allManifests(table.io()).stream()
+                .map(ManifestFile::path)
+                .collect(Collectors.toList()));
+    table.newDelete().deleteFile(file).commit();
+    Snapshot delete = table.currentSnapshot();
+    String deleteManifest =
+        Iterables.getOnlyElement(
+            table.currentSnapshot().allManifests(table.io()).stream()
+                .map(ManifestFile::path)
+                .collect(Collectors.toList()));
+
+    table.updateSpec().addField("id_bucket", Expressions.bucket("id", 16)).commit();
+    PartitionSpec idAndDataBucketSpec = table.spec();
+    DataFile bucketFile =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data-0-id-0.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(100)
+            .withPartitionPath("data_bucket=0/id_bucket=0")
+            .build();
+    table.newAppend().appendFile(bucketFile).commit();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    // Expiring snapshots should remove the data_bucket partition
+    removeSnapshots(table)
+        .expireOlderThan(System.currentTimeMillis())
+        .cleanExpiredMetadata(true)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles)
+        .containsExactlyInAnyOrder(
+            appendManifest,
+            deleteManifest,
+            file.location(),
+            append.manifestListLocation(),
+            delete.manifestListLocation());
+    assertThat(table.specs().keySet())
+        .as("Only id_bucket + data_bucket transform should exist")
+        .containsExactly(idAndDataBucketSpec.specId());
+  }
+
+  @TestTemplate
+  public void testRemoveSpecsDoesntRemoveDefaultSpec() throws IOException {
+    // The default spec for table is bucketed on data, but write using unpartitioned
+    PartitionSpec dataBucketSpec = table.spec();
+    DataFile file =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath("/path/to/data-0.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(100)
+            .build();
+
+    table.newAppend().appendFile(file).commit();
+    Snapshot append = table.currentSnapshot();
+    table.newDelete().deleteFile(file).commit();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    // Expiring snapshots should remove only the unpartitioned spec
+    removeSnapshots(table)
+        .expireOlderThan(System.currentTimeMillis())
+        .cleanExpiredMetadata(true)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles).containsExactlyInAnyOrder(append.manifestListLocation());
+    assertThat(table.specs().keySet())
+        .as("Only data_bucket transform should exist")
+        .containsExactly(dataBucketSpec.specId());
+  }
+
+  @TestTemplate
+  public void testRemoveSchemas() {
+    table.newAppend().appendFile(FILE_A).commit();
+
+    Set<String> expectedDeletedFiles = Sets.newHashSet();
+    expectedDeletedFiles.add(table.currentSnapshot().manifestListLocation());
+
+    table.updateSchema().addColumn("extra_col1", Types.StringType.get()).commit();
+
+    table.newAppend().appendFile(FILE_B).commit();
+    expectedDeletedFiles.add(table.currentSnapshot().manifestListLocation());
+
+    table.updateSchema().addColumn("extra_col2", Types.LongType.get()).deleteColumn("id").commit();
+
+    table.newAppend().appendFile(FILE_A2).commit();
+
+    assertThat(table.schemas()).hasSize(3);
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    // Expire all snapshots and schemas except the current ones.
+    removeSnapshots(table)
+        .expireOlderThan(System.currentTimeMillis())
+        .cleanExpiredMetadata(true)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles).containsExactlyInAnyOrderElementsOf(expectedDeletedFiles);
+    assertThat(table.schemas().values()).containsExactly(table.schema());
+  }
+
+  @TestTemplate
+  public void testNoSchemasOrSpecsToRemove() {
+    String tableName = "test_no_schemas_or_specs_to_remove";
+    TestTables.TestTableOperations ops =
+        Mockito.spy(new TestTables.TestTableOperations(tableName, tableDir));
+    TestTables.TestTable table =
+        TestTables.create(
+            tableDir,
+            tableName,
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            formatVersion,
+            ops);
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    Set<String> expectedDeletedFiles = Sets.newHashSet();
+    expectedDeletedFiles.add(table.currentSnapshot().manifestListLocation());
+
+    table.newAppend().appendFile(FILE_B).commit();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    // Expire all snapshots except the current one. No unused schemas or specs to be removed.
+    removeSnapshots(table)
+        .expireOlderThan(System.currentTimeMillis())
+        .cleanExpiredMetadata(true)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles).containsExactlyInAnyOrderElementsOf(expectedDeletedFiles);
+    assertThat(table.schemas().values()).containsExactly(table.schema());
+    Mockito.verify(ops, Mockito.never())
+        .commit(
+            any(),
+            argThat(
+                meta ->
+                    meta.changes().stream()
+                        .anyMatch(u -> u instanceof MetadataUpdate.RemovePartitionSpecs)));
+    Mockito.verify(ops, Mockito.never())
+        .commit(
+            any(),
+            argThat(
+                meta ->
+                    meta.changes().stream()
+                        .anyMatch(u -> u instanceof MetadataUpdate.RemoveSchemas)));
+  }
+
   private Set<String> manifestPaths(Snapshot snapshot, FileIO io) {
     return snapshot.allManifests(io).stream().map(ManifestFile::path).collect(Collectors.toSet());
   }
@@ -1663,7 +1830,7 @@ public class TestRemoveSnapshots extends TestBase {
   }
 
   private void commitStats(Table table, StatisticsFile statisticsFile) {
-    table.updateStatistics().setStatistics(statisticsFile.snapshotId(), statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
   }
 
   private String statsFileLocation(String tableLocation) {

@@ -261,8 +261,8 @@ public class TestExpireSnapshotsAction extends TestBase {
                 "remove-snapshot-2",
                 "remove-snapshot-3"));
 
-    assertThat(deletedFiles).as("FILE_A should be deleted").contains(FILE_A.path().toString());
-    assertThat(deletedFiles).as("FILE_B should be deleted").contains(FILE_B.path().toString());
+    assertThat(deletedFiles).as("FILE_A should be deleted").contains(FILE_A.location());
+    assertThat(deletedFiles).as("FILE_B should be deleted").contains(FILE_B.location());
 
     checkExpirationResults(2L, 0L, 0L, 3L, 3L, result);
   }
@@ -565,7 +565,7 @@ public class TestExpireSnapshotsAction extends TestBase {
             .deleteWith(deletedFiles::add)
             .execute();
 
-    assertThat(deletedFiles).as("FILE_A should be deleted").contains(FILE_A.path().toString());
+    assertThat(deletedFiles).as("FILE_A should be deleted").contains(FILE_A.location());
     checkExpirationResults(1L, 0L, 0L, 1L, 2L, result);
   }
 
@@ -594,7 +594,7 @@ public class TestExpireSnapshotsAction extends TestBase {
             .deleteWith(deletedFiles::add)
             .execute();
 
-    assertThat(deletedFiles).as("FILE_A should be deleted").contains(FILE_A.path().toString());
+    assertThat(deletedFiles).as("FILE_A should be deleted").contains(FILE_A.location());
     checkExpirationResults(1L, 0L, 0L, 1L, 2L, result);
   }
 
@@ -637,7 +637,7 @@ public class TestExpireSnapshotsAction extends TestBase {
         .addedDataFiles(table.io())
         .forEach(
             i -> {
-              expectedDeletes.add(i.path().toString());
+              expectedDeletes.add(i.location());
             });
 
     // ManifestList should be deleted too
@@ -707,7 +707,7 @@ public class TestExpireSnapshotsAction extends TestBase {
               i.addedDataFiles(table.io())
                   .forEach(
                       item -> {
-                        assertThat(deletedFiles).doesNotContain(item.path().toString());
+                        assertThat(deletedFiles).doesNotContain(item.location());
                       });
             });
 
@@ -756,7 +756,7 @@ public class TestExpireSnapshotsAction extends TestBase {
               i.addedDataFiles(table.io())
                   .forEach(
                       item -> {
-                        assertThat(deletedFiles).doesNotContain(item.path().toString());
+                        assertThat(deletedFiles).doesNotContain(item.location());
                       });
             });
     checkExpirationResults(0L, 0L, 0L, 1L, 1L, firstResult);
@@ -776,7 +776,7 @@ public class TestExpireSnapshotsAction extends TestBase {
               i.addedDataFiles(table.io())
                   .forEach(
                       item -> {
-                        assertThat(deletedFiles).doesNotContain(item.path().toString());
+                        assertThat(deletedFiles).doesNotContain(item.location());
                       });
             });
     checkExpirationResults(0L, 0L, 0L, 0L, 2L, secondResult);
@@ -874,7 +874,7 @@ public class TestExpireSnapshotsAction extends TestBase {
                     .allManifests(table.io())
                     .get(0)
                     .path(), // manifest contained only deletes, was dropped
-                FILE_A.path()) // deleted
+                FILE_A.location()) // deleted
             );
 
     checkExpirationResults(1, 0, 0, 2, 2, result);
@@ -941,7 +941,7 @@ public class TestExpireSnapshotsAction extends TestBase {
                     .get(0)
                     .path(), // manifest was rewritten for delete
                 secondSnapshot.manifestListLocation(), // snapshot expired
-                FILE_A.path()) // deleted
+                FILE_A.location()) // deleted
             );
     checkExpirationResults(1, 0, 0, 1, 2, result);
   }
@@ -1053,7 +1053,7 @@ public class TestExpireSnapshotsAction extends TestBase {
                 secondSnapshot.manifestListLocation(), // snapshot expired
                 Iterables.getOnlyElement(secondSnapshotManifests)
                     .path(), // manifest is no longer referenced
-                FILE_B.path()) // added, but rolled back
+                FILE_B.location()) // added, but rolled back
             );
 
     checkExpirationResults(1, 0, 0, 1, 1, result);
@@ -1100,9 +1100,9 @@ public class TestExpireSnapshotsAction extends TestBase {
             secondSnapshot.manifestListLocation(),
             thirdSnapshot.manifestListLocation(),
             fourthSnapshot.manifestListLocation(),
-            FILE_A.path().toString(),
-            fileADeletes.path().toString(),
-            FILE_A_EQ_DELETES.path().toString());
+            FILE_A.location(),
+            fileADeletes.location(),
+            FILE_A_EQ_DELETES.location());
 
     expectedDeletes.addAll(
         thirdSnapshot.allManifests(table.io()).stream()
@@ -1277,7 +1277,7 @@ public class TestExpireSnapshotsAction extends TestBase {
               .withPartitionPath("c1=1")
               .withRecordCount(1)
               .build();
-      dataFiles.add(df.path().toString());
+      dataFiles.add(df.location());
       table.newFastAppend().appendFile(df).commit();
     }
 
@@ -1351,9 +1351,9 @@ public class TestExpireSnapshotsAction extends TestBase {
     // C, D should be retained (live)
     // B should be retained (previous snapshot points to it)
     // A should be deleted
-    assertThat(deletedFiles).contains(FILE_A.path().toString());
-    assertThat(deletedFiles).doesNotContain(FILE_B.path().toString());
-    assertThat(deletedFiles).doesNotContain(FILE_C.path().toString());
-    assertThat(deletedFiles).doesNotContain(FILE_D.path().toString());
+    assertThat(deletedFiles).contains(FILE_A.location());
+    assertThat(deletedFiles).doesNotContain(FILE_B.location());
+    assertThat(deletedFiles).doesNotContain(FILE_C.location());
+    assertThat(deletedFiles).doesNotContain(FILE_D.location());
   }
 }

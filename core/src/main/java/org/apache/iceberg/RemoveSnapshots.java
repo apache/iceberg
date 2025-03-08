@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -85,6 +86,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   private ExecutorService planExecutorService = ThreadPools.getWorkerPool();
   private Boolean incrementalCleanup;
   private boolean specifiedSnapshotId = false;
+  private boolean cleanExpiredMetadata = false;
 
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
@@ -160,6 +162,12 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   @Override
+  public ExpireSnapshots cleanExpiredMetadata(boolean clean) {
+    this.cleanExpiredMetadata = clean;
+    return this;
+  }
+
+  @Override
   public List<Snapshot> apply() {
     TableMetadata updated = internalApply();
     List<Snapshot> removed = Lists.newArrayList(base.snapshots());
@@ -208,6 +216,38 @@ class RemoveSnapshots implements ExpireSnapshots {
         .filter(snapshot -> !idsToRetain.contains(snapshot))
         .forEach(idsToRemove::add);
     updatedMetaBuilder.removeSnapshots(idsToRemove);
+
+    if (cleanExpiredMetadata) {
+      Set<Integer> reachableSpecs = Sets.newConcurrentHashSet();
+      reachableSpecs.add(base.defaultSpecId());
+      Set<Integer> reachableSchemas = Sets.newConcurrentHashSet();
+      reachableSchemas.add(base.currentSchemaId());
+
+      Tasks.foreach(idsToRetain)
+          .executeWith(planExecutorService)
+          .run(
+              snapshotId -> {
+                Snapshot snapshot = base.snapshot(snapshotId);
+                snapshot.allManifests(ops.io()).stream()
+                    .map(ManifestFile::partitionSpecId)
+                    .forEach(reachableSpecs::add);
+                reachableSchemas.add(snapshot.schemaId());
+              });
+
+      Set<Integer> specsToRemove =
+          base.specs().stream()
+              .map(PartitionSpec::specId)
+              .filter(specId -> !reachableSpecs.contains(specId))
+              .collect(Collectors.toSet());
+      updatedMetaBuilder.removeSpecs(specsToRemove);
+
+      Set<Integer> schemasToRemove =
+          base.schemas().stream()
+              .map(Schema::schemaId)
+              .filter(schemaId -> !reachableSchemas.contains(schemaId))
+              .collect(Collectors.toSet());
+      updatedMetaBuilder.removeSchemas(schemasToRemove);
+    }
 
     return updatedMetaBuilder.build();
   }

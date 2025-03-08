@@ -106,7 +106,7 @@ public class GCSFileIOTest {
       IOUtil.readFully(is, actual, 0, actual.length);
     }
 
-    assertThat(expected).isEqualTo(actual);
+    assertThat(actual).isEqualTo(expected);
 
     io.deleteFile(in);
 

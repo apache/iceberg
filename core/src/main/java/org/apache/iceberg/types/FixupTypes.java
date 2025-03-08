@@ -148,6 +148,12 @@ public abstract class FixupTypes extends TypeUtil.CustomOrderSchemaVisitor<Type>
   }
 
   @Override
+  public Type variant(Types.VariantType variant) {
+    // nothing to fix up
+    return variant;
+  }
+
+  @Override
   public Type primitive(Type.PrimitiveType primitive) {
     if (sourceType.equals(primitive)) {
       return primitive; // already correct

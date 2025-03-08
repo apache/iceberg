@@ -314,6 +314,156 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testDataFilesRewrittenWithMaxDeleteRatio() throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    Table table = createTable();
+    int numDataFiles = 5;
+    // 100 / 5 = 20 records per data file
+    writeRecords(numDataFiles, 100);
+    // delete > 100% of records for each data file
+    int numPositionsToDelete = 1000;
+    table.refresh();
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    assertThat(dataFiles).hasSize(numDataFiles);
+
+    RowDelta rowDelta = table.newRowDelta();
+    for (DataFile dataFile : dataFiles) {
+      if (formatVersion >= 3) {
+        writeDV(table, dataFile.partition(), dataFile.location(), numPositionsToDelete)
+            .forEach(rowDelta::addDeletes);
+      } else {
+        writePosDeletes(table, dataFile.partition(), dataFile.location(), 4, numPositionsToDelete)
+            .forEach(rowDelta::addDeletes);
+      }
+    }
+
+    rowDelta.commit();
+
+    Set<DeleteFile> deleteFiles = TestHelpers.deleteFiles(table);
+    int expectedDataFiles = formatVersion >= 3 ? numDataFiles : numDataFiles * 4;
+    assertThat(deleteFiles).hasSize(expectedDataFiles);
+
+    // there are 5 data files with a delete ratio of > 100% each, so all data files should be
+    // rewritten. Set MIN_INPUT_FILES > to the number of data files so that compaction is only
+    // triggered when the delete ratio of >= 30% is hit
+    RewriteDataFiles.Result result =
+        SparkActions.get(spark)
+            .rewriteDataFiles(table)
+            .option(SizeBasedFileRewriter.MIN_INPUT_FILES, "10")
+            .option(SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES, "0")
+            .execute();
+
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(numDataFiles);
+
+    table.refresh();
+    List<DataFile> newDataFiles = TestHelpers.dataFiles(table);
+    assertThat(newDataFiles).isEmpty();
+
+    Set<DeleteFile> newDeleteFiles = TestHelpers.deleteFiles(table);
+    assertThat(newDeleteFiles).isEmpty();
+  }
+
+  @TestTemplate
+  public void testDataFilesRewrittenWithHighDeleteRatio() throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    Table table = createTable();
+    int numDataFiles = 5;
+    // 100 / 5 = 20 records per data file
+    writeRecords(numDataFiles, 100);
+    // delete 40% of records for each data file
+    int numPositionsToDelete = 8;
+    table.refresh();
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    assertThat(dataFiles).hasSize(numDataFiles);
+
+    RowDelta rowDelta = table.newRowDelta();
+    for (DataFile dataFile : dataFiles) {
+      if (formatVersion >= 3) {
+        writeDV(table, dataFile.partition(), dataFile.location(), numPositionsToDelete)
+            .forEach(rowDelta::addDeletes);
+      } else {
+        writePosDeletes(table, dataFile.partition(), dataFile.location(), 4, numPositionsToDelete)
+            .forEach(rowDelta::addDeletes);
+      }
+    }
+
+    rowDelta.commit();
+
+    Set<DeleteFile> deleteFiles = TestHelpers.deleteFiles(table);
+    int expectedDataFiles = formatVersion >= 3 ? numDataFiles : numDataFiles * 4;
+    assertThat(deleteFiles).hasSize(expectedDataFiles);
+
+    // there are 5 data files with a delete ratio of 40% each, so all data files should be
+    // rewritten. Set MIN_INPUT_FILES > to the number of data files so that compaction is only
+    // triggered when the delete ratio of >= 30% is hit
+    RewriteDataFiles.Result result =
+        SparkActions.get(spark)
+            .rewriteDataFiles(table)
+            .option(SizeBasedFileRewriter.MIN_INPUT_FILES, "10")
+            .option(SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES, "0")
+            .execute();
+
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(numDataFiles);
+
+    table.refresh();
+    List<DataFile> newDataFiles = TestHelpers.dataFiles(table);
+    assertThat(newDataFiles).hasSize(1);
+
+    Set<DeleteFile> newDeleteFiles = TestHelpers.deleteFiles(table);
+    assertThat(newDeleteFiles).isEmpty();
+  }
+
+  @TestTemplate
+  public void testDataFilesNotRewrittenWithLowDeleteRatio() throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    Table table = createTable();
+    int numDataFiles = 5;
+    // 100 / 5 = 20 records per data file
+    writeRecords(numDataFiles, 100);
+    // delete 25% of records for each data file
+    int numPositionsToDelete = 5;
+    table.refresh();
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    assertThat(dataFiles).hasSize(numDataFiles);
+
+    RowDelta rowDelta = table.newRowDelta();
+    for (DataFile dataFile : dataFiles) {
+      if (formatVersion >= 3) {
+        writeDV(table, dataFile.partition(), dataFile.location(), numPositionsToDelete)
+            .forEach(rowDelta::addDeletes);
+      } else {
+        writePosDeletes(table, dataFile.partition(), dataFile.location(), 5, numPositionsToDelete)
+            .forEach(rowDelta::addDeletes);
+      }
+    }
+
+    rowDelta.commit();
+
+    Set<DeleteFile> deleteFiles = TestHelpers.deleteFiles(table);
+    int expectedDataFiles = formatVersion >= 3 ? numDataFiles : numDataFiles * 5;
+    assertThat(deleteFiles).hasSize(expectedDataFiles);
+
+    // there are 5 data files with a delete ratio of 25% each, so data files should not be
+    // rewritten. Set MIN_INPUT_FILES > to the number of data files so that compaction is only
+    // triggered when the delete ratio of >= 30% is hit
+    RewriteDataFiles.Result result =
+        SparkActions.get(spark)
+            .rewriteDataFiles(table)
+            .option(SizeBasedFileRewriter.MIN_INPUT_FILES, "10")
+            .option(SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES, "0")
+            .execute();
+
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(0);
+
+    table.refresh();
+    List<DataFile> newDataFiles = TestHelpers.dataFiles(table);
+    assertThat(newDataFiles).hasSameSizeAs(dataFiles);
+
+    Set<DeleteFile> newDeleteFiles = TestHelpers.deleteFiles(table);
+    assertThat(newDeleteFiles).hasSameSizeAs(deleteFiles);
+  }
+
+  @TestTemplate
   public void testBinPackWithDeletes() throws IOException {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
     Table table = createTablePartitioned(4, 2);
@@ -2152,8 +2302,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   private List<DeleteFile> writePosDeletesToFile(
       Table table, DataFile dataFile, int outputDeleteFiles) {
-    return writePosDeletes(
-        table, dataFile.partition(), dataFile.path().toString(), outputDeleteFiles);
+    return writePosDeletes(table, dataFile.partition(), dataFile.location(), outputDeleteFiles);
   }
 
   private List<DeleteFile> writePosDeletes(
@@ -2189,6 +2338,53 @@ public class TestRewriteDataFilesAction extends TestBase {
 
       results.add(posDeleteWriter.toDeleteFile());
       rowPosition++;
+    }
+
+    return results;
+  }
+
+  private List<DeleteFile> writePosDeletes(
+      Table table,
+      StructLike partition,
+      String path,
+      int outputDeleteFiles,
+      int totalPositionsToDelete) {
+    List<DeleteFile> results = Lists.newArrayList();
+    for (int file = 0; file < outputDeleteFiles; file++) {
+      OutputFile outputFile =
+          table
+              .io()
+              .newOutputFile(
+                  table
+                      .locationProvider()
+                      .newDataLocation(
+                          FileFormat.PARQUET.addExtension(UUID.randomUUID().toString())));
+      EncryptedOutputFile encryptedOutputFile =
+          EncryptedFiles.encryptedOutput(outputFile, EncryptionKeyMetadata.EMPTY);
+
+      GenericAppenderFactory appenderFactory =
+          new GenericAppenderFactory(table.schema(), table.spec(), null, null, null);
+      PositionDeleteWriter<Record> posDeleteWriter =
+          appenderFactory
+              .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full")
+              .newPosDeleteWriter(encryptedOutputFile, FileFormat.PARQUET, partition);
+
+      PositionDelete<Record> posDelete = PositionDelete.create();
+      int positionsPerDeleteFile = totalPositionsToDelete / outputDeleteFiles;
+
+      for (int position = file * positionsPerDeleteFile;
+          position < (file + 1) * positionsPerDeleteFile;
+          position++) {
+        posDeleteWriter.write(posDelete.set(path, position, null));
+      }
+
+      try {
+        posDeleteWriter.close();
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+
+      results.add(posDeleteWriter.toDeleteFile());
     }
 
     return results;

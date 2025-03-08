@@ -52,7 +52,6 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   private static final String REPLACED_MANIFESTS_COUNT = "manifests-replaced";
   private static final String PROCESSED_ENTRY_COUNT = "entries-processed";
 
-  private final TableOperations ops;
   private final Map<Integer, PartitionSpec> specsById;
   private final long manifestTargetSizeBytes;
 
@@ -74,10 +73,10 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
   BaseRewriteManifests(TableOperations ops) {
     super(ops);
-    this.ops = ops;
-    this.specsById = ops.current().specsById();
+    this.specsById = ops().current().specsById();
     this.manifestTargetSizeBytes =
-        ops.current()
+        ops()
+            .current()
             .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
   }
 
@@ -153,8 +152,8 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   }
 
   private ManifestFile copyManifest(ManifestFile manifest) {
-    TableMetadata current = ops.current();
-    InputFile toCopy = ops.io().newInputFile(manifest);
+    TableMetadata current = ops().current();
+    InputFile toCopy = ops().io().newInputFile(manifest);
     EncryptedOutputFile newFile = newManifestOutputFile();
     return ManifestFiles.copyRewriteManifest(
         current.formatVersion(),
@@ -168,7 +167,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
   @Override
   public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
-    List<ManifestFile> currentManifests = base.currentSnapshot().allManifests(ops.io());
+    List<ManifestFile> currentManifests = base.currentSnapshot().allManifests(ops().io());
     Set<ManifestFile> currentManifestSet = ImmutableSet.copyOf(currentManifests);
 
     validateDeletedManifests(currentManifestSet, base.currentSnapshot().snapshotId());
@@ -246,7 +245,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
                 } else {
                   rewrittenManifests.add(manifest);
                   try (ManifestReader<DataFile> reader =
-                      ManifestFiles.read(manifest, ops.io(), ops.current().specsById())
+                      ManifestFiles.read(manifest, ops().io(), ops().current().specsById())
                           .select(Collections.singletonList("*"))) {
                     reader
                         .liveEntries()

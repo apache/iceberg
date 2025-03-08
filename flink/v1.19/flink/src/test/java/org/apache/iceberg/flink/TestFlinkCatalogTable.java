@@ -339,11 +339,6 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
                         3, "col1", Types.StringType.get(), "comment for col1"),
                     Types.NestedField.optional(4, "col2", Types.LongType.get()))
                 .asStruct());
-    // Adding a required field should fail because Iceberg's SchemaUpdate does not allow
-    // incompatible changes.
-    assertThatThrownBy(() -> sql("ALTER TABLE tl ADD (pk STRING NOT NULL)"))
-        .hasRootCauseInstanceOf(IllegalArgumentException.class)
-        .hasRootCauseMessage("Incompatible change: cannot add required column: pk");
 
     // Adding an existing field should fail due to Flink's internal validation.
     assertThatThrownBy(() -> sql("ALTER TABLE tl ADD (id STRING)"))
@@ -446,12 +441,6 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
                     Types.NestedField.required(1, "id", Types.IntegerType.get()),
                     Types.NestedField.optional(2, "dt", Types.StringType.get()))
                 .asStruct());
-    // Changing nullability from optional to required should fail
-    // because Iceberg's SchemaUpdate does not allow incompatible changes.
-    assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (dt STRING NOT NULL)"))
-        .isInstanceOf(TableException.class)
-        .hasRootCauseInstanceOf(IllegalArgumentException.class)
-        .hasRootCauseMessage("Cannot change column nullability: dt: optional -> required");
 
     // Set nullability from required to optional
     sql("ALTER TABLE tl MODIFY (id INTEGER)");
@@ -646,11 +635,11 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   private void validateTableFiles(Table tbl, DataFile... expectedFiles) {
     tbl.refresh();
     Set<CharSequence> expectedFilePaths =
-        Arrays.stream(expectedFiles).map(DataFile::path).collect(Collectors.toSet());
+        Arrays.stream(expectedFiles).map(DataFile::location).collect(Collectors.toSet());
     Set<CharSequence> actualFilePaths =
         StreamSupport.stream(tbl.newScan().planFiles().spliterator(), false)
             .map(FileScanTask::file)
-            .map(ContentFile::path)
+            .map(ContentFile::location)
             .collect(Collectors.toSet());
     assertThat(actualFilePaths).as("Files should match").isEqualTo(expectedFilePaths);
   }

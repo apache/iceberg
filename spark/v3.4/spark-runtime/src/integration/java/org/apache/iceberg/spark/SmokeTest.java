@@ -169,9 +169,9 @@ public class SmokeTest extends SparkExtensionsTestBase {
 
   @Test
   public void showView() {
-    sql("DROP VIEW IF EXISTS %s", "test");
     sql("CREATE VIEW %s AS SELECT 1 AS id", "test");
     assertThat(sql("SHOW VIEWS")).contains(row("default", "test", false));
+    sql("DROP VIEW %s", "test");
   }
 
   private Table getTable(String name) {

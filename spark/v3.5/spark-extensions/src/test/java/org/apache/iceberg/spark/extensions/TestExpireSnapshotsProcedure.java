@@ -33,6 +33,7 @@ import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.PartitionStatisticsFile;
@@ -282,8 +283,8 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
     assertThat(TestHelpers.deleteManifests(table)).as("Should have 1 delete manifest").hasSize(1);
     assertThat(TestHelpers.deleteFiles(table)).as("Should have 1 delete file").hasSize(1);
     Path deleteManifestPath = new Path(TestHelpers.deleteManifests(table).iterator().next().path());
-    Path deleteFilePath =
-        new Path(String.valueOf(TestHelpers.deleteFiles(table).iterator().next().path()));
+    DeleteFile deleteFile = TestHelpers.deleteFiles(table).iterator().next();
+    Path deleteFilePath = new Path(deleteFile.location());
 
     sql(
         "CALL %s.system.rewrite_data_files("
@@ -294,9 +295,10 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
         catalogName, tableIdent);
     table.refresh();
 
-    sql(
-        "INSERT INTO TABLE %s VALUES (5, 'e')",
-        tableName); // this txn moves the file to the DELETED state
+    table
+        .newRowDelta()
+        .removeDeletes(deleteFile)
+        .commit(); // this txn moves the file to the DELETED state
     sql("INSERT INTO TABLE %s VALUES (6, 'f')", tableName); // this txn removes the file reference
     table.refresh();
 
@@ -446,7 +448,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
             table.currentSnapshot().sequenceNumber(),
             statsFileLocation1,
             table.io());
-    table.updateStatistics().setStatistics(statisticsFile1.snapshotId(), statisticsFile1).commit();
+    table.updateStatistics().setStatistics(statisticsFile1).commit();
 
     sql("INSERT INTO %s SELECT 20, 'def'", tableName);
     table.refresh();
@@ -457,7 +459,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
             table.currentSnapshot().sequenceNumber(),
             statsFileLocation2,
             table.io());
-    table.updateStatistics().setStatistics(statisticsFile2.snapshotId(), statisticsFile2).commit();
+    table.updateStatistics().setStatistics(statisticsFile2).commit();
 
     waitUntilAfter(table.currentSnapshot().timestampMillis());
 

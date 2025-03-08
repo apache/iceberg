@@ -40,7 +40,7 @@ public class InputFilesDecryptor {
         .flatMap(
             fileScanTask ->
                 Stream.concat(Stream.of(fileScanTask.file()), fileScanTask.deletes().stream()))
-        .forEach(file -> keyMetadata.put(file.path().toString(), file.keyMetadata()));
+        .forEach(file -> keyMetadata.put(file.location(), file.keyMetadata()));
     Stream<EncryptedInputFile> encrypted =
         keyMetadata.entrySet().stream()
             .map(

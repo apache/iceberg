@@ -18,9 +18,9 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -108,6 +108,31 @@ public class TestSelect extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testSelectWithSpecifiedTargetSplitSize() {
+    List<Object[]> expected =
+        ImmutableList.of(row(1L, "a", 1.0F), row(2L, "b", 2.0F), row(3L, "c", Float.NaN));
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.updateProperties().set("read.split.target-size", "1024").commit();
+    spark.sql("REFRESH TABLE " + tableName);
+    assertEquals("Should return all expected rows", expected, sql("SELECT * FROM %s", tableName));
+
+    // Query failed when `SPLIT_SIZE` < 0
+    table.updateProperties().set(SPLIT_SIZE, "-1").commit();
+    spark.sql("REFRESH TABLE " + tableName);
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", tableName))
+        .hasMessageContaining("Split size must be > 0: -1")
+        .isInstanceOf(IllegalArgumentException.class);
+
+    // Query failed when `SPLIT_SIZE` == 0
+    table.updateProperties().set(SPLIT_SIZE, "0").commit();
+    spark.sql("REFRESH TABLE " + tableName);
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", tableName))
+        .hasMessageContaining("Split size must be > 0: 0")
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @TestTemplate
   public void testSelectRewrite() {
     List<Object[]> expected = ImmutableList.of(row(3L, "c", Float.NaN));
 
@@ -158,10 +183,6 @@ public class TestSelect extends CatalogTestBase {
 
   @TestTemplate
   public void testMetadataTables() {
-    assumeThat(catalogName)
-        .as("Spark session catalog does not support metadata tables")
-        .isNotEqualTo("spark_catalog");
-
     assertEquals(
         "Snapshot metadata table",
         ImmutableList.of(row(ANY, ANY, null, "append", ANY, ANY)),
@@ -170,10 +191,6 @@ public class TestSelect extends CatalogTestBase {
 
   @TestTemplate
   public void testSnapshotInTableName() {
-    assumeThat(catalogName)
-        .as("Spark session catalog does not support extended table names")
-        .isNotEqualTo("spark_catalog");
-
     // get the snapshot ID of the last write and get the current row set as expected
     long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
     List<Object[]> expected = sql("SELECT * FROM %s", tableName);
@@ -199,10 +216,6 @@ public class TestSelect extends CatalogTestBase {
 
   @TestTemplate
   public void testTimestampInTableName() {
-    assumeThat(catalogName)
-        .as("Spark session catalog does not support extended table names")
-        .isNotEqualTo("spark_catalog");
-
     // get a timestamp just after the last write and get the current row set as expected
     long snapshotTs = validationCatalog.loadTable(tableIdent).currentSnapshot().timestampMillis();
     long timestamp = waitUntilAfter(snapshotTs + 2);

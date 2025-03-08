@@ -29,7 +29,10 @@ import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
+import org.apache.iceberg.rest.HTTPHeaders;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.auth.DefaultAuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.credentials.Credential;
@@ -38,14 +41,19 @@ import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 public class OAuth2RefreshCredentialsHandler
     implements OAuth2CredentialsWithRefresh.OAuth2RefreshHandler {
   private final Map<String, String> properties;
+  private final AuthSession authSession;
 
   private OAuth2RefreshCredentialsHandler(Map<String, String> properties) {
     Preconditions.checkArgument(
         null != properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT),
         "Invalid credentials endpoint: null");
     this.properties = properties;
+    this.authSession =
+        DefaultAuthSession.of(
+            HTTPHeaders.of(OAuth2Util.authHeaders(properties.get(OAuth2Properties.TOKEN))));
   }
 
+  @SuppressWarnings("JavaUtilDate") // GCP API uses java.util.Date
   @Override
   public AccessToken refreshAccessToken() {
     LoadCredentialsResponse response;
@@ -55,7 +63,7 @@ public class OAuth2RefreshCredentialsHandler
               properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT),
               null,
               LoadCredentialsResponse.class,
-              OAuth2Util.authHeaders(properties.get(OAuth2Properties.TOKEN)),
+              Map.of(),
               ErrorHandlers.defaultErrorHandler());
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -94,6 +102,7 @@ public class OAuth2RefreshCredentialsHandler
   private RESTClient httpClient() {
     return HTTPClient.builder(properties)
         .uri(properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT))
+        .withAuthSession(authSession)
         .build();
   }
 }

@@ -155,8 +155,7 @@ public class TestSparkReadProjection extends TestReadProjection {
       Schema expectedSchema = reassignIds(readSchema, idMapping);
 
       // Set the schema to the expected schema directly to simulate the table schema evolving
-      TestTables.replaceMetadata(
-          desc, TestTables.readMetadata(desc).updateSchema(expectedSchema, 100));
+      TestTables.replaceMetadata(desc, TestTables.readMetadata(desc).updateSchema(expectedSchema));
 
       Dataset<Row> df =
           spark
