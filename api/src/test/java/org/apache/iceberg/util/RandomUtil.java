@@ -181,6 +181,7 @@ public class RandomUtil {
       case LONG:
       case TIME:
       case TIMESTAMP:
+      case TIMESTAMP_NANO:
         return (long) value;
       case STRING:
         return String.valueOf(value);
