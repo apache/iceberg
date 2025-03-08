@@ -4731,7 +4731,7 @@ components:
       value: "accounting%1Ftax"
 
     NamespaceAsPathVariable:
-      summary: A single part namespace, as represented in a path paremeter
+      summary: A single part namespace, as represented in a path parameter
       value: "accounting"
 
     NamespaceAlreadyExistsError:
