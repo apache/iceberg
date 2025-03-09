@@ -35,18 +35,24 @@ public class S3OutputFile extends BaseS3File implements OutputFile, NativelyEncr
   public static S3OutputFile fromLocation(
       String location,
       S3Client client,
+      S3InputStreamFactory inputStreamFactory,
       S3FileIOProperties s3FileIOProperties,
       MetricsContext metrics) {
     return new S3OutputFile(
         client,
+        inputStreamFactory,
         new S3URI(location, s3FileIOProperties.bucketToAccessPointMapping()),
         s3FileIOProperties,
         metrics);
   }
 
   S3OutputFile(
-      S3Client client, S3URI uri, S3FileIOProperties s3FileIOProperties, MetricsContext metrics) {
-    super(client, uri, s3FileIOProperties, metrics);
+      S3Client client,
+      S3InputStreamFactory inputStreamFactory,
+      S3URI uri,
+      S3FileIOProperties s3FileIOProperties,
+      MetricsContext metrics) {
+    super(client, inputStreamFactory, uri, s3FileIOProperties, metrics);
   }
 
   /**
@@ -75,7 +81,8 @@ public class S3OutputFile extends BaseS3File implements OutputFile, NativelyEncr
 
   @Override
   public InputFile toInputFile() {
-    return new S3InputFile(client(), uri(), null, s3FileIOProperties(), metrics());
+    return new S3InputFile(
+        client(), inputStreamFactory(), uri(), null, s3FileIOProperties(), metrics());
   }
 
   @Override
