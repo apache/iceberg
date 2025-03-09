@@ -275,6 +275,7 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
         DeleteObjectsRequest.builder()
             .bucket(bucket)
             .delete(Delete.builder().objects(objectIds).build())
+            .overrideConfiguration(S3RequestUtil.disableStrongIntegrityChecksums())
             .build();
     List<String> failures = Lists.newArrayList();
     try {
