@@ -29,6 +29,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.types.EdgeInterpolationAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -43,7 +44,11 @@ public class TestSchema {
       ImmutableList.of(
           Types.TimestampNanoType.withoutZone(),
           Types.TimestampNanoType.withZone(),
-          Types.VariantType.get());
+          Types.VariantType.get(),
+          Types.GeometryType.get(),
+          Types.GeometryType.of("srid:3857"),
+          Types.GeographyType.get(),
+          Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.KARNEY));
 
   private static final Schema INITIAL_DEFAULT_SCHEMA =
       new Schema(

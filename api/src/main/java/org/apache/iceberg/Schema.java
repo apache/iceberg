@@ -63,7 +63,9 @@ public class Schema implements Serializable {
       ImmutableMap.of(
           Type.TypeID.TIMESTAMP_NANO, 3,
           Type.TypeID.VARIANT, 3,
-          Type.TypeID.UNKNOWN, 3);
+          Type.TypeID.UNKNOWN, 3,
+          Type.TypeID.GEOMETRY, 3,
+          Type.TypeID.GEOGRAPHY, 3);
 
   private final StructType struct;
   private final int schemaId;

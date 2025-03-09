@@ -44,6 +44,10 @@ public class SchemaParser {
   private static final String STRUCT = "struct";
   private static final String LIST = "list";
   private static final String MAP = "map";
+  private static final String GEOMETRY = "geometry";
+  private static final String GEOGRAPHY = "geography";
+  private static final String CRS = "crs";
+  private static final String ALGORITHM = "algorithm";
   private static final String FIELDS = "fields";
   private static final String ELEMENT = "element";
   private static final String KEY = "key";
@@ -141,11 +145,39 @@ public class SchemaParser {
   }
 
   static void toJson(Type.PrimitiveType primitive, JsonGenerator generator) throws IOException {
-    generator.writeString(primitive.toString());
+    switch (primitive.typeId()) {
+      case GEOMETRY:
+        Types.GeometryType geometryType = (Types.GeometryType) primitive;
+        generator.writeStartObject();
+        generator.writeStringField(TYPE, GEOMETRY);
+        if (!geometryType.crs().isEmpty()) {
+          generator.writeStringField(CRS, geometryType.crs());
+        }
+        generator.writeEndObject();
+        break;
+
+      case GEOGRAPHY:
+        Types.GeographyType geographyType = (Types.GeographyType) primitive;
+        generator.writeStartObject();
+        generator.writeStringField(TYPE, GEOGRAPHY);
+        if (!geographyType.crs().isEmpty()) {
+          generator.writeStringField(CRS, geographyType.crs());
+        }
+        if (geographyType.algorithm() != null) {
+          generator.writeStringField(ALGORITHM, geographyType.algorithm().name());
+        }
+        generator.writeEndObject();
+        break;
+
+      default:
+        generator.writeString(primitive.toString());
+    }
   }
 
   static void toJson(Type type, JsonGenerator generator) throws IOException {
-    if (type.isPrimitiveType() || type.isVariantType()) {
+    if (type.isPrimitiveType()) {
+      toJson(type.asPrimitiveType(), generator);
+    } else if (type.isVariantType()) {
       generator.writeString(type.toString());
     } else {
       Type.NestedType nested = type.asNestedType();
@@ -192,6 +224,10 @@ public class SchemaParser {
           return listFromJson(json);
         } else if (MAP.equals(type)) {
           return mapFromJson(json);
+        } else if (GEOMETRY.equals(type)) {
+          return geometryFromJson(json);
+        } else if (GEOGRAPHY.equals(type)) {
+          return geographyFromJson(json);
         }
       }
     }
@@ -275,6 +311,17 @@ public class SchemaParser {
     } else {
       return Types.MapType.ofOptional(keyId, valueId, keyType, valueType);
     }
+  }
+
+  private static Types.GeometryType geometryFromJson(JsonNode json) {
+    String crs = JsonUtil.getStringOrNull(CRS, json);
+    return Types.GeometryType.of(crs);
+  }
+
+  private static Types.GeographyType geographyFromJson(JsonNode json) {
+    String crs = JsonUtil.getStringOrNull(CRS, json);
+    String algorithm = JsonUtil.getStringOrNull(ALGORITHM, json);
+    return Types.GeographyType.of(crs, algorithm);
   }
 
   public static Schema fromJson(JsonNode json) {
