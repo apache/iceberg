@@ -36,6 +36,7 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
+import org.apache.parquet.hadoop.metadata.FileMetaData;
 import org.apache.parquet.schema.MessageType;
 
 /**
@@ -55,6 +56,7 @@ class ReadConf<T> {
   private final long totalValues;
   private final boolean reuseContainers;
   private final Integer batchSize;
+  private final FileMetaData metadata;
 
   // List of column chunk metadata for each row group
   private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetaDataForRowGroups;
@@ -74,6 +76,7 @@ class ReadConf<T> {
     this.file = file;
     this.options = options;
     this.reader = newReader(file, options);
+    this.metadata = reader.getFileMetaData();
     MessageType fileSchema = reader.getFileMetaData().getSchema();
 
     MessageType typeWithIds;
@@ -144,6 +147,7 @@ class ReadConf<T> {
     this.batchSize = toCopy.batchSize;
     this.vectorizedModel = toCopy.vectorizedModel;
     this.columnChunkMetaDataForRowGroups = toCopy.columnChunkMetaDataForRowGroups;
+    this.metadata = toCopy.metadata;
   }
 
   ParquetFileReader reader() {
@@ -179,6 +183,10 @@ class ReadConf<T> {
 
   Integer batchSize() {
     return batchSize;
+  }
+
+  FileMetaData metadata() {
+    return metadata;
   }
 
   List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetadataForRowGroups() {

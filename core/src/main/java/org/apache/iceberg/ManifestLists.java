@@ -20,7 +20,6 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.util.List;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
@@ -33,13 +32,11 @@ class ManifestLists {
 
   static List<ManifestFile> read(InputFile manifestList) {
     try (CloseableIterable<ManifestFile> files =
-        Avro.read(manifestList)
-            .rename("manifest_file", GenericManifestFile.class.getName())
-            .rename("partitions", GenericPartitionFieldSummary.class.getName())
-            .rename("r508", GenericPartitionFieldSummary.class.getName())
+        InternalData.read(FileFormat.AVRO, manifestList)
+            .setRootType(GenericManifestFile.class)
+            .setCustomType(508, GenericPartitionFieldSummary.class)
             .classLoader(GenericManifestFile.class.getClassLoader())
             .project(ManifestFile.schema())
-            .reuseContainers(false)
             .build()) {
 
       return Lists.newLinkedList(files);
