@@ -839,7 +839,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
     assertThatThrownBy(
             () ->
                 scalarSql(
-                    "CALL %s.system.add_files('%s', '%s', map('id', '0','dept', '1'))",
+                    "CALL %s.system.add_files('%s', '%s', map('id', '0', 'dept', '1'))",
                     catalogName, tableName, sourceTableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot add data files to target table")
