@@ -21,7 +21,6 @@ package org.apache.iceberg.connect;
 import java.util.Collection;
 import java.util.Map;
 import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -46,26 +45,25 @@ public class IcebergSinkTask extends SinkTask {
   @Override
   public void start(Map<String, String> props) {
     this.config = new IcebergSinkConfig(props);
+    // Catalog and committer are global resources and do not depend on the topic partition;
+    // hence, we should open them only with the start call and should only close them if the task is closed by the Connect framework.
+    catalog = CatalogUtils.loadCatalog(config);
+    committer = CommitterFactory.createCommitter(catalog, config, context);
   }
 
   @Override
   public void open(Collection<TopicPartition> partitions) {
-    Preconditions.checkArgument(catalog == null, "Catalog already open");
-    Preconditions.checkArgument(committer == null, "Committer already open");
-
-    catalog = CatalogUtils.loadCatalog(config);
-    committer = CommitterFactory.createCommitter(config);
-    committer.start(catalog, config, context);
+    committer.start(catalog, config, context, partitions);
   }
 
   @Override
   public void close(Collection<TopicPartition> partitions) {
-    close();
+    committer.stop(partitions);
   }
 
   private void close() {
     if (committer != null) {
-      committer.stop();
+      committer.stop(context.assignment());
       committer = null;
     }
 
