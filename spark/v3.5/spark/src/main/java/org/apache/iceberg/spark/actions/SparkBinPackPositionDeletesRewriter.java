@@ -122,7 +122,7 @@ class SparkBinPackPositionDeletesRewriter extends SizeBasedPositionDeletesRewrit
   }
 
   /** Returns entries of {@link DataFilesTable} of specified partition */
-  private Dataset<Row> dataFiles(Types.StructType partitionType, StructLike partition) {
+  protected Dataset<Row> dataFiles(Types.StructType partitionType, StructLike partition) {
     List<Types.NestedField> fields = partitionType.fields();
     Optional<Column> condition =
         IntStream.range(0, fields.size())
