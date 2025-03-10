@@ -20,13 +20,14 @@ package org.apache.iceberg.parquet;
 
 import java.io.IOException;
 import java.util.NoSuchElementException;
+import org.apache.iceberg.InternalData;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.parquet.hadoop.ParquetReader;
 
-public class ParquetIterable<T> extends CloseableGroup implements CloseableIterable<T> {
+public class ParquetIterable<T> extends CloseableGroup implements InternalData.DataIterable<T> {
+
   private final ParquetReader.Builder<T> builder;
 
   ParquetIterable(ParquetReader.Builder<T> builder) {
