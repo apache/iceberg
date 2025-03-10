@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Map;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.config.TableConfigOptions;
@@ -37,14 +36,11 @@ import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkConfigOptions;
-import org.apache.iceberg.flink.SqlBase;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,7 +55,11 @@ public class TestIcebergSourceSql extends TestSqlBase {
   @BeforeEach
   @Override
   public void before() throws IOException {
-    TableEnvironment tableEnvironment = getTableEnv();
+    setUpTableEnv(getTableEnv());
+    setUpTableEnv(getStreamingTableEnv());
+  }
+
+  private static void setUpTableEnv(TableEnvironment tableEnvironment) {
     Configuration tableConf = tableEnvironment.getConfig().getConfiguration();
     tableConf.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE, true);
     // Disable inferring parallelism to avoid interfering watermark tests
@@ -195,44 +195,32 @@ public class TestIcebergSourceSql extends TestSqlBase {
     CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA_TS);
 
     String flinkTable = "`default_catalog`.`default_database`.flink_table";
-    try {
-      SqlHelpers.sql(
-          getStreamingTableEnv(),
-          "CREATE TABLE %s "
-              + "(t1 TIMESTAMP(6), "
-              + "t2 BIGINT,"
-              + "eventTS AS CAST(t1 AS TIMESTAMP(3)), "
-              + "WATERMARK FOR eventTS AS SOURCE_WATERMARK()) WITH %s",
-          flinkTable,
-          SqlBase.toWithClause(getConnectorOptions()));
+    SqlHelpers.sql(
+        getStreamingTableEnv(),
+        "CREATE TABLE %s "
+            + "(eventTS AS CAST(t1 AS TIMESTAMP(3)), "
+            + "WATERMARK FOR eventTS AS SOURCE_WATERMARK()) LIKE iceberg_catalog.`default`.%s",
+        flinkTable,
+        TestFixtures.TABLE);
 
-      assertThatThrownBy(
-              () -> SqlHelpers.sql(getStreamingTableEnv(), "SELECT * FROM %s", flinkTable))
-          .isInstanceOf(NullPointerException.class)
-          .hasMessage("watermark-column needs to be configured to use source watermark.");
-    } finally {
-      SqlHelpers.sql(getStreamingTableEnv(), "DROP TABLE IF EXISTS %s", flinkTable);
-    }
+    assertThatThrownBy(() -> SqlHelpers.sql(getStreamingTableEnv(), "SELECT * FROM %s", flinkTable))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("watermark-column needs to be configured to use source watermark.");
   }
 
   @Test
   public void testWatermarkValidConfig() throws Exception {
     List<Record> expected = generateExpectedRecords(true);
 
-    Map<String, String> connectorOptions = Maps.newHashMap(getConnectorOptions());
-    connectorOptions.put("watermark-column", "t1");
-
     String flinkTable = "`default_catalog`.`default_database`.flink_table";
 
     SqlHelpers.sql(
         getStreamingTableEnv(),
         "CREATE TABLE %s "
-            + "(t1 TIMESTAMP(6), "
-            + "t2 BIGINT,"
-            + "eventTS AS CAST(t1 AS TIMESTAMP(3)), "
-            + "WATERMARK FOR eventTS AS SOURCE_WATERMARK()) WITH %s",
+            + "(eventTS AS CAST(t1 AS TIMESTAMP(3)), "
+            + "WATERMARK FOR eventTS AS SOURCE_WATERMARK()) WITH ('watermark-column'='t1') LIKE iceberg_catalog.`default`.%s",
         flinkTable,
-        SqlBase.toWithClause(connectorOptions));
+        TestFixtures.TABLE);
 
     TestHelpers.assertRecordsWithOrder(
         SqlHelpers.sql(
@@ -241,22 +229,5 @@ public class TestIcebergSourceSql extends TestSqlBase {
             flinkTable),
         expected,
         SCHEMA_TS);
-  }
-
-  @NotNull
-  private static Map<String, String> getConnectorOptions() {
-    return Map.of(
-        "connector",
-        "iceberg",
-        "catalog-type",
-        "hadoop",
-        "catalog-name",
-        "iceberg_catalog",
-        "catalog-database",
-        TestFixtures.DATABASE,
-        "catalog-table",
-        TestFixtures.TABLE,
-        "warehouse",
-        CATALOG_EXTENSION.warehouse());
   }
 }

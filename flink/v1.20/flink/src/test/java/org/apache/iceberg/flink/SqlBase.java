@@ -86,7 +86,7 @@ public abstract class SqlBase {
     sql("DROP DATABASE %s %s", ifExists ? "IF EXISTS" : "", database);
   }
 
-  public static String toWithClause(Map<String, String> props) {
+  protected static String toWithClause(Map<String, String> props) {
     StringBuilder builder = new StringBuilder();
     builder.append("(");
     int propCount = 0;
