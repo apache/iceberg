@@ -40,4 +40,8 @@ public interface Variant {
     VariantValue value = VariantValue.from(metadata, valueBuffer);
     return of(metadata, value);
   }
+
+  static String toString(Variant variant) {
+    return "Variant(metadata=" + variant.metadata() + ", value=" + variant.value() + ")";
+  }
 }
