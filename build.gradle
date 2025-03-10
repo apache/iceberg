@@ -614,7 +614,7 @@ project(':iceberg-delta-lake') {
       }
       integrationImplementation project(path: ':iceberg-hive-metastore')
       integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-      integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive35.get()}") {
+      integrationImplementation("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark35.get()}") {
         exclude group: 'org.apache.avro', module: 'avro'
         exclude group: 'org.apache.arrow'
         exclude group: 'org.apache.parquet'
