@@ -162,7 +162,7 @@ abstract class BaseParquetWriter<T> {
     }
 
     @Override
-    public ParquetValueWriter<?> variant(Types.VariantType iVariant, ParquetValueWriter<?> result) {
+    public ParquetValueWriter<?> variant(Types.VariantType iVariant, GroupType variant, ParquetValueWriter<?> result) {
       return result;
     }
 

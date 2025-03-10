@@ -390,7 +390,7 @@ abstract class BaseParquetReaders<T> {
     }
 
     @Override
-    public ParquetValueReader<?> variant(Types.VariantType iVariant, ParquetValueReader<?> reader) {
+    public ParquetValueReader<?> variant(Types.VariantType iVariant, GroupType variant, ParquetValueReader<?> reader) {
       return reader;
     }
 

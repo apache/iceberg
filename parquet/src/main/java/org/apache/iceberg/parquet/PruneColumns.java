@@ -154,7 +154,7 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
   }
 
   @Override
-  public Type variant(org.apache.iceberg.types.Types.VariantType expected, Type variant) {
+  public Type variant(org.apache.iceberg.types.Types.VariantType expected, GroupType variantGroup, Type variant) {
     return variant;
   }
 
