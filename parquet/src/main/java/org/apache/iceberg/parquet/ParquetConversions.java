@@ -27,12 +27,51 @@ import java.util.UUID;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
 
 class ParquetConversions {
   private ParquetConversions() {}
+
+  @SuppressWarnings("unchecked")
+  static <T> T convertValue(Type type, PrimitiveType parquetType, Object value) {
+    switch (type.typeId()) {
+      case BOOLEAN:
+      case INTEGER:
+      case DATE:
+      case TIME:
+      case TIMESTAMP:
+      case LONG:
+      case FLOAT:
+      case DOUBLE:
+        return (T) value;
+      case STRING:
+        return (T) ((Binary) value).toStringUsingUTF8();
+      case UUID:
+        return (T) UUIDUtil.convert(((Binary) value).toByteBuffer());
+      case FIXED:
+      case BINARY:
+        return (T) ((Binary) value).toByteBuffer();
+      case DECIMAL:
+        int scale =
+            ((DecimalLogicalTypeAnnotation) parquetType.getLogicalTypeAnnotation()).getScale();
+        switch (parquetType.getPrimitiveTypeName()) {
+          case INT32:
+          case INT64:
+            return (T) BigDecimal.valueOf(((Number) value).longValue(), scale);
+          case FIXED_LEN_BYTE_ARRAY:
+          case BINARY:
+            return (T) new BigDecimal(new BigInteger(((Binary) value).getBytes()), scale);
+          default:
+            throw new IllegalArgumentException(
+                "Unsupported primitive type for decimal: " + parquetType.getPrimitiveTypeName());
+        }
+      default:
+        throw new IllegalArgumentException("Unsupported primitive type: " + type);
+    }
+  }
 
   @SuppressWarnings("unchecked")
   static <T> Literal<T> fromParquetPrimitive(Type type, PrimitiveType parquetType, Object value) {
