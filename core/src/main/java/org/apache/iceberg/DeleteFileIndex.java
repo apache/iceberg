@@ -372,6 +372,7 @@ class DeleteFileIndex {
     private boolean caseSensitive = true;
     private ExecutorService executorService = null;
     private ScanMetrics scanMetrics = ScanMetrics.noop();
+    private boolean ignoreResiduals = false;
 
     Builder(FileIO io, Set<ManifestFile> deleteManifests) {
       this.io = io;
@@ -431,6 +432,11 @@ class DeleteFileIndex {
       return this;
     }
 
+    Builder ignoreResiduals() {
+      this.ignoreResiduals = true;
+      return this;
+    }
+
     private Iterable<DeleteFile> filterDeleteFiles() {
       return Iterables.filter(deleteFiles, file -> file.dataSequenceNumber() > minSequenceNumber);
     }
@@ -460,6 +466,10 @@ class DeleteFileIndex {
     }
 
     DeleteFileIndex build() {
+      if (ignoreResiduals) {
+        dataFilter = Expressions.alwaysTrue();
+      }
+
       Iterable<DeleteFile> files = deleteFiles != null ? filterDeleteFiles() : loadDeleteFiles();
 
       EqualityDeletes globalDeletes = new EqualityDeletes();
