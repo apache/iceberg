@@ -26,11 +26,10 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
-import org.apache.iceberg.rest.HTTPHeaders;
 import org.apache.iceberg.rest.RESTClient;
-import org.apache.iceberg.rest.auth.DefaultAuthSession;
-import org.apache.iceberg.rest.auth.OAuth2Properties;
-import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.auth.AuthManager;
+import org.apache.iceberg.rest.auth.AuthManagers;
+import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
@@ -46,6 +45,8 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
   private volatile HTTPClient client;
   private final Map<String, String> properties;
   private final CachedSupplier<AwsCredentials> credentialCache;
+  private AuthManager authManager;
+  private AuthSession authSession;
 
   private VendedCredentialsProvider(Map<String, String> properties) {
     Preconditions.checkArgument(null != properties, "Invalid properties: null");
@@ -64,7 +65,9 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
 
   @Override
   public void close() {
-    IoUtils.closeQuietly(client, null);
+    IoUtils.closeQuietlyV2(authSession, null);
+    IoUtils.closeQuietlyV2(authManager, null);
+    IoUtils.closeQuietlyV2(client, null);
     credentialCache.close();
   }
 
@@ -76,14 +79,10 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
     if (null == client) {
       synchronized (this) {
         if (null == client) {
-          DefaultAuthSession authSession =
-              DefaultAuthSession.of(
-                  HTTPHeaders.of(OAuth2Util.authHeaders(properties.get(OAuth2Properties.TOKEN))));
-          client =
-              HTTPClient.builder(properties)
-                  .uri(properties.get(URI))
-                  .withAuthSession(authSession)
-                  .build();
+          authManager = AuthManagers.loadAuthManager("aws-credentials-refresh", properties);
+          HTTPClient httpClient = HTTPClient.builder(properties).uri(properties.get(URI)).build();
+          authSession = authManager.catalogSession(httpClient, properties);
+          client = httpClient.withAuthSession(authSession);
         }
       }
     }
