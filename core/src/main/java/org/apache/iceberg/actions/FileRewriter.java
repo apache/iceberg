@@ -34,7 +34,10 @@ import org.apache.iceberg.ContentScanTask;
  *
  * @param <T> the Java type of tasks to read content files
  * @param <F> the Java type of content files
+ * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link FileRewritePlanner} and {@link
+ *     FileRewriteRunner}
  */
+@Deprecated
 public interface FileRewriter<T extends ContentScanTask<F>, F extends ContentFile<F>> {
 
   /** Returns a description for this rewriter. */

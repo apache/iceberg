@@ -32,6 +32,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
+/**
+ * Deprecated {@link SizeBasedDataRewriter} abstract class.
+ *
+ * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link RewriteFileGroupPlanner} and
+ *     {@link FileRewriteRunner}
+ */
+@Deprecated
 public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileScanTask, DataFile> {
 
   /**
