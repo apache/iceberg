@@ -455,6 +455,33 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testRewriteDataFilesWithFilterOnRepartitionedTable() {
+    createPartitionTable();
+    // create 10 files
+    insertData(10);
+    insertExtraDataForRepartitioning(tableName, 10);
+    addPartitionLevel();
+
+    List<Object[]> expectedRecords = currentData();
+
+    List<Object[]> output =
+        sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
+
+    assertEquals(
+        "Action should rewrite all 20 data-files and add 4 data files",
+        row(20, 4),
+        Arrays.copyOf(output.get(0), 2));
+    // verify rewritten bytes separately
+    assertThat(output.get(0)).hasSize(4);
+    assertThat(output.get(0)[2])
+        .isInstanceOf(Long.class)
+        .isEqualTo(Long.valueOf(snapshotSummary().get(SnapshotSummary.REMOVED_FILE_SIZE_PROP)));
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
+  }
+
+  @TestTemplate
   public void testRewriteDataFilesWithFilterOnOnBucketExpression() {
     // currently spark session catalog only resolve to v1 functions instead of desired v2 functions
     // https://github.com/apache/spark/blob/branch-3.4/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/Analyzer.scala#L2070-L2083
@@ -941,6 +968,10 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         TableProperties.WRITE_DISTRIBUTION_MODE_NONE);
   }
 
+  private void addPartitionLevel() {
+    sql("ALTER TABLE %s ADD PARTITION FIELD c1", tableName);
+  }
+
   private void createBucketPartitionTable() {
     sql(
         "CREATE TABLE %s (c1 int, c2 string, c3 string) "
@@ -959,6 +990,27 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   private void insertData(String table, int filesCount) {
     ThreeColumnRecord record1 = new ThreeColumnRecord(1, "foo", null);
     ThreeColumnRecord record2 = new ThreeColumnRecord(2, "bar", null);
+
+    List<ThreeColumnRecord> records = Lists.newArrayList();
+    IntStream.range(0, filesCount / 2)
+        .forEach(
+            i -> {
+              records.add(record1);
+              records.add(record2);
+            });
+
+    Dataset<Row> df =
+        spark.createDataFrame(records, ThreeColumnRecord.class).repartition(filesCount);
+    try {
+      df.writeTo(table).append();
+    } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private void insertExtraDataForRepartitioning(String table, int filesCount) {
+    ThreeColumnRecord record1 = new ThreeColumnRecord(2, "foo", null);
+    ThreeColumnRecord record2 = new ThreeColumnRecord(1, "bar", null);
 
     List<ThreeColumnRecord> records = Lists.newArrayList();
     IntStream.range(0, filesCount / 2)

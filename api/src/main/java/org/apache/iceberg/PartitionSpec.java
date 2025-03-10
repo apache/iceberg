@@ -265,6 +265,22 @@ public class PartitionSpec implements Serializable {
     return Arrays.equals(fields, that.fields);
   }
 
+  public boolean equalOrFinerThan(PartitionSpec that) {
+    if (this.fields.length < that.fields.length) {
+      return false;
+    }
+
+    for (int i = 0; i < that.fields.length; i++) {
+      if (this.fields[i].sourceId() != that.fields[i].sourceId()) {
+        return false;
+      }
+      if (!this.fields[i].transform().satisfiesOrderOf(that.fields[i].transform())) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   @Override
   public int hashCode() {
     return 31 * Integer.hashCode(specId) + Arrays.hashCode(fields);
