@@ -20,6 +20,8 @@ package org.apache.iceberg.azure;
 
 import static org.apache.iceberg.azure.AzureProperties.ADLS_CONNECTION_STRING_PREFIX;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_READ_BLOCK_SIZE;
+import static org.apache.iceberg.azure.AzureProperties.ADLS_REFRESH_CREDENTIALS_ENABLED;
+import static org.apache.iceberg.azure.AzureProperties.ADLS_REFRESH_CREDENTIALS_ENDPOINT;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_SAS_TOKEN_PREFIX;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_SHARED_KEY_ACCOUNT_KEY;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_SHARED_KEY_ACCOUNT_NAME;
@@ -28,14 +30,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import com.azure.core.credential.AzureSasCredential;
 import com.azure.core.credential.TokenCredential;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.azure.adlsv2.VendedAdlsCredentialProvider;
+import org.apache.iceberg.azure.adlsv2.VendedAzureSasCredentialPolicy;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
@@ -69,6 +76,49 @@ public class AzurePropertiesTest {
     verify(clientBuilder).sasToken(any());
     verify(clientBuilder, times(0)).credential(any(TokenCredential.class));
     verify(clientBuilder, never()).credential(any(StorageSharedKeyCredential.class));
+  }
+
+  @Test
+  public void testWithRefreshCredentialsEndpoint() {
+    try (var providerMockedConstruction = mockConstruction(VendedAdlsCredentialProvider.class);
+        var policyMockedConstruction = mockConstruction(VendedAzureSasCredentialPolicy.class)) {
+      AzureProperties props =
+          new AzureProperties(ImmutableMap.of(ADLS_REFRESH_CREDENTIALS_ENDPOINT, "endpoint"));
+      assertThat(providerMockedConstruction.constructed()).hasSize(1);
+      var providerMock = providerMockedConstruction.constructed().get(0);
+      String sasToken = "random-token";
+
+      when(providerMock.credentialForAccount("account1")).thenReturn(sasToken);
+      DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
+      props.applyClientConfiguration("account1", clientBuilder);
+
+      var policyMock = policyMockedConstruction.constructed().get(0);
+
+      verify(clientBuilder, never()).credential(any(AzureSasCredential.class));
+      verify(clientBuilder, never()).sasToken(any());
+      verify(clientBuilder, never()).credential(any(StorageSharedKeyCredential.class));
+      verify(clientBuilder, times(1)).addPolicy(policyMock);
+    }
+  }
+
+  @Test
+  public void testWithRefreshCredentialsEndpointDisabled() {
+    try (var providerMockedConstruction = mockConstruction(VendedAdlsCredentialProvider.class)) {
+      AzureProperties props =
+          new AzureProperties(
+              ImmutableMap.of(
+                  ADLS_REFRESH_CREDENTIALS_ENDPOINT,
+                  "endpoint",
+                  ADLS_REFRESH_CREDENTIALS_ENABLED,
+                  "false"));
+      assertThat(providerMockedConstruction.constructed()).hasSize(0);
+
+      DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
+      props.applyClientConfiguration("account1", clientBuilder);
+      verify(clientBuilder, times(0)).sasToken(any());
+      verify(clientBuilder).credential(any(TokenCredential.class));
+      verify(clientBuilder, never()).credential(any(StorageSharedKeyCredential.class));
+    }
   }
 
   @Test
