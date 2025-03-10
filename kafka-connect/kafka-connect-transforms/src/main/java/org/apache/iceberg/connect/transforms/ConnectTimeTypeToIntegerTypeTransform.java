@@ -146,7 +146,7 @@ public abstract class ConnectTimeTypeToIntegerTypeTransform<R extends ConnectRec
 
     @Override
     public ConfigDef config() {
-        return null;
+        return new ConfigDef();
     }
 
     @Override
