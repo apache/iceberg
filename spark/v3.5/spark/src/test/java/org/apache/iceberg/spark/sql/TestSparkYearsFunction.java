@@ -39,6 +39,9 @@ public class TestSparkYearsFunction extends TestBaseWithCatalog {
     assertThat(scalarSql("SELECT system.years(date('2017-12-01'))"))
         .as("Expected to produce 2017 - 1970 = 47")
         .isEqualTo(47);
+    assertThat(scalarSql("SELECT system.year(date('2017-12-01'))"))
+        .as("Expected to produce 2017 - 1970 = 47")
+        .isEqualTo(47);
     assertThat(scalarSql("SELECT system.years(date('1970-01-01'))"))
         .as("Expected to produce 1970 - 1970 = 0")
         .isEqualTo(0);
@@ -51,6 +54,9 @@ public class TestSparkYearsFunction extends TestBaseWithCatalog {
   @TestTemplate
   public void testTimestamps() {
     assertThat(scalarSql("SELECT system.years(TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00')"))
+        .as("Expected to produce 2017 - 1970 = 47")
+        .isEqualTo(47);
+    assertThat(scalarSql("SELECT system.year(TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00')"))
         .as("Expected to produce 2017 - 1970 = 47")
         .isEqualTo(47);
     assertThat(scalarSql("SELECT system.years(TIMESTAMP '1970-01-01 00:00:01.000001 UTC+00:00')"))
@@ -67,6 +73,9 @@ public class TestSparkYearsFunction extends TestBaseWithCatalog {
     assertThat(scalarSql("SELECT system.years(TIMESTAMP_NTZ '2017-12-01 10:12:55.038194 UTC')"))
         .as("Expected to produce 2017 - 1970 = 47")
         .isEqualTo(47);
+    assertThat(scalarSql("SELECT system.year(TIMESTAMP_NTZ '2017-12-01 10:12:55.038194 UTC')"))
+        .as("Expected to produce 2017 - 1970 = 47")
+        .isEqualTo(47);
     assertThat(scalarSql("SELECT system.years(TIMESTAMP_NTZ '1970-01-01 00:00:01.000001 UTC')"))
         .as("Expected to produce 1970 - 1970 = 0")
         .isEqualTo(0);
@@ -77,11 +86,31 @@ public class TestSparkYearsFunction extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testBuiltInYearFunction() {
+    assertThat(scalarSql("SELECT year(date('2017-12-01'))"))
+        .as("Expected to produce 2017")
+        .isEqualTo(2017);
+    assertThat(scalarSql("SELECT year(date('1969-12-31'))"))
+        .as("Expected to produce 1969")
+        .isEqualTo(1969);
+    assertThat(scalarSql("SELECT year(TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00')"))
+        .as("Expected to produce 2017")
+        .isEqualTo(2017);
+    assertThat(scalarSql("SELECT year(TIMESTAMP_NTZ '1969-12-31 23:59:58.999999')"))
+        .as("Expected to produce 1969")
+        .isEqualTo(1969);
+  }
+
+  @TestTemplate
   public void testWrongNumberOfArguments() {
     assertThatThrownBy(() -> scalarSql("SELECT system.years()"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'years' cannot process input: (): Wrong number of inputs");
+
+    assertThatThrownBy(() -> scalarSql("SELECT system.year()"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith("Function 'year' cannot process input: (): Wrong number of inputs");
 
     assertThatThrownBy(
             () -> scalarSql("SELECT system.years(date('1969-12-31'), date('1969-12-31'))"))
@@ -111,10 +140,18 @@ public class TestSparkYearsFunction extends TestBaseWithCatalog {
         .asString()
         .isNotNull()
         .contains("staticinvoke(class " + dateTransformClass);
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.year(%s)", dateValue))
+        .asString()
+        .isNotNull()
+        .contains("staticinvoke(class " + dateTransformClass);
 
     String timestampValue = "TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00'";
     String timestampTransformClass = YearsFunction.TimestampToYearsFunction.class.getName();
     assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.years(%s)", timestampValue))
+        .asString()
+        .isNotNull()
+        .contains("staticinvoke(class " + timestampTransformClass);
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.year(%s)", timestampValue))
         .asString()
         .isNotNull()
         .contains("staticinvoke(class " + timestampTransformClass);
