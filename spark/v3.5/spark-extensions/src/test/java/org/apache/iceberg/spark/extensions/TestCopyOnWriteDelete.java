@@ -39,8 +39,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.FileGenerationUtil;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
@@ -198,27 +196,28 @@ public class TestCopyOnWriteDelete extends TestDelete {
     OutputFile out = Files.localOutput(File.createTempFile("junit", null, temp.toFile()));
     Schema deleteSchema = table.schema().select("id");
     GenericRecord deleteRecord = GenericRecord.create(deleteSchema);
-    DeleteFile eqDelete = FileHelpers.writeDeleteFile(
-      table,
-      out,
-      TestHelpers.Row.of("hr"),
-      List.of(deleteRecord.copy("id", 2)),
-      deleteSchema);
+    DeleteFile eqDelete =
+        FileHelpers.writeDeleteFile(
+            table,
+            out,
+            TestHelpers.Row.of("hr"),
+            List.of(deleteRecord.copy("id", 2)),
+            deleteSchema);
 
     table.newRowDelta().addDeletes(eqDelete).commit();
 
     sql("REFRESH TABLE %s", tableName);
 
     assertEquals(
-      "Equality delete should remove row with id 2",
-      ImmutableList.of(row(1, "hr"), row(3, "hr")),
-      sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+        "Equality delete should remove row with id 2",
+        ImmutableList.of(row(1, "hr"), row(3, "hr")),
+        sql("SELECT * FROM %s ORDER BY id, dep", tableName));
 
     sql("DELETE FROM %s WHERE id = 3", tableName);
 
     assertEquals(
-      "COW Delete should remove row with id 3", ImmutableList.of(row(1, "hr")),
-      sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+        "COW Delete should remove row with id 3",
+        ImmutableList.of(row(1, "hr")),
+        sql("SELECT * FROM %s ORDER BY id, dep", tableName));
   }
-
 }

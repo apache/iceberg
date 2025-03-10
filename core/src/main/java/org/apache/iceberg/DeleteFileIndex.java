@@ -466,10 +466,6 @@ class DeleteFileIndex {
     }
 
     DeleteFileIndex build() {
-      if (ignoreResiduals) {
-        dataFilter = Expressions.alwaysTrue();
-      }
-
       Iterable<DeleteFile> files = deleteFiles != null ? filterDeleteFiles() : loadDeleteFiles();
 
       EqualityDeletes globalDeletes = new EqualityDeletes();
@@ -551,6 +547,10 @@ class DeleteFileIndex {
     }
 
     private Iterable<CloseableIterable<ManifestEntry<DeleteFile>>> deleteManifestReaders() {
+      if (ignoreResiduals) {
+        dataFilter = Expressions.alwaysTrue();
+      }
+
       LoadingCache<Integer, ManifestEvaluator> evalCache =
           specsById == null
               ? null
