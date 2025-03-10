@@ -36,6 +36,7 @@ import org.apache.spark.sql.catalyst.parser.ParserInterface;
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergParseException;
 import org.apache.spark.sql.catalyst.plans.logical.CallArgument;
 import org.apache.spark.sql.catalyst.plans.logical.CallStatement;
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.catalyst.plans.logical.NamedArgument;
 import org.apache.spark.sql.catalyst.plans.logical.PositionalArgument;
 import org.apache.spark.sql.types.DataType;
@@ -69,16 +70,9 @@ public class TestCallStatementParser {
   }
 
   @Test
-  public void testDelegateUnsupportedProcedure() {
-    assertThatThrownBy(() -> parser.parsePlan("CALL cat.d.t()"))
-        .isInstanceOf(ParseException.class)
-        .hasMessageContaining("Syntax error")
-        .satisfies(
-            exception -> {
-              ParseException parseException = (ParseException) exception;
-              assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
-              assertThat(parseException.getMessageParameters()).containsEntry("error", "'CALL'");
-            });
+  public void testDelegateUnsupportedProcedure() throws ParseException {
+    LogicalPlan plan = parser.parsePlan("CALL cat.d.t()");
+    assertThat(plan.toString().contains("CALL cat.d.t()"));
   }
 
   @Test

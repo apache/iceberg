@@ -106,7 +106,7 @@ public class RewriteDataFilesSparkAction
   private boolean caseSensitive;
 
   RewriteDataFilesSparkAction(SparkSession spark, Table table) {
-    super(spark.cloneSession());
+    super(((org.apache.spark.sql.classic.SparkSession) spark).cloneSession());
     // Disable Adaptive Query Execution as this may change the output partitioning of our write
     spark().conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
     this.caseSensitive = SparkUtil.caseSensitive(spark);

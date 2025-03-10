@@ -104,7 +104,13 @@ public abstract class DataFrameWriteTestBase extends ScanTestBase {
     }
 
     JavaRDD<InternalRow> rdd = sc.parallelize(rows);
-    return spark.internalCreateDataFrame(JavaRDD.toRDD(rdd), convert(schema), false);
+    if (!(spark instanceof org.apache.spark.sql.classic.SparkSession)) {
+      throw new IllegalArgumentException(
+          "spark is supposed to be org.apache.spark.sql.classic.SparkSession");
+    }
+
+    return ((org.apache.spark.sql.classic.SparkSession) spark)
+        .internalCreateDataFrame(JavaRDD.toRDD(rdd), convert(schema), false);
   }
 
   @Test
