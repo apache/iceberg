@@ -65,8 +65,8 @@ public class UnicodeUtil {
   }
 
   /**
-   * Returns a valid String that is lower than the given input such that the number of
-   * unicode characters in the truncated String is lesser than or equal to length
+   * Returns a valid String that is lower than the given input such that the number of unicode
+   * characters in the truncated String is lesser than or equal to length
    */
   public static String truncateStringMin(String input, int length) {
     return truncateString(input, length).toString();
@@ -82,8 +82,8 @@ public class UnicodeUtil {
   }
 
   /**
-   * Returns a valid String that is greater than the given input such that the number
-   * of unicode characters in the truncated String is lesser than or equal to length
+   * Returns a valid String that is greater than the given input such that the number of unicode
+   * characters in the truncated String is lesser than or equal to length
    */
   public static String truncateStringMax(String input, int length) {
     CharSequence truncated = internalTruncateMax(input, length);
