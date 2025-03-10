@@ -18,47 +18,45 @@
  */
 package org.apache.iceberg.aws.s3;
 
-import java.util.Map;
-import org.apache.iceberg.aws.AwsClientFactory;
-import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
-import software.amazon.awssdk.services.glue.GlueClient;
-import software.amazon.awssdk.services.kms.KmsClient;
-import software.amazon.awssdk.services.s3.S3AsyncClient;
-import software.amazon.awssdk.services.s3.S3Client;
+import java.io.IOException;
+import org.apache.iceberg.io.SeekableInputStream;
+import software.amazon.s3.analyticsaccelerator.S3SeekableInputStream;
 
-class StaticClientFactory implements AwsClientFactory {
-  static S3Client client;
+public class AnalyticsAcceleratorInputStream extends SeekableInputStream {
 
-  @Override
-  public S3Client s3() {
-    return client;
+  private final S3SeekableInputStream delegate;
+
+  public AnalyticsAcceleratorInputStream(S3SeekableInputStream stream) {
+    this.delegate = stream;
   }
 
   @Override
-  public S3AsyncClient s3Async() {
-    return null;
+  public int read() throws IOException {
+    return this.delegate.read();
   }
 
   @Override
-  public S3AsyncClient s3CrtAsync() {
-    return null;
+  public int read(byte[] b) throws IOException {
+    return this.delegate.read(b, 0, b.length);
   }
 
   @Override
-  public GlueClient glue() {
-    return null;
+  public int read(byte[] b, int off, int len) throws IOException {
+    return this.delegate.read(b, off, len);
   }
 
   @Override
-  public KmsClient kms() {
-    return null;
+  public void seek(long l) throws IOException {
+    this.delegate.seek(l);
   }
 
   @Override
-  public DynamoDbClient dynamo() {
-    return null;
+  public long getPos() {
+    return this.delegate.getPos();
   }
 
   @Override
-  public void initialize(Map<String, String> properties) {}
+  public void close() throws IOException {
+    this.delegate.close();
+  }
 }

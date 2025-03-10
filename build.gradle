@@ -469,6 +469,9 @@ project(':iceberg-aws') {
     compileOnly("software.amazon.awssdk:sts")
     compileOnly("software.amazon.awssdk:dynamodb")
     compileOnly("software.amazon.awssdk:lakeformation")
+    compileOnly("software.amazon.awssdk:netty-nio-client")
+
+    compileOnly(libs.analyticsaccelerator.s3)
 
     compileOnly(libs.hadoop3.common) {
       exclude group: 'org.apache.avro', module: 'avro'

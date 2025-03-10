@@ -56,6 +56,7 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.Delete;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
@@ -87,9 +88,13 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
 
   private String credential = null;
   private SerializableSupplier<S3Client> s3;
+  private SerializableSupplier<S3AsyncClient> s3Async;
+  private S3SeekableInputStreamFactorySupplier streamFactorySupplier;
   private S3FileIOProperties s3FileIOProperties;
   private SerializableMap<String, String> properties = null;
   private transient volatile S3Client client;
+  private transient volatile S3AsyncClient asyncClient;
+  private transient volatile S3InputStreamFactory inputStreamFactory;
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private transient StackTraceElement[] createStack;
@@ -102,43 +107,65 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
   public S3FileIO() {}
 
   /**
-   * Constructor with custom s3 supplier and S3FileIO properties.
+   * Builder with custom s3 supplier, s3Async supplier and S3FileIO properties.
    *
-   * <p>Calling {@link S3FileIO#initialize(Map)} will overwrite information set in this constructor.
-   *
-   * @param s3 s3 supplier
+   * <p>Calling {@link S3FileIO#initialize(Map)} will overwrite information set through this
+   * builder.
    */
-  public S3FileIO(SerializableSupplier<S3Client> s3) {
-    this(s3, new S3FileIOProperties());
+  public static Builder builder() {
+    return new Builder();
   }
 
-  /**
-   * Constructor with custom s3 supplier and S3FileIO properties.
-   *
-   * <p>Calling {@link S3FileIO#initialize(Map)} will overwrite information set in this constructor.
-   *
-   * @param s3 s3 supplier
-   * @param s3FileIOProperties S3 FileIO properties
-   */
-  public S3FileIO(SerializableSupplier<S3Client> s3, S3FileIOProperties s3FileIOProperties) {
-    this.s3 = s3;
-    this.s3FileIOProperties = s3FileIOProperties;
+  public static class Builder {
+    private SerializableSupplier<S3Client> s3;
+    private SerializableSupplier<S3AsyncClient> s3Async;
+    private S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
+
+    private Builder() {}
+
+    public Builder s3(SerializableSupplier<S3Client> value) {
+      this.s3 = value;
+      return this;
+    }
+
+    public Builder s3Async(SerializableSupplier<S3AsyncClient> value) {
+      this.s3Async = value;
+      return this;
+    }
+
+    public Builder s3FileIOProperties(S3FileIOProperties value) {
+      this.s3FileIOProperties = value;
+      return this;
+    }
+
+    public S3FileIO build() {
+      return new S3FileIO(this);
+    }
+  }
+
+  private S3FileIO(Builder builder) {
+    this.s3 = builder.s3;
+    this.s3Async = builder.s3Async;
+    this.s3FileIOProperties = builder.s3FileIOProperties;
     this.createStack = Thread.currentThread().getStackTrace();
   }
 
   @Override
   public InputFile newInputFile(String path) {
-    return S3InputFile.fromLocation(path, client(), s3FileIOProperties, metrics);
+    return S3InputFile.fromLocation(
+        path, client(), inputStreamFactory(), s3FileIOProperties, metrics);
   }
 
   @Override
   public InputFile newInputFile(String path, long length) {
-    return S3InputFile.fromLocation(path, length, client(), s3FileIOProperties, metrics);
+    return S3InputFile.fromLocation(
+        path, length, client(), inputStreamFactory(), s3FileIOProperties, metrics);
   }
 
   @Override
   public OutputFile newOutputFile(String path) {
-    return S3OutputFile.fromLocation(path, client(), s3FileIOProperties, metrics);
+    return S3OutputFile.fromLocation(
+        path, client(), inputStreamFactory(), s3FileIOProperties, metrics);
   }
 
   @Override
@@ -343,6 +370,34 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
     return client;
   }
 
+  public S3AsyncClient asyncClient() {
+    if (asyncClient == null) {
+      synchronized (this) {
+        if (asyncClient == null) {
+          asyncClient = s3Async.get();
+        }
+      }
+    }
+    return asyncClient;
+  }
+
+  public S3InputStreamFactory inputStreamFactory() {
+    if (inputStreamFactory == null) {
+      synchronized (this) {
+        if (inputStreamFactory == null) {
+          inputStreamFactory = createInputStreamFactory();
+        }
+      }
+    }
+    return inputStreamFactory;
+  }
+
+  private S3InputStreamFactory createInputStreamFactory() {
+    return s3FileIOProperties.isS3AnalyticsAcceleratorEnabled()
+        ? new AnalyticsAcceleratorInputStreamFactory(streamFactorySupplier.get())
+        : new DefaultS3InputStreamFactory();
+  }
+
   private ExecutorService executorService() {
     if (executorService == null) {
       synchronized (S3FileIO.class) {
@@ -370,25 +425,56 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
         PropertyUtil.propertyAsBoolean(props, "init-creation-stacktrace", true)
             ? Thread.currentThread().getStackTrace()
             : null;
+    initializeClients(properties);
+    initMetrics(properties);
+    this.streamFactorySupplier =
+        new S3SeekableInputStreamFactorySupplier(s3FileIOProperties, s3Async);
+  }
 
+  private void initializeClients(Map<String, String> props) {
+    Object clientFactory = S3FileIOAwsClientFactories.initialize(props);
+    boolean isPreloadEnabled = s3FileIOProperties.isPreloadClientEnabled();
+    boolean isS3CrtEnabled = s3FileIOProperties.isS3CRTEnabled();
+    if (clientFactory instanceof CredentialSupplier) {
+      this.credential = ((CredentialSupplier) clientFactory).getCredential();
+    }
     // Do not override s3 client if it was provided
     if (s3 == null) {
-      Object clientFactory = S3FileIOAwsClientFactories.initialize(props);
-      if (clientFactory instanceof S3FileIOAwsClientFactory) {
-        this.s3 = ((S3FileIOAwsClientFactory) clientFactory)::s3;
-      }
-      if (clientFactory instanceof AwsClientFactory) {
-        this.s3 = ((AwsClientFactory) clientFactory)::s3;
-      }
-      if (clientFactory instanceof CredentialSupplier) {
-        this.credential = ((CredentialSupplier) clientFactory).getCredential();
-      }
-      if (s3FileIOProperties.isPreloadClientEnabled()) {
-        client();
-      }
+      initializeClient(clientFactory, isPreloadEnabled);
     }
+    // Do not override s3Async client if it was provided
+    if (s3Async == null) {
+      initializeAsyncClient(clientFactory, isPreloadEnabled, isS3CrtEnabled);
+    }
+  }
 
-    initMetrics(properties);
+  private void initializeClient(Object clientFactory, boolean isPreloadEnabled) {
+    if (clientFactory instanceof S3FileIOAwsClientFactory) {
+      this.s3 = ((S3FileIOAwsClientFactory) clientFactory)::s3;
+    } else if (clientFactory instanceof AwsClientFactory) {
+      this.s3 = ((AwsClientFactory) clientFactory)::s3;
+    }
+    if (isPreloadEnabled) {
+      client();
+    }
+  }
+
+  private void initializeAsyncClient(
+      Object clientFactory, boolean isPreloadEnabled, boolean isS3CrtEnabled) {
+    if (clientFactory instanceof S3FileIOAwsClientFactory) {
+      this.s3Async =
+          isS3CrtEnabled
+              ? ((S3FileIOAwsClientFactory) clientFactory)::s3CrtAsync
+              : ((S3FileIOAwsClientFactory) clientFactory)::s3Async;
+    } else if (clientFactory instanceof AwsClientFactory) {
+      this.s3Async =
+          isS3CrtEnabled
+              ? ((AwsClientFactory) clientFactory)::s3CrtAsync
+              : ((AwsClientFactory) clientFactory)::s3Async;
+    }
+    if (isPreloadEnabled) {
+      asyncClient();
+    }
   }
 
   @SuppressWarnings("CatchBlockLogException")
@@ -414,6 +500,9 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
     if (isResourceClosed.compareAndSet(false, true)) {
       if (client != null) {
         client.close();
+      }
+      if (asyncClient != null) {
+        asyncClient.close();
       }
     }
   }
