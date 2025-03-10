@@ -25,10 +25,10 @@ import org.apache.spark.sql.catalyst.types.DataTypeUtils
 import org.apache.spark.sql.catalyst.util.truncatedString
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure
 
-case class Call(procedure: Procedure, args: Seq[Expression]) extends LeafCommand {
+case class IcebergCall(procedure: Procedure, args: Seq[Expression]) extends LeafCommand {
   override lazy val output: Seq[Attribute] = DataTypeUtils.toAttributes(procedure.outputType)
 
   override def simpleString(maxFields: Int): String = {
-    s"Call${truncatedString(output.toSeq, "[", ", ", "]", maxFields)} ${procedure.description}"
+    s"IcebergCall${truncatedString(output.toSeq, "[", ", ", "]", maxFields)} ${procedure.description}"
   }
 }

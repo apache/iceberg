@@ -164,9 +164,15 @@ public class TestSparkDataFile {
   private void checkSparkContentFiles(Table table) throws IOException {
     Iterable<InternalRow> rows = RandomData.generateSpark(table.schema(), 200, 0);
     JavaRDD<InternalRow> rdd = sparkContext.parallelize(Lists.newArrayList(rows));
+    if (!(spark instanceof org.apache.spark.sql.classic.SparkSession)) {
+      throw new IllegalArgumentException(
+          "spark is supposed to be org.apache.spark.sql.classic.SparkSession");
+    }
+
     Dataset<Row> df =
-        spark.internalCreateDataFrame(
-            JavaRDD.toRDD(rdd), SparkSchemaUtil.convert(table.schema()), false);
+        ((org.apache.spark.sql.classic.SparkSession) spark)
+            .internalCreateDataFrame(
+                JavaRDD.toRDD(rdd), SparkSchemaUtil.convert(table.schema()), false);
 
     df.write().format("iceberg").mode("append").save(tableLocation);
 

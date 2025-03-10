@@ -62,7 +62,12 @@ class SparkBinPackPositionDeletesRewriter extends SizeBasedPositionDeletesRewrit
   SparkBinPackPositionDeletesRewriter(SparkSession spark, Table table) {
     super(table);
     // Disable Adaptive Query Execution as this may change the output partitioning of our write
-    this.spark = spark.cloneSession();
+    if (!(spark instanceof org.apache.spark.sql.classic.SparkSession)) {
+      throw new IllegalArgumentException(
+          "spark is supposed to be org.apache.spark.sql.classic.SparkSession");
+    }
+
+    this.spark = ((org.apache.spark.sql.classic.SparkSession) spark).cloneSession();
     this.spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
   }
 
