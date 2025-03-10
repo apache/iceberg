@@ -22,19 +22,23 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.ClusteredPositionDeleteWriter;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.io.PartitioningDVWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.PositionDeletesRewriteCoordinator;
@@ -224,34 +228,49 @@ public class SparkPositionDeletesRewrite implements Write {
               .suffix("deletes")
               .build();
 
-      Schema positionDeleteRowSchema = positionDeleteRowSchema();
-      StructType deleteSparkType = deleteSparkType();
-      StructType deleteSparkTypeWithoutRow = deleteSparkTypeWithoutRow();
+      if (TableUtil.formatVersion(underlyingTable(table)) >= 3) {
+        return new DVWriter(table, deleteFileFactory, dsSchema, specId, partition);
+      } else {
+        Schema positionDeleteRowSchema = positionDeleteRowSchema();
+        StructType deleteSparkType = deleteSparkType();
+        StructType deleteSparkTypeWithoutRow = deleteSparkTypeWithoutRow();
 
-      SparkFileWriterFactory writerFactoryWithRow =
-          SparkFileWriterFactory.builderFor(table)
-              .deleteFileFormat(format)
-              .positionDeleteRowSchema(positionDeleteRowSchema)
-              .positionDeleteSparkType(deleteSparkType)
-              .writeProperties(writeProperties)
-              .build();
-      SparkFileWriterFactory writerFactoryWithoutRow =
-          SparkFileWriterFactory.builderFor(table)
-              .deleteFileFormat(format)
-              .positionDeleteSparkType(deleteSparkTypeWithoutRow)
-              .writeProperties(writeProperties)
-              .build();
+        SparkFileWriterFactory writerFactoryWithRow =
+            SparkFileWriterFactory.builderFor(table)
+                .deleteFileFormat(format)
+                .positionDeleteRowSchema(positionDeleteRowSchema)
+                .positionDeleteSparkType(deleteSparkType)
+                .writeProperties(writeProperties)
+                .build();
+        SparkFileWriterFactory writerFactoryWithoutRow =
+            SparkFileWriterFactory.builderFor(table)
+                .deleteFileFormat(format)
+                .positionDeleteSparkType(deleteSparkTypeWithoutRow)
+                .writeProperties(writeProperties)
+                .build();
 
-      return new DeleteWriter(
-          table,
-          writerFactoryWithRow,
-          writerFactoryWithoutRow,
-          deleteFileFactory,
-          targetFileSize,
-          deleteGranularity,
-          dsSchema,
-          specId,
-          partition);
+        return new DeleteWriter(
+            table,
+            writerFactoryWithRow,
+            writerFactoryWithoutRow,
+            deleteFileFactory,
+            targetFileSize,
+            deleteGranularity,
+            dsSchema,
+            specId,
+            partition);
+      }
+    }
+
+    private Table underlyingTable(Table table) {
+      if (table instanceof SerializableTable.SerializableMetadataTable) {
+        return underlyingTable(
+            ((SerializableTable.SerializableMetadataTable) table).underlyingTable());
+      } else if (table instanceof BaseMetadataTable) {
+        return ((BaseMetadataTable) table).table();
+      }
+
+      return table;
     }
 
     private Schema positionDeleteRowSchema() {
@@ -356,7 +375,7 @@ public class SparkPositionDeletesRewrite implements Write {
     }
 
     @Override
-    public void write(InternalRow record) throws IOException {
+    public void write(InternalRow record) {
       String file = record.getString(fileOrdinal);
       long position = record.getLong(positionOrdinal);
       InternalRow row = record.getStruct(rowOrdinal, rowSize);
@@ -421,6 +440,83 @@ public class SparkPositionDeletesRewrite implements Write {
         allDeleteFiles.addAll(writerWithoutRow.result().deleteFiles());
       }
       return allDeleteFiles;
+    }
+  }
+
+  /**
+   * DV Writer for position deletes metadata table.
+   *
+   * <p>This writer is meant to be used for an action to rewrite delete files when the table
+   * supports DVs.
+   */
+  private static class DVWriter implements DataWriter<InternalRow> {
+    private final PositionDelete<InternalRow> positionDelete;
+    private final FileIO io;
+    private final PartitionSpec spec;
+    private final int fileOrdinal;
+    private final int positionOrdinal;
+    private final StructLike partition;
+    private final PartitioningDVWriter<InternalRow> dvWriter;
+    private boolean closed = false;
+
+    /**
+     * Constructs a {@link DeleteWriter}.
+     *
+     * @param table position deletes metadata table
+     * @param deleteFileFactory delete file factory
+     * @param dsSchema schema of incoming dataset of position deletes
+     * @param specId partition spec id of incoming position deletes. All incoming partition deletes
+     *     are required to have the same spec id.
+     * @param partition partition value of incoming position delete. All incoming partition deletes
+     *     are required to have the same partition.
+     */
+    DVWriter(
+        Table table,
+        OutputFileFactory deleteFileFactory,
+        StructType dsSchema,
+        int specId,
+        StructLike partition) {
+      this.positionDelete = PositionDelete.create();
+      this.io = table.io();
+      this.spec = table.specs().get(specId);
+      this.partition = partition;
+      this.fileOrdinal = dsSchema.fieldIndex(MetadataColumns.DELETE_FILE_PATH.name());
+      this.positionOrdinal = dsSchema.fieldIndex(MetadataColumns.DELETE_FILE_POS.name());
+      this.dvWriter = new PartitioningDVWriter<>(deleteFileFactory, p -> null);
+    }
+
+    @Override
+    public void write(InternalRow record) {
+      String file = record.getString(fileOrdinal);
+      long position = record.getLong(positionOrdinal);
+      positionDelete.set(file, position, null);
+      dvWriter.write(positionDelete, spec, partition);
+    }
+
+    @Override
+    public WriterCommitMessage commit() throws IOException {
+      close();
+      return new DeleteTaskCommit(allDeleteFiles());
+    }
+
+    @Override
+    public void abort() throws IOException {
+      close();
+      SparkCleanupUtil.deleteTaskFiles(io, allDeleteFiles());
+    }
+
+    @Override
+    public void close() throws IOException {
+      if (!closed) {
+        if (null != dvWriter) {
+          dvWriter.close();
+        }
+        this.closed = true;
+      }
+    }
+
+    private List<DeleteFile> allDeleteFiles() {
+      return dvWriter.result().deleteFiles();
     }
   }
 
