@@ -406,7 +406,7 @@ public class TestGlueCatalog {
     Mockito.doReturn(CreateDatabaseResponse.builder().build())
         .when(glue)
         .createDatabase(Mockito.any(CreateDatabaseRequest.class));
-    glueCatalog.createNamespace(Namespace.of("db"));
+    glueCatalog.createNamespace(Namespace.of("my-glue-database"));
   }
 
   @Test
@@ -415,15 +415,14 @@ public class TestGlueCatalog {
         .when(glue)
         .createDatabase(Mockito.any(CreateDatabaseRequest.class));
     List<Namespace> invalidNamespaces =
-        Lists.newArrayList(Namespace.of("db-1"), Namespace.of("db", "db2"));
+        Lists.newArrayList(Namespace.of("db№1"), Namespace.of("db", "db2"));
 
     for (Namespace namespace : invalidNamespaces) {
       assertThatThrownBy(() -> glueCatalog.createNamespace(namespace))
           .isInstanceOf(ValidationException.class)
           .hasMessageStartingWith("Cannot convert namespace")
           .hasMessageEndingWith(
-              "to Glue database name, "
-                  + "because it must be 1-252 chars of lowercase letters, numbers, underscore");
+              "to Glue database name, because it must be 1-255 ASCII chars from 0x20 to 0x7E");
     }
   }
 
@@ -481,11 +480,11 @@ public class TestGlueCatalog {
   @Test
   public void testListNamespacesBadName() {
 
-    assertThatThrownBy(() -> glueCatalog.listNamespaces(Namespace.of("db-1")))
+    assertThatThrownBy(() -> glueCatalog.listNamespaces(Namespace.of("db№1")))
         .isInstanceOf(ValidationException.class)
         .hasMessage(
-            "Cannot convert namespace db-1 to Glue database name, "
-                + "because it must be 1-252 chars of lowercase letters, numbers, underscore");
+            "Cannot convert namespace db№1 to Glue database name, "
+                + "because it must be 1-255 ASCII chars from 0x20 to 0x7E");
   }
 
   @Test
