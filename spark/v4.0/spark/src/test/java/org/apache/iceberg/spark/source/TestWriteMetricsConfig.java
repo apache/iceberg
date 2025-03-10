@@ -251,8 +251,14 @@ public class TestWriteMetricsConfig {
 
     Iterable<InternalRow> rows = RandomData.generateSpark(COMPLEX_SCHEMA, 10, 0);
     JavaRDD<InternalRow> rdd = sc.parallelize(Lists.newArrayList(rows));
+    if (!(spark instanceof org.apache.spark.sql.classic.SparkSession)) {
+      throw new IllegalArgumentException(
+          "spark is supposed to be org.apache.spark.sql.classic.SparkSession");
+    }
+
     Dataset<Row> df =
-        spark.internalCreateDataFrame(JavaRDD.toRDD(rdd), convert(COMPLEX_SCHEMA), false);
+        ((org.apache.spark.sql.classic.SparkSession) spark)
+            .internalCreateDataFrame(JavaRDD.toRDD(rdd), convert(COMPLEX_SCHEMA), false);
 
     df.coalesce(1)
         .write()

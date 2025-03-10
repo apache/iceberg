@@ -49,6 +49,7 @@ import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.View;
 import org.apache.spark.sql.connector.catalog.ViewCatalog;
 import org.apache.spark.sql.connector.catalog.ViewChange;
+import org.apache.spark.sql.connector.catalog.ViewInfo;
 import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
@@ -440,40 +441,16 @@ public class SparkSessionCatalog<
   }
 
   @Override
-  public View createView(
-      Identifier ident,
-      String sql,
-      String currentCatalog,
-      String[] currentNamespace,
-      StructType schema,
-      String[] queryColumnNames,
-      String[] columnAliases,
-      String[] columnComments,
-      Map<String, String> properties)
+  public View createView(ViewInfo viewInfo)
       throws ViewAlreadyExistsException, NoSuchNamespaceException {
+    if (viewInfo == null) {
+      return null;
+    }
+
     if (null != asViewCatalog) {
-      return asViewCatalog.createView(
-          ident,
-          sql,
-          currentCatalog,
-          currentNamespace,
-          schema,
-          queryColumnNames,
-          columnAliases,
-          columnComments,
-          properties);
+      return asViewCatalog.createView(viewInfo);
     } else if (isViewCatalog()) {
-      return getSessionCatalog()
-          .createView(
-              ident,
-              sql,
-              currentCatalog,
-              currentNamespace,
-              schema,
-              queryColumnNames,
-              columnAliases,
-              columnComments,
-              properties);
+      return getSessionCatalog().createView(viewInfo);
     }
 
     throw new UnsupportedOperationException(

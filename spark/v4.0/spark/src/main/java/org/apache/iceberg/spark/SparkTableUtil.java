@@ -940,7 +940,13 @@ public class SparkTableUtil {
   public static Dataset<Row> loadTable(SparkSession spark, Table table, long snapshotId) {
     SparkTable sparkTable = new SparkTable(table, snapshotId, false);
     DataSourceV2Relation relation = createRelation(sparkTable, ImmutableMap.of());
-    return Dataset.ofRows(spark, relation);
+    if (!(spark instanceof org.apache.spark.sql.classic.SparkSession)) {
+      throw new IllegalArgumentException(
+          "spark is supposed to be org.apache.spark.sql.classic.SparkSession");
+    }
+
+    return org.apache.spark.sql.classic.Dataset.ofRows(
+        (org.apache.spark.sql.classic.SparkSession) spark, relation);
   }
 
   public static Dataset<Row> loadMetadataTable(
@@ -953,7 +959,13 @@ public class SparkTableUtil {
     Table metadataTable = MetadataTableUtils.createMetadataTableInstance(table, type);
     SparkTable sparkMetadataTable = new SparkTable(metadataTable, false);
     DataSourceV2Relation relation = createRelation(sparkMetadataTable, extraOptions);
-    return Dataset.ofRows(spark, relation);
+    if (!(spark instanceof org.apache.spark.sql.classic.SparkSession)) {
+      throw new IllegalArgumentException(
+          "spark is supposed to be org.apache.spark.sql.classic.SparkSession");
+    }
+
+    return org.apache.spark.sql.classic.Dataset.ofRows(
+        (org.apache.spark.sql.classic.SparkSession) spark, relation);
   }
 
   private static DataSourceV2Relation createRelation(

@@ -426,7 +426,13 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
     Iterable<InternalRow> rows = RandomData.generateSpark(schema, 10, 0);
     JavaRDD<InternalRow> rowRDD = sparkContext.parallelize(Lists.newArrayList(rows));
     StructType rowSparkType = SparkSchemaUtil.convert(schema);
-    return spark.internalCreateDataFrame(JavaRDD.toRDD(rowRDD), rowSparkType, false);
+    if (!(spark instanceof org.apache.spark.sql.classic.SparkSession)) {
+      throw new IllegalArgumentException(
+          "spark is supposed to be org.apache.spark.sql.classic.SparkSession");
+    }
+
+    return ((org.apache.spark.sql.classic.SparkSession) spark)
+        .internalCreateDataFrame(JavaRDD.toRDD(rowRDD), rowSparkType, false);
   }
 
   private void append(String table, Dataset<Row> df) throws NoSuchTableException {

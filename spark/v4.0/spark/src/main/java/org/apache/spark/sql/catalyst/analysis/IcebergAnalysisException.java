@@ -16,24 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark.source.avro;
+package org.apache.spark.sql.catalyst.analysis;
 
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.spark.source.WritersBenchmark;
+import org.apache.spark.QueryContext;
+import org.apache.spark.sql.AnalysisException;
+import scala.Option;
+import scala.collection.immutable.Map$;
 
-/**
- * A benchmark that evaluates the performance of various Iceberg writers for Avro data.
- *
- * <p>To run this benchmark for spark-4.0: <code>
- *   ./gradlew -DsparkVersions=4.0 :iceberg-spark:iceberg-spark-4.0_2.12:jmh
- *       -PjmhIncludeRegex=AvroWritersBenchmark
- *       -PjmhOutputPath=benchmark/avro-writers-benchmark-result.txt
- * </code>
- */
-public class AvroWritersBenchmark extends WritersBenchmark {
-
-  @Override
-  protected FileFormat fileFormat() {
-    return FileFormat.AVRO;
+public class IcebergAnalysisException extends AnalysisException {
+  public IcebergAnalysisException(String message) {
+    super(
+        message,
+        Option.empty(),
+        Option.empty(),
+        Option.empty(),
+        Option.empty(),
+        Map$.MODULE$.<String, String>empty(),
+        new QueryContext[0]);
   }
 }

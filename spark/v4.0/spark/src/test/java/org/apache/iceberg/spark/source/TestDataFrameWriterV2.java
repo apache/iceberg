@@ -182,7 +182,12 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
 
   @TestTemplate
   public void testWriteWithCaseSensitiveOption() throws NoSuchTableException, ParseException {
-    SparkSession sparkSession = spark.cloneSession();
+    if (!(spark instanceof org.apache.spark.sql.classic.SparkSession)) {
+      throw new IllegalArgumentException(
+          "spark is supposed to be org.apache.spark.sql.classic.SparkSession");
+    }
+
+    SparkSession sparkSession = ((org.apache.spark.sql.classic.SparkSession) spark).cloneSession();
     sparkSession
         .sql(
             String.format(

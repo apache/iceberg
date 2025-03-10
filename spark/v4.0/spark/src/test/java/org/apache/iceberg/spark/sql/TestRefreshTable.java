@@ -55,7 +55,12 @@ public class TestRefreshTable extends CatalogTestBase {
             SparkCatalogConfig.REST.catalogName())
         .contains(catalogName)) {
       spark.conf().set("spark.sql.catalog." + catalogName + ".cache-enabled", true);
-      spark = spark.cloneSession();
+      if (!(spark instanceof org.apache.spark.sql.classic.SparkSession)) {
+        throw new IllegalArgumentException(
+            "spark is supposed to be org.apache.spark.sql.classic.SparkSession");
+      }
+
+      spark = ((org.apache.spark.sql.classic.SparkSession) spark).cloneSession();
     }
 
     List<Object[]> originalExpected = ImmutableList.of(row(1, 1));

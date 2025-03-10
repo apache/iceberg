@@ -327,9 +327,15 @@ public class TestPartitionPruning {
             .collect(Collectors.toList());
 
     JavaRDD<InternalRow> rdd = sparkContext.parallelize(rows);
+    if (!(spark instanceof org.apache.spark.sql.classic.SparkSession)) {
+      throw new IllegalArgumentException(
+          "spark is supposed to be org.apache.spark.sql.classic.SparkSession");
+    }
+
     Dataset<Row> df =
-        spark.internalCreateDataFrame(
-            JavaRDD.toRDD(rdd), SparkSchemaUtil.convert(LOG_SCHEMA), false);
+        ((org.apache.spark.sql.classic.SparkSession) spark)
+            .internalCreateDataFrame(
+                JavaRDD.toRDD(rdd), SparkSchemaUtil.convert(LOG_SCHEMA), false);
 
     return df.selectExpr("id", "date", "level", "message", "timestamp")
         .selectExpr(

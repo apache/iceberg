@@ -239,7 +239,7 @@ public class TestViews extends ExtensionsTestBase {
     assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
-            "A column or function parameter with name `non_existing` cannot be resolved");
+            "A column, variable, or function parameter with name `non_existing` cannot be resolved");
   }
 
   @TestTemplate
@@ -260,8 +260,7 @@ public class TestViews extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(
-            String.format("The view `%s` cannot be displayed due to invalid view text", viewName));
+        .hasMessageContaining(String.format("Invalid view name: %s", viewName));
   }
 
   @TestTemplate
@@ -287,7 +286,8 @@ public class TestViews extends ExtensionsTestBase {
     // reading from the view should now fail
     assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("A column or function parameter with name `data` cannot be resolved");
+        .hasMessageContaining(
+            "A column, variable, or function parameter with name `data` cannot be resolved");
   }
 
   @TestTemplate
@@ -526,7 +526,7 @@ public class TestViews extends ExtensionsTestBase {
     assertThat(sql(sql)).hasSize(1).containsExactly(row(5.5));
 
     String expectedErrorMsg =
-        String.format("Cannot load function: %s.%s.%s", catalogName, NAMESPACE, functionName);
+        String.format("The routine %s.%s cannot be found", NAMESPACE, functionName);
     if (SPARK_CATALOG.equals(catalogName)) {
       // spark session catalog tries to load a V1 function and has a different error msg
       expectedErrorMsg =
@@ -538,7 +538,7 @@ public class TestViews extends ExtensionsTestBase {
     // reading from a view that references a TEMP FUNCTION shouldn't be possible
     assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageStartingWith(expectedErrorMsg);
+        .hasMessageContaining((expectedErrorMsg));
   }
 
   @TestTemplate
@@ -608,7 +608,7 @@ public class TestViews extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql(sql))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Cannot resolve function")
+        .hasMessageContaining("Cannot resolve routine")
         .hasMessageContaining("iceberg_version");
 
     ViewCatalog viewCatalog = viewCatalog();
@@ -730,7 +730,7 @@ public class TestViews extends ExtensionsTestBase {
     // verify the v1 error message
     assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("The function `system`.`bucket` cannot be found");
+        .hasMessageContaining("The routine `system`.`bucket` cannot be found");
   }
 
   private Schema schema(String sql) {
@@ -1106,7 +1106,7 @@ public class TestViews extends ExtensionsTestBase {
                     "CREATE VIEW %s AS SELECT %s.%s.%s(id) FROM %s",
                     viewName, catalogName, NAMESPACE, functionName, tableName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Cannot resolve function")
+        .hasMessageContaining("Cannot resolve routine")
         .hasMessageContaining(
             String.format("`%s`.`%s`.`%s`", catalogName, NAMESPACE, functionName));
 
@@ -1117,7 +1117,7 @@ public class TestViews extends ExtensionsTestBase {
                     "CREATE VIEW %s AS SELECT %s.%s(id) FROM %s",
                     viewName, NAMESPACE, functionName, tableName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Cannot resolve function")
+        .hasMessageContaining("Cannot resolve routine")
         .hasMessageContaining(String.format("`%s`.`%s`", NAMESPACE, functionName));
   }
 
@@ -1302,7 +1302,7 @@ public class TestViews extends ExtensionsTestBase {
                     tableName))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
-            "A column or function parameter with name `non_existing` cannot be resolved");
+            "A column, variable, or function parameter with name `non_existing` cannot be resolved");
   }
 
   @TestTemplate
