@@ -39,6 +39,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileGenerationUtil;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -194,7 +195,7 @@ public class TestCopyOnWriteDelete extends TestDelete {
     append(tableName, new Employee(1, "hr"), new Employee(2, "hr"), new Employee(3, "hr"));
 
     Table table = validationCatalog.loadTable(tableIdent);
-    OutputFile out = Files.localOutput(File.createTempFile("equality_delete",".parquet"));
+    OutputFile out = Files.localOutput(File.createTempFile("junit", null, temp.toFile()));
     Schema deleteSchema = table.schema().select("id");
     GenericRecord deleteRecord = GenericRecord.create(deleteSchema);
     DeleteFile eqDelete = FileHelpers.writeDeleteFile(
@@ -216,10 +217,8 @@ public class TestCopyOnWriteDelete extends TestDelete {
     sql("DELETE FROM %s WHERE id = 3", tableName);
 
     assertEquals(
-      "COW Delete should remove row with id 3",
-      ImmutableList.of(row(1, "hr")),
+      "COW Delete should remove row with id 3", ImmutableList.of(row(1, "hr")),
       sql("SELECT * FROM %s ORDER BY id, dep", tableName));
   }
-
 
 }
