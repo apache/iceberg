@@ -41,6 +41,9 @@ public class RewritePositionDeletesGroup
 
   private DeleteFileSet addedDeleteFiles = DeleteFileSet.create();
 
+  /**
+   * @deprecated since 1.9.0, will be removed in 1.10.0
+   */
   @Deprecated
   public RewritePositionDeletesGroup(FileGroupInfo info, List<PositionDeletesScanTask> tasks) {
     this(info, tasks, 0L, 0L, 0);
@@ -59,7 +62,7 @@ public class RewritePositionDeletesGroup
   }
 
   /**
-   * @deprecated use {@link #fileScanTasks()}
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #fileScanTasks()}
    */
   @Deprecated
   public List<PositionDeletesScanTask> tasks() {
@@ -116,7 +119,7 @@ public class RewritePositionDeletesGroup
   }
 
   /**
-   * @deprecated use {@link #inputFilesSizeInBytes()}
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #inputFilesSizeInBytes()}
    */
   @Deprecated
   public long rewrittenBytes() {
@@ -128,7 +131,7 @@ public class RewritePositionDeletesGroup
   }
 
   /**
-   * @deprecated use {@link #inputFileNum()}
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #inputFileNum()}
    */
   @Deprecated
   public int numRewrittenDeleteFiles() {
