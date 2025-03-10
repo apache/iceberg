@@ -24,6 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import org.apache.hc.client5.http.auth.AuthScope;
+import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
+import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -41,6 +44,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
 
@@ -55,7 +59,44 @@ public class RESTCatalog
   public RESTCatalog() {
     this(
         SessionCatalog.SessionContext.createEmpty(),
-        config -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build());
+        config -> {
+          HTTPClient.Builder builder =
+              HTTPClient.builder(config).uri(config.get(CatalogProperties.URI));
+
+          boolean proxyEnabled =
+              PropertyUtil.propertyAsBoolean(
+                  config, CatalogProperties.PROXY_ENABLED, CatalogProperties.PROXY_ENABLED_DEFAULT);
+
+          if (proxyEnabled) {
+
+            builder.withProxy(
+                config.get(CatalogProperties.PROXY_HOSTNAME),
+                Integer.parseInt(config.get(CatalogProperties.PROXY_PORT)));
+
+            boolean proxyRequiresCredentials =
+                PropertyUtil.propertyAsBoolean(
+                    config,
+                    CatalogProperties.PROXY_REQUIRES_CREDENTIALS,
+                    CatalogProperties.PROXY_REQUIRES_CREDENTIALS_DEFAULT);
+
+            if (proxyRequiresCredentials) {
+
+              /* currently only basic auth is supported */
+              BasicCredentialsProvider credentialProvider = new BasicCredentialsProvider();
+              credentialProvider.setCredentials(
+                  new AuthScope(
+                      config.get(CatalogProperties.PROXY_HOSTNAME),
+                      Integer.parseInt(config.get(CatalogProperties.PROXY_PORT))),
+                  new UsernamePasswordCredentials(
+                      config.get(CatalogProperties.PROXY_USERNAME),
+                      config.get(CatalogProperties.PROXY_PASSWORD).toCharArray()));
+
+              builder.withProxyCredentialsProvider(credentialProvider);
+            }
+          }
+
+          return builder.build();
+        });
   }
 
   public RESTCatalog(Function<Map<String, String>, RESTClient> clientBuilder) {
