@@ -35,4 +35,21 @@ public interface VariantArray extends VariantValue {
   default VariantArray asArray() {
     return this;
   }
+
+  static String asString(VariantArray array) {
+    StringBuilder builder = new StringBuilder();
+
+    builder.append("VariantArray(elements=[");
+    for (int i = 0; i < array.numElements(); i++) {
+      if (i > 0) {
+        builder.append(", ");
+      }
+
+      builder.append(array.get(i));
+    }
+
+    builder.append("])");
+
+    return builder.toString();
+  }
 }
