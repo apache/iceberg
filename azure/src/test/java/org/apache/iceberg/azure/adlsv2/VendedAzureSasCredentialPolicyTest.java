@@ -37,7 +37,7 @@ import org.mockserver.verify.VerificationTimes;
 public class VendedAzureSasCredentialPolicyTest extends BaseVendedCredentialsTest {
 
   private static final String STORAGE_ACCOUNT = "account1";
-  private static final String ACCOUNT_ENDPOINT = String.format("%s/%s", BASE_URI, STORAGE_ACCOUNT);
+  private static final String ACCOUNT_ENDPOINT = String.format("%s/%s", baseUri, STORAGE_ACCOUNT);
 
   @Test
   public void vendedSasTokenAsRequestQueryParameters() {

@@ -43,7 +43,7 @@ import org.mockserver.model.HttpResponse;
 import org.mockserver.verify.VerificationTimes;
 
 public class VendedAdlsCredentialProviderTest extends BaseVendedCredentialsTest {
-  private static final String CREDENTIALS_URI = String.format("%s%s", BASE_URI, "/v1/credentials");
+  private static final String CREDENTIALS_URI = String.format("%s%s", baseUri, "/v1/credentials");
   private static final String STORAGE_ACCOUNT = "account1";
   private static final String CREDENTIAL_PREFIX =
       "abfs://container@account1.dfs.core.windows.net/dir";

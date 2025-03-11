@@ -26,13 +26,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.mockserver.integration.ClientAndServer;
 
 public class BaseVendedCredentialsTest {
-  protected static final int PORT = 3232;
-  protected static final String BASE_URI = String.format("http://127.0.0.1:%d", PORT);
+  protected static String baseUri;
   protected static ClientAndServer mockServer;
 
   @BeforeAll
   public static void beforeAll() {
-    mockServer = startClientAndServer(PORT);
+    // Allocate port dynamically as there could be parallel test executions.
+    mockServer = startClientAndServer(0);
+    int mockServerPort = mockServer.getPort();
+    baseUri = String.format("http://127.0.0.1:%d", mockServerPort);
   }
 
   @AfterAll
