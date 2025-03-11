@@ -36,6 +36,8 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.TestTables;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -223,6 +225,69 @@ public class TestDataFileIndexStatsFilters {
     assertThat(task.deletes())
         .as("Should not have delete file, filtered by data column stats")
         .isEmpty();
+  }
+
+  @Test
+  public void testEqualityDeletePlanningStatsUserFilter() throws IOException {
+    table.newAppend().appendFile(dataFile).commit();
+
+    List<Record> deletes = Lists.newArrayList();
+    Schema deleteRowSchema = table.schema().select("data");
+    Record delete = GenericRecord.create(deleteRowSchema);
+    deletes.add(delete.copy("data", "a"));
+    deletes.add(delete.copy("data", "b"));
+    deletes.add(delete.copy("data", "c"));
+
+    DeleteFile posDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(createTempFile()), deletes, deleteRowSchema);
+
+    table.newRowDelta().addDeletes(posDeletes).commit();
+
+    Expression expr = Expressions.greaterThanOrEqual("data", "d");
+
+    List<FileScanTask> tasks;
+    try (CloseableIterable<FileScanTask> tasksIterable = table.newScan().filter(expr).planFiles()) {
+      tasks = Lists.newArrayList(tasksIterable);
+    }
+
+    assertThat(tasks).as("Should produce one task").hasSize(1);
+    FileScanTask task = tasks.get(0);
+    assertThat(task.deletes())
+        .as("Should have excluded the delete file because it cannot match the scan.")
+        .isEmpty();
+  }
+
+  @Test
+  public void testEqualityDeletePlanningStatsUserFilterIgnoreResidual() throws IOException {
+    table.newAppend().appendFile(dataFile).commit();
+
+    List<Record> deletes = Lists.newArrayList();
+    Schema deleteRowSchema = table.schema().select("data");
+    Record delete = GenericRecord.create(deleteRowSchema);
+    deletes.add(delete.copy("data", "a"));
+    deletes.add(delete.copy("data", "b"));
+    deletes.add(delete.copy("data", "c"));
+
+    DeleteFile posDeletes =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(createTempFile()), deletes, deleteRowSchema);
+
+    table.newRowDelta().addDeletes(posDeletes).commit();
+
+    Expression expr = Expressions.greaterThanOrEqual("data", "d");
+
+    List<FileScanTask> tasks;
+    try (CloseableIterable<FileScanTask> tasksIterable =
+        table.newScan().filter(expr).ignoreResiduals().planFiles()) {
+      tasks = Lists.newArrayList(tasksIterable);
+    }
+
+    assertThat(tasks).as("Should produce one task").hasSize(1);
+    FileScanTask task = tasks.get(0);
+    assertThat(task.deletes())
+        .as("Should have one delete file, ignoreResiduals prevents filtering out the delete file")
+        .hasSize(1);
   }
 
   @Test
