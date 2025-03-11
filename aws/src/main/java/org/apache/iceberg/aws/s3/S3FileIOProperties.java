@@ -73,6 +73,32 @@ public class S3FileIOProperties implements Serializable {
   public static final boolean S3_ACCESS_GRANTS_ENABLED_DEFAULT = false;
 
   /**
+   * This property is used to enable using the S3 Analytics Accelerator library to accelerate data
+   * access from client applications to Amazon S3.
+   *
+   * <p>For more details, see: https://github.com/awslabs/analytics-accelerator-s3
+   */
+  public static final String S3_ANALYTICS_ACCELERATOR_ENABLED = "s3.analytics-accelerator.enabled";
+
+  public static final boolean S3_ANALYTICS_ACCELERATOR_ENABLED_DEFAULT = false;
+
+  /**
+   * This prefix allows users to configure the internal properties of the s3 analytics accelerator.
+   *
+   * <p>Example: s3.analytics-accelerator.logicalio.prefetching.mode=all
+   *
+   * <p>For more details, see:
+   * https://github.com/awslabs/analytics-accelerator-s3/blob/main/doc/CONFIGURATION.md
+   */
+  public static final String S3_ANALYTICS_ACCELERATOR_PROPERTIES_PREFIX =
+      "s3.analytics-accelerator.";
+
+  /** This property is used to specify if the S3 Async clients should be created using CRT. */
+  public static final String S3_CRT_ENABLED = "s3.crt.enabled";
+
+  public static final boolean S3_CRT_ENABLED_DEFAULT = true;
+
+  /**
    * The fallback-to-iam property allows users to customize whether or not they would like their
    * jobs fall back to the Job Execution IAM role in case they get an Access Denied from the S3
    * Access Grants call. Further documentation regarding this flag can be found in the S3 Access
@@ -484,6 +510,9 @@ public class S3FileIOProperties implements Serializable {
   private final boolean isAccelerationEnabled;
   private final String endpoint;
   private final boolean isRemoteSigningEnabled;
+  private final boolean isS3AnalyticsAcceleratorEnabled;
+  private final Map<String, String> s3AnalyticsacceleratorProperties;
+  private final boolean isS3CRTEnabled;
   private String writeStorageClass;
   private int s3RetryNumRetries;
   private long s3RetryMinWaitMs;
@@ -528,6 +557,9 @@ public class S3FileIOProperties implements Serializable {
     this.s3RetryMaxWaitMs = S3_RETRY_MAX_WAIT_MS_DEFAULT;
     this.s3DirectoryBucketListPrefixAsDirectory =
         S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY_DEFAULT;
+    this.isS3AnalyticsAcceleratorEnabled = S3_ANALYTICS_ACCELERATOR_ENABLED_DEFAULT;
+    this.s3AnalyticsacceleratorProperties = Maps.newHashMap();
+    this.isS3CRTEnabled = S3_CRT_ENABLED_DEFAULT;
     this.allProperties = Maps.newHashMap();
 
     ValidationException.check(
@@ -640,6 +672,13 @@ public class S3FileIOProperties implements Serializable {
             properties,
             S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY,
             S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY_DEFAULT);
+    this.isS3AnalyticsAcceleratorEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, S3_ANALYTICS_ACCELERATOR_ENABLED, S3_ANALYTICS_ACCELERATOR_ENABLED_DEFAULT);
+    this.s3AnalyticsacceleratorProperties =
+        PropertyUtil.propertiesWithPrefix(properties, S3_ANALYTICS_ACCELERATOR_PROPERTIES_PREFIX);
+    this.isS3CRTEnabled =
+        PropertyUtil.propertyAsBoolean(properties, S3_CRT_ENABLED, S3_CRT_ENABLED_DEFAULT);
 
     ValidationException.check(
         keyIdAccessKeyBothConfigured(),
@@ -752,6 +791,18 @@ public class S3FileIOProperties implements Serializable {
 
   public boolean isRemoteSigningEnabled() {
     return this.isRemoteSigningEnabled;
+  }
+
+  public boolean isS3AnalyticsAcceleratorEnabled() {
+    return isS3AnalyticsAcceleratorEnabled;
+  }
+
+  public Map<String, String> s3AnalyticsacceleratorProperties() {
+    return s3AnalyticsacceleratorProperties;
+  }
+
+  public boolean isS3CRTEnabled() {
+    return isS3CRTEnabled;
   }
 
   public String endpoint() {
