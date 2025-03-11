@@ -45,15 +45,15 @@ public class Variants {
     ByteBuffer[] nameBuffers = new ByteBuffer[numElements];
     boolean sorted = true;
     String last = null;
-    int i = 0;
+    int pos = 0;
     for (String name : fieldNames) {
-      nameBuffers[i] = ByteBuffer.wrap(name.getBytes(StandardCharsets.UTF_8));
+      nameBuffers[pos] = ByteBuffer.wrap(name.getBytes(StandardCharsets.UTF_8));
       if (last != null && last.compareTo(name) >= 0) {
         sorted = false;
       }
 
       last = name;
-      i += 1;
+      pos += 1;
     }
 
     int dataSize = 0;
