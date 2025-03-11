@@ -20,6 +20,7 @@ package org.apache.iceberg.connect.channel;
 
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.Committer;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -42,24 +43,20 @@ public class CommitterImpl implements Committer {
 
   private CoordinatorThread coordinatorThread;
   private Worker worker;
-  private final Catalog catalog;
-  private final IcebergSinkConfig config;
-  private final SinkTaskContext context;
-  private final KafkaClientFactory clientFactory;
+  private Catalog catalog;
+  private IcebergSinkConfig config;
+  private SinkTaskContext context;
+  private KafkaClientFactory clientFactory;
   private Collection<MemberDescription> membersWhenWorkerIsCoordinator;
+  private final AtomicBoolean isCommitterInitialized = new AtomicBoolean(false);
 
-  public CommitterImpl(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
-    this.catalog = catalog;
-    this.config = config;
-    this.context = context;
-    this.clientFactory = new KafkaClientFactory(config.kafkaProps());
-  }
-
-  public CommitterImpl() {
-    this.catalog = null;
-    this.config = null;
-    this.context = null;
-    this.clientFactory = null;
+  void initializeCommitter(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
+    if (isCommitterInitialized.compareAndSet(false, true)) {
+      this.catalog = catalog;
+      this.config = config;
+      this.context = context;
+      this.clientFactory = new KafkaClientFactory(config.kafkaProps());
+    }
   }
 
   static class TopicPartitionComparator implements Comparator<TopicPartition> {
@@ -100,6 +97,7 @@ public class CommitterImpl implements Committer {
 
   @Override
   public void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context, Collection<TopicPartition> addedPartitions) {
+    initializeCommitter(catalog, config, context);
     if (hasLeaderPartition(addedPartitions)) {
       LOG.info("Committer received leader partition. Starting Coordinator.");
       startCoordinator();
@@ -116,12 +114,12 @@ public class CommitterImpl implements Committer {
 
   @Override
   public void stop(Collection<TopicPartition> closedPartitions) {
-    stopWorker();
-    KafkaUtils.seekToLastCommittedOffsets(context);
     if (hasLeaderPartition(closedPartitions)) {
       LOG.info("Committer lost leader partition. Stopping Coordinator.");
       stopCoordinator();
     }
+    stopWorker();
+    KafkaUtils.seekToLastCommittedOffsets(context);
   }
 
   @Override
