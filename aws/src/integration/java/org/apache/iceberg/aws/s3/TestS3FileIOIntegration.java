@@ -285,7 +285,7 @@ public class TestS3FileIOIntegration {
   @Test
   public void testNewInputStreamWithAnalyticsAcceleratorCustomConfigured() throws Exception {
     final String prefetchingMode = "logicalio.prefetching.mode";
-    final String s3Uri = String.format("s3://%s/%s/%s", bucketName, prefix, "testFile.parquet");
+    final String s3Uri = String.format("s3://%s/%s/%s.parquet", bucketName, prefix, objectKey);
     S3FileIO s3FileIO = new S3FileIO();
     s3FileIO.initialize(
         ImmutableMap.of(
