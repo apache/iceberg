@@ -36,6 +36,7 @@ import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestBase;
 import org.apache.iceberg.TestTables;
+import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -86,30 +87,23 @@ class TestRewriteFileGroupPlanner {
     TestTables.clearTables();
   }
 
-  @ParameterizedTest
-  @EnumSource(
-      value = RewriteJobOrder.class,
-      names = {"FILES_DESC", "FILES_ASC", "BYTES_DESC", "BYTES_ASC"})
-  void testJobOrder(RewriteJobOrder order) {
+  @Test
+  void testPartitionedTable() {
     addFiles();
     RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
-    planner.init(
-        ImmutableMap.of(
-            RewriteFileGroupPlanner.REWRITE_ALL, "true", REWRITE_JOB_ORDER, order.name()));
-    FileRewritePlan<RewriteDataFiles.FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup>
-        result = planner.plan();
-    List<RewriteFileGroup> groups = Lists.newArrayList(result.groups().iterator());
-    assertThat(groups.stream().map(group -> group.info().partition()).collect(Collectors.toList()))
-        .isEqualTo(EXPECTED.get(order));
-    assertThat(result.totalGroupCount()).isEqualTo(3);
-    EXPECTED.get(order).forEach(s -> assertThat(result.groupsInPartition(s)).isEqualTo(1));
+    planner.init(ImmutableMap.of(RewriteFileGroupPlanner.REWRITE_ALL, "true"));
+
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
+
+    List<RewriteFileGroup> groups = Lists.newArrayList(plan.groups().iterator());
+    assertThat(groups).hasSize(3);
+    assertThat(groups.stream().mapToInt(RewriteGroupBase::inputFileNum).sum()).isEqualTo(6);
   }
 
   @Test
   void testUnpartitionedTable() {
     table.updateSpec().removeField("data_bucket").commit();
     table.refresh();
-
     table
         .newAppend()
         .appendFile(newDataFile("", 10))
@@ -123,10 +117,42 @@ class TestRewriteFileGroupPlanner {
             "1",
             RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES,
             "30"));
-    FileRewritePlan<RewriteDataFiles.FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup>
-        result = planner.plan();
-    assertThat(result.totalGroupCount()).isEqualTo(1);
-    assertThat(result.groups().iterator().next().inputFileNum()).isEqualTo(2);
+
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
+
+    assertThat(plan.totalGroupCount()).isEqualTo(1);
+    assertThat(plan.groups().iterator().next().inputFileNum()).isEqualTo(2);
+  }
+
+  @Test
+  void testEmptyTable() {
+    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    planner.init(REWRITE_ALL);
+
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
+
+    assertThat(table.currentSnapshot()).as("Table must be empty").isNull();
+    assertThat(plan.totalGroupCount()).isZero();
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = RewriteJobOrder.class,
+      names = {"FILES_DESC", "FILES_ASC", "BYTES_DESC", "BYTES_ASC"})
+  void testJobOrder(RewriteJobOrder order) {
+    addFiles();
+    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    planner.init(
+        ImmutableMap.of(
+            RewriteFileGroupPlanner.REWRITE_ALL, "true", REWRITE_JOB_ORDER, order.name()));
+
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
+
+    List<RewriteFileGroup> groups = Lists.newArrayList(plan.groups().iterator());
+    assertThat(groups.stream().map(group -> group.info().partition()).collect(Collectors.toList()))
+        .isEqualTo(EXPECTED.get(order));
+    assertThat(plan.totalGroupCount()).isEqualTo(3);
+    EXPECTED.get(order).forEach(s -> assertThat(plan.groupsInPartition(s)).isEqualTo(1));
   }
 
   @Test
@@ -139,25 +165,13 @@ class TestRewriteFileGroupPlanner {
             "true",
             RewriteFileGroupPlanner.MAX_FILE_GROUP_SIZE_BYTES,
             "10"));
-    FileRewritePlan<RewriteDataFiles.FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup>
-        result = planner.plan();
-    assertThat(result.totalGroupCount()).isEqualTo(6);
-    assertThat(result.groupsInPartition(FILE_1.partition())).isEqualTo(3);
-    assertThat(result.groupsInPartition(FILE_4.partition())).isEqualTo(2);
-    assertThat(result.groupsInPartition(FILE_6.partition())).isEqualTo(1);
-  }
 
-  @Test
-  void testEmptyTable() {
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
 
-    planner.init(REWRITE_ALL);
-
-    FileRewritePlan<RewriteDataFiles.FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup>
-        result = planner.plan();
-
-    assertThat(table.currentSnapshot()).as("Table must be empty").isNull();
-    assertThat(result.totalGroupCount()).isZero();
+    assertThat(plan.totalGroupCount()).isEqualTo(6);
+    assertThat(plan.groupsInPartition(FILE_1.partition())).isEqualTo(3);
+    assertThat(plan.groupsInPartition(FILE_4.partition())).isEqualTo(2);
+    assertThat(plan.groupsInPartition(FILE_6.partition())).isEqualTo(1);
   }
 
   @Test
@@ -170,10 +184,10 @@ class TestRewriteFileGroupPlanner {
                 Expressions.equal(Expressions.bucket("data", 16), 0),
                 Expressions.equal(Expressions.bucket("data", 16), 2)));
     planner.init(REWRITE_ALL);
-    FileRewritePlan<RewriteDataFiles.FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan =
-        planner.plan();
-    List<RewriteFileGroup> groups = Lists.newArrayList(plan.groups().iterator());
 
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
+
+    List<RewriteFileGroup> groups = Lists.newArrayList(plan.groups().iterator());
     assertThat(plan.totalGroupCount()).isEqualTo(2);
     assertThat(groups).hasSize(2);
     assertThat(groups.stream().mapToLong(RewriteFileGroup::inputFileNum).sum()).isEqualTo(4);
@@ -181,9 +195,8 @@ class TestRewriteFileGroupPlanner {
 
   @Test
   void testMaxOutputFileSize() {
-    int targetFileSize = 10;
     addFiles();
-
+    int targetFileSize = 10;
     RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
     planner.init(
         ImmutableMap.of(
@@ -191,35 +204,62 @@ class TestRewriteFileGroupPlanner {
             "true",
             RewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES,
             String.valueOf(targetFileSize)));
-    FileRewritePlan<RewriteDataFiles.FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan =
-        planner.plan();
+
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
+
     assertThat(plan.groups().iterator().next().maxOutputFileSize())
         .isGreaterThan(targetFileSize)
         .isLessThan((long) (targetFileSize * MAX_FILE_SIZE_DEFAULT_RATIO));
+  }
+
+  @Test
+  void testExpectedOutputFiles() {
+    addFiles();
+    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    planner.init(
+        ImmutableMap.of(
+            RewriteFileGroupPlanner.REWRITE_ALL,
+            "true",
+            RewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES,
+            "21"));
+
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
+
+    List<RewriteFileGroup> groups = Lists.newArrayList(plan.groups().iterator());
+    assertThat(groups).hasSize(3);
+    for (RewriteFileGroup group : groups) {
+      if (FILE_1.partition().equals(group.info().partition())) {
+        assertThat(group.expectedOutputFiles()).isEqualTo(2);
+      } else if (FILE_4.partition().equals(group.info().partition())) {
+        assertThat(group.expectedOutputFiles()).isEqualTo(1);
+      } else if (FILE_6.partition().equals(group.info().partition())) {
+        assertThat(group.expectedOutputFiles()).isEqualTo(3);
+      } else {
+        throw new IllegalStateException("Unexpected partition: " + group.info().partition());
+      }
+    }
   }
 
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   void testOutputSpec(boolean specific) {
     addFiles();
-
     int oldSpecId = table.spec().specId();
     table.updateSpec().removeField("data_bucket").commit();
     table.newAppend().appendFile(newDataFile("", 10)).commit();
     table.refresh();
     int newSpecId = table.spec().specId();
 
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
-
     Map<String, String> options = Maps.newHashMap(REWRITE_ALL);
     if (specific) {
       options.put(RewriteDataFiles.OUTPUT_SPEC_ID, String.valueOf(oldSpecId));
     }
 
+    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
     planner.init(options);
 
-    FileRewritePlan<RewriteDataFiles.FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan =
-        planner.plan();
+    FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
+
     assertThat(plan.groups().iterator().next().outputSpecId())
         .isEqualTo(specific ? oldSpecId : newSpecId);
   }
@@ -280,18 +320,8 @@ class TestRewriteFileGroupPlanner {
   }
 
   @Test
-  void testBinPackDataSelectFiles() {
+  void testSizeFiltering() {
     RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
-
-    checkDataFileSizeFiltering(planner);
-    checkDataFilesDeleteThreshold(planner);
-    checkDataFileGroupWithEnoughFiles(planner);
-    checkDataFileGroupWithEnoughData(planner);
-    checkDataFileGroupWithTooMuchData(planner);
-    checkDataFilesWithHighFileScopedDeleteRatio(planner);
-  }
-
-  private void checkDataFileSizeFiltering(RewriteFileGroupPlanner planner) {
     FileScanTask tooSmallTask = new MockFileScanTask(100L);
     FileScanTask optimal = new MockFileScanTask(450);
     FileScanTask tooBigTask = new MockFileScanTask(1000L);
@@ -301,36 +331,19 @@ class TestRewriteFileGroupPlanner {
         ImmutableMap.of(
             RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, "250",
             RewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES, "500",
-            RewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES, "750",
-            RewriteFileGroupPlanner.DELETE_FILE_THRESHOLD, String.valueOf(Integer.MAX_VALUE));
+            RewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES, "750");
     planner.init(options);
 
     Iterable<List<FileScanTask>> groups = planner.planFileGroups(tasks);
     assertThat(groups).as("Must have 1 group").hasSize(1);
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
     assertThat(group).as("Must rewrite 2 files").hasSize(2);
+    assertThat(group).containsExactlyInAnyOrder(tooSmallTask, tooBigTask);
   }
 
-  private void checkDataFilesDeleteThreshold(RewriteFileGroupPlanner planner) {
-    FileScanTask tooManyDeletesTask = MockFileScanTask.mockTaskWithDeletes(1000L, 3);
-    FileScanTask optimalTask = MockFileScanTask.mockTaskWithDeletes(1000L, 1);
-    List<FileScanTask> tasks = ImmutableList.of(tooManyDeletesTask, optimalTask);
-
-    Map<String, String> options =
-        ImmutableMap.of(
-            RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, "1",
-            RewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES, "2000",
-            RewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES, "5000",
-            RewriteFileGroupPlanner.DELETE_FILE_THRESHOLD, "2");
-    planner.init(options);
-
-    Iterable<List<FileScanTask>> groups = planner.planFileGroups(tasks);
-    assertThat(groups).as("Must have 1 group").hasSize(1);
-    List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    assertThat(group).as("Must rewrite 1 file").hasSize(1);
-  }
-
-  private void checkDataFileGroupWithEnoughFiles(RewriteFileGroupPlanner planner) {
+  @Test
+  void testGroupWithEnoughFiles() {
+    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
     List<FileScanTask> tasks =
         ImmutableList.of(
             new MockFileScanTask(100L),
@@ -343,8 +356,7 @@ class TestRewriteFileGroupPlanner {
             RewriteFileGroupPlanner.MIN_INPUT_FILES, "3",
             RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, "150",
             RewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES, "1000",
-            RewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES, "5000",
-            RewriteFileGroupPlanner.DELETE_FILE_THRESHOLD, String.valueOf(Integer.MAX_VALUE));
+            RewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES, "5000");
     planner.init(options);
 
     Iterable<List<FileScanTask>> groups = planner.planFileGroups(tasks);
@@ -353,18 +365,18 @@ class TestRewriteFileGroupPlanner {
     assertThat(group).as("Must rewrite 4 files").hasSize(4);
   }
 
-  private void checkDataFileGroupWithEnoughData(RewriteFileGroupPlanner planner) {
+  @Test
+  void testGroupWithEnoughData() {
+    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
     List<FileScanTask> tasks =
         ImmutableList.of(
             new MockFileScanTask(100L), new MockFileScanTask(100L), new MockFileScanTask(100L));
 
     Map<String, String> options =
         ImmutableMap.of(
-            RewriteFileGroupPlanner.MIN_INPUT_FILES, "5",
             RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, "200",
             RewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES, "250",
-            RewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES, "500",
-            RewriteFileGroupPlanner.DELETE_FILE_THRESHOLD, String.valueOf(Integer.MAX_VALUE));
+            RewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES, "500");
     planner.init(options);
 
     Iterable<List<FileScanTask>> groups = planner.planFileGroups(tasks);
@@ -373,16 +385,16 @@ class TestRewriteFileGroupPlanner {
     assertThat(group).as("Must rewrite 3 files").hasSize(3);
   }
 
-  private void checkDataFileGroupWithTooMuchData(RewriteFileGroupPlanner planner) {
+  @Test
+  void testFileSizeAboveTarget() {
+    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
     List<FileScanTask> tasks = ImmutableList.of(new MockFileScanTask(2000L));
 
     Map<String, String> options =
         ImmutableMap.of(
-            RewriteFileGroupPlanner.MIN_INPUT_FILES, "5",
             RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, "200",
             RewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES, "250",
-            RewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES, "500",
-            RewriteFileGroupPlanner.DELETE_FILE_THRESHOLD, String.valueOf(Integer.MAX_VALUE));
+            RewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES, "500");
     planner.init(options);
 
     Iterable<List<FileScanTask>> groups = planner.planFileGroups(tasks);
@@ -391,23 +403,46 @@ class TestRewriteFileGroupPlanner {
     assertThat(group).as("Must rewrite big file").hasSize(1);
   }
 
-  private void checkDataFilesWithHighFileScopedDeleteRatio(RewriteFileGroupPlanner rewriter) {
-    FileScanTask tooManyDeletesTask =
-        MockFileScanTask.mockTaskWithFileScopedDeleteRecords(1000L, 100, 1, 30);
-    FileScanTask optimalTask =
-        MockFileScanTask.mockTaskWithFileScopedDeleteRecords(1000L, 100, 1, 29);
+  @Test
+  void testDeleteFileThreshold() {
+    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    FileScanTask tooManyDeletesTask = MockFileScanTask.mockTaskWithDeletes(1000L, 3);
+    FileScanTask optimalTask = MockFileScanTask.mockTaskWithDeletes(1001L, 1);
     List<FileScanTask> tasks = ImmutableList.of(tooManyDeletesTask, optimalTask);
 
     Map<String, String> options =
         ImmutableMap.of(
             RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, "0",
-            RewriteFileGroupPlanner.DELETE_FILE_THRESHOLD, "10");
-    rewriter.init(options);
+            RewriteFileGroupPlanner.DELETE_FILE_THRESHOLD, "2");
+    planner.init(options);
 
-    Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
+    Iterable<List<FileScanTask>> groups = planner.planFileGroups(tasks);
     assertThat(groups).as("Must have 1 group").hasSize(1);
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
     assertThat(group).as("Must rewrite 1 file").hasSize(1);
+    assertThat(group).containsExactly(tooManyDeletesTask);
+  }
+
+  @Test
+  void testDeleteRatioThreshold() {
+    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    FileScanTask tooManyDeletesTask =
+        MockFileScanTask.mockTaskWithFileScopedDeleteRecords(1000L, 100, 1, 20);
+    FileScanTask optimalTask =
+        MockFileScanTask.mockTaskWithFileScopedDeleteRecords(1001L, 100, 1, 19);
+    List<FileScanTask> tasks = ImmutableList.of(tooManyDeletesTask, optimalTask);
+
+    Map<String, String> options =
+        ImmutableMap.of(
+            RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, "0",
+            RewriteFileGroupPlanner.DELETE_RATIO_THRESHOLD, "0.2");
+    planner.init(options);
+
+    Iterable<List<FileScanTask>> groups = planner.planFileGroups(tasks);
+    assertThat(groups).as("Must have 1 group").hasSize(1);
+    List<FileScanTask> group = Iterables.getOnlyElement(groups);
+    assertThat(group).as("Must rewrite 1 file").hasSize(1);
+    assertThat(group).containsExactly(tooManyDeletesTask);
   }
 
   private void addFiles() {

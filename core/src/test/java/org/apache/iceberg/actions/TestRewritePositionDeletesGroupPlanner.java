@@ -39,6 +39,7 @@ import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestBase;
 import org.apache.iceberg.TestTables;
+import org.apache.iceberg.actions.RewritePositionDeleteFiles.FileGroupInfo;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -82,40 +83,24 @@ class TestRewritePositionDeletesGroupPlanner {
     TestTables.clearTables();
   }
 
-  @ParameterizedTest
-  @EnumSource(
-      value = RewriteJobOrder.class,
-      names = {"FILES_DESC", "FILES_ASC", "BYTES_DESC", "BYTES_ASC"})
-  void testJobOrder(RewriteJobOrder order) {
+  @Test
+  void testPartitionedTable() {
     addFiles();
     RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
-    planner.init(
-        ImmutableMap.of(
-            RewriteFileGroupPlanner.REWRITE_ALL, "true", REWRITE_JOB_ORDER, order.name()));
-    FileRewritePlan<
-            RewritePositionDeleteFiles.FileGroupInfo,
-            PositionDeletesScanTask,
-            DeleteFile,
-            RewritePositionDeletesGroup>
-        result = planner.plan();
-    List<RewritePositionDeletesGroup> groups = Lists.newArrayList(result.groups().iterator());
-    assertThat(
-            groups.stream()
-                .map(
-                    group ->
-                        new PartitionData(TestBase.SPEC.partitionType())
-                            .copyFor(group.info().partition()))
-                .collect(Collectors.toList()))
-        .isEqualTo(EXPECTED.get(order));
-    assertThat(result.totalGroupCount()).isEqualTo(3);
-    EXPECTED.get(order).forEach(s -> assertThat(result.groupsInPartition(s)).isEqualTo(1));
+    planner.init(ImmutableMap.of(RewritePositionDeletesGroupPlanner.REWRITE_ALL, "true"));
+
+    FileRewritePlan<FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
+        plan = planner.plan();
+
+    List<RewritePositionDeletesGroup> groups = Lists.newArrayList(plan.groups().iterator());
+    assertThat(groups).hasSize(3);
+    assertThat(groups.stream().mapToInt(RewriteGroupBase::inputFileNum).sum()).isEqualTo(6);
   }
 
   @Test
   void testUnpartitionedTable() {
     table.updateSpec().removeField("data_bucket").commit();
     table.refresh();
-
     table
         .newRowDelta()
         .addRows(newDataFile(""))
@@ -131,14 +116,51 @@ class TestRewritePositionDeletesGroupPlanner {
             "1",
             RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES,
             "30"));
-    FileRewritePlan<
-            RewritePositionDeleteFiles.FileGroupInfo,
-            PositionDeletesScanTask,
-            DeleteFile,
-            RewritePositionDeletesGroup>
-        result = planner.plan();
-    assertThat(result.totalGroupCount()).isEqualTo(1);
-    assertThat(result.groups().iterator().next().inputFileNum()).isEqualTo(2);
+
+    FileRewritePlan<FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
+        plan = planner.plan();
+
+    assertThat(plan.totalGroupCount()).isEqualTo(1);
+    assertThat(plan.groups().iterator().next().inputFileNum()).isEqualTo(2);
+  }
+
+  @Test
+  void testEmptyTable() {
+    RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
+    planner.init(REWRITE_ALL);
+
+    FileRewritePlan<FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
+        plan = planner.plan();
+
+    assertThat(table.currentSnapshot()).as("Table must be empty").isNull();
+    assertThat(plan.totalGroupCount()).isZero();
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = RewriteJobOrder.class,
+      names = {"FILES_DESC", "FILES_ASC", "BYTES_DESC", "BYTES_ASC"})
+  void testJobOrder(RewriteJobOrder order) {
+    addFiles();
+    RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
+    planner.init(
+        ImmutableMap.of(
+            RewriteFileGroupPlanner.REWRITE_ALL, "true", REWRITE_JOB_ORDER, order.name()));
+
+    FileRewritePlan<FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
+        plan = planner.plan();
+
+    List<RewritePositionDeletesGroup> groups = Lists.newArrayList(plan.groups().iterator());
+    assertThat(
+            groups.stream()
+                .map(
+                    group ->
+                        new PartitionData(TestBase.SPEC.partitionType())
+                            .copyFor(group.info().partition()))
+                .collect(Collectors.toList()))
+        .isEqualTo(EXPECTED.get(order));
+    assertThat(plan.totalGroupCount()).isEqualTo(3);
+    EXPECTED.get(order).forEach(s -> assertThat(plan.groupsInPartition(s)).isEqualTo(1));
   }
 
   @Test
@@ -151,33 +173,14 @@ class TestRewritePositionDeletesGroupPlanner {
             "true",
             RewritePositionDeletesGroupPlanner.MAX_FILE_GROUP_SIZE_BYTES,
             "10"));
-    FileRewritePlan<
-            RewritePositionDeleteFiles.FileGroupInfo,
-            PositionDeletesScanTask,
-            DeleteFile,
-            RewritePositionDeletesGroup>
-        result = planner.plan();
-    assertThat(result.totalGroupCount()).isEqualTo(6);
-    assertThat(result.groupsInPartition(FILE_1.partition())).isEqualTo(3);
-    assertThat(result.groupsInPartition(FILE_2.partition())).isEqualTo(2);
-    assertThat(result.groupsInPartition(FILE_3.partition())).isEqualTo(1);
-  }
 
-  @Test
-  void testEmptyTable() {
-    RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
+    FileRewritePlan<FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
+        plan = planner.plan();
 
-    planner.init(REWRITE_ALL);
-
-    FileRewritePlan<
-            RewritePositionDeleteFiles.FileGroupInfo,
-            PositionDeletesScanTask,
-            DeleteFile,
-            RewritePositionDeletesGroup>
-        result = planner.plan();
-
-    assertThat(table.currentSnapshot()).as("Table must be empty").isNull();
-    assertThat(result.totalGroupCount()).isZero();
+    assertThat(plan.totalGroupCount()).isEqualTo(6);
+    assertThat(plan.groupsInPartition(FILE_1.partition())).isEqualTo(3);
+    assertThat(plan.groupsInPartition(FILE_2.partition())).isEqualTo(2);
+    assertThat(plan.groupsInPartition(FILE_3.partition())).isEqualTo(1);
   }
 
   @Test
@@ -191,14 +194,11 @@ class TestRewritePositionDeletesGroupPlanner {
                 Expressions.equal(Expressions.bucket("data", 16), 2)),
             false);
     planner.init(REWRITE_ALL);
-    FileRewritePlan<
-            RewritePositionDeleteFiles.FileGroupInfo,
-            PositionDeletesScanTask,
-            DeleteFile,
-            RewritePositionDeletesGroup>
-        plan = planner.plan();
-    List<RewritePositionDeletesGroup> groups = Lists.newArrayList(plan.groups().iterator());
 
+    FileRewritePlan<FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
+        plan = planner.plan();
+
+    List<RewritePositionDeletesGroup> groups = Lists.newArrayList(plan.groups().iterator());
     assertThat(plan.totalGroupCount()).isEqualTo(2);
     assertThat(groups).hasSize(2);
     assertThat(groups.stream().mapToLong(RewritePositionDeletesGroup::inputFileNum).sum())
@@ -207,9 +207,8 @@ class TestRewritePositionDeletesGroupPlanner {
 
   @Test
   void testMaxOutputFileSize() {
-    int targetFileSize = 10;
     addFiles();
-
+    int targetFileSize = 10;
     RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
     planner.init(
         ImmutableMap.of(
@@ -217,12 +216,10 @@ class TestRewritePositionDeletesGroupPlanner {
             "true",
             RewritePositionDeletesGroupPlanner.TARGET_FILE_SIZE_BYTES,
             String.valueOf(targetFileSize)));
-    FileRewritePlan<
-            RewritePositionDeleteFiles.FileGroupInfo,
-            PositionDeletesScanTask,
-            DeleteFile,
-            RewritePositionDeletesGroup>
+
+    FileRewritePlan<FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
         plan = planner.plan();
+
     assertThat(plan.groups().iterator().next().maxOutputFileSize())
         .isGreaterThan(targetFileSize)
         .isLessThan((long) (targetFileSize * MAX_FILE_SIZE_DEFAULT_RATIO));

@@ -121,8 +121,8 @@ public class RewritePositionDeletesGroupPlanner
                                 ctx,
                                 partition,
                                 tasks,
-                                splitSize(inputSize),
-                                numOutputFiles(inputSize));
+                                inputSplitSize(inputSize),
+                                expectedOutputFiles(inputSize));
                           });
                 })
             .sorted(RewritePositionDeletesGroup.comparator(rewriteJobOrder));
@@ -207,8 +207,8 @@ public class RewritePositionDeletesGroupPlanner
       RewriteExecutionContext ctx,
       StructLike partition,
       List<PositionDeletesScanTask> tasks,
-      long splitSize,
-      int numOutputSize) {
+      long inputSplitSize,
+      int expectedOutputFiles) {
     ImmutableRewritePositionDeleteFiles.FileGroupInfo info =
         ImmutableRewritePositionDeleteFiles.FileGroupInfo.builder()
             .globalIndex(ctx.currentGlobalIndex())
@@ -216,6 +216,6 @@ public class RewritePositionDeletesGroupPlanner
             .partition(partition)
             .build();
     return new RewritePositionDeletesGroup(
-        info, Lists.newArrayList(tasks), writeMaxFileSize(), splitSize, numOutputSize);
+        info, Lists.newArrayList(tasks), writeMaxFileSize(), inputSplitSize, expectedOutputFiles);
   }
 }

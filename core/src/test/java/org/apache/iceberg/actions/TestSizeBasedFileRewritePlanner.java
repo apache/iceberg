@@ -58,7 +58,7 @@ class TestSizeBasedFileRewritePlanner {
   }
 
   @Test
-  void testSplitSizeLowerBound() {
+  void testInputSplitSizeLowerBound() {
     FileScanTask task1 = new MockFileScanTask(mockDataFile());
     FileScanTask task2 = new MockFileScanTask(mockDataFile());
     FileScanTask task3 = new MockFileScanTask(mockDataFile());

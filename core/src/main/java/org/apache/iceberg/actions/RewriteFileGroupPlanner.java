@@ -212,8 +212,8 @@ public class RewriteFileGroupPlanner
                                 ctx,
                                 partition,
                                 tasks,
-                                splitSize(inputSize),
-                                numOutputFiles(inputSize));
+                                inputSplitSize(inputSize),
+                                expectedOutputFiles(inputSize));
                           });
                 })
             .sorted(RewriteFileGroup.comparator(rewriteJobOrder));
@@ -291,8 +291,8 @@ public class RewriteFileGroupPlanner
       RewriteExecutionContext ctx,
       StructLike partition,
       List<FileScanTask> tasks,
-      long splitSize,
-      int numOutputSize) {
+      long inputSplitSize,
+      int expectedOutputFiles) {
     FileGroupInfo info =
         ImmutableRewriteDataFiles.FileGroupInfo.builder()
             .globalIndex(ctx.currentGlobalIndex())
@@ -304,7 +304,7 @@ public class RewriteFileGroupPlanner
         Lists.newArrayList(tasks),
         outputSpecId(),
         writeMaxFileSize(),
-        splitSize,
-        numOutputSize);
+        inputSplitSize,
+        expectedOutputFiles);
   }
 }

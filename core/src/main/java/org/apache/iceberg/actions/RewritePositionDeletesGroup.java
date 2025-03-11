@@ -53,9 +53,9 @@ public class RewritePositionDeletesGroup
       FileGroupInfo info,
       List<PositionDeletesScanTask> tasks,
       long writeMaxFileSize,
-      long splitSize,
+      long inputSplitSize,
       int expectedOutputFiles) {
-    super(info, tasks, writeMaxFileSize, splitSize, expectedOutputFiles);
+    super(info, tasks, writeMaxFileSize, inputSplitSize, expectedOutputFiles);
     Preconditions.checkArgument(!tasks.isEmpty(), "Tasks must not be empty");
     this.maxRewrittenDataSequenceNumber =
         tasks.stream().mapToLong(t -> t.file().dataSequenceNumber()).max().getAsLong();

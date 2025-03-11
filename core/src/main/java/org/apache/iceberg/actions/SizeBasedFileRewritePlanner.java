@@ -196,8 +196,8 @@ public abstract class SizeBasedFileRewritePlanner<
    * of output files. The final split size is adjusted to be at least as big as the target file size
    * but less than the max write file size.
    */
-  protected long splitSize(long inputSize) {
-    long estimatedSplitSize = (inputSize / numOutputFiles(inputSize)) + SPLIT_OVERHEAD;
+  protected long inputSplitSize(long inputSize) {
+    long estimatedSplitSize = (inputSize / expectedOutputFiles(inputSize)) + SPLIT_OVERHEAD;
     if (estimatedSplitSize < targetFileSize) {
       return targetFileSize;
     } else {
@@ -219,7 +219,7 @@ public abstract class SizeBasedFileRewritePlanner<
    * @param inputSize a total input size for a file group
    * @return the number of files this rewriter should create
    */
-  protected int numOutputFiles(long inputSize) {
+  protected int expectedOutputFiles(long inputSize) {
     if (inputSize < targetFileSize) {
       return 1;
     }

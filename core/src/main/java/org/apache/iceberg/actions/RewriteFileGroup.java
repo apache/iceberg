@@ -51,9 +51,9 @@ public class RewriteFileGroup extends RewriteGroupBase<FileGroupInfo, FileScanTa
       List<FileScanTask> fileScanTasks,
       int outputSpecId,
       long writeMaxFileSize,
-      long splitSize,
+      long inputSplitSize,
       int expectedOutputFiles) {
-    super(info, fileScanTasks, writeMaxFileSize, splitSize, expectedOutputFiles);
+    super(info, fileScanTasks, writeMaxFileSize, inputSplitSize, expectedOutputFiles);
     this.outputSpecId = outputSpecId;
   }
 
