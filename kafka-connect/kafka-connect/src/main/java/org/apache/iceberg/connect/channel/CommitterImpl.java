@@ -20,6 +20,7 @@ package org.apache.iceberg.connect.channel;
 
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.Committer;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -47,12 +48,15 @@ public class CommitterImpl implements Committer {
   private SinkTaskContext context;
   private KafkaClientFactory clientFactory;
   private Collection<MemberDescription> membersWhenWorkerIsCoordinator;
+  private final AtomicBoolean isCommitterInitialized = new AtomicBoolean(false);
 
   void initializeCommitter(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
-    this.catalog = catalog;
-    this.config = config;
-    this.context = context;
-    this.clientFactory = new KafkaClientFactory(config.kafkaProps());
+    if (isCommitterInitialized.compareAndSet(false, true)) {
+      this.catalog = catalog;
+      this.config = config;
+      this.context = context;
+      this.clientFactory = new KafkaClientFactory(config.kafkaProps());
+    }
   }
 
   static class TopicPartitionComparator implements Comparator<TopicPartition> {
@@ -110,12 +114,12 @@ public class CommitterImpl implements Committer {
 
   @Override
   public void stop(Collection<TopicPartition> closedPartitions) {
-    stopWorker();
-    KafkaUtils.seekToLastCommittedOffsets(context);
     if (hasLeaderPartition(closedPartitions)) {
       LOG.info("Committer lost leader partition. Stopping Coordinator.");
       stopCoordinator();
     }
+    stopWorker();
+    KafkaUtils.seekToLastCommittedOffsets(context);
   }
 
   @Override
