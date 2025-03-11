@@ -588,6 +588,10 @@ class ParquetMetrics {
   @SuppressWarnings("unchecked")
   private static <T> T truncateLowerBound(
       org.apache.iceberg.types.Type.PrimitiveType type, T value, int length) {
+    if (null == value) {
+      return null;
+    }
+
     switch (type.typeId()) {
       case STRING:
         return (T) UnicodeUtil.truncateStringMin((String) value, length);
@@ -601,6 +605,10 @@ class ParquetMetrics {
   @SuppressWarnings("unchecked")
   private static <T> T truncateUpperBound(
       org.apache.iceberg.types.Type.PrimitiveType type, T value, int length) {
+    if (null == value) {
+      return null;
+    }
+
     switch (type.typeId()) {
       case STRING:
         return (T) UnicodeUtil.truncateStringMax((String) value, length);
