@@ -48,7 +48,7 @@ public class IcebergSinkTask extends SinkTask {
     // Catalog and committer are global resources and do not depend on the topic partition;
     // hence, we should open them only with the start call and should only close them if the task is closed by the Connect framework.
     catalog = CatalogUtils.loadCatalog(config);
-    committer = CommitterFactory.createCommitter(catalog, config, context);
+    committer = CommitterFactory.createCommitter();
   }
 
   @Override

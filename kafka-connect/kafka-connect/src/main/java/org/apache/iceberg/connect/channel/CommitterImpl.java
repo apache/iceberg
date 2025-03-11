@@ -42,24 +42,17 @@ public class CommitterImpl implements Committer {
 
   private CoordinatorThread coordinatorThread;
   private Worker worker;
-  private final Catalog catalog;
-  private final IcebergSinkConfig config;
-  private final SinkTaskContext context;
-  private final KafkaClientFactory clientFactory;
+  private Catalog catalog;
+  private IcebergSinkConfig config;
+  private SinkTaskContext context;
+  private KafkaClientFactory clientFactory;
   private Collection<MemberDescription> membersWhenWorkerIsCoordinator;
 
-  public CommitterImpl(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
+  void initializeCommitter(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
     this.catalog = catalog;
     this.config = config;
     this.context = context;
     this.clientFactory = new KafkaClientFactory(config.kafkaProps());
-  }
-
-  public CommitterImpl() {
-    this.catalog = null;
-    this.config = null;
-    this.context = null;
-    this.clientFactory = null;
   }
 
   static class TopicPartitionComparator implements Comparator<TopicPartition> {
@@ -100,6 +93,7 @@ public class CommitterImpl implements Committer {
 
   @Override
   public void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context, Collection<TopicPartition> addedPartitions) {
+    initializeCommitter(catalog, config, context);
     if (hasLeaderPartition(addedPartitions)) {
       LOG.info("Committer received leader partition. Starting Coordinator.");
       startCoordinator();
