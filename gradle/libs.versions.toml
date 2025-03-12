@@ -22,6 +22,7 @@
 [versions]
 activation = "1.1.1"
 aliyun-sdk-oss = "3.10.2"
+analyticsaccelerator = "1.0.0"
 antlr = "4.9.3"
 aircompressor = "0.27"
 apiguardian = "1.1.2"
@@ -88,6 +89,7 @@ tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
 activation = { module = "javax.activation:activation", version.ref = "activation" }
 aircompressor = { module = "io.airlift:aircompressor", version.ref = "aircompressor" }
 aliyun-sdk-oss = { module = "com.aliyun.oss:aliyun-sdk-oss", version.ref = "aliyun-sdk-oss" }
+analyticsaccelerator-s3 = { module = "software.amazon.s3.analyticsaccelerator:analyticsaccelerator-s3", version.ref = "analyticsaccelerator" }
 antlr-antlr4 = { module = "org.antlr:antlr4", version.ref = "antlr" }
 antlr-runtime = { module = "org.antlr:antlr4-runtime", version.ref = "antlr" }
 arrow-memory-netty = { module = "org.apache.arrow:arrow-memory-netty", version.ref = "arrow" }

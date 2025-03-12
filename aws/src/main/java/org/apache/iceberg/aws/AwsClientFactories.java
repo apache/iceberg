@@ -39,6 +39,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.GlueClientBuilder;
 import software.amazon.awssdk.services.kms.KmsClient;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
@@ -116,6 +117,14 @@ public class AwsClientFactories {
           .applyMutation(s3FileIOProperties::applyUserAgentConfigurations)
           .applyMutation(s3FileIOProperties::applyRetryConfigurations)
           .build();
+    }
+
+    @Override
+    public S3AsyncClient s3Async() {
+      if (s3FileIOProperties.isS3CRTEnabled()) {
+        return S3AsyncClient.crtBuilder().build();
+      }
+      return S3AsyncClient.builder().build();
     }
 
     @Override
