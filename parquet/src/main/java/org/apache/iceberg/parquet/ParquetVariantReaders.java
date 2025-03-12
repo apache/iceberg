@@ -30,6 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.variants.PhysicalType;
+import org.apache.iceberg.variants.ShreddedArray;
 import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
@@ -93,6 +94,20 @@ public class ParquetVariantReaders {
         typedDefinitionLevel,
         fieldNames,
         fieldReaders);
+  }
+
+  public static VariantValueReader array(
+      int valueDefinitionLevel,
+      ParquetValueReader<?> valueReader,
+      int typedDefinitionLevel,
+      int typedRepetitionLevel,
+      VariantValueReader elementReader) {
+    return new ShreddedArrayReader(
+        valueDefinitionLevel,
+        (VariantValueReader) valueReader,
+        typedDefinitionLevel,
+        typedRepetitionLevel,
+        elementReader);
   }
 
   public static VariantValueReader asVariant(PhysicalType type, ParquetValueReader<?> reader) {
@@ -329,6 +344,91 @@ public class ParquetVariantReaders {
       for (VariantValueReader reader : fieldReaders) {
         reader.setPageSource(pageStore);
       }
+    }
+  }
+
+  private static class ShreddedArrayReader implements VariantValueReader {
+    private final int valueDL;
+    private final VariantValueReader valueReader;
+    private final int repeatedDL;
+    private final int repeatedRL;
+    private final VariantValueReader elementReader;
+    private final TripleIterator<?> valueColumn;
+    private final TripleIterator<?> elementColumn;
+    private final List<TripleIterator<?>> children;
+
+    private ShreddedArrayReader(
+        int valueDL,
+        VariantValueReader valueReader,
+        int typedDL,
+        int typedRL,
+        VariantValueReader elementReader) {
+      this.valueDL = valueDL;
+      this.valueReader = valueReader;
+      this.repeatedDL = typedDL + 1;
+      this.repeatedRL = typedRL + 1;
+      this.elementReader = elementReader;
+      this.elementColumn = this.elementReader.column();
+      this.valueColumn = valueReader != null ? valueReader.column() : elementColumn;
+      this.children =
+          children(Iterables.concat(Arrays.asList(valueReader), Arrays.asList(elementReader)));
+    }
+
+    @Override
+    public VariantValue read(VariantMetadata metadata) {
+      // if the current definition level is less to the definition level of the repeated
+      // type, i.e. typed_value is null, then it's not an array
+      boolean isArray = elementColumn.currentDefinitionLevel() >= repeatedDL;
+      VariantValue value = ParquetVariantReaders.read(metadata, valueReader, valueDL);
+
+      if (isArray) {
+        Preconditions.checkArgument(
+            value == MISSING, "Invalid variant, non-array value: %s", value);
+
+        // if the current definition level is equal to the definition level of this repeated
+        // type, then it's an empty list and the repetition level will always be <= rl.
+        ShreddedArray arr = Variants.array();
+        do {
+          if (elementColumn.currentDefinitionLevel() > repeatedDL) {
+            VariantValue elementValue = elementReader.read(metadata);
+            arr.add(elementValue);
+          } else {
+            // consume the empty list triple
+            for (TripleIterator<?> child : elementReader.columns()) {
+              child.nextNull();
+            }
+            break;
+          }
+        } while (elementColumn.currentRepetitionLevel() > repeatedRL);
+
+        return arr;
+      }
+
+      // for non-arrays, advance the element iterators
+      for (TripleIterator<?> child : elementReader.columns()) {
+        child.nextNull();
+      }
+
+      return value;
+    }
+
+    @Override
+    public TripleIterator<?> column() {
+      return valueColumn;
+    }
+
+    @Override
+    public List<TripleIterator<?>> columns() {
+      return children;
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+      if (valueReader != null) {
+        valueReader.setPageSource(pageStore);
+      }
+
+      elementReader.setPageSource(pageStore);
     }
   }
 

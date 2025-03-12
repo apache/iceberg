@@ -162,8 +162,13 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
 
   @Override
   public VariantValueReader array(
-      GroupType array, ParquetValueReader<?> valueResult, ParquetValueReader<?> elementResult) {
-    throw new UnsupportedOperationException("Array is not yet supported");
+      GroupType array, ParquetValueReader<?> valueReader, ParquetValueReader<?> elementResult) {
+    int valueDL =
+        valueReader != null ? schema.getMaxDefinitionLevel(path(VALUE)) - 1 : Integer.MAX_VALUE;
+    int typedDL = schema.getMaxDefinitionLevel(path(TYPED_VALUE)) - 1;
+    int typedRL = schema.getMaxRepetitionLevel(path(TYPED_VALUE)) - 1;
+    return ParquetVariantReaders.array(
+        valueDL, valueReader, typedDL, typedRL, (VariantValueReader) elementResult);
   }
 
   private static class LogicalTypeToVariantReader
