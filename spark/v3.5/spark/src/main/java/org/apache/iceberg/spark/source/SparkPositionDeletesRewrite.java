@@ -80,6 +80,7 @@ public class SparkPositionDeletesRewrite implements Write {
   private final int specId;
   private final StructLike partition;
   private final Map<String, String> writeProperties;
+  private final int formatVersion;
 
   /**
    * Constructs a {@link SparkPositionDeletesRewrite}.
@@ -92,6 +93,7 @@ public class SparkPositionDeletesRewrite implements Write {
    * @param dsSchema schema of original incoming position deletes dataset
    * @param specId spec id of position deletes
    * @param partition partition value of position deletes
+   * @param formatVersion The format version of the underlying table
    */
   SparkPositionDeletesRewrite(
       SparkSession spark,
@@ -101,7 +103,8 @@ public class SparkPositionDeletesRewrite implements Write {
       Schema writeSchema,
       StructType dsSchema,
       int specId,
-      StructLike partition) {
+      StructLike partition,
+      int formatVersion) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.queryId = writeInfo.queryId();
@@ -114,6 +117,7 @@ public class SparkPositionDeletesRewrite implements Write {
     this.specId = specId;
     this.partition = partition;
     this.writeProperties = writeConf.writeProperties();
+    this.formatVersion = formatVersion;
   }
 
   @Override
@@ -139,7 +143,8 @@ public class SparkPositionDeletesRewrite implements Write {
           dsSchema,
           specId,
           partition,
-          writeProperties);
+          writeProperties,
+          formatVersion);
     }
 
     @Override
@@ -191,6 +196,7 @@ public class SparkPositionDeletesRewrite implements Write {
     private final int specId;
     private final StructLike partition;
     private final Map<String, String> writeProperties;
+    private final int formatVersion;
 
     PositionDeletesWriterFactory(
         Broadcast<Table> tableBroadcast,
@@ -202,7 +208,8 @@ public class SparkPositionDeletesRewrite implements Write {
         StructType dsSchema,
         int specId,
         StructLike partition,
-        Map<String, String> writeProperties) {
+        Map<String, String> writeProperties,
+        int formatVersion) {
       this.tableBroadcast = tableBroadcast;
       this.queryId = queryId;
       this.format = format;
@@ -213,6 +220,7 @@ public class SparkPositionDeletesRewrite implements Write {
       this.specId = specId;
       this.partition = partition;
       this.writeProperties = writeProperties;
+      this.formatVersion = formatVersion;
     }
 
     @Override

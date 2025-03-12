@@ -113,4 +113,8 @@ public class SparkActions implements ActionsProvider {
   public RewriteTablePathSparkAction rewriteTablePath(Table table) {
     return new RewriteTablePathSparkAction(spark, table);
   }
+
+  public RewriteDVsSparkAction rewriteDVs(Table table) {
+    return new RewriteDVsSparkAction(spark, table);
+  }
 }
