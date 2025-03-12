@@ -122,9 +122,16 @@ public class AwsClientFactories {
     @Override
     public S3AsyncClient s3Async() {
       if (s3FileIOProperties.isS3CRTEnabled()) {
-        return S3AsyncClient.crtBuilder().build();
+        return S3AsyncClient.crtBuilder()
+            .applyMutation(awsClientProperties::applyClientRegionConfiguration)
+            .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
+            .applyMutation(s3FileIOProperties::applyS3CrtConfigurations)
+            .build();
       }
-      return S3AsyncClient.builder().build();
+      return S3AsyncClient.builder()
+          .applyMutation(awsClientProperties::applyClientRegionConfiguration)
+          .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
+          .build();
     }
 
     @Override

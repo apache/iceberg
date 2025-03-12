@@ -58,9 +58,18 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   @Override
   public S3AsyncClient s3Async() {
     if (s3FileIOProperties.isS3CRTEnabled()) {
-      return S3AsyncClient.crtBuilder().applyMutation(this::applyAssumeRoleConfigurations).build();
+      return S3AsyncClient.crtBuilder()
+          .applyMutation(this::applyAssumeRoleConfigurations)
+          .applyMutation(awsClientProperties::applyClientRegionConfiguration)
+          .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
+          .applyMutation(s3FileIOProperties::applyS3CrtConfigurations)
+          .build();
     }
-    return S3AsyncClient.builder().applyMutation(this::applyAssumeRoleConfigurations).build();
+    return S3AsyncClient.builder()
+        .applyMutation(this::applyAssumeRoleConfigurations)
+        .applyMutation(awsClientProperties::applyClientRegionConfiguration)
+        .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
+        .build();
   }
 
   @Override
