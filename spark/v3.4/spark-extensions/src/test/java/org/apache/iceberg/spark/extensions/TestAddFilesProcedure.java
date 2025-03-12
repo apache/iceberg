@@ -1296,10 +1296,10 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     // Check that the manifests have the correct partition spec
     assertThat(
             table.currentSnapshot().allManifests(io).stream()
-                    .map(mf -> ManifestFiles.read(mf, io, null /* force reading spec from file*/))
-                    .map(ManifestReader::spec)
-                    .collect(Collectors.toList()))
-            .allSatisfy(spec -> assertThat(spec).isEqualTo(partitionSpec));
+                .map(mf -> ManifestFiles.read(mf, io, null /* force reading spec from file*/))
+                .map(ManifestReader::spec)
+                .collect(Collectors.toList()))
+        .allSatisfy(spec -> assertThat(spec).isEqualTo(partitionSpec));
   }
 
   private void verifyUUIDInPath() {
