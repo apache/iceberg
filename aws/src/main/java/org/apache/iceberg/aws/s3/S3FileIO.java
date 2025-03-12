@@ -169,7 +169,8 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
   @Override
   public InputFile newInputFile(String path, long length) {
     if (shouldUseAsyncClient()) {
-      return S3InputFile.fromLocation(path, length, client(), asyncClient(), s3FileIOProperties, metrics);
+      return S3InputFile.fromLocation(
+          path, length, client(), asyncClient(), s3FileIOProperties, metrics);
     }
     return S3InputFile.fromLocation(path, length, client(), s3FileIOProperties, metrics);
   }
