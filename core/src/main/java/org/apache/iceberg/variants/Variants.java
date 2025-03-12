@@ -55,6 +55,10 @@ public class Variants {
     throw new UnsupportedOperationException("Metadata is required for object: " + object);
   }
 
+  public static ShreddedArray array() {
+    return new ShreddedArray();
+  }
+
   public static <T> VariantPrimitive<T> of(PhysicalType type, T value) {
     return new PrimitiveWrapper<>(type, value);
   }
