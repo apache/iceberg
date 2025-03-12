@@ -274,7 +274,7 @@ public class TestParquet {
 
     boolean isClosed = false;
 
-    public CloseAwareFSDataInputStream(CloseAwareInputStream in) {
+    CloseAwareFSDataInputStream(CloseAwareInputStream in) {
       super(in);
     }
 
@@ -291,7 +291,7 @@ public class TestParquet {
     boolean isClosed = false;
     private final InputStream delegate;
 
-    public CloseAwareDelegatingInputStream(InputStream delegate) {
+    CloseAwareDelegatingInputStream(InputStream delegate) {
       this.delegate = delegate;
     }
 
@@ -322,6 +322,7 @@ public class TestParquet {
   }
 
   @Test
+  @SuppressWarnings("checkstyle:NestedTryDepth")
   public void testDelegatingInputStreamCloseProperly() throws IOException {
     // prepare the underlying stream
     try (CloseAwareInputStream underlying = new CloseAwareInputStream()) {
@@ -331,12 +332,12 @@ public class TestParquet {
         try (CloseAwareDelegatingInputStream delegating =
             new CloseAwareDelegatingInputStream(fsInput)) {
           // ok, call the testing target, ensure no leek.
-          try (org.apache.parquet.io.SeekableInputStream _unused = ParquetIO.stream(delegating)) {
+          try (org.apache.parquet.io.SeekableInputStream unused = ParquetIO.stream(delegating)) {
             assertThat(underlying.isClosed).isFalse();
             assertThat(fsInput.isClosed).isFalse();
             assertThat(delegating.isClosed).isFalse();
           } finally {
-            // a try-catch-finally for `_unused` stream.
+            // a try-catch-finally for `unused` stream.
             // implies all stream crated before should be closed without leaking behavior.
             assertThat(delegating.isClosed).isTrue();
             assertThat(fsInput.isClosed).isTrue();
@@ -365,7 +366,7 @@ public class TestParquet {
 
     boolean isClosed = false;
 
-    public CloseAwareFSDataOutputStream(OutputStream out) throws IOException {
+    CloseAwareFSDataOutputStream(OutputStream out) throws IOException {
       super(out, null);
     }
 
@@ -382,7 +383,7 @@ public class TestParquet {
     boolean isClosed = false;
     private final OutputStream delegate;
 
-    public CloseAwareDelegatingOutputStream(OutputStream delegate) {
+    CloseAwareDelegatingOutputStream(OutputStream delegate) {
       this.delegate = delegate;
     }
 
@@ -408,6 +409,7 @@ public class TestParquet {
   }
 
   @Test
+  @SuppressWarnings("checkstyle:NestedTryDepth")
   public void testDelegatingOutputStreamCloseProperly() throws IOException {
     // prepare the underlying stream
     try (CloseAwareOutputStream underlying = new CloseAwareOutputStream()) {
@@ -417,12 +419,12 @@ public class TestParquet {
         try (CloseAwareDelegatingOutputStream delegating =
             new CloseAwareDelegatingOutputStream(fsOutput)) {
           // ok, call the testing target, ensure no leek.
-          try (org.apache.parquet.io.PositionOutputStream _unused = ParquetIO.stream(delegating)) {
+          try (org.apache.parquet.io.PositionOutputStream unused = ParquetIO.stream(delegating)) {
             assertThat(underlying.isClosed).isFalse();
             assertThat(fsOutput.isClosed).isFalse();
             assertThat(delegating.isClosed).isFalse();
           } finally {
-            // a try-catch-finally for `_unused` stream.
+            // a try-catch-finally for `unused` stream.
             // implies all stream crated before should be closed without leaking behavior.
             assertThat(delegating.isClosed).isTrue();
             assertThat(fsOutput.isClosed).isTrue();
