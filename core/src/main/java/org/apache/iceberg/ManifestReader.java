@@ -134,7 +134,6 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       try (CloseableIterable<ManifestEntry<T>> headerReader =
           InternalData.read(FileFormat.AVRO, inputFile)
               .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
-              .classLoader(GenericManifestEntry.class.getClassLoader())
               .build()) {
 
         if (headerReader instanceof InternalData.DataIterable) {

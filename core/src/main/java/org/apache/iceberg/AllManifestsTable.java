@@ -193,9 +193,9 @@ public class AllManifestsTable extends BaseMetadataTable {
       try (CloseableIterable<ManifestFile> manifests =
           InternalData.read(FileFormat.AVRO, io.newInputFile(manifestListLocation))
               .setRootType(GenericManifestFile.class)
-              .setCustomType(508, GenericPartitionFieldSummary.class)
+              .setCustomType(
+                  ManifestFile.PARTITION_SUMMARIES_ELEMENT_ID, GenericPartitionFieldSummary.class)
               .project(ManifestFile.schema())
-              .classLoader(GenericManifestFile.class.getClassLoader())
               .build()) {
 
         CloseableIterable<StructLike> rowIterable =

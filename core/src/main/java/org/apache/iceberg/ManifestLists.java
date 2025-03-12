@@ -34,8 +34,8 @@ class ManifestLists {
     try (CloseableIterable<ManifestFile> files =
         InternalData.read(FileFormat.AVRO, manifestList)
             .setRootType(GenericManifestFile.class)
-            .setCustomType(508, GenericPartitionFieldSummary.class)
-            .classLoader(GenericManifestFile.class.getClassLoader())
+            .setCustomType(
+                ManifestFile.PARTITION_SUMMARIES_ELEMENT_ID, GenericPartitionFieldSummary.class)
             .project(ManifestFile.schema())
             .build()) {
 

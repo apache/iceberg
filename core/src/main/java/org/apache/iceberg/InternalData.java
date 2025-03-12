@@ -180,11 +180,6 @@ public class InternalData {
     /** Set a custom class for in-memory objects at the given field ID. */
     ReadBuilder setCustomType(int fieldId, Class<? extends StructLike> structClass);
 
-    /** Set the classloader used for custom types. */
-    default ReadBuilder classLoader(ClassLoader classLoader) {
-      throw new UnsupportedOperationException("Classloader not supported");
-    }
-
     /** Build the configured reader. */
     <D> CloseableIterable<D> build();
   }

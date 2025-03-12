@@ -737,7 +737,6 @@ public class Avro {
       return this;
     }
 
-    @Override
     public ReadBuilder classLoader(ClassLoader classLoader) {
       this.loader = classLoader;
       return this;
