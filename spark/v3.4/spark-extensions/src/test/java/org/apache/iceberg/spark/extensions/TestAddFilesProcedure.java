@@ -842,6 +842,44 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void partitionColumnCountMismatchInFilter() {
+    createPartitionedHiveTable();
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
+    assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files('%s', '%s', map('id', '0', 'dept', '1'))",
+                    catalogName, tableName, sourceTableName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add data files to target table")
+        .hasMessageContaining(
+            "because that table is partitioned, but the number of columns in the provided partition filter (2)"
+                + " is greater than the number of partitioned columns in table (1)");
+  }
+
+  @Test
+  public void invalidPartitionColumnsInFilter() {
+    createPartitionedHiveTable();
+
+    String icebergTablePartitionNames = "id";
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String",
+        String.format("PARTITIONED BY (%s)", icebergTablePartitionNames));
+    assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files('%s', '%s', map('dept', '1'))",
+                    catalogName, tableName, sourceTableName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add files to target table")
+        .hasMessageContaining(
+            "specified partition filter refers to columns that are not partitioned: [dept]")
+        .hasMessageContaining("Valid partition columns: [%s]", icebergTablePartitionNames);
+  }
+
+  @Test
   public void addTwice() {
     createPartitionedHiveTable();
 
