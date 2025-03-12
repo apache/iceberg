@@ -626,7 +626,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
       client
           .withAuthSession(contextualSession)
-          .delete(paths.namespace(ns), null, Map.of(), ErrorHandlers.namespaceErrorHandler());
+          .delete(paths.namespace(ns), null, Map.of(), ErrorHandlers.dropNamespaceErrorHandler());
       return true;
     } catch (NoSuchNamespaceException e) {
       return false;
