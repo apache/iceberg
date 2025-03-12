@@ -66,12 +66,14 @@ class DefaultS3FileIOAwsClientFactory implements S3FileIOAwsClientFactory {
       return S3AsyncClient.crtBuilder()
           .applyMutation(awsClientProperties::applyClientRegionConfiguration)
           .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
+          .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
           .applyMutation(s3FileIOProperties::applyS3CrtConfigurations)
           .build();
     }
     return S3AsyncClient.builder()
         .applyMutation(awsClientProperties::applyClientRegionConfiguration)
         .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
+        .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
         .build();
   }
 }
