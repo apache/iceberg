@@ -33,6 +33,7 @@ public class TestSparkFixupTypes {
 
   private static Stream<Arguments> primitiveTypes() {
     return Stream.of(
+        Arguments.of(Types.UnknownType.get()),
         Arguments.of(Types.BooleanType.get()),
         Arguments.of(Types.IntegerType.get()),
         Arguments.of(Types.LongType.get()),
@@ -79,9 +80,9 @@ public class TestSparkFixupTypes {
   @ParameterizedTest
   @MethodSource("primitiveTypes")
   void fixupShouldNotChangeNonMatchingPrimitiveTypes(Type type) {
-    Schema schema = new Schema(Types.NestedField.required(1, "field", type));
+    Schema schema = new Schema(Types.NestedField.optional(1, "field", type));
     Schema referenceSchema =
-        new Schema(Types.NestedField.required(1, "field", Types.IntegerType.get()));
+        new Schema(Types.NestedField.optional(1, "field", Types.IntegerType.get()));
 
     Schema fixedSchema = SparkFixupTypes.fixup(schema, referenceSchema);
 
