@@ -78,12 +78,27 @@ public class CommitterImpl implements Committer {
     }
     if (groupDesc.state() == ConsumerGroupState.STABLE) {
       Collection<MemberDescription> members = groupDesc.members();
-      if (isLeader(members, currentAssignedPartitions)) {
+      if (containsFirstPartition(members, currentAssignedPartitions)) {
         membersWhenWorkerIsCoordinator = members;
         return true;
       }
     }
     return false;
+  }
+
+  @VisibleForTesting
+  boolean containsFirstPartition(
+      Collection<MemberDescription> members, Collection<TopicPartition> partitions) {
+    // there should only be one task assigned partition 0 of the first topic,
+    // so elect that one the leader
+    TopicPartition firstTopicPartition =
+        members.stream()
+            .flatMap(member -> member.assignment().topicPartitions().stream())
+            .min(new TopicPartitionComparator())
+            .orElseThrow(
+                () -> new ConnectException("No partitions assigned, cannot determine leader"));
+
+    return partitions.contains(firstTopicPartition);
   }
 
   @Override
@@ -130,20 +145,6 @@ public class CommitterImpl implements Committer {
       worker.save(sinkRecords);
     }
     processControlEvents();
-  }
-
-  @VisibleForTesting
-  boolean isLeader(Collection<MemberDescription> members, Collection<TopicPartition> partitions) {
-    // there should only be one task assigned partition 0 of the first topic,
-    // so elect that one the leader
-    TopicPartition firstTopicPartition =
-        members.stream()
-            .flatMap(member -> member.assignment().topicPartitions().stream())
-            .min(new TopicPartitionComparator())
-            .orElseThrow(
-                () -> new ConnectException("No partitions assigned, cannot determine leader"));
-
-    return partitions.contains(firstTopicPartition);
   }
 
   private void processControlEvents() {
