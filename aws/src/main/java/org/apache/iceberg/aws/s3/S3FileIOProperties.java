@@ -100,7 +100,7 @@ public class S3FileIOProperties implements Serializable {
 
   public static final boolean S3_CRT_ENABLED_DEFAULT = true;
 
-  /** This property is used to specify the max concurrency for CRT Async clients. */
+  /** This property is used to specify the max concurrency for S3 CRT clients. */
   public static final String S3_CRT_MAX_CONCURRENCY = "s3.crt.max-concurrency";
 
   /**
@@ -1042,7 +1042,7 @@ public class S3FileIOProperties implements Serializable {
   }
 
   /**
-   * Override the endpoint for an S3 CRT async client
+   * Override the endpoint for an S3 CRT client
    *
    * <p>Sample usage:
    *

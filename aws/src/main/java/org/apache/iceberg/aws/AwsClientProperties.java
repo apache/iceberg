@@ -137,7 +137,7 @@ public class AwsClientProperties implements Serializable {
   }
 
   /**
-   * Configure a CRT client region.
+   * Configure an S3 CRT client region.
    *
    * <p>Sample usage:
    *
@@ -167,7 +167,7 @@ public class AwsClientProperties implements Serializable {
   }
 
   /**
-   * Configure the credential provider for CRT clients.
+   * Configure the credential provider for S3 CRT clients.
    *
    * <p>Sample usage:
    *
