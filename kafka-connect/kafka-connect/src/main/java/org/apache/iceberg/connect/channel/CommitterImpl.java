@@ -50,7 +50,7 @@ public class CommitterImpl implements Committer {
   private Collection<MemberDescription> membersWhenWorkerIsCoordinator;
   private final AtomicBoolean isCommitterInitialized = new AtomicBoolean(false);
 
-  void initializeCommitter(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
+  private void initializeCommitter(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
     if (isCommitterInitialized.compareAndSet(false, true)) {
       this.catalog = catalog;
       this.config = config;
