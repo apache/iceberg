@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.sql;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.TimeZone;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.AnalysisException;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +39,9 @@ public class TestSparkHoursFunction extends TestBaseWithCatalog {
     assertThat(scalarSql("SELECT system.hours(TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00')"))
         .as("Expected to produce 17501 * 24 + 10")
         .isEqualTo(420034);
+    assertThat(scalarSql("SELECT system.hour(TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00')"))
+        .as("Expected to produce 17501 * 24 + 10")
+        .isEqualTo(420034);
     assertThat(scalarSql("SELECT system.hours(TIMESTAMP '1970-01-01 00:00:01.000001 UTC+00:00')"))
         .as("Expected to produce 0 * 24 + 0 = 0")
         .isEqualTo(0);
@@ -52,6 +56,9 @@ public class TestSparkHoursFunction extends TestBaseWithCatalog {
     assertThat(scalarSql("SELECT system.hours(TIMESTAMP_NTZ '2017-12-01 10:12:55.038194 UTC')"))
         .as("Expected to produce 17501 * 24 + 10")
         .isEqualTo(420034);
+    assertThat(scalarSql("SELECT system.hour(TIMESTAMP_NTZ '2017-12-01 10:12:55.038194 UTC')"))
+        .as("Expected to produce 17501 * 24 + 10")
+        .isEqualTo(420034);
     assertThat(scalarSql("SELECT system.hours(TIMESTAMP_NTZ '1970-01-01 00:00:01.000001 UTC')"))
         .as("Expected to produce 0 * 24 + 0 = 0")
         .isEqualTo(0);
@@ -62,11 +69,26 @@ public class TestSparkHoursFunction extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testBuiltInHourFunction() {
+    String tz = TimeZone.getDefault().getID();
+    assertThat(scalarSql(String.format("SELECT hour(TIMESTAMP '2017-12-01 10:12:55 %s')", tz)))
+        .as("Expected to produce 10")
+        .isEqualTo(10);
+    assertThat(scalarSql("SELECT hour(TIMESTAMP_NTZ '1969-12-31 23:59:58.999999')"))
+        .as("Expected to produce 23")
+        .isEqualTo(23);
+  }
+
+  @TestTemplate
   public void testWrongNumberOfArguments() {
     assertThatThrownBy(() -> scalarSql("SELECT system.hours()"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'hours' cannot process input: (): Wrong number of inputs");
+
+    assertThatThrownBy(() -> scalarSql("SELECT system.hour()"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith("Function 'hour' cannot process input: (): Wrong number of inputs");
 
     assertThatThrownBy(
             () -> scalarSql("SELECT system.hours(date('1969-12-31'), date('1969-12-31'))"))
