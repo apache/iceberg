@@ -22,8 +22,10 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTClient;
@@ -50,7 +52,7 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
     Preconditions.checkArgument(null != properties.get(URI), "Invalid URI: null");
     this.properties = properties;
     this.credentialCache =
-        CachedSupplier.builder(this::refreshCredential)
+        CachedSupplier.builder(() -> credentialFromProperties().orElseGet(this::refreshCredential))
             .cachedValueName(VendedCredentialsProvider.class.getName())
             .build();
   }
@@ -90,6 +92,39 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
             LoadCredentialsResponse.class,
             OAuth2Util.authHeaders(properties.get(OAuth2Properties.TOKEN)),
             ErrorHandlers.defaultErrorHandler());
+  }
+
+  private Optional<RefreshResult<AwsCredentials>> credentialFromProperties() {
+    String accessKeyId = properties.get(S3FileIOProperties.ACCESS_KEY_ID);
+    String secretAccessKey = properties.get(S3FileIOProperties.SECRET_ACCESS_KEY);
+    String sessionToken = properties.get(S3FileIOProperties.SESSION_TOKEN);
+    String tokenExpiresAtMillis = properties.get(S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS);
+    if (Strings.isNullOrEmpty(accessKeyId)
+        || Strings.isNullOrEmpty(secretAccessKey)
+        || Strings.isNullOrEmpty(sessionToken)
+        || Strings.isNullOrEmpty(tokenExpiresAtMillis)) {
+      return Optional.empty();
+    }
+
+    Instant expiresAt = Instant.ofEpochMilli(Long.parseLong(tokenExpiresAtMillis));
+    Instant prefetchAt = expiresAt.minus(5, ChronoUnit.MINUTES);
+
+    if (Instant.now().isAfter(prefetchAt)) {
+      return Optional.empty();
+    }
+
+    return Optional.of(
+        RefreshResult.builder(
+                (AwsCredentials)
+                    AwsSessionCredentials.builder()
+                        .accessKeyId(accessKeyId)
+                        .secretAccessKey(secretAccessKey)
+                        .sessionToken(sessionToken)
+                        .expirationTime(expiresAt)
+                        .build())
+            .staleTime(expiresAt)
+            .prefetchTime(prefetchAt)
+            .build());
   }
 
   private RefreshResult<AwsCredentials> refreshCredential() {
