@@ -151,6 +151,10 @@ public class OrcMetrics {
     for (int i = 0; i < colStats.length; i++) {
       final ColumnStatistics colStat = colStats[i];
       final TypeDescription orcCol = orcSchemaWithIds.findSubtype(i);
+      if (inMapOrList(orcCol)) {
+        continue;
+      }
+
       final Optional<Types.NestedField> icebergColOpt =
           ORCSchemaUtil.icebergID(orcCol).map(schema::findField);
 
@@ -170,7 +174,7 @@ public class OrcMetrics {
         if (statsColumns.contains(fieldId)) {
           // Since ORC does not track null values nor repeated ones, the value count for columns in
           // containers (maps, list) may be larger than what it actually is, however these are not
-          // used in experssions right now. For such cases, we use the value number of values
+          // used in expressions right now. For such cases, we use the value number of values
           // directly stored in ORC.
           if (colStat.hasNull()) {
             nullCounts.put(fieldId, numOfRows - colStat.getNumberOfValues());
@@ -206,6 +210,17 @@ public class OrcMetrics {
             fieldMetricsMap.values().stream(), effectiveMetricsConfig, schema),
         lowerBounds,
         upperBounds);
+  }
+
+  private static boolean inMapOrList(TypeDescription orcCol) {
+    TypeDescription current = orcCol;
+    while ((current = current.getParent()) != null) {
+      if (current.getCategory() != TypeDescription.Category.STRUCT) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   private static Optional<ByteBuffer> fromOrcMin(
