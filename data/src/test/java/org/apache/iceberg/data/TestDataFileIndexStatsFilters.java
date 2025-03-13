@@ -30,6 +30,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
@@ -285,6 +286,71 @@ public class TestDataFileIndexStatsFilters {
 
     assertThat(tasks).as("Should produce one task").hasSize(1);
     FileScanTask task = tasks.get(0);
+    assertThat(task.deletes())
+        .as("Should have one delete file, ignoreResiduals prevents filtering out the delete file")
+        .hasSize(1);
+  }
+
+  @Test
+  public void testEqualityDeletePlanningStatsPartitionPruningIgnoreResidual() throws IOException {
+    table.updateSpec().addField("category").commit();
+
+    PartitionData partitionData = new PartitionData(table.spec().partitionType());
+
+    DataFile evenFile =
+        FileHelpers.writeDataFile(
+            table,
+            Files.localOutput(createTempFile()),
+            evenRecords,
+            partitionData.copyFor(Row.of("even")));
+    DataFile oddFile =
+        FileHelpers.writeDataFile(
+            table,
+            Files.localOutput(createTempFile()),
+            oddRecords,
+            partitionData.copyFor(Row.of("odd")));
+
+    table.newAppend().appendFile(evenFile).appendFile(oddFile).commit();
+
+    Schema deleteRowSchema = table.schema().select("data");
+    Record delete = GenericRecord.create(deleteRowSchema);
+
+    List<Record> oddDeletes = Lists.newArrayList();
+    oddDeletes.add(delete.copy("data", "a"));
+    oddDeletes.add(delete.copy("data", "c"));
+
+    List<Record> evenDeletes = Lists.newArrayList();
+    evenDeletes.add(delete.copy("data", "b"));
+
+    DeleteFile oddDeleteFile =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(createTempFile()),
+            partitionData.copyFor(Row.of("odd")),
+            oddDeletes,
+            deleteRowSchema);
+
+    DeleteFile evenDeleteFile =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(createTempFile()),
+            partitionData.copyFor(Row.of("even")),
+            evenDeletes,
+            deleteRowSchema);
+
+    table.newRowDelta().addDeletes(oddDeleteFile).addDeletes(evenDeleteFile).commit();
+
+    Expression expr = Expressions.equal("category", "even");
+
+    List<FileScanTask> tasks;
+    try (CloseableIterable<FileScanTask> tasksIterable =
+        table.newScan().filter(expr).ignoreResiduals().planFiles()) {
+      tasks = Lists.newArrayList(tasksIterable);
+    }
+
+    assertThat(tasks).as("Should produce one task since we filtered out one partition").hasSize(1);
+    FileScanTask task = tasks.get(0);
+    assertThat(task.partition()).isEqualTo(partitionData.copyFor(Row.of("even")));
     assertThat(task.deletes())
         .as("Should have one delete file, ignoreResiduals prevents filtering out the delete file")
         .hasSize(1);
