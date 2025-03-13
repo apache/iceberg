@@ -72,7 +72,6 @@ class TestS3V4RestSignerClient {
   @ParameterizedTest
   @MethodSource("validOAuth2Properties")
   void authSessionOAuth2(Map<String, String> properties, String expectedToken) throws Exception {
-
     try (S3V4RestSignerClient client =
             ImmutableS3V4RestSignerClient.builder().properties(properties).build();
         AuthSession authSession = client.authSession()) {

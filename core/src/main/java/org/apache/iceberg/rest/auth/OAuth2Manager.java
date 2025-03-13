@@ -58,7 +58,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
 
   private final String name;
 
-  private RESTClient client;
+  private RESTClient refreshClient;
   private long startTimeMillis;
   private OAuthTokenResponse authResponse;
   private AuthSessionCache sessionCache;
@@ -92,9 +92,10 @@ public class OAuth2Manager extends RefreshingAuthManager {
               config.oauth2ServerUri(),
               config.optionalOAuthParams());
       return OAuth2Util.AuthSession.fromTokenResponse(
-          null, null, authResponse, startTimeMillis, session);
+          initClient, null, authResponse, startTimeMillis, session);
     } else if (config.token() != null) {
-      return OAuth2Util.AuthSession.fromAccessToken(null, null, config.token(), null, session);
+      return OAuth2Util.AuthSession.fromAccessToken(
+          initClient, null, config.token(), null, session);
     }
     return session;
   }
@@ -103,7 +104,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
   public OAuth2Util.AuthSession catalogSession(
       RESTClient sharedClient, Map<String, String> properties) {
     // This client will be used for token refreshes; it should not have an auth session.
-    this.client = sharedClient.withAuthSession(AuthSession.EMPTY);
+    this.refreshClient = sharedClient.withAuthSession(AuthSession.EMPTY);
     this.sessionCache = newSessionCache(name, properties);
     AuthConfig config = AuthConfig.fromProperties(properties);
     Map<String, String> headers = OAuth2Util.authHeaders(config.token());
@@ -113,11 +114,11 @@ public class OAuth2Manager extends RefreshingAuthManager {
     // so reuse it now and turn token refresh on.
     if (authResponse != null) {
       return OAuth2Util.AuthSession.fromTokenResponse(
-          client, refreshExecutor(), authResponse, startTimeMillis, session);
+          refreshClient, refreshExecutor(), authResponse, startTimeMillis, session);
     } else if (config.token() != null) {
       // If both a token and a credential are provided, prefer the token.
       return OAuth2Util.AuthSession.fromAccessToken(
-          client, refreshExecutor(), config.token(), config.expiresAtMillis(), session);
+          refreshClient, refreshExecutor(), config.token(), config.expiresAtMillis(), session);
     } else if (config.credential() != null && !config.credential().isEmpty()) {
       OAuthTokenResponse response =
           OAuth2Util.fetchToken(
@@ -128,7 +129,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
               config.oauth2ServerUri(),
               config.optionalOAuthParams());
       return OAuth2Util.AuthSession.fromTokenResponse(
-          client, refreshExecutor(), response, System.currentTimeMillis(), session);
+          refreshClient, refreshExecutor(), response, System.currentTimeMillis(), session);
     }
     return session;
   }
@@ -210,18 +211,19 @@ public class OAuth2Manager extends RefreshingAuthManager {
       String token, Map<String, String> properties, OAuth2Util.AuthSession parent) {
     Long expiresAtMillis = AuthConfig.fromProperties(properties).expiresAtMillis();
     return OAuth2Util.AuthSession.fromAccessToken(
-        client, refreshExecutor(), token, expiresAtMillis, parent);
+        refreshClient, refreshExecutor(), token, expiresAtMillis, parent);
   }
 
   protected OAuth2Util.AuthSession newSessionFromCredential(
       String credential, OAuth2Util.AuthSession parent) {
-    return OAuth2Util.AuthSession.fromCredential(client, refreshExecutor(), credential, parent);
+    return OAuth2Util.AuthSession.fromCredential(
+        refreshClient, refreshExecutor(), credential, parent);
   }
 
   protected OAuth2Util.AuthSession newSessionFromTokenExchange(
       String token, String tokenType, OAuth2Util.AuthSession parent) {
     return OAuth2Util.AuthSession.fromTokenExchange(
-        client, refreshExecutor(), token, tokenType, parent);
+        refreshClient, refreshExecutor(), token, tokenType, parent);
   }
 
   private static void warnIfDeprecatedTokenEndpointUsed(Map<String, String> properties) {
