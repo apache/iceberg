@@ -86,6 +86,7 @@ public abstract class TestSqlBase {
         }
       }
     }
+
     return streamingTEnv;
   }
 

@@ -180,10 +180,9 @@ public class IcebergTableSource
 
   @Override
   public void applySourceWatermark() {
-    if (!readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE)) {
-      throw new UnsupportedOperationException(
-          "Source watermarks are supported only in flip-27 iceberg source implementation");
-    }
+    Preconditions.checkArgument(
+        readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE),
+        "Source watermarks are supported only in flip-27 iceberg source implementation");
 
     Preconditions.checkNotNull(
         properties.get(FlinkReadOptions.WATERMARK_COLUMN),
