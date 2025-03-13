@@ -71,7 +71,7 @@ public class CommitterImpl implements Committer {
     }
   }
 
-  public boolean hasLeaderPartition(Collection<TopicPartition> currentAssignedPartitions) {
+  private boolean hasLeaderPartition(Collection<TopicPartition> currentAssignedPartitions) {
     ConsumerGroupDescription groupDesc;
     try (Admin admin = clientFactory.createAdmin()) {
       groupDesc = KafkaUtils.consumerGroupDescription(config.connectGroupId(), admin);
@@ -155,7 +155,7 @@ public class CommitterImpl implements Committer {
     }
   }
 
-  public void startWorker() {
+  private void startWorker() {
     if (null == this.worker) {
       LOG.info("Starting commit worker");
       SinkWriter sinkWriter = new SinkWriter(catalog, config);
@@ -164,7 +164,7 @@ public class CommitterImpl implements Committer {
     }
   }
 
-  public void startCoordinator() {
+  private void startCoordinator() {
     LOG.info("Task elected leader, starting commit coordinator");
     Coordinator coordinator =
         new Coordinator(catalog, config, membersWhenWorkerIsCoordinator, clientFactory, context);
@@ -172,14 +172,14 @@ public class CommitterImpl implements Committer {
     coordinatorThread.start();
   }
 
-  public void stopWorker() {
+  private void stopWorker() {
     if (worker != null) {
       worker.stop();
       worker = null;
     }
   }
 
-  public void stopCoordinator() {
+  private void stopCoordinator() {
     if (coordinatorThread != null) {
       coordinatorThread.terminate();
       coordinatorThread = null;
