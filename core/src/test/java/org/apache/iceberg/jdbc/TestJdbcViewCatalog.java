@@ -22,12 +22,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 
+import java.io.File;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
@@ -157,15 +157,12 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
                 .create();
 
     assertThat(catalog.viewExists(identifier)).isTrue();
-    Path viewLocation = new Path(view.location());
-    String currentMetadataLocation = view.operations().current().metadataFileLocation();
+    String metadataFileLocation = view.operations().current().metadataFileLocation();
+    assertThat(metadataFileLocation).isNotNull();
+    File currentMetadataLocation = new File(metadataFileLocation);
 
     catalog.dropView(identifier);
-    assertThat(
-            viewLocation
-                .getFileSystem(new Configuration())
-                .exists(new Path(currentMetadataLocation)))
-        .isTrue();
+    assertThat(currentMetadataLocation.exists()).isTrue();
     assertThat(catalog.viewExists(identifier)).isFalse();
   }
 
@@ -183,15 +180,12 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
                 .create();
 
     assertThat(catalog.viewExists(identifier)).isTrue();
-    Path viewLocation = new Path(view.location());
-    String currentMetadataLocation = view.operations().current().metadataFileLocation();
+    String metadataFileLocation = view.operations().current().metadataFileLocation();
+    assertThat(metadataFileLocation).isNotNull();
+    File currentMetadataLocation = new File(metadataFileLocation);
 
     catalog.dropView(identifier);
-    assertThat(
-            viewLocation
-                .getFileSystem(new Configuration())
-                .exists(new Path(currentMetadataLocation)))
-        .isFalse();
+    assertThat(currentMetadataLocation.exists()).isFalse();
     assertThat(catalog.viewExists(identifier)).isFalse();
   }
 }
