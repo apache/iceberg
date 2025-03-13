@@ -70,7 +70,7 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
     IoUtils.closeQuietlyV2(authSession, null);
     IoUtils.closeQuietlyV2(authManager, null);
     IoUtils.closeQuietlyV2(client, null);
-    credentialCache.close();
+    IoUtils.closeQuietlyV2(credentialCache, null);
   }
 
   public static VendedCredentialsProvider create(Map<String, String> properties) {
@@ -81,7 +81,7 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
     if (null == client) {
       synchronized (this) {
         if (null == client) {
-          authManager = AuthManagers.loadAuthManager("aws-credentials-refresh", properties);
+          authManager = AuthManagers.loadAuthManager("s3-credentials-refresh", properties);
           HTTPClient httpClient = HTTPClient.builder(properties).uri(properties.get(URI)).build();
           authSession = authManager.catalogSession(httpClient, properties);
           client = httpClient.withAuthSession(authSession);

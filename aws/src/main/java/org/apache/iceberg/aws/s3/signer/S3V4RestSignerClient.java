@@ -173,7 +173,7 @@ public abstract class S3V4RestSignerClient
             properties.put(OAuth2Properties.CREDENTIAL, credential());
           }
 
-          authSession = authManager.catalogSession(httpClient(), properties.buildKeepingLast());
+          authSession = authManager.tableSession(httpClient(), properties.buildKeepingLast());
         }
       }
     }

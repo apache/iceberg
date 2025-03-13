@@ -98,7 +98,7 @@ public class OAuth2RefreshCredentialsHandler
     if (null == client) {
       synchronized (this) {
         if (null == client) {
-          authManager = AuthManagers.loadAuthManager("gcp-credentials-refresh", properties);
+          authManager = AuthManagers.loadAuthManager("gcs-credentials-refresh", properties);
           HTTPClient httpClient =
               HTTPClient.builder(properties)
                   .uri(properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT))
@@ -118,6 +118,7 @@ public class OAuth2RefreshCredentialsHandler
     closeableGroup.addCloseable(authSession);
     closeableGroup.addCloseable(authManager);
     closeableGroup.addCloseable(client);
+    closeableGroup.setSuppressCloseFailure(true);
     try {
       closeableGroup.close();
     } catch (IOException e) {
