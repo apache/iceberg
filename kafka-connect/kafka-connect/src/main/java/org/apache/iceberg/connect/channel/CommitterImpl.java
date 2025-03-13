@@ -48,10 +48,10 @@ public class CommitterImpl implements Committer {
   private SinkTaskContext context;
   private KafkaClientFactory clientFactory;
   private Collection<MemberDescription> membersWhenWorkerIsCoordinator;
-  private final AtomicBoolean isCommitterInitialized = new AtomicBoolean(false);
+  private final AtomicBoolean isInitialized = new AtomicBoolean(false);
 
-  private void initializeCommitter(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
-    if (isCommitterInitialized.compareAndSet(false, true)) {
+  private void initialize(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
+    if (isInitialized.compareAndSet(false, true)) {
       this.catalog = catalog;
       this.config = config;
       this.context = context;
@@ -71,13 +71,12 @@ public class CommitterImpl implements Committer {
     }
   }
 
-
   public boolean hasLeaderPartition(Collection<TopicPartition> currentAssignedPartitions) {
     ConsumerGroupDescription groupDesc;
     try (Admin admin = clientFactory.createAdmin()) {
       groupDesc = KafkaUtils.consumerGroupDescription(config.connectGroupId(), admin);
     }
-      if (groupDesc.state() == ConsumerGroupState.STABLE) {
+    if (groupDesc.state() == ConsumerGroupState.STABLE) {
       Collection<MemberDescription> members = groupDesc.members();
       if (isLeader(members, currentAssignedPartitions)) {
         membersWhenWorkerIsCoordinator = members;
@@ -90,14 +89,17 @@ public class CommitterImpl implements Committer {
   @Override
   public void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
     throw new UnsupportedOperationException(
-            "The method start(Catalog, IcebergSinkConfig, SinkTaskContext) is deprecated and will be removed in 2.0.0. "
-                    + "Use start(Catalog, IcebergSinkConfig, SinkTaskContext, Collection<TopicPartition>) instead."
-    );
+        "The method start(Catalog, IcebergSinkConfig, SinkTaskContext) is deprecated and will be removed in 2.0.0. "
+            + "Use start(Catalog, IcebergSinkConfig, SinkTaskContext, Collection<TopicPartition>) instead.");
   }
 
   @Override
-  public void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context, Collection<TopicPartition> addedPartitions) {
-    initializeCommitter(catalog, config, context);
+  public void open(
+      Catalog catalog,
+      IcebergSinkConfig config,
+      SinkTaskContext context,
+      Collection<TopicPartition> addedPartitions) {
+    initialize(catalog, config, context);
     if (hasLeaderPartition(addedPartitions)) {
       LOG.info("Committer received leader partition. Starting Coordinator.");
       startCoordinator();
@@ -107,13 +109,12 @@ public class CommitterImpl implements Committer {
   @Override
   public void stop() {
     throw new UnsupportedOperationException(
-            "The method stop() is deprecated and will be removed in 2.0.0. "
-                    + "Use stop(Collection<TopicPartition>) instead."
-    );
+        "The method stop() is deprecated and will be removed in 2.0.0. "
+            + "Use stop(Collection<TopicPartition>) instead.");
   }
 
   @Override
-  public void stop(Collection<TopicPartition> closedPartitions) {
+  public void close(Collection<TopicPartition> closedPartitions) {
     if (hasLeaderPartition(closedPartitions)) {
       LOG.info("Committer lost leader partition. Stopping Coordinator.");
       stopCoordinator();
@@ -155,7 +156,7 @@ public class CommitterImpl implements Committer {
   }
 
   public void startWorker() {
-    if(null == this.worker) {
+    if (null == this.worker) {
       LOG.info("Starting commit worker");
       SinkWriter sinkWriter = new SinkWriter(catalog, config);
       worker = new Worker(config, clientFactory, sinkWriter, context);
@@ -163,14 +164,13 @@ public class CommitterImpl implements Committer {
     }
   }
 
-
   public void startCoordinator() {
     LOG.info("Task elected leader, starting commit coordinator");
-    Coordinator coordinator = new Coordinator(catalog, config, membersWhenWorkerIsCoordinator, clientFactory, context);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, membersWhenWorkerIsCoordinator, clientFactory, context);
     coordinatorThread = new CoordinatorThread(coordinator);
     coordinatorThread.start();
   }
-
 
   public void stopWorker() {
     if (worker != null) {
@@ -178,7 +178,6 @@ public class CommitterImpl implements Committer {
       worker = null;
     }
   }
-
 
   public void stopCoordinator() {
     if (coordinatorThread != null) {

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.connect;
 
 import java.util.Collection;
@@ -27,41 +26,36 @@ import org.apache.kafka.connect.sink.SinkTask;
 
 public class MockIcebergSinkTask extends SinkTask {
 
-    private boolean isCoordinator = false;
+  private boolean isCoordinator = false;
 
-    @Override
-    public String version() {
-        return "";
+  @Override
+  public String version() {
+    return "";
+  }
+
+  @Override
+  public void start(Map<String, String> props) {}
+
+  @Override
+  public void open(Collection<TopicPartition> partitions) {
+    isCoordinator = partitions.stream().anyMatch(tp -> tp.partition() == 0);
+  }
+
+  @Override
+  public void close(Collection<TopicPartition> partitions) {
+    boolean wasCoordinator = partitions.stream().anyMatch(tp -> tp.partition() == 0);
+    if (wasCoordinator) {
+      isCoordinator = false;
     }
+  }
 
-    @Override
-    public void start(Map<String, String> props) {
-    }
+  @Override
+  public void put(Collection<SinkRecord> collection) {}
 
-    @Override
-    public void open(Collection<TopicPartition> partitions) {
-        isCoordinator = partitions.stream().anyMatch(tp -> tp.partition() == 0);
-    }
+  @Override
+  public void stop() {}
 
-    @Override
-    public void close(Collection<TopicPartition> partitions) {
-        boolean wasCoordinator = partitions.stream().anyMatch(tp -> tp.partition() == 0);
-        if(wasCoordinator) {
-            isCoordinator = false;
-        }
-    }
-
-    @Override
-    public void put(Collection<SinkRecord> collection) {
-
-    }
-
-    @Override
-    public void stop() {
-
-    }
-
-    public boolean isCoordinatorRunning() {
-        return isCoordinator;
-    }
+  public boolean isCoordinatorRunning() {
+    return isCoordinator;
+  }
 }

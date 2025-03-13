@@ -27,24 +27,28 @@ import org.apache.kafka.connect.sink.SinkTaskContext;
 public interface Committer {
 
   /**
-   * @deprecated will be removed in 2.0.0. Use {@link #start(Catalog, IcebergSinkConfig, SinkTaskContext, Collection<TopicPartition>)} instead.
+   * @deprecated will be removed in 2.0.0. Use {@link #open(Catalog, IcebergSinkConfig,
+   *     SinkTaskContext, Collection<TopicPartition>)} instead.
    */
   @Deprecated
   void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context);
 
-  default void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context,
-                     Collection<TopicPartition> addedPartitions) {
+  default void open(
+      Catalog catalog,
+      IcebergSinkConfig config,
+      SinkTaskContext context,
+      Collection<TopicPartition> addedPartitions) {
     // Default implementation calls the deprecated method. Implementations may override this.
     start(catalog, config, context);
   }
 
   /**
-   * @deprecated will be removed in 2.0.0. Use {@link #stop(Collection<TopicPartition>)} instead.
+   * @deprecated will be removed in 2.0.0. Use {@link #close(Collection<TopicPartition>)} instead.
    */
   @Deprecated
   void stop();
 
-  default void stop(Collection<TopicPartition> closedPartitions) {
+  default void close(Collection<TopicPartition> closedPartitions) {
     // Default implementation calls the deprecated method. Implementations may override this.
     stop();
   }

@@ -63,22 +63,26 @@ class KafkaUtils {
       return;
     }
 
-    Map<TopicPartition, OffsetAndMetadata> committedOffsets = consumer.committed(consumer.assignment());
+    Map<TopicPartition, OffsetAndMetadata> committedOffsets =
+        consumer.committed(consumer.assignment());
     if (committedOffsets == null || committedOffsets.isEmpty()) {
       return;
     }
 
-    committedOffsets.forEach((topicPartition, offsetAndMetadata) -> {
-      if (offsetAndMetadata != null) {
-        try {
-          consumer.seek(topicPartition, offsetAndMetadata.offset());
-        } catch (IllegalStateException e) {
-          LOG.warn("Rebalance may have occurred, partition {} lost before seeking", topicPartition, e);
-        }
-      }
-    });
+    committedOffsets.forEach(
+        (topicPartition, offsetAndMetadata) -> {
+          if (offsetAndMetadata != null) {
+            try {
+              consumer.seek(topicPartition, offsetAndMetadata.offset());
+            } catch (IllegalStateException e) {
+              LOG.warn(
+                  "Rebalance may have occurred, partition {} lost before seeking",
+                  topicPartition,
+                  e);
+            }
+          }
+        });
   }
-
 
   @SuppressWarnings("unchecked")
   private static Consumer<byte[], byte[]> kafkaConsumer(SinkTaskContext context) {
