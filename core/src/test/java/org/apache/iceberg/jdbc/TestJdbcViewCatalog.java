@@ -144,7 +144,7 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
   }
 
   @Test
-  public void dropViewShouldNotDropMetadataFileIfGcNotEnabled() throws IOException {
+  public void dropViewShouldNotDropMetadataFileIfGcNotEnabled() {
     TableIdentifier identifier = TableIdentifier.of("namespace1", "view");
     BaseView view =
         (BaseView)
@@ -162,12 +162,12 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
     File currentMetadataLocation = new File(metadataFileLocation);
 
     catalog.dropView(identifier);
-    assertThat(currentMetadataLocation.exists()).isTrue();
+    assertThat(currentMetadataLocation).exists();
     assertThat(catalog.viewExists(identifier)).isFalse();
   }
 
   @Test
-  public void dropViewShouldDropMetadataFileIfGcEnabled() throws IOException {
+  public void dropViewShouldDropMetadataFileIfGcEnabled() {
     TableIdentifier identifier = TableIdentifier.of("namespace1", "view");
     BaseView view =
         (BaseView)
@@ -185,7 +185,7 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
     File currentMetadataLocation = new File(metadataFileLocation);
 
     catalog.dropView(identifier);
-    assertThat(currentMetadataLocation.exists()).isFalse();
+    assertThat(currentMetadataLocation).doesNotExist();
     assertThat(catalog.viewExists(identifier)).isFalse();
   }
 }
