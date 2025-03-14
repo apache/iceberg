@@ -20,13 +20,13 @@ package org.apache.iceberg.azure.adlsv2;
 
 import com.azure.core.credential.AccessToken;
 import com.azure.core.credential.SimpleTokenCache;
+import java.io.IOException;
 import java.io.Serializable;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -34,6 +34,7 @@ import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.HTTPHeaders;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.DefaultAuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
@@ -42,38 +43,33 @@ import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.util.SerializableMap;
 import reactor.core.publisher.Mono;
 
-public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable {
+public class VendedAdlsCredentialProvider implements Serializable {
 
   public static final String URI = "credentials.uri";
 
   private final SerializableMap<String, String> properties;
   private transient volatile Map<String, SimpleTokenCache> sasCredentialByAccount;
-  private transient volatile RESTClient client;
+  private transient volatile AuthSession authSession;
 
   public VendedAdlsCredentialProvider(Map<String, String> properties) {
     Preconditions.checkArgument(null != properties, "Invalid properties: null");
     Preconditions.checkArgument(null != properties.get(URI), "Invalid URI: null");
     this.properties = SerializableMap.copyOf(properties);
-    azureSasCredentialMap = Maps.newHashMap();
   }
 
   public String credentialForAccount(String storageAccount) {
-    Map<String, SimpleTokenCache> tokenCacheForAccountMap = azureSasCredentialMap();
-    if (tokenCacheForAccountMap.containsKey(storageAccount)) {
-      return tokenFromCache(tokenCacheForAccountMap.get(storageAccount));
-    } else {
-      SimpleTokenCache tokenCache =
-          new SimpleTokenCache(() -> Mono.fromSupplier(() -> sasTokenSupplier(storageAccount)));
-      tokenCacheForAccountMap.put(storageAccount, tokenCache);
-      return tokenFromCache(tokenCache);
-    }
+    return sasCredentialByAccount()
+        .computeIfAbsent(
+            storageAccount,
+            ignored ->
+                new SimpleTokenCache(
+                    () -> Mono.fromSupplier(() -> sasTokenForAccount(storageAccount))))
+        .getToken()
+        .map(AccessToken::getToken)
+        .block();
   }
 
-  private String tokenFromCache(SimpleTokenCache simpleTokenCache) {
-    return simpleTokenCache.getToken().map(AccessToken::getToken).block();
-  }
-
-  private AccessToken sasTokenSupplier(String storageAccount) {
+  private AccessToken sasTokenForAccount(String storageAccount) {
     LoadCredentialsResponse response = fetchCredentials();
     List<Credential> adlsCredentials =
         response.credentials().stream()
@@ -93,54 +89,61 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
 
     String sasToken =
         adlsCredential.config().get(AzureProperties.ADLS_SAS_TOKEN_PREFIX + storageAccount);
-    Long tokenExpiresAtMillis =
-        Long.parseLong(
-            adlsCredential
-                .config()
-                .get(AzureProperties.ADLS_SAS_TOKEN_EXPIRES_AT_MS_PREFIX + storageAccount));
+    Instant tokenExpiresAt =
+        Instant.ofEpochMilli(
+            Long.parseLong(
+                adlsCredential
+                    .config()
+                    .get(AzureProperties.ADLS_SAS_TOKEN_EXPIRES_AT_MS_PREFIX + storageAccount)));
 
-    return new AccessToken(
-        updatedSasToken, Instant.ofEpochMilli(tokenExpiresAtMillis).atOffset(ZoneOffset.UTC));
+    return new AccessToken(sasToken, tokenExpiresAt.atOffset(ZoneOffset.UTC));
   }
 
   private Map<String, SimpleTokenCache> sasCredentialByAccount() {
-    if (this.azureSasCredentialMap == null) {
+    if (this.sasCredentialByAccount == null) {
       synchronized (this) {
-        if (this.azureSasCredentialMap == null) {
-          this.azureSasCredentialMap = Maps.newHashMap();
+        if (this.sasCredentialByAccount == null) {
+          this.sasCredentialByAccount = Maps.newHashMap();
         }
       }
     }
-    return this.azureSasCredentialMap;
+    return this.sasCredentialByAccount;
   }
 
   private RESTClient httpClient() {
-    if (null == client) {
+    return HTTPClient.builder(properties)
+        .uri(properties.get(URI))
+        .withAuthSession(authSession())
+        .build();
+  }
+
+  private AuthSession authSession() {
+    if (this.authSession == null) {
       synchronized (this) {
-        if (null == client) {
-          DefaultAuthSession authSession =
+        if (this.authSession == null) {
+          this.authSession =
               DefaultAuthSession.of(
                   HTTPHeaders.of(OAuth2Util.authHeaders(properties.get(OAuth2Properties.TOKEN))));
-          client =
-              HTTPClient.builder(properties)
-                  .uri(properties.get(URI))
-                  .withAuthSession(authSession)
-                  .build();
         }
       }
     }
-
-    return client;
+    return this.authSession;
   }
 
   private LoadCredentialsResponse fetchCredentials() {
-    return httpClient()
-        .get(
-            properties.get(URI),
-            null,
-            LoadCredentialsResponse.class,
-            Map.of(),
-            ErrorHandlers.defaultErrorHandler());
+    LoadCredentialsResponse response;
+    try (RESTClient client = httpClient()) {
+      response =
+          client.get(
+              properties.get(URI),
+              null,
+              LoadCredentialsResponse.class,
+              Map.of(),
+              ErrorHandlers.defaultErrorHandler());
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+    return response;
   }
 
   private void checkCredential(Credential credential, String property) {
@@ -148,10 +151,5 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
         credential.config().containsKey(property),
         "Invalid ADLS Credentials: %s not set",
         property);
-  }
-
-  @Override
-  public void close() {
-    IOUtils.closeQuietly(client);
   }
 }

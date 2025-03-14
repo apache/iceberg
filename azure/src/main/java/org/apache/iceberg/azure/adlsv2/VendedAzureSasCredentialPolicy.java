@@ -25,7 +25,6 @@ import com.azure.core.http.HttpPipelineNextSyncPolicy;
 import com.azure.core.http.HttpResponse;
 import com.azure.core.http.policy.AzureSasCredentialPolicy;
 import com.azure.core.http.policy.HttpPipelinePolicy;
-import java.util.Objects;
 import reactor.core.publisher.Mono;
 
 public class VendedAzureSasCredentialPolicy implements HttpPipelinePolicy {
@@ -44,14 +43,14 @@ public class VendedAzureSasCredentialPolicy implements HttpPipelinePolicy {
   public Mono<HttpResponse> process(
       HttpPipelineCallContext httpPipelineCallContext,
       HttpPipelineNextPolicy httpPipelineNextPolicy) {
-    updateAzureSasCredential();
+    maybeUpdateCredential();
     return azureSasCredentialPolicy.process(httpPipelineCallContext, httpPipelineNextPolicy);
   }
 
   @Override
   public HttpResponse processSync(
       HttpPipelineCallContext context, HttpPipelineNextSyncPolicy next) {
-    updateAzureSasCredential();
+    maybeUpdateCredential();
     return azureSasCredentialPolicy.processSync(context, next);
   }
 
