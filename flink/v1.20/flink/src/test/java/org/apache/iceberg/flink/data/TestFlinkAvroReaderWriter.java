@@ -85,10 +85,7 @@ public class TestFlinkAvroReaderWriter extends DataTest {
     // Write the expected records into AVRO file, then read them into RowData and assert with the
     // expected Record list.
     try (FileAppender<Record> writer =
-        Avro.write(outputFile)
-            .schema(writeSchema)
-            .createWriterFunc(DataWriter::create)
-            .build()) {
+        Avro.write(outputFile).schema(writeSchema).createWriterFunc(DataWriter::create).build()) {
       writer.addAll(expectedRecords);
     }
 
