@@ -41,6 +41,10 @@ public class DataWriter<T> implements MetricsAwareDatumWriter<T> {
     return new DataWriter<>(schema);
   }
 
+  public static <D> DataWriter<D> create(org.apache.iceberg.Schema icebergSchema) {
+    return new DataWriter<>(AvroSchemaUtil.convert(icebergSchema, "alma"));
+  }
+
   protected DataWriter(Schema schema) {
     setSchema(schema);
   }

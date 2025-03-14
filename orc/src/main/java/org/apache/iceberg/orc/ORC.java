@@ -52,6 +52,7 @@ import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -59,6 +60,8 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -77,9 +80,14 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.datafile.AppenderBuilder;
+import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.orc.CompressionKind;
@@ -102,6 +110,22 @@ public class ORC {
 
   private ORC() {}
 
+  public static void register() {
+    DataFileServiceRegistry.registerReader(
+        FileFormat.ORC,
+        Record.class.getName(),
+        inputFile -> read(inputFile).readerFunction(GenericOrcReader::buildReader));
+
+    DataFileServiceRegistry.registerAppender(
+        FileFormat.ORC,
+        Record.class.getName(),
+        outputFile ->
+            ORC.write(outputFile)
+                .writerFunction(GenericOrcWriter::buildWriter)
+                .pathTransformFunc(Function.identity()));
+  }
+
+  @Deprecated
   public static WriteBuilder write(OutputFile file) {
     return new WriteBuilder(file);
   }
@@ -112,16 +136,18 @@ public class ORC {
     return new WriteBuilder(file.encryptingOutputFile());
   }
 
-  public static class WriteBuilder {
+  public static class WriteBuilder implements AppenderBuilder<WriteBuilder> {
     private final OutputFile file;
     private final Configuration conf;
     private Schema schema = null;
     private BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc;
+    private Function<Schema, OrcRowWriter<?>> writerFunction;
     private final Map<String, byte[]> metadata = Maps.newHashMap();
     private MetricsConfig metricsConfig;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
     private final Map<String, String> config = Maps.newLinkedHashMap();
     private boolean overwrite = false;
+    private Function<CharSequence, ?> pathTransformFunc;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -132,6 +158,7 @@ public class ORC {
       }
     }
 
+    @Override
     public WriteBuilder forTable(Table table) {
       schema(table.schema());
       setAll(table.properties());
@@ -139,41 +166,69 @@ public class ORC {
       return this;
     }
 
+    @Deprecated
     public WriteBuilder metadata(String property, String value) {
       metadata.put(property, value.getBytes(StandardCharsets.UTF_8));
       return this;
     }
 
+    @Override
     public WriteBuilder set(String property, String value) {
       config.put(property, value);
       return this;
     }
 
+    @Deprecated
     public WriteBuilder createWriterFunc(
-        BiFunction<Schema, TypeDescription, OrcRowWriter<?>> writerFunction) {
-      this.createWriterFunc = writerFunction;
+        BiFunction<Schema, TypeDescription, OrcRowWriter<?>> newWriterFunction) {
+      Preconditions.checkState(
+          writerFunction == null, "Cannot set multiple writer builder functions");
+      this.createWriterFunc = newWriterFunction;
       return this;
     }
 
+    public WriteBuilder writerFunction(Function<Schema, OrcRowWriter<?>> newWriterFunction) {
+      Preconditions.checkState(
+          createWriterFunc == null, "Cannot set multiple writer builder functions");
+      this.writerFunction = newWriterFunction;
+      return this;
+    }
+
+    public WriteBuilder pathTransformFunc(Function<CharSequence, ?> newPathTransformFunc) {
+      this.pathTransformFunc = newPathTransformFunc;
+      return this;
+    }
+
+    @Deprecated
     public WriteBuilder setAll(Map<String, String> properties) {
       config.putAll(properties);
       return this;
     }
 
+    @Override
+    public WriteBuilder meta(String property, String value) {
+      metadata.put(property, value.getBytes(StandardCharsets.UTF_8));
+      return this;
+    }
+
+    @Override
     public WriteBuilder schema(Schema newSchema) {
       this.schema = newSchema;
       return this;
     }
 
+    @Deprecated
     public WriteBuilder overwrite() {
       return overwrite(true);
     }
 
+    @Override
     public WriteBuilder overwrite(boolean enabled) {
       this.overwrite = enabled;
       return this;
     }
 
+    @Override
     public WriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
       this.metricsConfig = newMetricsConfig;
       return this;
@@ -186,6 +241,45 @@ public class ORC {
       return this;
     }
 
+    @Override
+    public <D> FileAppender<D> build(WriteMode mode) throws IOException {
+      Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
+      switch (mode) {
+        case APPENDER:
+        case DATA_WRITER:
+          this.createWriterFunc =
+              (icebergSchema, typeDescription) -> writerFunction.apply(icebergSchema);
+          this.createContextFunc = Context::dataContext;
+          break;
+        case EQUALITY_DELETE_WRITER:
+          this.createWriterFunc =
+              (icebergSchema, typeDescription) -> writerFunction.apply(icebergSchema);
+          this.createContextFunc = Context::deleteContext;
+          break;
+        case POSITION_DELETE_WRITER:
+          this.createWriterFunc =
+              (icebergSchema, typeDescription) ->
+                  GenericOrcWriters.positionDelete(
+                      GenericOrcWriter.buildWriter(icebergSchema), Function.identity());
+          this.createContextFunc = Context::deleteContext;
+          break;
+        case POSITION_DELETE_WITH_ROW_WRITER:
+          Preconditions.checkState(
+              pathTransformFunc != null, "Path transform function has to be set.");
+          this.createWriterFunc =
+              (icebergSchema, typeDescription) ->
+                  GenericOrcWriters.positionDelete(
+                      writerFunction.apply(icebergSchema), pathTransformFunc);
+          this.createContextFunc = Context::deleteContext;
+          break;
+        default:
+          throw new IllegalArgumentException("Not supported mode: " + mode);
+      }
+
+      return build();
+    }
+
+    @Deprecated
     public <D> FileAppender<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
 
@@ -389,16 +483,19 @@ public class ORC {
     }
   }
 
+  @Deprecated
   public static DataWriteBuilder writeData(OutputFile file) {
     return new DataWriteBuilder(file);
   }
 
+  @Deprecated
   public static DataWriteBuilder writeData(EncryptedOutputFile file) {
     Preconditions.checkState(
         !(file instanceof NativeEncryptionOutputFile), "Native ORC encryption is not supported");
     return new DataWriteBuilder(file.encryptingOutputFile());
   }
 
+  @Deprecated
   public static class DataWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
@@ -492,16 +589,19 @@ public class ORC {
     }
   }
 
+  @Deprecated
   public static DeleteWriteBuilder writeDeletes(OutputFile file) {
     return new DeleteWriteBuilder(file);
   }
 
+  @Deprecated
   public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
     Preconditions.checkState(
         !(file instanceof NativeEncryptionOutputFile), "Native ORC encryption is not supported");
     return new DeleteWriteBuilder(file.encryptingOutputFile());
   }
 
+  @Deprecated
   public static class DeleteWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
@@ -686,7 +786,8 @@ public class ORC {
     return new ReadBuilder(file);
   }
 
-  public static class ReadBuilder {
+  public static class ReadBuilder
+      implements org.apache.iceberg.io.datafile.ReadBuilder<ReadBuilder, Object> {
     private final InputFile file;
     private final Configuration conf;
     private Schema schema = null;
@@ -698,7 +799,10 @@ public class ORC {
 
     private Function<TypeDescription, OrcRowReader<?>> readerFunc;
     private Function<TypeDescription, OrcBatchReader<?>> batchedReaderFunc;
+    private ReaderFunction<?> readerFunction;
+    private BatchReaderFunction<?> batchReaderFunction;
     private int recordsPerBatch = VectorizedRowBatch.DEFAULT_SIZE;
+    private Map<Integer, ?> idToConstant = ImmutableMap.of();
 
     private ReadBuilder(InputFile file) {
       Preconditions.checkNotNull(file, "Input file cannot be null");
@@ -721,73 +825,132 @@ public class ORC {
      * @param newLength the length of the range this read should scan
      * @return this builder for method chaining
      */
+    @Override
     public ReadBuilder split(long newStart, long newLength) {
       this.start = newStart;
       this.length = newLength;
       return this;
     }
 
+    @Override
     public ReadBuilder project(Schema newSchema) {
       this.schema = newSchema;
       return this;
     }
 
+    @Override
     public ReadBuilder caseSensitive(boolean newCaseSensitive) {
       OrcConf.IS_SCHEMA_EVOLUTION_CASE_SENSITIVE.setBoolean(this.conf, newCaseSensitive);
       this.caseSensitive = newCaseSensitive;
       return this;
     }
 
+    @Deprecated
     public ReadBuilder config(String property, String value) {
       conf.set(property, value);
       return this;
     }
 
-    public ReadBuilder createReaderFunc(Function<TypeDescription, OrcRowReader<?>> readerFunction) {
-      Preconditions.checkArgument(
-          this.batchedReaderFunc == null,
-          "Reader function cannot be set since the batched version is already set");
-      this.readerFunc = readerFunction;
+    @Override
+    public ReadBuilder set(String property, String value) {
+      conf.set(property, value);
       return this;
     }
 
+    @Deprecated
+    public ReadBuilder createReaderFunc(Function<TypeDescription, OrcRowReader<?>> newReaderFunc) {
+      Preconditions.checkState(
+          batchedReaderFunc == null && readerFunction == null && batchReaderFunction == null,
+          "Cannot set multiple read builder functions");
+      this.readerFunc = newReaderFunc;
+      return this;
+    }
+
+    @Override
     public ReadBuilder filter(Expression newFilter) {
       this.filter = newFilter;
       return this;
     }
 
-    public ReadBuilder createBatchedReaderFunc(
-        Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction) {
-      Preconditions.checkArgument(
-          this.readerFunc == null,
-          "Batched reader function cannot be set since the non-batched version is already set");
-      this.batchedReaderFunc = batchReaderFunction;
+    @Override
+    public ReadBuilder reuseContainers(boolean newReuseContainers) {
+      // ORC always reuses the containers so ignore this
       return this;
     }
 
+    @Deprecated
+    public ReadBuilder createBatchedReaderFunc(
+        Function<TypeDescription, OrcBatchReader<?>> newReaderFunction) {
+      Preconditions.checkState(
+          readerFunc == null && readerFunction == null && batchReaderFunction == null,
+          "Cannot set multiple read builder functions");
+      this.batchedReaderFunc = newReaderFunction;
+      return this;
+    }
+
+    public <D> ReadBuilder readerFunction(ReaderFunction<D> newReaderFunction) {
+      Preconditions.checkState(
+          readerFunc == null && batchedReaderFunc == null && batchReaderFunction == null,
+          "Cannot set multiple read builder functions");
+      this.readerFunction = newReaderFunction;
+      return this;
+    }
+
+    public <D> ReadBuilder batchReaderFunction(BatchReaderFunction<D> newReaderFunction) {
+      Preconditions.checkState(
+          readerFunc == null && batchedReaderFunc == null && readerFunction == null,
+          "Cannot set multiple read builder functions");
+      this.batchReaderFunction = newReaderFunction;
+      return this;
+    }
+
+    @Override
+    public ReadBuilder idToConstant(Map<Integer, ?> newIdConstant) {
+      this.idToConstant = newIdConstant;
+      return this;
+    }
+
+    @Override
     public ReadBuilder recordsPerBatch(int numRecordsPerBatch) {
       this.recordsPerBatch = numRecordsPerBatch;
       return this;
     }
 
+    @Override
     public ReadBuilder withNameMapping(NameMapping newNameMapping) {
       this.nameMapping = newNameMapping;
       return this;
     }
 
+    @Override
     public <D> CloseableIterable<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
+      Function<TypeDescription, OrcRowReader<?>> reader =
+          readerFunc != null
+              ? readerFunc
+              : readerFunction != null
+                  ? fileType -> readerFunction.read(schema, fileType, idToConstant)
+                  : null;
+      Function<TypeDescription, OrcBatchReader<?>> batchReader =
+          batchedReaderFunc != null
+              ? batchedReaderFunc
+              : batchReaderFunction != null
+                  ? fileType -> batchReaderFunction.read(schema, fileType, idToConstant)
+                  : null;
       return new OrcIterable<>(
           file,
           conf,
-          schema,
+          // This is a behavioral change. Previously there were an error if constant columns were
+          // present in the schema, now they are removed and the correct reader is created
+          TypeUtil.selectNot(
+              schema, Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds())),
           nameMapping,
           start,
           length,
-          readerFunc,
+          reader,
           caseSensitive,
           filter,
-          batchedReaderFunc,
+          batchReader,
           recordsPerBatch);
     }
   }
@@ -828,5 +991,18 @@ public class ORC {
     metadata.forEach((key, value) -> writer.addUserMetadata(key, ByteBuffer.wrap(value)));
 
     return writer;
+  }
+
+  public interface WriterFunction<T> {
+    OrcRowWriter<?> write(Schema schema, TypeDescription messageType, T nativeSchema);
+  }
+
+  public interface ReaderFunction<D> {
+    OrcRowReader<D> read(Schema schema, TypeDescription messageType, Map<Integer, ?> idToConstant);
+  }
+
+  public interface BatchReaderFunction<D> {
+    OrcBatchReader<D> read(
+        Schema schema, TypeDescription messageType, Map<Integer, ?> idToConstant);
   }
 }

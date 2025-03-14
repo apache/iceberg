@@ -26,7 +26,9 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
@@ -44,6 +46,10 @@ public class GenericParquetWriter extends BaseParquetWriter<Record> {
 
   public static ParquetValueWriter<Record> buildWriter(MessageType type) {
     return INSTANCE.createWriter(type);
+  }
+
+  public static ParquetValueWriter<Record> buildWriter(Schema icebergSchema) {
+    return INSTANCE.createWriter(ParquetSchemaUtil.convert(icebergSchema, "alma"));
   }
 
   @Override
