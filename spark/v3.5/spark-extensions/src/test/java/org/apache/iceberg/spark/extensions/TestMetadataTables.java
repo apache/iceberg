@@ -672,6 +672,76 @@ public class TestMetadataTables extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testFilesTableVersionAsOfTag() {
+    sql(
+        "CREATE TABLE %s (ts timestamp NOT NULL, id bigint NOT NULL, name string) "
+            + "USING iceberg "
+            + "PARTITIONED BY (days(ts))",
+        tableName);
+
+    // Insert and create 1st tag
+    sql("INSERT INTO %s VALUES (current_timestamp(), 1, 'alice')", tableName);
+    sql("ALTER TABLE %s CREATE TAG `1st-tag`", tableName);
+    assertThat(
+            spark
+                .sql("SELECT * FROM " + tableName + ".files VERSION AS OF '1st-tag'")
+                .collectAsList())
+        .as("1st-tag tag should return 1 row")
+        .hasSize(1);
+
+    // Insert and create 2nd tag
+    sql("INSERT INTO %s VALUES (current_timestamp(), 2, 'bob')", tableName);
+    sql("ALTER TABLE %s CREATE TAG `2nd-tag`", tableName);
+    assertThat(
+            spark
+                .sql("SELECT * FROM " + tableName + ".files VERSION AS OF '1st-tag'")
+                .collectAsList())
+        .as("1st-tag tag should return 1 row")
+        .hasSize(1);
+    assertThat(
+            spark
+                .sql("SELECT * FROM " + tableName + ".files VERSION AS OF '2nd-tag'")
+                .collectAsList())
+        .as("2nd-tag tag should return 2 rows")
+        .hasSize(2);
+  }
+
+  @TestTemplate
+  public void testFilesTableVersionAsOfBranch() {
+    sql(
+        "CREATE TABLE %s (ts timestamp NOT NULL, id bigint NOT NULL, name string) "
+            + "USING iceberg "
+            + "PARTITIONED BY (days(ts))",
+        tableName);
+
+    // Insert and create 1st branch
+    sql("INSERT INTO %s VALUES (current_timestamp(), 1, 'alice')", tableName);
+    sql("ALTER TABLE %s CREATE BRANCH `1st-branch`", tableName);
+    assertThat(
+            spark
+                .sql("SELECT * FROM " + tableName + ".files VERSION AS OF '1st-branch'")
+                .collectAsList())
+        .as("1st-branch branch should return 1 row")
+        .hasSize(1);
+
+    // Insert and create 2nd branch
+    sql("INSERT INTO %s VALUES (current_timestamp(), 2, 'bob')", tableName);
+    sql("ALTER TABLE %s CREATE BRANCH `2nd-branch`", tableName);
+    assertThat(
+            spark
+                .sql("SELECT * FROM " + tableName + ".files VERSION AS OF '1st-branch'")
+                .collectAsList())
+        .as("1st-branch branch should return 1 row")
+        .hasSize(1);
+    assertThat(
+            spark
+                .sql("SELECT * FROM " + tableName + ".files VERSION AS OF '2nd-branch'")
+                .collectAsList())
+        .as("2nd-branch branch should return 2 rows")
+        .hasSize(2);
+  }
+
+  @TestTemplate
   public void testSnapshotReferencesMetatable() throws Exception {
     // Create table and insert data
     sql(
