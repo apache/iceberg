@@ -88,16 +88,7 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     for (int i = 0; i < length; i += 1) {
       Types.NestedField field = fields.get(i);
       Type type = types.next();
-      newFields.add(
-          Types.NestedField.builder()
-              .isOptional(field.isOptional())
-              .withId(newIds.get(i))
-              .withName(field.name())
-              .ofType(type)
-              .withDoc(field.doc())
-              .withInitialDefault(field.initialDefaultLiteral())
-              .withWriteDefault(field.writeDefaultLiteral())
-              .build());
+      newFields.add(Types.NestedField.from(field).withId(newIds.get(i)).ofType(type).build());
     }
 
     return Types.StructType.of(newFields);
