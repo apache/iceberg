@@ -243,6 +243,56 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
     }
   }
 
+  @TestTemplate
+  public void testPartitionSpecEvolutionNullValues() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "company_id", Types.IntegerType.get()),
+            required(2, "dept_id", Types.IntegerType.get()),
+            required(3, "team_id", Types.IntegerType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("company_id").build();
+
+    table = TestTables.create(tableDir, "nulltest", schema, spec, formatVersion);
+    table.newFastAppend().appendFile(newDataFile("company_id=__HIVE_DEFAULT_PARTITION__")).commit();
+
+    table.updateSpec().addField("dept_id").commit();
+    table
+        .newFastAppend()
+        .appendFile(
+            newDataFile(
+                "company_id=__HIVE_DEFAULT_PARTITION__" + "/dept_id=__HIVE_DEFAULT_PARTITION__"))
+        .commit();
+
+    table.updateSpec().addField("team_id").commit();
+    table
+        .newFastAppend()
+        .appendFile(
+            newDataFile(
+                "company_id=__HIVE_DEFAULT_PARTITION__"
+                    + "/dept_id=__HIVE_DEFAULT_PARTITION__"
+                    + "/team_id=__HIVE_DEFAULT_PARTITION__"))
+        .commit();
+
+    PartitionsTable partitionsTable = new PartitionsTable(table);
+    // must contain the partition column even when the current spec is non-partitioned.
+    assertThat(partitionsTable.schema().findField("partition")).isNotNull();
+
+    TableScan scanNoFilter = partitionsTable.newScan().select("partition");
+    CloseableIterable<ManifestEntry<?>> entries =
+        PartitionsTable.planEntries((StaticTableScan) scanNoFilter);
+    assertThat(entries).hasSize(3);
+
+    assertThat(entries)
+        .anySatisfy(
+            entry -> {
+              StructLike partition = entry.file().partition();
+              for (int i = 0; i < partition.size(); i++) {
+                assertThat(partition.get(i, Object.class)).isNull();
+              }
+            });
+  }
+
   private Stream<StructLike> allRows(Iterable<FileScanTask> tasks) {
     return Streams.stream(tasks).flatMap(task -> Streams.stream(task.asDataTask().rows()));
   }
