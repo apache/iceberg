@@ -122,8 +122,11 @@ class ParquetMetrics {
         nanValueCounts.put(id, metrics.nanValueCount());
       }
 
-      if (metrics.hasBounds()) {
+      if (metrics.lowerBound() != null) {
         lowerBounds.put(id, metrics.lowerBound());
+      }
+
+      if (metrics.upperBound() != null) {
         upperBounds.put(id, metrics.upperBound());
       }
     }
