@@ -24,11 +24,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import org.apache.flink.configuration.CheckpointingOptions;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.MetricOptions;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.core.execution.SavepointFormatType;
-import org.apache.flink.runtime.jobgraph.SavepointConfigOptions;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
@@ -156,7 +156,7 @@ public class OperatorTestBase {
         // Wait until the savepoint is created and the job has been stopped
         Awaitility.await().until(() -> savepointDir.listFiles(File::isDirectory).length == 1);
         conf.set(
-            SavepointConfigOptions.SAVEPOINT_PATH,
+            CheckpointingOptions.SAVEPOINT_DIRECTORY,
             savepointDir.listFiles(File::isDirectory)[0].getAbsolutePath());
       } else {
         jobClient.cancel();

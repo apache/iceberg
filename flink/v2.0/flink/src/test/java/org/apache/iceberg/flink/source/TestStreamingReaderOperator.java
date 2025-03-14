@@ -26,7 +26,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
-import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperatorFactory;
 import org.apache.flink.streaming.runtime.tasks.StreamTaskActionExecutor;
 import org.apache.flink.streaming.runtime.tasks.mailbox.MailboxDefaultAction;
@@ -275,7 +274,6 @@ public class TestStreamingReaderOperator extends TestBase {
         StreamingReaderOperator.factory(inputFormat);
     OneInputStreamOperatorTestHarness<FlinkInputSplit, RowData> harness =
         new OneInputStreamOperatorTestHarness<>(factory, 1, 1, 0);
-    harness.getStreamConfig().setTimeCharacteristic(TimeCharacteristic.ProcessingTime);
 
     return harness;
   }

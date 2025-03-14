@@ -22,15 +22,15 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
+import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeutils.base.LongSerializer;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
-import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
+import org.apache.flink.streaming.api.functions.source.legacy.RichSourceFunction;
 import org.apache.flink.streaming.api.operators.StreamingRuntimeContext;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -97,7 +97,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
   }
 
   @Override
-  public void open(Configuration parameters) throws Exception {
+  public void open(OpenContext parameters) throws Exception {
     super.open(parameters);
 
     final RuntimeContext runtimeContext = getRuntimeContext();

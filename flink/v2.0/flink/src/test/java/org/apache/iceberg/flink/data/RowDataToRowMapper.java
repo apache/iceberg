@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.flink.data;
 
+import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.functions.RichMapFunction;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.conversion.DataStructureConverter;
 import org.apache.flink.table.data.conversion.DataStructureConverters;
@@ -38,7 +38,7 @@ public class RowDataToRowMapper extends RichMapFunction<RowData, Row> {
   }
 
   @Override
-  public void open(Configuration parameters) throws Exception {
+  public void open(OpenContext parameters) throws Exception {
     this.converter =
         DataStructureConverters.getConverter(TypeConversions.fromLogicalToDataType(rowType));
   }

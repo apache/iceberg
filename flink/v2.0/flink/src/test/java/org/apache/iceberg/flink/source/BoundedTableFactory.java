@@ -30,8 +30,7 @@ import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.source.SourceFunction;
-import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.streaming.api.functions.source.legacy.SourceFunction;
 import org.apache.flink.table.connector.ChangelogMode;
 import org.apache.flink.table.connector.ProviderContext;
 import org.apache.flink.table.connector.source.DataStreamScanProvider;
@@ -40,6 +39,7 @@ import org.apache.flink.table.connector.source.ScanTableSource;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
 import org.apache.flink.table.factories.DynamicTableSourceFactory;
+import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.utils.TableSchemaUtils;
 import org.apache.flink.types.Row;
@@ -72,7 +72,7 @@ public class BoundedTableFactory implements DynamicTableSourceFactory {
         TableSchemaUtils.getPhysicalSchema(context.getCatalogTable().getSchema());
 
     Configuration configuration = Configuration.fromMap(context.getCatalogTable().getOptions());
-    String dataId = configuration.getString(DATA_ID);
+    String dataId = configuration.get(DATA_ID);
     Preconditions.checkArgument(
         DATA_SETS.containsKey(dataId), "data-id %s does not found in registered data set.", dataId);
 
