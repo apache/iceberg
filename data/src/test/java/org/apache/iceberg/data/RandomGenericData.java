@@ -35,6 +35,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
+import org.apache.iceberg.RandomVariants;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -228,6 +229,11 @@ public class RandomGenericData {
       }
 
       return result;
+    }
+
+    @Override
+    public Object variant(Types.VariantType variant) {
+      return RandomVariants.randomVariant(random);
     }
 
     @Override

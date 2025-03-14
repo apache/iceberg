@@ -98,4 +98,9 @@ public class TestGenericData extends DataTest {
   protected boolean supportsTimestampNanos() {
     return true;
   }
+
+  @Override
+  protected boolean supportsVariant() {
+    return true;
+  }
 }

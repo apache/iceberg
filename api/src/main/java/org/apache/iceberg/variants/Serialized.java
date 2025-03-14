@@ -20,6 +20,6 @@ package org.apache.iceberg.variants;
 
 import java.nio.ByteBuffer;
 
-interface Serialized {
+public interface Serialized {
   ByteBuffer buffer();
 }
