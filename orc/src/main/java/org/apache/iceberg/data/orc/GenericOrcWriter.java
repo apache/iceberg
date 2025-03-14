@@ -51,6 +51,10 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
     return new GenericOrcWriter(expectedSchema, fileSchema);
   }
 
+  public static OrcRowWriter<Record> buildWriter(Schema icebergSchema) {
+    return new GenericOrcWriter(icebergSchema, ORCSchemaUtil.convert(icebergSchema));
+  }
+
   private static class WriteBuilder extends OrcSchemaWithTypeVisitor<OrcValueWriter<?>> {
     private WriteBuilder() {}
 

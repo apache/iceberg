@@ -52,6 +52,13 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
         (InternalRowWriter) OrcSchemaWithTypeVisitor.visit(iSchema, orcSchema, new WriteBuilder());
   }
 
+  public SparkOrcWriter(Schema icebergSchema) {
+    writer =
+        (InternalRowWriter)
+            OrcSchemaWithTypeVisitor.visit(
+                icebergSchema, ORCSchemaUtil.convert(icebergSchema), new WriteBuilder());
+  }
+
   @Override
   public void write(InternalRow value, VectorizedRowBatch output) {
     Preconditions.checkArgument(value != null, "value must not be null");

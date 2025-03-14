@@ -33,6 +33,7 @@ import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.avro.MetricsAwareDatumWriter;
 import org.apache.iceberg.avro.ValueWriter;
 import org.apache.iceberg.avro.ValueWriters;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
@@ -41,6 +42,10 @@ public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
 
   public FlinkAvroWriter(RowType rowType) {
     this.rowType = rowType;
+  }
+
+  public FlinkAvroWriter(org.apache.iceberg.Schema icebergSchema) {
+    this.rowType = FlinkSchemaUtil.convert(icebergSchema);
   }
 
   @Override

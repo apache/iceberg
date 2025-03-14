@@ -35,7 +35,10 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.RowType.RowField;
 import org.apache.flink.table.types.logical.SmallIntType;
 import org.apache.flink.table.types.logical.TinyIntType;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.FlinkRowData;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
@@ -58,6 +61,13 @@ public class FlinkParquetWriters {
   public static <T> ParquetValueWriter<T> buildWriter(LogicalType schema, MessageType type) {
     return (ParquetValueWriter<T>)
         ParquetWithFlinkSchemaVisitor.visit(schema, type, new WriteBuilder(type));
+  }
+
+  public static <T> ParquetValueWriter<T> buildWriter(Schema schema) {
+    MessageType type = ParquetSchemaUtil.convert(schema, "alma");
+    return (ParquetValueWriter<T>)
+        ParquetWithFlinkSchemaVisitor.visit(
+            FlinkSchemaUtil.convert(schema.asStruct()), type, new WriteBuilder(type));
   }
 
   private static class WriteBuilder extends ParquetWithFlinkSchemaVisitor<ParquetValueWriter<?>> {

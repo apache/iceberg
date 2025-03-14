@@ -29,9 +29,8 @@ import org.apache.iceberg.io.FileAppender;
  * Interface which should be implemented by the data file format implementations.
  *
  * @param <A> type returned by builder API to allow chained calls
- * @param <E> type for the engine specific schema
  */
-public interface AppenderBuilder<A extends AppenderBuilder<A, E>, E> {
+public interface AppenderBuilder<A extends AppenderBuilder<A>> {
   /**
    * Sets the appender configurations coming from the table like {@link #schema(Schema)}, {@link
    * #set(String, String)} and {@link #metricsConfig(MetricsConfig)}.
@@ -91,9 +90,6 @@ public interface AppenderBuilder<A extends AppenderBuilder<A, E>, E> {
   default A aADPrefix(ByteBuffer aadPrefix) {
     throw new UnsupportedOperationException("Not supported");
   }
-
-  /** Sets the engine native schema for the appender. */
-  E engineSchema(E newEngineSchema);
 
   /**
    * Builds the {@link FileAppender} for the configured {@link WriteMode}. Could change several

@@ -121,9 +121,7 @@ public class ORC {
         Record.class.getName(),
         outputFile ->
             ORC.write(outputFile)
-                .writerFunction(
-                    (schema, messageType, nativeSchema) ->
-                        GenericOrcWriter.buildWriter(schema, messageType))
+                .writerFunction(GenericOrcWriter::buildWriter)
                 .pathTransformFunc(Function.identity()));
   }
 
@@ -138,18 +136,17 @@ public class ORC {
     return new WriteBuilder(file.encryptingOutputFile());
   }
 
-  public static class WriteBuilder implements AppenderBuilder<WriteBuilder, Object> {
+  public static class WriteBuilder implements AppenderBuilder<WriteBuilder> {
     private final OutputFile file;
     private final Configuration conf;
     private Schema schema = null;
     private BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc;
-    private WriterFunction<Object> writerFunction;
+    private Function<Schema, OrcRowWriter<?>> writerFunction;
     private final Map<String, byte[]> metadata = Maps.newHashMap();
     private MetricsConfig metricsConfig;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
     private final Map<String, String> config = Maps.newLinkedHashMap();
     private boolean overwrite = false;
-    private Object engineSchema;
     private Function<CharSequence, ?> pathTransformFunc;
 
     private WriteBuilder(OutputFile file) {
@@ -190,7 +187,7 @@ public class ORC {
       return this;
     }
 
-    public WriteBuilder writerFunction(WriterFunction<Object> newWriterFunction) {
+    public WriteBuilder writerFunction(Function<Schema, OrcRowWriter<?>> newWriterFunction) {
       Preconditions.checkState(
           createWriterFunc == null, "Cannot set multiple writer builder functions");
       this.writerFunction = newWriterFunction;
@@ -218,12 +215,6 @@ public class ORC {
     public WriteBuilder schema(Schema newSchema) {
       this.schema = newSchema;
       return this;
-    }
-
-    @Override
-    public WriteBuilder engineSchema(Object newEngineSchema) {
-      this.engineSchema = newEngineSchema;
-      return null;
     }
 
     @Deprecated
@@ -257,22 +248,19 @@ public class ORC {
         case APPENDER:
         case DATA_WRITER:
           this.createWriterFunc =
-              (icebergSchema, typeDescription) ->
-                  writerFunction.write(icebergSchema, typeDescription, engineSchema);
+              (icebergSchema, typeDescription) -> writerFunction.apply(icebergSchema);
           this.createContextFunc = Context::dataContext;
           break;
         case EQUALITY_DELETE_WRITER:
           this.createWriterFunc =
-              (icebergSchema, typeDescription) ->
-                  writerFunction.write(icebergSchema, typeDescription, engineSchema);
+              (icebergSchema, typeDescription) -> writerFunction.apply(icebergSchema);
           this.createContextFunc = Context::deleteContext;
           break;
         case POSITION_DELETE_WRITER:
           this.createWriterFunc =
               (icebergSchema, typeDescription) ->
                   GenericOrcWriters.positionDelete(
-                      GenericOrcWriter.buildWriter(icebergSchema, typeDescription),
-                      Function.identity());
+                      GenericOrcWriter.buildWriter(icebergSchema), Function.identity());
           this.createContextFunc = Context::deleteContext;
           break;
         case POSITION_DELETE_WITH_ROW_WRITER:
@@ -281,8 +269,7 @@ public class ORC {
           this.createWriterFunc =
               (icebergSchema, typeDescription) ->
                   GenericOrcWriters.positionDelete(
-                      writerFunction.write(icebergSchema, typeDescription, engineSchema),
-                      pathTransformFunc);
+                      writerFunction.apply(icebergSchema), pathTransformFunc);
           this.createContextFunc = Context::deleteContext;
           break;
         default:

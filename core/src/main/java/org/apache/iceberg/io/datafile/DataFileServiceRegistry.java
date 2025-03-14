@@ -66,7 +66,7 @@ public final class DataFileServiceRegistry {
         "org.apache.iceberg.spark.source.DataFileServices"
       };
 
-  private static final Map<Key, Function<EncryptedOutputFile, AppenderBuilder<?, ?>>>
+  private static final Map<Key, Function<EncryptedOutputFile, AppenderBuilder<?>>>
       APPENDER_BUILDERS = Maps.newConcurrentMap();
   private static final Map<Key, Function<InputFile, ReadBuilder<?, ?>>> READ_BUILDERS =
       Maps.newConcurrentMap();
@@ -75,7 +75,7 @@ public final class DataFileServiceRegistry {
   public static void registerAppender(
       FileFormat format,
       String inputType,
-      Function<EncryptedOutputFile, AppenderBuilder<?, ?>> appenderBuilder) {
+      Function<EncryptedOutputFile, AppenderBuilder<?>> appenderBuilder) {
     Key key = new Key(format, inputType, null);
     if (APPENDER_BUILDERS.containsKey(key)) {
       throw new IllegalArgumentException(
@@ -174,14 +174,12 @@ public final class DataFileServiceRegistry {
    * @param format of the file to read
    * @param inputType accepted by the writer
    * @param outputFile to write
-   * @param <E> type for the engine specific schema used by the builder
    * @return {@link ReadBuilder} for building the actual reader
    */
-  public static <E> WriteBuilder<?, E> writeBuilder(
+  public static WriteBuilder<?> writeBuilder(
       FileFormat format, String inputType, EncryptedOutputFile outputFile) {
     return new WriteBuilder<>(
-        (AppenderBuilder<?, E>)
-            APPENDER_BUILDERS.get(new Key(format, inputType, null)).apply(outputFile),
+        APPENDER_BUILDERS.get(new Key(format, inputType, null)).apply(outputFile),
         outputFile.encryptingOutputFile().location(),
         format);
   }

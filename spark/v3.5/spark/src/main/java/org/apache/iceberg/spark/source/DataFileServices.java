@@ -36,7 +36,6 @@ import org.apache.iceberg.spark.data.SparkPlannedAvroReader;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 
@@ -98,24 +97,21 @@ public class DataFileServices {
         InternalRow.class.getName(),
         outputFile ->
             Avro.write(outputFile)
-                .writerFunction(
-                    (schema, engineSchema) -> new SparkAvroWriter((StructType) engineSchema))
+                .writerFunction(SparkAvroWriter::new)
                 .deleteRowWriterFunction(
-                    (schema, engineSchema) ->
+                    schema ->
                         new SparkAvroWriter(
-                            (StructType)
-                                ((StructType) engineSchema)
-                                    .apply(DELETE_FILE_ROW_FIELD_NAME)
-                                    .dataType())));
+                            schema
+                                .findType(DELETE_FILE_ROW_FIELD_NAME)
+                                .asStructType()
+                                .asSchema())));
 
     DataFileServiceRegistry.registerAppender(
         FileFormat.PARQUET,
         InternalRow.class.getName(),
         outputFile ->
             Parquet.write(outputFile)
-                .writerFunction(
-                    (engineSchema, icebergSchema, messageType) ->
-                        SparkParquetWriters.buildWriter((StructType) engineSchema, messageType))
+                .writerFunction(SparkParquetWriters::buildWriter)
                 .pathTransformFunc(path -> UTF8String.fromString(path.toString())));
 
     DataFileServiceRegistry.registerAppender(
@@ -123,8 +119,7 @@ public class DataFileServices {
         InternalRow.class.getName(),
         outputFile ->
             ORC.write(outputFile)
-                .writerFunction(
-                    (schema, messageType, engineSchema) -> new SparkOrcWriter(schema, messageType))
+                .writerFunction(SparkOrcWriter::new)
                 .pathTransformFunc(path -> UTF8String.fromString(path.toString())));
   }
 

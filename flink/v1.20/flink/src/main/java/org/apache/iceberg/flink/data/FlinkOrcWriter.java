@@ -27,6 +27,7 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.orc.OrcRowWriter;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -46,6 +47,10 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
 
   public static OrcRowWriter<RowData> buildWriter(RowType rowType, Schema iSchema) {
     return new FlinkOrcWriter(rowType, iSchema);
+  }
+
+  public static OrcRowWriter<RowData> buildWriter(Schema icebergSchema) {
+    return new FlinkOrcWriter(FlinkSchemaUtil.convert(icebergSchema), icebergSchema);
   }
 
   @Override

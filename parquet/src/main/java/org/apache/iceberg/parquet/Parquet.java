@@ -151,9 +151,7 @@ public class Parquet {
         Record.class.getName(),
         outputFile ->
             Parquet.write(outputFile)
-                .writerFunction(
-                    (nativeSchema, icebergSchema, messageType) ->
-                        GenericParquetWriter.buildWriter(messageType))
+                .writerFunction(GenericParquetWriter::buildWriter)
                 .pathTransformFunc(Function.identity()));
   }
 
@@ -178,18 +176,17 @@ public class Parquet {
   }
 
   public static class WriteBuilder
-      implements InternalData.WriteBuilder, AppenderBuilder<WriteBuilder, Object> {
+      implements InternalData.WriteBuilder, AppenderBuilder<WriteBuilder> {
     private final OutputFile file;
     private final Configuration conf;
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
     private final Map<String, String> config = Maps.newLinkedHashMap();
     private Schema schema = null;
-    private Object engineSchema = null;
     private VariantShreddingFunction variantShreddingFunc = null;
     private String name = "table";
     private WriteSupport<?> writeSupport = null;
     private BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc = null;
-    private WriterFunction<?> writerFunction = null;
+    private Function<Schema, ParquetValueWriter<?>> writerFunction = null;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
     private WriterVersion writerVersion = WriterVersion.PARQUET_1_0;
@@ -231,12 +228,6 @@ public class Parquet {
      */
     public WriteBuilder variantShreddingFunc(VariantShreddingFunction func) {
       this.variantShreddingFunc = func;
-      return this;
-    }
-
-    @Override
-    public Object engineSchema(Object newEngineSchema) {
-      this.engineSchema = newEngineSchema;
       return this;
     }
 
@@ -286,7 +277,7 @@ public class Parquet {
       return this;
     }
 
-    public <D> WriteBuilder writerFunction(WriterFunction<D> newWriterFunction) {
+    public WriteBuilder writerFunction(Function<Schema, ParquetValueWriter<?>> newWriterFunction) {
       Preconditions.checkState(
           createWriterFunc == null, "Cannot set multiple writer builder functions");
       this.writerFunction = newWriterFunction;
@@ -418,14 +409,12 @@ public class Parquet {
         case APPENDER:
         case DATA_WRITER:
           this.createWriterFunc =
-              (icebergSchema, messageType) ->
-                  writerFunction.write(engineSchema, icebergSchema, messageType);
+              (icebergSchema, messageType) -> writerFunction.apply(icebergSchema);
           this.createContextFunc = Context::dataContext;
           break;
         case EQUALITY_DELETE_WRITER:
           this.createWriterFunc =
-              (icebergSchema, messageType) ->
-                  writerFunction.write(engineSchema, icebergSchema, messageType);
+              (icebergSchema, messageType) -> writerFunction.apply(icebergSchema);
           this.createContextFunc = Context::deleteContext;
           break;
         case POSITION_DELETE_WRITER:
@@ -442,9 +431,7 @@ public class Parquet {
           this.createWriterFunc =
               (icebergSchema, messageType) ->
                   new PositionDeleteStructWriter<D>(
-                      (StructWriter<?>)
-                          writerFunction.write(engineSchema, icebergSchema, messageType),
-                      pathTransformFunc);
+                      (StructWriter<?>) writerFunction.apply(icebergSchema), pathTransformFunc);
           this.createContextFunc = Context::deleteContext;
           break;
         default:

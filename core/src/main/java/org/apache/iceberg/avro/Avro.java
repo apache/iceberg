@@ -106,10 +106,7 @@ public class Avro {
         FileFormat.AVRO,
         Record.class.getName(),
         outputFile ->
-            Avro.write(outputFile)
-                .writerFunction(
-                    (avroSchema, unused) ->
-                        org.apache.iceberg.data.avro.DataWriter.create(avroSchema)));
+            Avro.write(outputFile).writerFunction(org.apache.iceberg.data.avro.DataWriter::create));
   }
 
   public static WriteBuilder write(OutputFile file) {
@@ -125,19 +122,18 @@ public class Avro {
   }
 
   public static class WriteBuilder
-      implements InternalData.WriteBuilder, AppenderBuilder<WriteBuilder, Object> {
+      implements InternalData.WriteBuilder, AppenderBuilder<WriteBuilder> {
     private final OutputFile file;
     private final Map<String, String> config = Maps.newHashMap();
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
     private org.apache.iceberg.Schema schema = null;
     private String name = "table";
     private Function<Schema, DatumWriter<?>> createWriterFunc = null;
-    private BiFunction<Schema, Object, DatumWriter<?>> writerFunction = null;
-    private BiFunction<Schema, Object, DatumWriter<?>> deleteRowWriterFunction = null;
+    private Function<org.apache.iceberg.Schema, DatumWriter<?>> writerFunction = null;
+    private Function<org.apache.iceberg.Schema, DatumWriter<?>> deleteRowWriterFunction = null;
     private boolean overwrite;
     private MetricsConfig metricsConfig;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
-    private Object engineSchema;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -172,7 +168,7 @@ public class Avro {
     }
 
     public WriteBuilder writerFunction(
-        BiFunction<Schema, Object, DatumWriter<?>> newWriterFunction) {
+        Function<org.apache.iceberg.Schema, DatumWriter<?>> newWriterFunction) {
       Preconditions.checkState(
           createWriterFunc == null, "Cannot set multiple writer builder functions");
       this.writerFunction = newWriterFunction;
@@ -180,7 +176,7 @@ public class Avro {
     }
 
     public WriteBuilder deleteRowWriterFunction(
-        BiFunction<Schema, Object, DatumWriter<?>> newWriterFunction) {
+        Function<org.apache.iceberg.Schema, DatumWriter<?>> newWriterFunction) {
       Preconditions.checkState(
           createWriterFunc == null, "Cannot set multiple writer builder functions");
       this.deleteRowWriterFunction = newWriterFunction;
@@ -236,23 +232,17 @@ public class Avro {
     }
 
     @Override
-    public WriteBuilder engineSchema(Object newEngineSchema) {
-      this.engineSchema = newEngineSchema;
-      return this;
-    }
-
-    @Override
     public <D> FileAppender<D> build(WriteMode mode) throws IOException {
       switch (mode) {
         case APPENDER:
         case DATA_WRITER:
           Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
-          this.createWriterFunc = avroSchema -> writerFunction.apply(avroSchema, engineSchema);
+          this.createWriterFunc = ignored -> writerFunction.apply(schema);
           this.createContextFunc = Context::dataContext;
           break;
         case EQUALITY_DELETE_WRITER:
           Preconditions.checkState(writerFunction != null, "Writer function has to be set.");
-          this.createWriterFunc = avroSchema -> writerFunction.apply(avroSchema, engineSchema);
+          this.createWriterFunc = ignored -> writerFunction.apply(schema);
           this.createContextFunc = Context::deleteContext;
           break;
         case POSITION_DELETE_WRITER:
@@ -265,12 +255,9 @@ public class Avro {
               "Writer function has to be set.");
           this.createWriterFunc =
               deleteRowWriterFunction != null
-                  ? avroSchema ->
-                      new PositionAndRowDatumWriter<>(
-                          deleteRowWriterFunction.apply(avroSchema, engineSchema))
-                  : avroSchema ->
-                      new PositionAndRowDatumWriter<>(
-                          writerFunction.apply(avroSchema, engineSchema));
+                  ? ignored ->
+                      new PositionAndRowDatumWriter<>(deleteRowWriterFunction.apply(schema))
+                  : ignored -> new PositionAndRowDatumWriter<>(writerFunction.apply(schema));
           break;
         default:
           throw new IllegalArgumentException("Not supported mode: " + mode);
