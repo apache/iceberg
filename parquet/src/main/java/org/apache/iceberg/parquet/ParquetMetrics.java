@@ -521,6 +521,7 @@ class ParquetMetrics {
         return new ParquetVariantUtil.VariantMetrics(valueCount, nullCount);
       }
 
+      @SuppressWarnings("CyclomaticComplexity")
       private <T> ParquetVariantUtil.VariantMetrics metrics(PrimitiveType primitive) {
         PhysicalType variantType = ParquetVariantUtil.convert(primitive);
         if (null == variantType) {
