@@ -659,7 +659,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
-  public void testDefaultTableProperties() {
+  public void testDefaultTablePropertiesCreate() {
     C catalog = catalog();
 
     TableIdentifier ident = TableIdentifier.of("ns", "table");
@@ -685,7 +685,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
-  public void testDefaultTablePropertiesTransaction() {
+  public void testDefaultTablePropertiesCreateTransaction() {
     C catalog = catalog();
 
     TableIdentifier ident = TableIdentifier.of("ns", "table");
@@ -697,17 +697,18 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
 
     catalog()
-            .buildTable(ident, SCHEMA)
-            .withProperty("default-key2", "catalog-overridden-key2")
-            .withProperty("prop1", "val1")
-            .createTransaction().commitTransaction();
+        .buildTable(ident, SCHEMA)
+        .withProperty("default-key2", "catalog-overridden-key2")
+        .withProperty("prop1", "val1")
+        .createTransaction()
+        .commitTransaction();
 
     Table table = catalog.loadTable(ident);
 
     assertThat(table.properties())
-            .containsEntry("default-key1", "catalog-default-key1")
-            .containsEntry("default-key2", "catalog-overridden-key2")
-            .containsEntry("prop1", "val1");
+        .containsEntry("default-key1", "catalog-default-key1")
+        .containsEntry("default-key2", "catalog-overridden-key2")
+        .containsEntry("prop1", "val1");
 
     assertThat(catalog.dropTable(ident)).as("Should successfully drop table").isTrue();
   }

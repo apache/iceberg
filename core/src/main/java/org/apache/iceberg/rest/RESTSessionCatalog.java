@@ -922,7 +922,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       AuthSession session = tableSession(response.config(), session(context));
       TableMetadata base = response.tableMetadata();
 
-      Map<String, String> tableProperties = propertiesBuilder.build();
+      Map<String, String> tableProperties = propertiesBuilder.buildKeepingLast();
       TableMetadata replacement =
           base.buildReplacement(
               schema,
@@ -984,7 +984,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     private LoadTableResponse stageCreate() {
-      Map<String, String> tableProperties = propertiesBuilder.build();
+      Map<String, String> tableProperties = propertiesBuilder.buildKeepingLast();
 
       CreateTableRequest request =
           CreateTableRequest.builder()
