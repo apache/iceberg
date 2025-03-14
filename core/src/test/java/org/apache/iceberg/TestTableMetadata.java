@@ -1830,11 +1830,11 @@ public class TestTableMetadata {
     Schema v3SchemaGeom =
         new Schema(
             Types.NestedField.required(3, "id", Types.LongType.get()),
-            Types.NestedField.required(4, "geom", Types.GeometryType.get()));
+            Types.NestedField.required(4, "geom", Types.GeometryType.crs84()));
     Schema v3SchemaGeog =
         new Schema(
             Types.NestedField.required(3, "id", Types.LongType.get()),
-            Types.NestedField.required(4, "geog", Types.GeographyType.get()));
+            Types.NestedField.required(4, "geog", Types.GeographyType.crs84()));
 
     for (Schema schema : ImmutableList.of(v3SchemaGeom, v3SchemaGeog)) {
       for (int unsupportedFormatVersion : ImmutableList.of(1, 2)) {

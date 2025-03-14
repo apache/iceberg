@@ -83,27 +83,37 @@ public class TestTypes {
 
   @Test
   public void geospatialTypeFromTypeName() {
-    assertThat(Types.fromPrimitiveString("geometry")).isEqualTo(Types.GeometryType.get());
-    assertThat(Types.fromPrimitiveString("geometry()")).isEqualTo(Types.GeometryType.get());
+    assertThat(Types.fromPrimitiveString("geometry")).isEqualTo(Types.GeometryType.crs84());
+    assertThat(Types.fromPrimitiveString("geometry()")).isEqualTo(Types.GeometryType.crs84());
     assertThat(Types.fromPrimitiveString("geometry(srid:3857)"))
         .isEqualTo(Types.GeometryType.of("srid:3857"));
     assertThat(Types.fromPrimitiveString("geometry( srid:3857 )"))
         .isEqualTo(Types.GeometryType.of("srid:3857"));
+    assertThat(Types.fromPrimitiveString("geometry( srid: 3857 )"))
+        .isEqualTo(Types.GeometryType.of("srid: 3857"));
+    assertThat(Types.fromPrimitiveString("geometry( projjson:TestIdentifier )"))
+        .isEqualTo(Types.GeometryType.of("projjson:TestIdentifier"));
 
-    assertThat(Types.fromPrimitiveString("geography")).isEqualTo(Types.GeographyType.get());
-    assertThat(Types.fromPrimitiveString("geography()")).isEqualTo(Types.GeographyType.get());
+    assertThat(Types.fromPrimitiveString("geography")).isEqualTo(Types.GeographyType.crs84());
+    assertThat(Types.fromPrimitiveString("geography()")).isEqualTo(Types.GeographyType.crs84());
     assertThat(Types.fromPrimitiveString("geography(srid:4269)"))
         .isEqualTo(Types.GeographyType.of("srid:4269"));
+    assertThat(Types.fromPrimitiveString("geography(srid: 4269)"))
+        .isEqualTo(Types.GeographyType.of("srid: 4269"));
     assertThat(Types.fromPrimitiveString("geography(srid:4269, spherical)"))
-        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.SPHERICAL));
+        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeAlgorithm.SPHERICAL));
     assertThat(Types.fromPrimitiveString("geography(srid:4269, vincenty)"))
-        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.VINCENTY));
+        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeAlgorithm.VINCENTY));
     assertThat(Types.fromPrimitiveString("geography(srid:4269, thomas)"))
-        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.THOMAS));
+        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeAlgorithm.THOMAS));
     assertThat(Types.fromPrimitiveString("geography(srid:4269, andoyer)"))
-        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.ANDOYER));
+        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeAlgorithm.ANDOYER));
     assertThat(Types.fromPrimitiveString("geography(srid:4269, karney)"))
-        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.KARNEY));
+        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY));
+    assertThat(Types.fromPrimitiveString("geography(srid: 4269, karney)"))
+        .isEqualTo(Types.GeographyType.of("srid: 4269", EdgeAlgorithm.KARNEY));
+    assertThat(Types.fromPrimitiveString("geography(projjson: TestIdentifier, karney)"))
+        .isEqualTo(Types.GeographyType.of("projjson: TestIdentifier", EdgeAlgorithm.KARNEY));
 
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("geography(srid:4269, BadAlgorithm)"))
@@ -114,11 +124,11 @@ public class TestTypes {
     assertThat(Types.fromPrimitiveString("geography( srid:4269 )"))
         .isEqualTo(Types.GeographyType.of("srid:4269"));
     assertThat(Types.fromPrimitiveString("geography( srid:4269 , spherical )"))
-        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.SPHERICAL));
+        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeAlgorithm.SPHERICAL));
     assertThat(Types.fromPrimitiveString("geography(srid:4269,vincenty)"))
-        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.VINCENTY));
+        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeAlgorithm.VINCENTY));
     assertThat(Types.fromPrimitiveString("geography( srid:4269  ,  karney  )"))
-        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.KARNEY));
+        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY));
   }
 
   @Test

@@ -32,12 +32,12 @@ public class GeometryUtil {
   private static final int DEFAULT_DIMENSION = 2;
 
   public static byte[] toWKB(Geometry geom) {
-    WKBWriter wkbWriter = new WKBWriter(getOutputDimension(geom), false);
+    WKBWriter wkbWriter = new WKBWriter(outputDimension(geom), false);
     return wkbWriter.write(geom);
   }
 
   public static String toWKT(Geometry geom) {
-    WKTWriter wktWriter = new WKTWriter(getOutputDimension(geom));
+    WKTWriter wktWriter = new WKTWriter(outputDimension(geom));
     return wktWriter.write(geom);
   }
 
@@ -59,7 +59,7 @@ public class GeometryUtil {
     }
   }
 
-  private static int getOutputDimension(Geometry geom) {
+  private static int outputDimension(Geometry geom) {
     int dimension = DEFAULT_DIMENSION;
     Coordinate coordinate = geom.getCoordinate();
 
@@ -72,6 +72,7 @@ public class GeometryUtil {
     if (!Double.isNaN(coordinate.getM())) {
       dimension = 4;
     }
+
     return dimension;
   }
 }

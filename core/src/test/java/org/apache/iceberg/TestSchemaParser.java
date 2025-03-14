@@ -31,7 +31,6 @@ import org.apache.iceberg.data.DataTest;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.EdgeInterpolationAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
@@ -53,6 +52,11 @@ public class TestSchemaParser extends DataTest {
 
   @Override
   protected boolean supportsVariant() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsGeospatial() {
     return true;
   }
 
@@ -150,23 +154,6 @@ public class TestSchemaParser extends DataTest {
         new Schema(
             Types.NestedField.required(1, "id", Types.IntegerType.get()),
             Types.NestedField.optional(2, "data", Types.VariantType.get()));
-
-    writeAndValidate(schema);
-  }
-
-  @Test
-  public void testSpatialType() throws IOException {
-    Schema schema =
-        new Schema(
-            Types.NestedField.required(1, "id", Types.IntegerType.get()),
-            Types.NestedField.optional(2, "geom0", Types.GeometryType.get()),
-            Types.NestedField.optional(3, "geom1", Types.GeometryType.of("srid:3857")),
-            Types.NestedField.optional(4, "geog0", Types.GeographyType.get()),
-            Types.NestedField.optional(5, "geog1", Types.GeographyType.of("srid:4269")),
-            Types.NestedField.optional(
-                6,
-                "geog2",
-                Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.KARNEY)));
 
     writeAndValidate(schema);
   }

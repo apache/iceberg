@@ -29,7 +29,9 @@ import java.util.Set;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
@@ -150,9 +152,10 @@ public class SchemaParser {
         Types.GeometryType geometryType = (Types.GeometryType) primitive;
         generator.writeStartObject();
         generator.writeStringField(TYPE, GEOMETRY);
-        if (!geometryType.crs().isEmpty()) {
+        if (!Strings.isNullOrEmpty(geometryType.crs())) {
           generator.writeStringField(CRS, geometryType.crs());
         }
+
         generator.writeEndObject();
         break;
 
@@ -160,12 +163,13 @@ public class SchemaParser {
         Types.GeographyType geographyType = (Types.GeographyType) primitive;
         generator.writeStartObject();
         generator.writeStringField(TYPE, GEOGRAPHY);
-        if (!geographyType.crs().isEmpty()) {
+        if (!Strings.isNullOrEmpty(geographyType.crs())) {
           generator.writeStringField(CRS, geographyType.crs());
         }
         if (geographyType.algorithm() != null) {
           generator.writeStringField(ALGORITHM, geographyType.algorithm().name());
         }
+
         generator.writeEndObject();
         break;
 
@@ -320,7 +324,11 @@ public class SchemaParser {
 
   private static Types.GeographyType geographyFromJson(JsonNode json) {
     String crs = JsonUtil.getStringOrNull(CRS, json);
-    String algorithm = JsonUtil.getStringOrNull(ALGORITHM, json);
+    String algorithmName = JsonUtil.getStringOrNull(ALGORITHM, json);
+    EdgeAlgorithm algorithm =
+        ((algorithmName == null || algorithmName.isEmpty())
+            ? null
+            : EdgeAlgorithm.fromName(algorithmName));
     return Types.GeographyType.of(crs, algorithm);
   }
 

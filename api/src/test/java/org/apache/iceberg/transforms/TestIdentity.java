@@ -24,8 +24,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestIdentity {
   @Test
@@ -167,48 +170,27 @@ public class TestIdentity {
         .isEqualTo("null");
   }
 
-  @Test
-  public void testVariantUnsupported() {
-    assertThatThrownBy(() -> Transforms.identity().bind(Types.VariantType.get()))
+  @ParameterizedTest
+  @MethodSource("unsupportedTypesProvider")
+  public void testUnsupported(Type type) {
+    assertThatThrownBy(() -> Transforms.identity().bind(type))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot bind to unsupported type: variant");
+        .hasMessage("Cannot bind to unsupported type: " + type);
 
-    assertThatThrownBy(() -> Transforms.fromString(Types.VariantType.get(), "identity"))
+    assertThatThrownBy(() -> Transforms.fromString(type, "identity"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Unsupported type for identity: variant");
+        .hasMessage("Unsupported type for identity: " + type);
 
-    assertThatThrownBy(() -> Transforms.identity(Types.VariantType.get()))
+    assertThatThrownBy(() -> Transforms.identity(type))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Unsupported type for identity: variant");
+        .hasMessage("Unsupported type for identity: " + type);
 
-    assertThat(Transforms.identity().canTransform(Types.VariantType.get())).isFalse();
+    assertThat(Transforms.identity().canTransform(type)).isFalse();
   }
 
-  @Test
-  public void testGeometryUnsupported() {
-    assertThatThrownBy(() -> Transforms.identity().bind(Types.GeometryType.get()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot bind to unsupported type: geometry");
-    assertThatThrownBy(() -> Transforms.fromString(Types.GeometryType.get(), "identity"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Unsupported type for identity: geometry");
-    assertThatThrownBy(() -> Transforms.identity(Types.GeometryType.get()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Unsupported type for identity: geometry");
-    assertThat(Transforms.identity().canTransform(Types.GeometryType.get())).isFalse();
-  }
-
-  @Test
-  public void testGeographyUnsupported() {
-    assertThatThrownBy(() -> Transforms.identity().bind(Types.GeographyType.get()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot bind to unsupported type: geography");
-    assertThatThrownBy(() -> Transforms.fromString(Types.GeographyType.get(), "identity"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Unsupported type for identity: geography");
-    assertThatThrownBy(() -> Transforms.identity(Types.GeographyType.get()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Unsupported type for identity: geography");
-    assertThat(Transforms.identity().canTransform(Types.GeographyType.get())).isFalse();
+  private static Type[] unsupportedTypesProvider() {
+    return new Type[] {
+      Types.VariantType.get(), Types.GeometryType.crs84(), Types.GeographyType.crs84()
+    };
   }
 }

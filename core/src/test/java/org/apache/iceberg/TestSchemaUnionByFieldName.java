@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.EdgeInterpolationAlgorithm;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.BinaryType;
@@ -75,10 +75,10 @@ public class TestSchemaUnionByFieldName {
         UnknownType.get(),
         TimestampNanoType.withoutZone(),
         TimestampNanoType.withZone(),
-        GeometryType.get(),
+        GeometryType.crs84(),
         GeometryType.of("srid:3857"),
-        GeographyType.get(),
-        GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.KARNEY));
+        GeographyType.crs84(),
+        GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY));
   }
 
   private static NestedField[] primitiveFields(

@@ -64,13 +64,13 @@ public class TestSerializableTypes {
           Types.DecimalType.of(11, 0),
           Types.FixedType.ofLength(4),
           Types.FixedType.ofLength(34),
-          Types.GeometryType.get(),
+          Types.GeometryType.crs84(),
           Types.GeometryType.of("srid:3857"),
           Types.GeometryType.of("projjson:Test_Identifier"),
-          Types.GeographyType.get(),
+          Types.GeographyType.crs84(),
           Types.GeographyType.of("srid:4269"),
           Types.GeographyType.of("projjson:Test_Identifier"),
-          Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.KARNEY),
+          Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY),
         };
 
     for (Type type : equalityPrimitives) {

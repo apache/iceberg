@@ -101,6 +101,7 @@ class Identity<T> implements Transform<T, T> {
     if (UNSUPPORTED_TYPES.contains(maybePrimitive.typeId())) {
       return false;
     }
+
     return maybePrimitive.isPrimitiveType();
   }
 

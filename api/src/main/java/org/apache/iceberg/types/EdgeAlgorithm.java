@@ -22,42 +22,32 @@ import java.util.Locale;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /** The algorithm for interpolating edges. */
-public enum EdgeInterpolationAlgorithm {
+public enum EdgeAlgorithm {
   /** Edges are interpolated as geodesics on a sphere. */
-  SPHERICAL("spherical"),
+  SPHERICAL,
   /** See <a href="https://en.wikipedia.org/wiki/Vincenty%27s_formulae">Vincenty's formulae</a> */
-  VINCENTY("vincenty"),
+  VINCENTY,
   /**
    * Thomas, Paul D. Spheroidal geodesics, reference systems, &amp; local geometry. US Naval
    * Oceanographic Office, 1970.
    */
-  THOMAS("thomas"),
+  THOMAS,
   /**
    * Thomas, Paul D. Mathematical models for navigation systems. US Naval Oceanographic Office,
    * 1965.
    */
-  ANDOYER("andoyer"),
+  ANDOYER,
   /**
    * <a href="https://link.springer.com/content/pdf/10.1007/s00190-012-0578-z.pdf">Karney, Charles
    * FF. "Algorithms for geodesics." Journal of Geodesy 87 (2013): 43-55 </a>, and <a
    * href="https://geographiclib.sourceforge.io/">GeographicLib</a>.
    */
-  KARNEY("karney");
+  KARNEY;
 
-  private final String value;
-
-  EdgeInterpolationAlgorithm(String value) {
-    this.value = value;
-  }
-
-  public String value() {
-    return value;
-  }
-
-  public static EdgeInterpolationAlgorithm fromName(String algorithmName) {
+  public static EdgeAlgorithm fromName(String algorithmName) {
     Preconditions.checkNotNull(algorithmName, "Edge interpolation algorithm cannot be null");
     try {
-      return EdgeInterpolationAlgorithm.valueOf(algorithmName.toUpperCase(Locale.ENGLISH));
+      return EdgeAlgorithm.valueOf(algorithmName.toUpperCase(Locale.ENGLISH));
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(
           String.format("Invalid edge interpolation algorithm: %s", algorithmName), e);

@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.Locale;
-import org.apache.iceberg.types.EdgeInterpolationAlgorithm;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
@@ -54,15 +54,12 @@ public class TestSingleValueParser {
           {Types.DecimalType.of(9, 4), "\"123.4500\""},
           {Types.DecimalType.of(9, 0), "\"2\""},
           {Types.DecimalType.of(9, -20), "\"2E+20\""},
-          {Types.GeometryType.get(), "\"POINT (1 2)\""},
-          {Types.GeometryType.get(), "\"POINT Z(1 2 3)\""},
-          {Types.GeometryType.get(), "\"POINT ZM(1 2 3 4)\""},
+          {Types.GeometryType.crs84(), "\"POINT (1 2)\""},
+          {Types.GeometryType.crs84(), "\"POINT Z(1 2 3)\""},
+          {Types.GeometryType.crs84(), "\"POINT ZM(1 2 3 4)\""},
           {Types.GeometryType.of("srid:3857"), "\"POINT (1 2)\""},
-          {Types.GeographyType.get(), "\"POINT ZM(1 2 3 4)\""},
-          {
-            Types.GeographyType.of("srid:4269", EdgeInterpolationAlgorithm.KARNEY),
-            "\"POINT ZM(1 2 3 4)\""
-          },
+          {Types.GeographyType.crs84(), "\"POINT ZM(1 2 3 4)\""},
+          {Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY), "\"POINT ZM(1 2 3 4)\""},
           {Types.ListType.ofOptional(1, Types.IntegerType.get()), "[1, 2, 3]"},
           {
             Types.MapType.ofOptional(2, 3, Types.IntegerType.get(), Types.StringType.get()),
@@ -169,11 +166,11 @@ public class TestSingleValueParser {
 
   @Test
   public void testInvalidGeometry() {
-    Type expectedType = Types.GeometryType.get();
+    Type expectedType = Types.GeometryType.crs84();
     String defaultJson = "\"POINT (1 2 3 4 5 6)\"";
     assertThatThrownBy(() -> defaultValueParseAndUnParseRoundTrip(expectedType, defaultJson))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageMatching("Cannot parse default as a geometry.* value.*");
+        .hasMessageStartingWith("Cannot parse default as a geometry value");
   }
 
   // serialize to json and deserialize back should return the same result
