@@ -64,6 +64,16 @@ public class TestFlinkParquetReader extends DataTest {
     return true;
   }
 
+  @Override
+  protected boolean supportsUnknown() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsTimestampNanos() {
+    return true;
+  }
+
   @Test
   public void testBuildReader() {
     MessageType fileSchema =
