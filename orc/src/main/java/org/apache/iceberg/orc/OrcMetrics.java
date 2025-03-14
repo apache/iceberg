@@ -124,20 +124,21 @@ public class OrcMetrics {
       final Stream<FieldMetrics<?>> fieldMetricsStream,
       final MetricsConfig metricsConfig,
       final NameMapping mapping) {
-    final TypeDescription orcSchemaWithIds =
-        (!ORCSchemaUtil.hasIds(orcSchema) && mapping != null)
-            ? ORCSchemaUtil.applyNameMapping(orcSchema, mapping)
-            : orcSchema;
+    TypeDescription orcSchemaWithIds;
+    if (ORCSchemaUtil.hasIds(orcSchema)) {
+      orcSchemaWithIds = orcSchema;
+    } else if (mapping != null) {
+      orcSchemaWithIds = ORCSchemaUtil.applyNameMapping(orcSchema, mapping);
+    } else {
+      return new Metrics(numOfRows);
+    }
+
     final Set<Integer> statsColumns = statsColumns(orcSchemaWithIds);
     final MetricsConfig effectiveMetricsConfig =
         Optional.ofNullable(metricsConfig).orElseGet(MetricsConfig::getDefault);
     Map<Integer, Long> columnSizes = Maps.newHashMapWithExpectedSize(colStats.length);
     Map<Integer, Long> valueCounts = Maps.newHashMapWithExpectedSize(colStats.length);
     Map<Integer, Long> nullCounts = Maps.newHashMapWithExpectedSize(colStats.length);
-
-    if (!ORCSchemaUtil.hasIds(orcSchemaWithIds)) {
-      return new Metrics(numOfRows, columnSizes, valueCounts, nullCounts, null, null, null);
-    }
 
     final Schema schema = ORCSchemaUtil.convert(orcSchemaWithIds);
     Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
@@ -151,10 +152,6 @@ public class OrcMetrics {
     for (int i = 0; i < colStats.length; i++) {
       final ColumnStatistics colStat = colStats[i];
       final TypeDescription orcCol = orcSchemaWithIds.findSubtype(i);
-      if (inMapOrList(orcCol)) {
-        continue;
-      }
-
       final Optional<Types.NestedField> icebergColOpt =
           ORCSchemaUtil.icebergID(orcCol).map(schema::findField);
 
@@ -165,7 +162,7 @@ public class OrcMetrics {
         final MetricsMode metricsMode =
             MetricsUtil.metricsMode(schema, effectiveMetricsConfig, icebergCol.fieldId());
 
-        if (metricsMode == MetricsModes.None.get()) {
+        if (metricsMode == MetricsModes.None.get() || inMapOrList(orcCol)) {
           continue;
         }
 
