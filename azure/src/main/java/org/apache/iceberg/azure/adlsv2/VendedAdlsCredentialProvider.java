@@ -47,7 +47,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
   public static final String URI = "credentials.uri";
 
   private final SerializableMap<String, String> properties;
-  private transient volatile Map<String, SimpleTokenCache> azureSasCredentialMap;
+  private transient volatile Map<String, SimpleTokenCache> sasCredentialByAccount;
   private transient volatile RESTClient client;
 
   public VendedAdlsCredentialProvider(Map<String, String> properties) {
@@ -91,7 +91,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
     checkCredential(
         adlsCredential, AzureProperties.ADLS_SAS_TOKEN_EXPIRES_AT_MS_PREFIX + storageAccount);
 
-    String updatedSasToken =
+    String sasToken =
         adlsCredential.config().get(AzureProperties.ADLS_SAS_TOKEN_PREFIX + storageAccount);
     Long tokenExpiresAtMillis =
         Long.parseLong(
@@ -103,7 +103,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
         updatedSasToken, Instant.ofEpochMilli(tokenExpiresAtMillis).atOffset(ZoneOffset.UTC));
   }
 
-  private Map<String, SimpleTokenCache> azureSasCredentialMap() {
+  private Map<String, SimpleTokenCache> sasCredentialByAccount() {
     if (this.azureSasCredentialMap == null) {
       synchronized (this) {
         if (this.azureSasCredentialMap == null) {

@@ -55,11 +55,11 @@ public class VendedAzureSasCredentialPolicy implements HttpPipelinePolicy {
     return azureSasCredentialPolicy.processSync(context, next);
   }
 
-  private void updateAzureSasCredential() {
+  private void maybeUpdateCredential() {
     String sasToken = vendedAdlsCredentialProvider.credentialForAccount(account);
-    if (Objects.isNull(azureSasCredential)) {
-      azureSasCredential = new AzureSasCredential(sasToken);
-      azureSasCredentialPolicy = new AzureSasCredentialPolicy(azureSasCredential, false);
+    if (azureSasCredential == null) {
+      this.azureSasCredential = new AzureSasCredential(sasToken);
+      this.azureSasCredentialPolicy = new AzureSasCredentialPolicy(azureSasCredential, false);
     } else {
       azureSasCredential.update(sasToken);
     }

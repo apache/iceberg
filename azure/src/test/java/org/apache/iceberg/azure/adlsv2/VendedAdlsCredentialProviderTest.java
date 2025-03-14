@@ -149,7 +149,7 @@ public class VendedAdlsCredentialProviderTest extends BaseVendedCredentialsTest 
   }
 
   @Test
-  public void expiredSasToken() throws InterruptedException {
+  public void expiredSasToken() {
     HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
     Credential credential =
         ImmutableCredential.builder()
