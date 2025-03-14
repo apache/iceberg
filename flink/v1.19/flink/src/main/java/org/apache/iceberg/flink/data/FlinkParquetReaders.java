@@ -21,8 +21,6 @@ package org.apache.iceberg.flink.data;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -274,17 +272,11 @@ public class FlinkParquetReaders {
       public Optional<ParquetValueReader<?>> visit(
           LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampLogicalType) {
         if (timestampLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS) {
-          if (timestampLogicalType.isAdjustedToUTC()) {
-            return Optional.of(new MillisToTimestampTzReader(desc));
-          } else {
-            return Optional.of(new MillisToTimestampReader(desc));
-          }
+          return Optional.of(new MillisToTimestampReader(desc));
         } else if (timestampLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS) {
-          if (timestampLogicalType.isAdjustedToUTC()) {
-            return Optional.of(new MicrosToTimestampTzReader(desc));
-          } else {
-            return Optional.of(new MicrosToTimestampReader(desc));
-          }
+          return Optional.of(new MicrosToTimestampReader(desc));
+        } else if (timestampLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.NANOS) {
+          return Optional.of(new NanosToTimestampReader(desc));
         }
 
         return LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(timestampLogicalType);
@@ -412,25 +404,17 @@ public class FlinkParquetReaders {
     }
   }
 
-  private static class MicrosToTimestampTzReader
+  private static class NanosToTimestampReader
       extends ParquetValueReaders.UnboxedReader<TimestampData> {
-    MicrosToTimestampTzReader(ColumnDescriptor desc) {
+    NanosToTimestampReader(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
     public TimestampData read(TimestampData ignored) {
       long value = readLong();
-      return TimestampData.fromLocalDateTime(
-          Instant.ofEpochSecond(
-                  Math.floorDiv(value, 1000_000L), Math.floorMod(value, 1000_000L) * 1000L)
-              .atOffset(ZoneOffset.UTC)
-              .toLocalDateTime());
-    }
-
-    @Override
-    public long readLong() {
-      return column.nextLong();
+      return TimestampData.fromEpochMillis(
+          Math.floorDiv(value, 1_000_000L), Math.floorMod(value, 1_000_000));
     }
   }
 
@@ -442,15 +426,9 @@ public class FlinkParquetReaders {
 
     @Override
     public TimestampData read(TimestampData ignored) {
-      long value = readLong();
-      return TimestampData.fromInstant(
-          Instant.ofEpochSecond(
-              Math.floorDiv(value, 1000_000L), Math.floorMod(value, 1000_000L) * 1000L));
-    }
-
-    @Override
-    public long readLong() {
-      return column.nextLong();
+      long micros = readLong();
+      return TimestampData.fromEpochMillis(
+          Math.floorDiv(micros, 1000L), Math.floorMod(micros, 1000) * 1000);
     }
   }
 
@@ -464,30 +442,6 @@ public class FlinkParquetReaders {
     public TimestampData read(TimestampData ignored) {
       long millis = readLong();
       return TimestampData.fromEpochMillis(millis);
-    }
-
-    @Override
-    public long readLong() {
-      return column.nextLong();
-    }
-  }
-
-  private static class MillisToTimestampTzReader
-      extends ParquetValueReaders.UnboxedReader<TimestampData> {
-    MillisToTimestampTzReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public TimestampData read(TimestampData ignored) {
-      long millis = readLong();
-      return TimestampData.fromLocalDateTime(
-          Instant.ofEpochMilli(millis).atOffset(ZoneOffset.UTC).toLocalDateTime());
-    }
-
-    @Override
-    public long readLong() {
-      return column.nextLong();
     }
   }
 
