@@ -168,7 +168,12 @@ public class CommitterImpl implements Committer {
   private void startCoordinator() {
     LOG.info("Task elected leader, starting commit coordinator");
     Coordinator coordinator =
-        new Coordinator(icebergCatalog, icebergSinkConfig, membersWhenWorkerIsCoordinator, clientFactory, sinkTaskContext);
+        new Coordinator(
+            icebergCatalog,
+            icebergSinkConfig,
+            membersWhenWorkerIsCoordinator,
+            clientFactory,
+            sinkTaskContext);
     coordinatorThread = new CoordinatorThread(coordinator);
     coordinatorThread.start();
   }
