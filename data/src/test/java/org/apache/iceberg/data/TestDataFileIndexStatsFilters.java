@@ -41,6 +41,8 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.metrics.InMemoryMetricsReporter;
+import org.apache.iceberg.metrics.ScanMetricsResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -338,13 +340,18 @@ public class TestDataFileIndexStatsFilters {
             evenDeletes,
             deleteRowSchema);
 
+    // Create a manifest that only has deletes for the "odd" partition
+    table.newRowDelta().addDeletes(oddDeleteFile).commit();
+
+    // Create a manifest which has deletes for both "even" and "odd" partitions
     table.newRowDelta().addDeletes(oddDeleteFile).addDeletes(evenDeleteFile).commit();
 
     Expression expr = Expressions.equal("category", "even");
 
+    InMemoryMetricsReporter reporter = new InMemoryMetricsReporter();
     List<FileScanTask> tasks;
     try (CloseableIterable<FileScanTask> tasksIterable =
-        table.newScan().filter(expr).ignoreResiduals().planFiles()) {
+        table.newScan().filter(expr).metricsReporter(reporter).ignoreResiduals().planFiles()) {
       tasks = Lists.newArrayList(tasksIterable);
     }
 
@@ -354,6 +361,20 @@ public class TestDataFileIndexStatsFilters {
     assertThat(task.deletes())
         .as("Should have one delete file, ignoreResiduals prevents filtering out the delete file")
         .hasSize(1);
+
+    ScanMetricsResult scanReport = reporter.scanReport().scanMetrics();
+    assertThat(scanReport.totalDeleteManifests().value())
+        .as("Should be 2 delete manfiests, one for odds and one with both odds and evens")
+        .isEqualTo(2);
+    assertThat(scanReport.skippedDeleteManifests().value())
+        .as("The manifest with only odd deletes should be skipped")
+        .isEqualTo(1);
+    assertThat(scanReport.equalityDeleteFiles().value())
+        .as("The even deletefile entry should be scanned")
+        .isEqualTo(1);
+    assertThat(scanReport.skippedDeleteFiles().value())
+        .as("The odd deletefile entry should be skipped")
+        .isEqualTo(1);
   }
 
   @Test

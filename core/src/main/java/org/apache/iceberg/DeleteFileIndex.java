@@ -547,7 +547,7 @@ class DeleteFileIndex {
     }
 
     private Iterable<CloseableIterable<ManifestEntry<DeleteFile>>> deleteManifestReaders() {
-      Expression deleteFilter = ignoreResiduals ? Expressions.alwaysTrue() : dataFilter;
+      Expression entryFilter = ignoreResiduals ? Expressions.alwaysTrue() : dataFilter;
 
       LoadingCache<Integer, ManifestEvaluator> evalCache =
           specsById == null
@@ -559,7 +559,7 @@ class DeleteFileIndex {
                         return ManifestEvaluator.forPartitionFilter(
                             Expressions.and(
                                 partitionFilter,
-                                Projections.inclusive(spec, caseSensitive).project(deleteFilter)),
+                                Projections.inclusive(spec, caseSensitive).project(dataFilter)),
                             spec,
                             caseSensitive);
                       });
@@ -583,8 +583,8 @@ class DeleteFileIndex {
           matchingManifests,
           manifest ->
               ManifestFiles.readDeleteManifest(manifest, io, specsById)
-                  .filterRows(deleteFilter)
-                  .filterPartitions(partitionFilter)
+                  .filterRows(entryFilter)
+                  .filterPartitions(Expressions.and(partitionFilter, dataFilter))
                   .filterPartitions(partitionSet)
                   .caseSensitive(caseSensitive)
                   .scanMetrics(scanMetrics)
