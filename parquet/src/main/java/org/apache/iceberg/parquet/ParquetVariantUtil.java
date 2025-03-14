@@ -102,8 +102,8 @@ class ParquetVariantUtil {
    * @param primitive a primitive variant {@link PhysicalType}
    * @param scale decimal scale used when the value is a decimal
    * @param value a value from Parquet value to convert
-   * @return the primitive value
    * @param <T> Java type used for values of the given Variant physical type
+   * @return the primitive value
    */
   @SuppressWarnings("unchecked")
   static <T> T convertValue(PhysicalType primitive, int scale, Object value) {
@@ -140,8 +140,8 @@ class ParquetVariantUtil {
    * Returns a comparator for values of the given primitive {@link PhysicalType type}.
    *
    * @param primitive a primitive variant {@link PhysicalType}
-   * @return a comparator for in-memory values of the given type
    * @param <T> Java type used for values of the given Variant physical type
+   * @return a comparator for in-memory values of the given type
    */
   @SuppressWarnings("unchecked")
   static <T> Comparator<T> comparator(PhysicalType primitive) {
@@ -245,14 +245,14 @@ class ParquetVariantUtil {
     private final Deque<String> fieldNames = Lists.newLinkedList();
     private String lazyFieldName = null;
 
-    public VariantMetrics(long valueCount, long nullCount) {
+    VariantMetrics(long valueCount, long nullCount) {
       this.valueCount = valueCount;
       this.nullCount = nullCount;
       this.lowerBound = null;
       this.upperBound = null;
     }
 
-    public VariantMetrics(
+    VariantMetrics(
         long valueCount, long nullCount, VariantValue lowerBound, VariantValue upperBound) {
       this.valueCount = valueCount;
       this.nullCount = nullCount;
