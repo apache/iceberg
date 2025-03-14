@@ -16,11 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.credentials;
+package org.apache.iceberg.io;
 
-import org.apache.iceberg.io.StorageCredential;
-import org.immutables.value.Value;
+import java.util.List;
 
-@SuppressWarnings("immutables:incompat")
-@Value.Immutable
-public interface Credential extends StorageCredential {}
+public interface SupportsStorageCredentials {
+
+  void setCredentials(List<? extends StorageCredential> credentials);
+
+  List<? extends StorageCredential> credentials();
+}

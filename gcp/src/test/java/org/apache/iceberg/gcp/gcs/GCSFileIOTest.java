@@ -24,10 +24,12 @@ import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIAL
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
+import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.OAuth2Credentials;
 import com.google.auth.oauth2.OAuth2CredentialsWithRefresh;
 import com.google.cloud.storage.BlobId;
@@ -40,6 +42,7 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Date;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.StreamSupport;
@@ -50,9 +53,11 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.IOUtil;
+import org.apache.iceberg.io.ImmutableStorageCredential;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.ResolvingFileIO;
+import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -272,5 +277,74 @@ public class GCSFileIOTest {
     }
 
     assertThat(client.getOptions().getCredentials()).isInstanceOf(OAuth2Credentials.class);
+  }
+
+  @Test
+  public void singleStorageCredentialConfigured() {
+    StorageCredential gcsCredential =
+        ImmutableStorageCredential.builder()
+            .prefix("gs://custom-uri")
+            .config(
+                ImmutableMap.of(
+                    "gcs.oauth2.token",
+                    "gcsTokenFromCredential",
+                    "gcs.oauth2.token-expires-at",
+                    "2000"))
+            .build();
+
+    AccessToken expectedToken = new AccessToken("gcsTokenFromCredential", new Date(2000L));
+
+    Storage client;
+    try (GCSFileIO fileIO = new GCSFileIO()) {
+      fileIO.setCredentials(ImmutableList.of(gcsCredential));
+      fileIO.initialize(
+          ImmutableMap.of(
+              GCS_OAUTH2_TOKEN, "gcsTokenFromProperties", GCS_OAUTH2_TOKEN_EXPIRES_AT, "1000"));
+      client = fileIO.client();
+    }
+
+    assertThat(client.getOptions().getCredentials())
+        .isInstanceOf(OAuth2Credentials.class)
+        .extracting("value")
+        .extracting("temporaryAccess")
+        .isEqualTo(expectedToken);
+  }
+
+  @Test
+  public void multipleStorageCredentialsConfigured() {
+    StorageCredential gcsCredential1 =
+        ImmutableStorageCredential.builder()
+            .prefix("gs://custom-uri/1")
+            .config(
+                ImmutableMap.of(
+                    "gcs.oauth2.token",
+                    "gcsTokenFromCredential1",
+                    "gcs.oauth2.token-expires-at",
+                    "2000"))
+            .build();
+
+    StorageCredential gcsCredential2 =
+        ImmutableStorageCredential.builder()
+            .prefix("gs://custom-uri/2")
+            .config(
+                ImmutableMap.of(
+                    "gcs.oauth2.token",
+                    "gcsTokenFromCredential2",
+                    "gcs.oauth2.token-expires-at",
+                    "2000"))
+            .build();
+
+    GCSFileIO fileIO = new GCSFileIO();
+    fileIO.setCredentials(ImmutableList.of(gcsCredential1, gcsCredential2));
+    assertThatThrownBy(
+            () ->
+                fileIO.initialize(
+                    ImmutableMap.of(
+                        GCS_OAUTH2_TOKEN,
+                        "gcsTokenFromProperties",
+                        GCS_OAUTH2_TOKEN_EXPIRES_AT,
+                        "1000")))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Invalid GCS Credentials: only one GCS credential should exist");
   }
 }
