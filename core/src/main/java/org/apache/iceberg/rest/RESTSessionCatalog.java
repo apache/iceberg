@@ -436,7 +436,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             tableClient,
             paths.table(finalIdentifier),
             Map::of,
-            tableFileIO(context, response.config()),
+            tableFileIO(context, tableConf),
             tableMetadata,
             endpoints);
 
@@ -515,7 +515,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             tableClient,
             paths.table(ident),
             Map::of,
-            tableFileIO(context, response.config()),
+            tableFileIO(context, tableConf),
             response.tableMetadata(),
             endpoints);
 
@@ -774,7 +774,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               tableClient,
               paths.table(ident),
               Map::of,
-              tableFileIO(context, response.config()),
+              tableFileIO(context, tableConf),
               response.tableMetadata(),
               endpoints);
 
@@ -801,7 +801,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               tableClient,
               paths.table(ident),
               Map::of,
-              tableFileIO(context, response.config()),
+              tableFileIO(context, tableConf),
               RESTTableOperations.UpdateType.CREATE,
               createChanges(meta),
               meta,
@@ -864,7 +864,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               tableClient,
               paths.table(ident),
               Map::of,
-              tableFileIO(context, response.config()),
+              tableFileIO(context, tableConf),
               RESTTableOperations.UpdateType.REPLACE,
               changes.build(),
               base,

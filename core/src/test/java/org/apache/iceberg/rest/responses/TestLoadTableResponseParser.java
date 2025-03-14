@@ -320,14 +320,20 @@ public class TestLoadTableResponseParser {
                     .prefix("gs://custom-uri")
                     .config(
                         ImmutableMap.of(
-                            "gcs.oauth2.token", "gcsToken1", "gcs.oauth2.token-expires-at", "1000"))
+                            "gcs.oauth2.token",
+                            "gcsSpecificToken",
+                            "gcs.oauth2.token-expires-at",
+                            "1000"))
                     .build())
             .addCredential(
                 ImmutableCredential.builder()
                     .prefix("gs")
                     .config(
                         ImmutableMap.of(
-                            "gcs.oauth2.token", "gcsToken2", "gcs.oauth2.token-expires-at", "2000"))
+                            "gcs.oauth2.token",
+                            "gcsGenericToken",
+                            "gcs.oauth2.token-expires-at",
+                            "2000"))
                     .build())
             .build();
 
@@ -375,7 +381,12 @@ public class TestLoadTableResponseParser {
                 + "  },\n"
                 + "  \"config\" : {\n"
                 + "    \"key1\" : \"val1\",\n"
-                + "    \"key2\" : \"val2\"\n"
+                + "    \"key2\" : \"val2\",\n"
+                + "    \"s3.access-key-id\" : \"keyId\",\n"
+                + "    \"s3.secret-access-key\" : \"accessKey\",\n"
+                + "    \"s3.session-token\" : \"sessionToken\",\n"
+                + "    \"gcs.oauth2.token\" : \"gcsSpecificToken\",\n"
+                + "    \"gcs.oauth2.token-expires-at\" : \"1000\"\n"
                 + "  },\n"
                 + "  \"storage-credentials\" : [ {\n"
                 + "    \"prefix\" : \"s3://custom-uri\",\n"
@@ -387,13 +398,13 @@ public class TestLoadTableResponseParser {
                 + "  }, {\n"
                 + "    \"prefix\" : \"gs://custom-uri\",\n"
                 + "    \"config\" : {\n"
-                + "      \"gcs.oauth2.token\" : \"gcsToken1\",\n"
+                + "      \"gcs.oauth2.token\" : \"gcsSpecificToken\",\n"
                 + "      \"gcs.oauth2.token-expires-at\" : \"1000\"\n"
                 + "    }\n"
                 + "  }, {\n"
                 + "    \"prefix\" : \"gs\",\n"
                 + "    \"config\" : {\n"
-                + "      \"gcs.oauth2.token\" : \"gcsToken2\",\n"
+                + "      \"gcs.oauth2.token\" : \"gcsGenericToken\",\n"
                 + "      \"gcs.oauth2.token-expires-at\" : \"2000\"\n"
                 + "    }\n"
                 + "  } ]\n"

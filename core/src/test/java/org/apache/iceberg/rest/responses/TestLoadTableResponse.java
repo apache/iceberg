@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.PartitionSpec;
@@ -34,9 +35,12 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.RequestResponseTestBase;
+import org.apache.iceberg.rest.credentials.Credential;
+import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -265,5 +269,60 @@ public class TestLoadTableResponse extends RequestResponseTestBase<LoadTableResp
   private String readTableMetadataInputFile(String fileName) throws Exception {
     Path path = Paths.get(getClass().getClassLoader().getResource(fileName).toURI());
     return String.join("", java.nio.file.Files.readAllLines(path));
+  }
+
+  @Test
+  public void credentialsWithLongestPrefixAreUsed() {
+    TableMetadata metadata =
+        TableMetadata.buildFromEmpty()
+            .assignUUID("386b9f01-002b-4d8c-b77f-42c3fd3b7c9b")
+            .setLocation("location")
+            .setCurrentSchema(
+                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
+            .addPartitionSpec(PartitionSpec.unpartitioned())
+            .addSortOrder(SortOrder.unsorted())
+            .discardChanges()
+            .withMetadataLocation("metadata-location")
+            .build();
+
+    List<Credential> credentials =
+        ImmutableList.of(
+            ImmutableCredential.builder()
+                .prefix("s3://custom-uri2")
+                .config(ImmutableMap.of("s3Key", "s3CustomKey2"))
+                .build(),
+            ImmutableCredential.builder()
+                .prefix("s3://custom-uri1")
+                .config(ImmutableMap.of("s3Key", "s3CustomKey1"))
+                .build(),
+            ImmutableCredential.builder()
+                .prefix("s3")
+                .config(ImmutableMap.of("s3Key", "s3GenericKey"))
+                .build(),
+            ImmutableCredential.builder()
+                .prefix("gs://custom-uri")
+                .config(ImmutableMap.of("gcsKey", "gcsCustomKey"))
+                .build(),
+            ImmutableCredential.builder()
+                .prefix("gs")
+                .config(ImmutableMap.of("gcsKey", "gcsGenericKey"))
+                .build(),
+            ImmutableCredential.builder()
+                .prefix("adls")
+                .config(ImmutableMap.of("adlsKey", "adlsGenericKey"))
+                .build());
+
+    LoadTableResponse response =
+        LoadTableResponse.builder()
+            .withTableMetadata(metadata)
+            .addAllConfig(
+                ImmutableMap.of("s3Key", "s3Key", "gcsKey", "gcsKey", "adlsKey", "adlsKey"))
+            .addAllCredentials(credentials)
+            .build();
+
+    assertThat(response.config())
+        .containsEntry("s3Key", "s3CustomKey1")
+        .containsEntry("gcsKey", "gcsCustomKey")
+        .containsEntry("adlsKey", "adlsGenericKey");
   }
 }
