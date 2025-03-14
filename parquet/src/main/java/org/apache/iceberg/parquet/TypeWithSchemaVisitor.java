@@ -211,13 +211,13 @@ public class TypeWithSchemaVisitor<T> {
   }
 
   private static <T> T visitVariant(
-      Types.VariantType variant, GroupType group, TypeWithSchemaVisitor<T> visitor) {
+      Types.VariantType variant, GroupType variantGroup, TypeWithSchemaVisitor<T> visitor) {
     ParquetVariantVisitor<T> variantVisitor = visitor.variantVisitor();
     if (variantVisitor != null) {
-      T variantResult = ParquetVariantVisitor.visit(group, variantVisitor);
-      return visitor.variant(variant, variantResult);
+      T variantResult = ParquetVariantVisitor.visit(variantGroup, variantVisitor);
+      return visitor.variant(variant, variantGroup, variantResult);
     } else {
-      return visitor.variant(variant, null);
+      return visitor.variant(variant, variantGroup, null);
     }
   }
 
@@ -237,7 +237,7 @@ public class TypeWithSchemaVisitor<T> {
     return null;
   }
 
-  public T variant(Types.VariantType iVariant, T result) {
+  public T variant(Types.VariantType iVariant, GroupType variant, T result) {
     throw new UnsupportedOperationException("Not implemented for variant");
   }
 
