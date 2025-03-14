@@ -686,7 +686,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
-  public void testCreateTableWithDefaultValue() {
+  public void testCreateTableWithDefaultColumnValue() {
     C catalog = catalog();
 
     TableIdentifier ident = TableIdentifier.of("ns", "table");
