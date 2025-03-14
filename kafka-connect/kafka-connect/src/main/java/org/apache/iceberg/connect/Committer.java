@@ -28,7 +28,7 @@ public interface Committer {
 
   /**
    * @deprecated will be removed in 2.0.0. Use {@link #open(Catalog, IcebergSinkConfig,
-   *     SinkTaskContext, Collection<TopicPartition>)} instead.
+   *     SinkTaskContext, Collection)} instead.
    */
   @Deprecated
   void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context);
@@ -43,7 +43,7 @@ public interface Committer {
   }
 
   /**
-   * @deprecated will be removed in 2.0.0. Use {@link #close(Collection<TopicPartition>)} instead.
+   * @deprecated will be removed in 2.0.0. Use {@link #close(Collection)} instead.
    */
   @Deprecated
   void stop();

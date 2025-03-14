@@ -19,8 +19,6 @@
 package org.apache.iceberg.connect.channel;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -220,15 +218,15 @@ public class CoordinatorTest extends ChannelTestBase {
     // Assigning three topic partitions tp0, tp1, and tp2. This will be elected as leader as it has
     // tp0.
     sourceConsumer.rebalance(Lists.newArrayList(tp0, tp1, tp2));
-    assertTrue(mockIcebergSinkTask.isCoordinatorRunning());
+    assertThat(mockIcebergSinkTask.isCoordinatorRunning()).isTrue();
 
     // Now revoking the partition 2, this should not close the coordinator as this task still has
     // the zeroth partition
     sourceConsumer.rebalance(Lists.newArrayList(tp0, tp1));
-    assertTrue(mockIcebergSinkTask.isCoordinatorRunning());
+    assertThat(mockIcebergSinkTask.isCoordinatorRunning()).isTrue();
 
     // Now finally revoking partition zero and this should result in the closure of the coordinator
     sourceConsumer.rebalance(ImmutableList.of(tp1));
-    assertFalse(mockIcebergSinkTask.isCoordinatorRunning());
+    assertThat(mockIcebergSinkTask.isCoordinatorRunning()).isFalse();
   }
 }

@@ -43,18 +43,18 @@ public class CommitterImpl implements Committer {
 
   private CoordinatorThread coordinatorThread;
   private Worker worker;
-  private Catalog catalog;
-  private IcebergSinkConfig config;
-  private SinkTaskContext context;
+  private Catalog icebergCatalog;
+  private IcebergSinkConfig icebergSinkConfig;
+  private SinkTaskContext sinkTaskContext;
   private KafkaClientFactory clientFactory;
   private Collection<MemberDescription> membersWhenWorkerIsCoordinator;
   private final AtomicBoolean isInitialized = new AtomicBoolean(false);
 
   private void initialize(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
     if (isInitialized.compareAndSet(false, true)) {
-      this.catalog = catalog;
-      this.config = config;
-      this.context = context;
+      this.icebergCatalog = catalog;
+      this.icebergSinkConfig = config;
+      this.sinkTaskContext = context;
       this.clientFactory = new KafkaClientFactory(config.kafkaProps());
     }
   }
@@ -74,7 +74,7 @@ public class CommitterImpl implements Committer {
   private boolean hasLeaderPartition(Collection<TopicPartition> currentAssignedPartitions) {
     ConsumerGroupDescription groupDesc;
     try (Admin admin = clientFactory.createAdmin()) {
-      groupDesc = KafkaUtils.consumerGroupDescription(config.connectGroupId(), admin);
+      groupDesc = KafkaUtils.consumerGroupDescription(icebergSinkConfig.connectGroupId(), admin);
     }
     if (groupDesc.state() == ConsumerGroupState.STABLE) {
       Collection<MemberDescription> members = groupDesc.members();
@@ -135,7 +135,7 @@ public class CommitterImpl implements Committer {
       stopCoordinator();
     }
     stopWorker();
-    KafkaUtils.seekToLastCommittedOffsets(context);
+    KafkaUtils.seekToLastCommittedOffsets(sinkTaskContext);
   }
 
   @Override
@@ -159,8 +159,8 @@ public class CommitterImpl implements Committer {
   private void startWorker() {
     if (null == this.worker) {
       LOG.info("Starting commit worker");
-      SinkWriter sinkWriter = new SinkWriter(catalog, config);
-      worker = new Worker(config, clientFactory, sinkWriter, context);
+      SinkWriter sinkWriter = new SinkWriter(icebergCatalog, icebergSinkConfig);
+      worker = new Worker(icebergSinkConfig, clientFactory, sinkWriter, sinkTaskContext);
       worker.start();
     }
   }
@@ -168,7 +168,7 @@ public class CommitterImpl implements Committer {
   private void startCoordinator() {
     LOG.info("Task elected leader, starting commit coordinator");
     Coordinator coordinator =
-        new Coordinator(catalog, config, membersWhenWorkerIsCoordinator, clientFactory, context);
+        new Coordinator(icebergCatalog, icebergSinkConfig, membersWhenWorkerIsCoordinator, clientFactory, sinkTaskContext);
     coordinatorThread = new CoordinatorThread(coordinator);
     coordinatorThread.start();
   }
