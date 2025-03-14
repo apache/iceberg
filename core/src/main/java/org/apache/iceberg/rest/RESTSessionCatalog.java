@@ -266,10 +266,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     do {
       queryParams.put("pageToken", pageToken);
-      AuthSession authSession = authManager.contextualSession(context, catalogAuth);
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
       ListTablesResponse response =
           client
-              .withAuthSession(authSession)
+              .withAuthSession(contextualSession)
               .get(
                   paths.tables(ns),
                   queryParams,
@@ -289,9 +289,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     checkIdentifierIsValid(identifier);
 
     try {
-      AuthSession authSession = authManager.contextualSession(context, catalogAuth);
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
       client
-          .withAuthSession(authSession)
+          .withAuthSession(contextualSession)
           .delete(paths.table(identifier), null, Map.of(), ErrorHandlers.tableErrorHandler());
       return true;
     } catch (NoSuchTableException e) {
@@ -305,9 +305,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     checkIdentifierIsValid(identifier);
 
     try {
-      AuthSession authSession = authManager.contextualSession(context, catalogAuth);
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
       client
-          .withAuthSession(authSession)
+          .withAuthSession(contextualSession)
           .delete(
               paths.table(identifier),
               ImmutableMap.of("purgeRequested", "true"),
@@ -330,9 +330,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         RenameTableRequest.builder().withSource(from).withDestination(to).build();
 
     // for now, ignore the response because there is no way to return it
-    AuthSession authSession = authManager.contextualSession(context, catalogAuth);
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
     client
-        .withAuthSession(authSession)
+        .withAuthSession(contextualSession)
         .post(paths.rename(), request, null, Map.of(), ErrorHandlers.tableErrorHandler());
   }
 
@@ -533,9 +533,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         CreateNamespaceRequest.builder().withNamespace(namespace).setProperties(metadata).build();
 
     // for now, ignore the response because there is no way to return it
-    AuthSession authSession = authManager.contextualSession(context, catalogAuth);
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
     client
-        .withAuthSession(authSession)
+        .withAuthSession(contextualSession)
         .post(
             paths.namespaces(),
             request,
@@ -563,10 +563,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     do {
       queryParams.put("pageToken", pageToken);
-      AuthSession authSession = authManager.contextualSession(context, catalogAuth);
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
       ListNamespacesResponse response =
           client
-              .withAuthSession(authSession)
+              .withAuthSession(contextualSession)
               .get(
                   paths.namespaces(),
                   queryParams,
@@ -585,9 +585,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     try {
       checkNamespaceIsValid(namespace);
       if (endpoints.contains(Endpoint.V1_NAMESPACE_EXISTS)) {
-        AuthSession authSession = authManager.contextualSession(context, catalogAuth);
+        AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
         client
-            .withAuthSession(authSession)
+            .withAuthSession(contextualSession)
             .head(paths.namespace(namespace), Map.of(), ErrorHandlers.namespaceErrorHandler());
         return true;
       } else {
@@ -605,10 +605,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     checkNamespaceIsValid(ns);
 
     // TODO: rename to LoadNamespaceResponse?
-    AuthSession authSession = authManager.contextualSession(context, catalogAuth);
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
     GetNamespaceResponse response =
         client
-            .withAuthSession(authSession)
+            .withAuthSession(contextualSession)
             .get(
                 paths.namespace(ns),
                 GetNamespaceResponse.class,
@@ -623,9 +623,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     checkNamespaceIsValid(ns);
 
     try {
-      AuthSession authSession = authManager.contextualSession(context, catalogAuth);
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
       client
-          .withAuthSession(authSession)
+          .withAuthSession(contextualSession)
           .delete(paths.namespace(ns), null, Map.of(), ErrorHandlers.namespaceErrorHandler());
       return true;
     } catch (NoSuchNamespaceException e) {
@@ -642,10 +642,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     UpdateNamespacePropertiesRequest request =
         UpdateNamespacePropertiesRequest.builder().updateAll(updates).removeAll(removals).build();
 
-    AuthSession authSession = authManager.contextualSession(context, catalogAuth);
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
     UpdateNamespacePropertiesResponse response =
         client
-            .withAuthSession(authSession)
+            .withAuthSession(contextualSession)
             .post(
                 paths.namespaceProperties(ns),
                 request,
@@ -776,8 +776,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       String fullName = fullTableName(ident);
 
       Map<String, String> tableConf = response.config();
-      AuthSession parent = authManager.contextualSession(context, catalogAuth);
-      AuthSession tableSession = authManager.tableSession(ident, tableConf, parent);
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+      AuthSession tableSession = authManager.tableSession(ident, tableConf, contextualSession);
       TableMetadata meta = response.tableMetadata();
 
       RESTClient tableClient = client.withAuthSession(tableSession);
@@ -809,8 +809,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       String fullName = fullTableName(ident);
 
       Map<String, String> tableConf = response.config();
-      AuthSession parent = authManager.contextualSession(context, catalogAuth);
-      AuthSession tableSession = authManager.tableSession(ident, tableConf, parent);
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+      AuthSession tableSession = authManager.tableSession(ident, tableConf, contextualSession);
       TableMetadata base = response.tableMetadata();
 
       Map<String, String> tableProperties = propertiesBuilder.buildKeepingLast();
@@ -889,9 +889,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               .setProperties(tableProperties)
               .build();
 
-      AuthSession authSession = authManager.contextualSession(context, catalogAuth);
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
       return client
-          .withAuthSession(authSession)
+          .withAuthSession(contextualSession)
           .post(
               paths.tables(ident.namespace()),
               request,
@@ -1021,9 +1021,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           UpdateTableRequest.create(commit.identifier(), commit.requirements(), commit.updates()));
     }
 
-    AuthSession authSession = authManager.contextualSession(context, catalogAuth);
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
     client
-        .withAuthSession(authSession)
+        .withAuthSession(contextualSession)
         .post(
             paths.commitTransaction(),
             new CommitTransactionRequest(tableChanges),
@@ -1048,10 +1048,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     do {
       queryParams.put("pageToken", pageToken);
-      AuthSession authSession = authManager.contextualSession(context, catalogAuth);
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
       ListTablesResponse response =
           client
-              .withAuthSession(authSession)
+              .withAuthSession(contextualSession)
               .get(
                   paths.views(namespace),
                   queryParams,
@@ -1070,9 +1070,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     try {
       checkViewIdentifierIsValid(identifier);
       if (endpoints.contains(Endpoint.V1_VIEW_EXISTS)) {
-        AuthSession authSession = authManager.contextualSession(context, catalogAuth);
+        AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
         client
-            .withAuthSession(authSession)
+            .withAuthSession(contextualSession)
             .head(paths.view(identifier), Map.of(), ErrorHandlers.viewErrorHandler());
         return true;
       } else {
@@ -1107,12 +1107,16 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 ErrorHandlers.viewErrorHandler());
 
     Map<String, String> tableConf = response.config();
-    AuthSession session = authManager.tableSession(identifier, tableConf, contextualSession);
+    AuthSession tableSession = authManager.tableSession(identifier, tableConf, contextualSession);
     ViewMetadata metadata = response.metadata();
 
     RESTViewOperations ops =
         new RESTViewOperations(
-            client.withAuthSession(session), paths.view(identifier), Map::of, metadata, endpoints);
+            client.withAuthSession(tableSession),
+            paths.view(identifier),
+            Map::of,
+            metadata,
+            endpoints);
 
     return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
   }
@@ -1128,9 +1132,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     checkViewIdentifierIsValid(identifier);
 
     try {
-      AuthSession authSession = authManager.contextualSession(context, catalogAuth);
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
       client
-          .withAuthSession(authSession)
+          .withAuthSession(contextualSession)
           .delete(paths.view(identifier), null, Map.of(), ErrorHandlers.viewErrorHandler());
       return true;
     } catch (NoSuchViewException e) {
@@ -1147,9 +1151,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     RenameTableRequest request =
         RenameTableRequest.builder().withSource(from).withDestination(to).build();
 
-    AuthSession authSession = authManager.contextualSession(context, catalogAuth);
+    AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
     client
-        .withAuthSession(authSession)
+        .withAuthSession(contextualSession)
         .post(paths.renameView(), request, null, Map.of(), ErrorHandlers.viewErrorHandler());
   }
 
@@ -1268,10 +1272,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   ErrorHandlers.viewErrorHandler());
 
       Map<String, String> tableConf = response.config();
-      AuthSession session = authManager.tableSession(identifier, tableConf, contextualSession);
+      AuthSession tableSession = authManager.tableSession(identifier, tableConf, contextualSession);
       RESTViewOperations ops =
           new RESTViewOperations(
-              client.withAuthSession(session),
+              client.withAuthSession(tableSession),
               paths.view(identifier),
               Map::of,
               response.metadata(),
@@ -1307,9 +1311,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   "Unable to load view %s.%s: Server does not support endpoint %s",
                   name(), identifier, Endpoint.V1_LOAD_VIEW));
 
-      AuthSession authSession = authManager.contextualSession(context, catalogAuth);
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
       return client
-          .withAuthSession(authSession)
+          .withAuthSession(contextualSession)
           .get(
               paths.view(identifier),
               LoadViewResponse.class,
@@ -1356,11 +1360,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       ViewMetadata replacement = builder.build();
 
       Map<String, String> tableConf = response.config();
-      AuthSession parent = authManager.contextualSession(context, catalogAuth);
-      AuthSession session = authManager.tableSession(identifier, tableConf, parent);
+      AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
+      AuthSession tableSession = authManager.tableSession(identifier, tableConf, contextualSession);
       RESTViewOperations ops =
           new RESTViewOperations(
-              client.withAuthSession(session),
+              client.withAuthSession(tableSession),
               paths.view(identifier),
               Map::of,
               metadata,
