@@ -16,11 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.credentials;
+package org.apache.iceberg.io;
 
-import org.apache.iceberg.io.StorageCredential;
+import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.immutables.value.Value;
 
-@SuppressWarnings("immutables:incompat")
 @Value.Immutable
-public interface Credential extends StorageCredential {}
+public interface StorageCredential {
+  String prefix();
+
+  Map<String, String> config();
+
+  @Value.Check
+  default void validate() {
+    Preconditions.checkArgument(!prefix().isEmpty(), "Invalid prefix: must be non-empty");
+    Preconditions.checkArgument(!config().isEmpty(), "Invalid config: must be non-empty");
+  }
+}

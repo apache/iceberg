@@ -30,10 +30,14 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.ImmutableStorageCredential;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.StorageCredential;
+import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
@@ -155,6 +159,40 @@ public class TestCatalogUtil {
             TestFileIOConfigurable.class.getName(), Maps.newHashMap(), configuration);
     assertThat(fileIO).isInstanceOf(TestFileIOConfigurable.class);
     assertThat(((TestFileIOConfigurable) fileIO).configuration).isEqualTo(configuration);
+  }
+
+  @Test
+  public void loadCustomFileIOSupportingStorageCredentials() {
+    StorageCredential gcsCredential =
+        ImmutableStorageCredential.builder()
+            .prefix("gs://custom-uri")
+            .config(
+                ImmutableMap.of(
+                    "gcs.oauth2.token", "gcsToken", "gcs.oauth2.token-expires-at", "1000"))
+            .build();
+    StorageCredential s3Credential =
+        ImmutableStorageCredential.builder()
+            .prefix("s3://custom-uri")
+            .config(
+                ImmutableMap.of(
+                    "s3.access-key-id",
+                    "keyId",
+                    "s3.secret-access-key",
+                    "accessKey",
+                    "s3.session-token",
+                    "sessionToken"))
+            .build();
+
+    List<StorageCredential> storageCredentials = ImmutableList.of(gcsCredential, s3Credential);
+    FileIO fileIO =
+        CatalogUtil.loadFileIO(
+            TestFileIOWithStorageCredentials.class.getName(),
+            Maps.newHashMap(),
+            null,
+            storageCredentials);
+    assertThat(fileIO).isInstanceOf(TestFileIOWithStorageCredentials.class);
+    assertThat(((TestFileIOWithStorageCredentials) fileIO).credentials())
+        .isEqualTo(storageCredentials);
   }
 
   @Test
@@ -479,5 +517,36 @@ public class TestCatalogUtil {
 
     @Override
     public void report(MetricsReport report) {}
+  }
+
+  public static class TestFileIOWithStorageCredentials
+      implements FileIO, SupportsStorageCredentials {
+
+    private List<? extends StorageCredential> storageCredentials;
+
+    public TestFileIOWithStorageCredentials() {}
+
+    @Override
+    public InputFile newInputFile(String path) {
+      return null;
+    }
+
+    @Override
+    public OutputFile newOutputFile(String path) {
+      return null;
+    }
+
+    @Override
+    public void deleteFile(String path) {}
+
+    @Override
+    public void setCredentials(List<? extends StorageCredential> credentials) {
+      this.storageCredentials = credentials;
+    }
+
+    @Override
+    public List<? extends StorageCredential> credentials() {
+      return storageCredentials;
+    }
   }
 }

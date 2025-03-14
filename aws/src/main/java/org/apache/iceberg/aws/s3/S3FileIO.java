@@ -39,9 +39,14 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsRecoveryOperations;
+import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
@@ -80,7 +85,11 @@ import software.amazon.awssdk.services.s3.paginators.ListObjectVersionsIterable;
  * schemes s3a, s3n, https are also treated as s3 file paths. Using this FileIO with other schemes
  * will result in {@link org.apache.iceberg.exceptions.ValidationException}.
  */
-public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRecoveryOperations {
+public class S3FileIO
+    implements CredentialSupplier,
+        DelegateFileIO,
+        SupportsRecoveryOperations,
+        SupportsStorageCredentials {
   private static final Logger LOG = LoggerFactory.getLogger(S3FileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
@@ -96,6 +105,7 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private transient StackTraceElement[] createStack;
+  private List<? extends StorageCredential> storageCredentials = ImmutableList.of();
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -422,7 +432,13 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
   @Override
   public void initialize(Map<String, String> props) {
     this.properties = SerializableMap.copyOf(props);
-    this.s3FileIOProperties = new S3FileIOProperties(properties);
+    Map<String, String> propertiesWithCredentials =
+        ImmutableMap.<String, String>builder()
+            .putAll(properties)
+            .putAll(storageCredentialConfig())
+            .buildKeepingLast();
+
+    this.s3FileIOProperties = new S3FileIOProperties(propertiesWithCredentials);
     this.createStack =
         PropertyUtil.propertyAsBoolean(props, "init-creation-stacktrace", true)
             ? Thread.currentThread().getStackTrace()
@@ -546,5 +562,28 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
     }
 
     return true;
+  }
+
+  @Override
+  public void setCredentials(List<? extends StorageCredential> credentials) {
+    Preconditions.checkArgument(credentials != null, "Invalid storage credentials: null");
+    this.storageCredentials = credentials;
+  }
+
+  @Override
+  public List<? extends StorageCredential> credentials() {
+    return ImmutableList.copyOf(storageCredentials);
+  }
+
+  private Map<String, String> storageCredentialConfig() {
+    List<StorageCredential> s3Credentials =
+        storageCredentials.stream()
+            .filter(c -> c.prefix().startsWith("s3"))
+            .collect(Collectors.toList());
+
+    Preconditions.checkState(
+        s3Credentials.size() <= 1, "Invalid S3 Credentials: only one S3 credential should exist");
+
+    return s3Credentials.isEmpty() ? ImmutableMap.of() : s3Credentials.get(0).config();
   }
 }
