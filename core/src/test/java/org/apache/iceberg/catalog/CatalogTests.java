@@ -62,6 +62,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.metrics.MetricsReport;
@@ -682,6 +683,38 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .containsEntry("prop1", "val1");
 
     assertThat(catalog.dropTable(ident)).as("Should successfully drop table").isTrue();
+  }
+
+  @Test
+  public void testCreateTableWithDefaultColumnValue() {
+    C catalog = catalog();
+
+    TableIdentifier ident = TableIdentifier.of("ns", "table");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(ident.namespace());
+    }
+
+    assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
+
+    Schema schemaWithDefault =
+        new Schema(
+            List.of(
+                Types.NestedField.required("colWithDefault")
+                    .withId(1)
+                    .ofType(Types.IntegerType.get())
+                    .withWriteDefault(Literal.of(10))
+                    .withInitialDefault(Literal.of(12))
+                    .build()));
+
+    catalog
+        .buildTable(ident, schemaWithDefault)
+        .withLocation("file:/tmp/ns/table")
+        .withProperty(TableProperties.FORMAT_VERSION, "3")
+        .create();
+    assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
+    assertThat(schemaWithDefault.asStruct())
+        .isEqualTo(catalog.loadTable(ident).schema().asStruct());
   }
 
   @Test
