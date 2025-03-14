@@ -45,8 +45,8 @@ public class IcebergSinkTask extends SinkTask {
   @Override
   public void start(Map<String, String> props) {
     this.config = new IcebergSinkConfig(props);
-    catalog = CatalogUtils.loadCatalog(config);
-    committer = CommitterFactory.createCommitter(config);
+    this.catalog = CatalogUtils.loadCatalog(config);
+    this.committer = CommitterFactory.createCommitter(config);
   }
 
   @Override
