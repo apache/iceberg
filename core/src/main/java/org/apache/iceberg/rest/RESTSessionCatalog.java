@@ -1290,7 +1290,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   @Override
-  public RESTViewBuilder buildView(SessionContext context, TableIdentifier identifier) {
+  public ViewBuilder buildView(SessionContext context, TableIdentifier identifier) {
     return new RESTViewBuilder(context, identifier);
   }
 
