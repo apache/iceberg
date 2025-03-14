@@ -252,7 +252,7 @@ public class FlinkParquetWriters {
 
     @Override
     public Optional<ParquetValueWriter<?>> visit(IntLogicalTypeAnnotation type) {
-      Preconditions.checkArgument(type.isSigned(), "Cannot write signed integer type: %s", type);
+      Preconditions.checkArgument(type.isSigned(), "Cannot write unsigned integer type: %s", type);
       ParquetValueWriter<?> writer;
       if (type.getBitWidth() < 64) {
         writer = ints(flinkType, desc);
