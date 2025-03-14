@@ -34,6 +34,23 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class InternalData {
+  /**
+   * An iterable returned by readers that also exposes access to the file metadata.
+   *
+   * @param <D> internal data model for records
+   */
+  public interface DataIterable<D> extends CloseableIterable<D> {
+
+    /**
+     * Returns key/value metadata of file being read
+     *
+     * @return metadata
+     */
+    default Map<String, String> metadata() {
+      throw new UnsupportedOperationException("File metadata not supported");
+    }
+  }
+
   private InternalData() {}
 
   private static final Logger LOG = LoggerFactory.getLogger(InternalData.class);
