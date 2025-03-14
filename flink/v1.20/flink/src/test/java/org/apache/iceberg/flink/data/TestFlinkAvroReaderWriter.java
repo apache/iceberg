@@ -20,13 +20,11 @@ package org.apache.iceberg.flink.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.DataTest;
@@ -82,13 +80,12 @@ public class TestFlinkAvroReaderWriter extends DataTest {
     List<RowData> expectedRows =
         Lists.newArrayList(RandomRowData.convert(writeSchema, expectedRecords));
 
-    File recordsFile = File.createTempFile("junit", null, temp.toFile());
-    assertThat(recordsFile.delete()).isTrue();
+    OutputFile outputFile = new InMemoryOutputFile();
 
     // Write the expected records into AVRO file, then read them into RowData and assert with the
     // expected Record list.
     try (FileAppender<Record> writer =
-        Avro.write(Files.localOutput(recordsFile))
+        Avro.write(outputFile)
             .schema(writeSchema)
             .createWriterFunc(DataWriter::create)
             .build()) {
@@ -98,7 +95,7 @@ public class TestFlinkAvroReaderWriter extends DataTest {
     RowType flinkSchema = FlinkSchemaUtil.convert(expectedSchema);
 
     try (CloseableIterable<RowData> reader =
-        Avro.read(Files.localInput(recordsFile))
+        Avro.read(outputFile.toInputFile())
             .project(expectedSchema)
             .createResolvingReader(FlinkPlannedAvroReader::create)
             .build()) {
