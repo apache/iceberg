@@ -20,6 +20,25 @@ package org.apache.iceberg.variants;
 
 /** An variant array value. */
 public interface VariantArray extends VariantValue {
+  static String asString(VariantArray arr) {
+    StringBuilder builder = new StringBuilder();
+
+    builder.append("VariantArray([");
+    boolean first = true;
+    for (int i = 0; i < arr.numElements(); i++) {
+      if (first) {
+        first = false;
+      } else {
+        builder.append(", ");
+      }
+
+      builder.append(arr.get(i));
+    }
+    builder.append("])");
+
+    return builder.toString();
+  }
+
   /** Returns the {@link VariantValue} at {@code index} in this array. */
   VariantValue get(int index);
 

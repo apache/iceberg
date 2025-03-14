@@ -41,10 +41,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.ValueArray;
 import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantArray;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantObject;
 import org.apache.iceberg.variants.VariantTestUtil;
+import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
@@ -84,6 +87,23 @@ public class TestVariantWriters {
   private static final VariantObject EMPTY_OBJECT =
       (VariantObject) Variants.value(TEST_METADATA, EMPTY_OBJECT_BUFFER);
 
+  private static final ByteBuffer EMPTY_ARRAY_BUFFER = VariantTestUtil.createArray();
+  private static final ByteBuffer TEST_ARRAY_BUFFER =
+      VariantTestUtil.createArray(Variants.of("iceberg"), Variants.of("string"), Variants.of(34));
+  private static final ByteBuffer NESTED_ARRAY_BUFFER =
+      VariantTestUtil.createArray(
+          array(Variants.of("string"), Variants.of("iceberg"), Variants.of(34)),
+          array(Variants.of(34), Variants.ofNull()),
+          array(),
+          array(Variants.of("string"), Variants.of("iceberg")),
+          Variants.of(34));
+  private static final VariantArray EMPTY_ARRAY =
+      (VariantArray) Variants.value(EMPTY_METADATA, EMPTY_ARRAY_BUFFER);
+  private static final VariantArray TEST_ARRAY =
+      (VariantArray) Variants.value(EMPTY_METADATA, TEST_ARRAY_BUFFER);
+  private static final VariantArray TEST_NESTED_ARRAY =
+      (VariantArray) Variants.value(EMPTY_METADATA, NESTED_ARRAY_BUFFER);
+
   private static final Variant[] VARIANTS =
       new Variant[] {
         Variant.of(EMPTY_METADATA, Variants.ofNull()),
@@ -104,6 +124,9 @@ public class TestVariantWriters {
         Variant.of(EMPTY_METADATA, EMPTY_OBJECT),
         Variant.of(TEST_METADATA, TEST_OBJECT),
         Variant.of(TEST_METADATA, SIMILAR_OBJECT),
+        Variant.of(EMPTY_METADATA, EMPTY_ARRAY),
+        Variant.of(EMPTY_METADATA, TEST_ARRAY),
+        Variant.of(EMPTY_METADATA, TEST_NESTED_ARRAY),
         Variant.of(EMPTY_METADATA, Variants.ofIsoDate("2024-11-07")),
         Variant.of(EMPTY_METADATA, Variants.ofIsoDate("1957-11-07")),
         Variant.of(EMPTY_METADATA, Variants.ofIsoTimestamptz("2024-11-07T12:33:54.123456+00:00")),
@@ -199,5 +222,14 @@ public class TestVariantWriters {
             .build()) {
       return Lists.newArrayList(reader);
     }
+  }
+
+  private static ValueArray array(VariantValue... values) {
+    ValueArray arr = Variants.array();
+    for (VariantValue value : values) {
+      arr.add(value);
+    }
+
+    return arr;
   }
 }

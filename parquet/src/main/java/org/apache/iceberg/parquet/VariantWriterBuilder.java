@@ -169,7 +169,12 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
   @Override
   public ParquetValueWriter<?> array(
       GroupType array, ParquetValueWriter<?> valueWriter, ParquetValueWriter<?> elementWriter) {
-    throw new UnsupportedOperationException("Array is not yet supported");
+    int valueDL = schema.getMaxDefinitionLevel(path(VALUE));
+    int typedDL = schema.getMaxDefinitionLevel(path(TYPED_VALUE));
+    int repeatedDL = schema.getMaxDefinitionLevel(path(TYPED_VALUE, LIST));
+    int repeatedRL = schema.getMaxRepetitionLevel(path(TYPED_VALUE, LIST));
+    return ParquetVariantWriters.array(
+        valueDL, valueWriter, typedDL, repeatedDL, repeatedRL, elementWriter);
   }
 
   private static class LogicalTypeToVariantWriter

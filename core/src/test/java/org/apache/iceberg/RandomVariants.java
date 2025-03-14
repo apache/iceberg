@@ -27,6 +27,7 @@ import org.apache.iceberg.util.RandomUtil;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.ShreddedObject;
+import org.apache.iceberg.variants.ValueArray;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantTestUtil;
@@ -120,7 +121,13 @@ public class RandomVariants {
         byte[] uuidBytes = (byte[]) RandomUtil.generatePrimitive(Types.UUIDType.get(), random);
         return Variants.of(type, UUIDUtil.convert(uuidBytes));
       case ARRAY:
-        // for now, generate an object instead of an array
+        ValueArray arr = Variants.array();
+        int numElements = random.nextInt(10);
+        for (int i = 0; i < numElements; i += 1) {
+          arr.add(randomVariant(random, metadata, randomType(random)));
+        }
+
+        return arr;
       case OBJECT:
         ShreddedObject object = Variants.object(metadata);
         if (metadata.dictionarySize() > 0) {

@@ -32,6 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantArray;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantObject;
 import org.apache.iceberg.variants.VariantValue;
@@ -96,6 +97,26 @@ class ParquetVariantWriters {
         typedDefinitionLevel,
         fieldDefinitionLevel,
         builder.build());
+  }
+
+  public static ParquetValueWriter<?> array(
+      int valueDefinitionLevel,
+      ParquetValueWriter<?> valueWriter,
+      int typedDefinitionLevel,
+      int repeatedDefinitionLevel,
+      int repeatedRepetitionLevel,
+      ParquetValueWriter<?> elementWriter) {
+    ArrayWriter typedWriter =
+        new ArrayWriter(
+            repeatedDefinitionLevel,
+            repeatedRepetitionLevel,
+            (ParquetValueWriter<VariantValue>) elementWriter);
+
+    return new ArrayValueWriter(
+        valueDefinitionLevel,
+        (ParquetValueWriter<VariantValue>) valueWriter,
+        typedDefinitionLevel,
+        typedWriter);
   }
 
   private static class VariantWriter implements ParquetValueWriter<Variant> {
@@ -357,6 +378,92 @@ class ParquetVariantWriters {
       for (ParquetValueWriter<?> fieldWriter : typedWriters.values()) {
         fieldWriter.setColumnStore(columnStore);
       }
+    }
+  }
+
+  private static class ArrayValueWriter implements ParquetValueWriter<VariantValue> {
+    private final int valueDefinitionLevel;
+    private final ParquetValueWriter<VariantValue> valueWriter;
+    private final int typedDefinitionLevel;
+    private final ArrayWriter typedWriter;
+    private final List<TripleWriter<?>> children;
+
+    private ArrayValueWriter(
+        int valueDefinitionLevel,
+        ParquetValueWriter<VariantValue> valueWriter,
+        int typedDefinitionLevel,
+        ArrayWriter typedWriter) {
+      this.valueDefinitionLevel = valueDefinitionLevel;
+      this.valueWriter = valueWriter;
+      this.typedDefinitionLevel = typedDefinitionLevel;
+      this.typedWriter = typedWriter;
+      this.children = children(valueWriter, typedWriter);
+    }
+
+    @Override
+    public void write(int repetitionLevel, VariantValue value) {
+      if (value.type() == PhysicalType.ARRAY) {
+        typedWriter.write(repetitionLevel, value);
+        writeNull(valueWriter, repetitionLevel, valueDefinitionLevel);
+      } else {
+        valueWriter.write(repetitionLevel, value);
+        writeNull(typedWriter, repetitionLevel, typedDefinitionLevel);
+      }
+    }
+
+    @Override
+    public List<TripleWriter<?>> columns() {
+      return children;
+    }
+
+    @Override
+    public void setColumnStore(ColumnWriteStore columnStore) {
+      valueWriter.setColumnStore(columnStore);
+      typedWriter.setColumnStore(columnStore);
+    }
+  }
+
+  private static class ArrayWriter implements ParquetValueWriter<VariantValue> {
+    private final int definitionLevel;
+    private final int repetitionLevel;
+    private final ParquetValueWriter<VariantValue> writer;
+    private final List<TripleWriter<?>> children;
+
+    private ArrayWriter(
+        int definitionLevel, int repetitionLevel, ParquetValueWriter<VariantValue> writer) {
+      this.definitionLevel = definitionLevel;
+      this.repetitionLevel = repetitionLevel;
+      this.writer = writer;
+      this.children = writer.columns();
+    }
+
+    @Override
+    public void write(int parentRepetition, VariantValue value) {
+      VariantArray arr = value.asArray();
+      if (arr.numElements() == 0) {
+        writeNull(writer, parentRepetition, definitionLevel);
+      } else {
+        for (int i = 0; i < arr.numElements(); i++) {
+          VariantValue element = arr.get(i);
+
+          int rl = repetitionLevel;
+          if (i == 0) {
+            rl = parentRepetition;
+          }
+
+          writer.write(rl, element);
+        }
+      }
+    }
+
+    @Override
+    public List<TripleWriter<?>> columns() {
+      return children;
+    }
+
+    @Override
+    public void setColumnStore(ColumnWriteStore columnStore) {
+      writer.setColumnStore(columnStore);
     }
   }
 
