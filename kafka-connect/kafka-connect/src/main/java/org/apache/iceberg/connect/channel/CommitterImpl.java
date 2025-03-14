@@ -172,11 +172,13 @@ public class CommitterImpl implements Committer {
   }
 
   private void startCoordinator() {
-    LOG.info("Task elected leader, starting commit coordinator");
-    Coordinator coordinator =
-        new Coordinator(catalog, config, membersWhenWorkerIsCoordinator, clientFactory, context);
-    coordinatorThread = new CoordinatorThread(coordinator);
-    coordinatorThread.start();
+    if (null == this.coordinatorThread) {
+      LOG.info("Task elected leader, starting commit coordinator");
+      Coordinator coordinator =
+          new Coordinator(catalog, config, membersWhenWorkerIsCoordinator, clientFactory, context);
+      coordinatorThread = new CoordinatorThread(coordinator);
+      coordinatorThread.start();
+    }
   }
 
   private void stopWorker() {
