@@ -727,18 +727,18 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
 
     catalog()
-            .buildTable(ident, OTHER_SCHEMA)
-            .withProperty("default-key2", "catalog-overridden-key2")
-            .withProperty("prop1", "val1")
-            .replaceTransaction()
-            .commitTransaction();
+        .buildTable(ident, OTHER_SCHEMA)
+        .withProperty("default-key2", "catalog-overridden-key2")
+        .withProperty("prop1", "val1")
+        .replaceTransaction()
+        .commitTransaction();
 
     Table table = catalog.loadTable(ident);
 
     assertThat(table.properties())
-            .containsEntry("default-key1", "catalog-default-key1")
-            .containsEntry("default-key2", "catalog-overridden-key2")
-            .containsEntry("prop1", "val1");
+        .containsEntry("default-key1", "catalog-default-key1")
+        .containsEntry("default-key2", "catalog-overridden-key2")
+        .containsEntry("prop1", "val1");
 
     assertThat(catalog.dropTable(ident)).as("Should successfully drop table").isTrue();
   }
