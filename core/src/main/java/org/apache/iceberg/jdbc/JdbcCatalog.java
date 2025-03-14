@@ -274,7 +274,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     if (purge) {
       try {
         lastMetadata = ops.current();
-      } catch (NotFoundException e) {
+      } catch (NoSuchTableException e) {
         LOG.warn(
             "Failed to load table metadata for table: {}, continuing drop without purge",
             identifier,
@@ -617,7 +617,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     ViewMetadata lastViewMetadata = null;
     try {
       lastViewMetadata = ops.current();
-    } catch (NotFoundException e) {
+    } catch (NoSuchViewException e) {
       LOG.warn("Failed to load view metadata for view: {}", identifier, e);
     }
 
