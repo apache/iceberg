@@ -18,12 +18,18 @@
  */
 package org.apache.iceberg.connect;
 
-import org.apache.iceberg.connect.channel.CommitterImpl;
+import java.lang.reflect.InvocationTargetException;
 
 class CommitterFactory {
   static Committer createCommitter(IcebergSinkConfig config) {
-    return new CommitterImpl();
+    Class<?> committerClass = config.committer();
+    try {
+      return (Committer) committerClass.getDeclaredConstructor().newInstance();
+    } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
+      throw new RuntimeException("Failed to create committer instance of class: " + committerClass.getName(), e);
+    }
   }
+
 
   private CommitterFactory() {}
 }
