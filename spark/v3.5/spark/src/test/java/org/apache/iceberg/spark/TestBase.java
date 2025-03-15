@@ -127,9 +127,9 @@ public abstract class TestBase extends SparkTestHelperBase {
 
   protected Object scalarSql(String query, Object... args) {
     List<Object[]> rows = sql(query, args);
-    assertThat(rows.size()).as("Scalar SQL should return one row").isEqualTo(1);
+    assertThat(rows).as("Scalar SQL should return one row").hasSize(1);
     Object[] row = Iterables.getOnlyElement(rows);
-    assertThat(row.length).as("Scalar SQL should return one value").isEqualTo(1);
+    assertThat(row).as("Scalar SQL should return one value").hasSize(1);
     return row[0];
   }
 

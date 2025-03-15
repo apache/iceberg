@@ -16,23 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.types;
+package org.apache.iceberg.variants;
 
-import java.io.ObjectStreamException;
-import java.io.Serializable;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/** Replacement for primitive types in Java Serialization. */
-class PrimitiveHolder implements Serializable {
-  private String typeAsString = null;
+class VariantData implements Variant {
+  private final VariantMetadata metadata;
+  private final VariantValue value;
 
-  /** Constructor for Java serialization. */
-  PrimitiveHolder() {}
-
-  PrimitiveHolder(String typeAsString) {
-    this.typeAsString = typeAsString;
+  VariantData(VariantMetadata metadata, VariantValue value) {
+    Preconditions.checkArgument(metadata != null, "Invalid variant metadata: null");
+    Preconditions.checkArgument(value != null, "Invalid variant value: null");
+    this.metadata = metadata;
+    this.value = value;
   }
 
-  Object readResolve() throws ObjectStreamException {
-    return Types.fromTypeName(typeAsString);
+  @Override
+  public VariantMetadata metadata() {
+    return metadata;
+  }
+
+  @Override
+  public VariantValue value() {
+    return value;
   }
 }

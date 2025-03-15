@@ -1201,6 +1201,19 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.MetadataUpdate.SetStatistics::<init>(long,\
         \ org.apache.iceberg.StatisticsFile)"
       justification: "Removing deprecated code"
+    - code: "java.method.returnTypeChanged"
+      old: "method org.apache.iceberg.inmemory.InMemoryCatalog.InMemoryViewOperations\
+        \ org.apache.iceberg.inmemory.InMemoryCatalog::newViewOps(org.apache.iceberg.catalog.TableIdentifier)"
+      new: "method org.apache.iceberg.view.ViewOperations org.apache.iceberg.inmemory.InMemoryCatalog::newViewOps(org.apache.iceberg.catalog.TableIdentifier)"
+      justification: "Break is acceptable because class is exposed outside of its\
+        \ visibility scope"
+    - code: "java.method.returnTypeChanged"
+      old: "method org.apache.iceberg.rest.RESTSessionCatalog.RESTViewBuilder org.apache.iceberg.rest.RESTSessionCatalog::buildView(org.apache.iceberg.catalog.SessionCatalog.SessionContext,\
+        \ org.apache.iceberg.catalog.TableIdentifier)"
+      new: "method org.apache.iceberg.view.ViewBuilder org.apache.iceberg.rest.RESTSessionCatalog::buildView(org.apache.iceberg.catalog.SessionCatalog.SessionContext,\
+        \ org.apache.iceberg.catalog.TableIdentifier)"
+      justification: "Break is acceptable because class is exposed outside of its\
+        \ visibility scope"
     org.apache.iceberg:iceberg-parquet:
     - code: "java.class.visibilityReduced"
       old: "class org.apache.iceberg.data.parquet.BaseParquetReaders<T extends java.lang.Object>"

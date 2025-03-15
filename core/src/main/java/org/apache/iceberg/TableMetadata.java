@@ -913,7 +913,7 @@ public class TableMetadata implements Serializable {
     private long lastSequenceNumber;
     private int lastColumnId;
     private int currentSchemaId;
-    private final List<Schema> schemas;
+    private List<Schema> schemas;
     private int defaultSpecId;
     private List<PartitionSpec> specs;
     private int lastAssignedPartitionId;
@@ -1163,11 +1163,30 @@ public class TableMetadata implements Serializable {
       Preconditions.checkArgument(
           !specIdsToRemove.contains(defaultSpecId), "Cannot remove the default partition spec");
 
-      this.specs =
-          specs.stream()
-              .filter(s -> !specIdsToRemove.contains(s.specId()))
-              .collect(Collectors.toList());
-      changes.add(new MetadataUpdate.RemovePartitionSpecs(specIdsToRemove));
+      if (!specIdsToRemove.isEmpty()) {
+        this.specs =
+            specs.stream()
+                .filter(s -> !specIdsToRemove.contains(s.specId()))
+                .collect(Collectors.toList());
+        changes.add(new MetadataUpdate.RemovePartitionSpecs(specIdsToRemove));
+      }
+
+      return this;
+    }
+
+    Builder removeSchemas(Iterable<Integer> schemaIds) {
+      Set<Integer> schemaIdsToRemove = Sets.newHashSet(schemaIds);
+      Preconditions.checkArgument(
+          !schemaIdsToRemove.contains(currentSchemaId), "Cannot remove the current schema");
+
+      if (!schemaIdsToRemove.isEmpty()) {
+        this.schemas =
+            schemas.stream()
+                .filter(s -> !schemaIdsToRemove.contains(s.schemaId()))
+                .collect(Collectors.toList());
+        changes.add(new MetadataUpdate.RemoveSchemas(schemaIdsToRemove));
+      }
+
       return this;
     }
 

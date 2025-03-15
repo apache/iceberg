@@ -218,16 +218,21 @@ class RemoveSnapshots implements ExpireSnapshots {
     updatedMetaBuilder.removeSnapshots(idsToRemove);
 
     if (cleanExpiredMetadata) {
-      // TODO: Support cleaning expired schema as well.
       Set<Integer> reachableSpecs = Sets.newConcurrentHashSet();
       reachableSpecs.add(base.defaultSpecId());
+      Set<Integer> reachableSchemas = Sets.newConcurrentHashSet();
+      reachableSchemas.add(base.currentSchemaId());
+
       Tasks.foreach(idsToRetain)
           .executeWith(planExecutorService)
           .run(
-              snapshot ->
-                  base.snapshot(snapshot).allManifests(ops.io()).stream()
-                      .map(ManifestFile::partitionSpecId)
-                      .forEach(reachableSpecs::add));
+              snapshotId -> {
+                Snapshot snapshot = base.snapshot(snapshotId);
+                snapshot.allManifests(ops.io()).stream()
+                    .map(ManifestFile::partitionSpecId)
+                    .forEach(reachableSpecs::add);
+                reachableSchemas.add(snapshot.schemaId());
+              });
 
       Set<Integer> specsToRemove =
           base.specs().stream()
@@ -235,6 +240,13 @@ class RemoveSnapshots implements ExpireSnapshots {
               .filter(specId -> !reachableSpecs.contains(specId))
               .collect(Collectors.toSet());
       updatedMetaBuilder.removeSpecs(specsToRemove);
+
+      Set<Integer> schemasToRemove =
+          base.schemas().stream()
+              .map(Schema::schemaId)
+              .filter(schemaId -> !reachableSchemas.contains(schemaId))
+              .collect(Collectors.toSet());
+      updatedMetaBuilder.removeSchemas(schemasToRemove);
     }
 
     return updatedMetaBuilder.build();

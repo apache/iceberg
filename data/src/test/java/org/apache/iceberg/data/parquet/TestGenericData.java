@@ -46,6 +46,20 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.junit.jupiter.api.Test;
 
 public class TestGenericData extends DataTest {
+  @Override
+  protected boolean supportsDefaultValues() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsUnknown() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsTimestampNanos() {
+    return true;
+  }
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
@@ -105,11 +119,6 @@ public class TestGenericData extends DataTest {
         index += 1;
       }
     }
-  }
-
-  @Override
-  protected boolean supportsDefaultValues() {
-    return true;
   }
 
   @Test

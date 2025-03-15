@@ -54,7 +54,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   private static final int DEFAULT_DELETE_CORE_MULTIPLE = 4;
   private static volatile ExecutorService executorService;
 
-  private SerializableSupplier<Configuration> hadoopConf;
+  private volatile SerializableSupplier<Configuration> hadoopConf;
   private SerializableMap<String, String> properties = SerializableMap.copyOf(ImmutableMap.of());
 
   /**

@@ -57,6 +57,7 @@ import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -1616,6 +1617,63 @@ public class TestTableMetadata {
         .doesNotContainKey(TableProperties.FORMAT_VERSION);
   }
 
+  @Test
+  public void testManifestListIndexProjection() throws IOException {
+    long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
+
+    String manifestListLocation =
+        createManifestListWithManifestFile(previousSnapshotId, null, "file:/tmp/manifest1.avro");
+
+    Schema manifestProjection =
+        ManifestFile.schema()
+            .select(
+                ManifestFile.PATH.name(),
+                ManifestFile.LENGTH.name(),
+                ManifestFile.SPEC_ID.name(),
+                ManifestFile.SNAPSHOT_ID.name());
+
+    try (CloseableIterable<ManifestFile> manifestIterable =
+        InternalData.read(FileFormat.AVRO, localInput(manifestListLocation))
+            .setRootType(GenericManifestFile.class)
+            .project(manifestProjection)
+            .reuseContainers()
+            .build()) {
+
+      List<ManifestFile> manifests = Lists.newArrayList(manifestIterable);
+      assertThat(manifests).hasSize(1);
+
+      manifests.forEach(
+          manifest -> {
+            // projected fields
+            assertThat(manifest)
+                .extracting(
+                    ManifestFile::path,
+                    ManifestFile::length,
+                    ManifestFile::partitionSpecId,
+                    ManifestFile::snapshotId)
+                .doesNotContainNull();
+
+            // not projected with defaults
+            assertThat(manifest.sequenceNumber()).isEqualTo(0);
+            assertThat(manifest.minSequenceNumber()).isEqualTo(0);
+            assertThat(manifest.content()).isEqualTo(ManifestContent.DATA);
+
+            // not projected
+            assertThat(manifest)
+                .extracting(
+                    ManifestFile::addedFilesCount,
+                    ManifestFile::existingFilesCount,
+                    ManifestFile::deletedFilesCount,
+                    ManifestFile::addedRowsCount,
+                    ManifestFile::existingRowsCount,
+                    ManifestFile::deletedRowsCount,
+                    ManifestFile::partitions,
+                    ManifestFile::keyMetadata)
+                .containsOnlyNulls();
+          });
+    }
+  }
+
   private static Stream<Arguments> upgradeFormatVersionProvider() {
     // return a stream of all valid upgrade paths
     return IntStream.range(1, TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION)
@@ -1857,5 +1915,37 @@ public class TestTableMetadata {
     assertThat(updatedMetadata.lastUpdatedMillis()).isEqualTo(newMetadata.lastUpdatedMillis());
     assertThat(updatedMetadata.metadataFileLocation()).isEqualTo("updated-metadata-location");
     assertThat(updatedMetadata.previousFiles()).isEmpty();
+  }
+
+  @Test
+  public void testMetadataWithRemoveSpecs() {
+    TableMetadata meta =
+        TableMetadata.buildFrom(
+                TableMetadata.newTableMetadata(
+                    TestBase.SCHEMA, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
+            .removeSpecs(Sets.newHashSet())
+            .build();
+
+    assertThat(meta.changes()).noneMatch(u -> u instanceof MetadataUpdate.RemovePartitionSpecs);
+
+    meta = TableMetadata.buildFrom(meta).removeSpecs(Sets.newHashSet(1, 2)).build();
+
+    assertThat(meta.changes()).anyMatch(u -> u instanceof MetadataUpdate.RemovePartitionSpecs);
+  }
+
+  @Test
+  public void testMetadataWithRemoveSchemas() {
+    TableMetadata meta =
+        TableMetadata.buildFrom(
+                TableMetadata.newTableMetadata(
+                    TestBase.SCHEMA, PartitionSpec.unpartitioned(), null, ImmutableMap.of()))
+            .removeSchemas(Sets.newHashSet())
+            .build();
+
+    assertThat(meta.changes()).noneMatch(u -> u instanceof MetadataUpdate.RemoveSchemas);
+
+    meta = TableMetadata.buildFrom(meta).removeSchemas(Sets.newHashSet(1, 2)).build();
+
+    assertThat(meta.changes()).anyMatch(u -> u instanceof MetadataUpdate.RemoveSchemas);
   }
 }

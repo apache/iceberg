@@ -797,6 +797,21 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       this.ident = ident;
       this.schema = schema;
       this.context = context;
+      propertiesBuilder.putAll(tableDefaultProperties());
+    }
+
+    /**
+     * Get default table properties set at Catalog level through catalog properties.
+     *
+     * @return default table properties specified in catalog properties
+     */
+    private Map<String, String> tableDefaultProperties() {
+      Map<String, String> tableDefaultProperties =
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_DEFAULT_PREFIX);
+      LOG.info(
+          "Table properties set at catalog level through catalog properties: {}",
+          tableDefaultProperties);
+      return tableDefaultProperties;
     }
 
     @Override
@@ -841,7 +856,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               .withPartitionSpec(spec)
               .withWriteOrder(writeOrder)
               .withLocation(location)
-              .setProperties(propertiesBuilder.build())
+              .setProperties(propertiesBuilder.buildKeepingLast())
               .build();
 
       LoadTableResponse response =
@@ -907,7 +922,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       AuthSession session = tableSession(response.config(), session(context));
       TableMetadata base = response.tableMetadata();
 
-      Map<String, String> tableProperties = propertiesBuilder.build();
+      Map<String, String> tableProperties = propertiesBuilder.buildKeepingLast();
       TableMetadata replacement =
           base.buildReplacement(
               schema,
@@ -969,7 +984,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     private LoadTableResponse stageCreate() {
-      Map<String, String> tableProperties = propertiesBuilder.build();
+      Map<String, String> tableProperties = propertiesBuilder.buildKeepingLast();
 
       CreateTableRequest request =
           CreateTableRequest.builder()
@@ -1290,7 +1305,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   @Override
-  public RESTViewBuilder buildView(SessionContext context, TableIdentifier identifier) {
+  public ViewBuilder buildView(SessionContext context, TableIdentifier identifier) {
     return new RESTViewBuilder(context, identifier);
   }
 

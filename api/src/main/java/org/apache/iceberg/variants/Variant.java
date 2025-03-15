@@ -29,17 +29,7 @@ public interface Variant {
   VariantValue value();
 
   static Variant of(VariantMetadata metadata, VariantValue value) {
-    return new Variant() {
-      @Override
-      public VariantMetadata metadata() {
-        return metadata;
-      }
-
-      @Override
-      public VariantValue value() {
-        return value;
-      }
-    };
+    return new VariantData(metadata, value);
   }
 
   static Variant from(ByteBuffer buffer) {
