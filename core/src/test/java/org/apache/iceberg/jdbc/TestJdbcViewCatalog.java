@@ -59,6 +59,9 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
     properties.put(JdbcUtil.SCHEMA_VERSION_PROPERTY, JdbcUtil.SchemaVersion.V1.name());
     properties.put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key1", "catalog-default-key1");
     properties.put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key2", "catalog-default-key2");
+    properties.put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key3", "catalog-default-key3");
+    properties.put(CatalogProperties.VIEW_OVERRIDE_PREFIX + "key3", "catalog-override-key3");
+    properties.put(CatalogProperties.VIEW_OVERRIDE_PREFIX + "key4", "catalog-override-key4");
 
     catalog = new JdbcCatalog();
     catalog.setConf(new Configuration());

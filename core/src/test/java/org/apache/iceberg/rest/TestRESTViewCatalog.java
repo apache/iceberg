@@ -78,6 +78,9 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
             .put(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath())
             .put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key1", "catalog-default-key1")
             .put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key2", "catalog-default-key2")
+            .put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key3", "catalog-default-key3")
+            .put(CatalogProperties.VIEW_OVERRIDE_PREFIX + "key3", "catalog-override-key3")
+            .put(CatalogProperties.VIEW_OVERRIDE_PREFIX + "key4", "catalog-override-key4")
             .build());
 
     RESTCatalogAdapter adaptor =

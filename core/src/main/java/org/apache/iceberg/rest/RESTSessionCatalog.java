@@ -1367,6 +1367,20 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       return viewDefaultProperties;
     }
 
+    /**
+     * Get view properties that are enforced at Catalog level through catalog properties.
+     *
+     * @return default view properties enforced through catalog properties
+     */
+    private Map<String, String> viewOverrideProperties() {
+      Map<String, String> viewOverrideProperties =
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.VIEW_OVERRIDE_PREFIX);
+      LOG.info(
+          "View properties enforced at catalog level through catalog properties: {}",
+          viewOverrideProperties);
+      return viewOverrideProperties;
+    }
+
     @Override
     public ViewBuilder withSchema(Schema newSchema) {
       this.schema = newSchema;
@@ -1429,6 +1443,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               .timestampMillis(System.currentTimeMillis())
               .putAllSummary(EnvironmentContext.get())
               .build();
+
+      properties.putAll(viewOverrideProperties());
 
       CreateViewRequest request =
           ImmutableCreateViewRequest.builder()
@@ -1515,6 +1531,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               .timestampMillis(System.currentTimeMillis())
               .putAllSummary(EnvironmentContext.get())
               .build();
+
+      properties.putAll(viewOverrideProperties());
 
       ViewMetadata.Builder builder =
           ViewMetadata.buildFrom(metadata)
