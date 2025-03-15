@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.source;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -40,6 +41,7 @@ import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -53,7 +55,11 @@ public class TestIcebergSourceSql extends TestSqlBase {
   @BeforeEach
   @Override
   public void before() throws IOException {
-    TableEnvironment tableEnvironment = getTableEnv();
+    setUpTableEnv(getTableEnv());
+    setUpTableEnv(getStreamingTableEnv());
+  }
+
+  private static void setUpTableEnv(TableEnvironment tableEnvironment) {
     Configuration tableConf = tableEnvironment.getConfig().getConfiguration();
     tableConf.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE, true);
     // Disable inferring parallelism to avoid interfering watermark tests
@@ -70,6 +76,11 @@ public class TestIcebergSourceSql extends TestSqlBase {
     SqlHelpers.sql(tableEnvironment, "use catalog iceberg_catalog");
 
     tableConf.set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
+  }
+
+  @AfterEach
+  public void after() throws IOException {
+    CATALOG_EXTENSION.catalog().dropTable(TestFixtures.TABLE_IDENTIFIER);
   }
 
   private Record generateRecord(Instant t1, long t2) {
@@ -175,6 +186,47 @@ public class TestIcebergSourceSql extends TestSqlBase {
     TestHelpers.assertRecords(
         SqlHelpers.sql(
             getTableEnv(), "select * from `default_catalog`.`default_database`.flink_table"),
+        expected,
+        SCHEMA_TS);
+  }
+
+  @Test
+  public void testWatermarkInvalidConfig() {
+    CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA_TS);
+
+    String flinkTable = "`default_catalog`.`default_database`.flink_table";
+    SqlHelpers.sql(
+        getStreamingTableEnv(),
+        "CREATE TABLE %s "
+            + "(eventTS AS CAST(t1 AS TIMESTAMP(3)), "
+            + "WATERMARK FOR eventTS AS SOURCE_WATERMARK()) LIKE iceberg_catalog.`default`.%s",
+        flinkTable,
+        TestFixtures.TABLE);
+
+    assertThatThrownBy(() -> SqlHelpers.sql(getStreamingTableEnv(), "SELECT * FROM %s", flinkTable))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("watermark-column needs to be configured to use source watermark.");
+  }
+
+  @Test
+  public void testWatermarkValidConfig() throws Exception {
+    List<Record> expected = generateExpectedRecords(true);
+
+    String flinkTable = "`default_catalog`.`default_database`.flink_table";
+
+    SqlHelpers.sql(
+        getStreamingTableEnv(),
+        "CREATE TABLE %s "
+            + "(eventTS AS CAST(t1 AS TIMESTAMP(3)), "
+            + "WATERMARK FOR eventTS AS SOURCE_WATERMARK()) WITH ('watermark-column'='t1') LIKE iceberg_catalog.`default`.%s",
+        flinkTable,
+        TestFixtures.TABLE);
+
+    TestHelpers.assertRecordsWithOrder(
+        SqlHelpers.sql(
+            getStreamingTableEnv(),
+            "SELECT t1, t2 FROM TABLE(TUMBLE(TABLE %s, DESCRIPTOR(eventTS), INTERVAL '1' SECOND))",
+            flinkTable),
         expected,
         SCHEMA_TS);
   }
