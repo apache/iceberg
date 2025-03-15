@@ -410,7 +410,17 @@ paths:
         204:
           description: Success, no content
         400:
-          $ref: '#/components/responses/BadRequestErrorResponse'
+          description:
+            A bad request error or a NamespaceNotEmptyException in case the namespace is not empty
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                BadRequestExample:
+                  $ref: '#/components/examples/BadRequestError'
+                NamespaceNotEmptyExample:
+                  $ref: '#/components/examples/NamespaceNotEmptyError'
         401:
           $ref: '#/components/responses/UnauthorizedResponse'
         403:
@@ -4696,6 +4706,16 @@ components:
   #######################################
   examples:
 
+    BadRequestError:
+      summary: The request is malformed
+      value: {
+        "error": {
+          "message": "Malformed request",
+          "type": "BadRequestException",
+          "code": 400
+        }
+      }
+
     ListTablesEmptyExample:
       summary: An empty list for a namespace with no tables
       value: {
@@ -4743,6 +4763,16 @@ components:
             "code": 409
           }
         }
+
+    NamespaceNotEmptyError:
+      summary: The requested namespace is not empty
+      value: {
+        "error": {
+          "message": "The given namespace is not empty",
+          "type": "NamespaceNotEmptyException",
+          "code": 400
+        }
+      }
 
     NoSuchPlanIdError:
       summary: The plan id does not exist
