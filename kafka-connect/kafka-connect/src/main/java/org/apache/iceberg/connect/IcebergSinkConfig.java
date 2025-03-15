@@ -100,7 +100,8 @@ public class IcebergSinkConfig extends AbstractConfig {
   public static final String DEFAULT_CONTROL_GROUP_PREFIX = "cg-control-";
 
   public static final String COMMITTER_IMPL_CONFIG = "iceberg.committer.impl";
-  public static final String COMMITTER_IMPL_DOC = "config to override the default committer implementation";
+  public static final String COMMITTER_IMPL_DOC =
+      "config to override the default committer implementation";
   public static final Class<?> COMMITTER_IMPL_DEFAULT = CommitterImpl.class;
 
   public static final String COMMITER_IMPL_CONFIG_PREFIX = "iceberg.committer.";
@@ -266,7 +267,7 @@ public class IcebergSinkConfig extends AbstractConfig {
     this.writeProps = PropertyUtil.propertiesWithPrefix(originalProps, WRITE_PROP_PREFIX);
 
     this.committerConfig =
-            PropertyUtil.propertiesWithPrefix(originalProps, COMMITER_IMPL_CONFIG_PREFIX);
+        PropertyUtil.propertiesWithPrefix(originalProps, COMMITER_IMPL_CONFIG_PREFIX);
 
     this.jsonConverter = new JsonConverter();
     jsonConverter.configure(

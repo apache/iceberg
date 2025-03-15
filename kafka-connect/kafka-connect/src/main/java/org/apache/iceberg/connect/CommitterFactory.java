@@ -25,11 +25,14 @@ class CommitterFactory {
     Class<?> committerClass = config.committer();
     try {
       return (Committer) committerClass.getDeclaredConstructor().newInstance();
-    } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
-      throw new RuntimeException("Failed to create committer instance of class: " + committerClass.getName(), e);
+    } catch (InstantiationException
+        | IllegalAccessException
+        | NoSuchMethodException
+        | InvocationTargetException e) {
+      throw new RuntimeException(
+          "Failed to create committer instance of class: " + committerClass.getName(), e);
     }
   }
-
 
   private CommitterFactory() {}
 }

@@ -56,10 +56,6 @@ public interface Committer {
 
   void save(Collection<SinkRecord> sinkRecords);
 
-  /**
-  Method to configure the committer.
-   */
-  default void configure(Map<String, String> config) {
-
-  }
+  /** Method to configure the committer. */
+  default void configure(Map<String, String> config) {}
 }
