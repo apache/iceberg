@@ -31,9 +31,12 @@ import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.StructProjection;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -240,6 +243,70 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
                 StructLike partition = entry.file().partition();
                 assertThat(partition.get(0, Object.class)).isNull();
               });
+    }
+  }
+
+  @TestTemplate
+  public void testPartitionSpecEvolutionNullValues() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "company_id", Types.IntegerType.get()),
+            required(2, "dept_id", Types.IntegerType.get()),
+            required(3, "team_id", Types.IntegerType.get()));
+
+    table =
+        TestTables.create(
+            tableDir,
+            metadataDir,
+            "nulltest",
+            schema,
+            PartitionSpec.builderFor(schema).identity("company_id").build(),
+            SortOrder.unsorted(),
+            formatVersion);
+    table.newFastAppend().appendFile(newDataFile("company_id=__HIVE_DEFAULT_PARTITION__")).commit();
+
+    table.updateSpec().addField("dept_id").commit();
+    table
+        .newFastAppend()
+        .appendFile(
+            newDataFile(
+                "company_id=__HIVE_DEFAULT_PARTITION__" + "/dept_id=__HIVE_DEFAULT_PARTITION__"))
+        .commit();
+
+    table.updateSpec().addField("team_id").commit();
+    table
+        .newFastAppend()
+        .appendFile(
+            newDataFile(
+                "company_id=__HIVE_DEFAULT_PARTITION__"
+                    + "/dept_id=__HIVE_DEFAULT_PARTITION__"
+                    + "/team_id=__HIVE_DEFAULT_PARTITION__"))
+        .commit();
+
+    PartitionsTable partitionsTable = new PartitionsTable(table);
+
+    List<String> expected =
+        ImmutableList.of(
+            "company_id=null",
+            "company_id=null/dept_id=null",
+            "company_id=null/dept_id=null/team_id=null");
+
+    try (CloseableIterable<FileScanTask> fileScanTasks = partitionsTable.newScan().planFiles()) {
+      List<String> partitions =
+          FluentIterable.from(fileScanTasks)
+              .transformAndConcat(task -> task.asDataTask().rows())
+              .transform(
+                  row -> {
+                    StructLike data = row.get(0, StructProjection.class);
+                    PartitionSpec spec = table.specs().get(row.get(1, Integer.class));
+
+                    PartitionData keyTemplate = new PartitionData(spec.partitionType());
+                    return spec.partitionToPath(keyTemplate.copyFor((data)));
+                  })
+              .toList();
+
+      assertThat(partitions).hasSize(3);
+      assertThat(partitions).isEqualTo(expected);
     }
   }
 
