@@ -52,6 +52,7 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
@@ -273,7 +274,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     if (purge) {
       try {
         lastMetadata = ops.current();
-      } catch (NoSuchTableException e) {
+      } catch (NotFoundException e) {
         LOG.warn(
             "Failed to load table metadata for table: {}, continuing drop without purge",
             identifier,
@@ -616,7 +617,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     ViewMetadata lastViewMetadata = null;
     try {
       lastViewMetadata = ops.current();
-    } catch (NoSuchViewException e) {
+    } catch (NotFoundException e) {
       LOG.warn("Failed to load view metadata for view: {}", identifier, e);
     }
 
