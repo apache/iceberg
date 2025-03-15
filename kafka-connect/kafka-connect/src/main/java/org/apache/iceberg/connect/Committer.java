@@ -19,6 +19,7 @@
 package org.apache.iceberg.connect;
 
 import java.util.Collection;
+import java.util.Map;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -54,4 +55,7 @@ public interface Committer {
   }
 
   void save(Collection<SinkRecord> sinkRecords);
+
+  /** Method to configure the committer. */
+  default void configure(Map<String, String> config) {}
 }
