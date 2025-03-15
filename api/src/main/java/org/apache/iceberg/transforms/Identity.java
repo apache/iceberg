@@ -19,15 +19,20 @@
 package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
+import java.util.Set;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 class Identity<T> implements Transform<T, T> {
   private static final Identity<?> INSTANCE = new Identity<>();
+
+  private static final Set<Type.TypeID> UNSUPPORTED_TYPES =
+      ImmutableSet.of(Type.TypeID.VARIANT, Type.TypeID.GEOMETRY, Type.TypeID.GEOGRAPHY);
 
   private final Type type;
 
@@ -39,7 +44,7 @@ class Identity<T> implements Transform<T, T> {
   @Deprecated
   public static <I> Identity<I> get(Type type) {
     Preconditions.checkArgument(
-        type.typeId() != Type.TypeID.VARIANT, "Unsupported type for identity: %s", type);
+        !UNSUPPORTED_TYPES.contains(type.typeId()), "Unsupported type for identity: %s", type);
 
     return new Identity<>(type);
   }
@@ -93,6 +98,10 @@ class Identity<T> implements Transform<T, T> {
 
   @Override
   public boolean canTransform(Type maybePrimitive) {
+    if (UNSUPPORTED_TYPES.contains(maybePrimitive.typeId())) {
+      return false;
+    }
+
     return maybePrimitive.isPrimitiveType();
   }
 

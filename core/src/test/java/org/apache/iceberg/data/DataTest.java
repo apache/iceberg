@@ -34,6 +34,7 @@ import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -115,6 +116,11 @@ public abstract class DataTest {
         Types.DecimalType.of(11, 2),
         Types.DecimalType.of(38, 10),
         Types.VariantType.get(),
+        Types.GeometryType.crs84(),
+        Types.GeometryType.of("srid:3857"),
+        Types.GeographyType.crs84(),
+        Types.GeographyType.of("srid:4269"),
+        Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY),
       };
 
   protected boolean supportsUnknown() {
@@ -129,24 +135,37 @@ public abstract class DataTest {
     return false;
   }
 
+  protected boolean supportsGeospatial() {
+    return false;
+  }
+
   @ParameterizedTest
   @FieldSource("SIMPLE_TYPES")
   public void testTypeSchema(Type type) throws IOException {
-    Assumptions.assumeThat(
-            supportsUnknown()
-                || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.UNKNOWN) == null)
-        .as("unknown is not yet implemented")
-        .isTrue();
-    Assumptions.assumeThat(
-            supportsTimestampNanos()
-                || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.TIMESTAMP_NANO) == null)
-        .as("timestamp_ns is not yet implemented")
-        .isTrue();
-    Assumptions.assumeThat(
-            supportsVariant()
-                || TypeUtil.find(type, t -> t.typeId() == Type.TypeID.VARIANT) == null)
-        .as("variant is not yet implemented")
-        .isTrue();
+    if (!supportsUnknown()) {
+      Assumptions.assumeThat(TypeUtil.find(type, t -> t.typeId() == Type.TypeID.UNKNOWN) == null)
+          .as("unknown is not yet implemented")
+          .isTrue();
+    }
+    if (!supportsTimestampNanos()) {
+      Assumptions.assumeThat(
+              TypeUtil.find(type, t -> t.typeId() == Type.TypeID.TIMESTAMP_NANO) == null)
+          .as("timestamp_ns is not yet implemented")
+          .isTrue();
+    }
+    if (!supportsVariant()) {
+      Assumptions.assumeThat(TypeUtil.find(type, t -> t.typeId() == Type.TypeID.VARIANT) == null)
+          .as("variant is not yet implemented")
+          .isTrue();
+    }
+    if (!supportsGeospatial()) {
+      Assumptions.assumeThat(TypeUtil.find(type, t -> t.typeId() == Type.TypeID.GEOMETRY) == null)
+          .as("geometry is not yet implemented")
+          .isTrue();
+      Assumptions.assumeThat(TypeUtil.find(type, t -> t.typeId() == Type.TypeID.GEOGRAPHY) == null)
+          .as("geography is not yet implemented")
+          .isTrue();
+    }
 
     writeAndValidate(new Schema(required(1, "id", LongType.get()), optional(2, "test_type", type)));
   }
