@@ -166,7 +166,7 @@ public class SchemaParser {
           generator.writeStringField(CRS, geographyType.crs());
         }
         if (geographyType.algorithm() != null) {
-          generator.writeStringField(ALGORITHM, geographyType.algorithm().algorithmName());
+          generator.writeStringField(ALGORITHM, geographyType.algorithm().toString());
         }
 
         generator.writeEndObject();

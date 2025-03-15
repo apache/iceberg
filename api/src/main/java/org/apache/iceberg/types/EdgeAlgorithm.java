@@ -54,7 +54,8 @@ public enum EdgeAlgorithm {
     }
   }
 
-  public String algorithmName() {
+  @Override
+  public String toString() {
     return name().toLowerCase(Locale.ENGLISH);
   }
 }

@@ -678,8 +678,7 @@ public class Types {
     @Override
     public String toString() {
       if (algorithm != null) {
-        return String.format(
-            "geography(%s, %s)", crs != null ? crs : DEFAULT_CRS, algorithm.algorithmName());
+        return String.format("geography(%s, %s)", crs != null ? crs : DEFAULT_CRS, algorithm);
       } else if (crs != null) {
         return String.format("geography(%s)", crs);
       } else {
