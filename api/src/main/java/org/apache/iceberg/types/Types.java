@@ -31,7 +31,6 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type.NestedType;
@@ -64,9 +63,9 @@ public class Types {
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
-  private static final Pattern GEOMETRY_PARAMETERS = Pattern.compile("(?:\\(\\s*([^,]*?)\\s*\\))?");
+  private static final Pattern GEOMETRY_PARAMETERS = Pattern.compile("(?:\\(\\s*([^,]+?)\\s*\\))?");
   private static final Pattern GEOGRAPHY_PARAMETERS =
-      Pattern.compile("(?:\\(\\s*([^,]+?)?\\s*(?:,\\s*(\\w*)\\s*)?\\))?");
+      Pattern.compile("(?:\\(\\s*([^,]+)\\s*(?:,\\s*(\\w*)\\s*)?\\))?");
   private static final Pattern DECIMAL =
       Pattern.compile("decimal\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)");
 
@@ -79,19 +78,19 @@ public class Types {
     if (lowerTypeString.startsWith("geometry")) {
       Matcher geometry = GEOMETRY_PARAMETERS.matcher(typeString.substring(8));
       if (geometry.matches()) {
-        return GeometryType.of(geometry.group(1));
+        String crs = geometry.group(1);
+        return GeometryType.of(crs != null ? crs.trim() : null);
       }
     }
 
     if (lowerTypeString.startsWith("geography")) {
       Matcher geography = GEOGRAPHY_PARAMETERS.matcher(typeString.substring(9));
       if (geography.matches()) {
+        String crs = geography.group(1);
         String algorithmName = geography.group(2);
         EdgeAlgorithm algorithm =
-            (algorithmName == null || algorithmName.isEmpty())
-                ? null
-                : EdgeAlgorithm.fromName(algorithmName);
-        return GeographyType.of(geography.group(1), algorithm);
+            algorithmName == null ? null : EdgeAlgorithm.fromName(algorithmName.trim());
+        return GeographyType.of(crs != null ? crs.trim() : null, algorithm);
       }
     }
 
@@ -570,10 +569,12 @@ public class Types {
 
   public static class GeometryType extends PrimitiveType {
 
+    public static final String DEFAULT_CRS = "OGC:CRS84";
+
     private final String crs;
 
     private GeometryType(String crs) {
-      this.crs = (crs == null || crs.isEmpty()) ? null : crs;
+      this.crs = (crs == null || DEFAULT_CRS.equals(crs)) ? null : crs;
     }
 
     public static GeometryType crs84() {
@@ -612,7 +613,7 @@ public class Types {
 
     @Override
     public String toString() {
-      if (Strings.isNullOrEmpty(crs)) {
+      if (crs == null) {
         return "geometry";
       }
 
@@ -622,11 +623,13 @@ public class Types {
 
   public static class GeographyType extends PrimitiveType {
 
+    public static final String DEFAULT_CRS = "OGC:CRS84";
+
     private final String crs;
     private final EdgeAlgorithm algorithm;
 
     private GeographyType(String crs, EdgeAlgorithm algorithm) {
-      this.crs = (crs == null || crs.isEmpty()) ? null : crs;
+      this.crs = (crs == null || DEFAULT_CRS.equals(crs)) ? null : crs;
       this.algorithm = algorithm;
     }
 
@@ -676,9 +679,8 @@ public class Types {
     public String toString() {
       if (algorithm != null) {
         return String.format(
-            "geography(%s, %s)",
-            crs != null ? crs : "", algorithm.name().toLowerCase(Locale.ENGLISH));
-      } else if (!Strings.isNullOrEmpty(crs)) {
+            "geography(%s, %s)", crs != null ? crs : DEFAULT_CRS, algorithm.algorithmName());
+      } else if (crs != null) {
         return String.format("geography(%s)", crs);
       } else {
         return "geography";

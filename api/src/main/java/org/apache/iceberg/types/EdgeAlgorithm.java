@@ -53,4 +53,8 @@ public enum EdgeAlgorithm {
           String.format("Invalid edge interpolation algorithm: %s", algorithmName), e);
     }
   }
+
+  public String algorithmName() {
+    return name().toLowerCase(Locale.ENGLISH);
+  }
 }

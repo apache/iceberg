@@ -84,7 +84,6 @@ public class TestTypes {
   @Test
   public void geospatialTypeFromTypeName() {
     assertThat(Types.fromPrimitiveString("geometry")).isEqualTo(Types.GeometryType.crs84());
-    assertThat(Types.fromPrimitiveString("geometry()")).isEqualTo(Types.GeometryType.crs84());
     assertThat(Types.fromPrimitiveString("geometry(srid:3857)"))
         .isEqualTo(Types.GeometryType.of("srid:3857"));
     assertThat(Types.fromPrimitiveString("geometry( srid:3857 )"))
@@ -94,8 +93,11 @@ public class TestTypes {
     assertThat(Types.fromPrimitiveString("geometry( projjson:TestIdentifier )"))
         .isEqualTo(Types.GeometryType.of("projjson:TestIdentifier"));
 
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.fromPrimitiveString("geometry()"))
+        .withMessageContaining("Cannot parse type string to primitive");
+
     assertThat(Types.fromPrimitiveString("geography")).isEqualTo(Types.GeographyType.crs84());
-    assertThat(Types.fromPrimitiveString("geography()")).isEqualTo(Types.GeographyType.crs84());
     assertThat(Types.fromPrimitiveString("geography(srid:4269)"))
         .isEqualTo(Types.GeographyType.of("srid:4269"));
     assertThat(Types.fromPrimitiveString("geography(srid: 4269)"))
@@ -116,6 +118,9 @@ public class TestTypes {
         .isEqualTo(Types.GeographyType.of("projjson: TestIdentifier", EdgeAlgorithm.KARNEY));
 
     assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.fromPrimitiveString("geography()"))
+        .withMessageContaining("Cannot parse type string to primitive");
+    assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("geography(srid:4269, BadAlgorithm)"))
         .withMessageContaining("Invalid edge interpolation algorithm")
         .withMessageContaining("BadAlgorithm");
@@ -129,6 +134,17 @@ public class TestTypes {
         .isEqualTo(Types.GeographyType.of("srid:4269", EdgeAlgorithm.VINCENTY));
     assertThat(Types.fromPrimitiveString("geography( srid:4269  ,  karney  )"))
         .isEqualTo(Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY));
+  }
+
+  @Test
+  public void testGeospatialTypeToString() {
+    assertThat(Types.GeometryType.crs84().toString()).isEqualTo("geometry");
+    assertThat(Types.GeometryType.of("srid:4326").toString()).isEqualTo("geometry(srid:4326)");
+    assertThat(Types.GeographyType.crs84().toString()).isEqualTo("geography");
+    assertThat(Types.GeographyType.of("srid:4326", EdgeAlgorithm.KARNEY).toString())
+        .isEqualTo("geography(srid:4326, karney)");
+    assertThat(Types.GeographyType.of(null, EdgeAlgorithm.KARNEY).toString())
+        .isEqualTo("geography(OGC:CRS84, karney)");
   }
 
   @Test

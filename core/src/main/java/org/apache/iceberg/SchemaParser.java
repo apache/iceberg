@@ -29,7 +29,6 @@ import java.util.Set;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
@@ -152,7 +151,7 @@ public class SchemaParser {
         Types.GeometryType geometryType = (Types.GeometryType) primitive;
         generator.writeStartObject();
         generator.writeStringField(TYPE, GEOMETRY);
-        if (!Strings.isNullOrEmpty(geometryType.crs())) {
+        if (geometryType.crs() != null) {
           generator.writeStringField(CRS, geometryType.crs());
         }
 
@@ -163,11 +162,11 @@ public class SchemaParser {
         Types.GeographyType geographyType = (Types.GeographyType) primitive;
         generator.writeStartObject();
         generator.writeStringField(TYPE, GEOGRAPHY);
-        if (!Strings.isNullOrEmpty(geographyType.crs())) {
+        if (geographyType.crs() != null) {
           generator.writeStringField(CRS, geographyType.crs());
         }
         if (geographyType.algorithm() != null) {
-          generator.writeStringField(ALGORITHM, geographyType.algorithm().name());
+          generator.writeStringField(ALGORITHM, geographyType.algorithm().algorithmName());
         }
 
         generator.writeEndObject();
