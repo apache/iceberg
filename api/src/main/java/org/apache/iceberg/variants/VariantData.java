@@ -40,4 +40,9 @@ class VariantData implements Variant {
   public VariantValue value() {
     return value;
   }
+
+  @Override
+  public String toString() {
+    return String.format("VariantData(metadata=%s, value=%s)", metadata, value);
+  }
 }
