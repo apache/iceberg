@@ -425,7 +425,8 @@ public class TestMetadataTablesWithPartitionEvolution extends CatalogTestBase {
     assertPartitions(
         ImmutableList.of(row("d1", "c1"), row("d2", "c2")),
         "STRUCT<data:STRING,category_another_name:STRING>",
-        PARTITIONS);
+        PARTITIONS,
+        "spec_id = 2");
   }
 
   @TestTemplate
