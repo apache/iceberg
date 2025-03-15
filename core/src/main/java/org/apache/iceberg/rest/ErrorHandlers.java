@@ -24,6 +24,7 @@ import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ForbiddenException;
+import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
@@ -169,6 +170,11 @@ public class ErrorHandlers {
     @Override
     public void accept(ErrorResponse error) {
       switch (error.code()) {
+        case 400:
+          if (NamespaceNotEmptyException.class.getSimpleName().equals(error.type())) {
+            throw new NamespaceNotEmptyException("%s", error.message());
+          }
+          throw new BadRequestException("Malformed request: %s", error.message());
         case 404:
           throw new NoSuchNamespaceException("%s", error.message());
         case 409:
