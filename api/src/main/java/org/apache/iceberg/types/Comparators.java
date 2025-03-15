@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.function.IntFunction;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.UnicodeUtil;
 
 public class Comparators {
@@ -107,16 +106,6 @@ public class Comparators {
     public int compare(StructLike o1, StructLike o2) {
       if (o1 == o2) {
         return 0;
-      }
-
-      if (o1 instanceof StructProjection && o2 instanceof StructProjection) {
-        int cmp =
-            Integer.compare(
-                ((StructProjection) o1).projectedFields(),
-                ((StructProjection) o2).projectedFields());
-        if (cmp != 0) {
-          return cmp;
-        }
       }
 
       for (int i = 0; i < comparators.length; i += 1) {

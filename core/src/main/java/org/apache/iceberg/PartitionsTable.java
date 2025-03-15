@@ -28,8 +28,8 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ParallelIterable;
+import org.apache.iceberg.util.PartitionMap;
 import org.apache.iceberg.util.PartitionUtil;
-import org.apache.iceberg.util.StructLikeMap;
 
 /** A {@link Table} implementation that exposes a table's partitions as rows. */
 public class PartitionsTable extends BaseMetadataTable {
@@ -165,7 +165,7 @@ public class PartitionsTable extends BaseMetadataTable {
 
   private static Iterable<Partition> partitions(Table table, StaticTableScan scan) {
     Types.StructType partitionType = Partitioning.partitionType(table);
-    PartitionMap partitions = new PartitionMap(partitionType);
+    PartitionMap<Partition> partitions = PartitionMap.create(table.specs());
     try (CloseableIterable<ManifestEntry<? extends ContentFile<?>>> entries = planEntries(scan)) {
       for (ManifestEntry<? extends ContentFile<?>> entry : entries) {
         Snapshot snapshot = table.snapshot(entry.snapshotId());
@@ -173,13 +173,18 @@ public class PartitionsTable extends BaseMetadataTable {
         StructLike partition =
             PartitionUtil.coercePartition(
                 partitionType, table.specs().get(file.specId()), file.partition());
-        partitions.get(partition).update(file, snapshot);
+        partitions
+            .computeIfAbsent(
+                file.specId(),
+                ((PartitionData) file.partition()).copy(),
+                () -> new Partition(partition, partitionType))
+            .update(file, snapshot);
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
 
-    return partitions.all();
+    return partitions.values();
   }
 
   @VisibleForTesting
@@ -235,29 +240,6 @@ public class PartitionsTable extends BaseMetadataTable {
           PartitionsTable.this.schema(),
           MetadataTableType.PARTITIONS,
           PartitionsTable.this::task);
-    }
-  }
-
-  static class PartitionMap {
-    private final StructLikeMap<Partition> partitions;
-    private final Types.StructType keyType;
-
-    PartitionMap(Types.StructType type) {
-      this.partitions = StructLikeMap.create(type);
-      this.keyType = type;
-    }
-
-    Partition get(StructLike key) {
-      Partition partition = partitions.get(key);
-      if (partition == null) {
-        partition = new Partition(key, keyType);
-        partitions.put(key, partition);
-      }
-      return partition;
-    }
-
-    Iterable<Partition> all() {
-      return partitions.values();
     }
   }
 
@@ -319,15 +301,9 @@ public class PartitionsTable extends BaseMetadataTable {
     }
 
     /** Needed because StructProjection is not serializable */
-    private PartitionData toPartitionData(StructLike key, Types.StructType keyType) {
-      PartitionData data = new PartitionData(keyType);
-      for (int i = 0; i < keyType.fields().size(); i++) {
-        Object val = key.get(i, keyType.fields().get(i).type().typeId().javaClass());
-        if (val != null) {
-          data.set(i, val);
-        }
-      }
-      return data;
+    private static PartitionData toPartitionData(StructLike key, Types.StructType keyType) {
+      PartitionData keyTemplate = new PartitionData(keyType);
+      return keyTemplate.copyFor(key);
     }
   }
 }
