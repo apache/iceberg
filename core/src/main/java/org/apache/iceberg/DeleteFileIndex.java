@@ -372,6 +372,7 @@ class DeleteFileIndex {
     private boolean caseSensitive = true;
     private ExecutorService executorService = null;
     private ScanMetrics scanMetrics = ScanMetrics.noop();
+    private boolean ignoreResiduals = false;
 
     Builder(FileIO io, Set<ManifestFile> deleteManifests) {
       this.io = io;
@@ -428,6 +429,11 @@ class DeleteFileIndex {
 
     Builder scanMetrics(ScanMetrics newScanMetrics) {
       this.scanMetrics = newScanMetrics;
+      return this;
+    }
+
+    Builder ignoreResiduals() {
+      this.ignoreResiduals = true;
       return this;
     }
 
@@ -541,6 +547,8 @@ class DeleteFileIndex {
     }
 
     private Iterable<CloseableIterable<ManifestEntry<DeleteFile>>> deleteManifestReaders() {
+      Expression entryFilter = ignoreResiduals ? Expressions.alwaysTrue() : dataFilter;
+
       LoadingCache<Integer, ManifestEvaluator> evalCache =
           specsById == null
               ? null
@@ -575,8 +583,8 @@ class DeleteFileIndex {
           matchingManifests,
           manifest ->
               ManifestFiles.readDeleteManifest(manifest, io, specsById)
-                  .filterRows(dataFilter)
-                  .filterPartitions(partitionFilter)
+                  .filterRows(entryFilter)
+                  .filterPartitions(Expressions.and(partitionFilter, dataFilter))
                   .filterPartitions(partitionSet)
                   .caseSensitive(caseSensitive)
                   .scanMetrics(scanMetrics)
