@@ -59,8 +59,7 @@ class IcebergToGlueConverter {
 
   private IcebergToGlueConverter() {}
 
-  private static final Pattern GLUE_DB_PATTERN = Pattern.compile("^[a-z0-9_]{1,252}$");
-  private static final Pattern GLUE_TABLE_PATTERN = Pattern.compile("^[a-z0-9_]{1,255}$");
+  private static final Pattern GLUE_NAME_PATTERN = Pattern.compile("^[ -~]{1,255}$");
   public static final String GLUE_DB_LOCATION_KEY = "location";
   // Utilized for defining descriptions at both the Glue database and table levels.
   public static final String GLUE_DESCRIPTION_KEY = "comment";
@@ -84,9 +83,9 @@ class IcebergToGlueConverter {
           .build();
 
   /**
-   * A Glue database name cannot be longer than 252 characters. The only acceptable characters are
-   * lowercase letters, numbers, and the underscore character. More details:
-   * https://docs.aws.amazon.com/athena/latest/ug/glue-best-practices.html
+   * A Glue database name is an ASCII string, not less than 1 or more than 255 bytes long. All
+   * printable chars from 0x20 to 0x7E are acceptable. More details:
+   * https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-catalog-tables.html#aws-glue-api-catalog-tables-Table
    *
    * @param namespace namespace
    * @return if namespace can be accepted by Glue
@@ -96,7 +95,7 @@ class IcebergToGlueConverter {
       return false;
     }
     String dbName = namespace.level(0);
-    return dbName != null && GLUE_DB_PATTERN.matcher(dbName).find();
+    return dbName != null && GLUE_NAME_PATTERN.matcher(dbName).find();
   }
 
   /**
@@ -109,7 +108,7 @@ class IcebergToGlueConverter {
     ValidationException.check(
         isValidNamespace(namespace),
         "Cannot convert namespace %s to Glue database name, "
-            + "because it must be 1-252 chars of lowercase letters, numbers, underscore",
+            + "because it must be 1-255 ASCII chars from 0x20 to 0x7E",
         namespace);
   }
 
@@ -167,15 +166,14 @@ class IcebergToGlueConverter {
   }
 
   /**
-   * A Glue table name cannot be longer than 255 characters. The only acceptable characters are
-   * lowercase letters, numbers, and the underscore character. More details:
-   * https://docs.aws.amazon.com/athena/latest/ug/glue-best-practices.html
+   * A Glue table name is a UTF-8 string, not less than 1 or more than 255 bytes long. More details:
+   * https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-catalog-tables.html#aws-glue-api-catalog-tables-Table
    *
    * @param tableName table name
    * @return if a table name can be accepted by Glue
    */
   static boolean isValidTableName(String tableName) {
-    return tableName != null && GLUE_TABLE_PATTERN.matcher(tableName).find();
+    return tableName != null && GLUE_NAME_PATTERN.matcher(tableName).find();
   }
 
   /**
@@ -188,7 +186,7 @@ class IcebergToGlueConverter {
     ValidationException.check(
         isValidTableName(tableName),
         "Cannot use %s as Glue table name, "
-            + "because it must be 1-255 chars of lowercase letters, numbers, underscore",
+            + "because it must be 1-255 ASCII chars from 0x20 to 0x7E",
         tableName);
   }
 
