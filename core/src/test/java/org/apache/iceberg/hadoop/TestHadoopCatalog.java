@@ -388,6 +388,29 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   }
 
   @Test
+  public void testRootWarehouseLocation_concatenatesNamespaceCorrectly() {
+    HadoopCatalog catalog = new HadoopCatalog();
+    Configuration conf = new Configuration();
+    conf.set("fs.s3a.impl", "org.apache.hadoop.fs.LocalFileSystem");
+    catalog.setConf(conf);
+
+    // set warehouse location to a root parent folder in the file system
+    String warehouseLocation = "s3a://test-bucket/";
+    catalog.initialize(
+        "hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation));
+
+    TableIdentifier tableId = TableIdentifier.of("ns1", "table1");
+
+    // proper path concatenation between the root level warehouse path and namespace
+    assertThatThrownBy(
+            () -> {
+              catalog.createNamespace(tableId.namespace(), META);
+            })
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Wrong FS: s3a://test-bucket/ns1, expected: file:///");
+  }
+
+  @Test
   public void testLoadNamespaceMeta() throws IOException {
     HadoopCatalog catalog = hadoopCatalog();
 
