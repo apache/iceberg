@@ -20,6 +20,7 @@ package org.apache.iceberg.connect.channel;
 
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.Committer;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -42,24 +43,23 @@ public class CommitterImpl implements Committer {
 
   private CoordinatorThread coordinatorThread;
   private Worker worker;
-  private final Catalog catalog;
-  private final IcebergSinkConfig config;
-  private final SinkTaskContext context;
-  private final KafkaClientFactory clientFactory;
+  private Catalog catalog;
+  private IcebergSinkConfig config;
+  private SinkTaskContext context;
+  private KafkaClientFactory clientFactory;
   private Collection<MemberDescription> membersWhenWorkerIsCoordinator;
+  private final AtomicBoolean isInitialized = new AtomicBoolean(false);
 
-  public CommitterImpl(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
-    this.catalog = catalog;
-    this.config = config;
-    this.context = context;
-    this.clientFactory = new KafkaClientFactory(config.kafkaProps());
-  }
-
-  public CommitterImpl() {
-    this.catalog = null;
-    this.config = null;
-    this.context = null;
-    this.clientFactory = null;
+  private void initialize(
+      Catalog icebergCatalog,
+      IcebergSinkConfig icebergSinkConfig,
+      SinkTaskContext sinkTaskContext) {
+    if (isInitialized.compareAndSet(false, true)) {
+      this.catalog = icebergCatalog;
+      this.config = icebergSinkConfig;
+      this.context = sinkTaskContext;
+      this.clientFactory = new KafkaClientFactory(config.kafkaProps());
+    }
   }
 
   static class TopicPartitionComparator implements Comparator<TopicPartition> {
@@ -74,15 +74,14 @@ public class CommitterImpl implements Committer {
     }
   }
 
-
-  public boolean hasLeaderPartitions(Collection<TopicPartition> currentAssignedPartitions) {
+  private boolean hasLeaderPartition(Collection<TopicPartition> currentAssignedPartitions) {
     ConsumerGroupDescription groupDesc;
     try (Admin admin = clientFactory.createAdmin()) {
       groupDesc = KafkaUtils.consumerGroupDescription(config.connectGroupId(), admin);
     }
-      if (groupDesc.state() == ConsumerGroupState.STABLE) {
+    if (groupDesc.state() == ConsumerGroupState.STABLE) {
       Collection<MemberDescription> members = groupDesc.members();
-      if (isLeader(members, currentAssignedPartitions)) {
+      if (containsFirstPartition(members, currentAssignedPartitions)) {
         membersWhenWorkerIsCoordinator = members;
         return true;
       }
@@ -90,45 +89,9 @@ public class CommitterImpl implements Committer {
     return false;
   }
 
-  @Override
-  public void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
-    // No-Op
-  }
-
-  @Override
-  public void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context, Collection<TopicPartition> addedPartitions) {
-    if (hasLeaderPartitions(addedPartitions)) {
-      LOG.info("Committer received leader partition. Starting Coordinator.");
-      startCoordinator();
-    }
-  }
-
-  @Override
-  public void stop() {
-    // No-Op
-  }
-
-  @Override
-  public void stop(Collection<TopicPartition> closedPartitions) {
-    stopWorker();
-    KafkaUtils.seekToLastCommittedOffsetsForCurrentlyOwnedPartitions(context);
-    if (hasLeaderPartitions(closedPartitions)) {
-      LOG.info("Committer lost leader partition. Stopping Coordinator.");
-      stopCoordinator();
-    }
-  }
-
-  @Override
-  public void save(Collection<SinkRecord> sinkRecords) {
-    if (sinkRecords != null && !sinkRecords.isEmpty()) {
-      startWorker();
-      worker.save(sinkRecords);
-    }
-    processControlEvents();
-  }
-
   @VisibleForTesting
-  boolean isLeader(Collection<MemberDescription> members, Collection<TopicPartition> partitions) {
+  boolean containsFirstPartition(
+      Collection<MemberDescription> members, Collection<TopicPartition> partitions) {
     // there should only be one task assigned partition 0 of the first topic,
     // so elect that one the leader
     TopicPartition firstTopicPartition =
@@ -141,6 +104,55 @@ public class CommitterImpl implements Committer {
     return partitions.contains(firstTopicPartition);
   }
 
+  @Override
+  public void start(
+      Catalog icebergCatalog,
+      IcebergSinkConfig icebergSinkConfig,
+      SinkTaskContext sinkTaskContext) {
+    throw new UnsupportedOperationException(
+        "The method start(Catalog, IcebergSinkConfig, SinkTaskContext) is deprecated and will be removed in 2.0.0. "
+            + "Use start(Catalog, IcebergSinkConfig, SinkTaskContext, Collection<TopicPartition>) instead.");
+  }
+
+  @Override
+  public void open(
+      Catalog icebergCatalog,
+      IcebergSinkConfig icebergSinkConfig,
+      SinkTaskContext sinkTaskContext,
+      Collection<TopicPartition> addedPartitions) {
+    initialize(icebergCatalog, icebergSinkConfig, sinkTaskContext);
+    if (hasLeaderPartition(addedPartitions)) {
+      LOG.info("Committer received leader partition. Starting Coordinator.");
+      startCoordinator();
+    }
+  }
+
+  @Override
+  public void stop() {
+    throw new UnsupportedOperationException(
+        "The method stop() is deprecated and will be removed in 2.0.0. "
+            + "Use stop(Collection<TopicPartition>) instead.");
+  }
+
+  @Override
+  public void close(Collection<TopicPartition> closedPartitions) {
+    if (hasLeaderPartition(closedPartitions)) {
+      LOG.info("Committer lost leader partition. Stopping Coordinator.");
+      stopCoordinator();
+    }
+    stopWorker();
+    KafkaUtils.seekToLastCommittedOffsets(context);
+  }
+
+  @Override
+  public void save(Collection<SinkRecord> sinkRecords) {
+    if (sinkRecords != null && !sinkRecords.isEmpty()) {
+      startWorker();
+      worker.save(sinkRecords);
+    }
+    processControlEvents();
+  }
+
   private void processControlEvents() {
     if (coordinatorThread != null && coordinatorThread.isTerminated()) {
       throw new NotRunningException("Coordinator unexpectedly terminated");
@@ -150,8 +162,8 @@ public class CommitterImpl implements Committer {
     }
   }
 
-  public void startWorker() {
-    if(null == this.worker) {
+  private void startWorker() {
+    if (null == this.worker) {
       LOG.info("Starting commit worker");
       SinkWriter sinkWriter = new SinkWriter(catalog, config);
       worker = new Worker(config, clientFactory, sinkWriter, context);
@@ -159,24 +171,24 @@ public class CommitterImpl implements Committer {
     }
   }
 
-
-  public void startCoordinator() {
-    LOG.info("Task elected leader, starting commit coordinator");
-    Coordinator coordinator = new Coordinator(catalog, config, membersWhenWorkerIsCoordinator, clientFactory, context);
-    coordinatorThread = new CoordinatorThread(coordinator);
-    coordinatorThread.start();
+  private void startCoordinator() {
+    if (null == this.coordinatorThread) {
+      LOG.info("Task elected leader, starting commit coordinator");
+      Coordinator coordinator =
+          new Coordinator(catalog, config, membersWhenWorkerIsCoordinator, clientFactory, context);
+      coordinatorThread = new CoordinatorThread(coordinator);
+      coordinatorThread.start();
+    }
   }
 
-
-  public void stopWorker() {
+  private void stopWorker() {
     if (worker != null) {
       worker.stop();
       worker = null;
     }
   }
 
-
-  public void stopCoordinator() {
+  private void stopCoordinator() {
     if (coordinatorThread != null) {
       coordinatorThread.terminate();
       coordinatorThread = null;

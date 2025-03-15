@@ -139,14 +139,16 @@ public class ChannelTestBase {
   private class Listener implements ConsumerRebalanceListener {
     @Override
     public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
-      if(!partitions.isEmpty())
+      if (!partitions.isEmpty()) {
         mockIcebergSinkTask.close(partitions);
+      }
     }
 
     @Override
     public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
-      if(!partitions.isEmpty())
+      if (!partitions.isEmpty()) {
         mockIcebergSinkTask.open(partitions);
+      }
     }
   }
 }

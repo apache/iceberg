@@ -18,46 +18,11 @@
  */
 package org.apache.iceberg.connect;
 
-import java.lang.reflect.Constructor;
-import org.apache.iceberg.catalog.Catalog;
-import org.apache.kafka.connect.sink.SinkTaskContext;
+import org.apache.iceberg.connect.channel.CommitterImpl;
 
 class CommitterFactory {
-  static Committer createCommitter(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
-    try {
-      // Load class dynamically
-      Class<?> clazz = config.committer();
-      // Ensure it implements Committer interface
-      if (!Committer.class.isAssignableFrom(clazz)) {
-        throw new IllegalArgumentException(clazz.getName() + " does not implement Committer interface");
-      }
-
-      // Get all constructors and match with provided args
-      for (Constructor<?> constructor : clazz.getConstructors()) {
-        Class<?>[] paramTypes = constructor.getParameterTypes();
-
-        if (matchesConstructor(paramTypes, catalog, config, context)) {
-          return (Committer) constructor.newInstance(catalog, config, context);
-        }
-      }
-
-      throw new IllegalArgumentException("No matching constructor found for class: " + clazz.getName());
-
-    } catch (Exception e) {
-      throw new RuntimeException("Failed to instantiate Committer", e);
-    }
-  }
-
-  private static boolean matchesConstructor(Class<?>[] paramTypes, Object... args) {
-    if (paramTypes.length != args.length) {
-      return false;
-    }
-    for (int i = 0; i < paramTypes.length; i++) {
-      if (!paramTypes[i].isAssignableFrom(args[i].getClass())) {
-        return false;
-      }
-    }
-    return true;
+  static Committer createCommitter(IcebergSinkConfig config) {
+    return new CommitterImpl();
   }
 
   private CommitterFactory() {}

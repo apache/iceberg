@@ -45,28 +45,23 @@ public class IcebergSinkTask extends SinkTask {
   @Override
   public void start(Map<String, String> props) {
     this.config = new IcebergSinkConfig(props);
-    /*
-     catalog and committer are global resource and does not depend on the topic partition,
-     hence we should open this with the start call only and should only close these if the task is closed by connect
-     framework.
-     */
-    catalog = CatalogUtils.loadCatalog(config);
-    committer = CommitterFactory.createCommitter(catalog, config, context).configure(config.committerConfig());
+    this.catalog = CatalogUtils.loadCatalog(config);
+    this.committer = CommitterFactory.createCommitter(config);
   }
 
   @Override
   public void open(Collection<TopicPartition> partitions) {
-    committer.start(catalog, config, context, partitions);
+    committer.open(catalog, config, context, partitions);
   }
 
   @Override
   public void close(Collection<TopicPartition> partitions) {
-    committer.stop(partitions);
+    committer.close(partitions);
   }
 
   private void close() {
     if (committer != null) {
-      committer.stop(context.assignment());
+      committer.close(context.assignment());
       committer = null;
     }
 
