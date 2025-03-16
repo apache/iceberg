@@ -45,6 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.view.ViewMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.model.Column;
@@ -283,6 +284,98 @@ class IcebergToGlueConverter {
           "Encountered unexpected exception while converting Iceberg metadata to Glue table information",
           e);
     }
+  }
+
+  /**
+   * Sets Glue table input information based on Iceberg view metadata.
+   *
+   * <p>A best-effort conversion of Iceberg view metadata to Glue table is performed to display
+   * Iceberg information in Glue, but such information is only intended for informational human read
+   * access through tools like UI or CLI, and should never be used by any query processing engine to
+   * infer information like schema, partition spec, etc. The source of truth is stored in the actual
+   * Iceberg metadata file defined by the metadata_location table property.
+   *
+   * @param tableInputBuilder Glue TableInput builder
+   * @param metadata Iceberg view metadata
+   * @param existingTable optional existing Glue table, used to preserve column comments
+   */
+  static void setTableInputInformationForView(
+      TableInput.Builder tableInputBuilder, ViewMetadata metadata, Table existingTable) {
+
+    try {
+      StorageDescriptor.Builder storageDescriptor =
+          StorageDescriptor.builder().location(metadata.location());
+
+      Map<String, String> existingColumnMap = null;
+      if (existingTable != null && existingTable.storageDescriptor() != null) {
+        List<Column> existingColumns = existingTable.storageDescriptor().columns();
+        existingColumnMap =
+            existingColumns.stream()
+                .filter(column -> column.comment() != null)
+                .collect(Collectors.toMap(Column::name, Column::comment));
+      } else {
+        existingColumnMap = Collections.emptyMap();
+      }
+
+      Schema schema = metadata.schema();
+
+      List<Column> columns = toColumnsFromViewSchema(schema, existingColumnMap);
+
+      tableInputBuilder.storageDescriptor(storageDescriptor.columns(columns).build());
+
+      String description = metadata.properties().get(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY);
+      if (description != null) {
+        tableInputBuilder.description(description);
+      } else if (existingTable != null) {
+        Optional.ofNullable(existingTable.description()).ifPresent(tableInputBuilder::description);
+      }
+
+    } catch (RuntimeException e) {
+      LOG.warn(
+          "Encountered unexpected exception while converting Iceberg view metadata to Glue table information",
+          e);
+    }
+  }
+
+  /**
+   * Convert Iceberg schema to Glue columns for view representation.
+   *
+   * <p>This conversion is only used for informational purposes and should not be used for actual
+   * data processing operations.
+   *
+   * @param schema Iceberg schema
+   * @param existingColumnMap Map of existing column names to comments
+   * @return List of Glue columns
+   */
+  private static List<Column> toColumnsFromViewSchema(
+      Schema schema, Map<String, String> existingColumnMap) {
+    List<Column> columns = Lists.newArrayList();
+    Set<String> addedNames = Sets.newHashSet();
+
+    for (NestedField field : schema.columns()) {
+      Column.Builder builder =
+          Column.builder()
+              .name(field.name())
+              .type(toTypeString(field.type()))
+              .parameters(
+                  ImmutableMap.of(
+                      ICEBERG_FIELD_ID, Integer.toString(field.fieldId()),
+                      ICEBERG_FIELD_OPTIONAL, Boolean.toString(field.isOptional()),
+                      ICEBERG_FIELD_CURRENT, Boolean.toString(true)));
+
+      if (field.doc() != null && !field.doc().isEmpty()) {
+        builder.comment(field.doc());
+      } else if (existingColumnMap.containsKey(field.name())) {
+        builder.comment(existingColumnMap.get(field.name()));
+      }
+
+      if (!addedNames.contains(field.name())) {
+        columns.add(builder.build());
+        addedNames.add(field.name());
+      }
+    }
+
+    return columns;
   }
 
   /**

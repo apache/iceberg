@@ -569,7 +569,8 @@ public class TestGlueCatalog {
 
     assertThatThrownBy(() -> glueCatalog.dropNamespace(Namespace.of("db1")))
         .isInstanceOf(NamespaceNotEmptyException.class)
-        .hasMessage("Cannot drop namespace db1 because it still contains non-Iceberg tables");
+        .hasMessage(
+            "Cannot drop namespace db1 because it still contains non-Iceberg tables or views");
   }
 
   @Test
@@ -678,5 +679,140 @@ public class TestGlueCatalog {
             S3FileIOProperties.WRITE_TAGS_PREFIX.concat(
                 S3FileIOProperties.S3_TAG_ICEBERG_NAMESPACE),
             "db");
+  }
+
+  @Test
+  public void testDropView() {
+    TableIdentifier viewIdent = TableIdentifier.of("db", "drop_view");
+    Table glueView =
+        Table.builder()
+            .databaseName("db")
+            .name("drop_view")
+            .tableType("VIRTUAL_VIEW")
+            .parameters(
+                ImmutableMap.of(
+                    "table_type", "iceberg-view", "metadata_location", "s3://xx/metadata.json"))
+            .build();
+
+    Mockito.doReturn(GetTableResponse.builder().table(glueView).build())
+        .when(glue)
+        .getTable(Mockito.any(GetTableRequest.class));
+    Mockito.doReturn(DeleteTableResponse.builder().build())
+        .when(glue)
+        .deleteTable(Mockito.any(DeleteTableRequest.class));
+
+    boolean dropped = glueCatalog.dropView(viewIdent);
+    assertThat(dropped).isTrue();
+
+    Mockito.verify(glue, Mockito.times(1))
+        .deleteTable(
+            Mockito.argThat(
+                (DeleteTableRequest r) ->
+                    r.databaseName().equals("db") && r.name().equals("drop_view")));
+  }
+
+  @Test
+  public void testDropViewNotFound() {
+    TableIdentifier viewIdent = TableIdentifier.of("db", "no_view");
+    Mockito.doThrow(EntityNotFoundException.builder().build())
+        .when(glue)
+        .getTable(Mockito.any(GetTableRequest.class));
+
+    boolean result = glueCatalog.dropView(viewIdent);
+    assertThat(result).isFalse();
+  }
+
+  @Test
+  public void testDropViewButItsNotView() {
+    TableIdentifier viewIdent = TableIdentifier.of("db", "not_view");
+    Table glueTable =
+        Table.builder()
+            .databaseName("db")
+            .name("not_view")
+            .tableType("EXTERNAL_TABLE")
+            .parameters(ImmutableMap.of("table_type", "iceberg-table")) // not "iceberg-view"
+            .build();
+
+    Mockito.doReturn(GetTableResponse.builder().table(glueTable).build())
+        .when(glue)
+        .getTable(Mockito.any(GetTableRequest.class));
+
+    boolean dropped = glueCatalog.dropView(viewIdent);
+    assertThat(dropped).isFalse();
+  }
+
+  @Test
+  public void testListViews() {
+    Mockito.doReturn(
+            GetTablesResponse.builder()
+                .tableList(
+                    Table.builder()
+                        .databaseName("db")
+                        .name("my_view")
+                        .tableType("VIRTUAL_VIEW")
+                        .parameters(
+                            ImmutableMap.of(
+                                "table_type",
+                                "iceberg-view",
+                                "metadata_location",
+                                "s3://v1/metadata.json"))
+                        .build(),
+                    Table.builder()
+                        .databaseName("db")
+                        .name("my_table")
+                        .tableType("EXTERNAL_TABLE")
+                        .parameters(ImmutableMap.of("table_type", "iceberg-table"))
+                        .build())
+                .build())
+        .when(glue)
+        .getTables(Mockito.any(GetTablesRequest.class));
+
+    List<TableIdentifier> views = glueCatalog.listViews(Namespace.of("db"));
+    assertThat(views).hasSize(1).containsExactly(TableIdentifier.of("db", "my_view"));
+  }
+
+  @Test
+  public void testRenameView() {
+    TableIdentifier from = TableIdentifier.of("db", "old_view");
+    TableIdentifier to = TableIdentifier.of("db", "new_view");
+
+    Mockito.doReturn(
+            GetDatabaseResponse.builder().database(Database.builder().name("db").build()).build())
+        .when(glue)
+        .getDatabase(Mockito.any(GetDatabaseRequest.class));
+
+    Table existingView =
+        Table.builder()
+            .databaseName("db")
+            .name("old_view")
+            .tableType("VIRTUAL_VIEW")
+            .parameters(ImmutableMap.of("table_type", "iceberg-view"))
+            .build();
+    Mockito.doReturn(GetTableResponse.builder().table(existingView).build())
+        .when(glue)
+        .getTable(Mockito.<GetTableRequest>argThat(r -> "old_view".equals(r.name())));
+
+    Mockito.doThrow(EntityNotFoundException.builder().build())
+        .when(glue)
+        .getTable(Mockito.<GetTableRequest>argThat(r -> "new_view".equals(r.name())));
+
+    Mockito.doReturn(CreateTableResponse.builder().build())
+        .when(glue)
+        .createTable(Mockito.any(CreateTableRequest.class));
+    Mockito.doReturn(DeleteTableResponse.builder().build())
+        .when(glue)
+        .deleteTable(Mockito.any(DeleteTableRequest.class));
+
+    glueCatalog.renameView(from, to);
+
+    Mockito.verify(glue, Mockito.times(1))
+        .createTable(
+            Mockito.argThat(
+                (CreateTableRequest r) ->
+                    r.tableInput().name().equals("new_view")
+                        && "VIRTUAL_VIEW".equals(r.tableInput().tableType())
+                        && "iceberg-view".equals(r.tableInput().parameters().get("table_type"))));
+    Mockito.verify(glue, Mockito.times(1))
+        .deleteTable(Mockito.argThat((DeleteTableRequest r) -> r.name().equals("old_view")));
   }
 }

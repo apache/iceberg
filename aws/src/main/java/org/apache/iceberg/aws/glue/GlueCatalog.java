@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -44,6 +43,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
@@ -58,6 +58,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.LockManagers;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.view.BaseMetastoreViewCatalog;
+import org.apache.iceberg.view.ViewBuilder;
+import org.apache.iceberg.view.ViewOperations;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.GlueClient;
@@ -80,7 +83,7 @@ import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateDatabaseRequest;
 
-public class GlueCatalog extends BaseMetastoreCatalog
+public class GlueCatalog extends BaseMetastoreViewCatalog
     implements SupportsNamespaces, Configurable<Configuration> {
 
   private static final Logger LOG = LoggerFactory.getLogger(GlueCatalog.class);
@@ -95,6 +98,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
   private CloseableGroup closeableGroup;
   private Map<String, String> catalogProperties;
   private FileIOTracker fileIOTracker;
+  static final String ICEBERG_VIEW_TYPE_VALUE = "iceberg-view";
+  static final String GLUE_VIRTUAL_VIEW_TYPE = "VIRTUAL_VIEW";
 
   // Attempt to set versionId if available on the path
   private static final DynMethods.UnboundMethod SET_VERSION_ID =
@@ -423,7 +428,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
             .tableInput(tableInputBuilder.name(toTableName).build())
             .build());
     LOG.info("created rename destination table {}", to);
-
     try {
       dropTable(from, false);
     } catch (Exception e) {
@@ -459,6 +463,267 @@ public class GlueCatalog extends BaseMetastoreCatalog
     } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
       throw new AlreadyExistsException(
           "Cannot create namespace %s because it already exists in Glue", namespace);
+    }
+  }
+
+  @Override
+  protected ViewOperations newViewOps(TableIdentifier viewIdentifier) {
+    Map<String, String> effectiveProperties =
+        catalogProperties == null ? ImmutableMap.of() : ImmutableMap.copyOf(catalogProperties);
+
+    return new GlueViewOperations(
+        glue,
+        lockManager,
+        catalogName,
+        awsProperties,
+        effectiveProperties,
+        hadoopConf,
+        viewIdentifier);
+  }
+
+  private boolean isGlueIcebergView(Table table) {
+    return table != null
+        && "VIRTUAL_VIEW".equalsIgnoreCase(table.tableType())
+        && table.parameters() != null
+        && ICEBERG_VIEW_TYPE_VALUE.equalsIgnoreCase(
+            table.parameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP));
+  }
+
+  @Override
+  public boolean dropView(TableIdentifier identifier) {
+    String dbName =
+        IcebergToGlueConverter.getDatabaseName(
+            identifier, awsProperties.glueCatalogSkipNameValidation());
+    String tblName =
+        IcebergToGlueConverter.getTableName(
+            identifier, awsProperties.glueCatalogSkipNameValidation());
+
+    try {
+      GetTableResponse response =
+          glue.getTable(
+              GetTableRequest.builder()
+                  .catalogId(awsProperties.glueCatalogId())
+                  .databaseName(dbName)
+                  .name(tblName)
+                  .build());
+      Table glueTable = response.table();
+
+      if (!isGlueIcebergView(glueTable)) {
+        LOG.warn("dropView({}) called but Glue table is not an iceberg-view", identifier);
+        return false;
+      }
+
+      glue.deleteTable(
+          DeleteTableRequest.builder()
+              .catalogId(awsProperties.glueCatalogId())
+              .databaseName(dbName)
+              .name(tblName)
+              .build());
+      LOG.info("Successfully dropped view {} from Glue", identifier);
+
+      return true;
+
+    } catch (EntityNotFoundException e) {
+      LOG.warn("Cannot dropView({}), table not found in Glue", identifier, e);
+      return false;
+    } catch (RuntimeException e) {
+      LOG.error("Failed to drop view {} due to unexpected exception", identifier, e);
+      throw e;
+    }
+  }
+
+  @Override
+  public List<TableIdentifier> listViews(Namespace namespace) {
+    String dbName =
+        IcebergToGlueConverter.toDatabaseName(
+            namespace, awsProperties.glueCatalogSkipNameValidation());
+
+    List<TableIdentifier> results = Lists.newArrayList();
+    String nextToken = null;
+
+    try {
+      do {
+        GetTablesResponse response =
+            glue.getTables(
+                GetTablesRequest.builder()
+                    .catalogId(awsProperties.glueCatalogId())
+                    .databaseName(dbName)
+                    .nextToken(nextToken)
+                    .build());
+        nextToken = response.nextToken();
+
+        if (response.hasTableList()) {
+          for (Table t : response.tableList()) {
+            if (isGlueIcebergView(t)) {
+              TableIdentifier tid = GlueToIcebergConverter.toTableId(t);
+              results.add(tid);
+            }
+          }
+        }
+      } while (nextToken != null);
+
+      LOG.debug("listViews({}) -> {}", namespace, results);
+      return results;
+
+    } catch (EntityNotFoundException e) {
+      throw new NoSuchNamespaceException("Glue database not found or not accessible: %s", e);
+    } catch (RuntimeException e) {
+      LOG.error("Failed to list all views under {}", namespace, e);
+      throw e;
+    }
+  }
+
+  @Override
+  public void renameView(TableIdentifier from, TableIdentifier to) {
+    if (!namespaceExists(to.namespace())) {
+      throw new NoSuchNamespaceException(
+          "Cannot rename %s to %s because Namespace does not exist: %s", from, to, to.namespace());
+    }
+
+    Table fromView;
+    String fromTableDbName =
+        IcebergToGlueConverter.getDatabaseName(from, awsProperties.glueCatalogSkipNameValidation());
+    String fromTableName =
+        IcebergToGlueConverter.getTableName(from, awsProperties.glueCatalogSkipNameValidation());
+
+    String toTableDbName =
+        IcebergToGlueConverter.getDatabaseName(to, awsProperties.glueCatalogSkipNameValidation());
+    String toTableName =
+        IcebergToGlueConverter.getTableName(to, awsProperties.glueCatalogSkipNameValidation());
+
+    try {
+      GetTableResponse response =
+          glue.getTable(
+              GetTableRequest.builder()
+                  .catalogId(awsProperties.glueCatalogId())
+                  .databaseName(fromTableDbName)
+                  .name(fromTableName)
+                  .build());
+      fromView = response.table();
+
+      if (fromView.parameters() == null
+          || !ICEBERG_VIEW_TYPE_VALUE.equalsIgnoreCase(
+              fromView.parameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP))) {
+        throw new NoSuchTableException(
+            "Cannot rename %s because it is not an iceberg view in Glue (table_type != iceberg-view)",
+            from);
+      }
+    } catch (EntityNotFoundException e) {
+      throw new NoSuchViewException(
+          e, "Cannot rename %s because the View does not exist in Glue", from);
+    }
+
+    TableInput.Builder tableInputBuilder =
+        TableInput.builder()
+            .owner(fromView.owner())
+            .tableType("VIRTUAL_VIEW")
+            .parameters(fromView.parameters())
+            .storageDescriptor(fromView.storageDescriptor())
+            .viewOriginalText(fromView.viewOriginalText())
+            .viewExpandedText(fromView.viewExpandedText());
+
+    try {
+      glue.createTable(
+          CreateTableRequest.builder()
+              .catalogId(awsProperties.glueCatalogId())
+              .databaseName(toTableDbName)
+              .tableInput(tableInputBuilder.name(toTableName).build())
+              .build());
+      LOG.info("Created rename destination Glue view {}", to);
+    } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
+
+      throw new AlreadyExistsException(
+          "Cannot rename %s.%s to %s.%s. Glue Table already exists",
+          fromTableDbName, fromTableName, toTableDbName, toTableName);
+    }
+
+    try {
+      dropView(from);
+    } catch (Exception e) {
+      LOG.error("Failed to drop old view {} after renaming to {}, rolling back...", from, to, e);
+      glue.deleteTable(
+          DeleteTableRequest.builder()
+              .catalogId(awsProperties.glueCatalogId())
+              .databaseName(toTableDbName)
+              .name(toTableName)
+              .build());
+      throw e;
+    }
+    LOG.info("Successfully renamed Glue view from {} to {}", from, to);
+  }
+
+  @Override
+  public boolean tableExists(TableIdentifier identifier) {
+    String dbName =
+        IcebergToGlueConverter.getDatabaseName(
+            identifier, awsProperties.glueCatalogSkipNameValidation());
+    String tblName =
+        IcebergToGlueConverter.getTableName(
+            identifier, awsProperties.glueCatalogSkipNameValidation());
+
+    try {
+      GetTableResponse response =
+          glue.getTable(
+              GetTableRequest.builder()
+                  .catalogId(awsProperties.glueCatalogId())
+                  .databaseName(dbName)
+                  .name(tblName)
+                  .build());
+      Table glueTable = response.table();
+
+      return glueTable != null
+          && glueTable.parameters() != null
+          && BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(
+              glueTable.parameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP));
+    } catch (EntityNotFoundException e) {
+      return false;
+    } catch (RuntimeException re) {
+      LOG.error("Failed to check tableExists for {}", identifier, re);
+      throw re;
+    }
+  }
+
+  @Override
+  public boolean viewExists(TableIdentifier identifier) {
+    String dbName =
+        IcebergToGlueConverter.getDatabaseName(
+            identifier, awsProperties.glueCatalogSkipNameValidation());
+    String tblName =
+        IcebergToGlueConverter.getTableName(
+            identifier, awsProperties.glueCatalogSkipNameValidation());
+
+    try {
+      GetTableResponse response =
+          glue.getTable(
+              GetTableRequest.builder()
+                  .catalogId(awsProperties.glueCatalogId())
+                  .databaseName(dbName)
+                  .name(tblName)
+                  .build());
+      Table glueTable = response.table();
+
+      return glueTable != null
+          && GLUE_VIRTUAL_VIEW_TYPE.equalsIgnoreCase(glueTable.tableType())
+          && glueTable.parameters() != null
+          && ICEBERG_VIEW_TYPE_VALUE.equalsIgnoreCase(
+              glueTable.parameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP));
+
+    } catch (EntityNotFoundException e) {
+      return false;
+    } catch (RuntimeException re) {
+      LOG.error("Failed to check viewExists for {}", identifier, re);
+      throw re;
+    }
+  }
+
+  @Override
+  public ViewBuilder buildView(TableIdentifier identifier) {
+    return new GlueCatalogViewBuilder(identifier);
+  }
+
+  private class GlueCatalogViewBuilder extends BaseMetastoreViewCatalog.BaseViewBuilder {
+    private GlueCatalogViewBuilder(TableIdentifier identifier) {
+      super(identifier);
     }
   }
 
@@ -552,9 +817,13 @@ public class GlueCatalog extends BaseMetastoreCatalog
       if (isGlueIcebergTable(table)) {
         throw new NamespaceNotEmptyException(
             "Cannot drop namespace %s because it still contains Iceberg tables", namespace);
+      } else if (isGlueIcebergView(table)) {
+        throw new NamespaceNotEmptyException(
+            "Cannot drop namespace %s because it still contains Iceberg views", namespace);
       } else {
         throw new NamespaceNotEmptyException(
-            "Cannot drop namespace %s because it still contains non-Iceberg tables", namespace);
+            "Cannot drop namespace %s because it still contains non-Iceberg tables or views",
+            namespace);
       }
     }
 
