@@ -116,18 +116,18 @@ public class GlueViewOperations extends BaseViewOperations implements AutoClosea
     Table table = getGlueTable();
 
     if (table != null) {
-      String table_type = table.parameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP);
+      String tableType = table.parameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP);
 
-      if (table_type == null) {
+      if (tableType == null) {
         throw new NoSuchViewException("Iceberg View does not exist: %s.%s", databaseName, viewName);
       }
 
-      if (table_type.equalsIgnoreCase(BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE)) {
+      if (tableType.equalsIgnoreCase(BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE)) {
         throw new AlreadyExistsException(
             "Table with same name already exists: %s.%s", databaseName, viewName);
       }
 
-      if (table_type.equalsIgnoreCase(GlueCatalog.ICEBERG_VIEW_TYPE_VALUE)) {
+      if (tableType.equalsIgnoreCase(GlueCatalog.ICEBERG_VIEW_TYPE_VALUE)) {
         metadataLocation = table.parameters().get("metadata_location");
       } else {
         return;
@@ -160,41 +160,10 @@ public class GlueViewOperations extends BaseViewOperations implements AutoClosea
 
       Table glueTable = getGlueTable();
 
-      if (glueTable != null) {
-        String tableType = glueTable.parameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP);
-        String glueTableType = glueTable.tableType();
+      validateGlueTableState(glueTable, base);
 
-        if (!"VIRTUAL_VIEW".equalsIgnoreCase(glueTableType)) {
-          if (BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(tableType)) {
-            throw new AlreadyExistsException(
-                "Table with same name already exists: %s.%s", databaseName, viewName);
-          } else {
-            throw new ValidationException(
-                "Cannot create view %s.%s, a non-Iceberg table with the same name exists",
-                databaseName, viewName);
-          }
-        } else if (!"iceberg-view".equalsIgnoreCase(tableType) && base == null) {
-          throw new ValidationException(
-              "Cannot create view %s.%s, a non-Iceberg view with the same name exists",
-              databaseName, viewName);
-        }
-      }
-
-      // For replace operations, we skip the metadata location check
-      // base = null for create, non-null for replace
       boolean isReplace = base != null;
-      if (!isReplace) {
-        // Only check metadata location if this is not a replace operation
-        if (!checkMetadataLocation(glueTable, base)) {
-          throw new CommitFailedException(
-              "Cannot commit %s because base metadata location '%s' is not same as the current Glue location '%s'",
-              fullViewName,
-              null,
-              glueTable != null
-                  ? glueTable.parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP)
-                  : null);
-        }
-      }
+      verifyMetadataLocationIfNeeded(glueTable, base, isReplace);
 
       // Prepare properties for the update
       Map<String, String> parameters = prepareParameters(glueTable, metadata, newMetadataLocation);
@@ -212,35 +181,8 @@ public class GlueViewOperations extends BaseViewOperations implements AutoClosea
 
     } catch (CommitFailedException e) {
       throw e;
-    } catch (RuntimeException persistFailure) {
-      LOG.error("Error during commit for view {}", fullViewName, persistFailure);
-
-      boolean isAwsServiceException = persistFailure instanceof AwsServiceException;
-
-      // If this is an AWS service exception, and we didn't retry, or it's some other exception,
-      // let's check if the commit actually succeeded
-      if (!isAwsServiceException || retryDetector.retried()) {
-        LOG.warn(
-            "Received unexpected failure when committing to {}, validating if commit ended up succeeding.",
-            fullViewName,
-            persistFailure);
-        commitStatus = checkCommitStatus(newMetadataLocation);
-      }
-
-      if (commitStatus != CommitStatus.SUCCESS && isAwsServiceException) {
-        handleAwsExceptions((AwsServiceException) persistFailure);
-      }
-
-      switch (commitStatus) {
-        case SUCCESS:
-          break;
-        case FAILURE:
-          throw new CommitFailedException(
-              persistFailure, "Cannot commit %s due to unexpected exception", fullViewName);
-        case UNKNOWN:
-          throw new CommitStateUnknownException(persistFailure);
-      }
-
+    } catch (RuntimeException e) {
+      commitStatus = handleCommitException(e, newMetadataLocation, retryDetector);
     } finally {
       try {
         if (commitStatus == CommitStatus.FAILURE && newMetadataLocation != null) {
@@ -274,6 +216,122 @@ public class GlueViewOperations extends BaseViewOperations implements AutoClosea
       return response.table();
     } catch (EntityNotFoundException e) {
       return null;
+    }
+  }
+
+  /**
+   * Validates the existing Glue table to ensure it can be used for an Iceberg view operation.
+   *
+   * <p>This method checks whether:
+   *
+   * <ul>
+   *   <li>The table is of type VIRTUAL_VIEW
+   *   <li>The table is marked as 'iceberg-view' if it already exists, or that the base is null if
+   *       it's not
+   *   <li>No conflicting non-Iceberg table or view exists under the same name
+   * </ul>
+   *
+   * @param glueTable The Glue table currently registered in the catalog (null if none).
+   * @param base The current view metadata (null if this is a brand-new create operation).
+   * @throws AlreadyExistsException If a non-view table with the same name already exists.
+   * @throws ValidationException If a non-Iceberg view with the same name already exists.
+   */
+  private void validateGlueTableState(Table glueTable, ViewMetadata base) {
+    if (glueTable != null) {
+      String tableType = glueTable.parameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP);
+      String glueTableType = glueTable.tableType();
+
+      if (!"VIRTUAL_VIEW".equalsIgnoreCase(glueTableType)) {
+        if (BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(tableType)) {
+          throw new AlreadyExistsException(
+              "Table with same name already exists: %s.%s", databaseName, viewName);
+        } else {
+          throw new ValidationException(
+              "Cannot create view %s.%s, a non-Iceberg table with the same name exists",
+              databaseName, viewName);
+        }
+      } else if (!GlueCatalog.ICEBERG_VIEW_TYPE_VALUE.equalsIgnoreCase(tableType) && base == null) {
+        // base == null ということは create相当
+        throw new ValidationException(
+            "Cannot create view %s.%s, a non-Iceberg view with the same name exists",
+            databaseName, viewName);
+      }
+    }
+  }
+
+  /**
+   * Ensures the base metadata location matches the Glue table's metadata location when performing a
+   * create operation.
+   *
+   * <p>This check is skipped for 'replace' operations (where {@code isReplace} is true). If the
+   * metadata location in Glue does not match the base metadata location, a commit failure is
+   * thrown.
+   *
+   * @param glueTable The existing Glue table, or null if none exists.
+   * @param base The base view metadata from which the current metadata is derived.
+   * @param isReplace Indicates if this commit is performing a replace operation (true) or a create
+   *     (false).
+   * @throws CommitFailedException If the base metadata location and the Glue metadata location do
+   *     not match.
+   */
+  private void verifyMetadataLocationIfNeeded(
+      Table glueTable, ViewMetadata base, boolean isReplace) {
+    if (!isReplace) {
+      if (!checkMetadataLocation(glueTable, base)) {
+        throw new CommitFailedException(
+            "Cannot commit %s because base metadata location '%s' is not the same as the current Glue location '%s'",
+            fullViewName,
+            base != null ? base.metadataFileLocation() : null,
+            glueTable != null
+                ? glueTable.parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP)
+                : null);
+      }
+    }
+  }
+
+  /**
+   * Handles exceptions that occur during the commit process, determining the final commit status.
+   *
+   * <p>If a retry was detected (via {@link RetryDetector}), it checks whether the commit has
+   * already succeeded by comparing metadata locations. AWS-specific exceptions are handled by
+   * {@link #handleAwsExceptions}.
+   *
+   * @param persistFailure The runtime exception thrown during the commit sequence.
+   * @param newMetadataLocation The newly created metadata location for this commit.
+   * @param retryDetector Detects whether an AWS request was internally retried.
+   * @return A {@link CommitStatus} indicating SUCCESS or FAILURE.
+   * @throws CommitFailedException If the commit is determined to have failed definitively.
+   * @throws CommitStateUnknownException If it cannot be determined whether the commit succeeded or
+   *     failed.
+   */
+  private CommitStatus handleCommitException(
+      RuntimeException persistFailure, String newMetadataLocation, RetryDetector retryDetector) {
+
+    LOG.error("Error during commit for view {}", fullViewName, persistFailure);
+    boolean isAwsServiceException = persistFailure instanceof AwsServiceException;
+    CommitStatus commitStatus;
+
+    if (!isAwsServiceException || retryDetector.retried()) {
+      LOG.warn("Validating if commit ended up succeeding for {}", fullViewName);
+      commitStatus = checkCommitStatus(newMetadataLocation);
+    } else {
+      commitStatus = CommitStatus.FAILURE;
+    }
+
+    if (commitStatus != CommitStatus.SUCCESS && isAwsServiceException) {
+      handleAwsExceptions((AwsServiceException) persistFailure);
+    }
+
+    switch (commitStatus) {
+      case SUCCESS:
+        return CommitStatus.SUCCESS;
+      case FAILURE:
+        throw new CommitFailedException(
+            persistFailure, "Cannot commit %s due to unexpected exception", fullViewName);
+      case UNKNOWN:
+        throw new CommitStateUnknownException(persistFailure);
+      default:
+        throw new IllegalStateException("Unexpected commit status: " + commitStatus);
     }
   }
 
@@ -385,9 +443,7 @@ public class GlueViewOperations extends BaseViewOperations implements AutoClosea
     String sqlText = extractSqlText(metadata);
 
     StorageDescriptor storageDescriptor =
-        StorageDescriptor.builder()
-            .location(metadata.location())
-            .build();
+        StorageDescriptor.builder().location(metadata.location()).build();
 
     // Update the existing Glue table
     UpdateTableRequest.Builder updateTableRequest =

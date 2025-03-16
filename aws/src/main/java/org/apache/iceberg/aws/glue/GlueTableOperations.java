@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.aws.glue;
 
-import static org.apache.iceberg.aws.glue.GlueCatalog.ICEBERG_VIEW_TYPE_VALUE;
-
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -130,7 +128,8 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     Table table = getGlueTable();
     if (table != null) {
       if (GlueCatalog.GLUE_VIRTUAL_VIEW_TYPE.equalsIgnoreCase(table.tableType())
-          && ICEBERG_VIEW_TYPE_VALUE.equalsIgnoreCase(table.parameters().get(TABLE_TYPE_PROP))) {
+          && GlueCatalog.ICEBERG_VIEW_TYPE_VALUE.equalsIgnoreCase(
+              table.parameters().get(TABLE_TYPE_PROP))) {
         disableRefresh();
         throw new AlreadyExistsException(
             "View with same name already exists: %s.%s", databaseName, tableName);

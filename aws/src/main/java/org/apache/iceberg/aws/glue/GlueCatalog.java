@@ -726,7 +726,7 @@ public class GlueCatalog extends BaseMetastoreViewCatalog
   }
 
   private class GlueCatalogViewBuilder extends BaseMetastoreViewCatalog.BaseViewBuilder {
-    public GlueCatalogViewBuilder(TableIdentifier identifier) {
+    private GlueCatalogViewBuilder(TableIdentifier identifier) {
       super(identifier);
       withProperties(
           PropertyUtil.propertiesWithPrefix(GlueCatalog.this.properties(), "table-default."));
