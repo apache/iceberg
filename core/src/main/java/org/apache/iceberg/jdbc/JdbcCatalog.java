@@ -151,6 +151,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(metricsReporter());
     closeableGroup.addCloseable(connections);
+    closeableGroup.addCloseable(io);
     closeableGroup.setSuppressCloseFailure(true);
   }
 
