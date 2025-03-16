@@ -440,7 +440,7 @@ This is turned off by default.
 ### S3 Tags
 
 Custom [tags](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) can be added to S3 objects while writing and deleting.
-For example, to write S3 tags with Spark 3.3, you can start the Spark SQL shell with:
+For example, to write S3 tags with Spark 3.5, you can start the Spark SQL shell with:
 ```
 spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
@@ -457,7 +457,7 @@ The property is set to `true` by default.
 
 With the `s3.delete.tags` config, objects are tagged with the configured key-value pairs before deletion.
 Users can configure tag-based object lifecycle policy at bucket level to transition objects to different tiers.
-For example, to add S3 delete tags with Spark 3.3, you can start the Spark SQL shell with: 
+For example, to add S3 delete tags with Spark 3.5, you can start the Spark SQL shell with: 
 
 ```
 sh spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
@@ -473,7 +473,7 @@ Users can also use the catalog property `s3.delete.num-threads` to mention the n
 
 When the catalog property `s3.write.table-tag-enabled` and `s3.write.namespace-tag-enabled` is set to `true` then the objects in S3 will be saved with tags: `iceberg.table=<table-name>` and `iceberg.namespace=<namespace-name>`.
 Users can define access and data retention policy per namespace or table based on these tags.
-For example, to write table and namespace name as S3 tags with Spark 3.3, you can start the Spark SQL shell with:
+For example, to write table and namespace name as S3 tags with Spark 3.5, you can start the Spark SQL shell with:
 ```
 sh spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://iceberg-warehouse/s3-tagging \
@@ -493,7 +493,7 @@ disaster recovery, etc.
 For using cross-region access points, we need to additionally set `use-arn-region-enabled` catalog property to
 `true` to enable `S3FileIO` to make cross-region calls, it's not required for same / multi-region access points.
 
-For example, to use S3 access-point with Spark 3.3, you can start the Spark SQL shell with:
+For example, to use S3 access-point with Spark 3.5, you can start the Spark SQL shell with:
 ```
 spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
@@ -520,7 +520,7 @@ you to fallback to using your IAM role (and its permission sets directly) to acc
 is unable to authorize your S3 call. This can be done using the `s3.access-grants.fallback-to-iam` boolean catalog property. By default,
 this property is set to `false`.
 
-For example, to add the S3 Access Grants Integration with Spark 3.3, you can start the Spark SQL shell with:
+For example, to add the S3 Access Grants Integration with Spark 3.5, you can start the Spark SQL shell with:
 ```
 spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
@@ -537,7 +537,7 @@ For more details on using S3 Access Grants, please refer to [Managing access wit
 S3 Cross-Region bucket access can be turned on by setting catalog property `s3.cross-region-access-enabled` to `true`. 
 This is turned off by default to avoid first S3 API call increased latency.
 
-For example, to enable S3 Cross-Region bucket access with Spark 3.3, you can start the Spark SQL shell with:
+For example, to enable S3 Cross-Region bucket access with Spark 3.5, you can start the Spark SQL shell with:
 ```
 spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
@@ -554,7 +554,7 @@ For more details, please refer to [Cross-Region access for Amazon S3](https://do
 
 To use S3 Acceleration, we need to set `s3.acceleration-enabled` catalog property to `true` to enable `S3FileIO` to make accelerated S3 calls.
 
-For example, to use S3 Acceleration with Spark 3.3, you can start the Spark SQL shell with:
+For example, to use S3 Acceleration with Spark 3.5, you can start the Spark SQL shell with:
 ```
 spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
@@ -572,7 +572,7 @@ When clients request a dual-stack endpoint, the bucket URL resolves to an IPv6 a
 
 To use S3 Dual-stack, we need to set `s3.dualstack-enabled` catalog property to `true` to enable `S3FileIO` to make dual-stack S3 calls.
 
-For example, to use S3 Dual-stack with Spark 3.3, you can start the Spark SQL shell with:
+For example, to use S3 Dual-stack with Spark 3.5, you can start the Spark SQL shell with:
 ```
 spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
@@ -698,7 +698,7 @@ LIB_PATH=/usr/share/aws/aws-java-sdk/
 
 
 ICEBERG_PACKAGES=(
-  "iceberg-spark-runtime-3.3_2.12"
+  "iceberg-spark-runtime-3.5_2.12"
   "iceberg-flink-runtime"
   "iceberg-aws-bundle"
 )

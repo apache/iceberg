@@ -27,6 +27,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.CharSequenceSet;
 
@@ -124,13 +125,17 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
   private Expression bindUnaryOperation(BoundTerm<T> boundTerm) {
     switch (op()) {
       case IS_NULL:
-        if (boundTerm.ref().field().isRequired()) {
+        if (!boundTerm.producesNull()) {
           return Expressions.alwaysFalse();
+        } else if (boundTerm.type().equals(Types.UnknownType.get())) {
+          return Expressions.alwaysTrue();
         }
         return new BoundUnaryPredicate<>(Operation.IS_NULL, boundTerm);
       case NOT_NULL:
-        if (boundTerm.ref().field().isRequired()) {
+        if (!boundTerm.producesNull()) {
           return Expressions.alwaysTrue();
+        } else if (boundTerm.type().equals(Types.UnknownType.get())) {
+          return Expressions.alwaysFalse();
         }
         return new BoundUnaryPredicate<>(Operation.NOT_NULL, boundTerm);
       case IS_NAN:
@@ -155,6 +160,14 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
   }
 
   private Expression bindLiteralOperation(BoundTerm<T> boundTerm) {
+    if (op() == Operation.STARTS_WITH || op() == Operation.NOT_STARTS_WITH) {
+      ValidationException.check(
+          boundTerm.type().equals(Types.StringType.get()),
+          "Term for STARTS_WITH or NOT_STARTS_WITH must produce a string: %s: %s",
+          boundTerm,
+          boundTerm.type());
+    }
+
     Literal<T> lit = literal().to(boundTerm.type());
 
     if (lit == null) {

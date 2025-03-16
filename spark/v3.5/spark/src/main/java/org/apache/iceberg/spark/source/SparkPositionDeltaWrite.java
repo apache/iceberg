@@ -786,7 +786,6 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     private final String queryId;
     private final boolean useFanoutWriter;
     private final boolean inputOrdered;
-    private final boolean useDVs;
 
     Context(
         Schema dataSchema,
@@ -805,7 +804,6 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       this.queryId = info.queryId();
       this.useFanoutWriter = writeConf.useFanoutWriter(writeRequirements);
       this.inputOrdered = writeRequirements.hasOrdering();
-      this.useDVs = writeConf.useDVs();
     }
 
     Schema dataSchema() {
@@ -853,7 +851,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     }
 
     boolean useDVs() {
-      return useDVs;
+      return deleteFileFormat == FileFormat.PUFFIN;
     }
 
     int specIdOrdinal() {

@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
@@ -2119,6 +2120,25 @@ public class TestViews extends ExtensionsTestBase {
     assertThat(result.get(0)[4].toString())
         .isEqualTo(
             "[[sql,SELECT id FROM table,spark], [sql,SELECT non_existing FROM table,trino]]");
+    }
+
+  public void createViewWithCustomMetadataLocation() {
+    String viewName = viewName("v");
+    String customMetadataLocation =
+        Paths.get(temp.toUri().toString(), "custom-metadata-location").toString();
+    sql(
+        "CREATE VIEW %s TBLPROPERTIES ('%s'='%s') AS SELECT * FROM %s",
+        viewName, ViewProperties.WRITE_METADATA_LOCATION, customMetadataLocation, tableName);
+    String location = viewCatalog().loadView(TableIdentifier.of(NAMESPACE, viewName)).location();
+
+    assertThat(sql("DESCRIBE EXTENDED %s", viewName))
+        .contains(
+            row(
+                "View Properties",
+                String.format(
+                    "['format-version' = '1', 'location' = '%s', 'provider' = 'iceberg', 'write.metadata.path' = '%s']",
+                    location, customMetadataLocation),
+                ""));
   }
 
   private void insertRows(int numRows) throws NoSuchTableException {

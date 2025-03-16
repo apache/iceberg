@@ -242,6 +242,38 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   }
 
   @Test
+  public void createViewWithCustomMetadataLocation() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    String location = Paths.get(tempDir.toUri().toString()).toString();
+    String customLocation = Paths.get(tempDir.toUri().toString(), "custom-location").toString();
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withDefaultCatalog(catalog().name())
+            .withQuery("spark", "select * from ns.tbl")
+            .withProperty(ViewProperties.WRITE_METADATA_LOCATION, customLocation)
+            .withLocation(location)
+            .create();
+
+    assertThat(view).isNotNull();
+    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
+    assertThat(view.properties()).containsEntry("write.metadata.path", customLocation);
+    assertThat(((BaseView) view).operations().current().metadataFileLocation())
+        .isNotNull()
+        .startsWith(customLocation);
+  }
+
+  @Test
   public void createViewErrorCases() {
     TableIdentifier identifier = TableIdentifier.of("ns", "view");
 

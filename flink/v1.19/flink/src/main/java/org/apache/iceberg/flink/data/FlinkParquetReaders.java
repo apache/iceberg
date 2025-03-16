@@ -89,6 +89,7 @@ public class FlinkParquetReaders {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public ParquetValueReader<RowData> struct(
         Types.StructType expected, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
       // match the expected struct's order
@@ -115,37 +116,37 @@ public class FlinkParquetReaders {
           expected != null ? expected.fields() : ImmutableList.of();
       List<ParquetValueReader<?>> reorderedFields =
           Lists.newArrayListWithExpectedSize(expectedFields.size());
-      List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
       // Defaulting to parent max definition level
       int defaultMaxDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
+        ParquetValueReader<?> reader = readersById.get(id);
         if (idToConstant.containsKey(id)) {
           // containsKey is used because the constant may be null
           int fieldMaxDefinitionLevel =
               maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel);
           reorderedFields.add(
               ParquetValueReaders.constant(idToConstant.get(id), fieldMaxDefinitionLevel));
-          types.add(null);
         } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
           reorderedFields.add(ParquetValueReaders.position());
-          types.add(null);
         } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
           reorderedFields.add(ParquetValueReaders.constant(false));
-          types.add(null);
+        } else if (reader != null) {
+          reorderedFields.add(reader);
+        } else if (field.initialDefault() != null) {
+          reorderedFields.add(
+              ParquetValueReaders.constant(
+                  RowDataUtil.convertConstant(field.type(), field.initialDefault()),
+                  maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel)));
+        } else if (field.isOptional()) {
+          reorderedFields.add(ParquetValueReaders.nulls());
         } else {
-          ParquetValueReader<?> reader = readersById.get(id);
-          if (reader != null) {
-            reorderedFields.add(reader);
-            types.add(typesById.get(id));
-          } else {
-            reorderedFields.add(ParquetValueReaders.nulls());
-            types.add(null);
-          }
+          throw new IllegalArgumentException(
+              String.format("Missing required field: %s", field.name()));
         }
       }
 
-      return new RowDataReader(types, reorderedFields);
+      return new RowDataReader(reorderedFields);
     }
 
     @Override
@@ -654,8 +655,8 @@ public class FlinkParquetReaders {
       extends ParquetValueReaders.StructReader<RowData, GenericRowData> {
     private final int numFields;
 
-    RowDataReader(List<Type> types, List<ParquetValueReader<?>> readers) {
-      super(types, readers);
+    RowDataReader(List<ParquetValueReader<?>> readers) {
+      super(readers);
       this.numFields = readers.size();
     }
 

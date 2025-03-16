@@ -25,11 +25,12 @@ title: "Configuration"
 Iceberg views support properties to configure view behavior. Below is an overview of currently available view properties.
 
 
-| Property                                   | Default | Description                                                                        |
-|--------------------------------------------|---------|------------------------------------------------------------------------------------|
-| write.metadata.compression-codec           | gzip    | Metadata compression codec: `none` or `gzip`                                       |
-| version.history.num-entries                | 10      | Controls the number of `versions` to retain                                        |
-| replace.drop-dialect.allowed               | false   | Controls whether a SQL dialect is allowed to be dropped during a replace operation |
+| Property                         | Default                   | Description                                                                        |
+|----------------------------------|---------------------------|------------------------------------------------------------------------------------|
+| write.metadata.compression-codec | gzip                      | Metadata compression codec: `none` or `gzip`                                       |
+| write.metadata.path              | view location + /metadata | Base location for metadata files                                                   |
+| version.history.num-entries      | 10                        | Controls the number of `versions` to retain                                        |
+| replace.drop-dialect.allowed     | false                     | Controls whether a SQL dialect is allowed to be dropped during a replace operation |
 
 
 ### View behavior properties

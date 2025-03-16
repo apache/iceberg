@@ -21,10 +21,13 @@ package org.apache.iceberg.variants;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Map;
+import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.SortedMerge;
 
 /**
@@ -35,20 +38,53 @@ import org.apache.iceberg.util.SortedMerge;
  * fields. This also does not allow updating or replacing the metadata for the unshredded object,
  * which could require recursively rewriting field IDs.
  */
-class ShreddedObject implements VariantObject {
-  private final SerializedMetadata metadata;
-  private final SerializedObject unshredded;
+public class ShreddedObject implements VariantObject {
+  private final VariantMetadata metadata;
+  private final VariantObject unshredded;
   private final Map<String, VariantValue> shreddedFields = Maps.newHashMap();
+  private final Set<String> removedFields = Sets.newHashSet();
   private SerializationState serializationState = null;
 
-  ShreddedObject(SerializedMetadata metadata) {
+  ShreddedObject(VariantMetadata metadata) {
     this.metadata = metadata;
     this.unshredded = null;
   }
 
-  ShreddedObject(SerializedObject unshredded) {
-    this.metadata = unshredded.metadata();
+  ShreddedObject(VariantMetadata metadata, VariantObject unshredded) {
+    this.metadata = metadata;
     this.unshredded = unshredded;
+  }
+
+  @VisibleForTesting
+  VariantMetadata metadata() {
+    return metadata;
+  }
+
+  private Set<String> nameSet() {
+    Set<String> names = Sets.newHashSet(shreddedFields.keySet());
+
+    if (unshredded != null) {
+      Iterables.addAll(names, unshredded.fieldNames());
+    }
+
+    names.removeAll(removedFields);
+
+    return names;
+  }
+
+  @Override
+  public Iterable<String> fieldNames() {
+    return nameSet();
+  }
+
+  @Override
+  public int numFields() {
+    return nameSet().size();
+  }
+
+  public void remove(String field) {
+    shreddedFields.remove(field);
+    removedFields.add(field);
   }
 
   public void put(String field, VariantValue value) {
@@ -63,6 +99,10 @@ class ShreddedObject implements VariantObject {
 
   @Override
   public VariantValue get(String field) {
+    if (removedFields.contains(field)) {
+      return null;
+    }
+
     // the shredded value takes precedence if there is a conflict
     VariantValue value = shreddedFields.get(field);
     if (value != null) {
@@ -79,7 +119,8 @@ class ShreddedObject implements VariantObject {
   @Override
   public int sizeInBytes() {
     if (null == serializationState) {
-      this.serializationState = new SerializationState(metadata, unshredded, shreddedFields);
+      this.serializationState =
+          new SerializationState(metadata, unshredded, shreddedFields, removedFields);
     }
 
     return serializationState.size();
@@ -91,7 +132,8 @@ class ShreddedObject implements VariantObject {
         buffer.order() == ByteOrder.LITTLE_ENDIAN, "Invalid byte order: big endian");
 
     if (null == serializationState) {
-      this.serializationState = new SerializationState(metadata, unshredded, shreddedFields);
+      this.serializationState =
+          new SerializationState(metadata, unshredded, shreddedFields, removedFields);
     }
 
     return serializationState.writeTo(buffer, offset);
@@ -99,7 +141,7 @@ class ShreddedObject implements VariantObject {
 
   /** Common state for {@link #size()} and {@link #writeTo(ByteBuffer, int)} */
   private static class SerializationState {
-    private final SerializedMetadata metadata;
+    private final VariantMetadata metadata;
     private final Map<String, ByteBuffer> unshreddedFields;
     private final Map<String, VariantValue> shreddedFields;
     private final int dataSize;
@@ -109,26 +151,36 @@ class ShreddedObject implements VariantObject {
     private final int offsetSize;
 
     private SerializationState(
-        SerializedMetadata metadata,
-        SerializedObject unshredded,
-        Map<String, VariantValue> shreddedFields) {
+        VariantMetadata metadata,
+        VariantObject unshredded,
+        Map<String, VariantValue> shreddedFields,
+        Set<String> removedFields) {
       this.metadata = metadata;
       // field ID size is the size needed to store the largest field ID in the data
       this.fieldIdSize = VariantUtil.sizeOf(metadata.dictionarySize());
-      this.shreddedFields = shreddedFields;
+      this.shreddedFields = Maps.newHashMap(shreddedFields);
 
       int totalDataSize = 0;
       // get the unshredded field names and values as byte buffers
       ImmutableMap.Builder<String, ByteBuffer> unshreddedBuilder = ImmutableMap.builder();
-      if (unshredded != null) {
-        for (Pair<String, Integer> field : unshredded.fields()) {
+      if (unshredded instanceof SerializedObject) {
+        // for serialized objects, use existing buffers instead of materializing values
+        SerializedObject serialized = (SerializedObject) unshredded;
+        for (Map.Entry<String, Integer> field : serialized.fields()) {
           // if the value is replaced by an unshredded field, don't include it
-          String name = field.first();
-          boolean replaced = shreddedFields.containsKey(name);
+          String name = field.getKey();
+          boolean replaced = shreddedFields.containsKey(name) || removedFields.contains(name);
           if (!replaced) {
-            ByteBuffer value = unshredded.sliceValue(field.second());
+            ByteBuffer value = serialized.sliceValue(field.getValue());
             unshreddedBuilder.put(name, value);
             totalDataSize += value.remaining();
+          }
+        }
+      } else if (unshredded != null) {
+        for (String name : unshredded.fieldNames()) {
+          boolean replaced = shreddedFields.containsKey(name) || removedFields.contains(name);
+          if (!replaced) {
+            shreddedFields.put(name, unshredded.get(name));
           }
         }
       }
@@ -207,5 +259,10 @@ class ShreddedObject implements VariantObject {
       // return the total size
       return (dataOffset - offset) + dataSize;
     }
+  }
+
+  @Override
+  public String toString() {
+    return VariantObject.asString(this);
   }
 }

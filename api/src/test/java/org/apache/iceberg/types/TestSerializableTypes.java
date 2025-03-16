@@ -46,6 +46,7 @@ public class TestSerializableTypes {
           Types.StringType.get(),
           Types.UUIDType.get(),
           Types.BinaryType.get(),
+          Types.UnknownType.get()
         };
 
     for (Type type : identityPrimitives) {

@@ -493,10 +493,7 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
     }
 
     Transaction transaction = table.newTransaction();
-    transaction
-        .updateStatistics()
-        .setStatistics(statisticsFile.snapshotId(), statisticsFile)
-        .commit();
+    transaction.updateStatistics().setStatistics(statisticsFile).commit();
     transaction.commitTransaction();
 
     // wait to ensure files are old enough

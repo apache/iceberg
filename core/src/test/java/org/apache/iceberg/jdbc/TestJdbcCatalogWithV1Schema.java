@@ -58,8 +58,9 @@ public class TestJdbcCatalogWithV1Schema extends CatalogTests<JdbcCatalog> {
   }
 
   @Override
-  protected boolean supportsNamespaceProperties() {
-    return true;
+  protected boolean supportsNamesWithDot() {
+    // namespaces with a dot are not supported
+    return false;
   }
 
   @Override

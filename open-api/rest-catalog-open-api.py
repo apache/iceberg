@@ -390,6 +390,15 @@ class RemovePartitionSpecsUpdate(BaseUpdate):
     spec_ids: List[int] = Field(..., alias='spec-ids')
 
 
+class RemoveSchemasUpdate(BaseUpdate):
+    action: str = Field('remove-schemas', const=True)
+    schema_ids: List[int] = Field(..., alias='schema-ids')
+
+
+class EnableRowLineageUpdate(BaseUpdate):
+    action: str = Field('enable-row-lineage', const=True)
+
+
 class TableRequirement(BaseModel):
     type: str
 
@@ -498,6 +507,10 @@ class PlanStatus(BaseModel):
 class RegisterTableRequest(BaseModel):
     name: str
     metadata_location: str = Field(..., alias='metadata-location')
+    overwrite: Optional[bool] = Field(
+        False,
+        description='Whether to overwrite table metadata if the table already exists',
+    )
 
 
 class TokenType(BaseModel):
@@ -1024,7 +1037,11 @@ class Term(BaseModel):
 
 class SetStatisticsUpdate(BaseUpdate):
     action: str = Field('set-statistics', const=True)
-    snapshot_id: int = Field(..., alias='snapshot-id')
+    snapshot_id: Optional[int] = Field(
+        None,
+        alias='snapshot-id',
+        description='This optional field is **DEPRECATED for REMOVAL** since it contains redundant information. Clients should use the `statistics.snapshot-id` field instead.',
+    )
     statistics: StatisticsFile
 
 
@@ -1052,6 +1069,8 @@ class StructField(BaseModel):
     type: Type
     required: bool
     doc: Optional[str] = None
+    initial_default: Optional[PrimitiveTypeValue] = Field(None, alias='initial-default')
+    write_default: Optional[PrimitiveTypeValue] = Field(None, alias='write-default')
 
 
 class StructType(BaseModel):
@@ -1173,6 +1192,8 @@ class TableUpdate(BaseModel):
         SetStatisticsUpdate,
         RemoveStatisticsUpdate,
         RemovePartitionSpecsUpdate,
+        RemoveSchemasUpdate,
+        EnableRowLineageUpdate,
     ]
 
 

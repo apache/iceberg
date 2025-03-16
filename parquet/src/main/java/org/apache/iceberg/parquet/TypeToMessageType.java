@@ -86,6 +86,9 @@ public class TypeToMessageType {
     if (field.type().isPrimitiveType()) {
       return primitive(field.type().asPrimitiveType(), repetition, id, name);
 
+    } else if (field.type().isVariantType()) {
+      return variant(repetition, id, name);
+
     } else {
       NestedType nested = field.type().asNestedType();
       if (nested.isStructType()) {
@@ -115,6 +118,17 @@ public class TypeToMessageType {
         .value(field(valueField))
         .id(id)
         .named(AvroSchemaUtil.makeCompatibleName(name));
+  }
+
+  public Type variant(Type.Repetition repetition, int id, String originalName) {
+    String name = AvroSchemaUtil.makeCompatibleName(originalName);
+    return Types.buildGroup(repetition)
+        .id(id)
+        .required(BINARY)
+        .named("metadata")
+        .required(BINARY)
+        .named("value")
+        .named(name);
   }
 
   public Type primitive(

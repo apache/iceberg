@@ -165,6 +165,14 @@ spark.read
 | vectorization-enabled  | As per table property | Overrides this table's read.parquet.vectorization.enabled                                          |
 | batch-size  | As per table property | Overrides this table's read.parquet.vectorization.batch-size                                          |
 | stream-from-timestamp | (none) | A timestamp in milliseconds to stream from; if before the oldest known ancestor snapshot, the oldest will be used |
+| streaming-max-files-per-micro-batch | INT_MAX | Maximum number of files per microbatch |
+| streaming-max-rows-per-micro-batch  | INT_MAX | Maximum number of rows per microbatch |
+
+!!! warning
+    streaming-max-rows-per-micro-batch should always be greater than the number of records in any data file in the table.
+    The smallest unit that will be streamed is a single file, so if a data file contains more records than this limit, the stream will get stuck at this file.
+
+
 
 ### Write options
 

@@ -32,6 +32,7 @@ import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
+import org.apache.iceberg.flink.FlinkRowData;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -298,7 +299,7 @@ class FlinkOrcWriters {
 
       this.fieldGetters = Lists.newArrayListWithExpectedSize(types.size());
       for (int i = 0; i < types.size(); i++) {
-        fieldGetters.add(RowData.createFieldGetter(types.get(i), i));
+        fieldGetters.add(FlinkRowData.createFieldGetter(types.get(i), i));
       }
     }
 

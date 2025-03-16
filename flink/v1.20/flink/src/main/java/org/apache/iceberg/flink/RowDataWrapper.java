@@ -70,7 +70,7 @@ public class RowDataWrapper implements StructLike {
       return javaClass.cast(getters[pos].get(rowData, pos));
     }
 
-    Object value = RowData.createFieldGetter(types[pos], pos).getFieldOrNull(rowData);
+    Object value = FlinkRowData.createFieldGetter(types[pos], pos).getFieldOrNull(rowData);
     return javaClass.cast(value);
   }
 

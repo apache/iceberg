@@ -140,8 +140,7 @@ You can then run any of the following commands to start a Spark session.
 
 !!! note
 
-    You can also launch a notebook server by running `docker exec -it spark-iceberg notebook`.
-    The notebook server will be available at [http://localhost:8888](http://localhost:8888)
+    You can also use the notebook server available at [http://localhost:8888](http://localhost:8888)
 
 ### Creating a table
 
