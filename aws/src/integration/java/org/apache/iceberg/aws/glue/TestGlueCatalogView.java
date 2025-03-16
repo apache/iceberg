@@ -74,7 +74,7 @@ public class TestGlueCatalogView extends ViewCatalogTests<GlueCatalog> {
   protected static final GlueClient GLUE = CLIENT_FACTORY.glue();
   protected static final S3Client S3 = CLIENT_FACTORY.s3();
 
-  protected static GlueCatalog glueCatalog;
+  private static GlueCatalog glueCatalog;
   protected static final String TEST_BUCKET_PATH =
       "s3://" + TEST_BUCKET_NAME + "/" + TEST_PATH_PREFIX;
 
@@ -132,65 +132,31 @@ public class TestGlueCatalogView extends ViewCatalogTests<GlueCatalog> {
     cleanupTestData();
   }
 
-  /** Cleans up tables and views before test execution. */
   private void cleanupTestData() {
-    // First, delete the tables directly through Glue
-    try {
-      deleteTableIgnoringNotFound("view");
-      deleteTableIgnoringNotFound("renamedView");
-    } catch (Exception e) {
-      System.out.println("Clean up Error: " + e.getMessage());
+    deleteCommonGlueTables();
+    cleanupViewsInNamespaces("ns", "ns1", "ns2");
+  }
+
+  private void deleteCommonGlueTables() {
+    deleteTableIgnoringNotFound("view");
+    deleteTableIgnoringNotFound("renamedView");
+  }
+
+  private void cleanupViewsInNamespaces(String... namespaces) {
+    for (String nsStr : namespaces) {
+      Namespace ns = Namespace.of(nsStr);
+      if (catalog().namespaceExists(ns)) {
+        cleanupNamespace(ns);
+      }
     }
+  }
 
-    // Then, clean up views through the catalog
-    try {
-      // Clean up any other views in the namespace
-      try {
-        Namespace ns = Namespace.of("ns");
-        if (catalog().namespaceExists(ns)) {
-          for (TableIdentifier view : catalog().listViews(ns)) {
-            catalog().dropView(view);
-          }
-
-          for (TableIdentifier table : catalog().listTables(ns)) {
-            catalog().dropTable(table);
-          }
-        }
-      } catch (Exception e) {
-        // Namespace doesn't exist or unable to list views - no impact on tests
-      }
-
-      try {
-        Namespace ns = Namespace.of("ns1");
-        if (catalog().namespaceExists(ns)) {
-          for (TableIdentifier view : catalog().listViews(ns)) {
-            catalog().dropView(view);
-          }
-
-          for (TableIdentifier table : catalog().listTables(ns)) {
-            catalog().dropTable(table);
-          }
-        }
-      } catch (Exception e) {
-        // Namespace doesn't exist or unable to list views - no impact on tests
-      }
-
-      try {
-        Namespace ns = Namespace.of("ns2");
-        if (catalog().namespaceExists(ns)) {
-          for (TableIdentifier view : catalog().listViews(ns)) {
-            catalog().dropView(view);
-          }
-
-          for (TableIdentifier table : catalog().listTables(ns)) {
-            catalog().dropTable(table);
-          }
-        }
-      } catch (Exception e) {
-        // Namespace doesn't exist or unable to list views - no impact on tests
-      }
-    } catch (Exception e) {
-      System.out.println("Warning: Failed to cleanup views: " + e.getMessage());
+  private void cleanupNamespace(Namespace ns) {
+    for (TableIdentifier view : catalog().listViews(ns)) {
+      catalog().dropView(view);
+    }
+    for (TableIdentifier table : catalog().listTables(ns)) {
+      catalog().dropTable(table);
     }
   }
 
