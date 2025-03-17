@@ -29,9 +29,8 @@ import org.apache.iceberg.mapping.NameMapping;
  * Builder API for reading Iceberg data files.
  *
  * @param <R> type of the reader
- * @param <F> type of the records which are filtered by {@link DeleteFilter}
  */
-public interface ReadBuilder<R extends ReadBuilder<R, F>, F> {
+public interface ReadBuilder<R extends ReadBuilder<R>> {
   /**
    * Restricts the read to the given range: [start, start + length).
    *
@@ -104,16 +103,6 @@ public interface ReadBuilder<R extends ReadBuilder<R, F>, F> {
    * from metadata, and not coming from the data files themselves.
    */
   R idToConstant(Map<Integer, ?> newIdConstant);
-
-  /**
-   * Used for filtering out deleted records on the reader level. If delete filtering is not
-   * supported by the reader then the delete filter is ignored, and unfiltered results are returned.
-   * It is the caller's responsibility to apply the filter again.
-   */
-  default R withDeleteFilter(DeleteFilter<F> newDeleteFilter) {
-    // Skip filtering if not available
-    return (R) this;
-  }
 
   /** Sets a mapping from external schema names to Iceberg type IDs. */
   R withNameMapping(NameMapping newNameMapping);

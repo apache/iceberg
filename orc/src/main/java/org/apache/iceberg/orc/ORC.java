@@ -800,7 +800,7 @@ public class ORC {
   }
 
   public static class ReadBuilder
-      implements org.apache.iceberg.io.datafile.ReadBuilder<ReadBuilder, Object> {
+      implements org.apache.iceberg.io.datafile.ReadBuilder<ReadBuilder> {
     private final InputFile file;
     private final Configuration conf;
     private Schema schema = null;

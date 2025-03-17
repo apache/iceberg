@@ -68,7 +68,7 @@ public final class DataFileServiceRegistry {
 
   private static final Map<Key, Function<EncryptedOutputFile, AppenderBuilder<?, ?>>>
       APPENDER_BUILDERS = Maps.newConcurrentMap();
-  private static final Map<Key, Function<InputFile, ReadBuilder<?, ?>>> READ_BUILDERS =
+  private static final Map<Key, Function<InputFile, ReadBuilder<?>>> READ_BUILDERS =
       Maps.newConcurrentMap();
 
   /** Registers a new appender builder for the given format/input type. */
@@ -89,7 +89,7 @@ public final class DataFileServiceRegistry {
 
   /** Registers a new reader builder for the given format/input type. */
   public static void registerReader(
-      FileFormat format, String outputType, Function<InputFile, ReadBuilder<?, ?>> readBuilder) {
+      FileFormat format, String outputType, Function<InputFile, ReadBuilder<?>> readBuilder) {
     registerReader(format, outputType, null, readBuilder);
   }
 
@@ -98,7 +98,7 @@ public final class DataFileServiceRegistry {
       FileFormat format,
       String outputType,
       String readerType,
-      Function<InputFile, ReadBuilder<?, ?>> readBuilder) {
+      Function<InputFile, ReadBuilder<?>> readBuilder) {
     Key key = new Key(format, outputType, readerType);
     if (READ_BUILDERS.containsKey(key)) {
       throw new IllegalArgumentException(
@@ -142,10 +142,9 @@ public final class DataFileServiceRegistry {
    * @param format of the file to read
    * @param returnType returned by the reader
    * @param inputFile to read
-   * @param <F> type of the records which are filtered by {@link DeleteFilter}
    * @return {@link ReadBuilder} for building the actual reader
    */
-  public static <F> ReadBuilder<?, F> readBuilder(
+  public static ReadBuilder<?> readBuilder(
       FileFormat format, String returnType, InputFile inputFile) {
     return readBuilder(format, returnType, null, inputFile);
   }
@@ -158,13 +157,11 @@ public final class DataFileServiceRegistry {
    * @param returnType returned by the reader
    * @param builderType of the reader builder
    * @param inputFile to read
-   * @param <F> type of the records which are filtered by {@link DeleteFilter}
    * @return {@link ReadBuilder} for building the actual reader
    */
-  public static <F> ReadBuilder<?, F> readBuilder(
+  public static ReadBuilder<?> readBuilder(
       FileFormat format, String returnType, String builderType, InputFile inputFile) {
-    return (ReadBuilder<?, F>)
-        READ_BUILDERS.get(new Key(format, returnType, builderType)).apply(inputFile);
+    return READ_BUILDERS.get(new Key(format, returnType, builderType)).apply(inputFile);
   }
 
   /**

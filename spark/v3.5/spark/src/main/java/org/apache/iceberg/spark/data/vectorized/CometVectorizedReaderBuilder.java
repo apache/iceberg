@@ -24,7 +24,7 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.io.datafile.DeleteFilter;
+import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -45,14 +45,14 @@ class CometVectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReade
   private final Schema icebergSchema;
   private final Map<Integer, ?> idToConstant;
   private final Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory;
-  private final DeleteFilter<InternalRow> deleteFilter;
+  private final Parquet.DeleteFilter<InternalRow> deleteFilter;
 
   CometVectorizedReaderBuilder(
       Schema expectedSchema,
       MessageType parquetSchema,
       Map<Integer, ?> idToConstant,
       Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory,
-      DeleteFilter<InternalRow> deleteFilter) {
+      Parquet.DeleteFilter<InternalRow> deleteFilter) {
     this.parquetSchema = parquetSchema;
     this.icebergSchema = expectedSchema;
     this.idToConstant = idToConstant;

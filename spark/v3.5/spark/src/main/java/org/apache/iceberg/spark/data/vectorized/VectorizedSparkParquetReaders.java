@@ -24,7 +24,7 @@ import java.util.function.Function;
 import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.vectorized.VectorizedReaderBuilder;
-import org.apache.iceberg.io.datafile.DeleteFilter;
+import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.spark.SparkUtil;
@@ -56,7 +56,7 @@ public class VectorizedSparkParquetReaders {
       Schema expectedSchema,
       MessageType fileSchema,
       Map<Integer, ?> idToConstant,
-      DeleteFilter<InternalRow> deleteFilter) {
+      Parquet.DeleteFilter<InternalRow> deleteFilter) {
     return (ColumnarBatchReader)
         TypeWithSchemaVisitor.visit(
             expectedSchema.asStruct(),
@@ -74,7 +74,7 @@ public class VectorizedSparkParquetReaders {
       Schema expectedSchema,
       MessageType fileSchema,
       Map<Integer, ?> idToConstant,
-      DeleteFilter<InternalRow> deleteFilter) {
+      Parquet.DeleteFilter<InternalRow> deleteFilter) {
     return (CometColumnarBatchReader)
         TypeWithSchemaVisitor.visit(
             expectedSchema.asStruct(),
@@ -121,7 +121,7 @@ public class VectorizedSparkParquetReaders {
   }
 
   private static class ReaderBuilder extends VectorizedReaderBuilder {
-    private final DeleteFilter<InternalRow> deleteFilter;
+    private final Parquet.DeleteFilter<InternalRow> deleteFilter;
 
     ReaderBuilder(
         Schema expectedSchema,
@@ -129,7 +129,7 @@ public class VectorizedSparkParquetReaders {
         boolean setArrowValidityVector,
         Map<Integer, ?> idToConstant,
         Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory,
-        DeleteFilter<InternalRow> deleteFilter) {
+        Parquet.DeleteFilter<InternalRow> deleteFilter) {
       super(
           expectedSchema,
           parquetSchema,

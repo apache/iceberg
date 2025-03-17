@@ -25,7 +25,7 @@ import java.util.Map;
 import org.apache.comet.parquet.AbstractColumnReader;
 import org.apache.comet.parquet.BatchReader;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.io.datafile.DeleteFilter;
+import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -56,7 +56,7 @@ public class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch>
   // DeleteColumnReader.readBatch must be called explicitly later, after the isDeleted value is
   // available.
   private final BatchReader delegate;
-  private DeleteFilter<InternalRow> deletes = null;
+  private Parquet.DeleteFilter<InternalRow> deletes = null;
   private long rowStartPosInBatch = 0;
 
   CometColumnarBatchReader(List<VectorizedReader<?>> readers, Schema schema) {
@@ -99,7 +99,7 @@ public class CometColumnarBatchReader implements VectorizedReader<ColumnarBatch>
                         "PageReadStore does not contain row index offset"));
   }
 
-  public void setDeleteFilter(DeleteFilter<InternalRow> deleteFilter) {
+  public void setDeleteFilter(Parquet.DeleteFilter<InternalRow> deleteFilter) {
     this.deletes = deleteFilter;
   }
 

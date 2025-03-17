@@ -727,8 +727,7 @@ public class Avro {
   }
 
   public static class ReadBuilder
-      implements InternalData.ReadBuilder,
-          org.apache.iceberg.io.datafile.ReadBuilder<ReadBuilder, Object> {
+      implements InternalData.ReadBuilder, org.apache.iceberg.io.datafile.ReadBuilder<ReadBuilder> {
     private final InputFile file;
     private final Map<String, String> renames = Maps.newLinkedHashMap();
     private final Map<Integer, Class<? extends StructLike>> typeMap = Maps.newHashMap();

@@ -23,7 +23,6 @@ import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
-import org.apache.iceberg.io.datafile.DeleteFilter;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.ParquetReaderType;
@@ -71,7 +70,7 @@ public class DataFileServices {
                             schema,
                             messageType,
                             idToConstant,
-                            (DeleteFilter<InternalRow>) deleteFilter)));
+                            (Parquet.DeleteFilter<InternalRow>) deleteFilter)));
 
     DataFileServiceRegistry.registerReader(
         FileFormat.PARQUET,
@@ -85,7 +84,7 @@ public class DataFileServices {
                             schema,
                             messageType,
                             idToConstant,
-                            (DeleteFilter<InternalRow>) deleteFilter)));
+                            (Parquet.DeleteFilter<InternalRow>) deleteFilter)));
 
     DataFileServiceRegistry.registerReader(
         FileFormat.ORC,

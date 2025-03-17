@@ -58,6 +58,7 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
@@ -77,6 +78,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
@@ -94,7 +96,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.datafile.AppenderBuilder;
 import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
-import org.apache.iceberg.io.datafile.DeleteFilter;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.parquet.ParquetValueWriters.PositionDeleteStructWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
@@ -1211,7 +1212,8 @@ public class Parquet {
 
   public static class ReadBuilder
       implements InternalData.ReadBuilder,
-          org.apache.iceberg.io.datafile.ReadBuilder<ReadBuilder, Object> {
+          org.apache.iceberg.io.datafile.ReadBuilder<ReadBuilder>,
+          SupportsDeleteFilter {
     private final InputFile file;
     private final Map<String, String> properties = Maps.newHashMap();
     private Long start = null;
@@ -1418,9 +1420,8 @@ public class Parquet {
     }
 
     @Override
-    public ReadBuilder withDeleteFilter(DeleteFilter<Object> newDeleteFilter) {
+    public void deleteFilter(DeleteFilter<?> newDeleteFilter) {
       this.deleteFilter = newDeleteFilter;
-      return this;
     }
 
     @Override
@@ -1660,5 +1661,38 @@ public class Parquet {
 
   public interface WriterFunction<D> {
     ParquetValueWriter<D> write(Object engineSchema, Schema icebergSchema, MessageType messageType);
+  }
+
+  public interface SupportsDeleteFilter {
+    void deleteFilter(DeleteFilter<?> deleteFilter);
+  }
+
+  /**
+   * Used for filtering out deleted records on the reader level. Currently only used by the Spark
+   * vectorized readers.
+   *
+   * @param <D> type of the records which are filtered
+   */
+  public interface DeleteFilter<D> {
+    /** The schema required to apply the delete filter. */
+    Schema requiredSchema();
+
+    /** Is there any positional delete files to apply. */
+    boolean hasPosDeletes();
+
+    /** Is there any equality delete files to apply. */
+    boolean hasEqDeletes();
+
+    /** The rows deleted by positional deletes. */
+    PositionDeleteIndex deletedRowPositions();
+
+    /** The filter to apply for the equality deletes. */
+    Predicate<D> eqDeletedRowFilter();
+
+    /** Should be called if a row is removed. */
+    void incrementDeleteCount();
+
+    /** The projected schema. */
+    Schema expectedSchema();
   }
 }
