@@ -26,6 +26,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
@@ -47,7 +48,6 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.windowing.AllWindowFunction;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
-import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
@@ -177,7 +177,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
             TypeInformation.of(RowData.class));
 
     stream
-        .windowAll(TumblingEventTimeWindows.of(Time.minutes(5)))
+        .windowAll(TumblingEventTimeWindows.of(Duration.ofMinutes(5)))
         .apply(
             new AllWindowFunction<RowData, RowData, TimeWindow>() {
               @Override
@@ -368,7 +368,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
     Record record = GenericRecord.create(TestFixtures.TS_SCHEMA);
     LocalDateTime ts =
         LocalDateTime.ofInstant(
-            Instant.ofEpochMilli(Time.of(minutes, TimeUnit.MINUTES).toMilliseconds()),
+            Instant.ofEpochMilli(Duration.of(minutes, ChronoUnit.MINUTES).toMillis()),
             ZoneId.of("Z"));
     record.setField("ts", ts);
     record.setField("str", str);

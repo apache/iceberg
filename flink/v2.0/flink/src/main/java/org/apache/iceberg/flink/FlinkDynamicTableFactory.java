@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.catalog.CatalogDatabaseImpl;
 import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.catalog.ObjectPath;
@@ -34,6 +33,7 @@ import org.apache.flink.table.connector.sink.DynamicTableSink;
 import org.apache.flink.table.connector.source.DynamicTableSource;
 import org.apache.flink.table.factories.DynamicTableSinkFactory;
 import org.apache.flink.table.factories.DynamicTableSourceFactory;
+import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.table.utils.TableSchemaUtils;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -131,17 +131,16 @@ public class FlinkDynamicTableFactory
 
     mergedProps.forEach(flinkConf::setString);
 
-    String catalogName = flinkConf.getString(FlinkCreateTableOptions.CATALOG_NAME);
+    String catalogName = flinkConf.get(FlinkCreateTableOptions.CATALOG_NAME);
     Preconditions.checkNotNull(
         catalogName,
         "Table property '%s' cannot be null",
         FlinkCreateTableOptions.CATALOG_NAME.key());
 
-    String catalogDatabase =
-        flinkConf.getString(FlinkCreateTableOptions.CATALOG_DATABASE, databaseName);
+    String catalogDatabase = flinkConf.get(FlinkCreateTableOptions.CATALOG_DATABASE, databaseName);
     Preconditions.checkNotNull(catalogDatabase, "The iceberg database name cannot be null");
 
-    String catalogTable = flinkConf.getString(FlinkCreateTableOptions.CATALOG_TABLE, tableName);
+    String catalogTable = flinkConf.get(FlinkCreateTableOptions.CATALOG_TABLE, tableName);
     Preconditions.checkNotNull(catalogTable, "The iceberg table name cannot be null");
 
     org.apache.hadoop.conf.Configuration hadoopConf = FlinkCatalogFactory.clusterHadoopConf();

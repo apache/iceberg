@@ -28,9 +28,12 @@ import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
 import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.runtime.state.StateSnapshotContext;
+import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
+import org.apache.flink.streaming.api.operators.Output;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortKey;
@@ -88,6 +91,15 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
     SortKeySerializer sortKeySerializer = new SortKeySerializer(schema, sortOrder);
     this.taskStatisticsSerializer = new DataStatisticsSerializer(sortKeySerializer);
     this.globalStatisticsSerializer = new GlobalStatisticsSerializer(sortKeySerializer);
+  }
+
+  // Override setup method to make it callable externally from within the factory.
+  @Override
+  protected void setup(
+      StreamTask<?, ?> containingTask,
+      StreamConfig config,
+      Output<StreamRecord<StatisticsOrRecord>> output) {
+    super.setup(containingTask, config, output);
   }
 
   @Override

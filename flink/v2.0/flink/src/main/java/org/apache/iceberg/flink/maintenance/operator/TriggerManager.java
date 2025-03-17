@@ -21,13 +21,13 @@ package org.apache.iceberg.flink.maintenance.operator;
 import java.io.IOException;
 import java.util.List;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
@@ -120,7 +120,7 @@ public class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, T
   }
 
   @Override
-  public void open(Configuration parameters) throws Exception {
+  public void open(OpenContext parameters) throws Exception {
     this.rateLimiterTriggeredCounter =
         getRuntimeContext()
             .getMetricGroup()

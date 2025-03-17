@@ -34,10 +34,13 @@ import org.apache.flink.api.common.typeinfo.PrimitiveArrayTypeInfo;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.runtime.state.StateSnapshotContext;
+import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
+import org.apache.flink.streaming.api.operators.Output;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.ManifestFile;
@@ -139,6 +142,12 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   }
 
   @Override
+  protected void setup(
+      StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<Void>> output) {
+    super.setup(containingTask, config, output);
+  }
+
+  @Override
   public void initializeState(StateInitializationContext context) throws Exception {
     super.initializeState(context);
     this.flinkJobId = getContainingTask().getEnvironment().getJobID().toString();
@@ -154,8 +163,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     Preconditions.checkArgument(
         maxContinuousEmptyCommits > 0, MAX_CONTINUOUS_EMPTY_COMMITS + " must be positive");
 
-    int subTaskId = getRuntimeContext().getIndexOfThisSubtask();
-    int attemptId = getRuntimeContext().getAttemptNumber();
+    int subTaskId = getRuntimeContext().getTaskInfo().getIndexOfThisSubtask();
+    int attemptId = getRuntimeContext().getTaskInfo().getAttemptNumber();
     this.manifestOutputFileFactory =
         FlinkManifestUtil.createOutputFileFactory(
             () -> table, table.properties(), flinkJobId, operatorUniqueId, subTaskId, attemptId);
