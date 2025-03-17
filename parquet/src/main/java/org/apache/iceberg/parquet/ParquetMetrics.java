@@ -78,6 +78,8 @@ class ParquetMetrics {
     for (BlockMetaData block : metadata.getBlocks()) {
       rowCount += block.getRowCount();
       for (ColumnChunkMetaData column : block.getColumns()) {
+        columns.put(column.getPath(), column);
+
         Type.ID id =
             type.getColumnDescription(column.getPath().toArray()).getPrimitiveType().getId();
         if (null == id) {
@@ -87,7 +89,6 @@ class ParquetMetrics {
         int fieldId = id.intValue();
         MetricsModes.MetricsMode mode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
         if (mode != MetricsModes.None.get()) {
-          columns.put(column.getPath(), column);
           columnSizes.put(fieldId, columnSizes.getOrDefault(fieldId, 0L) + column.getTotalSize());
         }
       }
@@ -352,19 +353,26 @@ class ParquetMetrics {
           Lists.newArrayList(
               ParquetVariantVisitor.visit(variant, new MetricsVariantVisitor(currentPath())));
 
-      if (results.size() <= 1) {
+      if (results.isEmpty()) {
         return ImmutableList.of();
       }
 
       ParquetVariantUtil.VariantMetrics metadataCounts = results.get(0);
-      if (mode == MetricsModes.Counts.get()) {
+      if (mode == MetricsModes.Counts.get() || results.size() == 1) {
         return ImmutableList.of(
             new FieldMetrics<>(fieldId, metadataCounts.valueCount(), metadataCounts.nullCount()));
       }
 
       Set<String> fieldNames = Sets.newTreeSet();
       for (ParquetVariantUtil.VariantMetrics result : results.subList(1, results.size())) {
-        fieldNames.add(result.fieldName());
+        if (result.lowerBound() != null || result.upperBound() != null) {
+          fieldNames.add(result.fieldName());
+        }
+      }
+
+      if (fieldNames.isEmpty()) {
+        return ImmutableList.of(
+            new FieldMetrics<>(fieldId, metadataCounts.valueCount(), metadataCounts.nullCount()));
       }
 
       VariantMetadata metadata = Variants.metadata(fieldNames);
@@ -372,8 +380,13 @@ class ParquetMetrics {
       ShreddedObject upperBounds = Variants.object(metadata);
       for (ParquetVariantUtil.VariantMetrics result : results.subList(1, results.size())) {
         String fieldName = result.fieldName();
-        lowerBounds.put(fieldName, result.lowerBound());
-        upperBounds.put(fieldName, result.upperBound());
+        if (result.lowerBound() != null) {
+          lowerBounds.put(fieldName, result.lowerBound());
+        }
+
+        if (result.upperBound() != null) {
+          upperBounds.put(fieldName, result.upperBound());
+        }
       }
 
       return ImmutableList.of(

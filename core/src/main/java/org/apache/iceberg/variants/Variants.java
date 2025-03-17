@@ -22,6 +22,7 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collection;
 import org.apache.iceberg.util.DateTimeUtil;
 
@@ -34,6 +35,10 @@ public class Variants {
 
   public static VariantMetadata metadata(ByteBuffer metadata) {
     return SerializedMetadata.from(metadata);
+  }
+
+  public static VariantMetadata metadata(String... fieldNames) {
+    return metadata(Arrays.asList(fieldNames));
   }
 
   public static VariantMetadata metadata(Collection<String> fieldNames) {
