@@ -18,22 +18,37 @@
  */
 package org.apache.iceberg.io.datafile;
 
-import java.io.IOException;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.io.DataWriter;
 
 /**
- * Builder for generating a {@link FileAppender}.
+ * Builder for generating one of the following:
+ *
+ * <ul>
+ *   <li>{@link DataWriter}
+ *   <li>{@link EqualityDeleteWriter}
+ *   <li>{@link PositionDeleteWriter}
+ * </ul>
  *
  * @param <B> type of the builder
  * @param <E> engine specific schema of the input records used for appender initialization
  */
-public interface AppenderBuilder<B extends AppenderBuilder<B, E>, E>
+interface FileWriterBuilderBase<B extends FileWriterBuilderBase<B, E>, E>
     extends WriterBuilderBase<B, E> {
-  /**
-   * Creates a {@link FileAppender} based on the configurations set. The appender will expect inputs
-   * defined by the {@link #engineSchema(Object)}} which should match the Iceberg schema defined by
-   * {@link #schema(Schema)}.
-   */
-  <D> FileAppender<D> appender() throws IOException;
+  /** Sets the partition specification for the Iceberg metadata. */
+  B withSpec(PartitionSpec newSpec);
+
+  /** Sets the partition value for the Iceberg metadata. */
+  B withPartition(StructLike newPartition);
+
+  /** Sets the encryption key metadata for Iceberg metadata. */
+  B withKeyMetadata(EncryptionKeyMetadata metadata);
+
+  /** Sets the sort order for the Iceberg metadata. */
+  B withSortOrder(SortOrder newSortOrder);
 }

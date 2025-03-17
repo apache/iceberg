@@ -110,7 +110,7 @@ public abstract class RegistryBasedFileWriterFactory<T, F, S> implements FileWri
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
-      return DataFileToObjectModelRegistry.writeBuilder(dataFileFormat, inputType, file)
+      return DataFileToObjectModelRegistry.writerBuilder(dataFileFormat, inputType, file)
           .schema(dataSchema)
           .set(properties)
           .set(writeProperties)
@@ -135,7 +135,8 @@ public abstract class RegistryBasedFileWriterFactory<T, F, S> implements FileWri
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
-      return DataFileToObjectModelRegistry.writeBuilder(deleteFileFormat, inputType, file)
+      return DataFileToObjectModelRegistry.equalityDeleteWriterBuilder(
+              deleteFileFormat, inputType, file)
           .set(properties)
           .set(writeProperties)
           .metricsConfig(metricsConfig)
@@ -161,7 +162,8 @@ public abstract class RegistryBasedFileWriterFactory<T, F, S> implements FileWri
     MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
 
     try {
-      return DataFileToObjectModelRegistry.writeBuilder(deleteFileFormat, inputType, file)
+      return DataFileToObjectModelRegistry.positionDeleteWriterBuilder(
+              deleteFileFormat, inputType, file)
           .set(properties)
           .set(writeProperties)
           .metricsConfig(metricsConfig)

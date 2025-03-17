@@ -39,20 +39,20 @@ import org.slf4j.LoggerFactory;
  * registry returns the correct reader and writer builders. These builders could be used to generate
  * the readers and writers.
  *
- * <p>File formats has to register the {@link ReadBuilder}s and the {@link AppenderBuilder}s which
- * will be used to create the readers and the writers. The readers returned directly, the appenders
- * are wrapped into a {@link WriteBuilder} and the {@link
- * AppenderBuilder#build(AppenderBuilder.WriteMode)} method is used to finalize the appender
- * configuration for the specific writer use-cases. The following inputs should be handled by the
- * appender in the following cases:
+ * <p>File formats has to register the {@link ReadBuilder}s and the {@link DataFileAppenderBuilder}s
+ * which will be used to create the readers and the writers. The readers returned directly, the
+ * appenders are wrapped into a {@link WriteBuilder} and the {@link
+ * DataFileAppenderBuilder#build(DataFileAppenderBuilder.WriteMode)} method is used to finalize the
+ * appender configuration for the specific writer use-cases. The following inputs should be handled
+ * by the appender in the following cases:
  *
  * <ul>
- *   <li>The appender's native input type - {@link AppenderBuilder.WriteMode#APPENDER}, {@link
- *       AppenderBuilder.WriteMode#DATA_WRITER}, {@link
- *       AppenderBuilder.WriteMode#EQUALITY_DELETE_WRITER}
+ *   <li>The appender's native input type - {@link DataFileAppenderBuilder.WriteMode#APPENDER},
+ *       {@link DataFileAppenderBuilder.WriteMode#DATA_WRITER}, {@link
+ *       DataFileAppenderBuilder.WriteMode#EQUALITY_DELETE_WRITER}
  *   <li>{@link org.apache.iceberg.deletes.PositionDelete} where the row is the appender's native
- *       input type - {@link AppenderBuilder.WriteMode#POSITION_DELETE_WRITER}, {@link
- *       AppenderBuilder.WriteMode#POSITION_DELETE_WITH_ROW_WRITER}
+ *       input type - {@link DataFileAppenderBuilder.WriteMode#POSITION_DELETE_WRITER}, {@link
+ *       DataFileAppenderBuilder.WriteMode#POSITION_DELETE_WITH_ROW_WRITER}
  * </ul>
  */
 public final class DataFileToObjectModelRegistry {
@@ -66,7 +66,7 @@ public final class DataFileToObjectModelRegistry {
           "org.apache.iceberg.flink.data.FlinkObjectModels",
           "org.apache.iceberg.spark.source.SparkObjectModels");
 
-  private static final Map<Key, Function<EncryptedOutputFile, AppenderBuilder<?, ?>>>
+  private static final Map<Key, Function<EncryptedOutputFile, DataFileAppenderBuilder<?, ?>>>
       APPENDER_BUILDERS = Maps.newConcurrentMap();
   private static final Map<Key, Function<InputFile, ReadBuilder<?>>> READ_BUILDERS =
       Maps.newConcurrentMap();
@@ -75,7 +75,7 @@ public final class DataFileToObjectModelRegistry {
   public static void registerAppender(
       FileFormat format,
       String objectModelName,
-      Function<EncryptedOutputFile, AppenderBuilder<?, ?>> appenderBuilder) {
+      Function<EncryptedOutputFile, DataFileAppenderBuilder<?, ?>> appenderBuilder) {
     Key key = new Key(format, objectModelName, null);
     if (APPENDER_BUILDERS.containsKey(key)) {
       throw new IllegalArgumentException(
@@ -165,7 +165,7 @@ public final class DataFileToObjectModelRegistry {
   }
 
   /**
-   * Provides a writer builder for the given output file which writes objects with a given object
+   * Provides an appender builder for the given output file which writes objects with a given object
    * model name.
    *
    * @param format of the file to read
@@ -174,10 +174,60 @@ public final class DataFileToObjectModelRegistry {
    * @param <E> type for the engine specific schema used by the builder
    * @return {@link ReadBuilder} for building the actual reader
    */
-  public static <E> WriteBuilder<?, E> writeBuilder(
+  public static <E> AppenderBuilder<?, E> appenderBuilder(
+      FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
+    return writerFor(format, objectModelName, outputFile);
+  }
+
+  /**
+   * Provides a data writer builder for the given output file which writes objects with a given
+   * object model name.
+   *
+   * @param format of the file to read
+   * @param objectModelName accepted by the writer
+   * @param outputFile to write
+   * @param <E> type for the engine specific schema used by the builder
+   * @return {@link ReadBuilder} for building the actual reader
+   */
+  public static <E> DataWriterBuilder<?, E> writerBuilder(
+      FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
+    return writerFor(format, objectModelName, outputFile);
+  }
+
+  /**
+   * Provides a equality delete writer builder for the given output file which writes objects with a
+   * given object model name.
+   *
+   * @param format of the file to read
+   * @param objectModelName accepted by the writer
+   * @param outputFile to write
+   * @param <E> type for the engine specific schema used by the builder
+   * @return {@link ReadBuilder} for building the actual reader
+   */
+  public static <E> EqualityDeleteWriterBuilder<?, E> equalityDeleteWriterBuilder(
+      FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
+    return writerFor(format, objectModelName, outputFile);
+  }
+
+  /**
+   * Provides a position delete writer builder for the given output file which writes objects with a
+   * given object model name.
+   *
+   * @param format of the file to read
+   * @param objectModelName accepted by the writer
+   * @param outputFile to write
+   * @param <E> type for the engine specific schema used by the builder
+   * @return {@link ReadBuilder} for building the actual reader
+   */
+  public static <E> PositionDeleteWriterBuilder<?, E> positionDeleteWriterBuilder(
+      FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
+    return writerFor(format, objectModelName, outputFile);
+  }
+
+  private static <E> WriteBuilder<?, ?, E> writerFor(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
     return new WriteBuilder<>(
-        (AppenderBuilder<?, E>)
+        (DataFileAppenderBuilder<?, E>)
             APPENDER_BUILDERS.get(new Key(format, objectModelName, null)).apply(outputFile),
         outputFile.encryptingOutputFile().location(),
         format);

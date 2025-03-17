@@ -19,21 +19,26 @@
 package org.apache.iceberg.io.datafile;
 
 import java.io.IOException;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
 
 /**
- * Builder for generating a {@link FileAppender}.
+ * Builder for generating an {@link PositionDeleteWriter}.
  *
  * @param <B> type of the builder
  * @param <E> engine specific schema of the input records used for appender initialization
  */
-public interface AppenderBuilder<B extends AppenderBuilder<B, E>, E>
-    extends WriterBuilderBase<B, E> {
+public interface PositionDeleteWriterBuilder<B extends PositionDeleteWriterBuilder<B, E>, E>
+    extends FileWriterBuilderBase<B, E> {
+  /** Sets the row schema for the delete writers. */
+  B withRowSchema(Schema newSchema);
+
   /**
-   * Creates a {@link FileAppender} based on the configurations set. The appender will expect inputs
-   * defined by the {@link #engineSchema(Object)}} which should match the Iceberg schema defined by
-   * {@link #schema(Schema)}.
+   * Creates a writer which generates a position {@link DeleteFile} based on the configurations set.
+   * The writer will expect {@link org.apache.iceberg.deletes.PositionDelete} records. If {@link
+   * #withRowSchema(Schema)} is set then the positional delete records should contain the delete row
+   * data as defined by the rowSchema.
    */
-  <D> FileAppender<D> appender() throws IOException;
+  <D> PositionDeleteWriter<D> positionDeleteWriter() throws IOException;
 }

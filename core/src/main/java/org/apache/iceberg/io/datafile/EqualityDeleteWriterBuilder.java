@@ -19,21 +19,32 @@
 package org.apache.iceberg.io.datafile;
 
 import java.io.IOException;
+import java.util.List;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.deletes.EqualityDeleteWriter;
 
 /**
- * Builder for generating a {@link FileAppender}.
+ * Builder for generating an {@link EqualityDeleteWriter}.
  *
  * @param <B> type of the builder
  * @param <E> engine specific schema of the input records used for appender initialization
  */
-public interface AppenderBuilder<B extends AppenderBuilder<B, E>, E>
-    extends WriterBuilderBase<B, E> {
+public interface EqualityDeleteWriterBuilder<B extends EqualityDeleteWriterBuilder<B, E>, E>
+    extends FileWriterBuilderBase<B, E> {
+  /** Sets the row schema for the delete writers. */
+  B withRowSchema(Schema newSchema);
+
+  /** Sets the equality field ids for the equality delete writer. */
+  B withEqualityFieldIds(List<Integer> fieldIds);
+
+  /** Sets the equality field ids for the equality delete writer. */
+  B withEqualityFieldIds(int... fieldIds);
+
   /**
-   * Creates a {@link FileAppender} based on the configurations set. The appender will expect inputs
-   * defined by the {@link #engineSchema(Object)}} which should match the Iceberg schema defined by
-   * {@link #schema(Schema)}.
+   * Creates a writer which generates an equality {@link DeleteFile} based on the configurations
+   * set. The writer will expect inputs defined by the {@link #engineSchema(Object)} which should
+   * match the Iceberg schema defined by {@link #withRowSchema(Schema)}.
    */
-  <D> FileAppender<D> appender() throws IOException;
+  <D> EqualityDeleteWriter<D> equalityDeleteWriter() throws IOException;
 }

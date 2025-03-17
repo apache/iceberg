@@ -96,7 +96,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   public FileAppender<RowData> newAppender(OutputFile outputFile, FileFormat format) {
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     try {
-      return DataFileToObjectModelRegistry.writeBuilder(
+      return DataFileToObjectModelRegistry.appenderBuilder(
               format, RowData.class.getName(), EncryptedFiles.plainAsEncryptedOutput(outputFile))
           .engineSchema(flinkSchema)
           .set(props)
@@ -112,13 +112,21 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   @Override
   public DataWriter<RowData> newDataWriter(
       EncryptedOutputFile file, FileFormat format, StructLike partition) {
-    return new DataWriter<>(
-        newAppender(file.encryptingOutputFile(), format),
-        format,
-        file.encryptingOutputFile().location(),
-        spec,
-        partition,
-        file.keyMetadata());
+    MetricsConfig metricsConfig = MetricsConfig.forTable(table);
+    try {
+      return DataFileToObjectModelRegistry.writerBuilder(format, RowData.class.getName(), file)
+          .engineSchema(flinkSchema)
+          .set(props)
+          .schema(schema)
+          .metricsConfig(metricsConfig)
+          .overwrite()
+          .withSpec(spec)
+          .withPartition(partition)
+          .withKeyMetadata(file.keyMetadata())
+          .dataWriter();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   @Override
@@ -133,7 +141,8 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
 
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     try {
-      return DataFileToObjectModelRegistry.writeBuilder(format, RowData.class.getName(), outputFile)
+      return DataFileToObjectModelRegistry.equalityDeleteWriterBuilder(
+              format, RowData.class.getName(), outputFile)
           .overwrite()
           .set(props)
           .metricsConfig(metricsConfig)
@@ -154,7 +163,8 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
       EncryptedOutputFile outputFile, FileFormat format, StructLike partition) {
     MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
     try {
-      return DataFileToObjectModelRegistry.writeBuilder(format, RowData.class.getName(), outputFile)
+      return DataFileToObjectModelRegistry.positionDeleteWriterBuilder(
+              format, RowData.class.getName(), outputFile)
           .overwrite()
           .set(props)
           .metricsConfig(metricsConfig)

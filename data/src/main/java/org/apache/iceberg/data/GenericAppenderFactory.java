@@ -127,7 +127,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
 
     try {
-      return DataFileToObjectModelRegistry.writeBuilder(
+      return DataFileToObjectModelRegistry.appenderBuilder(
               fileFormat, Record.class.getName(), encryptedOutputFile)
           .schema(schema)
           .set(config)
@@ -142,13 +142,21 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   @Override
   public org.apache.iceberg.io.DataWriter<Record> newDataWriter(
       EncryptedOutputFile file, FileFormat format, StructLike partition) {
-    return new org.apache.iceberg.io.DataWriter<>(
-        newAppender(file, format),
-        format,
-        file.encryptingOutputFile().location(),
-        spec,
-        partition,
-        file.keyMetadata());
+    MetricsConfig metricsConfig =
+        table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
+    try {
+      return DataFileToObjectModelRegistry.writerBuilder(format, Record.class.getName(), file)
+          .schema(schema)
+          .set(config)
+          .metricsConfig(metricsConfig)
+          .overwrite()
+          .withSpec(spec)
+          .withPartition(partition)
+          .withKeyMetadata(file.keyMetadata())
+          .dataWriter();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   @Override
@@ -164,7 +172,8 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
 
     try {
-      return DataFileToObjectModelRegistry.writeBuilder(format, Record.class.getName(), file)
+      return DataFileToObjectModelRegistry.equalityDeleteWriterBuilder(
+              format, Record.class.getName(), file)
           .schema(schema)
           .withPartition(partition)
           .overwrite()
@@ -189,7 +198,8 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
             : MetricsConfig.fromProperties(config);
 
     try {
-      return DataFileToObjectModelRegistry.writeBuilder(format, Record.class.getName(), file)
+      return DataFileToObjectModelRegistry.positionDeleteWriterBuilder(
+              format, Record.class.getName(), file)
           .schema(schema)
           .withPartition(partition)
           .overwrite()

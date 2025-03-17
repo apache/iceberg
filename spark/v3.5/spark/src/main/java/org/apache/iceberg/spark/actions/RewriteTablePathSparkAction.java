@@ -653,7 +653,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       StructLike partition,
       Schema rowSchema)
       throws IOException {
-    return DataFileToObjectModelRegistry.writeBuilder(
+    return DataFileToObjectModelRegistry.positionDeleteWriterBuilder(
             format, Record.class.getName(), EncryptedFiles.plainAsEncryptedOutput(outputFile))
         .withPartition(partition)
         .withRowSchema(rowSchema)

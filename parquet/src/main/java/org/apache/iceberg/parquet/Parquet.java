@@ -94,7 +94,7 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.datafile.AppenderBuilder;
+import org.apache.iceberg.io.datafile.DataFileAppenderBuilder;
 import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.parquet.ParquetValueWriters.PositionDeleteStructWriter;
@@ -179,7 +179,7 @@ public class Parquet {
   }
 
   public static class WriteBuilder
-      implements InternalData.WriteBuilder, AppenderBuilder<WriteBuilder, Object> {
+      implements InternalData.WriteBuilder, DataFileAppenderBuilder<WriteBuilder, Object> {
     private final OutputFile file;
     private final Configuration conf;
     private final Map<String, String> metadata = Maps.newLinkedHashMap();

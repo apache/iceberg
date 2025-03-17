@@ -80,7 +80,7 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.datafile.AppenderBuilder;
+import org.apache.iceberg.io.datafile.DataFileAppenderBuilder;
 import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -138,7 +138,7 @@ public class ORC {
     return new WriteBuilder(file.encryptingOutputFile());
   }
 
-  public static class WriteBuilder implements AppenderBuilder<WriteBuilder, Object> {
+  public static class WriteBuilder implements DataFileAppenderBuilder<WriteBuilder, Object> {
     private final OutputFile file;
     private final Configuration conf;
     private Schema schema = null;

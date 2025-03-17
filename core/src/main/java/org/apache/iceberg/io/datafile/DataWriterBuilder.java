@@ -20,20 +20,21 @@ package org.apache.iceberg.io.datafile;
 
 import java.io.IOException;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.DataWriter;
 
 /**
- * Builder for generating a {@link FileAppender}.
+ * Builder for generating a {@link DataWriter}.
  *
  * @param <B> type of the builder
  * @param <E> engine specific schema of the input records used for appender initialization
  */
-public interface AppenderBuilder<B extends AppenderBuilder<B, E>, E>
-    extends WriterBuilderBase<B, E> {
+public interface DataWriterBuilder<B extends DataWriterBuilder<B, E>, E>
+    extends FileWriterBuilderBase<B, E> {
   /**
-   * Creates a {@link FileAppender} based on the configurations set. The appender will expect inputs
-   * defined by the {@link #engineSchema(Object)}} which should match the Iceberg schema defined by
-   * {@link #schema(Schema)}.
+   * Creates a writer which generates a {@link org.apache.iceberg.DataFile} based on the
+   * configurations set. The data writer will expect inputs defined by the {@link
+   * #engineSchema(Object)} which should match the Iceberg schema defined by {@link
+   * #schema(Schema)}.
    */
-  <D> FileAppender<D> appender() throws IOException;
+  <D> DataWriter<D> dataWriter() throws IOException;
 }
