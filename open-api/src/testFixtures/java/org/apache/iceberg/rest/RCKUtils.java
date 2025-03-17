@@ -105,6 +105,12 @@ class RCKUtils {
     catalogProperties.putIfAbsent(
         CatalogProperties.VIEW_DEFAULT_PREFIX + "key2", "catalog-default-key2");
     catalogProperties.putIfAbsent(
+        CatalogProperties.VIEW_DEFAULT_PREFIX + "key3", "catalog-default-key3");
+    catalogProperties.putIfAbsent(
+        CatalogProperties.VIEW_OVERRIDE_PREFIX + "key3", "catalog-override-key3");
+    catalogProperties.putIfAbsent(
+        CatalogProperties.VIEW_OVERRIDE_PREFIX + "key4", "catalog-override-key4");
+    catalogProperties.putIfAbsent(
         CatalogProperties.TABLE_DEFAULT_PREFIX + "override-key3", "catalog-default-key3");
     catalogProperties.putIfAbsent(
         CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key3", "catalog-override-key3");
