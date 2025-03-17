@@ -125,7 +125,13 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
             CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key1",
             "catalog-default-key1",
             CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key2",
-            "catalog-default-key2");
+            "catalog-default-key2",
+            CatalogProperties.TABLE_DEFAULT_PREFIX + "override-key3",
+            "catalog-default-key3",
+            CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key3",
+            "catalog-override-key3",
+            CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key4",
+            "catalog-override-key4");
 
     return (HiveCatalog)
         CatalogUtil.loadCatalog(

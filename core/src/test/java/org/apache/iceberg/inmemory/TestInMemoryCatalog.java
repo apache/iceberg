@@ -37,6 +37,15 @@ public class TestInMemoryCatalog extends CatalogTests<InMemoryCatalog> {
                     CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key1", "catalog-default-key1")
                 .put(
                     CatalogProperties.TABLE_DEFAULT_PREFIX + "default-key2", "catalog-default-key2")
+                .put(
+                    CatalogProperties.TABLE_DEFAULT_PREFIX + "override-key3",
+                    "catalog-default-key3")
+                .put(
+                    CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key3",
+                    "catalog-override-key3")
+                .put(
+                    CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key4",
+                    "catalog-override-key4")
                 .buildOrThrow());
   }
 

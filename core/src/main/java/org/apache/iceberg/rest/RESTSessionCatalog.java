@@ -814,6 +814,20 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       return tableDefaultProperties;
     }
 
+    /**
+     * Get table properties that are enforced at Catalog level through catalog properties.
+     *
+     * @return overriding table properties enforced through catalog properties
+     */
+    private Map<String, String> tableOverrideProperties() {
+      Map<String, String> tableOverrideProperties =
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_OVERRIDE_PREFIX);
+      LOG.info(
+          "Table properties enforced at catalog level through catalog properties: {}",
+          tableOverrideProperties);
+      return tableOverrideProperties;
+    }
+
     @Override
     public Builder withPartitionSpec(PartitionSpec tableSpec) {
       this.spec = tableSpec;
@@ -849,6 +863,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     @Override
     public Table create() {
       Endpoint.check(endpoints, Endpoint.V1_CREATE_TABLE);
+      propertiesBuilder.putAll(tableOverrideProperties());
       CreateTableRequest request =
           CreateTableRequest.builder()
               .withName(ident.name())
@@ -922,6 +937,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       AuthSession session = tableSession(response.config(), session(context));
       TableMetadata base = response.tableMetadata();
 
+      propertiesBuilder.putAll(tableOverrideProperties());
       Map<String, String> tableProperties = propertiesBuilder.buildKeepingLast();
       TableMetadata replacement =
           base.buildReplacement(
@@ -984,6 +1000,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     private LoadTableResponse stageCreate() {
+      propertiesBuilder.putAll(tableOverrideProperties());
       Map<String, String> tableProperties = propertiesBuilder.buildKeepingLast();
 
       CreateTableRequest request =
