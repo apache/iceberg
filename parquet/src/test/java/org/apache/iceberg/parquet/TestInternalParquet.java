@@ -52,6 +52,11 @@ public class TestInternalParquet extends DataTest {
   }
 
   @Override
+  protected boolean supportsVariant() {
+    return true;
+  }
+
+  @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomInternalData.generate(schema, 100, 1376L);
     writeAndValidate(schema, expected);
@@ -75,7 +80,7 @@ public class TestInternalParquet extends DataTest {
     try (DataWriter<StructLike> dataWriter =
         Parquet.writeData(outputFile)
             .schema(writeSchema)
-            .createWriterFunc(InternalWriter::create)
+            .createWriterFunc(fileSchema -> InternalWriter.create(writeSchema, fileSchema))
             .overwrite()
             .withSpec(PartitionSpec.unpartitioned())
             .build()) {
