@@ -99,10 +99,11 @@ public interface ReadBuilder<R extends ReadBuilder<R>> {
   }
 
   /**
-   * Accessors for constant field values. Used for calculating values it the result which are coming
-   * from metadata, and not coming from the data files themselves.
+   * Accessors for constant field values. Used for calculating values in the result which are coming
+   * from metadata, and not coming from the data files themselves. The keys of the map are the
+   * column ids, the values are the accessors generating the values.
    */
-  R idToConstant(Map<Integer, ?> newIdConstant);
+  R constantFieldAccessors(Map<Integer, ?> constantFieldAccessors);
 
   /** Sets a mapping from external schema names to Iceberg type IDs. */
   R withNameMapping(NameMapping newNameMapping);

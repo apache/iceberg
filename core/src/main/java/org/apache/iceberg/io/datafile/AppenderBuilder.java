@@ -88,7 +88,7 @@ public interface AppenderBuilder<A extends AppenderBuilder<A, E>, E> {
    * Sets the additional authentication data prefix used for writing the file. If encryption is not
    * supported by the reader then an exception should be thrown.
    */
-  default A aADPrefix(ByteBuffer aadPrefix) {
+  default A aadPrefix(ByteBuffer aadPrefix) {
     throw new UnsupportedOperationException("Not supported");
   }
 

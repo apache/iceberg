@@ -18,15 +18,11 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
-
 import java.io.IOException;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.Map;
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.data.StringData;
-import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
@@ -34,23 +30,17 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
-import org.apache.iceberg.flink.data.FlinkAvroWriter;
-import org.apache.iceberg.flink.data.FlinkOrcWriter;
-import org.apache.iceberg.flink.data.FlinkParquetWriters;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Serializable {
@@ -65,43 +55,6 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
 
   private RowType eqDeleteFlinkSchema = null;
   private RowType posDeleteFlinkSchema = null;
-
-  public static void register() {
-    DataFileServiceRegistry.registerAppender(
-        FileFormat.AVRO,
-        RowData.class.getName(),
-        outputFile ->
-            Avro.write(outputFile)
-                .writerFunction((unused, rowType) -> new FlinkAvroWriter((RowType) rowType))
-                .deleteRowWriterFunction(
-                    (unused, rowType) ->
-                        new FlinkAvroWriter(
-                            (RowType)
-                                ((RowType) rowType)
-                                    .getTypeAt(
-                                        ((RowType) rowType)
-                                            .getFieldIndex(DELETE_FILE_ROW_FIELD_NAME)))));
-
-    DataFileServiceRegistry.registerAppender(
-        FileFormat.PARQUET,
-        RowData.class.getName(),
-        outputFile ->
-            Parquet.write(outputFile)
-                .writerFunction(
-                    (engineType, icebergSchema, messageType) ->
-                        FlinkParquetWriters.buildWriter((LogicalType) engineType, messageType))
-                .pathTransformFunc(path -> StringData.fromString(path.toString())));
-
-    DataFileServiceRegistry.registerAppender(
-        FileFormat.ORC,
-        RowData.class.getName(),
-        outputFile ->
-            ORC.write(outputFile)
-                .writerFunction(
-                    (schema, messageType, nativeSchema) ->
-                        FlinkOrcWriter.buildWriter((RowType) nativeSchema, schema))
-                .pathTransformFunc(path -> StringData.fromString(path.toString())));
-  }
 
   public FlinkAppenderFactory(
       Table table,
@@ -143,7 +96,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   public FileAppender<RowData> newAppender(OutputFile outputFile, FileFormat format) {
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     try {
-      return DataFileServiceRegistry.writeBuilder(
+      return DataFileToObjectModelRegistry.writeBuilder(
               format, RowData.class.getName(), EncryptedFiles.plainAsEncryptedOutput(outputFile))
           .engineSchema(flinkSchema)
           .set(props)
@@ -180,7 +133,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
 
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     try {
-      return DataFileServiceRegistry.writeBuilder(format, RowData.class.getName(), outputFile)
+      return DataFileToObjectModelRegistry.writeBuilder(format, RowData.class.getName(), outputFile)
           .overwrite()
           .set(props)
           .metricsConfig(metricsConfig)
@@ -201,7 +154,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
       EncryptedOutputFile outputFile, FileFormat format, StructLike partition) {
     MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
     try {
-      return DataFileServiceRegistry.writeBuilder(format, RowData.class.getName(), outputFile)
+      return DataFileToObjectModelRegistry.writeBuilder(format, RowData.class.getName(), outputFile)
           .overwrite()
           .set(props)
           .metricsConfig(metricsConfig)

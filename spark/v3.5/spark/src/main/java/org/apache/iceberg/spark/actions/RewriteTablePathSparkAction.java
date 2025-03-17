@@ -54,7 +54,7 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
+import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -640,7 +640,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   private static CloseableIterable<Record> positionDeletesReader(
       InputFile inputFile, FileFormat format, PartitionSpec spec) {
     Schema deleteSchema = DeleteSchemaUtil.posDeleteReadSchema(spec.schema());
-    return DataFileServiceRegistry.readBuilder(format, Record.class.getName(), inputFile)
+    return DataFileToObjectModelRegistry.readBuilder(format, Record.class.getName(), inputFile)
         .project(deleteSchema)
         .reuseContainers()
         .build();
@@ -653,7 +653,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       StructLike partition,
       Schema rowSchema)
       throws IOException {
-    return DataFileServiceRegistry.writeBuilder(
+    return DataFileToObjectModelRegistry.writeBuilder(
             format, Record.class.getName(), EncryptedFiles.plainAsEncryptedOutput(outputFile))
         .withPartition(partition)
         .withRowSchema(rowSchema)

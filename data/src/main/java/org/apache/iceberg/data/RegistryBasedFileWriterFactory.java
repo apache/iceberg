@@ -34,7 +34,7 @@ import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileWriterFactory;
-import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
+import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 /**
@@ -110,7 +110,7 @@ public abstract class RegistryBasedFileWriterFactory<T, F, S> implements FileWri
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
-      return DataFileServiceRegistry.writeBuilder(dataFileFormat, inputType, file)
+      return DataFileToObjectModelRegistry.writeBuilder(dataFileFormat, inputType, file)
           .schema(dataSchema)
           .set(properties)
           .set(writeProperties)
@@ -135,7 +135,7 @@ public abstract class RegistryBasedFileWriterFactory<T, F, S> implements FileWri
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
-      return DataFileServiceRegistry.writeBuilder(deleteFileFormat, inputType, file)
+      return DataFileToObjectModelRegistry.writeBuilder(deleteFileFormat, inputType, file)
           .set(properties)
           .set(writeProperties)
           .metricsConfig(metricsConfig)
@@ -161,7 +161,7 @@ public abstract class RegistryBasedFileWriterFactory<T, F, S> implements FileWri
     MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
 
     try {
-      return DataFileServiceRegistry.writeBuilder(deleteFileFormat, inputType, file)
+      return DataFileToObjectModelRegistry.writeBuilder(deleteFileFormat, inputType, file)
           .set(properties)
           .set(writeProperties)
           .metricsConfig(metricsConfig)

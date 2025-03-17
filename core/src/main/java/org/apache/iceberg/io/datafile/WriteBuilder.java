@@ -32,7 +32,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
@@ -77,15 +76,6 @@ public class WriteBuilder<A extends AppenderBuilder<A, E>, E> {
     this.format = format;
   }
 
-  /**
-   * Sets the configurations coming from the table like {@link #schema(Schema)}, {@link #set(Map)}
-   * and {@link #metricsConfig(MetricsConfig)}.
-   */
-  public WriteBuilder<A, E> forTable(Table table) {
-    appenderBuilder.forTable(table);
-    return this;
-  }
-
   /** Set the file schema. */
   public WriteBuilder<A, E> schema(Schema newSchema) {
     appenderBuilder.schema(newSchema);
@@ -98,12 +88,6 @@ public class WriteBuilder<A extends AppenderBuilder<A, E>, E> {
    */
   public WriteBuilder<A, E> engineSchema(E engineSchema) {
     appenderBuilder.engineSchema(engineSchema);
-    return this;
-  }
-
-  /** Set the file schema's root name. */
-  public WriteBuilder<A, E> named(String newName) {
-    appenderBuilder.named(newName);
     return this;
   }
 
@@ -195,8 +179,8 @@ public class WriteBuilder<A extends AppenderBuilder<A, E>, E> {
    * Sets the additional authentication data prefix used for writing the file. If encryption is not
    * supported by the writer then an exception should be thrown.
    */
-  public WriteBuilder<A, E> aADPrefix(ByteBuffer aadPrefix) {
-    appenderBuilder.aADPrefix(aadPrefix);
+  public WriteBuilder<A, E> aadPrefix(ByteBuffer aadPrefix) {
+    appenderBuilder.aadPrefix(aadPrefix);
     return this;
   }
 

@@ -45,7 +45,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
+import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.io.datafile.ReadBuilder;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.parquet.Parquet;
@@ -125,7 +125,7 @@ public class ArrowReader extends CloseableGroup {
   private final boolean reuseContainers;
 
   public static void register() {
-    DataFileServiceRegistry.registerReader(
+    DataFileToObjectModelRegistry.registerReader(
         FileFormat.PARQUET,
         ColumnarBatch.class.getName(),
         inputFile ->
@@ -339,7 +339,7 @@ public class ArrowReader extends CloseableGroup {
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
       if (task.file().format() == FileFormat.PARQUET) {
         ReadBuilder<?> builder =
-            DataFileServiceRegistry.readBuilder(
+            DataFileToObjectModelRegistry.readBuilder(
                     FileFormat.PARQUET, ColumnarBatch.class.getName(), location)
                 .project(expectedSchema)
                 .split(task.start(), task.length())

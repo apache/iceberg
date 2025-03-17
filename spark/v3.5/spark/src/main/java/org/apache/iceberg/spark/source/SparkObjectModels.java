@@ -22,7 +22,7 @@ import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
 
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
+import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.ParquetReaderType;
@@ -39,26 +39,26 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 
-public class DataFileServices {
+public class SparkObjectModels {
   public static void register() {
     // Base readers
-    DataFileServiceRegistry.registerReader(
+    DataFileToObjectModelRegistry.registerReader(
         FileFormat.PARQUET,
         InternalRow.class.getName(),
         inputFile -> Parquet.read(inputFile).readerFunction(SparkParquetReaders::buildReader));
 
-    DataFileServiceRegistry.registerReader(
+    DataFileToObjectModelRegistry.registerReader(
         FileFormat.AVRO,
         InternalRow.class.getName(),
         inputFile -> Avro.read(inputFile).readerFunction(SparkPlannedAvroReader::create));
 
-    DataFileServiceRegistry.registerReader(
+    DataFileToObjectModelRegistry.registerReader(
         FileFormat.ORC,
         InternalRow.class.getName(),
         inputFile -> ORC.read(inputFile).readerFunction(SparkOrcReader::new));
 
     // Vectorized readers
-    DataFileServiceRegistry.registerReader(
+    DataFileToObjectModelRegistry.registerReader(
         FileFormat.PARQUET,
         ColumnarBatch.class.getName(),
         ParquetReaderType.ICEBERG.name(),
@@ -72,7 +72,7 @@ public class DataFileServices {
                             idToConstant,
                             (Parquet.DeleteFilter<InternalRow>) deleteFilter)));
 
-    DataFileServiceRegistry.registerReader(
+    DataFileToObjectModelRegistry.registerReader(
         FileFormat.PARQUET,
         ColumnarBatch.class.getName(),
         ParquetReaderType.COMET.name(),
@@ -86,13 +86,13 @@ public class DataFileServices {
                             idToConstant,
                             (Parquet.DeleteFilter<InternalRow>) deleteFilter)));
 
-    DataFileServiceRegistry.registerReader(
+    DataFileToObjectModelRegistry.registerReader(
         FileFormat.ORC,
         ColumnarBatch.class.getName(),
         inputFile ->
             ORC.read(inputFile).batchReaderFunction(VectorizedSparkOrcReaders::buildReader));
 
-    DataFileServiceRegistry.registerAppender(
+    DataFileToObjectModelRegistry.registerAppender(
         FileFormat.AVRO,
         InternalRow.class.getName(),
         outputFile ->
@@ -107,7 +107,7 @@ public class DataFileServices {
                                     .apply(DELETE_FILE_ROW_FIELD_NAME)
                                     .dataType())));
 
-    DataFileServiceRegistry.registerAppender(
+    DataFileToObjectModelRegistry.registerAppender(
         FileFormat.PARQUET,
         InternalRow.class.getName(),
         outputFile ->
@@ -117,7 +117,7 @@ public class DataFileServices {
                         SparkParquetWriters.buildWriter((StructType) engineSchema, messageType))
                 .pathTransformFunc(path -> UTF8String.fromString(path.toString())));
 
-    DataFileServiceRegistry.registerAppender(
+    DataFileToObjectModelRegistry.registerAppender(
         FileFormat.ORC,
         InternalRow.class.getName(),
         outputFile ->
@@ -127,5 +127,5 @@ public class DataFileServices {
                 .pathTransformFunc(path -> UTF8String.fromString(path.toString())));
   }
 
-  private DataFileServices() {}
+  private SparkObjectModels() {}
 }

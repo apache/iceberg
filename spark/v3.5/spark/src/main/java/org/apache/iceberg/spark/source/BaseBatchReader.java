@@ -27,12 +27,11 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
+import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.io.datafile.ReadBuilder;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
-import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
@@ -62,21 +61,20 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       SparkDeleteFilter deleteFilter) {
     Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema();
     ReadBuilder<?> readBuilder =
-        DataFileServiceRegistry.<InternalRow>readBuilder(
+        DataFileToObjectModelRegistry.readBuilder(
                 format,
                 ColumnarBatch.class.getName(),
                 parquetConf != null ? parquetConf.readerType().name() : null,
                 inputFile)
             .project(requiredSchema)
-            .idToConstant(idToConstant)
+            .constantFieldAccessors(idToConstant)
             .split(start, length)
             .filter(residual)
             .caseSensitive(caseSensitive())
             // Spark eagerly consumes the batches. So the underlying memory allocated could be
-            // reused
-            // without worrying about subsequent reads clobbering over each other. This improves
-            // read performance as every batch read doesn't have to pay the cost of allocating
-            // memory.
+            // reused without worrying about subsequent reads clobbering over each other. This
+            // improves read performance as every batch read doesn't have to pay the cost of
+            // allocating memory.
             .reuseContainers()
             .withNameMapping(nameMapping());
     if (parquetConf != null) {

@@ -95,7 +95,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.datafile.AppenderBuilder;
-import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
+import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.parquet.ParquetValueWriters.PositionDeleteStructWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
@@ -142,12 +142,12 @@ public class Parquet {
           "parquet.crypto.factory.class");
 
   public static void register() {
-    DataFileServiceRegistry.registerReader(
+    DataFileToObjectModelRegistry.registerReader(
         FileFormat.PARQUET,
         Record.class.getName(),
         inputFile -> read(inputFile).readerFunction(GenericParquetReaders::buildReader));
 
-    DataFileServiceRegistry.registerAppender(
+    DataFileToObjectModelRegistry.registerAppender(
         FileFormat.PARQUET,
         Record.class.getName(),
         outputFile ->
@@ -331,7 +331,7 @@ public class Parquet {
 
     @Deprecated
     public WriteBuilder withAADPrefix(ByteBuffer aadPrefix) {
-      return aADPrefix(aadPrefix);
+      return aadPrefix(aadPrefix);
     }
 
     @Override
@@ -341,7 +341,7 @@ public class Parquet {
     }
 
     @Override
-    public WriteBuilder aADPrefix(ByteBuffer aadPrefix) {
+    public WriteBuilder aadPrefix(ByteBuffer aadPrefix) {
       this.fileAADPrefix = aadPrefix;
       return this;
     }
@@ -1234,7 +1234,7 @@ public class Parquet {
     private NameMapping nameMapping = null;
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
-    private Map<Integer, ?> idToConstant = ImmutableMap.of();
+    private Map<Integer, ?> constantFieldAccessors = ImmutableMap.of();
     private DeleteFilter<?> deleteFilter = null;
 
     private ReadBuilder(InputFile file) {
@@ -1413,9 +1413,14 @@ public class Parquet {
       return this;
     }
 
-    @Override
+    @Deprecated
     public ReadBuilder idToConstant(Map<Integer, ?> newIdConstant) {
-      this.idToConstant = newIdConstant;
+      return constantFieldAccessors(newIdConstant);
+    }
+
+    @Override
+    public ReadBuilder constantFieldAccessors(Map<Integer, ?> newConstantFieldAccessors) {
+      this.constantFieldAccessors = newConstantFieldAccessors;
       return this;
     }
 
@@ -1445,65 +1450,7 @@ public class Parquet {
           || batchedReaderFunc != null
           || readerFunction != null
           || batchReaderFunction != null) {
-        ParquetReadOptions.Builder optionsBuilder;
-        if (file instanceof HadoopInputFile) {
-          // remove read properties already set that may conflict with this read
-          Configuration conf = new Configuration(((HadoopInputFile) file).getConf());
-          for (String property : READ_PROPERTIES_TO_REMOVE) {
-            conf.unset(property);
-          }
-          optionsBuilder = HadoopReadOptions.builder(conf);
-        } else {
-          optionsBuilder = ParquetReadOptions.builder(new PlainParquetConfiguration());
-        }
-
-        for (Map.Entry<String, String> entry : properties.entrySet()) {
-          optionsBuilder.set(entry.getKey(), entry.getValue());
-        }
-
-        if (start != null) {
-          optionsBuilder.withRange(start, start + length);
-        }
-
-        if (fileDecryptionProperties != null) {
-          optionsBuilder.withDecryption(fileDecryptionProperties);
-        }
-
-        ParquetReadOptions options = optionsBuilder.build();
-
-        NameMapping mapping;
-        if (nameMapping != null) {
-          mapping = nameMapping;
-        } else if (SystemConfigs.NETFLIX_UNSAFE_PARQUET_ID_FALLBACK_ENABLED.value()) {
-          mapping = null;
-        } else {
-          mapping = NameMapping.empty();
-        }
-
-        if (batchedReaderFunc != null || batchReaderFunction != null) {
-          return new VectorizedParquetReader<>(
-              file,
-              schema,
-              options,
-              batchedReaderFunc != null
-                  ? batchedReaderFunc
-                  : fileType ->
-                      batchReaderFunction.read(schema, fileType, idToConstant, deleteFilter),
-              mapping,
-              filter,
-              reuseContainers,
-              caseSensitive,
-              maxRecordsPerBatch);
-        } else {
-          Function<MessageType, ParquetValueReader<?>> readBuilder =
-              readerFuncWithSchema != null
-                  ? fileType -> readerFuncWithSchema.apply(schema, fileType)
-                  : readerFunc != null
-                      ? readerFunc
-                      : fileType -> readerFunction.read(schema, fileType, idToConstant);
-          return new org.apache.iceberg.parquet.ParquetReader<>(
-              file, schema, options, readBuilder, mapping, filter, reuseContainers, caseSensitive);
-        }
+        return buildFunctionBasedReader(fileDecryptionProperties);
       }
 
       ParquetReadBuilder<D> builder = new ParquetReadBuilder<>(ParquetIO.file(file));
@@ -1575,6 +1522,71 @@ public class Parquet {
       }
 
       return new ParquetIterable<>(builder);
+    }
+
+    @SuppressWarnings("CyclomaticComplexity")
+    private <D> CloseableIterable<D> buildFunctionBasedReader(
+        FileDecryptionProperties fileDecryptionProperties) {
+      ParquetReadOptions.Builder optionsBuilder;
+      if (file instanceof HadoopInputFile) {
+        // remove read properties already set that may conflict with this read
+        Configuration conf = new Configuration(((HadoopInputFile) file).getConf());
+        for (String property : READ_PROPERTIES_TO_REMOVE) {
+          conf.unset(property);
+        }
+        optionsBuilder = HadoopReadOptions.builder(conf);
+      } else {
+        optionsBuilder = ParquetReadOptions.builder(new PlainParquetConfiguration());
+      }
+
+      for (Map.Entry<String, String> entry : properties.entrySet()) {
+        optionsBuilder.set(entry.getKey(), entry.getValue());
+      }
+
+      if (start != null) {
+        optionsBuilder.withRange(start, start + length);
+      }
+
+      if (fileDecryptionProperties != null) {
+        optionsBuilder.withDecryption(fileDecryptionProperties);
+      }
+
+      ParquetReadOptions options = optionsBuilder.build();
+
+      NameMapping mapping;
+      if (nameMapping != null) {
+        mapping = nameMapping;
+      } else if (SystemConfigs.NETFLIX_UNSAFE_PARQUET_ID_FALLBACK_ENABLED.value()) {
+        mapping = null;
+      } else {
+        mapping = NameMapping.empty();
+      }
+
+      if (batchedReaderFunc != null || batchReaderFunction != null) {
+        return new VectorizedParquetReader<>(
+            file,
+            schema,
+            options,
+            batchedReaderFunc != null
+                ? batchedReaderFunc
+                : fileType ->
+                    batchReaderFunction.read(
+                        schema, fileType, constantFieldAccessors, deleteFilter),
+            mapping,
+            filter,
+            reuseContainers,
+            caseSensitive,
+            maxRecordsPerBatch);
+      } else {
+        Function<MessageType, ParquetValueReader<?>> readBuilder =
+            readerFuncWithSchema != null
+                ? fileType -> readerFuncWithSchema.apply(schema, fileType)
+                : readerFunc != null
+                    ? readerFunc
+                    : fileType -> readerFunction.read(schema, fileType, constantFieldAccessors);
+        return new org.apache.iceberg.parquet.ParquetReader<>(
+            file, schema, options, readBuilder, mapping, filter, reuseContainers, caseSensitive);
+      }
     }
   }
 
@@ -1648,7 +1660,7 @@ public class Parquet {
 
   public interface ReaderFunction<D> {
     ParquetValueReader<D> read(
-        Schema schema, MessageType messageType, Map<Integer, ?> idToConstant);
+        Schema schema, MessageType messageType, Map<Integer, ?> constantFieldAccessors);
   }
 
   public interface BatchReaderFunction<D> {

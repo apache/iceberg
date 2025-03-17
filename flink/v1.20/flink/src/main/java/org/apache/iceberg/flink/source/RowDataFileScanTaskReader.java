@@ -23,11 +23,9 @@ import java.util.Map;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.expressions.Expression;
@@ -35,19 +33,14 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkSourceFilter;
 import org.apache.iceberg.flink.RowDataWrapper;
-import org.apache.iceberg.flink.data.FlinkOrcReader;
-import org.apache.iceberg.flink.data.FlinkParquetReaders;
-import org.apache.iceberg.flink.data.FlinkPlannedAvroReader;
 import org.apache.iceberg.flink.data.RowDataProjection;
 import org.apache.iceberg.flink.data.RowDataUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
+import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.io.datafile.ReadBuilder;
 import org.apache.iceberg.mapping.NameMappingParser;
-import org.apache.iceberg.orc.ORC;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
@@ -60,23 +53,6 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
   private final String nameMapping;
   private final boolean caseSensitive;
   private final FlinkSourceFilter rowFilter;
-
-  public static void register() {
-    DataFileServiceRegistry.registerReader(
-        FileFormat.PARQUET,
-        RowData.class.getName(),
-        inputFile -> Parquet.read(inputFile).readerFunction(FlinkParquetReaders::buildReader));
-
-    DataFileServiceRegistry.registerReader(
-        FileFormat.AVRO,
-        RowData.class.getName(),
-        inputFile -> Avro.read(inputFile).readerFunction(FlinkPlannedAvroReader::create));
-
-    DataFileServiceRegistry.registerReader(
-        FileFormat.ORC,
-        RowData.class.getName(),
-        inputFile -> ORC.read(inputFile).readerFunction(FlinkOrcReader::new));
-  }
 
   public RowDataFileScanTaskReader(
       Schema tableSchema,
@@ -138,12 +114,12 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
       throw new UnsupportedOperationException("Cannot read data task.");
     } else {
       ReadBuilder<?> builder =
-          DataFileServiceRegistry.readBuilder(
+          DataFileToObjectModelRegistry.readBuilder(
                   task.file().format(),
                   RowData.class.getName(),
                   inputFilesDecryptor.getInputFile(task))
               .project(schema)
-              .idToConstant(idToConstant)
+              .constantFieldAccessors(idToConstant)
               .split(task.start(), task.length())
               .filter(task.residual())
               .caseSensitive(caseSensitive)

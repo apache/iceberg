@@ -81,7 +81,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.datafile.AppenderBuilder;
-import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
+import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -111,12 +111,12 @@ public class ORC {
   private ORC() {}
 
   public static void register() {
-    DataFileServiceRegistry.registerReader(
+    DataFileToObjectModelRegistry.registerReader(
         FileFormat.ORC,
         Record.class.getName(),
         inputFile -> read(inputFile).readerFunction(GenericOrcReader::buildReader));
 
-    DataFileServiceRegistry.registerAppender(
+    DataFileToObjectModelRegistry.registerAppender(
         FileFormat.ORC,
         Record.class.getName(),
         outputFile ->
@@ -815,7 +815,7 @@ public class ORC {
     private ReaderFunction<?> readerFunction;
     private BatchReaderFunction<?> batchReaderFunction;
     private int recordsPerBatch = VectorizedRowBatch.DEFAULT_SIZE;
-    private Map<Integer, ?> idToConstant = ImmutableMap.of();
+    private Map<Integer, ?> constantFieldAccessors = ImmutableMap.of();
 
     private ReadBuilder(InputFile file) {
       Preconditions.checkNotNull(file, "Input file cannot be null");
@@ -917,9 +917,14 @@ public class ORC {
       return this;
     }
 
-    @Override
+    @Deprecated
     public ReadBuilder idToConstant(Map<Integer, ?> newIdConstant) {
-      this.idToConstant = newIdConstant;
+      return constantFieldAccessors(newIdConstant);
+    }
+
+    @Override
+    public ReadBuilder constantFieldAccessors(Map<Integer, ?> newConstantFieldAccessors) {
+      this.constantFieldAccessors = newConstantFieldAccessors;
       return this;
     }
 
@@ -942,13 +947,13 @@ public class ORC {
           readerFunc != null
               ? readerFunc
               : readerFunction != null
-                  ? fileType -> readerFunction.read(schema, fileType, idToConstant)
+                  ? fileType -> readerFunction.read(schema, fileType, constantFieldAccessors)
                   : null;
       Function<TypeDescription, OrcBatchReader<?>> batchReader =
           batchedReaderFunc != null
               ? batchedReaderFunc
               : batchReaderFunction != null
-                  ? fileType -> batchReaderFunction.read(schema, fileType, idToConstant)
+                  ? fileType -> batchReaderFunction.read(schema, fileType, constantFieldAccessors)
                   : null;
       return new OrcIterable<>(
           file,
@@ -956,7 +961,8 @@ public class ORC {
           // This is a behavioral change. Previously there were an error if constant columns were
           // present in the schema, now they are removed and the correct reader is created
           TypeUtil.selectNot(
-              schema, Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds())),
+              schema,
+              Sets.union(constantFieldAccessors.keySet(), MetadataColumns.metadataFieldIds())),
           nameMapping,
           start,
           length,
@@ -1011,11 +1017,12 @@ public class ORC {
   }
 
   public interface ReaderFunction<D> {
-    OrcRowReader<D> read(Schema schema, TypeDescription messageType, Map<Integer, ?> idToConstant);
+    OrcRowReader<D> read(
+        Schema schema, TypeDescription messageType, Map<Integer, ?> constantFieldAccessors);
   }
 
   public interface BatchReaderFunction<D> {
     OrcBatchReader<D> read(
-        Schema schema, TypeDescription messageType, Map<Integer, ?> idToConstant);
+        Schema schema, TypeDescription messageType, Map<Integer, ?> constantFieldAccessors);
   }
 }

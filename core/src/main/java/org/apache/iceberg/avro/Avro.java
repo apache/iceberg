@@ -66,7 +66,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.datafile.AppenderBuilder;
-import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
+import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -97,12 +97,12 @@ public class Avro {
   }
 
   public static void register() {
-    DataFileServiceRegistry.registerReader(
+    DataFileToObjectModelRegistry.registerReader(
         FileFormat.AVRO,
         Record.class.getName(),
         inputFile -> Avro.read(inputFile).readerFunction(PlannedDataReader::create));
 
-    DataFileServiceRegistry.registerAppender(
+    DataFileToObjectModelRegistry.registerAppender(
         FileFormat.AVRO,
         Record.class.getName(),
         outputFile ->
@@ -740,7 +740,7 @@ public class Avro {
     private BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<?>> createReaderBiFunc = null;
     private Function<org.apache.iceberg.Schema, DatumReader<?>> createResolvingReaderFunc = null;
     private BiFunction<org.apache.iceberg.Schema, Map<Integer, ?>, DatumReader<?>> readerFunction;
-    private Map<Integer, ?> idToConstant = ImmutableMap.of();
+    private Map<Integer, ?> constantFieldAccessors = ImmutableMap.of();
 
     @SuppressWarnings("UnnecessaryLambda")
     private final Function<org.apache.iceberg.Schema, DatumReader<?>> defaultCreateReaderFunc =
@@ -835,9 +835,14 @@ public class Avro {
       return this;
     }
 
-    @Override
+    @Deprecated
     public ReadBuilder idToConstant(Map<Integer, ?> newIdConstant) {
-      this.idToConstant = newIdConstant;
+      return constantFieldAccessors(newIdConstant);
+    }
+
+    @Override
+    public ReadBuilder constantFieldAccessors(Map<Integer, ?> newConstantFieldAccessors) {
+      this.constantFieldAccessors = newConstantFieldAccessors;
       return this;
     }
 
@@ -891,7 +896,7 @@ public class Avro {
       } else if (createResolvingReaderFunc != null) {
         reader = (DatumReader<D>) createResolvingReaderFunc.apply(schema);
       } else if (readerFunction != null) {
-        reader = (DatumReader<D>) readerFunction.apply(schema, idToConstant);
+        reader = (DatumReader<D>) readerFunction.apply(schema, constantFieldAccessors);
       } else {
         reader = (DatumReader<D>) defaultCreateReaderFunc.apply(schema);
       }

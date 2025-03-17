@@ -34,7 +34,7 @@ import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.datafile.DataFileServiceRegistry;
+import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -127,7 +127,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
 
     try {
-      return DataFileServiceRegistry.writeBuilder(
+      return DataFileToObjectModelRegistry.writeBuilder(
               fileFormat, Record.class.getName(), encryptedOutputFile)
           .schema(schema)
           .set(config)
@@ -164,7 +164,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
 
     try {
-      return DataFileServiceRegistry.writeBuilder(format, Record.class.getName(), file)
+      return DataFileToObjectModelRegistry.writeBuilder(format, Record.class.getName(), file)
           .schema(schema)
           .withPartition(partition)
           .overwrite()
@@ -189,7 +189,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
             : MetricsConfig.fromProperties(config);
 
     try {
-      return DataFileServiceRegistry.writeBuilder(format, Record.class.getName(), file)
+      return DataFileToObjectModelRegistry.writeBuilder(format, Record.class.getName(), file)
           .schema(schema)
           .withPartition(partition)
           .overwrite()
