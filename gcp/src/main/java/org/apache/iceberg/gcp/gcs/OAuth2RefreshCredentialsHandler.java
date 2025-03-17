@@ -35,6 +35,7 @@ import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
+import org.apache.iceberg.rest.auth.AuthScopes;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
@@ -107,9 +108,11 @@ public class OAuth2RefreshCredentialsHandler
     if (null == client) {
       synchronized (this) {
         if (null == client) {
-          authManager = AuthManagers.loadAuthManager("gcs-credentials-refresh", properties);
           HTTPClient httpClient = HTTPClient.builder(properties).uri(catalogEndpoint).build();
-          authSession = authManager.catalogSession(httpClient, properties);
+          authManager =
+              AuthManagers.loadAuthManager("gcs-credentials-refresh", properties)
+                  .withClient(httpClient);
+          authSession = authManager.authSession(AuthScopes.Standalone.of(properties));
           client = httpClient.withAuthSession(authSession);
         }
       }

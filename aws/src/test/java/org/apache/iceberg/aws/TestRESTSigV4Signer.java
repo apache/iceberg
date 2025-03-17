@@ -31,6 +31,7 @@ import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthProperties;
+import org.apache.iceberg.rest.auth.AuthScopes;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.responses.ConfigResponse;
@@ -78,8 +79,8 @@ public class TestRESTSigV4Signer {
             .build()
             .withAuthSession(AuthSession.EMPTY);
 
-    authManager = AuthManagers.loadAuthManager("test", properties);
-    AuthSession authSession = authManager.catalogSession(httpClient, properties);
+    authManager = AuthManagers.loadAuthManager("test", properties).withClient(httpClient);
+    AuthSession authSession = authManager.authSession(AuthScopes.Standalone.of(properties));
 
     client = httpClient.withAuthSession(authSession);
   }

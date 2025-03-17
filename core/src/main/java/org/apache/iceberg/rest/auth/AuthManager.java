@@ -33,6 +33,22 @@ import org.apache.iceberg.rest.RESTClient;
 public interface AuthManager extends AutoCloseable {
 
   /**
+   * Returns a manager that uses the given REST client for its internal authentication requests,
+   * such as for fetching tokens or refreshing credentials.
+   *
+   * <p>By default, this method ignores the REST client and returns {@code this}. Implementations
+   * that require a client should override this method.
+   */
+  default AuthManager withClient(RESTClient client) {
+    return this;
+  }
+
+  /** Returns an authentication session for the given scope. */
+  default AuthSession authSession(AuthScope scope) {
+    throw new UnsupportedOperationException("AuthManager.authSession is not implemented");
+  }
+
+  /**
    * Returns a temporary session to use for contacting the configuration endpoint only. Note that
    * the returned session will be closed after the configuration endpoint is contacted, and should
    * not be cached.
@@ -41,9 +57,13 @@ public interface AuthManager extends AutoCloseable {
    * credentials, if required, and must be discarded after that.
    *
    * <p>This method cannot return null. By default, it returns the catalog session.
+   *
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
+   *     instead.
    */
+  @Deprecated
   default AuthSession initSession(RESTClient initClient, Map<String, String> properties) {
-    return catalogSession(initClient, properties);
+    return withClient(initClient).authSession(AuthScopes.Initial.of(properties));
   }
 
   /**
@@ -59,15 +79,25 @@ public interface AuthManager extends AutoCloseable {
    *
    * <p>It is not required to cache the returned session internally, as the catalog will keep it
    * alive for the lifetime of the catalog.
+   *
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
+   *     instead.
    */
-  AuthSession catalogSession(RESTClient sharedClient, Map<String, String> properties);
+  @Deprecated
+  default AuthSession catalogSession(RESTClient sharedClient, Map<String, String> properties) {
+    return withClient(sharedClient).authSession(AuthScopes.Catalog.of(properties));
+  }
 
   /**
    * Returns a new session targeting a table or view. This method is intended for components other
    * that the catalog that need to access tables or views, such as request signer clients.
    *
    * <p>This method cannot return null.
+   *
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
+   *     instead.
    */
+  @Deprecated
   default AuthSession tableSession(RESTClient sharedClient, Map<String, String> properties) {
     return catalogSession(sharedClient, properties);
   }
@@ -83,9 +113,13 @@ public interface AuthManager extends AutoCloseable {
    * <p>Implementors should cache contextual sessions internally, as the catalog will not cache
    * them. Also, the owning catalog never closes contextual sessions; implementations should manage
    * their lifecycle themselves and close them when they are no longer needed.
+   *
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
+   *     instead.
    */
+  @Deprecated
   default AuthSession contextualSession(SessionCatalog.SessionContext context, AuthSession parent) {
-    return parent;
+    return authSession(AuthScopes.Contextual.of(context, parent));
   }
 
   /**
@@ -100,10 +134,14 @@ public interface AuthManager extends AutoCloseable {
    * <p>Implementors should cache table sessions internally, as the catalog will not cache them.
    * Also, the owning catalog never closes table sessions; implementations should manage their
    * lifecycle themselves and close them when they are no longer needed.
+   *
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
+   *     instead.
    */
+  @Deprecated
   default AuthSession tableSession(
       TableIdentifier table, Map<String, String> properties, AuthSession parent) {
-    return parent;
+    return authSession(AuthScopes.Table.of(table, properties, parent));
   }
 
   /**

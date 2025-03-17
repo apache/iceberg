@@ -26,6 +26,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.auth.AuthManager;
+import org.apache.iceberg.rest.auth.AuthScope;
+import org.apache.iceberg.rest.auth.AuthScopes;
 import org.apache.iceberg.rest.auth.AuthSession;
 import software.amazon.awssdk.auth.signer.Aws4Signer;
 
@@ -36,22 +38,63 @@ import software.amazon.awssdk.auth.signer.Aws4Signer;
  */
 public class RESTSigV4AuthManager implements AuthManager {
 
-  private final Aws4Signer signer = Aws4Signer.create();
+  private final Aws4Signer signer;
   private final AuthManager delegate;
 
   private Map<String, String> catalogProperties = Map.of();
 
   public RESTSigV4AuthManager(String ignored, AuthManager delegate) {
     this.delegate = Preconditions.checkNotNull(delegate, "Invalid delegate: null");
+    signer = Aws4Signer.create();
+  }
+
+  private RESTSigV4AuthManager(AuthManager delegate, Aws4Signer signer) {
+    this.delegate = Preconditions.checkNotNull(delegate, "Invalid delegate: null");
+    this.signer = signer;
   }
 
   @Override
+  public AuthManager withClient(RESTClient client) {
+    return new RESTSigV4AuthManager(delegate.withClient(client), signer);
+  }
+
+  @Override
+  public AuthSession authSession(AuthScope scope) {
+    AwsProperties awsProperties;
+    if (scope instanceof AuthScopes.Catalog) {
+      this.catalogProperties = scope.properties();
+      awsProperties = new AwsProperties(catalogProperties);
+    } else {
+      awsProperties = new AwsProperties(RESTUtil.merge(catalogProperties, scope.properties()));
+    }
+
+    AuthSession parent = scope.parent();
+    Preconditions.checkState(
+        parent == null || parent instanceof RESTSigV4AuthSession,
+        "Parent session is not SigV4: %s",
+        parent);
+    AuthScope delegateScope =
+        parent == null ? scope : scope.withParent(((RESTSigV4AuthSession) parent).delegate());
+    return new RESTSigV4AuthSession(signer, delegate.authSession(delegateScope), awsProperties);
+  }
+
+  /**
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
+   *     instead.
+   */
+  @Override
+  @Deprecated
   public RESTSigV4AuthSession initSession(RESTClient initClient, Map<String, String> properties) {
     return new RESTSigV4AuthSession(
         signer, delegate.initSession(initClient, properties), new AwsProperties(properties));
   }
 
+  /**
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
+   *     instead.
+   */
   @Override
+  @Deprecated
   public RESTSigV4AuthSession catalogSession(
       RESTClient sharedClient, Map<String, String> properties) {
     this.catalogProperties = properties;
@@ -60,7 +103,12 @@ public class RESTSigV4AuthManager implements AuthManager {
         signer, delegate.catalogSession(sharedClient, catalogProperties), awsProperties);
   }
 
+  /**
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
+   *     instead.
+   */
   @Override
+  @Deprecated
   public RESTSigV4AuthSession contextualSession(
       SessionCatalog.SessionContext context, AuthSession parent) {
     Preconditions.checkState(
@@ -78,7 +126,12 @@ public class RESTSigV4AuthManager implements AuthManager {
         signer, delegate.contextualSession(context, sigV4Parent.delegate()), contextProperties);
   }
 
+  /**
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
+   *     instead.
+   */
   @Override
+  @Deprecated
   public RESTSigV4AuthSession tableSession(
       TableIdentifier table, Map<String, String> properties, AuthSession parent) {
     Preconditions.checkState(

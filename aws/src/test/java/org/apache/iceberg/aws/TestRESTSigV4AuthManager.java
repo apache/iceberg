@@ -21,6 +21,8 @@ package org.apache.iceberg.aws;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.InstanceOfAssertFactories.type;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 import java.util.Map;
 import org.apache.iceberg.catalog.SessionCatalog;
@@ -30,6 +32,7 @@ import org.apache.iceberg.rest.auth.AuthConfig;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthProperties;
+import org.apache.iceberg.rest.auth.AuthScopes;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.NoopAuthManager;
 import org.apache.iceberg.rest.auth.OAuth2Manager;
@@ -117,9 +120,10 @@ class TestRESTSigV4AuthManager {
         AuthManagers.loadAuthManager(
             "test", Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_TYPE_OAUTH2));
     RESTClient client = Mockito.mock(RESTClient.class);
-    AuthManager manager = new RESTSigV4AuthManager("test", delegate);
-    AuthSession authSession = manager.initSession(client, catalogProperties);
-    checkSession(authSession, "us-west-2", "id", "secret", false);
+    when(client.withAuthSession(any())).thenReturn(client);
+    AuthManager manager = new RESTSigV4AuthManager("test", delegate).withClient(client);
+    AuthSession authSession = manager.authSession(AuthScopes.Initial.of(catalogProperties));
+    checkSession(authSession, "us-west-2", "id", "secret");
   }
 
   @Test
@@ -128,9 +132,10 @@ class TestRESTSigV4AuthManager {
         AuthManagers.loadAuthManager(
             "test", Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_TYPE_OAUTH2));
     RESTClient client = Mockito.mock(RESTClient.class);
-    AuthManager manager = new RESTSigV4AuthManager("test", delegate);
-    AuthSession authSession = manager.catalogSession(client, catalogProperties);
-    checkSession(authSession, "us-west-2", "id", "secret", true);
+    when(client.withAuthSession(any())).thenReturn(client);
+    AuthManager manager = new RESTSigV4AuthManager("test", delegate).withClient(client);
+    AuthSession authSession = manager.authSession(AuthScopes.Catalog.of(catalogProperties));
+    checkSession(authSession, "us-west-2", "id", "secret");
   }
 
   @Test
@@ -139,8 +144,9 @@ class TestRESTSigV4AuthManager {
         AuthManagers.loadAuthManager(
             "test", Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_TYPE_OAUTH2));
     RESTClient client = Mockito.mock(RESTClient.class);
-    AuthManager manager = new RESTSigV4AuthManager("test", delegate);
-    AuthSession catalogSession = manager.catalogSession(client, catalogProperties);
+    when(client.withAuthSession(any())).thenReturn(client);
+    AuthManager manager = new RESTSigV4AuthManager("test", delegate).withClient(client);
+    AuthSession catalogSession = manager.authSession(AuthScopes.Catalog.of(catalogProperties));
     SessionCatalog.SessionContext context =
         new SessionCatalog.SessionContext(
             "context1",
@@ -151,8 +157,10 @@ class TestRESTSigV4AuthManager {
                 AwsProperties.REST_SECRET_ACCESS_KEY,
                 "secret2"),
             Map.of(AwsProperties.REST_SIGNER_REGION, "us-east-1"));
-    AuthSession authSession = manager.contextualSession(context, catalogSession);
-    checkSession(authSession, "us-east-1", "id2", "secret2", true);
+    AuthSession authSession =
+        manager.authSession(AuthScopes.Contextual.of(context, catalogSession));
+
+    checkSession(authSession, "us-east-1", "id2", "secret2");
   }
 
   @Test
@@ -161,8 +169,9 @@ class TestRESTSigV4AuthManager {
         AuthManagers.loadAuthManager(
             "test", Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_TYPE_OAUTH2));
     RESTClient client = Mockito.mock(RESTClient.class);
-    AuthManager manager = new RESTSigV4AuthManager("test", delegate);
-    AuthSession catalogSession = manager.catalogSession(client, catalogProperties);
+    when(client.withAuthSession(any())).thenReturn(client);
+    AuthManager manager = new RESTSigV4AuthManager("test", delegate).withClient(client);
+    AuthSession catalogSession = manager.authSession(AuthScopes.Catalog.of(catalogProperties));
     Map<String, String> tableProperties =
         Map.of(
             AwsProperties.REST_ACCESS_KEY_ID,
@@ -172,8 +181,9 @@ class TestRESTSigV4AuthManager {
             AwsProperties.REST_SIGNER_REGION,
             "us-east-1");
     AuthSession authSession =
-        manager.tableSession(TableIdentifier.of("table1"), tableProperties, catalogSession);
-    checkSession(authSession, "us-east-1", "id2", "secret2", true);
+        manager.authSession(
+            AuthScopes.Table.of(TableIdentifier.of("table1"), tableProperties, catalogSession));
+    checkSession(authSession, "us-east-1", "id2", "secret2");
   }
 
   @Test
@@ -188,8 +198,7 @@ class TestRESTSigV4AuthManager {
       AuthSession authSession,
       String expectedRegion,
       String expectedAccessKeyId,
-      String expectedSecretAccessKey,
-      boolean expectedKeepRefreshed) {
+      String expectedSecretAccessKey) {
     assertThat(authSession).isInstanceOf(RESTSigV4AuthSession.class);
     RESTSigV4AuthSession sigV4AuthSession = (RESTSigV4AuthSession) authSession;
     // Check AWS properties present
@@ -209,7 +218,7 @@ class TestRESTSigV4AuthManager {
                 .token("token1")
                 .tokenType(OAuth2Properties.ACCESS_TOKEN_TYPE)
                 .scope("scope1")
-                .keepRefreshed(expectedKeepRefreshed)
+                .keepRefreshed(true)
                 .optionalOAuthParams(Map.of(OAuth2Properties.SCOPE, "scope1"))
                 .build());
   }
