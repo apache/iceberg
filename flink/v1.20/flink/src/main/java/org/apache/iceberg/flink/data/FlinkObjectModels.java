@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.data;
 
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
 
-import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
@@ -31,25 +30,27 @@ import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 
 public class FlinkObjectModels {
+  public static final String FLINK_OBJECT_MODEL_NAME = "flink";
+
   public static void register() {
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.PARQUET,
-        RowData.class.getName(),
+        FLINK_OBJECT_MODEL_NAME,
         inputFile -> Parquet.read(inputFile).readerFunction(FlinkParquetReaders::buildReader));
 
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.AVRO,
-        RowData.class.getName(),
+        FLINK_OBJECT_MODEL_NAME,
         inputFile -> Avro.read(inputFile).readerFunction(FlinkPlannedAvroReader::create));
 
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.ORC,
-        RowData.class.getName(),
+        FLINK_OBJECT_MODEL_NAME,
         inputFile -> ORC.read(inputFile).readerFunction(FlinkOrcReader::new));
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.AVRO,
-        RowData.class.getName(),
+        FLINK_OBJECT_MODEL_NAME,
         outputFile ->
             Avro.write(outputFile)
                 .writerFunction((unused, rowType) -> new FlinkAvroWriter((RowType) rowType))
@@ -64,7 +65,7 @@ public class FlinkObjectModels {
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.PARQUET,
-        RowData.class.getName(),
+        FLINK_OBJECT_MODEL_NAME,
         outputFile ->
             Parquet.write(outputFile)
                 .writerFunction(
@@ -74,7 +75,7 @@ public class FlinkObjectModels {
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.ORC,
-        RowData.class.getName(),
+        FLINK_OBJECT_MODEL_NAME,
         outputFile ->
             ORC.write(outputFile)
                 .writerFunction(

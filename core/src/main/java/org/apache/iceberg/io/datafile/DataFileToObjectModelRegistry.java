@@ -34,14 +34,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Registry which provides the available {@link ReadBuilder}s and {@link WriteBuilder}s. Based on
- * the `file format`, the required `object model name` and the reader/writer `builderType` the
- * registry returns the correct reader and writer builders. These builders could be used to generate
- * the readers and writers.
+ * Registry which provides the available {@link ReadBuilder}s and writers like {@link
+ * AppenderBuilder}s, {@link DataWriterBuilder}s, {@link EqualityDeleteWriterBuilder} and {@link
+ * PositionDeleteWriterBuilder}s. Based on the `file format`, the required `object model name` and
+ * the reader/writer `builderType` the registry returns the correct reader and writer builders.
+ * These builders could be used to generate the readers and writers.
  *
  * <p>File formats has to register the {@link ReadBuilder}s and the {@link DataFileAppenderBuilder}s
  * which will be used to create the readers and the writers. The readers returned directly, the
- * appenders are wrapped into a {@link WriteBuilder} and the {@link
+ * appenders are wrapped into the {@link AppenderBuilder}, {@link DataWriterBuilder}, {@link
+ * EqualityDeleteWriterBuilder} or {@link PositionDeleteWriterBuilder}, and the {@link
  * DataFileAppenderBuilder#build(DataFileAppenderBuilder.WriteMode)} method is used to finalize the
  * appender configuration for the specific writer use-cases. The following inputs should be handled
  * by the appender in the following cases:
@@ -70,6 +72,8 @@ public final class DataFileToObjectModelRegistry {
       APPENDER_BUILDERS = Maps.newConcurrentMap();
   private static final Map<Key, Function<InputFile, ReadBuilder<?>>> READ_BUILDERS =
       Maps.newConcurrentMap();
+
+  public static final String GENERIC_OBJECT_MODEL_NAME = "generic";
 
   /** Registers a new appender builder for the given format/object model name. */
   public static void registerAppender(
@@ -151,7 +155,8 @@ public final class DataFileToObjectModelRegistry {
 
   /**
    * Provides a reader builder for the given input file which returns objects with a given object
-   * model name.
+   * model name and uses the specified reader type. Parquet currently supports Iceberg and Comet
+   * readers.
    *
    * @param format of the file to read
    * @param objectModelName returned by the reader

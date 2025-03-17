@@ -48,7 +48,8 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Expression residual,
       Schema projection,
       Map<Integer, ?> idToConstant) {
-    return DataFileToObjectModelRegistry.readBuilder(format, InternalRow.class.getName(), file)
+    return DataFileToObjectModelRegistry.readBuilder(
+            format, SparkObjectModels.SPARK_OBJECT_MODEL_NAME, file)
         .project(projection)
         .constantFieldAccessors(idToConstant)
         .reuseContainers()

@@ -36,31 +36,33 @@ import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkObjectModels {
+  public static final String SPARK_OBJECT_MODEL_NAME = "spark";
+  public static final String SPARK_VECTORIZED_OBJECT_MODEL_NAME = "spark-vectorized";
+
   public static void register() {
     // Base readers
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.PARQUET,
-        InternalRow.class.getName(),
+        SPARK_OBJECT_MODEL_NAME,
         inputFile -> Parquet.read(inputFile).readerFunction(SparkParquetReaders::buildReader));
 
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.AVRO,
-        InternalRow.class.getName(),
+        SPARK_OBJECT_MODEL_NAME,
         inputFile -> Avro.read(inputFile).readerFunction(SparkPlannedAvroReader::create));
 
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.ORC,
-        InternalRow.class.getName(),
+        SPARK_OBJECT_MODEL_NAME,
         inputFile -> ORC.read(inputFile).readerFunction(SparkOrcReader::new));
 
     // Vectorized readers
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.PARQUET,
-        ColumnarBatch.class.getName(),
+        SPARK_VECTORIZED_OBJECT_MODEL_NAME,
         ParquetReaderType.ICEBERG.name(),
         inputFile ->
             Parquet.read(inputFile)
@@ -74,7 +76,7 @@ public class SparkObjectModels {
 
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.PARQUET,
-        ColumnarBatch.class.getName(),
+        SPARK_VECTORIZED_OBJECT_MODEL_NAME,
         ParquetReaderType.COMET.name(),
         inputFile ->
             Parquet.read(inputFile)
@@ -88,13 +90,13 @@ public class SparkObjectModels {
 
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.ORC,
-        ColumnarBatch.class.getName(),
+        SPARK_VECTORIZED_OBJECT_MODEL_NAME,
         inputFile ->
             ORC.read(inputFile).batchReaderFunction(VectorizedSparkOrcReaders::buildReader));
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.AVRO,
-        InternalRow.class.getName(),
+        SPARK_OBJECT_MODEL_NAME,
         outputFile ->
             Avro.write(outputFile)
                 .writerFunction(
@@ -109,7 +111,7 @@ public class SparkObjectModels {
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.PARQUET,
-        InternalRow.class.getName(),
+        SPARK_OBJECT_MODEL_NAME,
         outputFile ->
             Parquet.write(outputFile)
                 .writerFunction(
@@ -119,7 +121,7 @@ public class SparkObjectModels {
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.ORC,
-        InternalRow.class.getName(),
+        SPARK_OBJECT_MODEL_NAME,
         outputFile ->
             ORC.write(outputFile)
                 .writerFunction(

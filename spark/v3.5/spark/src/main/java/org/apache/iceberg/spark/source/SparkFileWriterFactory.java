@@ -55,7 +55,7 @@ class SparkFileWriterFactory
     super(
         table,
         dataFileFormat,
-        InternalRow.class.getName(),
+        SparkObjectModels.SPARK_OBJECT_MODEL_NAME,
         dataSchema,
         dataSortOrder,
         deleteFileFormat,

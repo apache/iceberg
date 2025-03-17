@@ -53,7 +53,6 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -99,12 +98,12 @@ public class Avro {
   public static void register() {
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.AVRO,
-        Record.class.getName(),
+        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME,
         inputFile -> Avro.read(inputFile).readerFunction(PlannedDataReader::create));
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.AVRO,
-        Record.class.getName(),
+        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME,
         outputFile ->
             Avro.write(outputFile)
                 .writerFunction(

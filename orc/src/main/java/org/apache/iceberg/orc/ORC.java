@@ -60,7 +60,6 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
@@ -113,12 +112,12 @@ public class ORC {
   public static void register() {
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.ORC,
-        Record.class.getName(),
+        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME,
         inputFile -> read(inputFile).readerFunction(GenericOrcReader::buildReader));
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.ORC,
-        Record.class.getName(),
+        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME,
         outputFile ->
             ORC.write(outputFile)
                 .writerFunction(

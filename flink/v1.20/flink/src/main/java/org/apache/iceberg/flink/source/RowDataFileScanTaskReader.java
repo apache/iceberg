@@ -33,6 +33,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkSourceFilter;
 import org.apache.iceberg.flink.RowDataWrapper;
+import org.apache.iceberg.flink.data.FlinkObjectModels;
 import org.apache.iceberg.flink.data.RowDataProjection;
 import org.apache.iceberg.flink.data.RowDataUtil;
 import org.apache.iceberg.io.CloseableIterable;
@@ -116,7 +117,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
       ReadBuilder<?> builder =
           DataFileToObjectModelRegistry.readBuilder(
                   task.file().format(),
-                  RowData.class.getName(),
+                  FlinkObjectModels.FLINK_OBJECT_MODEL_NAME,
                   inputFilesDecryptor.getInputFile(task))
               .project(schema)
               .constantFieldAccessors(idToConstant)

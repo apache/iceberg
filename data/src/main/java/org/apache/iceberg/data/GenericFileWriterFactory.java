@@ -28,6 +28,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -48,7 +49,7 @@ class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Ob
     super(
         table,
         dataFileFormat,
-        Record.class.getName(),
+        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME,
         dataSchema,
         dataSortOrder,
         deleteFileFormat,

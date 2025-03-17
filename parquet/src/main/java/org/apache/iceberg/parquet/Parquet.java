@@ -74,7 +74,6 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -144,12 +143,12 @@ public class Parquet {
   public static void register() {
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.PARQUET,
-        Record.class.getName(),
+        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME,
         inputFile -> read(inputFile).readerFunction(GenericParquetReaders::buildReader));
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.PARQUET,
-        Record.class.getName(),
+        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME,
         outputFile ->
             Parquet.write(outputFile)
                 .writerFunction(

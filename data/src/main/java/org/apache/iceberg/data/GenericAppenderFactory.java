@@ -128,7 +128,9 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
     try {
       return DataFileToObjectModelRegistry.appenderBuilder(
-              fileFormat, Record.class.getName(), encryptedOutputFile)
+              fileFormat,
+              DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME,
+              encryptedOutputFile)
           .schema(schema)
           .set(config)
           .metricsConfig(metricsConfig)
@@ -145,7 +147,8 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     MetricsConfig metricsConfig =
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
     try {
-      return DataFileToObjectModelRegistry.writerBuilder(format, Record.class.getName(), file)
+      return DataFileToObjectModelRegistry.writerBuilder(
+              format, DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME, file)
           .schema(schema)
           .set(config)
           .metricsConfig(metricsConfig)
@@ -173,7 +176,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
     try {
       return DataFileToObjectModelRegistry.equalityDeleteWriterBuilder(
-              format, Record.class.getName(), file)
+              format, DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME, file)
           .schema(schema)
           .withPartition(partition)
           .overwrite()
@@ -199,7 +202,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
     try {
       return DataFileToObjectModelRegistry.positionDeleteWriterBuilder(
-              format, Record.class.getName(), file)
+              format, DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME, file)
           .schema(schema)
           .withPartition(partition)
           .overwrite()
