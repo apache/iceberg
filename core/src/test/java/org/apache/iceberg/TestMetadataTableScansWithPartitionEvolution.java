@@ -262,25 +262,13 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
             PartitionSpec.builderFor(schema).identity("company_id").build(),
             SortOrder.unsorted(),
             formatVersion);
-    table.newFastAppend().appendFile(newDataFile("company_id=__HIVE_DEFAULT_PARTITION__")).commit();
+    table.newFastAppend().appendFile(newDataFile(TestHelpers.Row.of(new Object[] {null}))).commit();
 
     table.updateSpec().addField("dept_id").commit();
-    table
-        .newFastAppend()
-        .appendFile(
-            newDataFile(
-                "company_id=__HIVE_DEFAULT_PARTITION__" + "/dept_id=__HIVE_DEFAULT_PARTITION__"))
-        .commit();
+    table.newFastAppend().appendFile(newDataFile(TestHelpers.Row.of(null, null))).commit();
 
     table.updateSpec().addField("team_id").commit();
-    table
-        .newFastAppend()
-        .appendFile(
-            newDataFile(
-                "company_id=__HIVE_DEFAULT_PARTITION__"
-                    + "/dept_id=__HIVE_DEFAULT_PARTITION__"
-                    + "/team_id=__HIVE_DEFAULT_PARTITION__"))
-        .commit();
+    table.newFastAppend().appendFile(newDataFile(TestHelpers.Row.of(null, null, null))).commit();
 
     assertPartitions(
         "company_id=null",
@@ -306,15 +294,15 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
             formatVersion);
     table
         .newFastAppend()
-        .appendFile(newDataFile("data=c1/category=d1"))
-        .appendFile(newDataFile("data=c2/category=d2"))
+        .appendFile(newDataFile(TestHelpers.Row.of("c1", "d1")))
+        .appendFile(newDataFile(TestHelpers.Row.of("c2", "d2")))
         .commit();
 
     table.updateSpec().renameField("category", "category_another_name").commit();
     table
         .newFastAppend()
-        .appendFile(newDataFile("data=c1/category_another_name=d1"))
-        .appendFile(newDataFile("data=c2/category_another_name=d2"))
+        .appendFile(newDataFile(TestHelpers.Row.of("c1", "d1")))
+        .appendFile(newDataFile(TestHelpers.Row.of("c2", "d2")))
         .commit();
 
     assertPartitions("data=c1/category_another_name=d1", "data=c2/category_another_name=d2");
