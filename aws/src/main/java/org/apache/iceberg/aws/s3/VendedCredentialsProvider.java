@@ -32,6 +32,7 @@ import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.auth.ImmutableAuthScopes;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
@@ -81,9 +82,11 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
     if (null == client) {
       synchronized (this) {
         if (null == client) {
-          authManager = AuthManagers.loadAuthManager("s3-credentials-refresh", properties);
           HTTPClient httpClient = HTTPClient.builder(properties).uri(properties.get(URI)).build();
-          authSession = authManager.catalogSession(httpClient, properties);
+          authManager =
+              AuthManagers.loadAuthManager("s3-credentials-refresh", properties)
+                  .withClient(httpClient);
+          authSession = authManager.authSession(ImmutableAuthScopes.Standalone.of(properties));
           client = httpClient.withAuthSession(authSession);
         }
       }

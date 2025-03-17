@@ -20,23 +20,26 @@ package org.apache.iceberg.aws;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.InstanceOfAssertFactories.type;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import java.util.Map;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.rest.HTTPClient;
-import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthProperties;
 import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.auth.ImmutableAuthScopes;
 import org.apache.iceberg.rest.auth.NoopAuthManager;
 import org.apache.iceberg.rest.auth.OAuth2Manager;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
 
 class TestRESTSigV4AuthManager {
 
@@ -106,64 +109,59 @@ class TestRESTSigV4AuthManager {
   @Test
   void initSession() {
     AuthManager delegate = Mockito.mock(AuthManager.class);
-    when(delegate.initSession(any(), any())).thenReturn(Mockito.mock(OAuth2Util.AuthSession.class));
-    RESTClient client = Mockito.mock(RESTClient.class);
+    when(delegate.authSession(any())).thenReturn(Mockito.mock(OAuth2Util.AuthSession.class));
     AuthManager manager = new RESTSigV4AuthManager("test", delegate);
-    AuthSession authSession = manager.initSession(client, awsProperties);
-    assertThat(authSession)
-        .isInstanceOf(RESTSigV4AuthSession.class)
-        .extracting("delegate")
-        .isInstanceOf(OAuth2Util.AuthSession.class);
+    AuthSession authSession = manager.authSession(ImmutableAuthScopes.Initial.of(awsProperties));
+    assertAuthSession(authSession);
   }
 
   @Test
-  void catalogSession() {
+  void authSession() {
     AuthManager delegate = Mockito.mock(AuthManager.class);
-    when(delegate.catalogSession(any(), any()))
-        .thenReturn(Mockito.mock(OAuth2Util.AuthSession.class));
-    RESTClient client = Mockito.mock(RESTClient.class);
+    when(delegate.authSession(any())).thenReturn(Mockito.mock(OAuth2Util.AuthSession.class));
     AuthManager manager = new RESTSigV4AuthManager("test", delegate);
-    AuthSession authSession = manager.catalogSession(client, awsProperties);
-    assertThat(authSession)
-        .isInstanceOf(RESTSigV4AuthSession.class)
-        .extracting("delegate")
-        .isInstanceOf(OAuth2Util.AuthSession.class);
+    AuthSession authSession = manager.authSession(ImmutableAuthScopes.Catalog.of(awsProperties));
+    assertAuthSession(authSession);
   }
 
   @Test
   void contextualSession() {
     AuthManager delegate = Mockito.mock(AuthManager.class);
-    when(delegate.catalogSession(any(), any()))
-        .thenReturn(Mockito.mock(OAuth2Util.AuthSession.class));
-    when(delegate.contextualSession(any(), any()))
-        .thenReturn(Mockito.mock(OAuth2Util.AuthSession.class));
+    when(delegate.authSession(any())).thenReturn(Mockito.mock(OAuth2Util.AuthSession.class));
     AuthManager manager = new RESTSigV4AuthManager("test", delegate);
-    manager.catalogSession(Mockito.mock(HTTPClient.class), awsProperties);
+    AuthSession catalogSession = manager.authSession(ImmutableAuthScopes.Catalog.of(awsProperties));
     AuthSession authSession =
-        manager.contextualSession(
-            Mockito.mock(SessionCatalog.SessionContext.class), Mockito.mock(AuthSession.class));
-    assertThat(authSession)
-        .isInstanceOf(RESTSigV4AuthSession.class)
-        .extracting("delegate")
-        .isInstanceOf(OAuth2Util.AuthSession.class);
+        manager.authSession(
+            ImmutableAuthScopes.Contextual.of(
+                Mockito.mock(SessionCatalog.SessionContext.class), catalogSession));
+    assertAuthSession(authSession);
   }
 
   @Test
   void tableSession() {
     AuthManager delegate = Mockito.mock(AuthManager.class);
-    when(delegate.catalogSession(any(), any()))
-        .thenReturn(Mockito.mock(OAuth2Util.AuthSession.class));
-    when(delegate.tableSession(any(), any(), any()))
-        .thenReturn(Mockito.mock(OAuth2Util.AuthSession.class));
+    when(delegate.authSession(any())).thenReturn(Mockito.mock(OAuth2Util.AuthSession.class));
     AuthManager manager = new RESTSigV4AuthManager("test", delegate);
-    manager.catalogSession(Mockito.mock(HTTPClient.class), awsProperties);
+    AuthSession catalogSession = manager.authSession(ImmutableAuthScopes.Catalog.of(awsProperties));
     AuthSession authSession =
-        manager.tableSession(
-            Mockito.mock(TableIdentifier.class), Map.of(), Mockito.mock(AuthSession.class));
+        manager.authSession(
+            ImmutableAuthScopes.Table.of(
+                Mockito.mock(TableIdentifier.class), Map.of(), catalogSession));
+    assertAuthSession(authSession);
+  }
+
+  private static void assertAuthSession(AuthSession authSession) {
     assertThat(authSession)
         .isInstanceOf(RESTSigV4AuthSession.class)
         .extracting("delegate")
         .isInstanceOf(OAuth2Util.AuthSession.class);
+    assertThat(authSession).extracting("signer").isNotNull();
+    assertThat(authSession).extracting("signingRegion").isEqualTo(Region.of("us-west-2"));
+    assertThat(authSession)
+        .extracting("credentialsProvider")
+        .asInstanceOf(type(StaticCredentialsProvider.class))
+        .extracting(StaticCredentialsProvider::resolveCredentials)
+        .isEqualTo(AwsBasicCredentials.create("id", "secret"));
   }
 
   @Test
