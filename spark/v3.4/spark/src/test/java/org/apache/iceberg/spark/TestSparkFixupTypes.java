@@ -33,6 +33,7 @@ public class TestSparkFixupTypes {
 
   private static Stream<Arguments> primitiveTypes() {
     return Stream.of(
+        Arguments.of(Types.UnknownType.get()),
         Arguments.of(Types.BooleanType.get()),
         Arguments.of(Types.IntegerType.get()),
         Arguments.of(Types.LongType.get()),
@@ -51,7 +52,8 @@ public class TestSparkFixupTypes {
         Arguments.of(Types.BinaryType.get()),
         Arguments.of(Types.DecimalType.of(9, 2)),
         Arguments.of(Types.DecimalType.of(11, 2)),
-        Arguments.of(Types.DecimalType.of(9, 3)));
+        Arguments.of(Types.DecimalType.of(9, 3)),
+        Arguments.of(Types.VariantType.get()));
   }
 
   @Test
@@ -62,7 +64,7 @@ public class TestSparkFixupTypes {
 
     Schema fixedSchema = SparkFixupTypes.fixup(schema, referenceSchema);
 
-    assertThat(fixedSchema.findType("field")).isEqualTo(Types.UUIDType.get());
+    assertThat(fixedSchema.findType("field")).isSameAs(Types.UUIDType.get());
   }
 
   @Test
@@ -79,24 +81,13 @@ public class TestSparkFixupTypes {
   @ParameterizedTest
   @MethodSource("primitiveTypes")
   void fixupShouldNotChangeNonMatchingPrimitiveTypes(Type type) {
-    Schema schema = new Schema(Types.NestedField.required(1, "field", type));
+    Schema schema = new Schema(Types.NestedField.optional(1, "field", type));
     Schema referenceSchema =
-        new Schema(Types.NestedField.required(1, "field", Types.IntegerType.get()));
+        new Schema(Types.NestedField.optional(1, "field", Types.IntegerType.get()));
 
     Schema fixedSchema = SparkFixupTypes.fixup(schema, referenceSchema);
 
-    assertThat(fixedSchema.findType("field")).isEqualTo(type);
-  }
-
-  @Test
-  void fixupShouldNotChangeNonMatchingVariantType() {
-    Schema schema = new Schema(Types.NestedField.required(1, "field", Types.VariantType.get()));
-    Schema referenceSchema =
-        new Schema(Types.NestedField.required(1, "field", Types.StringType.get()));
-
-    Schema fixedSchema = SparkFixupTypes.fixup(schema, referenceSchema);
-
-    assertThat(fixedSchema.findType("field")).isEqualTo(Types.VariantType.get());
+    assertThat(fixedSchema.findType("field")).isSameAs(type);
   }
 
   @Test

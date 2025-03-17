@@ -52,7 +52,8 @@ public class TestSparkFixupTypes {
         Arguments.of(Types.BinaryType.get()),
         Arguments.of(Types.DecimalType.of(9, 2)),
         Arguments.of(Types.DecimalType.of(11, 2)),
-        Arguments.of(Types.DecimalType.of(9, 3)));
+        Arguments.of(Types.DecimalType.of(9, 3)),
+        Arguments.of(Types.VariantType.get()));
   }
 
   @Test
@@ -63,7 +64,7 @@ public class TestSparkFixupTypes {
 
     Schema fixedSchema = SparkFixupTypes.fixup(schema, referenceSchema);
 
-    assertThat(fixedSchema.findType("field")).isEqualTo(Types.UUIDType.get());
+    assertThat(fixedSchema.findType("field")).isSameAs(Types.UUIDType.get());
   }
 
   @Test
@@ -86,18 +87,7 @@ public class TestSparkFixupTypes {
 
     Schema fixedSchema = SparkFixupTypes.fixup(schema, referenceSchema);
 
-    assertThat(fixedSchema.findType("field")).isEqualTo(type);
-  }
-
-  @Test
-  void fixupShouldNotChangeNonMatchingVariantType() {
-    Schema schema = new Schema(Types.NestedField.required(1, "field", Types.VariantType.get()));
-    Schema referenceSchema =
-        new Schema(Types.NestedField.required(1, "field", Types.StringType.get()));
-
-    Schema fixedSchema = SparkFixupTypes.fixup(schema, referenceSchema);
-
-    assertThat(fixedSchema.findType("field")).isEqualTo(Types.VariantType.get());
+    assertThat(fixedSchema.findType("field")).isSameAs(type);
   }
 
   @Test
