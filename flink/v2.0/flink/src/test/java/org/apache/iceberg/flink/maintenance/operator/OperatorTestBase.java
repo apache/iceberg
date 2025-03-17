@@ -24,11 +24,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import javax.annotation.Nullable;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.MetricOptions;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.core.execution.SavepointFormatType;
-import org.apache.flink.runtime.jobgraph.SavepointConfigOptions;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
@@ -149,24 +149,21 @@ public class OperatorTestBase {
    *     stop without a savepoint.
    * @return configuration for restarting the job from the savepoint
    */
-  protected static Configuration closeJobClient(JobClient jobClient, File savepointDir) {
-    Configuration conf = new Configuration();
+  @Nullable
+  protected static String closeJobClient(JobClient jobClient, File savepointDir) {
     if (jobClient != null) {
       if (savepointDir != null) {
         // Stop with savepoint
         jobClient.stopWithSavepoint(false, savepointDir.getPath(), SavepointFormatType.CANONICAL);
         // Wait until the savepoint is created and the job has been stopped
         Awaitility.await().until(() -> savepointDir.listFiles(File::isDirectory).length == 1);
-        conf.set(
-            SavepointConfigOptions.SAVEPOINT_PATH,
-            savepointDir.listFiles(File::isDirectory)[0].getAbsolutePath());
+        return savepointDir.listFiles(File::isDirectory)[0].getAbsolutePath();
       } else {
         jobClient.cancel();
       }
 
       // Wait until the job has been stopped
       Awaitility.await().until(() -> jobClient.getJobStatus().get().isTerminalState());
-      return conf;
     }
 
     return null;

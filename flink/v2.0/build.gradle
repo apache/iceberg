@@ -17,7 +17,7 @@
  * under the License.
  */
 
-String flinkMajorVersion = '1.20'
+String flinkMajorVersion = '2.0'
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 
 project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
@@ -32,15 +32,15 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-hive-metastore')
 
-    compileOnly libs.flink120.avro
+    compileOnly libs.flink20.avro
     // for dropwizard histogram metrics implementation
-    compileOnly libs.flink120.metrics.dropwizard
-    compileOnly libs.flink120.streaming.java
-    compileOnly "${libs.flink120.streaming.java.get().module}:${libs.flink120.streaming.java.get().getVersion()}:tests"
-    compileOnly libs.flink120.table.api.java.bridge
-    compileOnly "org.apache.flink:flink-table-planner_${scalaVersion}:${libs.versions.flink120.get()}"
-    compileOnly libs.flink120.connector.base
-    compileOnly libs.flink120.connector.files
+    compileOnly libs.flink20.metrics.dropwizard
+    compileOnly libs.flink20.streaming.java
+    compileOnly "${libs.flink20.streaming.java.get().module}:${libs.flink20.streaming.java.get().getVersion()}:tests"
+    compileOnly libs.flink20.table.api.java.bridge
+    compileOnly "org.apache.flink:flink-table-planner_${scalaVersion}:${libs.versions.flink20.get()}"
+    compileOnly libs.flink20.connector.base
+    compileOnly libs.flink20.connector.files
 
     compileOnly libs.hadoop3.hdfs
     compileOnly libs.hadoop3.common
@@ -68,13 +68,13 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 
     implementation libs.datasketches
 
-    testImplementation libs.flink120.connector.test.utils
-    testImplementation libs.flink120.core
-    testImplementation libs.flink120.runtime
-    testImplementation(libs.flink120.test.utilsjunit) {
+    testImplementation libs.flink20.connector.test.utils
+    testImplementation libs.flink20.core
+    testImplementation libs.flink20.runtime
+    testImplementation(libs.flink20.test.utilsjunit) {
       exclude group: 'junit'
     }
-    testImplementation(libs.flink120.test.utils) {
+    testImplementation(libs.flink20.test.utils) {
       exclude group: "org.apache.curator", module: 'curator-test'
       exclude group: 'junit'
     }
@@ -169,7 +169,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     }
 
     // for dropwizard histogram metrics implementation
-    implementation libs.flink120.metrics.dropwizard
+    implementation libs.flink20.metrics.dropwizard
 
     // for integration testing with the flink-runtime-jar
     // all of those dependencies are required because the integration test extends FlinkTestBase
@@ -179,13 +179,13 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     integrationImplementation project(path: ":iceberg-flink:iceberg-flink-${flinkMajorVersion}", configuration: "testArtifacts")
     integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-    integrationImplementation(libs.flink120.test.utils) {
+    integrationImplementation(libs.flink20.test.utils) {
       exclude group: "org.apache.curator", module: 'curator-test'
       exclude group: 'junit'
     }
 
-    integrationImplementation libs.flink120.table.api.java.bridge
-    integrationImplementation "org.apache.flink:flink-table-planner_${scalaVersion}:${libs.versions.flink120.get()}"
+    integrationImplementation libs.flink20.table.api.java.bridge
+    integrationImplementation "org.apache.flink:flink-table-planner_${scalaVersion}:${libs.versions.flink20.get()}"
 
     integrationImplementation libs.hadoop3.common
     integrationImplementation libs.hadoop3.hdfs

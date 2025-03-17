@@ -79,10 +79,8 @@ public class DataStatisticsOperatorFactory extends AbstractStreamOperatorFactory
 
     DataStatisticsOperator rangeStatisticsOperator =
         new DataStatisticsOperator(
-            operatorName, schema, sortOrder, gateway, downstreamParallelism, type);
+            parameters, operatorName, schema, sortOrder, gateway, downstreamParallelism, type);
 
-    rangeStatisticsOperator.setup(
-        parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
     parameters
         .getOperatorEventDispatcher()
         .registerEventHandler(operatorId, rangeStatisticsOperator);

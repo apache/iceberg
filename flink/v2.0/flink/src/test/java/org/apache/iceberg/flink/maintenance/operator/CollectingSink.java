@@ -28,6 +28,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.flink.api.connector.sink2.Sink;
 import org.apache.flink.api.connector.sink2.SinkWriter;
+import org.apache.flink.api.connector.sink2.WriterInitContext;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /** Sink for collecting output during testing. */
@@ -86,7 +87,7 @@ public class CollectingSink<T> implements Sink<T> {
   }
 
   @Override
-  public SinkWriter<T> createWriter(InitContext context) {
+  public SinkWriter<T> createWriter(WriterInitContext context) {
     return new CollectingWriter<>(index);
   }
 

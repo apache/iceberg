@@ -25,15 +25,21 @@ import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.connector.source.util.ratelimit.RateLimiterStrategy;
+import org.apache.flink.client.program.ClusterClient;
 import org.apache.flink.configuration.CheckpointingOptions;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.runtime.client.JobExecutionException;
+import org.apache.flink.runtime.jobgraph.SavepointRestoreSettings;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.graph.StreamGraph;
+import org.apache.flink.test.junit5.InjectClusterClient;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
@@ -157,7 +163,9 @@ class TestMonitorSource extends OperatorTestBase {
 
   /** Check that the {@link MonitorSource} operator state is restored correctly. */
   @Test
-  void testStateRestore(@TempDir File savepointDir) throws Exception {
+  void testStateRestore(
+      @TempDir File savepointDir, @InjectClusterClient ClusterClient<?> clusterClient)
+      throws Exception {
     Table table = createTable();
     insert(table, 1, "a");
     TableLoader tableLoader = tableLoader();
@@ -180,7 +188,7 @@ class TestMonitorSource extends OperatorTestBase {
     events.sinkTo(result);
 
     // Start the job
-    Configuration conf;
+    String savepointPath;
     JobClient jobClient = null;
     AtomicReference<TableChange> firstNonEmptyEvent = new AtomicReference<>();
     try {
@@ -201,11 +209,11 @@ class TestMonitorSource extends OperatorTestBase {
               });
     } finally {
       // Stop with savepoint
-      conf = closeJobClient(jobClient, savepointDir);
+      savepointPath = closeJobClient(jobClient, savepointDir);
     }
 
     // Restore from savepoint, create the same topology with a different env
-    env = StreamExecutionEnvironment.getExecutionEnvironment(conf);
+    env = StreamExecutionEnvironment.getExecutionEnvironment();
     events =
         env.fromSource(
                 new MonitorSource(tableLoader, LOW_RATE, Long.MAX_VALUE),
@@ -216,13 +224,13 @@ class TestMonitorSource extends OperatorTestBase {
     events.sinkTo(resultWithSavepoint);
 
     // Make sure that the job with restored source does not read new records from the table
-    JobClient clientWithSavepoint = null;
+    StreamGraph streamGraph = env.getStreamGraph();
+    streamGraph.setSavepointRestoreSettings(SavepointRestoreSettings.forPath(savepointPath));
+    CompletableFuture<JobID> jobIDCompletableFuture = clusterClient.submitJob(streamGraph);
     try {
-      clientWithSavepoint = env.executeAsync("Table Change Source test with savepoint");
-
       assertThat(resultWithSavepoint.poll(Duration.ofSeconds(5L))).isEqualTo(EMPTY_EVENT);
     } finally {
-      closeJobClient(clientWithSavepoint, null);
+      clusterClient.cancel(jobIDCompletableFuture.get());
     }
 
     // Restore without savepoint

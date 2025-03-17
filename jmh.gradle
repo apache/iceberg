@@ -38,6 +38,10 @@ if (flinkVersions.contains("1.20")) {
   jmhProjects.add(project(":iceberg-flink:iceberg-flink-1.20"))
 }
 
+if (flinkVersions.contains("2.0")) {
+  jmhProjects.add(project(":iceberg-flink:iceberg-flink-2.0"))
+}
+
 if (sparkVersions.contains("3.4")) {
   jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.4_${scalaVersion}"))
   jmhProjects.add(project(":iceberg-spark:iceberg-spark-extensions-3.4_${scalaVersion}"))

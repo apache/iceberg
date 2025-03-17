@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;

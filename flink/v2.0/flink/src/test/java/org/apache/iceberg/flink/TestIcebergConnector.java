@@ -252,7 +252,7 @@ public class TestIcebergConnector extends TestBase {
     // Ensure that the table was created under the specific database.
     assertThatThrownBy(
             () -> sql("CREATE TABLE `default_catalog`.`%s`.`%s`", databaseName(), TABLE_NAME))
-        .isInstanceOf(org.apache.flink.table.api.TableException.class)
+        .isInstanceOf(org.apache.flink.table.api.ValidationException.class)
         .hasMessageStartingWith("Could not execute CreateTable in path");
   }
 

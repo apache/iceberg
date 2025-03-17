@@ -28,7 +28,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.catalog.AbstractCatalog;
 import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogDatabase;
@@ -37,7 +36,6 @@ import org.apache.flink.table.catalog.CatalogFunction;
 import org.apache.flink.table.catalog.CatalogPartition;
 import org.apache.flink.table.catalog.CatalogPartitionSpec;
 import org.apache.flink.table.catalog.CatalogTable;
-import org.apache.flink.table.catalog.CatalogTableImpl;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.ResolvedCatalogTable;
 import org.apache.flink.table.catalog.TableChange;
@@ -53,6 +51,7 @@ import org.apache.flink.table.catalog.stats.CatalogColumnStatistics;
 import org.apache.flink.table.catalog.stats.CatalogTableStatistics;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.factories.Factory;
+import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.util.StringUtils;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.DataFile;
@@ -680,7 +679,11 @@ public class FlinkCatalog extends AbstractCatalog {
     // CatalogTableImpl to copy a new catalog table.
     // Let's re-loading table from Iceberg catalog when creating source/sink operators.
     // Iceberg does not have Table comment, so pass a null (Default comment value in Flink).
-    return new CatalogTableImpl(schema, partitionKeys, props, null);
+    return CatalogTable.newBuilder()
+        .schema(schema.toSchema())
+        .partitionKeys(partitionKeys)
+        .options(props)
+        .build();
   }
 
   static CatalogTable toCatalogTable(Table table) {

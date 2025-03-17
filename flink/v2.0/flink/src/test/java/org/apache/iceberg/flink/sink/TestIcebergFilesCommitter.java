@@ -1223,16 +1223,16 @@ public class TestIcebergFilesCommitter extends TestBase {
     @Override
     @SuppressWarnings("unchecked")
     public <T extends StreamOperator<Void>> T createStreamOperator(
-        StreamOperatorParameters<Void> param) {
+        StreamOperatorParameters<Void> params) {
       IcebergFilesCommitter committer =
           new IcebergFilesCommitter(
+              params,
               new TestTableLoader(tablePath),
               false,
               Collections.singletonMap("flink.test", TestIcebergFilesCommitter.class.getName()),
               ThreadPools.WORKER_THREAD_POOL_SIZE,
               branch,
               spec);
-      committer.setup(param.getContainingTask(), param.getStreamConfig(), param.getOutput());
       return (T) committer;
     }
 

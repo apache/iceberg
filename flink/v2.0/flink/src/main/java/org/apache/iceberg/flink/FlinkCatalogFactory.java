@@ -21,9 +21,10 @@ package org.apache.iceberg.flink;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.runtime.util.HadoopUtils;
 import org.apache.flink.table.catalog.Catalog;
@@ -34,8 +35,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.PropertyUtil;
 
 /**
@@ -60,6 +60,8 @@ import org.apache.iceberg.util.PropertyUtil;
  */
 public class FlinkCatalogFactory implements CatalogFactory {
 
+  public static final String FACTORY_IDENTIFIER = "iceberg";
+
   // Can not just use "type", it conflicts with CATALOG_TYPE.
   public static final String ICEBERG_CATALOG_TYPE = "catalog-type";
   public static final String ICEBERG_CATALOG_TYPE_HADOOP = "hadoop";
@@ -72,8 +74,6 @@ public class FlinkCatalogFactory implements CatalogFactory {
   public static final String DEFAULT_DATABASE_NAME = "default";
   public static final String DEFAULT_CATALOG_NAME = "default_catalog";
   public static final String BASE_NAMESPACE = "base-namespace";
-  public static final String TYPE = "type";
-  public static final String PROPERTY_VERSION = "property-version";
 
   /**
    * Create an Iceberg {@link org.apache.iceberg.catalog.Catalog} loader to be used by this Flink
@@ -122,21 +122,23 @@ public class FlinkCatalogFactory implements CatalogFactory {
   }
 
   @Override
-  public Map<String, String> requiredContext() {
-    Map<String, String> context = Maps.newHashMap();
-    context.put(TYPE, "iceberg");
-    context.put(PROPERTY_VERSION, "1");
-    return context;
+  public String factoryIdentifier() {
+    return FACTORY_IDENTIFIER;
   }
 
   @Override
-  public List<String> supportedProperties() {
-    return ImmutableList.of("*");
+  public Set<ConfigOption<?>> requiredOptions() {
+    return ImmutableSet.<ConfigOption<?>>builder().build();
   }
 
   @Override
-  public Catalog createCatalog(String name, Map<String, String> properties) {
-    return createCatalog(name, properties, clusterHadoopConf());
+  public Set<ConfigOption<?>> optionalOptions() {
+    return ImmutableSet.<ConfigOption<?>>builder().build();
+  }
+
+  @Override
+  public Catalog createCatalog(Context context) {
+    return createCatalog(context.getName(), context.getOptions(), clusterHadoopConf());
   }
 
   protected Catalog createCatalog(

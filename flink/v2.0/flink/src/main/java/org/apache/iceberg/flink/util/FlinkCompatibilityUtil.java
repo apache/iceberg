@@ -19,9 +19,9 @@
 package org.apache.iceberg.flink.util;
 
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.table.api.TableColumn;
 import org.apache.flink.table.catalog.Column;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.legacy.api.TableColumn;
 import org.apache.flink.table.runtime.typeutils.InternalTypeInfo;
 import org.apache.flink.table.types.logical.RowType;
 

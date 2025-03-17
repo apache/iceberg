@@ -47,10 +47,7 @@ import org.apache.flink.runtime.state.StateInitializationContextImpl;
 import org.apache.flink.runtime.state.TestTaskStateManager;
 import org.apache.flink.runtime.state.hashmap.HashMapStateBackend;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
-import org.apache.flink.streaming.runtime.tasks.OneInputStreamTask;
 import org.apache.flink.streaming.runtime.tasks.StreamMockEnvironment;
-import org.apache.flink.streaming.util.MockOutput;
-import org.apache.flink.streaming.util.MockStreamConfig;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
@@ -58,7 +55,6 @@ import org.apache.flink.table.data.StringData;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -91,20 +87,16 @@ public class TestDataStatisticsOperator {
   }
 
   private DataStatisticsOperator createOperator(
-      StatisticsType type, int downstreamParallelism, MockOperatorEventGateway mockGateway)
-      throws Exception {
+      StatisticsType type, int downstreamParallelism, MockOperatorEventGateway mockGateway) {
     DataStatisticsOperator operator =
         new DataStatisticsOperator(
+            null,
             "testOperator",
             Fixtures.SCHEMA,
             Fixtures.SORT_ORDER,
             mockGateway,
             downstreamParallelism,
             type);
-    operator.setup(
-        new OneInputStreamTask<String, String>(env),
-        new MockStreamConfig(new Configuration(), 1),
-        new MockOutput<>(Lists.newArrayList()));
     return operator;
   }
 

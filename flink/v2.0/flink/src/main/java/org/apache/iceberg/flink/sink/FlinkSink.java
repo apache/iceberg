@@ -43,9 +43,10 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.functions.sink.v2.DiscardingSink;
-import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.streaming.api.operators.OneInputStreamOperatorFactory;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
+import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
@@ -500,8 +501,8 @@ public class FlinkSink {
 
     private SingleOutputStreamOperator<Void> appendCommitter(
         SingleOutputStreamOperator<FlinkWriteResult> writerStream) {
-      IcebergFilesCommitter filesCommitter =
-          new IcebergFilesCommitter(
+      OneInputStreamOperatorFactory<FlinkWriteResult, Void> filesCommitterFactory =
+          new IcebergFilesCommitterFactory(
               tableLoader,
               flinkWriteConf.overwriteMode(),
               snapshotProperties,
@@ -510,7 +511,8 @@ public class FlinkSink {
               table.spec());
       SingleOutputStreamOperator<Void> committerStream =
           writerStream
-              .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
+              .transform(
+                  operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitterFactory)
               .setParallelism(1)
               .setMaxParallelism(1);
       if (uidPrefix != null) {

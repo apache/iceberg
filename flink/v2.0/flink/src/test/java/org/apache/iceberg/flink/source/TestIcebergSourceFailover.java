@@ -29,14 +29,14 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.client.program.ClusterClient;
+import org.apache.flink.configuration.CheckpointingOptions;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.RestartStrategyOptions;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.core.execution.SavepointFormatType;
 import org.apache.flink.runtime.highavailability.nonha.embedded.HaLeadershipControl;
-import org.apache.flink.runtime.jobgraph.SavepointConfigOptions;
 import org.apache.flink.runtime.minicluster.MiniCluster;
 import org.apache.flink.runtime.minicluster.RpcServiceSharing;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
@@ -172,7 +172,7 @@ public class TestIcebergSourceFailover {
 
     // New env from the savepoint
     Configuration conf = new Configuration();
-    conf.set(SavepointConfigOptions.SAVEPOINT_PATH, savepointPath);
+    conf.set(CheckpointingOptions.SAVEPOINT_DIRECTORY, savepointPath);
     env = StreamExecutionEnvironment.getExecutionEnvironment(conf);
     createBoundedStreams(env, DO_NOT_FAIL);
 
@@ -205,8 +205,13 @@ public class TestIcebergSourceFailover {
       dataAppender.appendToTable(records);
     }
 
-    StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-    env.setRestartStrategy(RestartStrategies.fixedDelayRestart(1, 0));
+    Configuration config = new Configuration();
+    config.set(
+        RestartStrategyOptions.RESTART_STRATEGY,
+        RestartStrategyOptions.RestartStrategyType.FIXED_DELAY.getMainValue());
+    config.set(RestartStrategyOptions.RESTART_STRATEGY_FIXED_DELAY_ATTEMPTS, 1);
+    config.set(RestartStrategyOptions.RESTART_STRATEGY_FIXED_DELAY_DELAY, Duration.ofSeconds(0));
+    StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment(config);
     createBoundedStreams(env, 2);
 
     JobClient jobClient = env.executeAsync("Bounded Iceberg Source Failover Test");
@@ -244,7 +249,7 @@ public class TestIcebergSourceFailover {
     env.setParallelism(PARALLELISM);
     env.enableCheckpointing(10L);
     Configuration config = new Configuration();
-    config.setInteger(FlinkConfigOptions.SOURCE_READER_FETCH_BATCH_RECORD_COUNT, 128);
+    config.set(FlinkConfigOptions.SOURCE_READER_FETCH_BATCH_RECORD_COUNT, 128);
 
     DataStream<RowData> stream =
         env.fromSource(

@@ -34,6 +34,7 @@ import org.apache.flink.api.connector.sink2.CommittingSinkWriter;
 import org.apache.flink.api.connector.sink2.Sink;
 import org.apache.flink.api.connector.sink2.SinkWriter;
 import org.apache.flink.api.connector.sink2.SupportsCommitter;
+import org.apache.flink.api.connector.sink2.WriterInitContext;
 import org.apache.flink.configuration.CheckpointingOptions;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.execution.JobClient;
@@ -343,7 +344,7 @@ class TestLockRemover extends OperatorTestBase {
           SupportsCommitter<TaskResult>,
           SupportsPostCommitTopology<TaskResult> {
     @Override
-    public SinkWriter<TaskResult> createWriter(InitContext initContext) {
+    public SinkWriter<TaskResult> createWriter(WriterInitContext initContext) {
       return new CommittingSinkWriter<TaskResult, TaskResult>() {
         private final Collection<TaskResult> received = Lists.newArrayList();
 

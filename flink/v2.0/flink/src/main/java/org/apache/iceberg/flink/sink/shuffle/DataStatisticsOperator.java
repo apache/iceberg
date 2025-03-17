@@ -30,6 +30,7 @@ import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
+import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
@@ -72,12 +73,14 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
   private transient volatile GlobalStatistics globalStatistics;
 
   DataStatisticsOperator(
+      StreamOperatorParameters<StatisticsOrRecord> parameters,
       String operatorName,
       Schema schema,
       SortOrder sortOrder,
       OperatorEventGateway operatorEventGateway,
       int downstreamParallelism,
       StatisticsType statisticsType) {
+    super(parameters);
     this.operatorName = operatorName;
     this.rowDataWrapper = new RowDataWrapper(FlinkSchemaUtil.convert(schema), schema.asStruct());
     this.sortKey = new SortKey(schema, sortOrder);

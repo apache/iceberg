@@ -143,16 +143,14 @@ public abstract class TestSqlBase {
 
     // test sql api
     Configuration tableConf = getTableEnv().getConfig().getConfiguration();
-    tableConf.setBoolean(
-        FlinkConfigOptions.TABLE_EXEC_ICEBERG_EXPOSE_SPLIT_LOCALITY_INFO.key(), false);
+    tableConf.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_EXPOSE_SPLIT_LOCALITY_INFO, false);
 
     List<Row> results = SqlHelpers.sql(getTableEnv(), "select * from t");
     org.apache.iceberg.flink.TestHelpers.assertRecords(
         results, expectedRecords, TestFixtures.SCHEMA);
 
     // test table api
-    tableConf.setBoolean(
-        FlinkConfigOptions.TABLE_EXEC_ICEBERG_EXPOSE_SPLIT_LOCALITY_INFO.key(), true);
+    tableConf.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_EXPOSE_SPLIT_LOCALITY_INFO, true);
     FlinkSource.Builder builder = FlinkSource.forRowData().tableLoader(tableLoader).table(table);
 
     // When running with CI or local, `localityEnabled` will be false even if this configuration is
