@@ -153,8 +153,7 @@ public class TestVariantWriters {
             .collect(Collectors.toList());
 
     List<Record> actual =
-        writeAndRead(
-            (id, name) -> ParquetVariantUtil.toParquetSchema(variant.value()), expected);
+        writeAndRead((id, name) -> ParquetVariantUtil.toParquetSchema(variant.value()), expected);
 
     assertThat(actual.size()).isEqualTo(expected.size());
 
