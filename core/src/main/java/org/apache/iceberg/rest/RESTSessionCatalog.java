@@ -817,7 +817,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     /**
      * Get table properties that are enforced at Catalog level through catalog properties.
      *
-     * @return default table properties enforced through catalog properties
+     * @return overriding table properties enforced through catalog properties
      */
     private Map<String, String> tableOverrideProperties() {
       Map<String, String> tableOverrideProperties =
