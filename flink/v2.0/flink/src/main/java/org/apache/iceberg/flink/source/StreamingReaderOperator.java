@@ -26,7 +26,7 @@ import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.runtime.state.JavaSerializer;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.runtime.state.StateSnapshotContext;
-import org.apache.flink.streaming.api.functions.source.SourceFunction;
+import org.apache.flink.streaming.api.functions.source.legacy.SourceFunction;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperatorFactory;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
@@ -34,7 +34,7 @@ import org.apache.flink.streaming.api.operators.OneInputStreamOperatorFactory;
 import org.apache.flink.streaming.api.operators.StreamOperator;
 import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
 import org.apache.flink.streaming.api.operators.StreamSourceContexts;
-import org.apache.flink.streaming.api.operators.YieldingOperatorFactory;
+import org.apache.flink.streaming.api.operators.legacy.YieldingOperatorFactory;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
@@ -82,7 +82,11 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
   private transient SplitState currentSplitState;
 
   private StreamingReaderOperator(
-      FlinkInputFormat format, ProcessingTimeService timeService, MailboxExecutor mailboxExecutor) {
+      StreamOperatorParameters<RowData> parameters,
+      FlinkInputFormat format,
+      ProcessingTimeService timeService,
+      MailboxExecutor mailboxExecutor) {
+    super(parameters);
     this.format = Preconditions.checkNotNull(format, "The InputFormat should not be null.");
     this.processingTimeService = timeService;
     this.executor =
@@ -106,7 +110,7 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
     // Recover splits state from flink state backend if possible.
     splits = Lists.newLinkedList();
     if (context.isRestored()) {
-      int subtaskIdx = getRuntimeContext().getIndexOfThisSubtask();
+      int subtaskIdx = getRuntimeContext().getTaskInfo().getIndexOfThisSubtask();
       LOG.info("Restoring state for the {} (taskIdx: {}).", getClass().getSimpleName(), subtaskIdx);
 
       for (FlinkInputSplit split : inputSplitsState.get()) {
@@ -116,11 +120,10 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
 
     this.sourceContext =
         StreamSourceContexts.getSourceContext(
-            getOperatorConfig().getTimeCharacteristic(),
             getProcessingTimeService(),
             new Object(), // no actual locking needed
             output,
-            getRuntimeContext().getExecutionConfig().getAutoWatermarkInterval(),
+            getExecutionConfig().getAutoWatermarkInterval(),
             -1,
             true);
 
@@ -232,9 +235,7 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
     public <O extends StreamOperator<RowData>> O createStreamOperator(
         StreamOperatorParameters<RowData> parameters) {
       StreamingReaderOperator operator =
-          new StreamingReaderOperator(format, processingTimeService, mailboxExecutor);
-      operator.setup(
-          parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
+          new StreamingReaderOperator(parameters, format, processingTimeService, mailboxExecutor);
       return (O) operator;
     }
 

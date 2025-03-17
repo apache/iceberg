@@ -37,6 +37,7 @@ import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
+import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
 import org.apache.iceberg.AppendFiles;
@@ -124,12 +125,14 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private transient ExecutorService workerPool;
 
   IcebergFilesCommitter(
+      StreamOperatorParameters<Void> parameters,
       TableLoader tableLoader,
       boolean replacePartitions,
       Map<String, String> snapshotProperties,
       Integer workerPoolSize,
       String branch,
       PartitionSpec spec) {
+    super(parameters);
     this.tableLoader = tableLoader;
     this.replacePartitions = replacePartitions;
     this.snapshotProperties = snapshotProperties;
@@ -154,8 +157,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     Preconditions.checkArgument(
         maxContinuousEmptyCommits > 0, MAX_CONTINUOUS_EMPTY_COMMITS + " must be positive");
 
-    int subTaskId = getRuntimeContext().getIndexOfThisSubtask();
-    int attemptId = getRuntimeContext().getAttemptNumber();
+    int subTaskId = getRuntimeContext().getTaskInfo().getIndexOfThisSubtask();
+    int attemptId = getRuntimeContext().getTaskInfo().getAttemptNumber();
     this.manifestOutputFileFactory =
         FlinkManifestUtil.createOutputFileFactory(
             () -> table, table.properties(), flinkJobId, operatorUniqueId, subTaskId, attemptId);

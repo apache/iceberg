@@ -30,7 +30,7 @@ import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Map;
-import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.api.common.serialization.SerializerConfigImpl;
 import org.apache.flink.api.java.typeutils.runtime.kryo.KryoSerializer;
 import org.apache.flink.core.memory.DataInputDeserializer;
 import org.apache.flink.core.memory.DataOutputSerializer;
@@ -155,7 +155,8 @@ public class TestDataFileSerialization {
 
   @Test
   public void testDataFileKryoSerialization() throws IOException {
-    KryoSerializer<DataFile> kryo = new KryoSerializer<>(DataFile.class, new ExecutionConfig());
+    KryoSerializer<DataFile> kryo =
+        new KryoSerializer<>(DataFile.class, new SerializerConfigImpl());
 
     DataOutputSerializer outputView = new DataOutputSerializer(1024);
 
@@ -172,7 +173,8 @@ public class TestDataFileSerialization {
 
   @Test
   public void testDeleteFileKryoSerialization() throws IOException {
-    KryoSerializer<DeleteFile> kryo = new KryoSerializer<>(DeleteFile.class, new ExecutionConfig());
+    KryoSerializer<DeleteFile> kryo =
+        new KryoSerializer<>(DeleteFile.class, new SerializerConfigImpl());
 
     DataOutputSerializer outputView = new DataOutputSerializer(1024);
 

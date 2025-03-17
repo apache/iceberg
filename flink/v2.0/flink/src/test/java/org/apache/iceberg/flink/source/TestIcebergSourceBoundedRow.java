@@ -21,7 +21,7 @@ package org.apache.iceberg.flink.source;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Schema;

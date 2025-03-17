@@ -367,8 +367,7 @@ class TestIcebergCommitter extends TestBase {
       SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1), branch);
       SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output.get(0)))
           .hasFailedCommittables(committableSummary.getNumberOfFailedCommittables())
-          .hasOverallCommittables(committableSummary.getNumberOfCommittables())
-          .hasPendingCommittables(0);
+          .hasOverallCommittables(committableSummary.getNumberOfCommittables());
 
       SinkV2Assertions.assertThat(extractAndAssertCommittableWithLineage(output.get(1)))
           .hasSubtaskId(0)
@@ -427,8 +426,7 @@ class TestIcebergCommitter extends TestBase {
 
       SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output.get(0)))
           .hasFailedCommittables(committableSummary.getNumberOfFailedCommittables())
-          .hasOverallCommittables(committableSummary.getNumberOfCommittables())
-          .hasPendingCommittables(0);
+          .hasOverallCommittables(committableSummary.getNumberOfCommittables());
 
       SinkV2Assertions.assertThat(extractAndAssertCommittableWithLineage(output.get(1)))
           .hasCheckpointId(0L)
@@ -453,8 +451,7 @@ class TestIcebergCommitter extends TestBase {
       List<StreamElement> output2 = transformsToStreamElement(restored.getOutput());
       SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output2.get(0)))
           .hasFailedCommittables(committableSummary2.getNumberOfFailedCommittables())
-          .hasOverallCommittables(committableSummary2.getNumberOfCommittables())
-          .hasPendingCommittables(0);
+          .hasOverallCommittables(committableSummary2.getNumberOfCommittables());
 
       SinkV2Assertions.assertThat(extractAndAssertCommittableWithLineage(output2.get(1)))
           .hasCheckpointId(0L)
@@ -503,8 +500,7 @@ class TestIcebergCommitter extends TestBase {
 
       SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output.get(0)))
           .hasFailedCommittables(committableSummary.getNumberOfFailedCommittables())
-          .hasOverallCommittables(committableSummary.getNumberOfCommittables())
-          .hasPendingCommittables(0);
+          .hasOverallCommittables(committableSummary.getNumberOfCommittables());
 
       assertSnapshotSize(1);
       assertMaxCommittedCheckpointId(jobId1, checkpointId);
@@ -549,8 +545,7 @@ class TestIcebergCommitter extends TestBase {
       assertThat(output3).hasSize(4);
       SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output3.get(0)))
           .hasFailedCommittables(committableSummary2.getNumberOfFailedCommittables())
-          .hasOverallCommittables(committableSummary2.getNumberOfCommittables())
-          .hasPendingCommittables(0);
+          .hasOverallCommittables(committableSummary2.getNumberOfCommittables());
     }
 
     assertSnapshotSize(2);
@@ -609,8 +604,7 @@ class TestIcebergCommitter extends TestBase {
 
       SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output.get(0)))
           .hasFailedCommittables(committableSummary.getNumberOfFailedCommittables())
-          .hasOverallCommittables(committableSummary.getNumberOfCommittables())
-          .hasPendingCommittables(0);
+          .hasOverallCommittables(committableSummary.getNumberOfCommittables());
 
       table.refresh();
       Snapshot currentSnapshot = table.snapshot(branch);
@@ -631,8 +625,7 @@ class TestIcebergCommitter extends TestBase {
       List<StreamElement> output2 = transformsToStreamElement(restored.getOutput());
       SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output2.get(0)))
           .hasFailedCommittables(committableSummary2.getNumberOfFailedCommittables())
-          .hasOverallCommittables(committableSummary2.getNumberOfCommittables())
-          .hasPendingCommittables(0);
+          .hasOverallCommittables(committableSummary2.getNumberOfCommittables());
       restored.close();
 
       assertSnapshotSize(2);
@@ -716,6 +709,7 @@ class TestIcebergCommitter extends TestBase {
 
       snapshot = harness.snapshot(++checkpointId, ++timestamp);
       assertFlinkManifests(1);
+      harness.notifyOfCompletedCheckpoint(checkpointId);
     }
 
     // Redeploying flink job from external checkpoint.
@@ -1062,7 +1056,6 @@ class TestIcebergCommitter extends TestBase {
 
       SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output.get(0)))
           .hasCheckpointId(checkpointId)
-          .hasPendingCommittables(0)
           .hasOverallCommittables(1)
           .hasFailedCommittables(0);
 
@@ -1101,7 +1094,6 @@ class TestIcebergCommitter extends TestBase {
       assertThat(output).hasSize(2);
       SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output.get(0)))
           .hasCheckpointId(checkpointId)
-          .hasPendingCommittables(0)
           .hasOverallCommittables(1)
           .hasFailedCommittables(0);
       SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1), branch);
@@ -1126,7 +1118,6 @@ class TestIcebergCommitter extends TestBase {
       assertThat(output2).hasSize(2 + 2);
       SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output2.get(2)))
           .hasCheckpointId(checkpointId)
-          .hasPendingCommittables(0)
           .hasOverallCommittables(1)
           .hasFailedCommittables(0);
 
@@ -1158,7 +1149,6 @@ class TestIcebergCommitter extends TestBase {
       assertThat(output3).hasSize(2 + 2 + 2);
       SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output3.get(4)))
           .hasCheckpointId(checkpointId)
-          .hasPendingCommittables(0)
           .hasOverallCommittables(1)
           .hasFailedCommittables(0);
     }

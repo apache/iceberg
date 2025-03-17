@@ -34,7 +34,7 @@ import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericData;
-import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.api.common.serialization.SerializerConfigImpl;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.typeutils.runtime.kryo.KryoSerializer;
 import org.apache.flink.core.memory.DataInputDeserializer;
@@ -74,7 +74,7 @@ public class TestHelpers {
   private TestHelpers() {}
 
   public static <T> T roundTripKryoSerialize(Class<T> clazz, T table) throws IOException {
-    KryoSerializer<T> kryo = new KryoSerializer<>(clazz, new ExecutionConfig());
+    KryoSerializer<T> kryo = new KryoSerializer<>(clazz, new SerializerConfigImpl());
 
     DataOutputSerializer outputView = new DataOutputSerializer(1024);
     kryo.serialize(table, outputView);

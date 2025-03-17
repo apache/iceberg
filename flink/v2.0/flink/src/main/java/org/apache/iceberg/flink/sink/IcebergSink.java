@@ -41,6 +41,7 @@ import org.apache.flink.api.connector.sink2.CommitterInitContext;
 import org.apache.flink.api.connector.sink2.Sink;
 import org.apache.flink.api.connector.sink2.SinkWriter;
 import org.apache.flink.api.connector.sink2.SupportsCommitter;
+import org.apache.flink.api.connector.sink2.WriterInitContext;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
@@ -52,9 +53,9 @@ import org.apache.flink.streaming.api.connector.sink2.SupportsPreWriteTopology;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
-import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
+import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
@@ -180,7 +181,7 @@ public class IcebergSink
   }
 
   @Override
-  public SinkWriter<RowData> createWriter(InitContext context) {
+  public SinkWriter<RowData> createWriter(WriterInitContext context) {
     RowDataTaskWriterFactory taskWriterFactory =
         new RowDataTaskWriterFactory(
             tableSupplier,
@@ -196,8 +197,8 @@ public class IcebergSink
         tableSupplier.get().name(),
         taskWriterFactory,
         metrics,
-        context.getSubtaskId(),
-        context.getAttemptNumber());
+        context.getTaskInfo().getIndexOfThisSubtask(),
+        context.getTaskInfo().getAttemptNumber());
   }
 
   @Override

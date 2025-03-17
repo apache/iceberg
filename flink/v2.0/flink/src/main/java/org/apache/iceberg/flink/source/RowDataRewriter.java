@@ -24,8 +24,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.functions.RichMapFunction;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
@@ -125,9 +125,9 @@ public class RowDataRewriter {
     }
 
     @Override
-    public void open(Configuration parameters) {
-      this.subTaskId = getRuntimeContext().getIndexOfThisSubtask();
-      this.attemptId = getRuntimeContext().getAttemptNumber();
+    public void open(OpenContext parameters) {
+      this.subTaskId = getRuntimeContext().getTaskInfo().getIndexOfThisSubtask();
+      this.attemptId = getRuntimeContext().getTaskInfo().getAttemptNumber();
       // Initialize the task writer factory.
       this.taskWriterFactory.initialize(subTaskId, attemptId);
     }

@@ -16,21 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.apache.flink.table.api.runtime.types;
 
-def flinkVersions = (System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : System.getProperty("defaultFlinkVersions")).split(",")
-
-if (flinkVersions.contains("1.18")) {
-  apply from: file("$projectDir/v1.18/build.gradle")
-}
-
-if (flinkVersions.contains("1.19")) {
-  apply from: file("$projectDir/v1.19/build.gradle")
-}
-
-if (flinkVersions.contains("1.20")) {
-  apply from: file("$projectDir/v1.20/build.gradle")
-}
-
-if (flinkVersions.contains("2.0")) {
-  apply from: file("$projectDir/v2.0/build.gradle")
-}
+/**
+ * Override Flink's internal FlinkScalaKryoInstantiator to avoid loading the Scala extensions for
+ * the KryoSerializer. This is a workaround until Kryo-related issues with the Scala extensions are
+ * fixed. See: https://issues.apache.org/jira/browse/FLINK-37546
+ */
+public class FlinkScalaKryoInstantiator {}

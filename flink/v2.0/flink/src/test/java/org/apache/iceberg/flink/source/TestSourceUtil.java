@@ -44,7 +44,7 @@ public class TestSourceUtil {
     assertThat(parallelism).isEqualTo(1);
 
     // 2 splits and max infer parallelism is 1 (max < splits num), the parallelism is  1
-    configuration.setInteger(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX, 1);
+    configuration.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX, 1);
     parallelism = SourceUtil.inferParallelism(configuration, -1L, () -> 2);
     assertThat(parallelism).isEqualTo(1);
 
@@ -54,7 +54,7 @@ public class TestSourceUtil {
     assertThat(parallelism).isEqualTo(1);
 
     // 2 splits, infer parallelism is disabled, the parallelism is flink default parallelism 1
-    configuration.setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
+    configuration.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
     parallelism = SourceUtil.inferParallelism(configuration, 3, () -> 2);
     assertThat(parallelism).isEqualTo(1);
   }

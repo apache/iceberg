@@ -31,8 +31,6 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Expressions;
-import org.apache.flink.table.api.TableColumn;
-import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.expressions.ApiExpressionUtils;
 import org.apache.flink.table.expressions.CallExpression;
 import org.apache.flink.table.expressions.Expression;
@@ -43,6 +41,8 @@ import org.apache.flink.table.expressions.UnresolvedReferenceExpression;
 import org.apache.flink.table.expressions.ValueLiteralExpression;
 import org.apache.flink.table.expressions.utils.ApiExpressionDefaultVisitor;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
+import org.apache.flink.table.legacy.api.TableColumn;
+import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.iceberg.expressions.And;
 import org.apache.iceberg.expressions.BoundLiteralPredicate;
 import org.apache.iceberg.expressions.Not;
@@ -427,8 +427,13 @@ public class TestFlinkFilters {
                 unresolvedCall.getChildren().stream()
                     .map(e -> (ResolvedExpression) e.accept(this))
                     .collect(Collectors.toList());
+            // TODO mxm false?
             return new CallExpression(
-                unresolvedCall.getFunctionDefinition(), children, DataTypes.STRING());
+                false,
+                unresolvedCall.getFunctionIdentifier().orElse(null),
+                unresolvedCall.getFunctionDefinition(),
+                children,
+                DataTypes.STRING());
           }
 
           @Override

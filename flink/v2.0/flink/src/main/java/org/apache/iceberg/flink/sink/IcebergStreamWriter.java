@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
-import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.iceberg.io.TaskWriter;
@@ -46,13 +45,12 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<FlinkWriteResult>
   IcebergStreamWriter(String fullTableName, TaskWriterFactory<T> taskWriterFactory) {
     this.fullTableName = fullTableName;
     this.taskWriterFactory = taskWriterFactory;
-    setChainingStrategy(ChainingStrategy.ALWAYS);
   }
 
   @Override
   public void open() {
-    this.subTaskId = getRuntimeContext().getIndexOfThisSubtask();
-    this.attemptId = getRuntimeContext().getAttemptNumber();
+    this.subTaskId = getRuntimeContext().getTaskInfo().getIndexOfThisSubtask();
+    this.attemptId = getRuntimeContext().getTaskInfo().getAttemptNumber();
     this.writerMetrics = new IcebergStreamWriterMetrics(super.metrics, fullTableName);
 
     // Initialize the task writer factory.

@@ -22,8 +22,8 @@ import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.typeinfo.Types;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
@@ -69,7 +69,7 @@ public class ExpireSnapshotsProcessor extends ProcessFunction<Trigger, TaskResul
   }
 
   @Override
-  public void open(Configuration parameters) throws Exception {
+  public void open(OpenContext parameters) throws Exception {
     tableLoader.open();
     this.table = tableLoader.loadTable();
     this.plannerPool =
