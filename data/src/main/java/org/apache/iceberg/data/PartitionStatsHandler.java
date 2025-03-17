@@ -63,27 +63,27 @@ public class PartitionStatsHandler {
 
   public static final int PARTITION_FIELD_ID = 0;
   public static final String PARTITION_FIELD_NAME = "partition";
-  public static final NestedField SPEC_ID = NestedField.required(1, "SPEC_ID", IntegerType.get());
+  public static final NestedField SPEC_ID = NestedField.required(1, "spec_id", IntegerType.get());
   public static final NestedField DATA_RECORD_COUNT =
-      NestedField.required(2, "DATA_RECORD_COUNT", LongType.get());
+      NestedField.required(2, "data_record_count", LongType.get());
   public static final NestedField DATA_FILE_COUNT =
-      NestedField.required(3, "DATA_FILE_COUNT", IntegerType.get());
+      NestedField.required(3, "data_file_count", IntegerType.get());
   public static final NestedField TOTAL_DATA_FILE_SIZE_IN_BYTES =
-      NestedField.required(4, "TOTAL_DATA_FILE_SIZE_IN_BYTES", LongType.get());
+      NestedField.required(4, "total_data_file_size_in_bytes", LongType.get());
   public static final NestedField POSITION_DELETE_RECORD_COUNT =
-      NestedField.optional(5, "POSITION_DELETE_RECORD_COUNT", LongType.get());
+      NestedField.optional(5, "position_delete_record_count", LongType.get());
   public static final NestedField POSITION_DELETE_FILE_COUNT =
-      NestedField.optional(6, "POSITION_DELETE_FILE_COUNT", IntegerType.get());
+      NestedField.optional(6, "position_delete_file_count", IntegerType.get());
   public static final NestedField EQUALITY_DELETE_RECORD_COUNT =
-      NestedField.optional(7, "EQUALITY_DELETE_RECORD_COUNT", LongType.get());
+      NestedField.optional(7, "equality_delete_record_count", LongType.get());
   public static final NestedField EQUALITY_DELETE_FILE_COUNT =
-      NestedField.optional(8, "EQUALITY_DELETE_FILE_COUNT", IntegerType.get());
+      NestedField.optional(8, "equality_delete_file_count", IntegerType.get());
   public static final NestedField TOTAL_RECORD_COUNT =
-      NestedField.optional(9, "TOTAL_RECORD_COUNT", LongType.get());
+      NestedField.optional(9, "total_record_count", LongType.get());
   public static final NestedField LAST_UPDATED_AT =
-      NestedField.optional(10, "LAST_UPDATED_AT", LongType.get());
+      NestedField.optional(10, "last_updated_at", LongType.get());
   public static final NestedField LAST_UPDATED_SNAPSHOT_ID =
-      NestedField.optional(11, "LAST_UPDATED_SNAPSHOT_ID", LongType.get());
+      NestedField.optional(11, "last_updated_snapshot_id", LongType.get());
 
   /**
    * Generates the partition stats file schema based on a combined partition type which considers
