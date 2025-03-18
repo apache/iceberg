@@ -322,15 +322,10 @@ public class HTTPClient extends BaseHTTPClient {
 
   @Override
   public void close() throws IOException {
-    try {
-      if (authSession != null) {
-        authSession.close();
-      }
-    } finally {
-      if (isRootClient) {
-        // Only close the underlying Apache HTTP client if this is a root HTTPClient.
-        httpClient.close(CloseMode.GRACEFUL);
-      }
+    // Do not close the AuthSession as it's managed by the owner of this HTTPClient.
+    // Only close the underlying Apache HTTP client if this is a root HTTPClient.
+    if (isRootClient) {
+      httpClient.close(CloseMode.GRACEFUL);
     }
   }
 

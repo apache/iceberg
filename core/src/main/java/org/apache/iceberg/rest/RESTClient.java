@@ -163,8 +163,14 @@ public interface RESTClient extends Closeable {
   /**
    * Returns a REST client that authenticates requests using the given session.
    *
-   * <p>If the returned client shares any state with this client, then closing the returned client
-   * should not affect this client.
+   * <p>Implementation requirements:
+   *
+   * <ul>
+   *   <li>Closing the returned client SHOULD NOT affect this client: if they share common
+   *       resources, the resources SHOULD NOT be closed until the parent client is closed.
+   *   <li>Closing the returned client SHOULD NOT close the given AuthSession: this is the
+   *       responsibility of this method's caller.
+   * </ul>
    */
   default RESTClient withAuthSession(AuthSession session) {
     return this;

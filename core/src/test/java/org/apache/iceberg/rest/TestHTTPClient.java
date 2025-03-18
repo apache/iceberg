@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.description;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -332,7 +331,9 @@ public class TestHTTPClient {
       assertThat(child).isNotNull().isNotSameAs(restClient);
     }
 
-    verify(authSession, description("Child RESTClient should have closed its own AuthSession"))
+    verify(
+            authSession,
+            never().description("Child RESTClient should not close its own AuthSession"))
         .close();
     assertThatCode(() -> testHttpMethodOnSuccess(HttpMethod.POST))
         .as("Parent RESTClient should still be operational after child is closed")
