@@ -93,7 +93,7 @@ Hive 4 comes with `hive-iceberg` that ships Iceberg, so no additional downloads 
 
 ### Hive 4.0.x
 
-Hive 4.0.x comes with the Iceberg 1.4.3 included.
+Hive 4.0.x comes with Iceberg 1.4.3 included.
 
 ### Hive 2.3.x, Hive 3.1.x
 
