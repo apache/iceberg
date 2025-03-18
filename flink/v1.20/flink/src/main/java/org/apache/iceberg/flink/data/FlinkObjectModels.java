@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.data;
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
 
 import org.apache.flink.table.data.StringData;
-import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.avro.Avro;
@@ -52,35 +51,33 @@ public class FlinkObjectModels {
         FileFormat.AVRO,
         FLINK_OBJECT_MODEL,
         outputFile ->
-            Avro.write(outputFile)
-                .writerFunction((unused, rowType) -> new FlinkAvroWriter((RowType) rowType))
+            Avro.<RowType>appender(outputFile)
+                .writerFunction((unused, rowType) -> new FlinkAvroWriter(rowType))
                 .deleteRowWriterFunction(
                     (unused, rowType) ->
                         new FlinkAvroWriter(
                             (RowType)
-                                ((RowType) rowType)
-                                    .getTypeAt(
-                                        ((RowType) rowType)
-                                            .getFieldIndex(DELETE_FILE_ROW_FIELD_NAME)))));
+                                rowType.getTypeAt(
+                                    rowType.getFieldIndex(DELETE_FILE_ROW_FIELD_NAME)))));
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.PARQUET,
         FLINK_OBJECT_MODEL,
         outputFile ->
-            Parquet.write(outputFile)
+            Parquet.<RowType>appender(outputFile)
                 .writerFunction(
                     (engineType, icebergSchema, messageType) ->
-                        FlinkParquetWriters.buildWriter((LogicalType) engineType, messageType))
+                        FlinkParquetWriters.buildWriter(engineType, messageType))
                 .pathTransformFunc(path -> StringData.fromString(path.toString())));
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.ORC,
         FLINK_OBJECT_MODEL,
         outputFile ->
-            ORC.write(outputFile)
+            ORC.<RowType>appender(outputFile)
                 .writerFunction(
                     (schema, messageType, nativeSchema) ->
-                        FlinkOrcWriter.buildWriter((RowType) nativeSchema, schema))
+                        FlinkOrcWriter.buildWriter(nativeSchema, schema))
                 .pathTransformFunc(path -> StringData.fromString(path.toString())));
   }
 

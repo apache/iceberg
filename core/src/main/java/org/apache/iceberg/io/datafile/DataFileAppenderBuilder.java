@@ -104,7 +104,7 @@ public interface DataFileAppenderBuilder<B extends DataFileAppenderBuilder<B, E>
    * Sets the engine native schema for the appender. Used to identify the engine specific input type
    * when there is N to 1 mapping between the engine type and the Iceberg type.
    */
-  E engineSchema(E newEngineSchema);
+  B engineSchema(E newEngineSchema);
 
   /**
    * Builds the {@link FileAppender} for the configured {@link WriteMode}. Could change several

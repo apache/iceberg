@@ -59,6 +59,7 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
@@ -105,12 +106,13 @@ public class Avro {
         FileFormat.AVRO,
         DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL,
         outputFile ->
-            Avro.write(outputFile)
+            Avro.appender(outputFile)
                 .writerFunction(
                     (avroSchema, unused) ->
                         org.apache.iceberg.data.avro.DataWriter.create(avroSchema)));
   }
 
+  @Deprecated
   public static WriteBuilder write(OutputFile file) {
     if (file instanceof EncryptedOutputFile) {
       return write((EncryptedOutputFile) file);
@@ -119,125 +121,148 @@ public class Avro {
     return new WriteBuilder(file);
   }
 
+  @Deprecated
   public static WriteBuilder write(EncryptedOutputFile file) {
     return new WriteBuilder(file.encryptingOutputFile());
   }
 
-  public static class WriteBuilder
-      implements InternalData.WriteBuilder, DataFileAppenderBuilder<WriteBuilder, Object> {
+  public static <E> AppenderBuilder<E> appender(EncryptedOutputFile file) {
+    Preconditions.checkState(
+        !(file instanceof NativeEncryptionOutputFile), "Native Avro encryption is not supported");
+    return new AppenderBuilder<>(file.encryptingOutputFile());
+  }
+
+  public static <E> AppenderBuilder<E> appender(OutputFile file) {
+    return new AppenderBuilder<>(file);
+  }
+
+  @Deprecated
+  public static class WriteBuilder extends AppenderBuilderInternal<WriteBuilder, Object> {
+    private WriteBuilder(OutputFile file) {
+      super(file);
+    }
+  }
+
+  public static class AppenderBuilder<E> extends AppenderBuilderInternal<AppenderBuilder<E>, E> {
+    private AppenderBuilder(OutputFile file) {
+      super(file);
+    }
+  }
+
+  /** Will be removed when the {@link WriteBuilder} is removed. */
+  static class AppenderBuilderInternal<B extends AppenderBuilderInternal<B, E>, E>
+      implements InternalData.WriteBuilder, DataFileAppenderBuilder<B, E> {
     private final OutputFile file;
     private final Map<String, String> config = Maps.newHashMap();
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
     private org.apache.iceberg.Schema schema = null;
     private String name = "table";
     private Function<Schema, DatumWriter<?>> createWriterFunc = null;
-    private BiFunction<Schema, Object, DatumWriter<?>> writerFunction = null;
-    private BiFunction<Schema, Object, DatumWriter<?>> deleteRowWriterFunction = null;
+    private BiFunction<Schema, E, DatumWriter<?>> writerFunction = null;
+    private BiFunction<Schema, E, DatumWriter<?>> deleteRowWriterFunction = null;
     private boolean overwrite;
     private MetricsConfig metricsConfig;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
-    private Object engineSchema;
+    private E engineSchema;
 
-    private WriteBuilder(OutputFile file) {
+    private AppenderBuilderInternal(OutputFile file) {
       this.file = file;
     }
 
     @Deprecated
-    public WriteBuilder forTable(Table table) {
+    public B forTable(Table table) {
       schema(table.schema());
       setAll(table.properties());
       metricsConfig(MetricsConfig.forTable(table));
-      return this;
+      return (B) this;
     }
 
     @Override
-    public WriteBuilder schema(org.apache.iceberg.Schema newSchema) {
+    public B schema(org.apache.iceberg.Schema newSchema) {
       this.schema = newSchema;
-      return this;
+      return (B) this;
     }
 
     @Override
-    public WriteBuilder named(String newName) {
+    public B named(String newName) {
       this.name = newName;
-      return this;
+      return (B) this;
     }
 
-    public WriteBuilder createWriterFunc(Function<Schema, DatumWriter<?>> newWriterFunction) {
+    public B createWriterFunc(Function<Schema, DatumWriter<?>> newWriterFunction) {
       Preconditions.checkState(
           writerFunction == null && deleteRowWriterFunction == null,
           "Cannot set multiple writer builder functions");
       this.createWriterFunc = newWriterFunction;
-      return this;
+      return (B) this;
     }
 
-    public WriteBuilder writerFunction(
-        BiFunction<Schema, Object, DatumWriter<?>> newWriterFunction) {
+    public B writerFunction(BiFunction<Schema, E, DatumWriter<?>> newWriterFunction) {
       Preconditions.checkState(
           createWriterFunc == null, "Cannot set multiple writer builder functions");
       this.writerFunction = newWriterFunction;
-      return this;
+      return (B) this;
     }
 
-    public WriteBuilder deleteRowWriterFunction(
-        BiFunction<Schema, Object, DatumWriter<?>> newWriterFunction) {
+    public B deleteRowWriterFunction(BiFunction<Schema, E, DatumWriter<?>> newWriterFunction) {
       Preconditions.checkState(
           createWriterFunc == null, "Cannot set multiple writer builder functions");
       this.deleteRowWriterFunction = newWriterFunction;
-      return this;
+      return (B) this;
     }
 
     @Override
-    public WriteBuilder set(String property, String value) {
+    public B set(String property, String value) {
       config.put(property, value);
-      return this;
+      return (B) this;
     }
 
     @Deprecated
-    public WriteBuilder setAll(Map<String, String> properties) {
+    public B setAll(Map<String, String> properties) {
       config.putAll(properties);
-      return this;
+      return (B) this;
     }
 
     @Override
-    public WriteBuilder meta(String property, String value) {
+    public B meta(String property, String value) {
       metadata.put(property, value);
-      return this;
+      return (B) this;
     }
 
     @Override
-    public WriteBuilder meta(Map<String, String> properties) {
+    public B meta(Map<String, String> properties) {
       metadata.putAll(properties);
-      return this;
+      return (B) this;
     }
 
     @Override
-    public WriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
+    public B metricsConfig(MetricsConfig newMetricsConfig) {
       this.metricsConfig = newMetricsConfig;
-      return this;
+      return (B) this;
     }
 
     @Override
-    public WriteBuilder overwrite() {
+    public B overwrite() {
       return overwrite(true);
     }
 
     @Override
-    public WriteBuilder overwrite(boolean enabled) {
+    public B overwrite(boolean enabled) {
       this.overwrite = enabled;
-      return this;
+      return (B) this;
     }
 
     // supposed to always be a private method used strictly by data and delete write builders
-    private WriteBuilder createContextFunc(
-        Function<Map<String, String>, Context> newCreateContextFunc) {
+    // protected because of inheritance until deprecation of the WriteBuilder
+    B createContextFunc(Function<Map<String, String>, Context> newCreateContextFunc) {
       this.createContextFunc = newCreateContextFunc;
-      return this;
+      return (B) this;
     }
 
     @Override
-    public WriteBuilder engineSchema(Object newEngineSchema) {
+    public B engineSchema(E newEngineSchema) {
       this.engineSchema = newEngineSchema;
-      return this;
+      return (B) this;
     }
 
     @Override
@@ -307,7 +332,7 @@ public class Avro {
           overwrite);
     }
 
-    private static class Context {
+    static class Context {
       private final CodecFactory codec;
 
       private Context(CodecFactory codec) {

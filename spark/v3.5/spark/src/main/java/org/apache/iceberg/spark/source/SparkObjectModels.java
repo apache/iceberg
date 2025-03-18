@@ -66,28 +66,16 @@ public class SparkObjectModels {
         SPARK_VECTORIZED_OBJECT_MODEL,
         ParquetReaderType.ICEBERG.name(),
         inputFile ->
-            Parquet.read(inputFile)
-                .batchReaderFunction(
-                    (schema, messageType, idToConstant, deleteFilter) ->
-                        VectorizedSparkParquetReaders.buildReader(
-                            schema,
-                            messageType,
-                            idToConstant,
-                            (DeleteFilter<InternalRow>) deleteFilter)));
+            Parquet.<DeleteFilter<InternalRow>>readWithFilter(inputFile)
+                .batchReaderFunction(VectorizedSparkParquetReaders::buildReader));
 
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.PARQUET,
         SPARK_VECTORIZED_OBJECT_MODEL,
         ParquetReaderType.COMET.name(),
         inputFile ->
-            Parquet.read(inputFile)
-                .batchReaderFunction(
-                    (schema, messageType, idToConstant, deleteFilter) ->
-                        VectorizedSparkParquetReaders.buildCometReader(
-                            schema,
-                            messageType,
-                            idToConstant,
-                            (DeleteFilter<InternalRow>) deleteFilter)));
+            Parquet.<DeleteFilter<InternalRow>>readWithFilter(inputFile)
+                .batchReaderFunction(VectorizedSparkParquetReaders::buildCometReader));
 
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.ORC,
@@ -99,32 +87,29 @@ public class SparkObjectModels {
         FileFormat.AVRO,
         SPARK_OBJECT_MODEL,
         outputFile ->
-            Avro.write(outputFile)
-                .writerFunction(
-                    (schema, engineSchema) -> new SparkAvroWriter((StructType) engineSchema))
+            Avro.<StructType>appender(outputFile)
+                .writerFunction((schema, engineSchema) -> new SparkAvroWriter(engineSchema))
                 .deleteRowWriterFunction(
                     (schema, engineSchema) ->
                         new SparkAvroWriter(
                             (StructType)
-                                ((StructType) engineSchema)
-                                    .apply(DELETE_FILE_ROW_FIELD_NAME)
-                                    .dataType())));
+                                engineSchema.apply(DELETE_FILE_ROW_FIELD_NAME).dataType())));
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.PARQUET,
         SPARK_OBJECT_MODEL,
         outputFile ->
-            Parquet.write(outputFile)
+            Parquet.<StructType>appender(outputFile)
                 .writerFunction(
                     (engineSchema, icebergSchema, messageType) ->
-                        SparkParquetWriters.buildWriter((StructType) engineSchema, messageType))
+                        SparkParquetWriters.buildWriter(engineSchema, messageType))
                 .pathTransformFunc(path -> UTF8String.fromString(path.toString())));
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.ORC,
         SPARK_OBJECT_MODEL,
         outputFile ->
-            ORC.write(outputFile)
+            ORC.appender(outputFile)
                 .writerFunction(
                     (schema, messageType, engineSchema) -> new SparkOrcWriter(schema, messageType))
                 .pathTransformFunc(path -> UTF8String.fromString(path.toString())));
