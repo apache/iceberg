@@ -331,6 +331,7 @@ public class TestHTTPClient {
     try (RESTClient child = restClient.withAuthSession(authSession)) {
       assertThat(child).isNotNull().isNotSameAs(restClient);
     }
+
     verify(authSession, description("Child RESTClient should have closed its own AuthSession"))
         .close();
     assertThatCode(() -> testHttpMethodOnSuccess(HttpMethod.POST))
