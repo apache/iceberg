@@ -74,9 +74,7 @@ public class TestTryUtil {
             });
 
     assertThat(result.isFailure()).isTrue();
-    assertThatThrownBy(result::get)
-        .isInstanceOf(Exception.class)
-        .hasMessage("checked exception");
+    assertThatThrownBy(result::get).isInstanceOf(Exception.class).hasMessage("checked exception");
   }
 
   @Test
