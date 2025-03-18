@@ -24,6 +24,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /** Builder for generating a reader for the Iceberg data file. */
 public class ReadBuilder {
@@ -154,6 +156,22 @@ public class ReadBuilder {
   public ReadBuilder withAADPrefix(ByteBuffer aadPrefix) {
     readBuilder.withAADPrefix(aadPrefix);
     return this;
+  }
+
+  /** Checks if the reader supports delete filter. */
+  public boolean supportsDeleteFilter() {
+    return readBuilder instanceof Parquet.SupportsDeleteFilter;
+  }
+
+  /**
+   * Sets the delete filter for the reader. The delete filter is used to filter out deleted rows. It
+   * should be checked if the readers actually supports delete filtering with {@link
+   * #supportsDeleteFilter()} before the filter is set.
+   */
+  @SuppressWarnings("unchecked")
+  public <F> void deleteFilter(DeleteFilter<F> deleteFilter) {
+    Preconditions.checkArgument(supportsDeleteFilter(), "Reader does not support delete filter");
+    ((Parquet.SupportsDeleteFilter<DeleteFilter<F>>) readBuilder).deleteFilter(deleteFilter);
   }
 
   /** Builds the reader. */

@@ -29,7 +29,6 @@ import org.apache.iceberg.data.ReadBuilder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
@@ -86,8 +85,8 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       readBuilder = readBuilder.recordsPerBatch(orcConf.batchSize());
     }
 
-    if (readBuilder instanceof Parquet.SupportsDeleteFilter<?>) {
-      ((Parquet.SupportsDeleteFilter<SparkDeleteFilter>) readBuilder).deleteFilter(deleteFilter);
+    if (readBuilder.supportsDeleteFilter()) {
+      readBuilder.deleteFilter(deleteFilter);
     }
 
     return readBuilder.build();
