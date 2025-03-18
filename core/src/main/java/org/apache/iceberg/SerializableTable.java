@@ -30,6 +30,7 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
+import org.apache.iceberg.util.TryUtil;
 
 /**
  * A read-only serializable table that can be sent to other nodes in a cluster.
@@ -65,8 +66,8 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   private final Map<String, SnapshotRef> refs;
   private final UUID uuid;
   private final int formatVersion;
+  private final TryUtil.Try<LocationProvider> locationProviderTry;
 
-  private transient volatile LocationProvider lazyLocationProvider = null;
   private transient volatile Table lazyTable = null;
   private transient volatile Schema lazySchema = null;
   private transient volatile Map<Integer, PartitionSpec> lazySpecs = null;
@@ -85,6 +86,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     this.sortOrderAsJson = SortOrderParser.toJson(table.sortOrder());
     this.io = fileIO(table);
     this.encryption = table.encryption();
+    this.locationProviderTry = TryUtil.run(() -> table.locationProvider());
     this.refs = SerializableMap.copyOf(table.refs());
     this.uuid = table.uuid();
     this.formatVersion = formatVersion(table);
@@ -265,14 +267,15 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
 
   @Override
   public LocationProvider locationProvider() {
-    if (lazyLocationProvider == null) {
-      synchronized (this) {
-        if (lazyLocationProvider == null) {
-          this.lazyLocationProvider = LocationProviders.locationsFor(location, properties);
-        }
+    try {
+      return locationProviderTry.get();
+    } catch (Exception e) {
+      if (e instanceof RuntimeException) {
+        throw (RuntimeException) e;
+      } else {
+        throw new RuntimeException(e);
       }
     }
-    return lazyLocationProvider;
   }
 
   @Override
