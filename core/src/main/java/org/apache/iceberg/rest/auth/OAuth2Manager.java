@@ -61,7 +61,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
   private RESTClient refreshClient;
   private long startTimeMillis;
   private OAuthTokenResponse authResponse;
-  private AuthSessionCache sessionCache;
+  private AuthSessionCache<String, OAuth2Util.AuthSession> sessionCache;
 
   public OAuth2Manager(String managerName) {
     super(managerName + "-token-refresh");
@@ -156,19 +156,16 @@ public class OAuth2Manager extends RefreshingAuthManager {
 
   @Override
   public void close() {
-    try {
+    AuthSessionCache<String, OAuth2Util.AuthSession> cache = sessionCache;
+    this.sessionCache = null;
+    try (cache) {
       super.close();
-    } finally {
-      AuthSessionCache cache = sessionCache;
-      this.sessionCache = null;
-      if (cache != null) {
-        cache.close();
-      }
     }
   }
 
-  protected AuthSessionCache newSessionCache(String managerName, Map<String, String> properties) {
-    return new AuthSessionCache(managerName, sessionTimeout(properties));
+  protected AuthSessionCache<String, OAuth2Util.AuthSession> newSessionCache(
+      String managerName, Map<String, String> properties) {
+    return new AuthSessionCache<>(managerName, sessionTimeout(properties));
   }
 
   protected OAuth2Util.AuthSession maybeCreateChildSession(
