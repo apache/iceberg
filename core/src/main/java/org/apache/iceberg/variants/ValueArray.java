@@ -24,11 +24,11 @@ import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-public class ShreddedArray implements VariantArray {
+public class ValueArray implements VariantArray {
   private SerializationState serializationState = null;
   private List<VariantValue> elements = Lists.newArrayList();
 
-  ShreddedArray() {}
+  ValueArray() {}
 
   @Override
   public VariantValue get(int index) {

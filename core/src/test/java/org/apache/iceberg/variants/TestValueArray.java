@@ -32,10 +32,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class TestShreddedArray {
-  private static final VariantMetadata EMPTY_METADATA =
-      Variants.metadata(VariantTestUtil.emptyMetadata());
-
+public class TestValueArray {
+  private static final VariantMetadata EMPTY_METADATA = Variants.emptyMetadata();
   private static final List<VariantValue> ELEMENTS =
       ImmutableList.of(
           Variants.of(34), Variants.of("iceberg"), Variants.of(new BigDecimal("12.21")));
@@ -43,9 +41,10 @@ public class TestShreddedArray {
   private final Random random = new Random(871925);
 
   @Test
-  public void testShreddedFields() {
-    ShreddedArray arr = createShreddedArray(ELEMENTS);
+  public void testElementAccess() {
+    ValueArray arr = createArray(ELEMENTS);
 
+    assertThat(arr.numElements()).isEqualTo(3);
     assertThat(arr.get(0)).isInstanceOf(VariantPrimitive.class);
     assertThat(arr.get(0).asPrimitive().get()).isEqualTo(34);
     assertThat(arr.get(1)).isInstanceOf(VariantPrimitive.class);
@@ -56,7 +55,7 @@ public class TestShreddedArray {
 
   @Test
   public void testSerializationMinimalBuffer() {
-    ShreddedArray arr = createShreddedArray(ELEMENTS);
+    ValueArray arr = createArray(ELEMENTS);
 
     VariantValue value = roundTripMinimalBuffer(arr);
 
@@ -74,7 +73,7 @@ public class TestShreddedArray {
 
   @Test
   public void testSerializationLargeBuffer() {
-    ShreddedArray arr = createShreddedArray(ELEMENTS);
+    ValueArray arr = createArray(ELEMENTS);
 
     VariantValue value = roundTripLargeBuffer(arr);
 
@@ -90,84 +89,61 @@ public class TestShreddedArray {
     assertThat(actual.get(2).asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
   }
 
-  @Test
-  public void testMultiByteElementSize() {
-    // Create large number of elements to use 4 bytes to store element size
-    List<VariantValue> elements = Lists.newArrayList();
-    for (int i = 0; i < 100_000; i += 1) {
-      elements.add(Variants.of(RandomUtil.generateString(10, random)));
-    }
-
-    List<VariantValue> data = Lists.newArrayList();
-    data.addAll(elements);
-
-    ShreddedArray shredded = createShreddedArray(data);
-    VariantValue value = roundTripLargeBuffer(shredded);
-
-    assertThat(value.type()).isEqualTo(PhysicalType.ARRAY);
-    SerializedArray arr = (SerializedArray) value;
-    assertThat(arr.numElements()).isEqualTo(100_000);
-    for (int i = 0; i < 100_000; i++) {
-      VariantTestUtil.assertEqual(arr.get(i), elements.get(i));
-    }
-  }
-
   @ParameterizedTest
   @ValueSource(ints = {300, 70_000, 16_777_300})
   public void testMultiByteOffsets(int len) {
     // Use a string exceeding 255 bytes to test value offset sizes of 2, 3, and 4 bytes
     String randomString = RandomUtil.generateString(len, random);
-    SerializedPrimitive bigString = VariantTestUtil.createString(randomString);
+    VariantPrimitive bigString = Variants.of(randomString);
 
     List<VariantValue> data = Lists.newArrayList();
     data.addAll(ELEMENTS);
     data.add(bigString);
 
-    ShreddedArray shredded = createShreddedArray(data);
+    ValueArray shredded = createArray(data);
     VariantValue value = roundTripLargeBuffer(shredded);
 
     assertThat(value.type()).isEqualTo(PhysicalType.ARRAY);
-    SerializedArray arr = (SerializedArray) value;
-    assertThat(arr.numElements()).isEqualTo(4);
+    SerializedArray actualArray = (SerializedArray) value;
+    assertThat(actualArray.numElements()).isEqualTo(4);
 
-    assertThat(arr.get(0).type()).isEqualTo(PhysicalType.INT32);
-    assertThat(arr.get(0).asPrimitive().get()).isEqualTo(34);
-    assertThat(arr.get(1).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(arr.get(1).asPrimitive().get()).isEqualTo("iceberg");
-    assertThat(arr.get(2).type()).isEqualTo(PhysicalType.DECIMAL4);
-    assertThat(arr.get(2).asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
-    assertThat(arr.get(3).type()).isEqualTo(PhysicalType.STRING);
-    assertThat(arr.get(3).asPrimitive().get()).isEqualTo(randomString);
+    assertThat(actualArray.get(0).type()).isEqualTo(PhysicalType.INT32);
+    assertThat(actualArray.get(0).asPrimitive().get()).isEqualTo(34);
+    assertThat(actualArray.get(1).type()).isEqualTo(PhysicalType.STRING);
+    assertThat(actualArray.get(1).asPrimitive().get()).isEqualTo("iceberg");
+    assertThat(actualArray.get(2).type()).isEqualTo(PhysicalType.DECIMAL4);
+    assertThat(actualArray.get(2).asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
+    assertThat(actualArray.get(3).type()).isEqualTo(PhysicalType.STRING);
+    assertThat(actualArray.get(3).asPrimitive().get()).isEqualTo(randomString);
   }
 
   @Test
-  public void testLargeObject() {
+  public void testLargeArray() {
     List<VariantPrimitive<String>> elements = Lists.newArrayList();
     for (int i = 0; i < 10_000; i += 1) {
       elements.add(Variants.of(RandomUtil.generateString(10, random)));
     }
 
-    ShreddedArray shredded = createShreddedArray((List) elements);
-    VariantValue value = roundTripLargeBuffer(shredded);
+    ValueArray arr = createArray((List) elements);
+    VariantValue value = roundTripLargeBuffer(arr);
 
     assertThat(value.type()).isEqualTo(PhysicalType.ARRAY);
-    SerializedArray arr = (SerializedArray) value;
-    assertThat(arr.numElements()).isEqualTo(10_000);
+    SerializedArray actualArray = (SerializedArray) value;
+    assertThat(actualArray.numElements()).isEqualTo(10_000);
 
-    for (VariantPrimitive<String> entry : elements) {
-      assertThat(entry.type()).isEqualTo(PhysicalType.STRING);
-      assertThat(entry.asPrimitive().get()).isEqualTo(entry.get());
+    for (int i = 0; i < 10_000; i++) {
+      VariantTestUtil.assertEqual(elements.get(i), actualArray.get(i));
     }
   }
 
-  private static VariantValue roundTripMinimalBuffer(ShreddedArray arr) {
+  private static VariantValue roundTripMinimalBuffer(ValueArray arr) {
     ByteBuffer serialized = ByteBuffer.allocate(arr.sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
     arr.writeTo(serialized, 0);
 
     return Variants.value(EMPTY_METADATA, serialized);
   }
 
-  private static VariantValue roundTripLargeBuffer(ShreddedArray arr) {
+  private static VariantValue roundTripLargeBuffer(ValueArray arr) {
     ByteBuffer serialized =
         ByteBuffer.allocate(1000 + arr.sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
     arr.writeTo(serialized, 300);
@@ -179,8 +155,8 @@ public class TestShreddedArray {
     return Variants.value(EMPTY_METADATA, slice);
   }
 
-  private static ShreddedArray createShreddedArray(List<VariantValue> elements) {
-    ShreddedArray arr = new ShreddedArray();
+  private static ValueArray createArray(List<VariantValue> elements) {
+    ValueArray arr = new ValueArray();
     for (VariantValue element : elements) {
       arr.add(element);
     }

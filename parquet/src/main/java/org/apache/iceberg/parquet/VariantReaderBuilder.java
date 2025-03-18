@@ -43,6 +43,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueReader<?>> {
+  private static final String LIST = "list";
   private final MessageType schema;
   private final Iterable<String> basePath;
   private final Deque<String> fieldNames = Lists.newLinkedList();
@@ -66,8 +67,8 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
     return Streams.concat(Streams.stream(basePath), fieldNames.stream()).toArray(String[]::new);
   }
 
-  private String[] path(String name) {
-    return Streams.concat(Streams.stream(basePath), fieldNames.stream(), Stream.of(name))
+  private String[] path(String... names) {
+    return Streams.concat(Streams.stream(basePath), fieldNames.stream(), Stream.of(names))
         .toArray(String[]::new);
   }
 
@@ -166,9 +167,10 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
     int valueDL =
         valueReader != null ? schema.getMaxDefinitionLevel(path(VALUE)) - 1 : Integer.MAX_VALUE;
     int typedDL = schema.getMaxDefinitionLevel(path(TYPED_VALUE)) - 1;
-    int typedRL = schema.getMaxRepetitionLevel(path(TYPED_VALUE)) - 1;
+    int repeatedDL = schema.getMaxDefinitionLevel(path(TYPED_VALUE, LIST)) - 1;
+    int repeatedRL = schema.getMaxRepetitionLevel(path(TYPED_VALUE, LIST)) - 1;
     return ParquetVariantReaders.array(
-        valueDL, valueReader, typedDL, typedRL, (VariantValueReader) elementResult);
+        valueDL, valueReader, typedDL, repeatedDL, repeatedRL, elementResult);
   }
 
   private static class LogicalTypeToVariantReader
