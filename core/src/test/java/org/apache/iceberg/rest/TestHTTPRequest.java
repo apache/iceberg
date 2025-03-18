@@ -111,7 +111,7 @@ class TestHTTPRequest {
             () ->
                 ImmutableHTTPRequest.builder()
                     .method(HTTPRequest.HTTPMethod.GET)
-                    .path("v1/namespaces") // wrong leading slash
+                    .path("v1/namespaces")
                     .build())
         .isInstanceOf(RESTException.class)
         .hasMessage("Received a request with a relative path and no base URI: v1/namespaces");
