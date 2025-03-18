@@ -76,7 +76,20 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
     }
 
     @Override
+    public OrcValueWriter<?> variant(
+        Types.VariantType iVariant,
+        TypeDescription variant,
+        OrcValueWriter<?> metadata,
+        OrcValueWriter<?> value) {
+      return GenericOrcWriters.variants();
+    }
+
+    @Override
     public OrcValueWriter<?> primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
+      if (null == iPrimitive) {
+        return null;
+      }
+
       switch (iPrimitive.typeId()) {
         case BOOLEAN:
           return GenericOrcWriters.booleans();
@@ -98,6 +111,13 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
             return GenericOrcWriters.timestampTz();
           } else {
             return GenericOrcWriters.timestamp();
+          }
+        case TIMESTAMP_NANO:
+          Types.TimestampNanoType timestampNanoType = (Types.TimestampNanoType) iPrimitive;
+          if (timestampNanoType.shouldAdjustToUTC()) {
+            return GenericOrcWriters.timestampTzNanos();
+          } else {
+            return GenericOrcWriters.timestampNanos();
           }
         case STRING:
           return GenericOrcWriters.strings();

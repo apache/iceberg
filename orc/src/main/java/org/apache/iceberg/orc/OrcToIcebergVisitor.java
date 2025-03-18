@@ -105,6 +105,24 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
   }
 
   @Override
+  public Optional<Types.NestedField> variant(
+      TypeDescription variant,
+      Optional<Types.NestedField> metadata,
+      Optional<Types.NestedField> value) {
+    boolean isOptional = ORCSchemaUtil.isOptional(variant);
+    Optional<Integer> icebergIdOpt = ORCSchemaUtil.icebergID(variant);
+
+    return icebergIdOpt.map(
+        fieldId ->
+            Types.NestedField.builder()
+                .withId(fieldId)
+                .isOptional(isOptional)
+                .ofType(Types.VariantType.get())
+                .withName(currentFieldName())
+                .build());
+  }
+
+  @Override
   public Optional<Types.NestedField> primitive(TypeDescription primitive) {
     boolean isOptional = ORCSchemaUtil.isOptional(primitive);
     Optional<Integer> icebergIdOpt = ORCSchemaUtil.icebergID(primitive);
@@ -183,10 +201,26 @@ class OrcToIcebergVisitor extends OrcSchemaVisitor<Optional<Types.NestedField>> 
         builder.ofType(Types.DateType.get());
         break;
       case TIMESTAMP:
-        builder.ofType(Types.TimestampType.withoutZone());
+        String unit = primitive.getAttributeValue(ORCSchemaUtil.TIMESTAMP_UNIT);
+        if (unit == null || ORCSchemaUtil.MICROS.equalsIgnoreCase(unit)) {
+          builder.ofType(Types.TimestampType.withoutZone());
+        } else if (unit.equalsIgnoreCase(ORCSchemaUtil.NANOS)) {
+          builder.ofType(Types.TimestampNanoType.withoutZone());
+        } else {
+          throw new IllegalStateException("Invalid Timestamp type unit: %s" + unit);
+        }
+
         break;
       case TIMESTAMP_INSTANT:
-        builder.ofType(Types.TimestampType.withZone());
+        String tsUnit = primitive.getAttributeValue(ORCSchemaUtil.TIMESTAMP_UNIT);
+        if (tsUnit == null || ORCSchemaUtil.MICROS.equalsIgnoreCase(tsUnit)) {
+          builder.ofType(Types.TimestampType.withZone());
+        } else if (tsUnit.equalsIgnoreCase(ORCSchemaUtil.NANOS)) {
+          builder.ofType(Types.TimestampNanoType.withZone());
+        } else {
+          throw new IllegalStateException("Invalid Timestamp type unit: %s" + tsUnit);
+        }
+
         break;
       case DECIMAL:
         builder.ofType(Types.DecimalType.of(primitive.getPrecision(), primitive.getScale()));
