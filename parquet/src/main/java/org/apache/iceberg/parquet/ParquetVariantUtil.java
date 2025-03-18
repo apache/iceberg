@@ -361,7 +361,7 @@ class ParquetVariantUtil {
 
     @Override
     public Type array(VariantArray array, List<Type> elementResults) {
-      throw null;
+      return null;
     }
 
     @Override
