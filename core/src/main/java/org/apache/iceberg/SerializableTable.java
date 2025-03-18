@@ -86,7 +86,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     this.sortOrderAsJson = SortOrderParser.toJson(table.sortOrder());
     this.io = fileIO(table);
     this.encryption = table.encryption();
-    this.locationProviderTry = TryUtil.run(() -> table.locationProvider());
+    this.locationProviderTry = TryUtil.run(table::locationProvider);
     this.refs = SerializableMap.copyOf(table.refs());
     this.uuid = table.uuid();
     this.formatVersion = formatVersion(table);
