@@ -141,6 +141,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     this.spec = spec;
   }
 
+  // Override setup method to make it callable externally from within the factory.
   @Override
   protected void setup(
       StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<Void>> output) {
