@@ -336,6 +336,7 @@ class ParquetMetrics {
     }
 
     @Override
+    @SuppressWarnings("CyclomaticComplexity")
     public Iterable<FieldMetrics<ByteBuffer>> variant(
         Types.VariantType iVariant, GroupType variant, Iterable<FieldMetrics<ByteBuffer>> ignored) {
       Type.ID id = variant.getId();
