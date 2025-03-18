@@ -63,9 +63,11 @@ public class Types {
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
-  private static final Pattern GEOMETRY_PARAMETERS = Pattern.compile("(?:\\(\\s*([^,]+?)\\s*\\))?");
+  private static final Pattern GEOMETRY_PARAMETERS =
+      Pattern.compile("geometry\\s*(?:\\(\\s*([^,]+?)\\s*\\))?", Pattern.CASE_INSENSITIVE);
   private static final Pattern GEOGRAPHY_PARAMETERS =
-      Pattern.compile("(?:\\(\\s*([^,]+)\\s*(?:,\\s*(\\w*)\\s*)?\\))?");
+      Pattern.compile(
+          "geography\\s*(?:\\(\\s*([^,]+)\\s*(?:,\\s*(\\w*)\\s*)?\\))?", Pattern.CASE_INSENSITIVE);
   private static final Pattern DECIMAL =
       Pattern.compile("decimal\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)");
 
@@ -75,23 +77,19 @@ public class Types {
       return TYPES.get(lowerTypeString);
     }
 
-    if (lowerTypeString.startsWith("geometry")) {
-      Matcher geometry = GEOMETRY_PARAMETERS.matcher(typeString.substring(8));
-      if (geometry.matches()) {
-        String crs = geometry.group(1);
-        return GeometryType.of(crs != null ? crs.trim() : null);
-      }
+    Matcher geometry = GEOMETRY_PARAMETERS.matcher(typeString);
+    if (geometry.matches()) {
+      String crs = geometry.group(1);
+      return GeometryType.of(crs != null ? crs.trim() : null);
     }
 
-    if (lowerTypeString.startsWith("geography")) {
-      Matcher geography = GEOGRAPHY_PARAMETERS.matcher(typeString.substring(9));
-      if (geography.matches()) {
-        String crs = geography.group(1);
-        String algorithmName = geography.group(2);
-        EdgeAlgorithm algorithm =
-            algorithmName == null ? null : EdgeAlgorithm.fromName(algorithmName.trim());
-        return GeographyType.of(crs != null ? crs.trim() : null, algorithm);
-      }
+    Matcher geography = GEOGRAPHY_PARAMETERS.matcher(typeString);
+    if (geography.matches()) {
+      String crs = geography.group(1);
+      String algorithmName = geography.group(2);
+      EdgeAlgorithm algorithm =
+          algorithmName == null ? null : EdgeAlgorithm.fromName(algorithmName.trim());
+      return GeographyType.of(crs != null ? crs.trim() : null, algorithm);
     }
 
     Matcher fixed = FIXED.matcher(lowerTypeString);
@@ -569,12 +567,15 @@ public class Types {
 
   public static class GeometryType extends PrimitiveType {
 
-    public static final String DEFAULT_CRS = "OGC:CRS84";
-
     private final String crs;
 
     private GeometryType(String crs) {
-      this.crs = (crs == null || DEFAULT_CRS.equals(crs)) ? null : crs;
+      if (crs != null) {
+        Preconditions.checkArgument(!crs.isEmpty(), "Invalid CRS: (empty string)");
+        Preconditions.checkArgument(
+            crs.trim().equals(crs), "CRS must not have leading or trailing spaces: '%s'", crs);
+      }
+      this.crs = crs;
     }
 
     public static GeometryType crs84() {
@@ -629,7 +630,12 @@ public class Types {
     private final EdgeAlgorithm algorithm;
 
     private GeographyType(String crs, EdgeAlgorithm algorithm) {
-      this.crs = (crs == null || DEFAULT_CRS.equals(crs)) ? null : crs;
+      if (crs != null) {
+        Preconditions.checkArgument(!crs.isEmpty(), "Invalid CRS: (empty string)");
+        Preconditions.checkArgument(
+            crs.trim().equals(crs), "CRS must not have leading or trailing spaces: '%s'", crs);
+      }
+      this.crs = crs;
       this.algorithm = algorithm;
     }
 

@@ -84,20 +84,25 @@ public class TestTypes {
   @Test
   public void geospatialTypeFromTypeName() {
     assertThat(Types.fromPrimitiveString("geometry")).isEqualTo(Types.GeometryType.crs84());
+    assertThat(Types.fromPrimitiveString("Geometry")).isEqualTo(Types.GeometryType.crs84());
     assertThat(Types.fromPrimitiveString("geometry(srid:3857)"))
         .isEqualTo(Types.GeometryType.of("srid:3857"));
     assertThat(Types.fromPrimitiveString("geometry( srid:3857 )"))
         .isEqualTo(Types.GeometryType.of("srid:3857"));
     assertThat(Types.fromPrimitiveString("geometry( srid: 3857 )"))
         .isEqualTo(Types.GeometryType.of("srid: 3857"));
-    assertThat(Types.fromPrimitiveString("geometry( projjson:TestIdentifier )"))
+    assertThat(Types.fromPrimitiveString("Geometry( projjson:TestIdentifier )"))
         .isEqualTo(Types.GeometryType.of("projjson:TestIdentifier"));
 
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("geometry()"))
         .withMessageContaining("Cannot parse type string to primitive");
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.fromPrimitiveString("geometry( )"))
+        .withMessageContaining("Invalid CRS: (empty string)");
 
     assertThat(Types.fromPrimitiveString("geography")).isEqualTo(Types.GeographyType.crs84());
+    assertThat(Types.fromPrimitiveString("Geography")).isEqualTo(Types.GeographyType.crs84());
     assertThat(Types.fromPrimitiveString("geography(srid:4269)"))
         .isEqualTo(Types.GeographyType.of("srid:4269"));
     assertThat(Types.fromPrimitiveString("geography(srid: 4269)"))
@@ -114,12 +119,15 @@ public class TestTypes {
         .isEqualTo(Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY));
     assertThat(Types.fromPrimitiveString("geography(srid: 4269, karney)"))
         .isEqualTo(Types.GeographyType.of("srid: 4269", EdgeAlgorithm.KARNEY));
-    assertThat(Types.fromPrimitiveString("geography(projjson: TestIdentifier, karney)"))
+    assertThat(Types.fromPrimitiveString("Geography(projjson: TestIdentifier, karney)"))
         .isEqualTo(Types.GeographyType.of("projjson: TestIdentifier", EdgeAlgorithm.KARNEY));
 
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("geography()"))
         .withMessageContaining("Cannot parse type string to primitive");
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.fromPrimitiveString("geography( , spherical)"))
+        .withMessageContaining("Invalid CRS: (empty string)");
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("geography(srid:4269, BadAlgorithm)"))
         .withMessageContaining("Invalid edge interpolation algorithm")

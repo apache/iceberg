@@ -38,9 +38,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.apache.iceberg.util.GeometryUtil;
 import org.apache.iceberg.util.JsonUtil;
-import org.locationtech.jts.geom.Geometry;
 
 public class SingleValueParser {
   private SingleValueParser() {}
@@ -162,18 +160,6 @@ public class SingleValueParser {
         byte[] binaryBytes =
             BaseEncoding.base16().decode(defaultValue.textValue().toUpperCase(Locale.ROOT));
         return ByteBuffer.wrap(binaryBytes);
-      case GEOMETRY:
-      case GEOGRAPHY:
-        Preconditions.checkArgument(
-            defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
-        try {
-          Geometry geom = GeometryUtil.fromWKT(defaultValue.textValue());
-          byte[] wkb = GeometryUtil.toWKB(geom);
-          return ByteBuffer.wrap(wkb);
-        } catch (Exception e) {
-          throw new IllegalArgumentException(
-              String.format("Cannot parse default as a %s value: %s", type, defaultValue), e);
-        }
       case LIST:
         return listFromJson(type, defaultValue);
       case MAP:
@@ -348,13 +334,6 @@ public class SingleValueParser {
         } else {
           generator.writeString(decimalValue.toString());
         }
-        break;
-      case GEOMETRY:
-      case GEOGRAPHY:
-        Preconditions.checkArgument(
-            defaultValue instanceof ByteBuffer, "Invalid default %s value: %s", type, defaultValue);
-        byte[] wkb = ByteBuffers.toByteArray((ByteBuffer) defaultValue);
-        generator.writeString(GeometryUtil.toWKT(GeometryUtil.fromWKB(wkb)));
         break;
       case LIST:
         Preconditions.checkArgument(
