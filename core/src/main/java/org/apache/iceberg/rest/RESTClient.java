@@ -160,7 +160,12 @@ public interface RESTClient extends Closeable {
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler);
 
-  /** Returns a REST client that authenticates requests using the given session. */
+  /**
+   * Returns a REST client that authenticates requests using the given session.
+   *
+   * @implSpec If the returned client shares any state with this client, then closing the returned
+   *     client should not affect this client.
+   */
   default RESTClient withAuthSession(AuthSession session) {
     return this;
   }

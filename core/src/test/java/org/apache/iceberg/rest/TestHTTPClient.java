@@ -19,8 +19,10 @@
 package org.apache.iceberg.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.description;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -321,6 +323,19 @@ public class TestHTTPClient {
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(String.format("duration must not be negative: %s", invalidNegativeTimeoutMs));
+  }
+
+  @Test
+  public void testCloseChild() throws IOException {
+    AuthSession authSession = mock(AuthSession.class);
+    try (RESTClient child = restClient.withAuthSession(authSession)) {
+      assertThat(child).isNotNull().isNotSameAs(restClient);
+    }
+    verify(authSession, description("Child RESTClient should have closed its own AuthSession"))
+        .close();
+    assertThatCode(() -> testHttpMethodOnSuccess(HttpMethod.POST))
+        .as("Parent RESTClient should still be operational after child is closed")
+        .doesNotThrowAnyException();
   }
 
   public static void testHttpMethodOnSuccess(HttpMethod method) throws JsonProcessingException {
