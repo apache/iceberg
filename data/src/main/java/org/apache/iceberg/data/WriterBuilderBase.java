@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.io.datafile;
+package org.apache.iceberg.data;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -24,6 +24,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.io.AppenderBuilder;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileAppender;
 
@@ -47,8 +48,7 @@ interface WriterBuilderBase<B extends WriterBuilderBase<B, E>, E> {
 
   /**
    * Sets the engine specific schema for the input. Used by the {@link
-   * DataFileAppenderBuilder#build(DataFileAppenderBuilder.WriteMode)} to configure the engine
-   * specific converters.
+   * AppenderBuilder#build(AppenderBuilder.WriteMode)} to configure the engine specific converters.
    */
   B engineSchema(E engineSchema);
 

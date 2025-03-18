@@ -24,10 +24,10 @@ import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.ObjectModelRegistry;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow, T> {
@@ -48,8 +48,7 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Expression residual,
       Schema projection,
       Map<Integer, ?> idToConstant) {
-    return DataFileToObjectModelRegistry.readBuilder(
-            format, SparkObjectModels.SPARK_OBJECT_MODEL, file)
+    return ObjectModelRegistry.readBuilder(format, SparkObjectModels.SPARK_OBJECT_MODEL, file)
         .project(projection)
         .constantFieldAccessors(idToConstant)
         .reuseContainers()

@@ -24,11 +24,11 @@ import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.ObjectModelRegistry;
+import org.apache.iceberg.data.ReadBuilder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
-import org.apache.iceberg.io.datafile.ReadBuilder;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
@@ -61,8 +61,8 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Map<Integer, ?> idToConstant,
       SparkDeleteFilter deleteFilter) {
     Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema();
-    ReadBuilder<?> readBuilder =
-        DataFileToObjectModelRegistry.readBuilder(
+    ReadBuilder readBuilder =
+        ObjectModelRegistry.readBuilder(
                 format, SparkObjectModels.SPARK_VECTORIZED_OBJECT_MODEL, inputFile)
             .project(requiredSchema)
             .constantFieldAccessors(idToConstant)

@@ -45,6 +45,7 @@ import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.actions.ImmutableRewriteTablePath;
 import org.apache.iceberg.actions.RewriteTablePath;
+import org.apache.iceberg.data.ObjectModelRegistry;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
@@ -54,7 +55,6 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -640,8 +640,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   private static CloseableIterable<Record> positionDeletesReader(
       InputFile inputFile, FileFormat format, PartitionSpec spec) {
     Schema deleteSchema = DeleteSchemaUtil.posDeleteReadSchema(spec.schema());
-    return DataFileToObjectModelRegistry.readBuilder(
-            format, DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL, inputFile)
+    return ObjectModelRegistry.readBuilder(
+            format, ObjectModelRegistry.GENERIC_OBJECT_MODEL, inputFile)
         .project(deleteSchema)
         .reuseContainers()
         .build();
@@ -654,9 +654,9 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       StructLike partition,
       Schema rowSchema)
       throws IOException {
-    return DataFileToObjectModelRegistry.positionDeleteWriterBuilder(
+    return ObjectModelRegistry.positionDeleteWriterBuilder(
             format,
-            DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL,
+            ObjectModelRegistry.GENERIC_OBJECT_MODEL,
             EncryptedFiles.plainAsEncryptedOutput(outputFile))
         .withPartition(partition)
         .withRowSchema(rowSchema)

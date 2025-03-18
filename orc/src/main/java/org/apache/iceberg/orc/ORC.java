@@ -60,7 +60,6 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -79,8 +78,6 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.datafile.DataFileAppenderBuilder;
-import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -108,23 +105,6 @@ public class ORC {
   @Deprecated private static final String VECTOR_ROW_BATCH_SIZE = "iceberg.orc.vectorbatch.size";
 
   private ORC() {}
-
-  public static void register() {
-    DataFileToObjectModelRegistry.registerReader(
-        FileFormat.ORC,
-        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL,
-        inputFile -> read(inputFile).readerFunction(GenericOrcReader::buildReader));
-
-    DataFileToObjectModelRegistry.registerAppender(
-        FileFormat.ORC,
-        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL,
-        outputFile ->
-            ORC.appender(outputFile)
-                .writerFunction(
-                    (schema, messageType, nativeSchema) ->
-                        GenericOrcWriter.buildWriter(schema, messageType))
-                .pathTransformFunc(Function.identity()));
-  }
 
   @Deprecated
   public static WriteBuilder write(OutputFile file) {
@@ -160,7 +140,7 @@ public class ORC {
   /** Will be removed when the {@link WriteBuilder} is removed. */
   @SuppressWarnings("unchecked")
   static class AppenderBuilderInternal<B extends AppenderBuilderInternal<B, E>, E>
-      implements DataFileAppenderBuilder<B, E> {
+      implements org.apache.iceberg.io.AppenderBuilder<B, E> {
     private final OutputFile file;
     private final Configuration conf;
     private Schema schema = null;
@@ -822,8 +802,7 @@ public class ORC {
     return new ReadBuilder(file);
   }
 
-  public static class ReadBuilder
-      implements org.apache.iceberg.io.datafile.ReadBuilder<ReadBuilder> {
+  public static class ReadBuilder implements org.apache.iceberg.io.ReadBuilder<ReadBuilder> {
     private final InputFile file;
     private final Configuration conf;
     private Schema schema = null;

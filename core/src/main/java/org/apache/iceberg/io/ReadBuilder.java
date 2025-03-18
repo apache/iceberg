@@ -16,17 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.io.datafile;
+package org.apache.iceberg.io;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.mapping.NameMapping;
 
 /**
- * Builder API for reading Iceberg data files.
+ * Interface which should be implemented by the data file format implementations. The {@link
+ * ReadBuilder} will be parametrized and finally the {@link ReadBuilder#build()} method is used to
+ * generate the reader.
  *
  * @param <R> type of the reader
  */
@@ -46,10 +47,6 @@ public interface ReadBuilder<R extends ReadBuilder<R>> {
    * Sets the reader to case-sensitive when matching column names. Readers might decide not to
    * implement this feature. The default is behavior is case-sensitive.
    */
-  default R caseInsensitive() {
-    return caseSensitive(false);
-  }
-
   default R caseSensitive(boolean newCaseSensitive) {
     // Just ignore case sensitivity if not available
     return (R) this;
@@ -80,18 +77,19 @@ public interface ReadBuilder<R extends ReadBuilder<R>> {
    * Sets configuration key/value pairs for the reader. Reader builders could ignore configuration
    * keys not known for them.
    */
-  R set(String key, String value);
-
-  /** Enables reusing the containers returned by the reader. Decreases pressure on GC. */
-  default R reuseContainers() {
-    return reuseContainers(true);
+  default R set(String key, String value) {
+    // Skip configuration if not applicable
+    return (R) this;
   }
 
   /**
    * Reusing the containers returned by the reader decreases pressure on GC. Readers could decide to
    * ignore the user provided setting if is not supported by them.
    */
-  R reuseContainers(boolean newReuseContainers);
+  default R reuseContainers(boolean newReuseContainers) {
+    // Skip container reuse configuration if not applicable
+    return (R) this;
+  }
 
   /** Sets the batch size for vectorized readers. */
   default R recordsPerBatch(int numRowsPerBatch) {

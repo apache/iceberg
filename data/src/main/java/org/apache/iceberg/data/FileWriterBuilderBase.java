@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.io.datafile;
+package org.apache.iceberg.data;
 
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SortOrder;

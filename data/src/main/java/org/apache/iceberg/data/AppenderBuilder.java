@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.io.datafile;
+package org.apache.iceberg.data;
 
 import java.io.IOException;
 import org.apache.iceberg.Schema;

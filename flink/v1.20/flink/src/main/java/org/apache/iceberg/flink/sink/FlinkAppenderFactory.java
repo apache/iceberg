@@ -30,6 +30,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.ObjectModelRegistry;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
@@ -41,7 +42,6 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Serializable {
@@ -97,7 +97,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   public FileAppender<RowData> newAppender(OutputFile outputFile, FileFormat format) {
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     try {
-      return DataFileToObjectModelRegistry.appenderBuilder(
+      return ObjectModelRegistry.appenderBuilder(
               format,
               FlinkObjectModels.FLINK_OBJECT_MODEL,
               EncryptedFiles.plainAsEncryptedOutput(outputFile))
@@ -117,8 +117,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
       EncryptedOutputFile file, FileFormat format, StructLike partition) {
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     try {
-      return DataFileToObjectModelRegistry.writerBuilder(
-              format, FlinkObjectModels.FLINK_OBJECT_MODEL, file)
+      return ObjectModelRegistry.writerBuilder(format, FlinkObjectModels.FLINK_OBJECT_MODEL, file)
           .engineSchema(flinkSchema)
           .set(props)
           .schema(schema)
@@ -145,7 +144,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
 
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     try {
-      return DataFileToObjectModelRegistry.equalityDeleteWriterBuilder(
+      return ObjectModelRegistry.equalityDeleteWriterBuilder(
               format, FlinkObjectModels.FLINK_OBJECT_MODEL, outputFile)
           .overwrite()
           .set(props)
@@ -167,7 +166,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
       EncryptedOutputFile outputFile, FileFormat format, StructLike partition) {
     MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
     try {
-      return DataFileToObjectModelRegistry.positionDeleteWriterBuilder(
+      return ObjectModelRegistry.positionDeleteWriterBuilder(
               format, FlinkObjectModels.FLINK_OBJECT_MODEL, outputFile)
           .overwrite()
           .set(props)

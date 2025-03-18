@@ -28,7 +28,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -49,7 +48,7 @@ class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Sc
     super(
         table,
         dataFileFormat,
-        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL,
+        ObjectModelRegistry.GENERIC_OBJECT_MODEL,
         dataSchema,
         dataSortOrder,
         deleteFileFormat,
@@ -67,38 +66,47 @@ class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Sc
     return new Builder(table);
   }
 
+  @Deprecated
   protected void configureDataWrite(Avro.DataWriteBuilder builder) {
     throw new UnsupportedOperationException("Deprecated");
   }
 
+  @Deprecated
   protected void configureEqualityDelete(Avro.DeleteWriteBuilder builder) {
     throw new UnsupportedOperationException("Deprecated");
   }
 
+  @Deprecated
   protected void configurePositionDelete(Avro.DeleteWriteBuilder builder) {
     throw new UnsupportedOperationException("Deprecated");
   }
 
+  @Deprecated
   protected void configureDataWrite(Parquet.DataWriteBuilder builder) {
     throw new UnsupportedOperationException("Deprecated");
   }
 
+  @Deprecated
   protected void configureEqualityDelete(Parquet.DeleteWriteBuilder builder) {
     throw new UnsupportedOperationException("Deprecated");
   }
 
+  @Deprecated
   protected void configurePositionDelete(Parquet.DeleteWriteBuilder builder) {
     throw new UnsupportedOperationException("Deprecated");
   }
 
+  @Deprecated
   protected void configureDataWrite(ORC.DataWriteBuilder builder) {
     throw new UnsupportedOperationException("Deprecated");
   }
 
+  @Deprecated
   protected void configureEqualityDelete(ORC.DeleteWriteBuilder builder) {
     throw new UnsupportedOperationException("Deprecated");
   }
 
+  @Deprecated
   protected void configurePositionDelete(ORC.DeleteWriteBuilder builder) {
     throw new UnsupportedOperationException("Deprecated");
   }

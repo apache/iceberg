@@ -34,7 +34,6 @@ import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -127,8 +126,8 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
 
     try {
-      return DataFileToObjectModelRegistry.appenderBuilder(
-              fileFormat, DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL, encryptedOutputFile)
+      return ObjectModelRegistry.appenderBuilder(
+              fileFormat, ObjectModelRegistry.GENERIC_OBJECT_MODEL, encryptedOutputFile)
           .schema(schema)
           .set(config)
           .metricsConfig(metricsConfig)
@@ -145,8 +144,8 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
     MetricsConfig metricsConfig =
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
     try {
-      return DataFileToObjectModelRegistry.writerBuilder(
-              format, DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL, file)
+      return ObjectModelRegistry.writerBuilder(
+              format, ObjectModelRegistry.GENERIC_OBJECT_MODEL, file)
           .schema(schema)
           .set(config)
           .metricsConfig(metricsConfig)
@@ -173,8 +172,8 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         table != null ? MetricsConfig.forTable(table) : MetricsConfig.fromProperties(config);
 
     try {
-      return DataFileToObjectModelRegistry.equalityDeleteWriterBuilder(
-              format, DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL, file)
+      return ObjectModelRegistry.equalityDeleteWriterBuilder(
+              format, ObjectModelRegistry.GENERIC_OBJECT_MODEL, file)
           .schema(schema)
           .withPartition(partition)
           .overwrite()
@@ -199,8 +198,8 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
             : MetricsConfig.fromProperties(config);
 
     try {
-      return DataFileToObjectModelRegistry.positionDeleteWriterBuilder(
-              format, DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL, file)
+      return ObjectModelRegistry.positionDeleteWriterBuilder(
+              format, ObjectModelRegistry.GENERIC_OBJECT_MODEL, file)
           .schema(schema)
           .withPartition(partition)
           .overwrite()

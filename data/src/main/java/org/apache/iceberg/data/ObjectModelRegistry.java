@@ -16,15 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.io.datafile;
+package org.apache.iceberg.data;
 
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.io.AppenderBuilder;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
@@ -35,31 +35,27 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Registry which provides the available {@link ReadBuilder}s and writer builders ({@link
- * AppenderBuilder}, {@link DataWriterBuilder}, {@link EqualityDeleteWriterBuilder}, {@link
- * PositionDeleteWriterBuilder}). Based on the `file format` and the requested `object model name`
- * the registry returns the correct reader and writer builders. These builders could be used to
- * generate the readers and writers.
+ * org.apache.iceberg.data.AppenderBuilder}, {@link DataWriterBuilder}, {@link
+ * EqualityDeleteWriterBuilder}, {@link PositionDeleteWriterBuilder}). Based on the `file format`
+ * and the requested `object model name` the registry returns the correct reader and writer
+ * builders. These builders could be used to generate the readers and writers.
  *
- * <p>File formats has to register the {@link ReadBuilder}s and the {@link DataFileAppenderBuilder}s
- * which will be used to create the readers and the writers. The readers returned directly, the
- * appenders are wrapped into the {@link AppenderBuilder}, {@link DataWriterBuilder}, {@link
- * EqualityDeleteWriterBuilder} or {@link PositionDeleteWriterBuilder}.
+ * <p>File formats has to register the {@link org.apache.iceberg.io.ReadBuilder}s and the {@link
+ * AppenderBuilder}s which will be used to create the readers and the writers.
  */
-public final class DataFileToObjectModelRegistry {
-  private static final Logger LOG = LoggerFactory.getLogger(DataFileToObjectModelRegistry.class);
+public final class ObjectModelRegistry {
+  private static final Logger LOG = LoggerFactory.getLogger(ObjectModelRegistry.class);
   // The list of classes which are used for registering the reader and writer builders
   private static final List<String> CLASSES_TO_REGISTER =
       ImmutableList.of(
-          "org.apache.iceberg.parquet.Parquet",
-          "org.apache.iceberg.orc.ORC",
           "org.apache.iceberg.arrow.vectorized.ArrowReader",
           "org.apache.iceberg.flink.data.FlinkObjectModels",
           "org.apache.iceberg.spark.source.SparkObjectModels");
 
-  private static final Map<Key, Function<EncryptedOutputFile, DataFileAppenderBuilder<?, ?>>>
+  private static final Map<Key, Function<EncryptedOutputFile, AppenderBuilder<?, ?>>>
       APPENDER_BUILDERS = Maps.newConcurrentMap();
-  private static final Map<Key, Function<InputFile, ReadBuilder<?>>> READ_BUILDERS =
-      Maps.newConcurrentMap();
+  private static final Map<Key, Function<InputFile, org.apache.iceberg.io.ReadBuilder<?>>>
+      READ_BUILDERS = Maps.newConcurrentMap();
 
   public static final String GENERIC_OBJECT_MODEL = "generic";
 
@@ -74,7 +70,7 @@ public final class DataFileToObjectModelRegistry {
   public static void registerAppender(
       FileFormat format,
       String objectModelName,
-      Function<EncryptedOutputFile, DataFileAppenderBuilder<?, ?>> appenderBuilder) {
+      Function<EncryptedOutputFile, AppenderBuilder<?, ?>> appenderBuilder) {
     Key key = new Key(format, objectModelName);
     if (APPENDER_BUILDERS.containsKey(key)) {
       throw new IllegalArgumentException(
@@ -95,7 +91,9 @@ public final class DataFileToObjectModelRegistry {
    * @throws IllegalArgumentException if a read builder for the given key already exists
    */
   public static void registerReader(
-      FileFormat format, String objectModelName, Function<InputFile, ReadBuilder<?>> readBuilder) {
+      FileFormat format,
+      String objectModelName,
+      Function<InputFile, org.apache.iceberg.io.ReadBuilder<?>> readBuilder) {
     Key key = new Key(format, objectModelName);
     if (READ_BUILDERS.containsKey(key)) {
       throw new IllegalArgumentException(
@@ -109,7 +107,7 @@ public final class DataFileToObjectModelRegistry {
 
   @SuppressWarnings("CatchBlockLogException")
   private static void registerSupportedFormats() {
-    Avro.register();
+    GenericObjectModels.register();
 
     // Uses dynamic methods to call the `register` for the listed classes
     for (String classToRegister : CLASSES_TO_REGISTER) {
@@ -130,7 +128,7 @@ public final class DataFileToObjectModelRegistry {
     registerSupportedFormats();
   }
 
-  private DataFileToObjectModelRegistry() {}
+  private ObjectModelRegistry() {}
 
   /**
    * Provides a reader builder for the given input file which returns objects with a given object
@@ -141,9 +139,9 @@ public final class DataFileToObjectModelRegistry {
    * @param inputFile to read
    * @return {@link ReadBuilder} for building the actual reader
    */
-  public static ReadBuilder<?> readBuilder(
+  public static ReadBuilder readBuilder(
       FileFormat format, String objectModelName, InputFile inputFile) {
-    return READ_BUILDERS.get(new Key(format, objectModelName)).apply(inputFile);
+    return new ReadBuilder(READ_BUILDERS.get(new Key(format, objectModelName)).apply(inputFile));
   }
 
   /**
@@ -156,7 +154,7 @@ public final class DataFileToObjectModelRegistry {
    * @param <E> type for the engine specific schema used by the builder
    * @return {@link ReadBuilder} for building the actual reader
    */
-  public static <E> AppenderBuilder<?, E> appenderBuilder(
+  public static <E> org.apache.iceberg.data.AppenderBuilder<?, E> appenderBuilder(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
     return writerFor(format, objectModelName, outputFile);
   }
@@ -210,13 +208,13 @@ public final class DataFileToObjectModelRegistry {
   private static <E> WriteBuilder<?, ?, E> writerFor(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
     return new WriteBuilder<>(
-        (DataFileAppenderBuilder<?, E>)
+        (AppenderBuilder<?, E>)
             APPENDER_BUILDERS.get(new Key(format, objectModelName)).apply(outputFile),
         outputFile.encryptingOutputFile().location(),
         format);
   }
 
-  /** Key used to identify readers and writers in the {@link DataFileToObjectModelRegistry}. */
+  /** Key used to identify readers and writers in the {@link ObjectModelRegistry}. */
   private static class Key {
     private final FileFormat fileFormat;
     private final String objectModelName;

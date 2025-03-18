@@ -53,7 +53,6 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -65,8 +64,6 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.datafile.DataFileAppenderBuilder;
-import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -94,22 +91,6 @@ public class Avro {
     LogicalTypes.register(VariantLogicalType.NAME, schema -> VariantLogicalType.get());
     DEFAULT_MODEL.addLogicalTypeConversion(new Conversions.DecimalConversion());
     DEFAULT_MODEL.addLogicalTypeConversion(new UUIDConversion());
-  }
-
-  public static void register() {
-    DataFileToObjectModelRegistry.registerReader(
-        FileFormat.AVRO,
-        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL,
-        inputFile -> Avro.read(inputFile).readerFunction(PlannedDataReader::create));
-
-    DataFileToObjectModelRegistry.registerAppender(
-        FileFormat.AVRO,
-        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL,
-        outputFile ->
-            Avro.appender(outputFile)
-                .writerFunction(
-                    (avroSchema, unused) ->
-                        org.apache.iceberg.data.avro.DataWriter.create(avroSchema)));
   }
 
   @Deprecated
@@ -152,7 +133,7 @@ public class Avro {
   /** Will be removed when the {@link WriteBuilder} is removed. */
   @SuppressWarnings("unchecked")
   static class AppenderBuilderInternal<B extends AppenderBuilderInternal<B, E>, E>
-      implements InternalData.WriteBuilder, DataFileAppenderBuilder<B, E> {
+      implements InternalData.WriteBuilder, org.apache.iceberg.io.AppenderBuilder<B, E> {
     private final OutputFile file;
     private final Map<String, String> config = Maps.newHashMap();
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
@@ -753,7 +734,7 @@ public class Avro {
   }
 
   public static class ReadBuilder
-      implements InternalData.ReadBuilder, org.apache.iceberg.io.datafile.ReadBuilder<ReadBuilder> {
+      implements InternalData.ReadBuilder, org.apache.iceberg.io.ReadBuilder<ReadBuilder> {
     private final InputFile file;
     private final Map<String, String> renames = Maps.newLinkedHashMap();
     private final Map<Integer, Class<? extends StructLike>> typeMap = Maps.newHashMap();

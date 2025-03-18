@@ -32,7 +32,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.PartitionUtil;
 
@@ -88,8 +87,8 @@ class GenericReader implements Serializable {
     Map<Integer, ?> partition =
         PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
 
-    return DataFileToObjectModelRegistry.readBuilder(
-            task.file().format(), DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL, input)
+    return ObjectModelRegistry.readBuilder(
+            task.file().format(), ObjectModelRegistry.GENERIC_OBJECT_MODEL, input)
         .project(fileProjection)
         .constantFieldAccessors(partition)
         .split(task.start(), task.length())

@@ -16,41 +16,39 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.io.datafile;
+package org.apache.iceberg.io;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.io.FileAppender;
 
 /**
  * Interface which should be implemented by the data file format implementations. The {@link
- * DataFileAppenderBuilder} will be wrapped into {@link AppenderBuilder}, {@link DataWriterBuilder},
- * {@link EqualityDeleteWriterBuilder} or {@link PositionDeleteWriterBuilder}, and the {@link
- * DataFileAppenderBuilder#build(DataFileAppenderBuilder.WriteMode)} method is used to finalize the
- * appender configuration for the specific writer use-cases. The following input should be handled
- * by the appender in the specific modes:
+ * AppenderBuilder} will be parametrized and finally the {@link
+ * AppenderBuilder#build(AppenderBuilder.WriteMode)} method is used to generate the appender for the
+ * specific writer use-cases. The following input should be handled by the appender in the specific
+ * modes:
  *
  * <ul>
  *   <li>The appender's native input type
  *       <ul>
- *         <li>{@link DataFileAppenderBuilder.WriteMode#APPENDER}
- *         <li>{@link DataFileAppenderBuilder.WriteMode#DATA_WRITER}
- *         <li>{@link DataFileAppenderBuilder.WriteMode#EQUALITY_DELETE_WRITER}
+ *         <li>{@link AppenderBuilder.WriteMode#APPENDER}
+ *         <li>{@link AppenderBuilder.WriteMode#DATA_WRITER}
+ *         <li>{@link AppenderBuilder.WriteMode#EQUALITY_DELETE_WRITER}
  *       </ul>
  *   <li>{@link org.apache.iceberg.deletes.PositionDelete} where the row's type is the appender's
  *       native input type
  *       <ul>
- *         <li>{@link DataFileAppenderBuilder.WriteMode#POSITION_DELETE_WRITER}
- *         <li>{@link DataFileAppenderBuilder.WriteMode#POSITION_DELETE_WITH_ROW_WRITER}
+ *         <li>{@link AppenderBuilder.WriteMode#POSITION_DELETE_WRITER}
+ *         <li>{@link AppenderBuilder.WriteMode#POSITION_DELETE_WITH_ROW_WRITER}
  *       </ul>
  * </ul>
  *
  * @param <B> type returned by builder API to allow chained calls
  * @param <E> type for the engine specific schema
  */
-public interface DataFileAppenderBuilder<B extends DataFileAppenderBuilder<B, E>, E> {
+public interface AppenderBuilder<B extends AppenderBuilder<B, E>, E> {
   /** Set the file schema. */
   B schema(Schema newSchema);
 

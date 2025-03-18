@@ -73,7 +73,6 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -91,8 +90,6 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.datafile.DataFileAppenderBuilder;
-import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.parquet.ParquetValueWriters.PositionDeleteStructWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
@@ -137,23 +134,6 @@ public class Parquet {
           "parquet.private.read.filter.predicate",
           "parquet.read.support.class",
           "parquet.crypto.factory.class");
-
-  public static void register() {
-    DataFileToObjectModelRegistry.registerReader(
-        FileFormat.PARQUET,
-        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL,
-        inputFile -> read(inputFile).readerFunction(GenericParquetReaders::buildReader));
-
-    DataFileToObjectModelRegistry.registerAppender(
-        FileFormat.PARQUET,
-        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL,
-        outputFile ->
-            Parquet.appender(outputFile)
-                .writerFunction(
-                    (nativeSchema, icebergSchema, messageType) ->
-                        GenericParquetWriter.buildWriter(messageType))
-                .pathTransformFunc(Function.identity()));
-  }
 
   @Deprecated
   public static WriteBuilder write(OutputFile file) {
@@ -207,7 +187,7 @@ public class Parquet {
   /** Will be removed when the {@link Parquet.WriteBuilder} is removed. */
   @SuppressWarnings("unchecked")
   static class AppenderBuilderInternal<B extends AppenderBuilderInternal<B, E>, E>
-      implements InternalData.WriteBuilder, DataFileAppenderBuilder<B, E> {
+      implements InternalData.WriteBuilder, org.apache.iceberg.io.AppenderBuilder<B, E> {
     private final OutputFile file;
     private final Configuration conf;
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
@@ -1265,7 +1245,7 @@ public class Parquet {
   @SuppressWarnings("unchecked")
   static class ReadBuilderInternal<B extends ReadBuilderInternal<B, F>, F>
       implements InternalData.ReadBuilder,
-          org.apache.iceberg.io.datafile.ReadBuilder<B>,
+          org.apache.iceberg.io.ReadBuilder<B>,
           SupportsDeleteFilter<F> {
     private final InputFile file;
     private final Map<String, String> properties = Maps.newHashMap();
@@ -1314,7 +1294,7 @@ public class Parquet {
       return (B) this;
     }
 
-    @Override
+    @Deprecated
     public B caseInsensitive() {
       return caseSensitive(false);
     }

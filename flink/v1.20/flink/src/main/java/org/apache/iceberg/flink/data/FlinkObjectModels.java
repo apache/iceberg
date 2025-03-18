@@ -24,7 +24,7 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
+import org.apache.iceberg.data.ObjectModelRegistry;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 
@@ -32,22 +32,22 @@ public class FlinkObjectModels {
   public static final String FLINK_OBJECT_MODEL = "flink";
 
   public static void register() {
-    DataFileToObjectModelRegistry.registerReader(
+    ObjectModelRegistry.registerReader(
         FileFormat.PARQUET,
         FLINK_OBJECT_MODEL,
         inputFile -> Parquet.read(inputFile).readerFunction(FlinkParquetReaders::buildReader));
 
-    DataFileToObjectModelRegistry.registerReader(
+    ObjectModelRegistry.registerReader(
         FileFormat.AVRO,
         FLINK_OBJECT_MODEL,
         inputFile -> Avro.read(inputFile).readerFunction(FlinkPlannedAvroReader::create));
 
-    DataFileToObjectModelRegistry.registerReader(
+    ObjectModelRegistry.registerReader(
         FileFormat.ORC,
         FLINK_OBJECT_MODEL,
         inputFile -> ORC.read(inputFile).readerFunction(FlinkOrcReader::new));
 
-    DataFileToObjectModelRegistry.registerAppender(
+    ObjectModelRegistry.registerAppender(
         FileFormat.AVRO,
         FLINK_OBJECT_MODEL,
         outputFile ->
@@ -60,7 +60,7 @@ public class FlinkObjectModels {
                                 rowType.getTypeAt(
                                     rowType.getFieldIndex(DELETE_FILE_ROW_FIELD_NAME)))));
 
-    DataFileToObjectModelRegistry.registerAppender(
+    ObjectModelRegistry.registerAppender(
         FileFormat.PARQUET,
         FLINK_OBJECT_MODEL,
         outputFile ->
@@ -70,7 +70,7 @@ public class FlinkObjectModels {
                         FlinkParquetWriters.buildWriter(engineType, messageType))
                 .pathTransformFunc(path -> StringData.fromString(path.toString())));
 
-    DataFileToObjectModelRegistry.registerAppender(
+    ObjectModelRegistry.registerAppender(
         FileFormat.ORC,
         FLINK_OBJECT_MODEL,
         outputFile ->

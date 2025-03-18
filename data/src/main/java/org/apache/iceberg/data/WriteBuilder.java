@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.io.datafile;
+package org.apache.iceberg.data;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -34,6 +34,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.io.AppenderBuilder;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
@@ -51,21 +52,21 @@ import org.apache.iceberg.util.ArrayUtil;
  *   <li>{@link PositionDeleteWriter}
  * </ul>
  *
- * The builder wraps the file format specific {@link DataFileAppenderBuilder}. To allow further
- * engine and file format specific configuration changes for the given writer the {@link
- * DataFileAppenderBuilder#build(DataFileAppenderBuilder.WriteMode)} method is called with the
- * correct parameter to create the appender used internally to provide the required functionality.
+ * The builder wraps the file format specific {@link AppenderBuilder}. To allow further engine and
+ * file format specific configuration changes for the given writer the {@link
+ * AppenderBuilder#build(AppenderBuilder.WriteMode)} method is called with the correct parameter to
+ * create the appender used internally to provide the required functionality.
  *
  * @param <A> type of the appender
  * @param <E> engine specific schema of the input records used for appender initialization
  */
 @SuppressWarnings("unchecked")
-class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends DataFileAppenderBuilder<A, E>, E>
-    implements AppenderBuilder<B, E>,
+class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends AppenderBuilder<A, E>, E>
+    implements org.apache.iceberg.data.AppenderBuilder<B, E>,
         DataWriterBuilder<B, E>,
         EqualityDeleteWriterBuilder<B, E>,
         PositionDeleteWriterBuilder<B, E> {
-  private final DataFileAppenderBuilder<A, E> appenderBuilder;
+  private final AppenderBuilder<A, E> appenderBuilder;
   private final String location;
   private final FileFormat format;
   private PartitionSpec spec = null;
@@ -75,7 +76,7 @@ class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends DataFileAppenderBu
   private Schema rowSchema = null;
   private int[] equalityFieldIds = null;
 
-  WriteBuilder(DataFileAppenderBuilder<A, E> appenderBuilder, String location, FileFormat format) {
+  WriteBuilder(AppenderBuilder<A, E> appenderBuilder, String location, FileFormat format) {
     this.appenderBuilder = appenderBuilder;
     this.location = location;
     this.format = format;
@@ -190,7 +191,7 @@ class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends DataFileAppenderBu
 
   @Override
   public <D> FileAppender<D> appender() throws IOException {
-    return appenderBuilder.build(DataFileAppenderBuilder.WriteMode.APPENDER);
+    return appenderBuilder.build(AppenderBuilder.WriteMode.APPENDER);
   }
 
   @Override
@@ -200,8 +201,8 @@ class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends DataFileAppenderBu
         spec.isUnpartitioned() || partition != null,
         "Partition must not be null when creating data writer for partitioned spec");
 
-    return new org.apache.iceberg.io.DataWriter<>(
-        appenderBuilder.build(DataFileAppenderBuilder.WriteMode.DATA_WRITER),
+    return new DataWriter<>(
+        appenderBuilder.build(AppenderBuilder.WriteMode.DATA_WRITER),
         format,
         location,
         spec,
@@ -231,7 +232,7 @@ class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends DataFileAppenderBu
                 IntStream.of(equalityFieldIds)
                     .mapToObj(Objects::toString)
                     .collect(Collectors.joining(", ")))
-            .build(DataFileAppenderBuilder.WriteMode.EQUALITY_DELETE_WRITER),
+            .build(AppenderBuilder.WriteMode.EQUALITY_DELETE_WRITER),
         format,
         location,
         spec,
@@ -257,8 +258,8 @@ class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends DataFileAppenderBu
             .schema(DeleteSchemaUtil.posDeleteSchema(rowSchema))
             .build(
                 rowSchema != null
-                    ? DataFileAppenderBuilder.WriteMode.POSITION_DELETE_WITH_ROW_WRITER
-                    : DataFileAppenderBuilder.WriteMode.POSITION_DELETE_WRITER),
+                    ? AppenderBuilder.WriteMode.POSITION_DELETE_WITH_ROW_WRITER
+                    : AppenderBuilder.WriteMode.POSITION_DELETE_WRITER),
         format,
         location,
         spec,
