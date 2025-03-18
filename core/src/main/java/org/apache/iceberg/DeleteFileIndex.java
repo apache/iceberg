@@ -549,6 +549,16 @@ class DeleteFileIndex {
     private Iterable<CloseableIterable<ManifestEntry<DeleteFile>>> deleteManifestReaders() {
       Expression entryFilter = ignoreResiduals ? Expressions.alwaysTrue() : dataFilter;
 
+      LoadingCache<Integer, Expression> partExprCache =
+          specsById == null
+              ? null
+              : Caffeine.newBuilder()
+                  .build(
+                      specId -> {
+                        PartitionSpec spec = specsById.get(specId);
+                        return Projections.inclusive(spec, caseSensitive).project(dataFilter);
+                      });
+
       LoadingCache<Integer, ManifestEvaluator> evalCache =
           specsById == null
               ? null
@@ -557,9 +567,7 @@ class DeleteFileIndex {
                       specId -> {
                         PartitionSpec spec = specsById.get(specId);
                         return ManifestEvaluator.forPartitionFilter(
-                            Expressions.and(
-                                partitionFilter,
-                                Projections.inclusive(spec, caseSensitive).project(dataFilter)),
+                            Expressions.and(partitionFilter, partExprCache.get(specId)),
                             spec,
                             caseSensitive);
                       });
@@ -584,7 +592,12 @@ class DeleteFileIndex {
           manifest ->
               ManifestFiles.readDeleteManifest(manifest, io, specsById)
                   .filterRows(entryFilter)
-                  .filterPartitions(Expressions.and(partitionFilter, dataFilter))
+                  .filterPartitions(
+                      Expressions.and(
+                          partitionFilter,
+                          Projections.inclusive(
+                                  specsById.get(manifest.partitionSpecId()), caseSensitive)
+                              .project(dataFilter)))
                   .filterPartitions(partitionSet)
                   .caseSensitive(caseSensitive)
                   .scanMetrics(scanMetrics)
