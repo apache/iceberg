@@ -641,7 +641,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       InputFile inputFile, FileFormat format, PartitionSpec spec) {
     Schema deleteSchema = DeleteSchemaUtil.posDeleteReadSchema(spec.schema());
     return DataFileToObjectModelRegistry.readBuilder(
-            format, DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME, inputFile)
+            format, DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL, inputFile)
         .project(deleteSchema)
         .reuseContainers()
         .build();
@@ -656,7 +656,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       throws IOException {
     return DataFileToObjectModelRegistry.positionDeleteWriterBuilder(
             format,
-            DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME,
+            DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL,
             EncryptedFiles.plainAsEncryptedOutput(outputFile))
         .withPartition(partition)
         .withRowSchema(rowSchema)

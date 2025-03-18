@@ -117,7 +117,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
       ReadBuilder<?> builder =
           DataFileToObjectModelRegistry.readBuilder(
                   task.file().format(),
-                  FlinkObjectModels.FLINK_OBJECT_MODEL_NAME,
+                  FlinkObjectModels.FLINK_OBJECT_MODEL,
                   inputFilesDecryptor.getInputFile(task))
               .project(schema)
               .constantFieldAccessors(idToConstant)

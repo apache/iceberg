@@ -20,8 +20,8 @@ package org.apache.iceberg.spark.data.vectorized;
 
 import java.util.Arrays;
 import java.util.function.Predicate;
+import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnVector;
@@ -56,7 +56,7 @@ public class ColumnarBatchUtil {
    */
   public static Pair<int[], Integer> buildRowIdMapping(
       ColumnVector[] columnVectors,
-      Parquet.DeleteFilter<InternalRow> deletes,
+      DeleteFilter<InternalRow> deletes,
       long rowStartPosInBatch,
       int batchSize) {
     if (deletes == null) {
@@ -109,7 +109,7 @@ public class ColumnarBatchUtil {
    */
   public static boolean[] buildIsDeleted(
       ColumnVector[] columnVectors,
-      Parquet.DeleteFilter<InternalRow> deletes,
+      DeleteFilter<InternalRow> deletes,
       long rowStartPosInBatch,
       int batchSize) {
     boolean[] isDeleted = new boolean[batchSize];
@@ -170,7 +170,7 @@ public class ColumnarBatchUtil {
    *     vectors array if no extra column vectors are found
    */
   public static ColumnVector[] removeExtraColumns(
-      Parquet.DeleteFilter<InternalRow> deletes, ColumnVector[] columnVectors) {
+      DeleteFilter<InternalRow> deletes, ColumnVector[] columnVectors) {
     int expectedColumnSize = deletes.expectedSchema().columns().size();
     if (columnVectors.length > expectedColumnSize) {
       return Arrays.copyOf(columnVectors, expectedColumnSize);

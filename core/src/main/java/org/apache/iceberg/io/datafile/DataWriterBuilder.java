@@ -33,8 +33,12 @@ public interface DataWriterBuilder<B extends DataWriterBuilder<B, E>, E>
   /**
    * Creates a writer which generates a {@link org.apache.iceberg.DataFile} based on the
    * configurations set. The data writer will expect inputs defined by the {@link
-   * #engineSchema(Object)} which should match the Iceberg schema defined by {@link
+   * #engineSchema(Object)} which should be convertible to the Iceberg schema defined by {@link
    * #schema(Schema)}.
+   *
+   * @param <D> the type of data that the writer will handle
+   * @return a {@link DataWriter} instance configured with the specified settings
+   * @throws IOException if an I/O error occurs during the creation of the writer
    */
   <D> DataWriter<D> dataWriter() throws IOException;
 }

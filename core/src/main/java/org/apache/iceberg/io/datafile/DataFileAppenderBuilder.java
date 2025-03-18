@@ -22,29 +22,37 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.io.FileAppender;
 
 /**
- * Interface which should be implemented by the data file format implementations.
+ * Interface which should be implemented by the data file format implementations. The {@link
+ * DataFileAppenderBuilder} will be wrapped into {@link AppenderBuilder}, {@link DataWriterBuilder},
+ * {@link EqualityDeleteWriterBuilder} or {@link PositionDeleteWriterBuilder}, and the {@link
+ * DataFileAppenderBuilder#build(DataFileAppenderBuilder.WriteMode)} method is used to finalize the
+ * appender configuration for the specific writer use-cases. The following input should be handled
+ * by the appender in the specific modes:
  *
- * @param <A> type returned by builder API to allow chained calls
+ * <ul>
+ *   <li>The appender's native input type
+ *       <ul>
+ *         <li>{@link DataFileAppenderBuilder.WriteMode#APPENDER}
+ *         <li>{@link DataFileAppenderBuilder.WriteMode#DATA_WRITER}
+ *         <li>{@link DataFileAppenderBuilder.WriteMode#EQUALITY_DELETE_WRITER}
+ *       </ul>
+ *   <li>{@link org.apache.iceberg.deletes.PositionDelete} where the row's type is the appender's
+ *       native input type
+ *       <ul>
+ *         <li>{@link DataFileAppenderBuilder.WriteMode#POSITION_DELETE_WRITER}
+ *         <li>{@link DataFileAppenderBuilder.WriteMode#POSITION_DELETE_WITH_ROW_WRITER}
+ *       </ul>
+ * </ul>
+ *
+ * @param <B> type returned by builder API to allow chained calls
  * @param <E> type for the engine specific schema
  */
-public interface DataFileAppenderBuilder<A extends DataFileAppenderBuilder<A, E>, E> {
-  /**
-   * Sets the appender configurations coming from the table like {@link #schema(Schema)}, {@link
-   * #set(String, String)} and {@link #metricsConfig(MetricsConfig)}.
-   */
-  A forTable(Table table);
-
+public interface DataFileAppenderBuilder<B extends DataFileAppenderBuilder<B, E>, E> {
   /** Set the file schema. */
-  A schema(Schema newSchema);
-
-  /** Set the file schema's root name. */
-  default A named(String newName) {
-    throw new UnsupportedOperationException("Not supported");
-  }
+  B schema(Schema newSchema);
 
   /**
    * Set a writer configuration property.
@@ -56,7 +64,7 @@ public interface DataFileAppenderBuilder<A extends DataFileAppenderBuilder<A, E>
    * @param value config value
    * @return this for method chaining
    */
-  A set(String property, String value);
+  B set(String property, String value);
 
   /**
    * Set a file metadata property.
@@ -68,19 +76,19 @@ public interface DataFileAppenderBuilder<A extends DataFileAppenderBuilder<A, E>
    * @param value config value
    * @return this for method chaining
    */
-  A meta(String property, String value);
+  B meta(String property, String value);
 
   /** Sets the metrics configuration used for collecting column metrics for the created file. */
-  A metricsConfig(MetricsConfig newMetricsConfig);
+  B metricsConfig(MetricsConfig newMetricsConfig);
 
   /** Overwrite the file if it already exists. The default value is <code>false</code>. */
-  A overwrite(boolean enabled);
+  B overwrite(boolean enabled);
 
   /**
    * Sets the encryption key used for writing the file. If encryption is not supported by the reader
    * then an exception should be thrown.
    */
-  default A fileEncryptionKey(ByteBuffer encryptionKey) {
+  default B fileEncryptionKey(ByteBuffer encryptionKey) {
     throw new UnsupportedOperationException("Not supported");
   }
 
@@ -88,11 +96,14 @@ public interface DataFileAppenderBuilder<A extends DataFileAppenderBuilder<A, E>
    * Sets the additional authentication data prefix used for writing the file. If encryption is not
    * supported by the reader then an exception should be thrown.
    */
-  default A aadPrefix(ByteBuffer aadPrefix) {
+  default B aadPrefix(ByteBuffer aadPrefix) {
     throw new UnsupportedOperationException("Not supported");
   }
 
-  /** Sets the engine native schema for the appender. */
+  /**
+   * Sets the engine native schema for the appender. Used to identify the engine specific input type
+   * when there is N to 1 mapping between the engine type and the Iceberg type.
+   */
   E engineSchema(E newEngineSchema);
 
   /**
@@ -112,10 +123,15 @@ public interface DataFileAppenderBuilder<A extends DataFileAppenderBuilder<A, E>
    * configuration when creating the {@link FileAppender}.
    */
   enum WriteMode {
+    /** Mode for appending data to a file. */
     APPENDER,
+    /** Mode for writing data files. */
     DATA_WRITER,
+    /** Mode for writing equality delete files. */
     EQUALITY_DELETE_WRITER,
+    /** Mode for writing position delete files. */
     POSITION_DELETE_WRITER,
-    POSITION_DELETE_WITH_ROW_WRITER,
+    /** Mode for writing position delete files with row data. */
+    POSITION_DELETE_WITH_ROW_WRITER
   }
 }

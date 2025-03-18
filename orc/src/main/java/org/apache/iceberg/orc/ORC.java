@@ -112,12 +112,12 @@ public class ORC {
   public static void register() {
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.ORC,
-        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME,
+        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL,
         inputFile -> read(inputFile).readerFunction(GenericOrcReader::buildReader));
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.ORC,
-        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME,
+        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL,
         outputFile ->
             ORC.write(outputFile)
                 .writerFunction(
@@ -160,7 +160,7 @@ public class ORC {
       }
     }
 
-    @Override
+    @Deprecated
     public WriteBuilder forTable(Table table) {
       schema(table.schema());
       setAll(table.properties());
@@ -914,11 +914,6 @@ public class ORC {
           "Cannot set multiple read builder functions");
       this.batchReaderFunction = newReaderFunction;
       return this;
-    }
-
-    @Deprecated
-    public ReadBuilder idToConstant(Map<Integer, ?> newIdConstant) {
-      return constantFieldAccessors(newIdConstant);
     }
 
     @Override

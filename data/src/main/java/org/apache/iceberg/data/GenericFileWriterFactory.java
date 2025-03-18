@@ -34,7 +34,7 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Object, Schema> {
+class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Schema> {
 
   GenericFileWriterFactory(
       Table table,
@@ -49,7 +49,7 @@ class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Ob
     super(
         table,
         dataFileFormat,
-        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME,
+        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL,
         dataSchema,
         dataSortOrder,
         deleteFileFormat,

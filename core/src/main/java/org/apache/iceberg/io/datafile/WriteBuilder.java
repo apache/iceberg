@@ -41,7 +41,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ArrayUtil;
 
 /**
- * Builder implementation for generating one of the following:
+ * Builder implementation for generating the different writer interfaces. The builder is an internal
+ * class and could change without notice. Use one of the following specific interfaces:
  *
  * <ul>
  *   <li>{@link FileAppender}
@@ -53,7 +54,7 @@ import org.apache.iceberg.util.ArrayUtil;
  * The builder wraps the file format specific {@link DataFileAppenderBuilder}. To allow further
  * engine and file format specific configuration changes for the given writer the {@link
  * DataFileAppenderBuilder#build(DataFileAppenderBuilder.WriteMode)} method is called with the
- * correct parameter to create the appender used internally by the file appender and the writers.
+ * correct parameter to create the appender used internally to provide the required functionality.
  *
  * @param <A> type of the appender
  * @param <E> engine specific schema of the input records used for appender initialization

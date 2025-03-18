@@ -40,10 +40,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 /**
  * A base writer factory to be extended by query engine integrations.
  *
- * @param <T> type of the records
- * @param <S> type of the schema
+ * @param <T> type of the engine specific records
+ * @param <S> type of the engine specific schema
  */
-public abstract class RegistryBasedFileWriterFactory<T, F, S> implements FileWriterFactory<T> {
+public abstract class RegistryBasedFileWriterFactory<T, S> implements FileWriterFactory<T> {
   private final Table table;
   private final FileFormat dataFileFormat;
   private final String inputType;

@@ -22,6 +22,7 @@ import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
 
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
@@ -39,30 +40,30 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkObjectModels {
-  public static final String SPARK_OBJECT_MODEL_NAME = "spark";
-  public static final String SPARK_VECTORIZED_OBJECT_MODEL_NAME = "spark-vectorized";
+  public static final String SPARK_OBJECT_MODEL = "spark";
+  public static final String SPARK_VECTORIZED_OBJECT_MODEL = "spark-vectorized";
 
   public static void register() {
     // Base readers
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.PARQUET,
-        SPARK_OBJECT_MODEL_NAME,
+        SPARK_OBJECT_MODEL,
         inputFile -> Parquet.read(inputFile).readerFunction(SparkParquetReaders::buildReader));
 
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.AVRO,
-        SPARK_OBJECT_MODEL_NAME,
+        SPARK_OBJECT_MODEL,
         inputFile -> Avro.read(inputFile).readerFunction(SparkPlannedAvroReader::create));
 
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.ORC,
-        SPARK_OBJECT_MODEL_NAME,
+        SPARK_OBJECT_MODEL,
         inputFile -> ORC.read(inputFile).readerFunction(SparkOrcReader::new));
 
     // Vectorized readers
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.PARQUET,
-        SPARK_VECTORIZED_OBJECT_MODEL_NAME,
+        SPARK_VECTORIZED_OBJECT_MODEL,
         ParquetReaderType.ICEBERG.name(),
         inputFile ->
             Parquet.read(inputFile)
@@ -72,11 +73,11 @@ public class SparkObjectModels {
                             schema,
                             messageType,
                             idToConstant,
-                            (Parquet.DeleteFilter<InternalRow>) deleteFilter)));
+                            (DeleteFilter<InternalRow>) deleteFilter)));
 
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.PARQUET,
-        SPARK_VECTORIZED_OBJECT_MODEL_NAME,
+        SPARK_VECTORIZED_OBJECT_MODEL,
         ParquetReaderType.COMET.name(),
         inputFile ->
             Parquet.read(inputFile)
@@ -86,17 +87,17 @@ public class SparkObjectModels {
                             schema,
                             messageType,
                             idToConstant,
-                            (Parquet.DeleteFilter<InternalRow>) deleteFilter)));
+                            (DeleteFilter<InternalRow>) deleteFilter)));
 
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.ORC,
-        SPARK_VECTORIZED_OBJECT_MODEL_NAME,
+        SPARK_VECTORIZED_OBJECT_MODEL,
         inputFile ->
             ORC.read(inputFile).batchReaderFunction(VectorizedSparkOrcReaders::buildReader));
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.AVRO,
-        SPARK_OBJECT_MODEL_NAME,
+        SPARK_OBJECT_MODEL,
         outputFile ->
             Avro.write(outputFile)
                 .writerFunction(
@@ -111,7 +112,7 @@ public class SparkObjectModels {
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.PARQUET,
-        SPARK_OBJECT_MODEL_NAME,
+        SPARK_OBJECT_MODEL,
         outputFile ->
             Parquet.write(outputFile)
                 .writerFunction(
@@ -121,7 +122,7 @@ public class SparkObjectModels {
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.ORC,
-        SPARK_OBJECT_MODEL_NAME,
+        SPARK_OBJECT_MODEL,
         outputFile ->
             ORC.write(outputFile)
                 .writerFunction(

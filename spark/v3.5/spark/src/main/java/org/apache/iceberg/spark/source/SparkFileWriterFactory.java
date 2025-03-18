@@ -34,8 +34,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.StructType;
 
-class SparkFileWriterFactory
-    extends RegistryBasedFileWriterFactory<InternalRow, Object, StructType> {
+class SparkFileWriterFactory extends RegistryBasedFileWriterFactory<InternalRow, StructType> {
 
   SparkFileWriterFactory(
       Table table,
@@ -55,7 +54,7 @@ class SparkFileWriterFactory
     super(
         table,
         dataFileFormat,
-        SparkObjectModels.SPARK_OBJECT_MODEL_NAME,
+        SparkObjectModels.SPARK_OBJECT_MODEL,
         dataSchema,
         dataSortOrder,
         deleteFileFormat,

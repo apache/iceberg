@@ -58,7 +58,6 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
@@ -77,7 +76,6 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
-import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
@@ -143,12 +141,12 @@ public class Parquet {
   public static void register() {
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.PARQUET,
-        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME,
+        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL,
         inputFile -> read(inputFile).readerFunction(GenericParquetReaders::buildReader));
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.PARQUET,
-        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME,
+        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL,
         outputFile ->
             Parquet.write(outputFile)
                 .writerFunction(
@@ -207,7 +205,7 @@ public class Parquet {
       }
     }
 
-    @Override
+    @Deprecated
     public WriteBuilder forTable(Table table) {
       schema(table.schema());
       setAll(table.properties());
@@ -1212,7 +1210,7 @@ public class Parquet {
   public static class ReadBuilder
       implements InternalData.ReadBuilder,
           org.apache.iceberg.io.datafile.ReadBuilder<ReadBuilder>,
-          SupportsDeleteFilter {
+          SupportsDeleteFilter<Object> {
     private final InputFile file;
     private final Map<String, String> properties = Maps.newHashMap();
     private Long start = null;
@@ -1223,7 +1221,7 @@ public class Parquet {
     private Function<MessageType, VectorizedReader<?>> batchedReaderFunc = null;
     private Function<MessageType, ParquetValueReader<?>> readerFunc = null;
     private BiFunction<Schema, MessageType, ParquetValueReader<?>> readerFuncWithSchema = null;
-    private BatchReaderFunction<?> batchReaderFunction = null;
+    private BatchReaderFunction<?, Object> batchReaderFunction = null;
     private ReaderFunction<?> readerFunction = null;
     private boolean filterRecords = true;
     private boolean caseSensitive = true;
@@ -1234,7 +1232,7 @@ public class Parquet {
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
     private Map<Integer, ?> constantFieldAccessors = ImmutableMap.of();
-    private DeleteFilter<?> deleteFilter = null;
+    private Object deleteFilter = null;
 
     private ReadBuilder(InputFile file) {
       this.file = file;
@@ -1341,7 +1339,7 @@ public class Parquet {
       return this;
     }
 
-    public <D> ReadBuilder batchReaderFunction(BatchReaderFunction<D> func) {
+    public <D> ReadBuilder batchReaderFunction(BatchReaderFunction<D, Object> func) {
       Preconditions.checkState(
           readerFunc == null
               && readerFuncWithSchema == null
@@ -1412,11 +1410,6 @@ public class Parquet {
       return this;
     }
 
-    @Deprecated
-    public ReadBuilder idToConstant(Map<Integer, ?> newIdConstant) {
-      return constantFieldAccessors(newIdConstant);
-    }
-
     @Override
     public ReadBuilder constantFieldAccessors(Map<Integer, ?> newConstantFieldAccessors) {
       this.constantFieldAccessors = newConstantFieldAccessors;
@@ -1424,7 +1417,7 @@ public class Parquet {
     }
 
     @Override
-    public void deleteFilter(DeleteFilter<?> newDeleteFilter) {
+    public void deleteFilter(Object newDeleteFilter) {
       this.deleteFilter = newDeleteFilter;
     }
 
@@ -1449,7 +1442,7 @@ public class Parquet {
           || batchedReaderFunc != null
           || readerFunction != null
           || batchReaderFunction != null) {
-        return buildFunctionBasedReader(fileDecryptionProperties);
+        return buildFunctionBasedReader(options(fileDecryptionProperties));
       }
 
       ParquetReadBuilder<D> builder = new ParquetReadBuilder<>(ParquetIO.file(file));
@@ -1523,35 +1516,7 @@ public class Parquet {
       return new ParquetIterable<>(builder);
     }
 
-    @SuppressWarnings("CyclomaticComplexity")
-    private <D> CloseableIterable<D> buildFunctionBasedReader(
-        FileDecryptionProperties fileDecryptionProperties) {
-      ParquetReadOptions.Builder optionsBuilder;
-      if (file instanceof HadoopInputFile) {
-        // remove read properties already set that may conflict with this read
-        Configuration conf = new Configuration(((HadoopInputFile) file).getConf());
-        for (String property : READ_PROPERTIES_TO_REMOVE) {
-          conf.unset(property);
-        }
-        optionsBuilder = HadoopReadOptions.builder(conf);
-      } else {
-        optionsBuilder = ParquetReadOptions.builder(new PlainParquetConfiguration());
-      }
-
-      for (Map.Entry<String, String> entry : properties.entrySet()) {
-        optionsBuilder.set(entry.getKey(), entry.getValue());
-      }
-
-      if (start != null) {
-        optionsBuilder.withRange(start, start + length);
-      }
-
-      if (fileDecryptionProperties != null) {
-        optionsBuilder.withDecryption(fileDecryptionProperties);
-      }
-
-      ParquetReadOptions options = optionsBuilder.build();
-
+    private <D> CloseableIterable<D> buildFunctionBasedReader(ParquetReadOptions options) {
       NameMapping mapping;
       if (nameMapping != null) {
         mapping = nameMapping;
@@ -1586,6 +1551,35 @@ public class Parquet {
         return new org.apache.iceberg.parquet.ParquetReader<>(
             file, schema, options, readBuilder, mapping, filter, reuseContainers, caseSensitive);
       }
+    }
+
+    private ParquetReadOptions options(FileDecryptionProperties fileDecryptionProperties) {
+      ParquetReadOptions.Builder optionsBuilder;
+      if (file instanceof HadoopInputFile) {
+        // remove read properties already set that may conflict with this read
+        Configuration conf = new Configuration(((HadoopInputFile) file).getConf());
+        for (String property : READ_PROPERTIES_TO_REMOVE) {
+          conf.unset(property);
+        }
+
+        optionsBuilder = HadoopReadOptions.builder(conf);
+      } else {
+        optionsBuilder = ParquetReadOptions.builder(new PlainParquetConfiguration());
+      }
+
+      for (Map.Entry<String, String> entry : properties.entrySet()) {
+        optionsBuilder.set(entry.getKey(), entry.getValue());
+      }
+
+      if (start != null) {
+        optionsBuilder.withRange(start, start + length);
+      }
+
+      if (fileDecryptionProperties != null) {
+        optionsBuilder.withDecryption(fileDecryptionProperties);
+      }
+
+      return optionsBuilder.build();
     }
   }
 
@@ -1662,48 +1656,16 @@ public class Parquet {
         Schema schema, MessageType messageType, Map<Integer, ?> constantFieldAccessors);
   }
 
-  public interface BatchReaderFunction<D> {
+  public interface BatchReaderFunction<D, F> {
     VectorizedReader<D> read(
-        Schema schema,
-        MessageType messageType,
-        Map<Integer, ?> idToConstant,
-        DeleteFilter<?> deleteFilter);
+        Schema schema, MessageType messageType, Map<Integer, ?> idToConstant, F deleteFilter);
   }
 
   public interface WriterFunction<D> {
     ParquetValueWriter<D> write(Object engineSchema, Schema icebergSchema, MessageType messageType);
   }
 
-  public interface SupportsDeleteFilter {
-    void deleteFilter(DeleteFilter<?> deleteFilter);
-  }
-
-  /**
-   * Used for filtering out deleted records on the reader level. Currently only used by the Spark
-   * vectorized readers.
-   *
-   * @param <D> type of the records which are filtered
-   */
-  public interface DeleteFilter<D> {
-    /** The schema required to apply the delete filter. */
-    Schema requiredSchema();
-
-    /** Is there any positional delete files to apply. */
-    boolean hasPosDeletes();
-
-    /** Is there any equality delete files to apply. */
-    boolean hasEqDeletes();
-
-    /** The rows deleted by positional deletes. */
-    PositionDeleteIndex deletedRowPositions();
-
-    /** The filter to apply for the equality deletes. */
-    Predicate<D> eqDeletedRowFilter();
-
-    /** Should be called if a row is removed. */
-    void incrementDeleteCount();
-
-    /** The projected schema. */
-    Schema expectedSchema();
+  public interface SupportsDeleteFilter<F> {
+    void deleteFilter(F deleteFilter);
   }
 }

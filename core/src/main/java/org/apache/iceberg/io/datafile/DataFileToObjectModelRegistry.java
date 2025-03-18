@@ -34,28 +34,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Registry which provides the available {@link ReadBuilder}s and writers like {@link
- * AppenderBuilder}s, {@link DataWriterBuilder}s, {@link EqualityDeleteWriterBuilder} and {@link
- * PositionDeleteWriterBuilder}s. Based on the `file format`, the required `object model name` and
- * the reader/writer `builderType` the registry returns the correct reader and writer builders.
- * These builders could be used to generate the readers and writers.
+ * Registry which provides the available {@link ReadBuilder}s and writer builders ({@link
+ * AppenderBuilder}, {@link DataWriterBuilder}, {@link EqualityDeleteWriterBuilder}, {@link
+ * PositionDeleteWriterBuilder}). Based on the `file format`, the required `object model name` and
+ * the reader `builderType` the registry returns the correct reader and writer builders. These
+ * builders could be used to generate the readers and writers.
  *
  * <p>File formats has to register the {@link ReadBuilder}s and the {@link DataFileAppenderBuilder}s
  * which will be used to create the readers and the writers. The readers returned directly, the
  * appenders are wrapped into the {@link AppenderBuilder}, {@link DataWriterBuilder}, {@link
- * EqualityDeleteWriterBuilder} or {@link PositionDeleteWriterBuilder}, and the {@link
- * DataFileAppenderBuilder#build(DataFileAppenderBuilder.WriteMode)} method is used to finalize the
- * appender configuration for the specific writer use-cases. The following inputs should be handled
- * by the appender in the following cases:
- *
- * <ul>
- *   <li>The appender's native input type - {@link DataFileAppenderBuilder.WriteMode#APPENDER},
- *       {@link DataFileAppenderBuilder.WriteMode#DATA_WRITER}, {@link
- *       DataFileAppenderBuilder.WriteMode#EQUALITY_DELETE_WRITER}
- *   <li>{@link org.apache.iceberg.deletes.PositionDelete} where the row is the appender's native
- *       input type - {@link DataFileAppenderBuilder.WriteMode#POSITION_DELETE_WRITER}, {@link
- *       DataFileAppenderBuilder.WriteMode#POSITION_DELETE_WITH_ROW_WRITER}
- * </ul>
+ * EqualityDeleteWriterBuilder} or {@link PositionDeleteWriterBuilder}.
  */
 public final class DataFileToObjectModelRegistry {
   private static final Logger LOG = LoggerFactory.getLogger(DataFileToObjectModelRegistry.class);
@@ -73,9 +61,16 @@ public final class DataFileToObjectModelRegistry {
   private static final Map<Key, Function<InputFile, ReadBuilder<?>>> READ_BUILDERS =
       Maps.newConcurrentMap();
 
-  public static final String GENERIC_OBJECT_MODEL_NAME = "generic";
+  public static final String GENERIC_OBJECT_MODEL = "generic";
 
-  /** Registers a new appender builder for the given format/object model name. */
+  /**
+   * Registers a new appender builder for the given format/object model name.
+   *
+   * @param format the file format to write
+   * @param objectModelName accepted by the writer
+   * @param appenderBuilder the appender builder function
+   * @throws IllegalArgumentException if an appender builder for the given key already exists
+   */
   public static void registerAppender(
       FileFormat format,
       String objectModelName,
@@ -91,13 +86,28 @@ public final class DataFileToObjectModelRegistry {
     APPENDER_BUILDERS.put(key, appenderBuilder);
   }
 
-  /** Registers a new reader builder for the given format/object model name. */
+  /**
+   * Registers a new reader builder for the given format/object model name.
+   *
+   * @param format the file format to read
+   * @param objectModelName returned by the reader
+   * @param readBuilder the read builder function
+   * @throws IllegalArgumentException if a read builder for the given key already exists
+   */
   public static void registerReader(
       FileFormat format, String objectModelName, Function<InputFile, ReadBuilder<?>> readBuilder) {
     registerReader(format, objectModelName, null, readBuilder);
   }
 
-  /** Registers a new reader builder for the given format/object model name/reader type. */
+  /**
+   * Registers a new reader builder for the given format/object model name/reader type.
+   *
+   * @param format the file format to read
+   * @param objectModelName returned by the reader
+   * @param readerType the reader type
+   * @param readBuilder the read builder function
+   * @throws IllegalArgumentException if a read builder for the given key already exists
+   */
   public static void registerReader(
       FileFormat format,
       String objectModelName,
@@ -155,7 +165,7 @@ public final class DataFileToObjectModelRegistry {
 
   /**
    * Provides a reader builder for the given input file which returns objects with a given object
-   * model name and uses the specified reader type. Parquet currently supports Iceberg and Comet
+   * model name and uses the specified reader type. Parquet currently supports native Java and Comet
    * readers.
    *
    * @param format of the file to read
@@ -173,7 +183,7 @@ public final class DataFileToObjectModelRegistry {
    * Provides an appender builder for the given output file which writes objects with a given object
    * model name.
    *
-   * @param format of the file to read
+   * @param format of the file to write
    * @param objectModelName accepted by the writer
    * @param outputFile to write
    * @param <E> type for the engine specific schema used by the builder
@@ -188,7 +198,7 @@ public final class DataFileToObjectModelRegistry {
    * Provides a data writer builder for the given output file which writes objects with a given
    * object model name.
    *
-   * @param format of the file to read
+   * @param format of the file to write
    * @param objectModelName accepted by the writer
    * @param outputFile to write
    * @param <E> type for the engine specific schema used by the builder
@@ -200,10 +210,10 @@ public final class DataFileToObjectModelRegistry {
   }
 
   /**
-   * Provides a equality delete writer builder for the given output file which writes objects with a
-   * given object model name.
+   * Provides an equality delete writer builder for the given output file which writes objects with
+   * a given object model name.
    *
-   * @param format of the file to read
+   * @param format of the file to write
    * @param objectModelName accepted by the writer
    * @param outputFile to write
    * @param <E> type for the engine specific schema used by the builder
@@ -218,7 +228,7 @@ public final class DataFileToObjectModelRegistry {
    * Provides a position delete writer builder for the given output file which writes objects with a
    * given object model name.
    *
-   * @param format of the file to read
+   * @param format of the file to write
    * @param objectModelName accepted by the writer
    * @param outputFile to write
    * @param <E> type for the engine specific schema used by the builder

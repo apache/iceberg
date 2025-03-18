@@ -37,8 +37,13 @@ public interface PositionDeleteWriterBuilder<B extends PositionDeleteWriterBuild
   /**
    * Creates a writer which generates a position {@link DeleteFile} based on the configurations set.
    * The writer will expect {@link org.apache.iceberg.deletes.PositionDelete} records. If {@link
-   * #withRowSchema(Schema)} is set then the positional delete records should contain the delete row
-   * data as defined by the rowSchema.
+   * #withRowSchema(Schema)} is set then the positional delete records should contain delete rows
+   * specified by the {@link #engineSchema(Object)}. The provided engine schema should be
+   * convertible to the Iceberg schema defined by {@link #withRowSchema(Schema)}.
+   *
+   * @param <D> the type of data that the writer will handle
+   * @return a {@link PositionDeleteWriter} instance configured with the specified settings
+   * @throws IOException if an I/O error occurs during the creation of the writer
    */
   <D> PositionDeleteWriter<D> positionDeleteWriter() throws IOException;
 }

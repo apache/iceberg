@@ -124,12 +124,12 @@ public class ArrowReader extends CloseableGroup {
   private final int batchSize;
   private final boolean reuseContainers;
 
-  public static final String ARROW_OBJECT_MODEL_NAME = "arrow";
+  public static final String ARROW_OBJECT_MODEL = "arrow";
 
   public static void register() {
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.PARQUET,
-        ARROW_OBJECT_MODEL_NAME,
+        ARROW_OBJECT_MODEL,
         inputFile ->
             Parquet.read(inputFile)
                 .batchReaderFunction(
@@ -342,7 +342,7 @@ public class ArrowReader extends CloseableGroup {
       if (task.file().format() == FileFormat.PARQUET) {
         ReadBuilder<?> builder =
             DataFileToObjectModelRegistry.readBuilder(
-                    FileFormat.PARQUET, ARROW_OBJECT_MODEL_NAME, location)
+                    FileFormat.PARQUET, ARROW_OBJECT_MODEL, location)
                 .project(expectedSchema)
                 .split(task.start(), task.length())
                 .recordsPerBatch(batchSize)

@@ -23,7 +23,7 @@ import java.util.Map;
 import org.apache.iceberg.arrow.vectorized.BaseBatchReader;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader.DeletedVectorReader;
-import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.Pair;
@@ -41,7 +41,7 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
  */
 public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
   private final boolean hasIsDeletedColumn;
-  private Parquet.DeleteFilter<InternalRow> deletes = null;
+  private DeleteFilter<InternalRow> deletes = null;
   private long rowStartPosInBatch = 0;
 
   public ColumnarBatchReader(List<VectorizedReader<?>> readers) {
@@ -63,7 +63,7 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
                         "PageReadStore does not contain row index offset"));
   }
 
-  public void setDeleteFilter(Parquet.DeleteFilter<InternalRow> deleteFilter) {
+  public void setDeleteFilter(DeleteFilter<InternalRow> deleteFilter) {
     this.deletes = deleteFilter;
   }
 

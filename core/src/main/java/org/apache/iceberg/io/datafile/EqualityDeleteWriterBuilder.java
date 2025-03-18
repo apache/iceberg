@@ -43,8 +43,12 @@ public interface EqualityDeleteWriterBuilder<B extends EqualityDeleteWriterBuild
 
   /**
    * Creates a writer which generates an equality {@link DeleteFile} based on the configurations
-   * set. The writer will expect inputs defined by the {@link #engineSchema(Object)} which should
-   * match the Iceberg schema defined by {@link #withRowSchema(Schema)}.
+   * set. The writer will expect inputs defined by the {@link #engineSchema(Object)} which should be
+   * convertible to the Iceberg schema defined by {@link #withRowSchema(Schema)}.
+   *
+   * @param <D> the type of data that the writer will handle
+   * @return a {@link EqualityDeleteWriter} instance configured with the specified settings
+   * @throws IOException if an I/O error occurs during the creation of the writer
    */
   <D> EqualityDeleteWriter<D> equalityDeleteWriter() throws IOException;
 }

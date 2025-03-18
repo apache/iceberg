@@ -89,7 +89,7 @@ class GenericReader implements Serializable {
         PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
 
     return DataFileToObjectModelRegistry.readBuilder(
-            task.file().format(), DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME, input)
+            task.file().format(), DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL, input)
         .project(fileProjection)
         .constantFieldAccessors(partition)
         .split(task.start(), task.length())

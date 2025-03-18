@@ -33,7 +33,6 @@ import org.apache.iceberg.deletes.Deletes;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -48,7 +47,7 @@ import org.apache.iceberg.util.StructProjection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class DeleteFilter<T> implements Parquet.DeleteFilter<T> {
+public abstract class DeleteFilter<T> {
   private static final Logger LOG = LoggerFactory.getLogger(DeleteFilter.class);
 
   private final String filePath;
@@ -123,27 +122,22 @@ public abstract class DeleteFilter<T> implements Parquet.DeleteFilter<T> {
     return isDeletedColumnPosition;
   }
 
-  @Override
   public Schema requiredSchema() {
     return requiredSchema;
   }
 
-  @Override
   public Schema expectedSchema() {
     return expectedSchema;
   }
 
-  @Override
   public boolean hasPosDeletes() {
     return !posDeletes.isEmpty();
   }
 
-  @Override
   public boolean hasEqDeletes() {
     return !eqDeletes.isEmpty();
   }
 
-  @Override
   public void incrementDeleteCount() {
     counter.increment();
   }
@@ -237,7 +231,6 @@ public abstract class DeleteFilter<T> implements Parquet.DeleteFilter<T> {
         this.getClass().getName() + " does not implement markRowDeleted");
   }
 
-  @Override
   public Predicate<T> eqDeletedRowFilter() {
     if (eqDeleteRows == null) {
       eqDeleteRows =
@@ -246,7 +239,6 @@ public abstract class DeleteFilter<T> implements Parquet.DeleteFilter<T> {
     return eqDeleteRows;
   }
 
-  @Override
   public PositionDeleteIndex deletedRowPositions() {
     if (deleteRowPositions == null && !posDeletes.isEmpty()) {
       this.deleteRowPositions = deleteLoader().loadPositionDeletes(posDeletes, filePath);

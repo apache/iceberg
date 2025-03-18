@@ -63,7 +63,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
     ReadBuilder<?> readBuilder =
         DataFileToObjectModelRegistry.readBuilder(
                 format,
-                SparkObjectModels.SPARK_VECTORIZED_OBJECT_MODEL_NAME,
+                SparkObjectModels.SPARK_VECTORIZED_OBJECT_MODEL,
                 parquetConf != null ? parquetConf.readerType().name() : null,
                 inputFile)
             .project(requiredSchema)

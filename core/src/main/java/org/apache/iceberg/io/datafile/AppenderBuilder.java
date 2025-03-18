@@ -34,6 +34,10 @@ public interface AppenderBuilder<B extends AppenderBuilder<B, E>, E>
    * Creates a {@link FileAppender} based on the configurations set. The appender will expect inputs
    * defined by the {@link #engineSchema(Object)}} which should match the Iceberg schema defined by
    * {@link #schema(Schema)}.
+   *
+   * @param <D> the type of data that the appender will handle
+   * @return a {@link FileAppender} instance configured with the specified settings
+   * @throws IOException if an I/O error occurs during the creation of the appender
    */
   <D> FileAppender<D> appender() throws IOException;
 }

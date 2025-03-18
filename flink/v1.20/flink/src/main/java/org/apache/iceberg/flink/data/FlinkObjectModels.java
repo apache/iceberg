@@ -30,27 +30,27 @@ import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 
 public class FlinkObjectModels {
-  public static final String FLINK_OBJECT_MODEL_NAME = "flink";
+  public static final String FLINK_OBJECT_MODEL = "flink";
 
   public static void register() {
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.PARQUET,
-        FLINK_OBJECT_MODEL_NAME,
+        FLINK_OBJECT_MODEL,
         inputFile -> Parquet.read(inputFile).readerFunction(FlinkParquetReaders::buildReader));
 
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.AVRO,
-        FLINK_OBJECT_MODEL_NAME,
+        FLINK_OBJECT_MODEL,
         inputFile -> Avro.read(inputFile).readerFunction(FlinkPlannedAvroReader::create));
 
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.ORC,
-        FLINK_OBJECT_MODEL_NAME,
+        FLINK_OBJECT_MODEL,
         inputFile -> ORC.read(inputFile).readerFunction(FlinkOrcReader::new));
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.AVRO,
-        FLINK_OBJECT_MODEL_NAME,
+        FLINK_OBJECT_MODEL,
         outputFile ->
             Avro.write(outputFile)
                 .writerFunction((unused, rowType) -> new FlinkAvroWriter((RowType) rowType))
@@ -65,7 +65,7 @@ public class FlinkObjectModels {
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.PARQUET,
-        FLINK_OBJECT_MODEL_NAME,
+        FLINK_OBJECT_MODEL,
         outputFile ->
             Parquet.write(outputFile)
                 .writerFunction(
@@ -75,7 +75,7 @@ public class FlinkObjectModels {
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.ORC,
-        FLINK_OBJECT_MODEL_NAME,
+        FLINK_OBJECT_MODEL,
         outputFile ->
             ORC.write(outputFile)
                 .writerFunction(

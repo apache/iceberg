@@ -98,12 +98,12 @@ public class Avro {
   public static void register() {
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.AVRO,
-        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME,
+        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL,
         inputFile -> Avro.read(inputFile).readerFunction(PlannedDataReader::create));
 
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.AVRO,
-        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL_NAME,
+        DataFileToObjectModelRegistry.GENERIC_OBJECT_MODEL,
         outputFile ->
             Avro.write(outputFile)
                 .writerFunction(
@@ -142,7 +142,7 @@ public class Avro {
       this.file = file;
     }
 
-    @Override
+    @Deprecated
     public WriteBuilder forTable(Table table) {
       schema(table.schema());
       setAll(table.properties());
@@ -818,7 +818,7 @@ public class Avro {
 
     @Override
     public ReadBuilder set(String key, String value) {
-      // Configuration is used for Avro reader creation
+      // Configuration is not used for Avro reader creation
       return this;
     }
 
@@ -832,11 +832,6 @@ public class Avro {
     public ReadBuilder reuseContainers(boolean shouldReuse) {
       this.reuseContainers = shouldReuse;
       return this;
-    }
-
-    @Deprecated
-    public ReadBuilder idToConstant(Map<Integer, ?> newIdConstant) {
-      return constantFieldAccessors(newIdConstant);
     }
 
     @Override

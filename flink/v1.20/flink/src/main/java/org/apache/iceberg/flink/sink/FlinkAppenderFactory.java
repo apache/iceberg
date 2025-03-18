@@ -99,7 +99,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     try {
       return DataFileToObjectModelRegistry.appenderBuilder(
               format,
-              FlinkObjectModels.FLINK_OBJECT_MODEL_NAME,
+              FlinkObjectModels.FLINK_OBJECT_MODEL,
               EncryptedFiles.plainAsEncryptedOutput(outputFile))
           .engineSchema(flinkSchema)
           .set(props)
@@ -118,7 +118,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     try {
       return DataFileToObjectModelRegistry.writerBuilder(
-              format, FlinkObjectModels.FLINK_OBJECT_MODEL_NAME, file)
+              format, FlinkObjectModels.FLINK_OBJECT_MODEL, file)
           .engineSchema(flinkSchema)
           .set(props)
           .schema(schema)
@@ -146,7 +146,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     MetricsConfig metricsConfig = MetricsConfig.forTable(table);
     try {
       return DataFileToObjectModelRegistry.equalityDeleteWriterBuilder(
-              format, FlinkObjectModels.FLINK_OBJECT_MODEL_NAME, outputFile)
+              format, FlinkObjectModels.FLINK_OBJECT_MODEL, outputFile)
           .overwrite()
           .set(props)
           .metricsConfig(metricsConfig)
@@ -168,7 +168,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
     MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
     try {
       return DataFileToObjectModelRegistry.positionDeleteWriterBuilder(
-              format, FlinkObjectModels.FLINK_OBJECT_MODEL_NAME, outputFile)
+              format, FlinkObjectModels.FLINK_OBJECT_MODEL, outputFile)
           .overwrite()
           .set(props)
           .metricsConfig(metricsConfig)
