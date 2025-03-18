@@ -268,7 +268,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   @Override
   public LocationProvider locationProvider() {
     try {
-      return locationProviderTry.get();
+      return this.locationProviderTry.get();
     } catch (Exception e) {
       if (e instanceof RuntimeException) {
         throw (RuntimeException) e;
