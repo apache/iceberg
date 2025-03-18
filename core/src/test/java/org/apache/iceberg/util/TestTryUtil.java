@@ -18,13 +18,12 @@
  */
 package org.apache.iceberg.util;
 
-import org.assertj.core.api.Assertions;
-import org.junit.Test;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import org.assertj.core.api.Assertions;
+import org.junit.Test;
 
 public class TestTryUtil {
 
@@ -41,9 +40,11 @@ public class TestTryUtil {
   @Test
   public void testFailedOperation() {
     Exception testException = new IllegalArgumentException("test exception");
-    TryUtil.Try<String> result = TryUtil.run(() -> {
-      throw testException;
-    });
+    TryUtil.Try<String> result =
+        TryUtil.run(
+            () -> {
+              throw testException;
+            });
 
     Assertions.assertThat(result.isSuccess()).isFalse();
     Assertions.assertThat(result.isFailure()).isTrue();
@@ -53,19 +54,22 @@ public class TestTryUtil {
   @Test
   public void testGetWithFailure() {
     Exception testException = new IllegalArgumentException("test exception");
-    TryUtil.Try<String> result = TryUtil.run(() -> {
-      throw testException;
-    });
+    TryUtil.Try<String> result =
+        TryUtil.run(
+            () -> {
+              throw testException;
+            });
 
-    Assertions.assertThatThrownBy(result::get)
-        .isSameAs(testException);
+    Assertions.assertThatThrownBy(result::get).isSameAs(testException);
   }
 
   @Test
   public void testCheckedException() {
-    TryUtil.Try<String> result = TryUtil.run(() -> {
-      throw new Exception("checked exception");
-    });
+    TryUtil.Try<String> result =
+        TryUtil.run(
+            () -> {
+              throw new Exception("checked exception");
+            });
 
     Assertions.assertThat(result.isFailure()).isTrue();
     Assertions.assertThatThrownBy(result::get)
@@ -76,13 +80,14 @@ public class TestTryUtil {
   @Test
   public void testRuntimeException() {
     RuntimeException runtimeException = new RuntimeException("runtime exception");
-    TryUtil.Try<String> result = TryUtil.run(() -> {
-      throw runtimeException;
-    });
+    TryUtil.Try<String> result =
+        TryUtil.run(
+            () -> {
+              throw runtimeException;
+            });
 
     Assertions.assertThat(result.isFailure()).isTrue();
-    Assertions.assertThatThrownBy(result::get)
-        .isSameAs(runtimeException);
+    Assertions.assertThatThrownBy(result::get).isSameAs(runtimeException);
   }
 
   @Test
@@ -96,9 +101,11 @@ public class TestTryUtil {
 
   @Test
   public void testOrElseWithDefaultValue() {
-    TryUtil.Try<String> result = TryUtil.run(() -> {
-      throw new RuntimeException("test exception");
-    });
+    TryUtil.Try<String> result =
+        TryUtil.run(
+            () -> {
+              throw new RuntimeException("test exception");
+            });
 
     Assertions.assertThat(result.orElse("default value")).isEqualTo("default value");
   }
@@ -126,7 +133,11 @@ public class TestTryUtil {
   @Test
   public void testSerializationWithException() throws Exception {
     Exception original_exception = new IllegalArgumentException("test exception");
-    TryUtil.Try<String> original = TryUtil.run(() -> { throw original_exception; });
+    TryUtil.Try<String> original =
+        TryUtil.run(
+            () -> {
+              throw original_exception;
+            });
     // Serialize to byte array
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
     ObjectOutputStream out = new ObjectOutputStream(bytes);

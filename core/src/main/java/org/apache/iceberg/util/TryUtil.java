@@ -21,9 +21,7 @@ package org.apache.iceberg.util;
 import java.io.Serializable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/**
- * Utility for executing code that may throw exceptions and deferring exception handling.
- */
+/** Utility for executing code that may throw exceptions and deferring exception handling. */
 public class TryUtil {
   private TryUtil() {}
 
@@ -38,8 +36,8 @@ public class TryUtil {
   }
 
   /**
-   * Executes the given operation and returns a Try object containing either the result
-   * or the exception.
+   * Executes the given operation and returns a Try object containing either the result or the
+   * exception.
    *
    * @param operation the operation to execute
    * @param <T> the type of the result
@@ -69,37 +67,30 @@ public class TryUtil {
       this.exception = exception;
     }
 
-    /**
-     * Creates a successful Try with the given value.
-     */
+    /** Creates a successful Try with the given value. */
     public static <T> Try<T> success(T value) {
       return new Try<>(value, null);
     }
 
-    /**
-     * Creates a failed Try with the given exception.
-     */
+    /** Creates a failed Try with the given exception. */
     public static <T> Try<T> failure(Exception exception) {
       Preconditions.checkNotNull(exception, "Exception cannot be null");
       return new Try<>(null, exception);
     }
 
-    /**
-     * Checks if the operation was successful.
-     */
+    /** Checks if the operation was successful. */
     public boolean isSuccess() {
       return exception == null;
     }
 
-    /**
-     * Checks if the operation failed.
-     */
+    /** Checks if the operation failed. */
     public boolean isFailure() {
       return exception != null;
     }
 
     /**
-     * Gets the value if the operation was successful, or throws the original exception if it failed.
+     * Gets the value if the operation was successful, or throws the original exception if it
+     * failed.
      *
      * @return the result value
      * @throws Exception the original exception if the operation failed
@@ -112,7 +103,8 @@ public class TryUtil {
     }
 
     /**
-     * Gets the value if the operation was successful, or returns the provided default value if it failed.
+     * Gets the value if the operation was successful, or returns the provided default value if it
+     * failed.
      */
     public T orElse(T defaultValue) {
       return isSuccess() ? value : defaultValue;
