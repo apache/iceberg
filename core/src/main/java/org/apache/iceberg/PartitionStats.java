@@ -159,10 +159,12 @@ public class PartitionStats implements StructLike {
     this.equalityDeleteRecordCount += entry.equalityDeleteRecordCount;
     this.equalityDeleteFileCount += entry.equalityDeleteFileCount;
 
-    if (totalRecordCount == null) {
-      this.totalRecordCount = entry.totalRecordCount;
-    } else {
-      this.totalRecordCount += entry.totalRecordCount;
+    if (entry.totalRecordCount != null) {
+      if (totalRecordCount == null) {
+        this.totalRecordCount = entry.totalRecordCount;
+      } else {
+        this.totalRecordCount += entry.totalRecordCount;
+      }
     }
 
     if (entry.lastUpdatedAt != null) {
