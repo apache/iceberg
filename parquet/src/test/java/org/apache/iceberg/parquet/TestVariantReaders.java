@@ -47,8 +47,8 @@ import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.VariantType;
 import org.apache.iceberg.variants.PhysicalType;
-import org.apache.iceberg.variants.ShreddedArray;
 import org.apache.iceberg.variants.ShreddedObject;
+import org.apache.iceberg.variants.ValueArray;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantObject;
@@ -892,7 +892,7 @@ public class TestVariantReaders {
   }
 
   @Test
-  public void testShreddedArray() throws IOException {
+  public void testSimpleArray() throws IOException {
     Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
     GroupType variantType = variant("var", 2, list(shreddedType));
     MessageType parquetSchema = parquetSchema(variantType);
@@ -906,7 +906,7 @@ public class TestVariantReaders {
     Record actual = writeAndRead(parquetSchema, row);
     assertThat(actual.getField("id")).isEqualTo(1);
     assertThat(actual.getField("var")).isInstanceOf(Variant.class);
-    ShreddedArray expectedArray = Variants.array();
+    ValueArray expectedArray = Variants.array();
     expectedArray.add(Variants.of("comedy"));
     expectedArray.add(Variants.of("drama"));
     Variant actualVariant = (Variant) actual.getField("var");
@@ -915,7 +915,7 @@ public class TestVariantReaders {
   }
 
   @Test
-  public void testShreddedNullArray() throws IOException {
+  public void testNullArray() throws IOException {
     Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
     GroupType variantType = variant("var", 2, list(shreddedType));
     MessageType parquetSchema = parquetSchema(variantType);
@@ -940,7 +940,7 @@ public class TestVariantReaders {
   }
 
   @Test
-  public void testShreddedEmptyArray() throws IOException {
+  public void testEmptyArray() throws IOException {
     Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
     GroupType variantType = variant("var", 2, list(shreddedType));
     MessageType parquetSchema = parquetSchema(variantType);
@@ -961,7 +961,7 @@ public class TestVariantReaders {
   }
 
   @Test
-  public void testShreddedArrayWithNull() throws IOException {
+  public void testArrayWithNull() throws IOException {
     Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
     GroupType variantType = variant("var", 2, list(shreddedType));
     MessageType parquetSchema = parquetSchema(variantType);
@@ -979,7 +979,7 @@ public class TestVariantReaders {
     Variant actualVariant = (Variant) actual.getField("var");
     assertThat(actualVariant.value().type()).isEqualTo(PhysicalType.ARRAY);
     assertThat(actualVariant.value().asArray().numElements()).isEqualTo(3);
-    ShreddedArray expectedArray = Variants.array();
+    ValueArray expectedArray = Variants.array();
     expectedArray.add(Variants.of("comedy"));
     expectedArray.add(Variants.ofNull());
     expectedArray.add(Variants.of("drama"));
@@ -988,7 +988,7 @@ public class TestVariantReaders {
   }
 
   @Test
-  public void testShreddedArrayWithNestedArray() throws IOException {
+  public void testNestedArray() throws IOException {
     Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
     GroupType innerListType = list(shreddedType);
     GroupType variantType = variant("var", 2, list(innerListType));
@@ -1008,11 +1008,11 @@ public class TestVariantReaders {
     // Verify
     assertThat(actual.getField("id")).isEqualTo(1);
     assertThat(actual.getField("var")).isInstanceOf(Variant.class);
-    ShreddedArray expectedArray = Variants.array();
-    ShreddedArray expectedInner1 = Variants.array();
+    ValueArray expectedArray = Variants.array();
+    ValueArray expectedInner1 = Variants.array();
     expectedInner1.add(Variants.of("comedy"));
     expectedInner1.add(Variants.of("drama"));
-    ShreddedArray expectedInner2 = Variants.array();
+    ValueArray expectedInner2 = Variants.array();
     expectedArray.add(expectedInner1);
     expectedArray.add(expectedInner2);
     Variant actualVariant = (Variant) actual.getField("var");
@@ -1021,7 +1021,7 @@ public class TestVariantReaders {
   }
 
   @Test
-  public void testShreddedArrayWithNestedObject() throws IOException {
+  public void testArrayWithNestedObject() throws IOException {
     GroupType fieldA = field("a", shreddedPrimitive(PrimitiveTypeName.INT32));
     GroupType fieldB = field("b", shreddedPrimitive(PrimitiveTypeName.BINARY, STRING));
     GroupType shreddedFields = objectFields(fieldA, fieldB);
@@ -1066,7 +1066,7 @@ public class TestVariantReaders {
     assertThat(actual1.getField("var")).isInstanceOf(Variant.class);
 
     ShreddedObject expected1 = Variants.object(TEST_METADATA);
-    ShreddedArray expectedArray1 = Variants.array();
+    ValueArray expectedArray1 = Variants.array();
     ShreddedObject expectedElement1 = Variants.object(TEST_METADATA);
     expectedElement1.put("a", Variants.of(1));
     expectedElement1.put("b", Variants.of("comedy"));
@@ -1086,7 +1086,7 @@ public class TestVariantReaders {
     assertThat(actual2.getField("var")).isInstanceOf(Variant.class);
 
     ShreddedObject expected2 = Variants.object(TEST_METADATA);
-    ShreddedArray expectedArray2 = Variants.array();
+    ValueArray expectedArray2 = Variants.array();
     ShreddedObject expectedElement3 = Variants.object(TEST_METADATA);
     expectedElement3.put("a", Variants.of(3));
     expectedElement3.put("b", Variants.of("action"));
@@ -1103,7 +1103,7 @@ public class TestVariantReaders {
   }
 
   @Test
-  public void testShreddedArrayWithNonArray() throws IOException {
+  public void testArrayWithNonArray() throws IOException {
     Type shreddedType = shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
     GroupType variantType = variant("var", 2, list(shreddedType));
     MessageType parquetSchema = parquetSchema(variantType);
@@ -1131,7 +1131,7 @@ public class TestVariantReaders {
     Record actual1 = actual.get(0);
     assertThat(actual1.getField("id")).isEqualTo(1);
     assertThat(actual1.getField("var")).isInstanceOf(Variant.class);
-    ShreddedArray expectedArray1 = Variants.array();
+    ValueArray expectedArray1 = Variants.array();
     expectedArray1.add(Variants.of("comedy"));
     expectedArray1.add(Variants.of("drama"));
     Variant actualVariant1 = (Variant) actual1.getField("var");
