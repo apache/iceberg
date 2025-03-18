@@ -135,7 +135,7 @@ class ManifestGroup {
 
   ManifestGroup ignoreResiduals() {
     this.ignoreResiduals = true;
-    this.deleteIndexBuilder.ignoreResiduals();
+    deleteIndexBuilder.ignoreResiduals();
     return this;
   }
 
