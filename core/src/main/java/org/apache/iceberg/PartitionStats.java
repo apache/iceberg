@@ -79,15 +79,14 @@ public class PartitionStats implements StructLike {
   }
 
   /**
-   * @deprecated since 1.9.0, will be removed in 1.10.0, use {@link #totalRecordCountOptional()}
-   *     instead.
+   * @deprecated since 1.9.0, will be removed in 1.10.0, use {@link #totalRecords()} instead.
    */
   @Deprecated
   public long totalRecordCount() {
     return totalRecordCount == null ? 0 : totalRecordCount;
   }
 
-  public Long totalRecordCountOptional() {
+  public Long totalRecords() {
     return totalRecordCount;
   }
 

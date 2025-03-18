@@ -270,12 +270,12 @@ public class TestPartitionStatsHandler {
             PartitionStats::positionDeleteFileCount,
             PartitionStats::equalityDeleteRecordCount,
             PartitionStats::equalityDeleteFileCount,
-            PartitionStats::totalRecordCount,
+            PartitionStats::totalRecords,
             PartitionStats::lastUpdatedAt,
             PartitionStats::lastUpdatedSnapshotId)
         .isEqualTo(
             Arrays.asList(
-                0L, 0, 0L, 0, 0L, null, null)); // null counters must be initialized to zero.
+                0L, 0, 0L, 0, null, null, null)); // null counters must be initialized to zero.
 
     PartitionStatisticsFile statisticsFile =
         PartitionStatsHandler.writePartitionStatsFile(testTable, 42L, dataSchema, expected);
@@ -352,7 +352,7 @@ public class TestPartitionStatsHandler {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()),
         Tuple.tuple(
@@ -365,7 +365,7 @@ public class TestPartitionStatsHandler {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()),
         Tuple.tuple(
@@ -378,7 +378,7 @@ public class TestPartitionStatsHandler {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()),
         Tuple.tuple(
@@ -391,7 +391,7 @@ public class TestPartitionStatsHandler {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()));
 
@@ -416,7 +416,7 @@ public class TestPartitionStatsHandler {
             0,
             eqDeletes.recordCount(),
             1,
-            0L,
+            null,
             snapshot3.timestampMillis(),
             snapshot3.snapshotId()),
         Tuple.tuple(
@@ -429,7 +429,7 @@ public class TestPartitionStatsHandler {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()),
         Tuple.tuple(
@@ -442,7 +442,7 @@ public class TestPartitionStatsHandler {
             1,
             0L,
             0,
-            0L,
+            null,
             snapshot2.timestampMillis(),
             snapshot2.snapshotId()),
         Tuple.tuple(
@@ -455,7 +455,7 @@ public class TestPartitionStatsHandler {
             0,
             0L,
             0,
-            0L,
+            null,
             snapshot1.timestampMillis(),
             snapshot1.snapshotId()));
   }
@@ -517,7 +517,7 @@ public class TestPartitionStatsHandler {
             PartitionStats::positionDeleteFileCount,
             PartitionStats::equalityDeleteRecordCount,
             PartitionStats::equalityDeleteFileCount,
-            PartitionStats::totalRecordCount,
+            PartitionStats::totalRecords,
             PartitionStats::lastUpdatedAt,
             PartitionStats::lastUpdatedSnapshotId)
         .containsExactlyInAnyOrder(expectedValues);
@@ -591,7 +591,7 @@ public class TestPartitionStatsHandler {
         && stats1.positionDeleteFileCount() == stats2.positionDeleteFileCount()
         && stats1.equalityDeleteRecordCount() == stats2.equalityDeleteRecordCount()
         && stats1.equalityDeleteFileCount() == stats2.equalityDeleteFileCount()
-        && stats1.totalRecordCount() == stats2.totalRecordCount()
+        && Objects.equals(stats1.totalRecords(), stats2.totalRecords())
         && Objects.equals(stats1.lastUpdatedAt(), stats2.lastUpdatedAt())
         && Objects.equals(stats1.lastUpdatedSnapshotId(), stats2.lastUpdatedSnapshotId());
   }

@@ -572,7 +572,7 @@ public class TestPartitionStatsUtil {
             PartitionStats::positionDeleteFileCount,
             PartitionStats::equalityDeleteRecordCount,
             PartitionStats::equalityDeleteFileCount,
-            PartitionStats::totalRecordCountOptional,
+            PartitionStats::totalRecords,
             PartitionStats::lastUpdatedAt,
             PartitionStats::lastUpdatedSnapshotId)
         .containsExactlyInAnyOrder(expectedValues);
