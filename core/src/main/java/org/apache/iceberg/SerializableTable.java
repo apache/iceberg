@@ -42,10 +42,10 @@ import org.apache.iceberg.util.TryUtil;
  * table metadata, it directly persists the current schema, spec, sort order, table properties to
  * avoid reading the metadata file from other nodes for frequently needed metadata.
  *
- * <p>The implementation assumes the passed instances of {@link FileIO}, {@link EncryptionManager}
- * are serializable. If you are serializing the table using a custom serialization framework like
- * Kryo, those instances of {@link FileIO}, {@link EncryptionManager} must be supported by that
- * particular serialization framework.
+ * <p>The implementation assumes the passed instances of {@link FileIO}, {@link EncryptionManager},
+ * {@link LocationProvider} are serializable. If you are serializing the table using a custom
+ * serialization framework like Kryo, those instances of {@link FileIO}, {@link EncryptionManager},
+ * {@link LocationProvider} must be supported by that particular serialization framework.
  *
  * <p><em>Note:</em> loading the complete metadata from a large number of nodes can overwhelm the
  * storage.
