@@ -59,6 +59,7 @@ import org.apache.iceberg.util.ArrayUtil;
  * @param <A> type of the appender
  * @param <E> engine specific schema of the input records used for appender initialization
  */
+@SuppressWarnings("unchecked")
 class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends DataFileAppenderBuilder<A, E>, E>
     implements AppenderBuilder<B, E>,
         DataWriterBuilder<B, E>,

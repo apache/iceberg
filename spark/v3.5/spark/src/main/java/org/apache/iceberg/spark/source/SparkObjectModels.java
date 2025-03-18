@@ -26,7 +26,6 @@ import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.io.datafile.DataFileToObjectModelRegistry;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.spark.ParquetReaderType;
 import org.apache.iceberg.spark.data.SparkAvroWriter;
 import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.SparkOrcWriter;
@@ -64,18 +63,9 @@ public class SparkObjectModels {
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.PARQUET,
         SPARK_VECTORIZED_OBJECT_MODEL,
-        ParquetReaderType.ICEBERG.name(),
         inputFile ->
             Parquet.<DeleteFilter<InternalRow>>readWithFilter(inputFile)
                 .batchReaderFunction(VectorizedSparkParquetReaders::buildReader));
-
-    DataFileToObjectModelRegistry.registerReader(
-        FileFormat.PARQUET,
-        SPARK_VECTORIZED_OBJECT_MODEL,
-        ParquetReaderType.COMET.name(),
-        inputFile ->
-            Parquet.<DeleteFilter<InternalRow>>readWithFilter(inputFile)
-                .batchReaderFunction(VectorizedSparkParquetReaders::buildCometReader));
 
     DataFileToObjectModelRegistry.registerReader(
         FileFormat.ORC,
@@ -83,6 +73,7 @@ public class SparkObjectModels {
         inputFile ->
             ORC.read(inputFile).batchReaderFunction(VectorizedSparkOrcReaders::buildReader));
 
+    // Appenders
     DataFileToObjectModelRegistry.registerAppender(
         FileFormat.AVRO,
         SPARK_OBJECT_MODEL,

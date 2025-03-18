@@ -133,7 +133,7 @@ public class ArrowReader extends CloseableGroup {
         inputFile ->
             Parquet.read(inputFile)
                 .batchReaderFunction(
-                    (schema, messageType, idToConstant, deleteFilter) ->
+                    (schema, messageType, constantFieldAccessors, deleteFilter, properties) ->
                         VectorizedCombinedScanIterator.buildReader(
                             schema,
                             messageType, /* setArrowValidityVector */

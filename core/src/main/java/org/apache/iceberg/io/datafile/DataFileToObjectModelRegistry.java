@@ -36,9 +36,9 @@ import org.slf4j.LoggerFactory;
 /**
  * Registry which provides the available {@link ReadBuilder}s and writer builders ({@link
  * AppenderBuilder}, {@link DataWriterBuilder}, {@link EqualityDeleteWriterBuilder}, {@link
- * PositionDeleteWriterBuilder}). Based on the `file format`, the required `object model name` and
- * the reader `builderType` the registry returns the correct reader and writer builders. These
- * builders could be used to generate the readers and writers.
+ * PositionDeleteWriterBuilder}). Based on the `file format` and the requested `object model name`
+ * the registry returns the correct reader and writer builders. These builders could be used to
+ * generate the readers and writers.
  *
  * <p>File formats has to register the {@link ReadBuilder}s and the {@link DataFileAppenderBuilder}s
  * which will be used to create the readers and the writers. The readers returned directly, the
@@ -75,7 +75,7 @@ public final class DataFileToObjectModelRegistry {
       FileFormat format,
       String objectModelName,
       Function<EncryptedOutputFile, DataFileAppenderBuilder<?, ?>> appenderBuilder) {
-    Key key = new Key(format, objectModelName, null);
+    Key key = new Key(format, objectModelName);
     if (APPENDER_BUILDERS.containsKey(key)) {
       throw new IllegalArgumentException(
           String.format(
@@ -96,24 +96,7 @@ public final class DataFileToObjectModelRegistry {
    */
   public static void registerReader(
       FileFormat format, String objectModelName, Function<InputFile, ReadBuilder<?>> readBuilder) {
-    registerReader(format, objectModelName, null, readBuilder);
-  }
-
-  /**
-   * Registers a new reader builder for the given format/object model name/reader type.
-   *
-   * @param format the file format to read
-   * @param objectModelName returned by the reader
-   * @param readerType the reader type
-   * @param readBuilder the read builder function
-   * @throws IllegalArgumentException if a read builder for the given key already exists
-   */
-  public static void registerReader(
-      FileFormat format,
-      String objectModelName,
-      String readerType,
-      Function<InputFile, ReadBuilder<?>> readBuilder) {
-    Key key = new Key(format, objectModelName, readerType);
+    Key key = new Key(format, objectModelName);
     if (READ_BUILDERS.containsKey(key)) {
       throw new IllegalArgumentException(
           String.format(
@@ -121,7 +104,7 @@ public final class DataFileToObjectModelRegistry {
               readBuilder.getClass(), READ_BUILDERS.get(key), key));
     }
 
-    READ_BUILDERS.put(new Key(format, objectModelName, readerType), readBuilder);
+    READ_BUILDERS.put(new Key(format, objectModelName), readBuilder);
   }
 
   @SuppressWarnings("CatchBlockLogException")
@@ -160,23 +143,7 @@ public final class DataFileToObjectModelRegistry {
    */
   public static ReadBuilder<?> readBuilder(
       FileFormat format, String objectModelName, InputFile inputFile) {
-    return readBuilder(format, objectModelName, null, inputFile);
-  }
-
-  /**
-   * Provides a reader builder for the given input file which returns objects with a given object
-   * model name and uses the specified reader type. Parquet currently supports native Java and Comet
-   * readers.
-   *
-   * @param format of the file to read
-   * @param objectModelName returned by the reader
-   * @param builderType of the reader builder
-   * @param inputFile to read
-   * @return {@link ReadBuilder} for building the actual reader
-   */
-  public static ReadBuilder<?> readBuilder(
-      FileFormat format, String objectModelName, String builderType, InputFile inputFile) {
-    return READ_BUILDERS.get(new Key(format, objectModelName, builderType)).apply(inputFile);
+    return READ_BUILDERS.get(new Key(format, objectModelName)).apply(inputFile);
   }
 
   /**
@@ -239,11 +206,12 @@ public final class DataFileToObjectModelRegistry {
     return writerFor(format, objectModelName, outputFile);
   }
 
+  @SuppressWarnings("unchecked")
   private static <E> WriteBuilder<?, ?, E> writerFor(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
     return new WriteBuilder<>(
         (DataFileAppenderBuilder<?, E>)
-            APPENDER_BUILDERS.get(new Key(format, objectModelName, null)).apply(outputFile),
+            APPENDER_BUILDERS.get(new Key(format, objectModelName)).apply(outputFile),
         outputFile.encryptingOutputFile().location(),
         format);
   }
@@ -252,12 +220,10 @@ public final class DataFileToObjectModelRegistry {
   private static class Key {
     private final FileFormat fileFormat;
     private final String objectModelName;
-    private final String builderType;
 
-    private Key(FileFormat fileFormat, String objectModelName, String builderType) {
+    private Key(FileFormat fileFormat, String objectModelName) {
       this.fileFormat = fileFormat;
       this.objectModelName = objectModelName;
-      this.builderType = builderType;
     }
 
     @Override
@@ -265,7 +231,6 @@ public final class DataFileToObjectModelRegistry {
       return MoreObjects.toStringHelper(this)
           .add("fileFormat", fileFormat)
           .add("objectModelName", objectModelName)
-          .add("builderType", builderType)
           .toString();
     }
 
@@ -281,13 +246,12 @@ public final class DataFileToObjectModelRegistry {
 
       Key other = (Key) o;
       return Objects.equal(other.fileFormat, fileFormat)
-          && Objects.equal(other.objectModelName, objectModelName)
-          && java.util.Objects.equals(other.builderType, builderType);
+          && Objects.equal(other.objectModelName, objectModelName);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hashCode(fileFormat, objectModelName, builderType);
+      return Objects.hashCode(fileFormat, objectModelName);
     }
   }
 }

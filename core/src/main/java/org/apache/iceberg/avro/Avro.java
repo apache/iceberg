@@ -150,6 +150,7 @@ public class Avro {
   }
 
   /** Will be removed when the {@link WriteBuilder} is removed. */
+  @SuppressWarnings("unchecked")
   static class AppenderBuilderInternal<B extends AppenderBuilderInternal<B, E>, E>
       implements InternalData.WriteBuilder, DataFileAppenderBuilder<B, E> {
     private final OutputFile file;
@@ -332,6 +333,7 @@ public class Avro {
           overwrite);
     }
 
+    // protected because of inheritance until deprecation of the WriteBuilder
     static class Context {
       private final CodecFactory codec;
 
@@ -639,7 +641,7 @@ public class Avro {
       // the appender uses the row schema without extra columns
       appenderBuilder.schema(rowSchema);
       appenderBuilder.createWriterFunc(createWriterFunc);
-      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
+      appenderBuilder.createContextFunc(AppenderBuilderInternal.Context::deleteContext);
 
       return new EqualityDeleteWriter<>(
           appenderBuilder.build(),
@@ -681,7 +683,7 @@ public class Avro {
         appenderBuilder.createWriterFunc(ignored -> new PositionDatumWriter());
       }
 
-      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
+      appenderBuilder.createContextFunc(AppenderBuilderInternal.Context::deleteContext);
 
       return new PositionDeleteWriter<>(
           appenderBuilder.build(), FileFormat.AVRO, location, spec, partition, keyMetadata);

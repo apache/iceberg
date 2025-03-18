@@ -168,10 +168,9 @@ public class Parquet {
   public static WriteBuilder write(EncryptedOutputFile file) {
     if (file instanceof NativeEncryptionOutputFile) {
       NativeEncryptionOutputFile nativeFile = (NativeEncryptionOutputFile) file;
-      return (WriteBuilder)
-          write(nativeFile.plainOutputFile())
-              .withFileEncryptionKey(nativeFile.keyMetadata().encryptionKey())
-              .withAADPrefix(nativeFile.keyMetadata().aadPrefix());
+      return write(nativeFile.plainOutputFile())
+          .withFileEncryptionKey(nativeFile.keyMetadata().encryptionKey())
+          .withAADPrefix(nativeFile.keyMetadata().aadPrefix());
     } else {
       return write(file.encryptingOutputFile());
     }
@@ -206,6 +205,7 @@ public class Parquet {
   }
 
   /** Will be removed when the {@link Parquet.WriteBuilder} is removed. */
+  @SuppressWarnings("unchecked")
   static class AppenderBuilderInternal<B extends AppenderBuilderInternal<B, E>, E>
       implements InternalData.WriteBuilder, DataFileAppenderBuilder<B, E> {
     private final OutputFile file;
@@ -1120,7 +1120,7 @@ public class Parquet {
       // the appender uses the row schema without extra columns
       appenderBuilder.schema(rowSchema);
       appenderBuilder.createWriterFunc(createWriterFunc);
-      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
+      appenderBuilder.createContextFunc(AppenderBuilderInternal.Context::deleteContext);
 
       return new EqualityDeleteWriter<>(
           appenderBuilder.build(),
@@ -1175,7 +1175,7 @@ public class Parquet {
                     Function.identity()));
       }
 
-      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
+      appenderBuilder.createContextFunc(AppenderBuilderInternal.Context::deleteContext);
 
       return new PositionDeleteWriter<>(
           appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata);
@@ -1262,7 +1262,8 @@ public class Parquet {
     }
   }
 
-  public static class ReadBuilderInternal<B extends ReadBuilderInternal<B, F>, F>
+  @SuppressWarnings("unchecked")
+  static class ReadBuilderInternal<B extends ReadBuilderInternal<B, F>, F>
       implements InternalData.ReadBuilder,
           org.apache.iceberg.io.datafile.ReadBuilder<B>,
           SupportsDeleteFilter<F> {
@@ -1588,7 +1589,7 @@ public class Parquet {
                 ? batchedReaderFunc
                 : fileType ->
                     batchReaderFunction.read(
-                        schema, fileType, constantFieldAccessors, deleteFilter),
+                        schema, fileType, constantFieldAccessors, deleteFilter, properties),
             mapping,
             filter,
             reuseContainers,
@@ -1711,7 +1712,11 @@ public class Parquet {
 
   public interface BatchReaderFunction<D, F> {
     VectorizedReader<D> read(
-        Schema schema, MessageType messageType, Map<Integer, ?> idToConstant, F deleteFilter);
+        Schema schema,
+        MessageType messageType,
+        Map<Integer, ?> constantFieldAccessors,
+        F deleteFilter,
+        Map<String, String> config);
   }
 
   public interface WriterFunction<D, E> {

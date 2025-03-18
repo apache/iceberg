@@ -32,6 +32,7 @@ import org.apache.iceberg.io.datafile.ReadBuilder;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
+import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
@@ -62,10 +63,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
     Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema();
     ReadBuilder<?> readBuilder =
         DataFileToObjectModelRegistry.readBuilder(
-                format,
-                SparkObjectModels.SPARK_VECTORIZED_OBJECT_MODEL,
-                parquetConf != null ? parquetConf.readerType().name() : null,
-                inputFile)
+                format, SparkObjectModels.SPARK_VECTORIZED_OBJECT_MODEL, inputFile)
             .project(requiredSchema)
             .constantFieldAccessors(idToConstant)
             .split(start, length)
@@ -78,13 +76,18 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
             .reuseContainers()
             .withNameMapping(nameMapping());
     if (parquetConf != null) {
-      readBuilder = readBuilder.recordsPerBatch(parquetConf.batchSize());
+      readBuilder =
+          readBuilder
+              .recordsPerBatch(parquetConf.batchSize())
+              .set(
+                  VectorizedSparkParquetReaders.PARQUET_READER_TYPE,
+                  parquetConf.readerType().name());
     } else if (orcConf != null) {
       readBuilder = readBuilder.recordsPerBatch(orcConf.batchSize());
     }
 
-    if (readBuilder instanceof Parquet.SupportsDeleteFilter) {
-      ((Parquet.SupportsDeleteFilter) readBuilder).deleteFilter(deleteFilter);
+    if (readBuilder instanceof Parquet.SupportsDeleteFilter<?>) {
+      ((Parquet.SupportsDeleteFilter<SparkDeleteFilter>) readBuilder).deleteFilter(deleteFilter);
     }
 
     return readBuilder.build();

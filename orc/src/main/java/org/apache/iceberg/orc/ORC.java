@@ -158,6 +158,7 @@ public class ORC {
   }
 
   /** Will be removed when the {@link WriteBuilder} is removed. */
+  @SuppressWarnings("unchecked")
   static class AppenderBuilderInternal<B extends AppenderBuilderInternal<B, E>, E>
       implements DataFileAppenderBuilder<B, E> {
     private final OutputFile file;
@@ -761,7 +762,7 @@ public class ORC {
       // the appender uses the row schema without extra columns
       appenderBuilder.schema(rowSchema);
       appenderBuilder.createWriterFunc(createWriterFunc);
-      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
+      appenderBuilder.createContextFunc(AppenderBuilderInternal.Context::deleteContext);
 
       return new EqualityDeleteWriter<>(
           appenderBuilder.build(),
@@ -807,7 +808,7 @@ public class ORC {
                     GenericOrcWriter.buildWriter(schema, typeDescription), Function.identity()));
       }
 
-      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
+      appenderBuilder.createContextFunc(AppenderBuilderInternal.Context::deleteContext);
 
       return new PositionDeleteWriter<>(
           appenderBuilder.build(), FileFormat.ORC, location, spec, partition, keyMetadata);
