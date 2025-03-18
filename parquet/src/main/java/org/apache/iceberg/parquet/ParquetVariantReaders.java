@@ -30,8 +30,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.variants.PhysicalType;
-import org.apache.iceberg.variants.ShreddedArray;
 import org.apache.iceberg.variants.ShreddedObject;
+import org.apache.iceberg.variants.ValueArray;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantObject;
@@ -100,14 +100,13 @@ public class ParquetVariantReaders {
       int valueDefinitionLevel,
       ParquetValueReader<?> valueReader,
       int typedDefinitionLevel,
-      int typedRepetitionLevel,
-      VariantValueReader elementReader) {
-    return new ShreddedArrayReader(
-        valueDefinitionLevel,
-        (VariantValueReader) valueReader,
-        typedDefinitionLevel,
-        typedRepetitionLevel,
-        elementReader);
+      int repeatedDefinitionLevel,
+      int repeatedRepetitionLevel,
+      ParquetValueReader<?> elementReader) {
+    VariantValueReader typedReader =
+        new ArrayReader(
+            repeatedDefinitionLevel, repeatedRepetitionLevel, (VariantValueReader) elementReader);
+    return shredded(valueDefinitionLevel, valueReader, typedDefinitionLevel, typedReader);
   }
 
   public static VariantValueReader asVariant(PhysicalType type, ParquetValueReader<?> reader) {
@@ -347,88 +346,60 @@ public class ParquetVariantReaders {
     }
   }
 
-  private static class ShreddedArrayReader implements VariantValueReader {
-    private final int valueDL;
-    private final VariantValueReader valueReader;
-    private final int repeatedDL;
-    private final int repeatedRL;
-    private final VariantValueReader elementReader;
-    private final TripleIterator<?> valueColumn;
-    private final TripleIterator<?> elementColumn;
+  private static class ArrayReader implements VariantValueReader {
+    private final int definitionLevel;
+    private final int repetitionLevel;
+    private final VariantValueReader reader;
+    private final TripleIterator<?> column;
     private final List<TripleIterator<?>> children;
 
-    private ShreddedArrayReader(
-        int valueDL,
-        VariantValueReader valueReader,
-        int typedDL,
-        int typedRL,
-        VariantValueReader elementReader) {
-      this.valueDL = valueDL;
-      this.valueReader = valueReader;
-      this.repeatedDL = typedDL + 1;
-      this.repeatedRL = typedRL + 1;
-      this.elementReader = elementReader;
-      this.elementColumn = this.elementReader.column();
-      this.valueColumn = valueReader != null ? valueReader.column() : elementColumn;
-      this.children =
-          children(Iterables.concat(Arrays.asList(valueReader), Arrays.asList(elementReader)));
+    protected ArrayReader(int definitionLevel, int repetitionLevel, VariantValueReader reader) {
+      this.definitionLevel = definitionLevel;
+      this.repetitionLevel = repetitionLevel;
+      this.reader = reader;
+      this.column = reader.column();
+      this.children = reader.columns();
     }
 
     @Override
-    public VariantValue read(VariantMetadata metadata) {
-      // if the current definition level is less to the definition level of the repeated
-      // type, i.e. typed_value is null, then it's not an array
-      boolean isArray = elementColumn.currentDefinitionLevel() >= repeatedDL;
-      VariantValue value = ParquetVariantReaders.read(metadata, valueReader, valueDL);
+    public void setPageSource(PageReadStore pageStore) {
+      reader.setPageSource(pageStore);
+    }
 
-      if (isArray) {
-        Preconditions.checkArgument(
-            value == MISSING, "Invalid variant, non-array value: %s", value);
+    @Override
+    public ValueArray read(VariantMetadata metadata) {
+      // if the current definition level is less than the definition level of this repeated type,
+      // then typed_value is null and the array is null
+      if (column.currentDefinitionLevel() < definitionLevel) {
+        return null;
+      }
 
-        // if the current definition level is equal to the definition level of this repeated
-        // type, then it's an empty list and the repetition level will always be <= rl.
-        ShreddedArray arr = Variants.array();
-        do {
-          if (elementColumn.currentDefinitionLevel() > repeatedDL) {
-            VariantValue elementValue = elementReader.read(metadata);
-            arr.add(elementValue);
-          } else {
-            // consume the empty list triple
-            for (TripleIterator<?> child : elementReader.columns()) {
-              child.nextNull();
-            }
-            break;
+      ValueArray arr = Variants.array();
+      do {
+        if (column.currentDefinitionLevel() > definitionLevel) {
+          arr.add(reader.read(metadata));
+        } else {
+          // consume the empty list triple
+          for (TripleIterator<?> child : children) {
+            child.nextNull();
           }
-        } while (elementColumn.currentRepetitionLevel() > repeatedRL);
+          // if the current definition level is equal to the definition level of this repeated type,
+          // then the result is an empty list and the repetition level will always be <= rl.
+          break;
+        }
+      } while (column.currentRepetitionLevel() > repetitionLevel);
 
-        return arr;
-      }
-
-      // for non-arrays, advance the element iterators
-      for (TripleIterator<?> child : elementReader.columns()) {
-        child.nextNull();
-      }
-
-      return value;
+      return arr;
     }
 
     @Override
     public TripleIterator<?> column() {
-      return valueColumn;
+      return column;
     }
 
     @Override
     public List<TripleIterator<?>> columns() {
       return children;
-    }
-
-    @Override
-    public void setPageSource(PageReadStore pageStore) {
-      if (valueReader != null) {
-        valueReader.setPageSource(pageStore);
-      }
-
-      elementReader.setPageSource(pageStore);
     }
   }
 
