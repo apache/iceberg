@@ -18,11 +18,13 @@
  */
 package org.apache.iceberg.util;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 public class TestTryUtil {
@@ -31,10 +33,10 @@ public class TestTryUtil {
   public void testSuccessfulOperation() throws Exception {
     TryUtil.Try<String> result = TryUtil.run(() -> "success");
 
-    Assertions.assertThat(result.isSuccess()).isTrue();
-    Assertions.assertThat(result.isFailure()).isFalse();
-    Assertions.assertThat(result.get()).isEqualTo("success");
-    Assertions.assertThat(result.orElse("default")).isEqualTo("success");
+    assertThat(result.isSuccess()).isTrue();
+    assertThat(result.isFailure()).isFalse();
+    assertThat(result.get()).isEqualTo("success");
+    assertThat(result.orElse("default")).isEqualTo("success");
   }
 
   @Test
@@ -46,9 +48,9 @@ public class TestTryUtil {
               throw testException;
             });
 
-    Assertions.assertThat(result.isSuccess()).isFalse();
-    Assertions.assertThat(result.isFailure()).isTrue();
-    Assertions.assertThat(result.orElse("default")).isEqualTo("default");
+    assertThat(result.isSuccess()).isFalse();
+    assertThat(result.isFailure()).isTrue();
+    assertThat(result.orElse("default")).isEqualTo("default");
   }
 
   @Test
@@ -60,7 +62,7 @@ public class TestTryUtil {
               throw testException;
             });
 
-    Assertions.assertThatThrownBy(result::get).isSameAs(testException);
+    assertThatThrownBy(result::get).isSameAs(testException);
   }
 
   @Test
@@ -71,8 +73,8 @@ public class TestTryUtil {
               throw new Exception("checked exception");
             });
 
-    Assertions.assertThat(result.isFailure()).isTrue();
-    Assertions.assertThatThrownBy(result::get)
+    assertThat(result.isFailure()).isTrue();
+    assertThatThrownBy(result::get)
         .isInstanceOf(Exception.class)
         .hasMessage("checked exception");
   }
@@ -86,17 +88,17 @@ public class TestTryUtil {
               throw runtimeException;
             });
 
-    Assertions.assertThat(result.isFailure()).isTrue();
-    Assertions.assertThatThrownBy(result::get).isSameAs(runtimeException);
+    assertThat(result.isFailure()).isTrue();
+    assertThatThrownBy(result::get).isSameAs(runtimeException);
   }
 
   @Test
   public void testNullValue() throws Exception {
     TryUtil.Try<String> result = TryUtil.run(() -> null);
 
-    Assertions.assertThat(result.isSuccess()).isTrue();
-    Assertions.assertThat(result.get()).isNull();
-    Assertions.assertThat(result.orElse("default")).isNull();
+    assertThat(result.isSuccess()).isTrue();
+    assertThat(result.get()).isNull();
+    assertThat(result.orElse("default")).isNull();
   }
 
   @Test
@@ -107,7 +109,7 @@ public class TestTryUtil {
               throw new RuntimeException("test exception");
             });
 
-    Assertions.assertThat(result.orElse("default value")).isEqualTo("default value");
+    assertThat(result.orElse("default value")).isEqualTo("default value");
   }
 
   @Test
@@ -126,17 +128,17 @@ public class TestTryUtil {
     in.close();
 
     // Verify state is preserved
-    Assertions.assertThat(deserialized.isSuccess()).isTrue();
-    Assertions.assertThat(deserialized.get()).isEqualTo("serialized value");
+    assertThat(deserialized.isSuccess()).isTrue();
+    assertThat(deserialized.get()).isEqualTo("serialized value");
   }
 
   @Test
   public void testSerializationWithException() throws Exception {
-    Exception original_exception = new IllegalArgumentException("test exception");
+    Exception originalException = new IllegalArgumentException("test exception");
     TryUtil.Try<String> original =
         TryUtil.run(
             () -> {
-              throw original_exception;
+              throw originalException;
             });
     // Serialize to byte array
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
@@ -150,8 +152,8 @@ public class TestTryUtil {
     in.close();
 
     // Verify state is preserved
-    Assertions.assertThat(deserialized.isFailure()).isTrue();
-    Assertions.assertThatThrownBy(deserialized::get)
+    assertThat(deserialized.isFailure()).isTrue();
+    assertThatThrownBy(deserialized::get)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("test exception");
   }
