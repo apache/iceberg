@@ -69,10 +69,8 @@ import org.apache.iceberg.puffin.Puffin;
 import org.apache.iceberg.puffin.PuffinWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.actions.DeleteOrphanFilesSparkAction.StringToFileURI;
@@ -317,10 +315,8 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     // Verifies that the delete methods ran in the threads created by the provided ExecutorService
     // ThreadFactory
     assertThat(deleteThreads)
-        .isEqualTo(
-            Sets.newHashSet(
-                "remove-orphan-0", "remove-orphan-1", "remove-orphan-2", "remove-orphan-3"));
-
+        .containsExactlyInAnyOrder(
+            "remove-orphan-0", "remove-orphan-1", "remove-orphan-2", "remove-orphan-3");
     assertThat(deletedFiles).hasSize(4);
   }
 
@@ -748,9 +744,9 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .deleteOrphanFiles(table)
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
-    assertThat(StreamSupport.stream(result.orphanFileLocations().spliterator(), false))
+    assertThat(result.orphanFileLocations())
         .as("trash file should be removed")
-        .anyMatch(file -> file.contains("file:" + location + "/data/trashfile"));
+        .contains("file:" + location + "/data/trashfile");
   }
 
   @TestTemplate
@@ -967,11 +963,8 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
     Iterable<String> orphanFileLocations = result.orphanFileLocations();
-    assertThat(orphanFileLocations).as("Should be orphan file").hasSize(1);
-    assertThat(Iterables.getOnlyElement(orphanFileLocations))
-        .as("Deleted file")
-        .isEqualTo(statsLocation.toURI().toString());
-    assertThat(statsLocation.exists()).as("stats file should be deleted").isFalse();
+    assertThat(orphanFileLocations).hasSize(1).containsExactly(statsLocation.toURI().toString());
+    assertThat(statsLocation).as("stats file should be deleted").doesNotExist();
   }
 
   @TestTemplate

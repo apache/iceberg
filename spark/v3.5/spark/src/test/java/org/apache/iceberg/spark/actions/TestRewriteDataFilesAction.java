@@ -658,7 +658,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     shouldHaveMinSequenceNumberInPartition(table, "data_file.partition.c1 == 1", 3);
 
     shouldHaveSnapshots(table, 5);
-    assertThat(table.currentSnapshot().summary().get("total-position-deletes")).isEqualTo("0");
+    assertThat(table.currentSnapshot().summary()).containsEntry("total-position-deletes", "0");
     assertEquals("Rows must match", expectedRecords, currentData());
   }
 
@@ -1560,7 +1560,6 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
-    assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(table.currentSnapshot().addedDataFiles(table.io()))
         .as("Should have written 40+ files")
         .hasSizeGreaterThanOrEqualTo(40);
@@ -1894,7 +1893,7 @@ public class TestRewriteDataFilesAction extends TestBase {
             .execute();
 
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
-    assertThat(currentData().size()).isEqualTo(count);
+    assertThat(currentData()).hasSize((int) count);
     shouldRewriteDataFilesWithPartitionSpec(table, outputSpecId);
   }
 
@@ -1917,7 +1916,7 @@ public class TestRewriteDataFilesAction extends TestBase {
             .execute();
 
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
-    assertThat(currentData().size()).isEqualTo(count);
+    assertThat(currentData()).hasSize((int) count);
     shouldRewriteDataFilesWithPartitionSpec(table, outputSpecId);
   }
 
@@ -1956,7 +1955,7 @@ public class TestRewriteDataFilesAction extends TestBase {
             .execute();
 
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
-    assertThat(currentData().size()).isEqualTo(count);
+    assertThat(currentData()).hasSize((int) count);
     shouldRewriteDataFilesWithPartitionSpec(table, outputSpecId);
   }
 
@@ -1979,7 +1978,7 @@ public class TestRewriteDataFilesAction extends TestBase {
             .execute();
 
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
-    assertThat(currentData().size()).isEqualTo(count);
+    assertThat(currentData()).hasSize((int) count);
     shouldRewriteDataFilesWithPartitionSpec(table, outputSpecId);
   }
 
@@ -2049,10 +2048,9 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   protected void shouldHaveSnapshots(Table table, int expectedSnapshots) {
     table.refresh();
-    int actualSnapshots = Iterables.size(table.snapshots());
-    assertThat(actualSnapshots)
+    assertThat(table.snapshots())
         .as("Table did not have the expected number of snapshots")
-        .isEqualTo(expectedSnapshots);
+        .hasSize(expectedSnapshots);
   }
 
   protected void shouldHaveNoOrphans(Table table) {
