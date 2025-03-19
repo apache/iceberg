@@ -714,11 +714,11 @@ public class ParquetValueWriters {
 
     // value writer index to record field index
     int[] indexes = new int[numWriters];
-    int i = 0;
+    int writerIndex = 0;
     for (int pos = 0; pos < recordFields.size(); pos += 1) {
       if (recordFields.get(pos).type().typeId() != org.apache.iceberg.types.Type.TypeID.UNKNOWN) {
-        indexes[i] = pos;
-        i += 1;
+        indexes[writerIndex] = pos;
+        writerIndex += 1;
       }
     }
 
