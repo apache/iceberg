@@ -194,11 +194,6 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
   }
 
   @Override
-  public Type variant(Types.VariantType variant) {
-    return variant;
-  }
-
-  @Override
   public Type primitive(Type.PrimitiveType primitive) {
     Set<Class<? extends DataType>> expectedType = TYPES.get(primitive.typeId());
     Preconditions.checkArgument(
