@@ -134,7 +134,7 @@ public class TestReadabilityChecks {
                     Types.MapType.ofRequired(
                         1, 2, Types.StringType.get(), Types.IntegerType.get())),
                 Arguments.of(Types.ListType.ofRequired(1, Types.StringType.get()))),
-            Arrays.stream(PRIMITIVES).map(Arguments::of))
+            Arrays.stream(PRIMITIVES).map(type -> Arguments.of(type)))
         .flatMap(s -> s);
   }
 

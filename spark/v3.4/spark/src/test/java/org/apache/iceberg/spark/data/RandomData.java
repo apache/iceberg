@@ -30,7 +30,6 @@ import java.util.UUID;
 import java.util.function.Supplier;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
-import org.apache.iceberg.RandomVariants;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -216,11 +215,6 @@ public class RandomData {
       }
 
       return result;
-    }
-
-    @Override
-    public Object variant(Types.VariantType variant) {
-      return RandomVariants.randomVariant(random);
     }
 
     @Override

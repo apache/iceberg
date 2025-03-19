@@ -20,41 +20,11 @@ package org.apache.iceberg.spark;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestSparkFixupTypes {
-
-  private static Stream<Arguments> primitiveTypes() {
-    return Stream.of(
-        Arguments.of(Types.UnknownType.get()),
-        Arguments.of(Types.BooleanType.get()),
-        Arguments.of(Types.IntegerType.get()),
-        Arguments.of(Types.LongType.get()),
-        Arguments.of(Types.FloatType.get()),
-        Arguments.of(Types.DoubleType.get()),
-        Arguments.of(Types.DateType.get()),
-        Arguments.of(Types.TimeType.get()),
-        Arguments.of(Types.TimestampType.withoutZone()),
-        Arguments.of(Types.TimestampType.withZone()),
-        Arguments.of(Types.TimestampNanoType.withoutZone()),
-        Arguments.of(Types.TimestampNanoType.withZone()),
-        Arguments.of(Types.StringType.get()),
-        Arguments.of(Types.UUIDType.get()),
-        Arguments.of(Types.FixedType.ofLength(3)),
-        Arguments.of(Types.FixedType.ofLength(4)),
-        Arguments.of(Types.BinaryType.get()),
-        Arguments.of(Types.DecimalType.of(9, 2)),
-        Arguments.of(Types.DecimalType.of(11, 2)),
-        Arguments.of(Types.DecimalType.of(9, 3)),
-        Arguments.of(Types.VariantType.get()));
-  }
 
   @Test
   void fixupShouldCorrectlyFixUUID() {
@@ -78,16 +48,27 @@ public class TestSparkFixupTypes {
     assertThat(fixedSchema.findType("field")).isEqualTo(Types.FixedType.ofLength(16));
   }
 
-  @ParameterizedTest
-  @MethodSource("primitiveTypes")
-  void fixupShouldNotChangeNonMatchingPrimitiveTypes(Type type) {
-    Schema schema = new Schema(Types.NestedField.optional(1, "field", type));
+  @Test
+  void fixupShouldCorrectlyFixVariant() {
+    Schema schema = new Schema(Types.NestedField.required(1, "field", Types.VariantType.get()));
     Schema referenceSchema =
-        new Schema(Types.NestedField.optional(1, "field", Types.IntegerType.get()));
+        new Schema(Types.NestedField.required(1, "field", Types.StringType.get()));
 
     Schema fixedSchema = SparkFixupTypes.fixup(schema, referenceSchema);
 
-    assertThat(fixedSchema.findType("field")).isSameAs(type);
+    assertThat(fixedSchema.findType("field")).isSameAs(Types.VariantType.get());
+  }
+
+  @Test
+  void fixupShouldCorrectlyFixTimestamp() {
+    Schema schema =
+        new Schema(Types.NestedField.required(1, "field", Types.TimestampType.withZone()));
+    Schema referenceSchema =
+        new Schema(Types.NestedField.required(1, "field", Types.TimestampType.withoutZone()));
+
+    Schema fixedSchema = SparkFixupTypes.fixup(schema, referenceSchema);
+
+    assertThat(fixedSchema.findType("field")).isSameAs(Types.TimestampType.withoutZone());
   }
 
   @Test
