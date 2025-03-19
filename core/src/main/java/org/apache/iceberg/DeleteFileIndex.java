@@ -594,10 +594,7 @@ class DeleteFileIndex {
                   .filterRows(entryFilter)
                   .filterPartitions(
                       Expressions.and(
-                          partitionFilter,
-                          Projections.inclusive(
-                                  specsById.get(manifest.partitionSpecId()), caseSensitive)
-                              .project(dataFilter)))
+                          partitionFilter, partExprCache.get(manifest.partitionSpecId())))
                   .filterPartitions(partitionSet)
                   .caseSensitive(caseSensitive)
                   .scanMetrics(scanMetrics)
