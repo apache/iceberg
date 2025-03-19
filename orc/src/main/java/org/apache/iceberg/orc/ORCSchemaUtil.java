@@ -83,7 +83,8 @@ public final class ORCSchemaUtil {
   static final String ICEBERG_FIELD_LENGTH = "iceberg.length";
 
   /**
-   * The name of the ORC {@link TypeDescription} attribute indicating the Iceberg timestamp unit.
+   * The name of the ORC {@link TypeDescription} attribute indicating the Iceberg type corresponding
+   * to an ORC struct type.
    */
   static final String ICEBERG_STRUCT_TYPE_ATTRIBUTE = "iceberg.struct-type";
 
@@ -92,8 +93,7 @@ public final class ORCSchemaUtil {
   static final String VARIANT_VALUE = "value";
 
   /**
-   * The name of the ORC {@link TypeDescription} attribute indicating the Iceberg type corresponding
-   * to an ORC struct type.
+   * The name of the ORC {@link TypeDescription} attribute indicating the Iceberg timestamp unit.
    */
   static final String TIMESTAMP_UNIT = "iceberg.timestamp-unit";
 
