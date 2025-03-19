@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
@@ -63,11 +62,11 @@ abstract class FileCleanupStrategy {
 
   protected CloseableIterable<ManifestFile> readManifests(Snapshot snapshot) {
     if (snapshot.manifestListLocation() != null) {
-      return Avro.read(fileIO.newInputFile(snapshot.manifestListLocation()))
-          .rename("manifest_file", GenericManifestFile.class.getName())
-          .classLoader(GenericManifestFile.class.getClassLoader())
+      return InternalData.read(
+              FileFormat.AVRO, fileIO.newInputFile(snapshot.manifestListLocation()))
+          .setRootType(GenericManifestFile.class)
           .project(MANIFEST_PROJECTION)
-          .reuseContainers(true)
+          .reuseContainers()
           .build();
     } else {
       return CloseableIterable.withNoopClose(snapshot.allManifests(fileIO));
