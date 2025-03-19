@@ -46,6 +46,22 @@ public class TestTypes {
     assertThat(Types.fromTypeName("variant")).isSameAs(Types.VariantType.get());
     assertThat(Types.fromTypeName("Variant")).isSameAs(Types.VariantType.get());
 
+    assertThat(Types.fromTypeName("geometry")).isEqualTo(Types.GeometryType.crs84());
+    assertThat(Types.fromTypeName("Geometry")).isEqualTo(Types.GeometryType.crs84());
+    assertThat(Types.fromTypeName("geometry(srid:3857)"))
+        .isEqualTo(Types.GeometryType.of("srid:3857"));
+    assertThat(Types.fromTypeName("geometry ( srid:3857 )"))
+        .isEqualTo(Types.GeometryType.of("srid:3857"));
+
+    assertThat(Types.fromTypeName("geography")).isEqualTo(Types.GeographyType.crs84());
+    assertThat(Types.fromTypeName("Geography")).isEqualTo(Types.GeographyType.crs84());
+    assertThat(Types.fromTypeName("geography(srid:4269)"))
+        .isEqualTo(Types.GeographyType.of("srid:4269"));
+    assertThat(Types.fromTypeName("geography(srid:4269, karney)"))
+        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY));
+    assertThat(Types.fromTypeName("geography ( srid:4269 , karney )"))
+        .isEqualTo(Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY));
+
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromTypeName("abcdefghij"))
         .withMessage("Cannot parse type string to primitive: abcdefghij");
@@ -79,10 +95,7 @@ public class TestTypes {
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("abcdefghij"))
         .withMessage("Cannot parse type string to primitive: abcdefghij");
-  }
 
-  @Test
-  public void geospatialTypeFromTypeName() {
     assertThat(Types.fromPrimitiveString("geometry")).isEqualTo(Types.GeometryType.crs84());
     assertThat(Types.fromPrimitiveString("Geometry")).isEqualTo(Types.GeometryType.crs84());
     assertThat(Types.fromPrimitiveString("geometry(srid:3857)"))
