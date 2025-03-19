@@ -196,8 +196,12 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
       columnsToKeep = column -> !column.equals(MetadataColumns.CHANGE_TYPE.name());
     }
 
-    Column[] repartitionSpec =
-        Arrays.stream(df.columns()).filter(columnsToKeep).map(df::col).toArray(Column[]::new);
+    Column[] repartitionSpec = Arrays.stream(df.columns())
+            .filter(columnsToKeep)
+            .map(CreateChangelogViewProcedure::delimitedName)
+            .map(df::col)
+            .toArray(Column[]::new);
+
     return applyCarryoverRemoveIterator(df, repartitionSpec, netChanges);
   }
 
@@ -206,7 +210,9 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
       return input.asStringArray(IDENTIFIER_COLUMNS_PARAM);
     } else {
       Table table = loadSparkTable(tableIdent).table();
-      return table.schema().identifierFieldNames().toArray(new String[0]);
+      return table.schema().identifierFieldNames().stream()
+              .map(CreateChangelogViewProcedure::delimitedName)
+              .toArray(String[]::new);
     }
   }
 
@@ -255,6 +261,23 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
                         ? ChangelogIterator.removeNetCarryovers(rowIterator, schema)
                         : ChangelogIterator.removeCarryovers(rowIterator, schema),
             RowEncoder.apply(schema));
+  }
+
+  /**
+   * Ensure that column can be referenced using this name.
+   * Issues may come from field names that contain non-standard characters.
+   * In Spark, this can be fixed by using
+   * <a href="https://spark.apache.org/docs/3.5.0/sql-ref-identifier.html#delimited-identifier">backtick quotes</a>.
+   * @param columnName Column name that potentially can contain non-standard characters.
+   * @return A name that can be safely used within Spark to reference a column by its name.
+   */
+  private static String delimitedName(String columnName) {
+    final var delimited = columnName.startsWith("`") && columnName.endsWith("`");
+    if (delimited) {
+      return columnName;
+    } else {
+      return "`" + columnName.replaceAll("`", "``") + "`";
+    }
   }
 
   private static Column[] sortSpec(Dataset<Row> df, Column[] repartitionSpec, boolean netChanges) {
