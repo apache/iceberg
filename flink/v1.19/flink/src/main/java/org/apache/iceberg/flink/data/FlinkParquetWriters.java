@@ -591,7 +591,8 @@ public class FlinkParquetWriters {
   private static class RowDataWriter extends ParquetValueWriters.StructWriter<RowData> {
     private final RowData.FieldGetter[] fieldGetter;
 
-    RowDataWriter(int[] fieldIndexes, List<ParquetValueWriter<?>> writers, List<LogicalType> types) {
+    RowDataWriter(
+        int[] fieldIndexes, List<ParquetValueWriter<?>> writers, List<LogicalType> types) {
       super(writers);
       fieldGetter = new RowData.FieldGetter[types.size()];
       for (int i = 0; i < types.size(); i += 1) {
