@@ -83,7 +83,7 @@ public class PartitionStats implements StructLike {
    */
   @Deprecated
   public long totalRecordCount() {
-    return totalRecordCount == null ? 0 : totalRecordCount;
+    return totalRecordCount == null ? 0L : totalRecordCount;
   }
 
   public Long totalRecords() {
