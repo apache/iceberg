@@ -46,10 +46,9 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-public class TestSpark3Util extends SparkTestBase {
+public class TestSpark3Util extends TestBase {
   @Test
   public void testDescribeSortOrder() {
     Schema schema =
@@ -57,46 +56,44 @@ public class TestSpark3Util extends SparkTestBase {
             required(1, "data", Types.StringType.get()),
             required(2, "time", Types.TimestampType.withoutZone()));
 
-    Assert.assertEquals(
-        "Sort order isn't correct.",
-        "data DESC NULLS FIRST",
-        Spark3Util.describe(buildSortOrder("Identity", schema, 1)));
-    Assert.assertEquals(
-        "Sort order isn't correct.",
-        "bucket(1, data) DESC NULLS FIRST",
-        Spark3Util.describe(buildSortOrder("bucket[1]", schema, 1)));
-    Assert.assertEquals(
-        "Sort order isn't correct.",
-        "truncate(data, 3) DESC NULLS FIRST",
-        Spark3Util.describe(buildSortOrder("truncate[3]", schema, 1)));
-    Assert.assertEquals(
-        "Sort order isn't correct.",
-        "years(time) DESC NULLS FIRST",
-        Spark3Util.describe(buildSortOrder("year", schema, 2)));
-    Assert.assertEquals(
-        "Sort order isn't correct.",
-        "months(time) DESC NULLS FIRST",
-        Spark3Util.describe(buildSortOrder("month", schema, 2)));
-    Assert.assertEquals(
-        "Sort order isn't correct.",
-        "days(time) DESC NULLS FIRST",
-        Spark3Util.describe(buildSortOrder("day", schema, 2)));
-    Assert.assertEquals(
-        "Sort order isn't correct.",
-        "hours(time) DESC NULLS FIRST",
-        Spark3Util.describe(buildSortOrder("hour", schema, 2)));
-    Assert.assertEquals(
-        "Sort order isn't correct.",
-        "unknown(data) DESC NULLS FIRST",
-        Spark3Util.describe(buildSortOrder("unknown", schema, 1)));
+    assertThat(Spark3Util.describe(buildSortOrder("Identity", schema, 1)))
+        .as("Sort order isn't correct.")
+        .isEqualTo("data DESC NULLS FIRST");
+
+    assertThat(Spark3Util.describe(buildSortOrder("bucket[1]", schema, 1)))
+        .as("Sort order isn't correct.")
+        .isEqualTo("bucket(1, data) DESC NULLS FIRST");
+
+    assertThat(Spark3Util.describe(buildSortOrder("truncate[3]", schema, 1)))
+        .as("Sort order isn't correct.")
+        .isEqualTo("truncate(data, 3) DESC NULLS FIRST");
+
+    assertThat(Spark3Util.describe(buildSortOrder("year", schema, 2)))
+        .as("Sort order isn't correct.")
+        .isEqualTo("years(time) DESC NULLS FIRST");
+
+    assertThat(Spark3Util.describe(buildSortOrder("month", schema, 2)))
+        .as("Sort order isn't correct.")
+        .isEqualTo("months(time) DESC NULLS FIRST");
+
+    assertThat(Spark3Util.describe(buildSortOrder("day", schema, 2)))
+        .as("Sort order isn't correct.")
+        .isEqualTo("days(time) DESC NULLS FIRST");
+
+    assertThat(Spark3Util.describe(buildSortOrder("hour", schema, 2)))
+        .as("Sort order isn't correct.")
+        .isEqualTo("hours(time) DESC NULLS FIRST");
+
+    assertThat(Spark3Util.describe(buildSortOrder("unknown", schema, 1)))
+        .as("Sort order isn't correct.")
+        .isEqualTo("unknown(data) DESC NULLS FIRST");
 
     // multiple sort orders
     SortOrder multiOrder =
         SortOrder.builderFor(schema).asc("time", NULLS_FIRST).asc("data", NULLS_LAST).build();
-    Assert.assertEquals(
-        "Sort order isn't correct.",
-        "time ASC NULLS FIRST, data ASC NULLS LAST",
-        Spark3Util.describe(multiOrder));
+    assertThat(Spark3Util.describe(multiOrder))
+        .as("Sort order isn't correct.")
+        .isEqualTo("time ASC NULLS FIRST, data ASC NULLS LAST");
   }
 
   @Test
@@ -110,10 +107,10 @@ public class TestSpark3Util extends SparkTestBase {
                 Types.MapType.ofOptional(4, 5, Types.StringType.get(), Types.LongType.get())),
             required(6, "time", Types.TimestampType.withoutZone()));
 
-    Assert.assertEquals(
-        "Schema description isn't correct.",
-        "struct<data: list<string> not null,pairs: map<string, bigint>,time: timestamp not null>",
-        Spark3Util.describe(schema));
+    assertThat(Spark3Util.describe(schema))
+        .as("Schema description isn't correct.")
+        .isEqualTo(
+            "struct<data: list<string> not null,pairs: map<string, bigint>,time: timestamp not null>");
   }
 
   @Test
@@ -126,7 +123,7 @@ public class TestSpark3Util extends SparkTestBase {
     sql("CREATE TABLE %s (c1 bigint, c2 string, c3 string) USING iceberg", tableFullName);
 
     Table table = Spark3Util.loadIcebergTable(spark, tableFullName);
-    Assert.assertTrue(table.name().equals(tableFullName));
+    assertThat(table.name()).isEqualTo(tableFullName);
   }
 
   @Test
@@ -134,8 +131,9 @@ public class TestSpark3Util extends SparkTestBase {
     spark.conf().set("spark.sql.catalog.test_cat", SparkCatalog.class.getName());
     spark.conf().set("spark.sql.catalog.test_cat.type", "hive");
     Catalog catalog = Spark3Util.loadIcebergCatalog(spark, "test_cat");
-    Assert.assertTrue(
-        "Should retrieve underlying catalog class", catalog instanceof CachingCatalog);
+    assertThat(catalog)
+        .as("Should retrieve underlying catalog class")
+        .isInstanceOf(CachingCatalog.class);
   }
 
   @Test

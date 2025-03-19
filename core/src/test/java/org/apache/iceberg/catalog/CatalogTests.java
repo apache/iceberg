@@ -62,6 +62,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.metrics.MetricsReport;
@@ -656,6 +657,214 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .containsAll(properties.entrySet());
     assertThat(table.uuid())
         .isEqualTo(UUID.fromString(((BaseTable) table).operations().current().uuid()));
+  }
+
+  @Test
+  public void testDefaultTableProperties() {
+    C catalog = catalog();
+
+    TableIdentifier ident = TableIdentifier.of("ns", "table");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(ident.namespace());
+    }
+
+    assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
+
+    Table table =
+        catalog()
+            .buildTable(ident, SCHEMA)
+            .withProperty("default-key2", "catalog-overridden-key2")
+            .withProperty("prop1", "val1")
+            .create();
+    assertThat(table.properties())
+        .containsEntry("default-key1", "catalog-default-key1")
+        .containsEntry("default-key2", "catalog-overridden-key2")
+        .containsEntry("prop1", "val1");
+
+    assertThat(catalog.dropTable(ident)).as("Should successfully drop table").isTrue();
+  }
+
+  @Test
+  public void testDefaultTablePropertiesCreateTransaction() {
+    C catalog = catalog();
+
+    TableIdentifier ident = TableIdentifier.of("ns", "table");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(ident.namespace());
+    }
+
+    assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
+
+    catalog()
+        .buildTable(ident, SCHEMA)
+        .withProperty("default-key2", "catalog-overridden-key2")
+        .withProperty("prop1", "val1")
+        .createTransaction()
+        .commitTransaction();
+
+    Table table = catalog.loadTable(ident);
+
+    assertThat(table.properties())
+        .containsEntry("default-key1", "catalog-default-key1")
+        .containsEntry("default-key2", "catalog-overridden-key2")
+        .containsEntry("prop1", "val1");
+
+    assertThat(catalog.dropTable(ident)).as("Should successfully drop table").isTrue();
+  }
+
+  @Test
+  public void testDefaultTablePropertiesReplaceTransaction() {
+    C catalog = catalog();
+
+    TableIdentifier ident = TableIdentifier.of("ns", "table");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(ident.namespace());
+    }
+
+    catalog.createTable(ident, SCHEMA);
+    assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
+
+    catalog()
+        .buildTable(ident, OTHER_SCHEMA)
+        .withProperty("default-key2", "catalog-overridden-key2")
+        .withProperty("prop1", "val1")
+        .replaceTransaction()
+        .commitTransaction();
+
+    Table table = catalog.loadTable(ident);
+
+    assertThat(table.properties())
+        .containsEntry("default-key1", "catalog-default-key1")
+        .containsEntry("default-key2", "catalog-overridden-key2")
+        .containsEntry("prop1", "val1");
+
+    assertThat(catalog.dropTable(ident)).as("Should successfully drop table").isTrue();
+  }
+
+  @Test
+  public void testOverrideTableProperties() {
+    C catalog = catalog();
+
+    TableIdentifier ident = TableIdentifier.of("ns", "table");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(ident.namespace());
+    }
+
+    assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
+
+    Table table =
+        catalog()
+            .buildTable(ident, SCHEMA)
+            .withProperty("override-key4", "catalog-overridden-key4")
+            .withProperty("prop1", "val1")
+            .create();
+    assertThat(table.properties())
+        .containsEntry("default-key1", "catalog-default-key1")
+        .containsEntry("default-key2", "catalog-default-key2")
+        .containsEntry("override-key3", "catalog-override-key3")
+        .containsEntry("override-key4", "catalog-override-key4")
+        .containsEntry("prop1", "val1");
+
+    assertThat(catalog.dropTable(ident)).as("Should successfully drop table").isTrue();
+  }
+
+  @Test
+  public void testOverrideTablePropertiesCreateTransaction() {
+    C catalog = catalog();
+
+    TableIdentifier ident = TableIdentifier.of("ns", "table");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(ident.namespace());
+    }
+
+    assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
+
+    catalog()
+        .buildTable(ident, SCHEMA)
+        .withProperty("override-key4", "catalog-overridden-key4")
+        .withProperty("prop1", "val1")
+        .createTransaction()
+        .commitTransaction();
+
+    Table table = catalog.loadTable(ident);
+
+    assertThat(table.properties())
+        .containsEntry("default-key1", "catalog-default-key1")
+        .containsEntry("default-key2", "catalog-default-key2")
+        .containsEntry("override-key3", "catalog-override-key3")
+        .containsEntry("override-key4", "catalog-override-key4")
+        .containsEntry("prop1", "val1");
+
+    assertThat(catalog.dropTable(ident)).as("Should successfully drop table").isTrue();
+  }
+
+  @Test
+  public void testOverrideTablePropertiesReplaceTransaction() {
+    C catalog = catalog();
+
+    TableIdentifier ident = TableIdentifier.of("ns", "table");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(ident.namespace());
+    }
+
+    catalog.createTable(ident, SCHEMA);
+    assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
+
+    catalog()
+        .buildTable(ident, OTHER_SCHEMA)
+        .withProperty("override-key4", "catalog-overridden-key4")
+        .withProperty("prop1", "val1")
+        .replaceTransaction()
+        .commitTransaction();
+
+    Table table = catalog.loadTable(ident);
+
+    assertThat(table.properties())
+        .containsEntry("default-key1", "catalog-default-key1")
+        .containsEntry("default-key2", "catalog-default-key2")
+        .containsEntry("override-key3", "catalog-override-key3")
+        .containsEntry("override-key4", "catalog-override-key4")
+        .containsEntry("prop1", "val1");
+
+    assertThat(catalog.dropTable(ident)).as("Should successfully drop table").isTrue();
+  }
+
+  @Test
+  public void testCreateTableWithDefaultColumnValue() {
+    C catalog = catalog();
+
+    TableIdentifier ident = TableIdentifier.of("ns", "table");
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(ident.namespace());
+    }
+
+    assertThat(catalog.tableExists(ident)).as("Table should not exist").isFalse();
+
+    Schema schemaWithDefault =
+        new Schema(
+            List.of(
+                Types.NestedField.required("colWithDefault")
+                    .withId(1)
+                    .ofType(Types.IntegerType.get())
+                    .withWriteDefault(Literal.of(10))
+                    .withInitialDefault(Literal.of(12))
+                    .build()));
+
+    catalog
+        .buildTable(ident, schemaWithDefault)
+        .withLocation("file:/tmp/ns/table")
+        .withProperty(TableProperties.FORMAT_VERSION, "3")
+        .create();
+    assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
+    assertThat(schemaWithDefault.asStruct())
+        .isEqualTo(catalog.loadTable(ident).schema().asStruct());
   }
 
   @Test

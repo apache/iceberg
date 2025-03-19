@@ -51,10 +51,10 @@ public class CommitterImplTest {
 
     List<TopicPartition> assignments =
         ImmutableList.of(new TopicPartition("topic2", 1), new TopicPartition("topic1", 0));
-    assertThat(committer.isLeader(members, assignments)).isTrue();
+    assertThat(committer.containsFirstPartition(members, assignments)).isTrue();
 
     assignments =
         ImmutableList.of(new TopicPartition("topic2", 0), new TopicPartition("topic1", 1));
-    assertThat(committer.isLeader(members, assignments)).isFalse();
+    assertThat(committer.containsFirstPartition(members, assignments)).isFalse();
   }
 }

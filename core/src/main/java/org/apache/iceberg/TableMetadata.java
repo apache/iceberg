@@ -1163,11 +1163,13 @@ public class TableMetadata implements Serializable {
       Preconditions.checkArgument(
           !specIdsToRemove.contains(defaultSpecId), "Cannot remove the default partition spec");
 
-      this.specs =
-          specs.stream()
-              .filter(s -> !specIdsToRemove.contains(s.specId()))
-              .collect(Collectors.toList());
-      changes.add(new MetadataUpdate.RemovePartitionSpecs(specIdsToRemove));
+      if (!specIdsToRemove.isEmpty()) {
+        this.specs =
+            specs.stream()
+                .filter(s -> !specIdsToRemove.contains(s.specId()))
+                .collect(Collectors.toList());
+        changes.add(new MetadataUpdate.RemovePartitionSpecs(specIdsToRemove));
+      }
 
       return this;
     }

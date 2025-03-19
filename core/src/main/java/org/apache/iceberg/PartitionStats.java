@@ -33,7 +33,7 @@ public class PartitionStats implements StructLike {
   private int positionDeleteFileCount;
   private long equalityDeleteRecordCount;
   private int equalityDeleteFileCount;
-  private long totalRecordCount;
+  private Long totalRecordCount; // null by default
   private Long lastUpdatedAt; // null by default
   private Long lastUpdatedSnapshotId; // null by default
 
@@ -78,7 +78,15 @@ public class PartitionStats implements StructLike {
     return equalityDeleteFileCount;
   }
 
+  /**
+   * @deprecated since 1.9.0, will be removed in 1.10.0, use {@link #totalRecords()} instead.
+   */
+  @Deprecated
   public long totalRecordCount() {
+    return totalRecordCount == null ? 0L : totalRecordCount;
+  }
+
+  public Long totalRecords() {
     return totalRecordCount;
   }
 
@@ -150,7 +158,14 @@ public class PartitionStats implements StructLike {
     this.positionDeleteFileCount += entry.positionDeleteFileCount;
     this.equalityDeleteRecordCount += entry.equalityDeleteRecordCount;
     this.equalityDeleteFileCount += entry.equalityDeleteFileCount;
-    this.totalRecordCount += entry.totalRecordCount;
+
+    if (entry.totalRecordCount != null) {
+      if (totalRecordCount == null) {
+        this.totalRecordCount = entry.totalRecordCount;
+      } else {
+        this.totalRecordCount += entry.totalRecordCount;
+      }
+    }
 
     if (entry.lastUpdatedAt != null) {
       updateSnapshotInfo(entry.lastUpdatedSnapshotId, entry.lastUpdatedAt);
@@ -236,8 +251,7 @@ public class PartitionStats implements StructLike {
         this.equalityDeleteFileCount = value == null ? 0 : (int) value;
         break;
       case 9:
-        // optional field as per spec, implementation initialize to 0 for counters
-        this.totalRecordCount = value == null ? 0L : (long) value;
+        this.totalRecordCount = (Long) value;
         break;
       case 10:
         this.lastUpdatedAt = (Long) value;

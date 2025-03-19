@@ -63,7 +63,6 @@ public class TestPathIdentifier extends TestBase {
 
   @AfterEach
   public void after() {
-    tableLocation.delete();
     sparkCatalog = null;
   }
 

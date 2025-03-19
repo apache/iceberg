@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
@@ -33,17 +34,15 @@ import org.apache.iceberg.actions.SizeBasedFileRewriter;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StringType;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 
-public class TestSparkFileRewriter extends SparkTestBase {
+public class TestSparkFileRewriter extends TestBase {
 
   private static final TableIdentifier TABLE_IDENT = TableIdentifier.of("default", "tbl");
   private static final Schema SCHEMA =
@@ -54,7 +53,7 @@ public class TestSparkFileRewriter extends SparkTestBase {
       PartitionSpec.builderFor(SCHEMA).identity("dep").build();
   private static final SortOrder SORT_ORDER = SortOrder.builderFor(SCHEMA).asc("id").build();
 
-  @After
+  @AfterEach
   public void removeTable() {
     catalog.dropTable(TABLE_IDENT);
   }
@@ -111,9 +110,9 @@ public class TestSparkFileRewriter extends SparkTestBase {
     rewriter.init(options);
 
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    Assert.assertEquals("Must have 1 group", 1, Iterables.size(groups));
+    assertThat(groups).as("Must have 1 group").hasSize(1);
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    Assert.assertEquals("Must rewrite 2 files", 2, group.size());
+    assertThat(group).as("Must rewrite 2 files").hasSize(2);
   }
 
   private void checkDataFilesDeleteThreshold(SizeBasedDataRewriter rewriter) {
@@ -130,9 +129,9 @@ public class TestSparkFileRewriter extends SparkTestBase {
     rewriter.init(options);
 
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    Assert.assertEquals("Must have 1 group", 1, Iterables.size(groups));
+    assertThat(groups).as("Must have 1 group").hasSize(1);
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    Assert.assertEquals("Must rewrite 1 file", 1, group.size());
+    assertThat(group).as("Must rewrite 1 file").hasSize(1);
   }
 
   private void checkDataFileGroupWithEnoughFiles(SizeBasedDataRewriter rewriter) {
@@ -153,9 +152,9 @@ public class TestSparkFileRewriter extends SparkTestBase {
     rewriter.init(options);
 
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    Assert.assertEquals("Must have 1 group", 1, Iterables.size(groups));
+    assertThat(groups).as("Must have 1 group").hasSize(1);
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    Assert.assertEquals("Must rewrite 4 files", 4, group.size());
+    assertThat(group).as("Must rewrite 4 files").hasSize(4);
   }
 
   private void checkDataFileGroupWithEnoughData(SizeBasedDataRewriter rewriter) {
@@ -173,9 +172,9 @@ public class TestSparkFileRewriter extends SparkTestBase {
     rewriter.init(options);
 
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    Assert.assertEquals("Must have 1 group", 1, Iterables.size(groups));
+    assertThat(groups).as("Must have 1 group").hasSize(1);
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    Assert.assertEquals("Must rewrite 3 files", 3, group.size());
+    assertThat(group).as("Must rewrite 3 files").hasSize(3);
   }
 
   private void checkDataFileGroupWithTooMuchData(SizeBasedDataRewriter rewriter) {
@@ -191,9 +190,9 @@ public class TestSparkFileRewriter extends SparkTestBase {
     rewriter.init(options);
 
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    Assert.assertEquals("Must have 1 group", 1, Iterables.size(groups));
+    assertThat(groups).as("Must have 1 group").hasSize(1);
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    Assert.assertEquals("Must rewrite big file", 1, group.size());
+    assertThat(group).as("Must rewrite big file").hasSize(1);
   }
 
   @Test
@@ -237,9 +236,9 @@ public class TestSparkFileRewriter extends SparkTestBase {
     Table table = catalog.createTable(TABLE_IDENT, SCHEMA);
     SparkBinPackDataRewriter rewriter = new SparkBinPackDataRewriter(spark, table);
 
-    Assert.assertEquals(
-        "Rewriter must report all supported options",
-        ImmutableSet.of(
+    assertThat(rewriter.validOptions())
+        .as("Rewriter must report all supported options")
+        .containsExactlyInAnyOrder(
             SparkBinPackDataRewriter.TARGET_FILE_SIZE_BYTES,
             SparkBinPackDataRewriter.MIN_FILE_SIZE_BYTES,
             SparkBinPackDataRewriter.MAX_FILE_SIZE_BYTES,
@@ -247,8 +246,7 @@ public class TestSparkFileRewriter extends SparkTestBase {
             SparkBinPackDataRewriter.REWRITE_ALL,
             SparkBinPackDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
             SparkBinPackDataRewriter.DELETE_FILE_THRESHOLD,
-            SparkBinPackDataRewriter.DELETE_RATIO_THRESHOLD),
-        rewriter.validOptions());
+            SparkBinPackDataRewriter.DELETE_RATIO_THRESHOLD);
   }
 
   @Test
@@ -256,9 +254,9 @@ public class TestSparkFileRewriter extends SparkTestBase {
     Table table = catalog.createTable(TABLE_IDENT, SCHEMA);
     SparkSortDataRewriter rewriter = new SparkSortDataRewriter(spark, table, SORT_ORDER);
 
-    Assert.assertEquals(
-        "Rewriter must report all supported options",
-        ImmutableSet.of(
+    assertThat(rewriter.validOptions())
+        .as("Rewriter must report all supported options")
+        .containsExactlyInAnyOrder(
             SparkSortDataRewriter.SHUFFLE_PARTITIONS_PER_FILE,
             SparkSortDataRewriter.TARGET_FILE_SIZE_BYTES,
             SparkSortDataRewriter.MIN_FILE_SIZE_BYTES,
@@ -268,8 +266,7 @@ public class TestSparkFileRewriter extends SparkTestBase {
             SparkSortDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
             SparkSortDataRewriter.DELETE_FILE_THRESHOLD,
             SparkSortDataRewriter.DELETE_RATIO_THRESHOLD,
-            SparkSortDataRewriter.COMPRESSION_FACTOR),
-        rewriter.validOptions());
+            SparkSortDataRewriter.COMPRESSION_FACTOR);
   }
 
   @Test
@@ -278,9 +275,9 @@ public class TestSparkFileRewriter extends SparkTestBase {
     ImmutableList<String> zOrderCols = ImmutableList.of("id");
     SparkZOrderDataRewriter rewriter = new SparkZOrderDataRewriter(spark, table, zOrderCols);
 
-    Assert.assertEquals(
-        "Rewriter must report all supported options",
-        ImmutableSet.of(
+    assertThat(rewriter.validOptions())
+        .as("Rewriter must report all supported options")
+        .containsExactlyInAnyOrder(
             SparkZOrderDataRewriter.SHUFFLE_PARTITIONS_PER_FILE,
             SparkZOrderDataRewriter.TARGET_FILE_SIZE_BYTES,
             SparkZOrderDataRewriter.MIN_FILE_SIZE_BYTES,
@@ -292,8 +289,7 @@ public class TestSparkFileRewriter extends SparkTestBase {
             SparkZOrderDataRewriter.DELETE_RATIO_THRESHOLD,
             SparkZOrderDataRewriter.COMPRESSION_FACTOR,
             SparkZOrderDataRewriter.MAX_OUTPUT_SIZE,
-            SparkZOrderDataRewriter.VAR_LENGTH_CONTRIBUTION),
-        rewriter.validOptions());
+            SparkZOrderDataRewriter.VAR_LENGTH_CONTRIBUTION);
   }
 
   @Test

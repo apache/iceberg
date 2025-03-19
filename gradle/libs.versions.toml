@@ -22,6 +22,7 @@
 [versions]
 activation = "1.1.1"
 aliyun-sdk-oss = "3.10.2"
+analyticsaccelerator = "1.0.0"
 antlr = "4.9.3"
 aircompressor = "0.27"
 apiguardian = "1.1.2"
@@ -29,7 +30,7 @@ arrow = "15.0.2"
 avro = "1.12.0"
 assertj-core = "3.27.3"
 awaitility = "4.3.0"
-awssdk-bom = "2.30.26"
+awssdk-bom = "2.30.31"
 azuresdk-bom = "1.2.31"
 awssdk-s3accessgrants = "2.3.0"
 bson-ver = "4.11.5"
@@ -78,16 +79,17 @@ roaringbitmap = "1.3.0"
 scala-collection-compat = "2.13.0"
 slf4j = "2.0.17"
 snowflake-jdbc = "3.23.0"
-spark-hive34 = "3.4.4"
-spark-hive35 = "3.5.5"
+spark34 = "3.4.4"
+spark35 = "3.5.5"
 sqlite-jdbc = "3.49.1.0"
-testcontainers = "1.20.5"
+testcontainers = "1.20.6"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
 
 [libraries]
 activation = { module = "javax.activation:activation", version.ref = "activation" }
 aircompressor = { module = "io.airlift:aircompressor", version.ref = "aircompressor" }
 aliyun-sdk-oss = { module = "com.aliyun.oss:aliyun-sdk-oss", version.ref = "aliyun-sdk-oss" }
+analyticsaccelerator-s3 = { module = "software.amazon.s3.analyticsaccelerator:analyticsaccelerator-s3", version.ref = "analyticsaccelerator" }
 antlr-antlr4 = { module = "org.antlr:antlr4", version.ref = "antlr" }
 antlr-runtime = { module = "org.antlr:antlr4-runtime", version.ref = "antlr" }
 arrow-memory-netty = { module = "org.apache.arrow:arrow-memory-netty", version.ref = "arrow" }

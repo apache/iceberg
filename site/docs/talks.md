@@ -21,6 +21,92 @@ title: "Talks"
 ## Iceberg Talks
 
 Here is a list of talks and other videos related to Iceberg.
+### [Supporting S3 Tables in Daft](https://www.youtube.com/watch?v=WHFlHmFqDsI)
+**Date**: February 27, 2025, **Authors**: R. Conner Howell
+
+### [Iceberg Catalogs](https://www.youtube.com/watch?v=P57XWsoL_Bg)
+**Date**: February 27, 2025, **Authors**: Arsham Eslami
+
+### [Security for an Apache Iceberg Lakehouse](https://www.youtube.com/watch?v=wfiNR_JI-dU)
+**Date**: February 27, 2025, **Authors**: Emre Saglam
+
+### [The Invisible Ink of Iceberg Deletions](https://www.youtube.com/watch?v=gA6jG7gv10A)
+**Date**: February 27, 2025, **Authors**: Aniruth Narayanan
+
+### [Iceberg table format version - Iceberg v3 spec](https://www.youtube.com/watch?v=oLHEl-iJ6nw)
+**Date**: February 21, 2025, **Authors**: Tomohiro Tanaka
+
+### [Apache Iceberg Case Study in LY Corporation](https://www.youtube.com/watch?v=BZvSlIHihvw)
+**Date**: February 21, 2025, **Authors**: Tasuku Okuda
+
+### [Conflict resolution mechanism in Iceberg](https://www.youtube.com/watch?v=e_4T827wLCM)
+**Date**: February 21, 2025, **Authors**: Sotaro Hikita
+
+### [Getting Started with Iceberg on Snowflake](https://www.youtube.com/watch?v=n2hh35QlTWI)
+**Date**: February 21, 2025, **Authors**: Akira Sakatoku
+
+### [Databricks Frozen Over - Bringing the best of data catalogs and Iceberg together](https://www.youtube.com/watch?v=oLHEl-iJ6nw)
+**Date**: February 21, 2025, **Authors**: Victoria Bukta
+
+### [Optimizing Query Performance for Apache Iceberg at Scale](https://www.youtube.com/watch?v=qPE09kUeiFk)
+**Date**: January 30, 2025, **Authors**: Yan (Ryan) Zhang
+
+### [Streaming data to Apache Iceberg with Redpanda](https://www.youtube.com/watch?v=bCms63U8xPE)
+**Date**: January 30, 2025, **Authors**: Andrew Wong
+
+### [Automated ERD construction on Iceberg data lakes with Kurve](https://www.youtube.com/watch?v=o0Q7Eiie-JI)
+**Date**: January 30, 2025, **Authors**: Wes Madrigal
+
+### [From Logs to Insights](https://www.youtube.com/watch?v=VzQ-rBByKdw)
+**Date**: January 30, 2025, **Authors**: Danfeng Xu
+
+### [From Passive to Powerful, How Storage-Acceleration can Supercharge Iceberg Query Performance](https://www.youtube.com/watch?v=3aZlxPFJR2s)
+**Date**: January 30, 2025, **Authors**: Kartik Kulkarni 
+
+### [Iceberg Metadata for Variant Support](https://youtu.be/MKqllL_D-fs)
+**Date**: January 30, 2025, **Authors**: Aihua Xu
+
+### [Fireside Chat with Denny Lee & Jason Reid](https://www.youtube.com/watch?v=KwvwB_j_6V4&list=PL3IALGSANhzWxlZpyGgwZiRYjhIStmBdq&index=8&pp=iAQB)
+**Date**: January 30, 2025, **Authors**: Denny Lee, Jason Reid
+
+### [Optimizing Iceberg Query Performance by Automatically generating NDVs](https://www.youtube.com/watch?v=xeDuiR_0WnY&list=PL3IALGSANhzWxlZpyGgwZiRYjhIStmBdq&index=9&pp=iAQB)
+**Date**: January 30, 2025, **Authors**: Sandeep Adwankar
+
+### [Towards Actionable Metadata](https://www.youtube.com/watch?v=zBcReOD5KH8&list=PL3IALGSANhzWxlZpyGgwZiRYjhIStmBdq&index=10&pp=iAQB)
+**Date**: January 30, 2025, **Authors**: Viktor Kessler
+
+### [Apache Iceberg V3 and Beyond](https://www.youtube.com/watch?v=0C8CLOzNVEU)
+**Date**: January 30, 2025, **Authors**: Daniel Weeks
+
+### [Evolution of Position Deletes](https://www.youtube.com/watch?v=vjgJridq8G0)
+**Date**: January 30, 2025, **Authors**: Anton Okolnychyi
+
+### [Data-Centric AI with Iceberg Data Products](https://www.youtube.com/watch?v=jHHsbNLli-M)
+**Date**: January 30, 2025, **Authors**: Andrew C. Madson
+
+### [Ursa Augmenting Iceberg with Kafka-Compatible Data Streaming Capabilities](https://www.youtube.com/watch?v=eensn8_PWow)
+**Date**: January 30, 2025, **Authors**: Sijie Guo
+
+### [Navigating Iceberg Adoption and Impact at Pinterest](https://www.youtube.com/watch?v=k4Yu8delcac)
+**Date**: January 30, 2025, **Authors**: Ashish Singh, Chunyan Wang
+
+### [Bridging Python and Apache Iceberg The Power of PyIceberg](https://www.youtube.com/watch?v=METmUaUTI7o)
+**Date**: January 30, 2025, **Authors**: Rushan (Jonas) Jiang
+
+### [Lakekeeper: Rust based Iceberg Catalog](https://www.youtube.com/watch?v=p0nVQSolnuY)
+**Date**: November 4, 2024, **Authors**: Christian Thiel
+
+### [Iceberg at Netflix](https://www.youtube.com/watch?v=tLgeemU6XUg)
+**Date**: November 4, 2024, **Authors**: Snehal Chennuru
+
+### [How We Implemented the Iceberg Connector in Rust!](https://www.youtube.com/watch?v=5Hcde2h-1Y4)
+**Date**: November 4, 2024, **Authors**: Yingjun Wu
+
+### [Accelerate your Iceberg workloads on S3](https://www.youtube.com/watch?v=nfNy7Lqo60U)
+**Date**: November 4, 2024, **Authors**: Jack Ye
+
+### [Lessons From Building Iceberg Capabilities In Daft, A Distributed Query Engine](https://www.youtube.com/watch?v=-2Vd02A_Jy4)
+**Date**: November 4, 2024, **Authors**: Kevin Wang
 
 ### [Eliminating Shuffles in DELETE, UPDATE, MERGE](https://www.youtube.com/watch?v=AIZjy6_K0ws)
 **Date**: July 27, 2023, **Authors**: Anton Okolnychyi, Chao Sun

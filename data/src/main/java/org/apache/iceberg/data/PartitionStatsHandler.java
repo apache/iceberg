@@ -36,7 +36,6 @@ import org.apache.iceberg.PartitionStatsUtil;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
@@ -53,7 +52,6 @@ import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
-import org.apache.iceberg.util.SnapshotUtil;
 
 /**
  * Computes, writes and reads the {@link PartitionStatisticsFile}. Uses generic readers and writers
@@ -121,29 +119,27 @@ public class PartitionStatsHandler {
    *     present.
    */
   public static PartitionStatisticsFile computeAndWriteStatsFile(Table table) throws IOException {
-    return computeAndWriteStatsFile(table, SnapshotRef.MAIN_BRANCH);
-  }
-
-  /**
-   * Computes and writes the {@link PartitionStatisticsFile} for a given table and branch.
-   *
-   * @param table The {@link Table} for which the partition statistics is computed.
-   * @param branch A branch information to select the required snapshot.
-   * @return {@link PartitionStatisticsFile} for the given branch, or null if no statistics are
-   *     present.
-   */
-  public static PartitionStatisticsFile computeAndWriteStatsFile(Table table, String branch)
-      throws IOException {
-    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
-    if (currentSnapshot == null) {
-      Preconditions.checkArgument(
-          branch == null || branch.equals(SnapshotRef.MAIN_BRANCH),
-          "Couldn't find the snapshot for the branch %s",
-          branch);
+    if (table.currentSnapshot() == null) {
       return null;
     }
 
-    Collection<PartitionStats> stats = PartitionStatsUtil.computeStats(table, currentSnapshot);
+    return computeAndWriteStatsFile(table, table.currentSnapshot().snapshotId());
+  }
+
+  /**
+   * Computes and writes the {@link PartitionStatisticsFile} for a given table and snapshot.
+   *
+   * @param table The {@link Table} for which the partition statistics is computed.
+   * @param snapshotId snapshot for which partition statistics are computed.
+   * @return {@link PartitionStatisticsFile} for the given snapshot, or null if no statistics are
+   *     present.
+   */
+  public static PartitionStatisticsFile computeAndWriteStatsFile(Table table, long snapshotId)
+      throws IOException {
+    Snapshot snapshot = table.snapshot(snapshotId);
+    Preconditions.checkArgument(snapshot != null, "Snapshot not found: %s", snapshotId);
+
+    Collection<PartitionStats> stats = PartitionStatsUtil.computeStats(table, snapshot);
     if (stats.isEmpty()) {
       return null;
     }
@@ -151,7 +147,7 @@ public class PartitionStatsHandler {
     StructType partitionType = Partitioning.partitionType(table);
     List<PartitionStats> sortedStats = PartitionStatsUtil.sortStats(stats, partitionType);
     return writePartitionStatsFile(
-        table, currentSnapshot.snapshotId(), schema(partitionType), sortedStats);
+        table, snapshot.snapshotId(), schema(partitionType), sortedStats);
   }
 
   @VisibleForTesting
