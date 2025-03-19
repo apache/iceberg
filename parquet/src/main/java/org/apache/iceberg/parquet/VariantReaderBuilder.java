@@ -43,7 +43,6 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueReader<?>> {
-  private static final String LIST = "list";
   private final MessageType schema;
   private final Iterable<String> basePath;
   private final Deque<String> fieldNames = Lists.newLinkedList();
