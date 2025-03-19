@@ -21,6 +21,7 @@ package org.apache.iceberg.data.orc;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -43,6 +44,10 @@ import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.variants.Serialized;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantValue;
 import org.apache.orc.storage.common.type.HiveDecimal;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
@@ -121,6 +126,14 @@ public class GenericOrcWriters {
     return TimestampWriter.INSTANCE;
   }
 
+  public static OrcValueWriter<OffsetDateTime> timestampTzNanos() {
+    return TimestampTzNanoWriter.INSTANCE;
+  }
+
+  public static OrcValueWriter<LocalDateTime> timestampNanos() {
+    return TimestampNanoWriter.INSTANCE;
+  }
+
   public static OrcValueWriter<BigDecimal> decimal(int precision, int scale) {
     if (precision <= 18) {
       return new Decimal18Writer(precision, scale);
@@ -129,6 +142,10 @@ public class GenericOrcWriters {
     } else {
       throw new IllegalArgumentException("Invalid precision: " + precision);
     }
+  }
+
+  public static OrcValueWriter<Variant> variants() {
+    return VariantWriter.INSTANCE;
   }
 
   public static <T> OrcValueWriter<List<T>> list(OrcValueWriter<T> element) {
@@ -349,6 +366,32 @@ public class GenericOrcWriters {
     }
   }
 
+  private static class TimestampTzNanoWriter implements OrcValueWriter<OffsetDateTime> {
+    private static final OrcValueWriter<OffsetDateTime> INSTANCE = new TimestampTzNanoWriter();
+
+    @Override
+    @SuppressWarnings("JavaLocalDateTimeGetNano")
+    public void nonNullWrite(int rowId, OffsetDateTime data, ColumnVector output) {
+      TimestampColumnVector cv = (TimestampColumnVector) output;
+      // millis
+      cv.time[rowId] = data.toInstant().toEpochMilli();
+      cv.nanos[rowId] = data.getNano();
+    }
+  }
+
+  private static class TimestampNanoWriter implements OrcValueWriter<LocalDateTime> {
+    private static final OrcValueWriter<LocalDateTime> INSTANCE = new TimestampNanoWriter();
+
+    @Override
+    @SuppressWarnings("JavaLocalDateTimeGetNano")
+    public void nonNullWrite(int rowId, LocalDateTime data, ColumnVector output) {
+      TimestampColumnVector cv = (TimestampColumnVector) output;
+      cv.setIsUTC(true);
+      cv.time[rowId] = data.toInstant(ZoneOffset.UTC).toEpochMilli(); // millis
+      cv.nanos[rowId] = data.getNano();
+    }
+  }
+
   private static class Decimal18Writer implements OrcValueWriter<BigDecimal> {
     private final int precision;
     private final int scale;
@@ -403,6 +446,68 @@ public class GenericOrcWriters {
           data);
 
       ((DecimalColumnVector) output).vector[rowId].set(HiveDecimal.create(data, false));
+    }
+  }
+
+  private abstract static class VariantBinaryWriter<T> implements OrcValueWriter<T> {
+    protected abstract int sizeInBytes(T value);
+
+    protected abstract int writeTo(ByteBuffer buffer, int offset, T value);
+
+    @Override
+    public void nonNullWrite(int rowId, T data, ColumnVector output) {
+      if (data instanceof Serialized) {
+        ByteBufferWriter.INSTANCE.write(rowId, ((Serialized) data).buffer(), output);
+      } else {
+        ByteBufferWriter.INSTANCE.write(rowId, serialize(data), output);
+      }
+    }
+
+    private ByteBuffer serialize(T value) {
+      // ORC keeps references to the arrays passed in so buffers cannot be reused
+      ByteBuffer buffer = ByteBuffer.allocate(sizeInBytes(value)).order(ByteOrder.LITTLE_ENDIAN);
+      int size = writeTo(buffer, 0, value);
+      buffer.position(0);
+      buffer.limit(size);
+      return buffer;
+    }
+  }
+
+  private static class VariantMetadataWriter extends VariantBinaryWriter<VariantMetadata> {
+    @Override
+    protected int sizeInBytes(VariantMetadata metadata) {
+      return metadata.sizeInBytes();
+    }
+
+    @Override
+    protected int writeTo(ByteBuffer buffer, int offset, VariantMetadata metadata) {
+      return metadata.writeTo(buffer, offset);
+    }
+  }
+
+  private static class VariantValueWriter extends VariantBinaryWriter<VariantValue> {
+    @Override
+    protected int sizeInBytes(VariantValue value) {
+      return value.sizeInBytes();
+    }
+
+    @Override
+    protected int writeTo(ByteBuffer buffer, int offset, VariantValue value) {
+      return value.writeTo(buffer, offset);
+    }
+  }
+
+  private static class VariantWriter implements OrcValueWriter<Variant> {
+    private static final VariantWriter INSTANCE = new VariantWriter();
+
+    private static final VariantMetadataWriter METADATA_WRITER = new VariantMetadataWriter();
+    private static final VariantValueWriter VALUE_WRITER = new VariantValueWriter();
+
+    @Override
+    public void nonNullWrite(int rowId, Variant data, ColumnVector output) {
+      StructColumnVector struct = (StructColumnVector) output;
+      METADATA_WRITER.nonNullWrite(rowId, data.metadata(), struct.fields[0]);
+      VALUE_WRITER.nonNullWrite(rowId, data.value(), struct.fields[1]);
     }
   }
 
