@@ -20,6 +20,7 @@
 package org.apache.spark.sql.catalyst.planning
 
 import org.apache.spark.sql.AnalysisException
+import org.apache.spark.sql.catalyst.analysis.RewriteMergeIntoOperationForRowLineage.WriteIcebergDeltaWithRowLineage
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceIcebergData
 import org.apache.spark.sql.catalyst.plans.logical.RowLevelCommand

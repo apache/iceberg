@@ -87,7 +87,9 @@ public interface ManifestFile {
           "Summary for each partition");
   Types.NestedField KEY_METADATA =
       optional(519, "key_metadata", Types.BinaryType.get(), "Encryption key metadata blob");
-  // next ID to assign: 520
+  Types.NestedField FIRST_ROW_ID =
+      optional(520, "first_row_id", Types.LongType.get(), "First row id");
+  // next ID to assign: 521
 
   Schema SCHEMA =
       new Schema(
@@ -105,7 +107,8 @@ public interface ManifestFile {
           EXISTING_ROWS_COUNT,
           DELETED_ROWS_COUNT,
           PARTITION_SUMMARIES,
-          KEY_METADATA);
+          KEY_METADATA,
+          FIRST_ROW_ID);
 
   static Schema schema() {
     return SCHEMA;
@@ -193,6 +196,10 @@ public interface ManifestFile {
    * plain text.
    */
   default ByteBuffer keyMetadata() {
+    return null;
+  }
+
+  default Long firstRowId() {
     return null;
   }
 

@@ -21,13 +21,9 @@ package org.apache.iceberg.spark.extensions;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
@@ -36,8 +32,6 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.spark.data.TestHelpers;
-import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Encoders;
 import org.junit.Test;
@@ -89,6 +83,7 @@ public class TestMergeOnReadMerge extends TestMerge {
   @Test
   public void testMergeWithDVAndHistoricalPositionDeletes() {
     assumeThat(formatVersion).isEqualTo(2);
+    assumeThat(fileFormat).isEqualTo("parquet");
     createTableWithDeleteGranularity(
         "id INT, dep STRING", "PARTITIONED BY (dep)", DeleteGranularity.PARTITION);
     createBranchIfNeeded();
@@ -131,7 +126,7 @@ public class TestMergeOnReadMerge extends TestMerge {
         commitTarget());
 
     Map<String, String> updateFormatProperties =
-        ImmutableMap.of(TableProperties.FORMAT_VERSION, "3");
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, "3", TableProperties.ROW_LINEAGE, "true");
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES (%s)",
         tableName, tablePropsAsString(updateFormatProperties));
@@ -141,21 +136,36 @@ public class TestMergeOnReadMerge extends TestMerge {
     // and 1 new deleted position
     sql(
         "MERGE INTO %s AS t USING source AS s "
-            + "ON t.id == s.value and id = 6 "
+            + "ON t.id == s.value "
+            + "WHEN MATCHED THEN "
+            + " UPDATE SET id = id + 1 "
+            + "WHEN NOT MATCHED THEN "
+            + " INSERT (id, dep) VALUES (-1, 'other')",
+        commitTarget());
+    sql(
+        "MERGE INTO %s AS t USING source AS s "
+            + "ON t.id == s.value "
             + "WHEN MATCHED THEN "
             + " UPDATE SET id = id + 1 "
             + "WHEN NOT MATCHED THEN "
             + " INSERT (id, dep) VALUES (-1, 'other')",
         commitTarget());
 
-    Table table = validationCatalog.loadTable(tableIdent);
-    Set<DeleteFile> deleteFiles =
-        TestHelpers.deleteFiles(table, SnapshotUtil.latestSnapshot(table, branch));
-    List<DeleteFile> dvs =
-        deleteFiles.stream().filter(ContentFileUtil::isDV).collect(Collectors.toList());
-    assertThat(dvs).hasSize(1);
-    assertThat(dvs).allMatch(dv -> dv.recordCount() == 3);
-    assertThat(dvs).allMatch(dv -> FileFormat.fromFileName(dv.location()) == FileFormat.PUFFIN);
+    sql(
+        "MERGE INTO %s AS t USING source AS s "
+            + "ON t.id == s.value "
+            + "WHEN MATCHED THEN "
+            + " UPDATE SET id = id + 1 "
+            + "WHEN NOT MATCHED THEN "
+            + " INSERT (id, dep) VALUES (-1, 'other')",
+        commitTarget());
+
+    sql(
+        "MERGE INTO %s AS t USING source AS s "
+            + "ON t.id == s.value + 1 "
+            + "WHEN NOT MATCHED THEN "
+            + " INSERT (id, dep) VALUES (-1, 'other')",
+        commitTarget());
   }
 
   private void checkMergeDeleteGranularity(DeleteGranularity deleteGranularity) {

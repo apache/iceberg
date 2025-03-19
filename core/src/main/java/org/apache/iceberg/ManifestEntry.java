@@ -125,6 +125,16 @@ interface ManifestEntry<F extends ContentFile<F>> {
    */
   void setFileSequenceNumber(long fileSequenceNumber);
 
+  default void setManifestFirstRowId(long firstRowId) {
+    throw new UnsupportedOperationException(
+        "Manifest entry does not support manifest first row id");
+  }
+
+  default Long manifestFirstRowId() {
+    throw new UnsupportedOperationException(
+        "Manifest entry does not support manifest first row id");
+  }
+
   /** Returns a file. */
   F file();
 

@@ -741,6 +741,9 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     private final PartitionKey dataPartitionKey;
     private final InternalRowWrapper internalRowDataWrapper;
 
+    //    private final boolean rowLineage;
+    //    private final StructType schema;
+
     PartitionedDeltaWriter(
         Table table,
         Map<String, DeleteFileSet> rewritableDeletes,
@@ -763,6 +766,12 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     @Override
     public void insert(InternalRow row) throws IOException {
+      //      if (rowLineage) {
+      //        ProjectingInternalRow projectingInternalRow = (ProjectingInternalRow) row;
+      //        ProjectingInternalRow withRowLineageAsData = new ProjectingInternalRow(schema,
+      // projectingInternalRow.colOrdinals());
+      //      }
+
       dataPartitionKey.partition(internalRowDataWrapper.wrap(row));
       delegate.insert(row, dataSpec, dataPartitionKey);
     }

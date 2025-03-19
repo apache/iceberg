@@ -20,17 +20,7 @@
 package org.apache.iceberg.spark.extensions
 
 import org.apache.spark.sql.SparkSessionExtensions
-import org.apache.spark.sql.catalyst.analysis.AlignedRowLevelIcebergCommandCheck
-import org.apache.spark.sql.catalyst.analysis.AlignRowLevelCommandAssignments
-import org.apache.spark.sql.catalyst.analysis.CheckMergeIntoTableConditions
-import org.apache.spark.sql.catalyst.analysis.CheckViews
-import org.apache.spark.sql.catalyst.analysis.MergeIntoIcebergTableResolutionCheck
-import org.apache.spark.sql.catalyst.analysis.ProcedureArgumentCoercion
-import org.apache.spark.sql.catalyst.analysis.ResolveMergeIntoTableReferences
-import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
-import org.apache.spark.sql.catalyst.analysis.ResolveViews
-import org.apache.spark.sql.catalyst.analysis.RewriteMergeIntoTable
-import org.apache.spark.sql.catalyst.analysis.RewriteUpdateTable
+import org.apache.spark.sql.catalyst.analysis.{AlignRowLevelCommandAssignments, AlignedRowLevelIcebergCommandCheck, CheckMergeIntoTableConditions, CheckViews, MergeIntoIcebergTableResolutionCheck, ProcedureArgumentCoercion, ResolveMergeIntoTableReferences, ResolveProcedures, ResolveViews, RewriteMergeIntoTable, RewriteMergeIntoOperationForRowLineage, RewriteUpdateTable}
 import org.apache.spark.sql.catalyst.optimizer.ExtendedReplaceNullWithFalseInPredicate
 import org.apache.spark.sql.catalyst.optimizer.ExtendedSimplifyConditionalsInPredicate
 import org.apache.spark.sql.catalyst.optimizer.ReplaceStaticInvoke
@@ -54,6 +44,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     extensions.injectResolutionRule { _ => CheckMergeIntoTableConditions }
     extensions.injectResolutionRule { _ => ProcedureArgumentCoercion }
     extensions.injectResolutionRule { _ => AlignRowLevelCommandAssignments }
+    extensions.injectResolutionRule { _ => RewriteMergeIntoOperationForRowLineage }
     extensions.injectResolutionRule { _ => RewriteUpdateTable }
     extensions.injectResolutionRule { _ => RewriteMergeIntoTable }
     extensions.injectCheckRule { _ => CheckViews }

@@ -53,6 +53,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private int deletedFiles = 0;
   private long deletedRows = 0L;
   private Long minDataSequenceNumber = null;
+  private Long firstRowId = null;
 
   private ManifestWriter(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
     this.file = file.encryptingOutputFile();
@@ -79,6 +80,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
       case ADDED:
         addedFiles += 1;
         addedRows += entry.file().recordCount();
+        this.firstRowId = firstRowId == null ? entry.file().firstRowId() : null;
         break;
       case EXISTING:
         existingFiles += 1;
@@ -208,7 +210,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         deletedFiles,
         deletedRows,
         stats.summaries(),
-        keyMetadataBuffer);
+        keyMetadataBuffer,
+        firstRowId);
   }
 
   @Override

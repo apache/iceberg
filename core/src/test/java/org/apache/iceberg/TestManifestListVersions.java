@@ -62,6 +62,7 @@ public class TestManifestListVersions {
   private static final List<ManifestFile.PartitionFieldSummary> PARTITION_SUMMARIES =
       ImmutableList.of();
   private static final ByteBuffer KEY_METADATA = null;
+  private static Long FIRST_ROW_ID = null;
 
   private static final ManifestFile TEST_MANIFEST =
       new GenericManifestFile(
@@ -79,7 +80,8 @@ public class TestManifestListVersions {
           DELETED_FILES,
           DELETED_ROWS,
           PARTITION_SUMMARIES,
-          KEY_METADATA);
+          KEY_METADATA,
+          FIRST_ROW_ID);
 
   private static final ManifestFile TEST_DELETE_MANIFEST =
       new GenericManifestFile(
@@ -97,7 +99,8 @@ public class TestManifestListVersions {
           DELETED_FILES,
           DELETED_ROWS,
           PARTITION_SUMMARIES,
-          KEY_METADATA);
+          KEY_METADATA,
+          FIRST_ROW_ID);
 
   @TempDir private Path temp;
 
@@ -278,7 +281,8 @@ public class TestManifestListVersions {
             DELETED_FILES,
             DELETED_ROWS,
             partitionFieldSummaries,
-            KEY_METADATA);
+            KEY_METADATA,
+            FIRST_ROW_ID);
 
     InputFile manifestList = writeManifestList(manifest, 2);
 

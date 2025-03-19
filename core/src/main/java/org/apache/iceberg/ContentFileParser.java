@@ -178,7 +178,8 @@ class ContentFileParser {
           metrics,
           keyMetadata,
           splitOffsets,
-          sortOrderId);
+          sortOrderId,
+          null);
     } else {
       return new GenericDeleteFile(
           specId,

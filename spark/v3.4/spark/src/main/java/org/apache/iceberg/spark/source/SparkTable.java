@@ -39,6 +39,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
@@ -256,6 +257,18 @@ public class SparkTable
   @Override
   public MetadataColumn[] metadataColumns() {
     DataType sparkPartitionType = SparkSchemaUtil.convert(Partitioning.partitionType(table()));
+    if (TableUtil.formatVersion(icebergTable) >= 3) {
+      return new MetadataColumn[] {
+        new SparkMetadataColumn(MetadataColumns.SPEC_ID.name(), DataTypes.IntegerType, false),
+        new SparkMetadataColumn(MetadataColumns.PARTITION_COLUMN_NAME, sparkPartitionType, true),
+        new SparkMetadataColumn(MetadataColumns.FILE_PATH.name(), DataTypes.StringType, false),
+        new SparkMetadataColumn(MetadataColumns.ROW_POSITION.name(), DataTypes.LongType, false),
+        new SparkMetadataColumn(MetadataColumns.IS_DELETED.name(), DataTypes.BooleanType, false),
+        new SparkMetadataColumn(MetadataColumns.ROW_ID.name(), DataTypes.LongType, true),
+        new SparkMetadataColumn(
+            MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(), DataTypes.LongType, true)
+      };
+    }
     return new MetadataColumn[] {
       new SparkMetadataColumn(MetadataColumns.SPEC_ID.name(), DataTypes.IntegerType, false),
       new SparkMetadataColumn(MetadataColumns.PARTITION_COLUMN_NAME, sparkPartitionType, true),

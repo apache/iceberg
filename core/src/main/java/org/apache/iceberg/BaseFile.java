@@ -83,6 +83,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   private String referencedDataFile = null;
   private Long contentOffset = null;
   private Long contentSizeInBytes = null;
+  private Long firstRowId = null;
 
   // cached schema
   private transient Schema avroSchema = null;
@@ -114,7 +115,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
           DataFile.REFERENCED_DATA_FILE,
           DataFile.CONTENT_OFFSET,
           DataFile.CONTENT_SIZE,
-          MetadataColumns.ROW_POSITION);
+          MetadataColumns.ROW_POSITION,
+          DataFile.FIRST_ROW_ID);
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   BaseFile(Schema avroSchema) {
@@ -158,7 +160,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       ByteBuffer keyMetadata,
       String referencedDataFile,
       Long contentOffset,
-      Long contentSizeInBytes) {
+      Long contentSizeInBytes,
+      Long firstRowId) {
     super(BASE_TYPE.fields().size());
     this.partitionSpecId = specId;
     this.content = content;
@@ -190,6 +193,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.referencedDataFile = referencedDataFile;
     this.contentOffset = contentOffset;
     this.contentSizeInBytes = contentSizeInBytes;
+    this.firstRowId = firstRowId;
   }
 
   /**
@@ -283,6 +287,10 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.fileSequenceNumber = fileSequenceNumber;
   }
 
+  public void setFirstRowId(long firstRowId) {
+    this.firstRowId = firstRowId;
+  }
+
   protected abstract Schema getAvroSchema(Types.StructType partitionStruct);
 
   @Override
@@ -365,6 +373,9 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       case 20:
         this.fileOrdinal = (long) value;
         return;
+      case 21:
+        this.firstRowId = (Long) value;
+        return;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -419,6 +430,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         return contentSizeInBytes;
       case 20:
         return fileOrdinal;
+      case 21:
+        return firstRowId;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + basePos);
     }
@@ -516,6 +529,11 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     }
 
     return null;
+  }
+
+  @Override
+  public Long firstRowId() {
+    return firstRowId;
   }
 
   long[] splitOffsetArray() {

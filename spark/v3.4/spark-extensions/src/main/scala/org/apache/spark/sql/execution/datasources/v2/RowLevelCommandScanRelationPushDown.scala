@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.spark.sql.catalyst.analysis.RewriteMergeIntoOperationForRowLineage.WriteIcebergDeltaWithRowLineage
 import org.apache.spark.sql.catalyst.expressions.And
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.AttributeSet
@@ -49,6 +50,10 @@ object RowLevelCommandScanRelationPushDown extends Rule[LogicalPlan] with Predic
     // use native Spark planning for delta-based plans
     // unlike other commands, these plans have filters that can be pushed down directly
     case RewrittenRowLevelCommand(command, _: DataSourceV2Relation, rewritePlan: WriteIcebergDelta) =>
+      val newRewritePlan = V2ScanRelationPushDown.apply(rewritePlan)
+      command.withNewRewritePlan(newRewritePlan)
+
+    case RewrittenRowLevelCommand(command, _: DataSourceV2Relation, rewritePlan: WriteIcebergDeltaWithRowLineage) =>
       val newRewritePlan = V2ScanRelationPushDown.apply(rewritePlan)
       command.withNewRewritePlan(newRewritePlan)
 

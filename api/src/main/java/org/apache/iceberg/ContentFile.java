@@ -210,4 +210,13 @@ public interface ContentFile<F> {
   default F copy(boolean withStats) {
     return withStats ? copy() : copyWithoutStats();
   }
+
+  default Long firstRowId() {
+    return null;
+  }
+
+  default F copyWithFirstRowId(Long firstRowId) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement copyWithFirstRowId");
+  }
 }

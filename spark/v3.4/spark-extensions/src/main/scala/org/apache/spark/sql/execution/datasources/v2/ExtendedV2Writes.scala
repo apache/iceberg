@@ -19,6 +19,8 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.spark.sql.catalyst.analysis.RewriteMergeIntoOperationForRowLineage.WriteIcebergDeltaWithRowLineage
+
 import java.util.Optional
 import java.util.UUID
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper

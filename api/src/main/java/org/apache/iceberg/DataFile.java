@@ -118,7 +118,9 @@ public interface DataFile extends ContentFile<DataFile> {
   String PARTITION_NAME = "partition";
   String PARTITION_DOC = "Partition data tuple, schema based on the partition spec";
 
-  // NEXT ID TO ASSIGN: 146
+  Types.NestedField FIRST_ROW_ID = optional(146, "first_row_id", LongType.get(), "First row id");
+
+  // NEXT ID TO ASSIGN: 147
 
   static StructType getType(StructType partitionType) {
     // IDs start at 100 to leave room for changes to ManifestEntry

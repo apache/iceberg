@@ -96,7 +96,8 @@ public class TestManifestFileParser {
         0,
         0L,
         partitionFieldSummaries,
-        keyMetadata);
+        keyMetadata,
+        null);
   }
 
   private String manifestFileJson() {

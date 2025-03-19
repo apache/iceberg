@@ -154,6 +154,7 @@ public class DataFiles {
     private ByteBuffer keyMetadata = null;
     private List<Long> splitOffsets = null;
     private Integer sortOrderId = SortOrder.unsorted().orderId();
+    private Long firstRowId = null;
 
     public Builder(PartitionSpec spec) {
       this.spec = spec;
@@ -340,7 +341,8 @@ public class DataFiles {
               upperBounds),
           keyMetadata,
           splitOffsets,
-          sortOrderId);
+          sortOrderId,
+          firstRowId);
     }
   }
 }

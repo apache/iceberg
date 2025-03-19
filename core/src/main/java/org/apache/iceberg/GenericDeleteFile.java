@@ -72,7 +72,8 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
         keyMetadata,
         referencedDataFile,
         contentOffset,
-        contentSizeInBytes);
+        contentSizeInBytes,
+        null /* first row id is null for delete files */);
   }
 
   /**
