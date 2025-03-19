@@ -26,6 +26,7 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.AppenderBuilder;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.ReadBuilder;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -139,9 +140,9 @@ public final class ObjectModelRegistry {
    * @param inputFile to read
    * @return {@link ReadBuilder} for building the actual reader
    */
-  public static ReadBuilder readBuilder(
+  public static org.apache.iceberg.io.ReadBuilder<?> readBuilder(
       FileFormat format, String objectModelName, InputFile inputFile) {
-    return new ReadBuilder(READ_BUILDERS.get(new Key(format, objectModelName)).apply(inputFile));
+    return READ_BUILDERS.get(new Key(format, objectModelName)).apply(inputFile);
   }
 
   /**

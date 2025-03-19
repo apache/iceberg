@@ -25,9 +25,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.mapping.NameMapping;
 
 /**
- * Interface which should be implemented by the data file format implementations. The {@link
- * ReadBuilder} will be parametrized and finally the {@link ReadBuilder#build()} method is used to
- * generate the reader.
+ * Interface which should be implemented by the data file format implementations.
  *
  * @param <R> type of the reader
  */
@@ -47,6 +45,10 @@ public interface ReadBuilder<R extends ReadBuilder<R>> {
    * Sets the reader to case-sensitive when matching column names. Readers might decide not to
    * implement this feature. The default is behavior is case-sensitive.
    */
+  default R caseInsensitive() {
+    return caseSensitive(false);
+  }
+
   default R caseSensitive(boolean newCaseSensitive) {
     // Just ignore case sensitivity if not available
     return (R) this;
@@ -80,6 +82,11 @@ public interface ReadBuilder<R extends ReadBuilder<R>> {
   default R set(String key, String value) {
     // Skip configuration if not applicable
     return (R) this;
+  }
+
+  /** Enables reusing the containers returned by the reader. Decreases pressure on GC. */
+  default R reuseContainers() {
+    return reuseContainers(true);
   }
 
   /**

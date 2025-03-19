@@ -1294,7 +1294,7 @@ public class Parquet {
       return (B) this;
     }
 
-    @Deprecated
+    @Override
     public B caseInsensitive() {
       return caseSensitive(false);
     }
