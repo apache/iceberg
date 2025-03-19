@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.DoubleFieldMetrics;
 import org.apache.iceberg.FieldMetrics;
@@ -43,6 +44,8 @@ import org.apache.iceberg.orc.OrcRowWriter;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.variants.Serialized;
 import org.apache.iceberg.variants.Variant;
@@ -579,9 +582,15 @@ public class GenericOrcWriters {
   }
 
   public abstract static class StructWriter<S> implements OrcValueWriter<S> {
+    private final int[] fieldIndexes;
     private final List<OrcValueWriter<?>> writers;
 
     protected StructWriter(List<OrcValueWriter<?>> writers) {
+      this(null, writers);
+    }
+
+    protected StructWriter(Types.StructType struct, List<OrcValueWriter<?>> writers) {
+      this.fieldIndexes = writerToFieldIndex(struct, writers.size());
       this.writers = writers;
     }
 
@@ -611,7 +620,7 @@ public class GenericOrcWriters {
     private void write(int rowId, S value, Function<Integer, ColumnVector> colVectorAtFunc) {
       for (int c = 0; c < writers.size(); ++c) {
         OrcValueWriter writer = writers.get(c);
-        writer.write(rowId, get(value, c), colVectorAtFunc.apply(c));
+        writer.write(rowId, get(value, fieldIndexes[c]), colVectorAtFunc.apply(c));
       }
     }
 
@@ -649,6 +658,27 @@ public class GenericOrcWriters {
           "The row in PositionDelete must not be null because it was set row schema in position delete.");
       writeRow(row, output);
     }
+  }
+
+  /** Returns a mapping from writer index to field index, skipping Unknown columns. */
+  static int[] writerToFieldIndex(Types.StructType struct, int numWriters) {
+    if (null == struct) {
+      return IntStream.rangeClosed(0, numWriters).toArray();
+    }
+
+    List<Types.NestedField> recordFields = struct.fields();
+
+    // value writer index to record field index
+    int[] indexes = new int[numWriters];
+    int i = 0;
+    for (int pos = 0; pos < recordFields.size(); pos += 1) {
+      if (recordFields.get(pos).type().typeId() != Type.TypeID.UNKNOWN) {
+        indexes[i] = pos;
+        i += 1;
+      }
+    }
+
+    return indexes;
   }
 
   private static void growColumnVector(ColumnVector cv, int requestedSize) {

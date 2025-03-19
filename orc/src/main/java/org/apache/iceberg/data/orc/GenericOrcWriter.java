@@ -60,7 +60,7 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
         TypeDescription record,
         List<String> names,
         List<OrcValueWriter<?>> fields) {
-      return new RecordWriter(fields);
+      return new RecordWriter(iStruct, fields);
     }
 
     @Override
@@ -156,8 +156,8 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
 
   private static class RecordWriter extends GenericOrcWriters.StructWriter<Record> {
 
-    RecordWriter(List<OrcValueWriter<?>> writers) {
-      super(writers);
+    RecordWriter(Types.StructType struct, List<OrcValueWriter<?>> writers) {
+      super(struct, writers);
     }
 
     @Override
