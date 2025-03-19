@@ -59,6 +59,14 @@ public class InternalWriter<T extends StructLike> extends BaseParquetWriter<T> {
     return (ParquetValueWriter<T>) INSTANCE.createWriter(struct, type);
   }
 
+  /**
+   * @deprecated will be removed in 1.10.0; use {@link #createWriter(Types.StructType, MessageType)}
+   *     instead.
+   */
+  protected StructWriter<T> createStructWriter(List<ParquetValueWriter<?>> writers) {
+    return ParquetValueWriters.recordWriter(null, writers);
+  }
+
   @Override
   protected StructWriter<T> createStructWriter(
       Types.StructType struct, List<ParquetValueWriter<?>> writers) {
