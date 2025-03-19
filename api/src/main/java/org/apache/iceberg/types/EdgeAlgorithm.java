@@ -45,7 +45,7 @@ public enum EdgeAlgorithm {
   KARNEY;
 
   public static EdgeAlgorithm fromName(String algorithmName) {
-    Preconditions.checkNotNull(algorithmName, "Edge interpolation algorithm cannot be null");
+    Preconditions.checkNotNull(algorithmName, "Invalid edge interpolation algorithm: null");
     try {
       return EdgeAlgorithm.valueOf(algorithmName.toUpperCase(Locale.ENGLISH));
     } catch (IllegalArgumentException e) {
