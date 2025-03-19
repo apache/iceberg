@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import org.apache.iceberg.expressions.Evaluator;
@@ -340,7 +341,6 @@ class ManifestGroup {
                 entries =
                     CloseableIterable.filter(
                         scanMetrics.skippedDataFiles(), entries, manifestEntryPredicate);
-
                 iterable = entryFn.apply(manifest, entries);
 
                 return iterable.iterator();
@@ -357,11 +357,23 @@ class ManifestGroup {
 
   private static CloseableIterable<FileScanTask> createFileScanTasks(
       CloseableIterable<ManifestEntry<DataFile>> entries, TaskContext ctx) {
+    final AtomicLong proceedingRecordCount = new AtomicLong();
     return CloseableIterable.transform(
         entries,
         entry -> {
           DataFile dataFile =
               ContentFileUtil.copy(entry.file(), ctx.shouldKeepStats(), ctx.columnsToKeepStats());
+
+          if (entry.manifestFirstRowId() != null && dataFile.firstRowId() == null) {
+            dataFile =
+                dataFile.copyWithFirstRowId(
+                    entry.manifestFirstRowId() + proceedingRecordCount.get());
+          }
+
+          if (entry.status() == ManifestEntry.Status.ADDED) {
+            proceedingRecordCount.getAndAdd(dataFile.recordCount());
+          }
+
           DeleteFile[] deleteFiles = ctx.deletes().forEntry(entry);
           ScanMetricsUtil.fileTask(ctx.scanMetrics(), dataFile, deleteFiles);
           return new BaseFileScanTask(

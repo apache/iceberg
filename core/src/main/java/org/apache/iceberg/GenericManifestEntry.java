@@ -33,6 +33,7 @@ class GenericManifestEntry<F extends ContentFile<F>>
   private Long dataSequenceNumber = null;
   private Long fileSequenceNumber = null;
   private F file = null;
+  private Long manifestFirstRowId = null;
 
   GenericManifestEntry(org.apache.avro.Schema schema) {
     this.schema = schema;
@@ -152,6 +153,16 @@ class GenericManifestEntry<F extends ContentFile<F>>
   @Override
   public void setFileSequenceNumber(long newFileSequenceNumber) {
     this.fileSequenceNumber = newFileSequenceNumber;
+  }
+
+  @Override
+  public void setManifestFirstRowId(long firstRowId) {
+    this.manifestFirstRowId = firstRowId;
+  }
+
+  @Override
+  public Long manifestFirstRowId() {
+    return manifestFirstRowId;
   }
 
   @Override

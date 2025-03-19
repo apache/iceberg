@@ -40,6 +40,7 @@ import org.apache.iceberg.SparkDistributedDataScan;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.expressions.AggregateEvaluator;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundAggregate;
@@ -327,7 +328,7 @@ public class SparkScanBuilder
     StructType requestedProjection =
         new StructType(
             Stream.of(requestedSchema.fields())
-                .filter(field -> MetadataColumns.nonMetadataColumn(field.name()))
+                .filter(field -> MetadataColumns.nonMetadataColumn(field.name()) || field.name().equals("_row_id") || field.name().equals("_last_updated_sequence_number"))
                 .toArray(StructField[]::new));
 
     // the projection should include all columns that will be returned, including those only used in
@@ -694,6 +695,15 @@ public class SparkScanBuilder
     }
 
     Schema expectedSchema = schemaWithMetadataColumns();
+    if (TableUtil.formatVersion(table) >= 3) {
+      Schema rowLineageSchema =
+              new Schema(
+                      MetadataColumns.metadataColumn(table, MetadataColumns.ROW_ID.name()).asOptional(),
+                      MetadataColumns.metadataColumn(
+                                      table, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())
+                              .asOptional());
+      expectedSchema = TypeUtil.join(expectedSchema, rowLineageSchema);
+    }
 
     BatchScan scan =
         table

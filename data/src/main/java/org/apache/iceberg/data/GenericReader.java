@@ -74,7 +74,9 @@ class GenericReader implements Serializable {
     Schema readSchema = deletes.requiredSchema();
 
     CloseableIterable<Record> records = openFile(task, readSchema);
+
     records = deletes.filter(records);
+
     records = applyResidual(records, readSchema, task.residual());
 
     return records;

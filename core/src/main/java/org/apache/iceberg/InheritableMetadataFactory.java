@@ -38,7 +38,8 @@ class InheritableMetadataFactory {
         manifest.partitionSpecId(),
         manifest.snapshotId(),
         manifest.sequenceNumber(),
-        manifest.path());
+        manifest.path(),
+        manifest.firstRowId());
   }
 
   static InheritableMetadata forCopy(long snapshotId) {
@@ -50,13 +51,19 @@ class InheritableMetadataFactory {
     private final long snapshotId;
     private final long sequenceNumber;
     private final String manifestLocation;
+    private final Long firstRowId;
 
     private BaseInheritableMetadata(
-        int specId, long snapshotId, long sequenceNumber, String manifestLocation) {
+        int specId,
+        long snapshotId,
+        long sequenceNumber,
+        String manifestLocation,
+        Long firstRowId) {
       this.specId = specId;
       this.snapshotId = snapshotId;
       this.sequenceNumber = sequenceNumber;
       this.manifestLocation = manifestLocation;
+      this.firstRowId = firstRowId;
     }
 
     @Override
@@ -77,6 +84,10 @@ class InheritableMetadataFactory {
       if (manifestEntry.fileSequenceNumber() == null
           && (sequenceNumber == 0 || manifestEntry.status() == ManifestEntry.Status.ADDED)) {
         manifestEntry.setFileSequenceNumber(sequenceNumber);
+      }
+
+      if (firstRowId != null) {
+        manifestEntry.setManifestFirstRowId(firstRowId);
       }
 
       if (manifestEntry.file() instanceof BaseFile) {

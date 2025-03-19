@@ -99,14 +99,20 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
           // only unmatched source rows that match the condition are appended to the table
           val joinPlan = Join(filteredSource, r, LeftAnti, Some(cond), JoinHint.NONE)
 
-          val outputExprs = insertAction.assignments.map(_.value)
-          val outputColNames = r.output.map(_.name)
+          val outputExprs = insertAction.assignments.map(_.value) ++ Seq(Literal(null), Literal(null))
+          val outputColNames = r.output.map(_.name) ++ Seq("_row_id", "_last_updated_sequence_number")
           val outputCols = outputExprs.zip(outputColNames).map { case (expr, name) =>
             Alias(expr, name)()
           }
-          val project = Project(outputCols, joinPlan)
 
-          AppendData.byPosition(r, project)
+          val project = Project(outputCols, joinPlan)
+          val append = AppendData.byPosition(r, project)
+          val lineageColumns: Seq[AttributeReference] = r.metadataOutput.filter(attr => attr.name == "_row_id"
+            || attr.name == "_last_updated_sequence_number")
+          val updatedAppend = append.withNewTable(
+            append.table.asInstanceOf[DataSourceV2Relation]
+              .copy(output = r.output ++ lineageColumns))
+          updatedAppend
 
         case p =>
           throw new AnalysisException(s"$p is not an Iceberg table")

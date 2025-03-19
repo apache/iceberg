@@ -19,8 +19,10 @@
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.IsolationLevel;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -116,15 +118,28 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
 
   @Override
   public Write build() {
+    StructType actualSchema = dsSchema;
     // Validate
-    Schema writeSchema = validateOrMergeWriteSchema(table, dsSchema, writeConf);
+    if (TableUtil.formatVersion(table) >= 3) {
+      Schema rowLineageSchema =
+              new Schema(
+                      MetadataColumns.metadataColumn(table, MetadataColumns.ROW_ID.name()).asOptional(),
+                      MetadataColumns.metadataColumn(
+                                      table, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())
+                              .asOptional());
+      StructType rowLineageSparkSchema = SparkSchemaUtil.convert(rowLineageSchema);
+      actualSchema = dsSchema.merge(rowLineageSparkSchema);
+    }
+
+    Schema writeSchema = validateOrMergeWriteSchema(table, actualSchema, writeConf);
+
     SparkUtil.validatePartitionTransforms(table.spec());
 
     // Get application id
     String appId = spark.sparkContext().applicationId();
 
     return new SparkWrite(
-        spark, table, writeConf, writeInfo, appId, writeSchema, dsSchema, writeRequirements()) {
+        spark, table, writeConf, writeInfo, appId, writeSchema, actualSchema, writeRequirements()) {
 
       @Override
       public BatchWrite toBatch() {
@@ -192,7 +207,17 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
       // if the validation passed, update the table schema
       update.commit();
     } else {
-      writeSchema = SparkSchemaUtil.convert(table.schema(), dsSchema, caseSensitive);
+      Schema schema = table.schema();
+      if (TableUtil.formatVersion(table) >= 3) {
+        Schema rowLineageSchema =
+                new Schema(
+                        MetadataColumns.metadataColumn(table, MetadataColumns.ROW_ID.name()).asOptional(),
+                        MetadataColumns.metadataColumn(
+                                        table, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())
+                                .asOptional());
+        schema = TypeUtil.join(schema, rowLineageSchema);
+      }
+      writeSchema = SparkSchemaUtil.convert(schema, dsSchema, caseSensitive);
       TypeUtil.validateWriteSchema(
           table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
     }

@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -1169,6 +1170,18 @@ public class TestSchemaUpdate {
                     .apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot add fields to map keys");
+  }
+
+  @Test
+  public void testArrayOfArrays() {
+    Schema expectedNested =
+            new Schema(
+                    required(1, "id", Types.ListType.ofRequired(2,
+                            Types.ListType.ofRequired(3, Types.LongType.get())))
+            );
+
+    Map<Integer, Integer> idToParent = TypeUtil.indexParents(expectedNested.asStruct());
+    int a = 4;
   }
 
   @Test

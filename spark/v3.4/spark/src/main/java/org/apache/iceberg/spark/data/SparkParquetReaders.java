@@ -147,7 +147,23 @@ public class SparkParquetReaders {
         int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName())) - 1;
         if (fieldType.getId() != null) {
           int id = fieldType.getId().intValue();
-          readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
+          if (id == MetadataColumns.ROW_ID.fieldId()) {
+            Long baseRowId = (Long) idToConstant.get(id);
+            if (baseRowId != null) {
+              readersById.put(
+                  id,
+                  ParquetValueReaders.rowIdReader(
+                      baseRowId,
+                      ParquetValueReaders.position(),
+                      (ParquetValueReader<Long>)
+                          ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i))));
+            } else {
+              readersById.put(
+                  id, ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
+            }
+          } else {
+            readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
+          }
           typesById.put(id, fieldType);
           if (idToConstant.containsKey(id)) {
             maxDefinitionLevelsById.put(id, fieldD);
@@ -164,7 +180,7 @@ public class SparkParquetReaders {
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
         ParquetValueReader<?> reader = readersById.get(id);
-        if (idToConstant.containsKey(id)) {
+        if (idToConstant.containsKey(id) && id != MetadataColumns.ROW_ID.fieldId()) {
           // containsKey is used because the constant may be null
           int fieldMaxDefinitionLevel =
               maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel);
@@ -176,6 +192,9 @@ public class SparkParquetReaders {
           reorderedFields.add(ParquetValueReaders.constant(false));
         } else if (reader != null) {
           reorderedFields.add(reader);
+        } else if (id == MetadataColumns.ROW_ID.fieldId()) {
+          // Row ID was requested and it was not found in the file, so return null
+          reorderedFields.add(ParquetValueReaders.nulls());
         } else if (field.initialDefault() != null) {
           reorderedFields.add(
               ParquetValueReaders.constant(

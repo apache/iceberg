@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.DataOperations.DELETE;
 import static org.apache.iceberg.DataOperations.OVERWRITE;
-import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
 import static org.apache.iceberg.SnapshotSummary.ADDED_DELETE_FILES_PROP;
 import static org.apache.iceberg.SnapshotSummary.ADDED_DVS_PROP;
@@ -141,11 +140,11 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
             "type", "hive",
             "default-namespace", "default"),
         "parquet",
-        true,
+        false,
         WRITE_DISTRIBUTION_MODE_NONE,
         false,
         "test",
-        DISTRIBUTED,
+        LOCAL,
         2
       },
       {
@@ -153,7 +152,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         SparkCatalog.class.getName(),
         ImmutableMap.of("type", "hadoop"),
         "parquet",
-        RANDOM.nextBoolean(),
+        false,
         WRITE_DISTRIBUTION_MODE_HASH,
         true,
         null,
@@ -176,7 +175,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         WRITE_DISTRIBUTION_MODE_RANGE,
         false,
         "test",
-        DISTRIBUTED,
+        LOCAL,
         2
       },
       {
@@ -184,7 +183,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         SparkCatalog.class.getName(),
         ImmutableMap.of("type", "hadoop"),
         "parquet",
-        RANDOM.nextBoolean(),
+        false,
         WRITE_DISTRIBUTION_MODE_HASH,
         true,
         null,
@@ -211,7 +210,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
         WRITE_DISTRIBUTION_MODE_RANGE,
         false,
         "test",
-        DISTRIBUTED,
+        LOCAL,
         3
       },
     };

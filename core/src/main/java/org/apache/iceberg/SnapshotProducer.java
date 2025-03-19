@@ -258,7 +258,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     List<ManifestFile> manifests = apply(base, parentSnapshot);
 
     OutputFile manifestList = manifestListPath();
-
+    Long rowId = base.nextRowId();
     try (ManifestListWriter writer =
         ManifestLists.write(
             ops.current().formatVersion(),
@@ -271,12 +271,23 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       manifestLists.add(manifestList.location());
 
       ManifestFile[] manifestFiles = new ManifestFile[manifests.size()];
-
       Tasks.range(manifestFiles.length)
           .stopOnFailure()
           .throwFailureWhenFinished()
           .executeWith(workerPool)
           .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
+
+      if (base.rowLineageEnabled()) {
+        long preceedingAddedRows = 0;
+        for (int i = 0; i < manifestFiles.length; i++) {
+          if (manifestFiles[i].content() == ManifestContent.DATA
+              && Objects.equals(manifestFiles[i].snapshotId(), snapshotId)
+              && manifestFiles[i].firstRowId() == null) {
+            manifestFiles[i] = addRowIdMetadata(manifestFiles[i], rowId, preceedingAddedRows);
+            preceedingAddedRows += manifestFiles[i].addedRowsCount();
+          }
+        }
+      }
 
       writer.addAll(Arrays.asList(manifestFiles));
     } catch (IOException e) {
@@ -287,7 +298,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     Long lastRowId = null;
     if (base.rowLineageEnabled()) {
       addedRows = calculateAddedRows(manifests);
-      lastRowId = base.nextRowId();
+      lastRowId = rowId;
     }
 
     return new BaseSnapshot(
@@ -692,6 +703,27 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return Math.max(1, Math.min(workerPoolSize, limit));
   }
 
+  private static ManifestFile addRowIdMetadata(
+      ManifestFile manifest, long snapshotRowId, long precedingAddedRows) {
+    return new GenericManifestFile(
+        manifest.path(),
+        manifest.length(),
+        manifest.partitionSpecId(),
+        manifest.content(),
+        manifest.sequenceNumber(),
+        manifest.minSequenceNumber(),
+        manifest.snapshotId(),
+        manifest.addedFilesCount(),
+        manifest.addedRowsCount(),
+        manifest.existingFilesCount(),
+        manifest.existingRowsCount(),
+        manifest.deletedFilesCount(),
+        manifest.deletedRowsCount(),
+        manifest.partitions(),
+        null,
+        snapshotRowId + precedingAddedRows);
+  }
+
   private static ManifestFile addMetadata(TableOperations ops, ManifestFile manifest) {
     try (ManifestReader<DataFile> reader =
         ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
@@ -754,7 +786,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           deletedFiles,
           deletedRows,
           stats.summaries(),
-          null);
+          null,
+          manifest.firstRowId());
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read manifest: %s", manifest.path());

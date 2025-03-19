@@ -18,21 +18,27 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.List;
+import org.apache.comet.shaded.guava.collect.ImmutableList;
+import org.apache.comet.shaded.guava.collect.Lists;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.write.DeltaWrite;
 import org.apache.spark.sql.connector.write.DeltaWriteBuilder;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
+import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
 class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
@@ -85,9 +91,39 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
     if (info.schema() == null || info.schema().isEmpty()) {
       return null;
     } else {
-      Schema dataSchema = SparkSchemaUtil.convert(table.schema(), info.schema());
-      validateSchema("data", table.schema(), dataSchema);
-      return dataSchema;
+      if (TableUtil.formatVersion(table) >= 3) {
+        List<StructField> nonLineageFields = Lists.newArrayList();
+        for (StructField field : info.schema().fields()) {
+          if (!field.metadata().contains("__metadata_col")) {
+            nonLineageFields.add(field);
+          }
+        }
+
+        // The data schema from the table and the lineage fields need to be merged in the schema
+        // produced
+        // so that the writer is initialized with the right schema
+        Schema dataSchema =
+            SparkSchemaUtil.convert(
+                table.schema(), new StructType(nonLineageFields.toArray(new StructField[0])));
+
+        Schema rowLineageSchema =
+            new Schema(
+                MetadataColumns.metadataColumn(table, MetadataColumns.ROW_ID.name()).asOptional(),
+                MetadataColumns.metadataColumn(
+                        table, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())
+                    .asOptional());
+
+        List<Types.NestedField> dataColumns =
+            ImmutableList.<Types.NestedField>builder()
+                .addAll(dataSchema.columns())
+                .addAll(rowLineageSchema.columns())
+                .build();
+        return new Schema(dataColumns);
+      } else {
+        Schema dataSchema = SparkSchemaUtil.convert(table.schema(), info.schema());
+        validateSchema("data", table.schema(), dataSchema);
+        return dataSchema;
+      }
     }
   }
 
@@ -104,6 +140,16 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
         new Schema(
             MetadataColumns.SPEC_ID,
             MetadataColumns.metadataColumn(table, MetadataColumns.PARTITION_COLUMN_NAME));
+    if (TableUtil.formatVersion(table) >= 3) {
+      expectedMetadataSchema =
+          new Schema(
+              MetadataColumns.SPEC_ID,
+              MetadataColumns.metadataColumn(table, MetadataColumns.PARTITION_COLUMN_NAME)
+                  .asOptional(),
+              MetadataColumns.metadataColumn(table, MetadataColumns.ROW_ID.name()).asOptional(),
+              MetadataColumns.metadataColumn(
+                  table, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name()));
+    }
     StructType metadataSparkType = info.metadataSchema().get();
     Schema metadataSchema = SparkSchemaUtil.convert(expectedMetadataSchema, metadataSparkType);
     validateSchema("metadata", expectedMetadataSchema, metadataSchema);

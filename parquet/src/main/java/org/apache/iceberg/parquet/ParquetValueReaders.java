@@ -160,6 +160,11 @@ public class ParquetValueReaders {
     return new PositionReader();
   }
 
+  public static ParquetValueReader<?> rowIdReader(
+      Long baseRowId, ParquetValueReader<Long> position, ParquetValueReader<Long> columnReader) {
+    return new RowIdReader(baseRowId, position, columnReader);
+  }
+
   public static ParquetValueReader<UUID> uuids(ColumnDescriptor desc) {
     return new UUIDReader(desc);
   }
@@ -318,6 +323,49 @@ public class ParquetValueReaders {
                       new IllegalArgumentException(
                           "PageReadStore does not contain row index offset"));
       this.rowOffset = -1;
+    }
+  }
+
+  private static class RowIdReader implements ParquetValueReader<Long> {
+    private long baseRowId;
+    private ParquetValueReader<Long> position;
+    private ParquetValueReader<Long> columnReader;
+
+    public RowIdReader(
+        long baseRowId, ParquetValueReader<Long> position, ParquetValueReader<Long> columnReader) {
+      this.baseRowId = baseRowId;
+      this.position = position;
+      this.columnReader = columnReader;
+    }
+
+    @Override
+    public Long read(Long reuse) {
+      Long writtenValue = columnReader.read(reuse);
+      if (writtenValue != null) {
+        return writtenValue;
+      }
+
+      // compute the row ID
+      long rowPosition = position.read(reuse);
+      return baseRowId + rowPosition;
+    }
+
+    @Override
+    public TripleIterator<?> column() {
+      return columnReader.column();
+    }
+
+    @Override
+    public List<TripleIterator<?>> columns() {
+      return columnReader.columns();
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+      position.setPageSource(pageStore);
+      if (columnReader != null) {
+        columnReader.setPageSource(pageStore);
+      }
     }
   }
 

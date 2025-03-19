@@ -63,6 +63,18 @@ public class PartitionUtil {
         MetadataColumns.SPEC_ID.fieldId(),
         convertConstant.apply(Types.IntegerType.get(), task.file().specId()));
 
+    //    if (task.file().firstRowId() != null) {
+    //      idToConstant.put(
+    //          MetadataColumns.ROW_ID.fieldId(),
+    //          convertConstant.apply(Types.LongType.get(), task.file().firstRowId()));
+    //      idToConstant.put(
+    //          MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId(),
+    //          convertConstant.apply(Types.LongType.get(), 0L));
+    //    } else {
+    //      idToConstant.put(MetadataColumns.ROW_ID.fieldId(), null);
+    //      idToConstant.put(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId(), null);
+    //    }
+
     // add _partition
     if (partitionType != null) {
       if (!partitionType.fields().isEmpty()) {
