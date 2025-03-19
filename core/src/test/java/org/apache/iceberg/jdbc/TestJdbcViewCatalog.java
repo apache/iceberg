@@ -18,14 +18,17 @@
  */
 package org.apache.iceberg.jdbc;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 
+import java.io.File;
 import java.sql.SQLException;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -140,5 +143,51 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
           .isInstanceOf(AlreadyExistsException.class)
           .hasMessageStartingWith("View already exists: " + identifier);
     }
+  }
+
+  @Test
+  public void dropViewShouldNotDropMetadataFileIfGcNotEnabled() {
+    TableIdentifier identifier = TableIdentifier.of("namespace1", "view");
+    BaseView view =
+        (BaseView)
+            catalog
+                .buildView(identifier)
+                .withQuery("spark", "select * from tbl")
+                .withSchema(SCHEMA)
+                .withDefaultNamespace(Namespace.of("namespace1"))
+                .withProperty(TableProperties.GC_ENABLED, "false")
+                .create();
+
+    assertThat(catalog.viewExists(identifier)).isTrue();
+    String metadataFileLocation = view.operations().current().metadataFileLocation();
+    assertThat(metadataFileLocation).isNotNull();
+    File currentMetadataLocation = new File(metadataFileLocation);
+
+    catalog.dropView(identifier);
+    assertThat(currentMetadataLocation).exists();
+    assertThat(catalog.viewExists(identifier)).isFalse();
+  }
+
+  @Test
+  public void dropViewShouldDropMetadataFileIfGcEnabled() {
+    TableIdentifier identifier = TableIdentifier.of("namespace1", "view");
+    BaseView view =
+        (BaseView)
+            catalog
+                .buildView(identifier)
+                .withQuery("spark", "select * from tbl")
+                .withSchema(SCHEMA)
+                .withDefaultNamespace(Namespace.of("namespace1"))
+                .withProperty(TableProperties.GC_ENABLED, "true")
+                .create();
+
+    assertThat(catalog.viewExists(identifier)).isTrue();
+    String metadataFileLocation = view.operations().current().metadataFileLocation();
+    assertThat(metadataFileLocation).isNotNull();
+    File currentMetadataLocation = new File(metadataFileLocation);
+
+    catalog.dropView(identifier);
+    assertThat(currentMetadataLocation).doesNotExist();
+    assertThat(catalog.viewExists(identifier)).isFalse();
   }
 }
