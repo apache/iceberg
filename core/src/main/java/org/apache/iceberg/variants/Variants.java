@@ -51,19 +51,16 @@ public class Variants {
     boolean sorted = true;
     String last = null;
     int pos = 0;
+    int dataSize = 0;
     for (String name : fieldNames) {
       nameBuffers[pos] = ByteBuffer.wrap(name.getBytes(StandardCharsets.UTF_8));
+      dataSize += nameBuffers[pos].remaining();
       if (last != null && last.compareTo(name) >= 0) {
         sorted = false;
       }
 
       last = name;
       pos += 1;
-    }
-
-    int dataSize = 0;
-    for (ByteBuffer nameBuffer : nameBuffers) {
-      dataSize += nameBuffer.remaining();
     }
 
     int offsetSize = VariantUtil.sizeOf(dataSize);
