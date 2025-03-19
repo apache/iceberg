@@ -152,7 +152,7 @@ public abstract class DataTest {
         new Schema(
             required(1, "id", LongType.get()),
             optional(2, "test_type", type),
-            optional(3, "trailing_data", Types.StringType.get())));
+            required(3, "trailing_data", Types.StringType.get())));
   }
 
   @Test
