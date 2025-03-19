@@ -633,12 +633,16 @@ public class ParquetValueWriters {
     private final List<TripleWriter<?>> children;
 
     protected StructWriter(List<ParquetValueWriter<?>> writers) {
-      this(null, writers);
+      this((Types.StructType) null, writers);
+    }
+
+    protected StructWriter(Types.StructType struct, List<ParquetValueWriter<?>> writers) {
+      this(writerToFieldIndex(struct, writers.size()), writers);
     }
 
     @SuppressWarnings("unchecked")
-    protected StructWriter(Types.StructType struct, List<ParquetValueWriter<?>> writers) {
-      this.fieldIndexes = writerToFieldIndex(struct, writers.size());
+    protected StructWriter(int[] fieldIndexes, List<ParquetValueWriter<?>> writers) {
+      this.fieldIndexes = fieldIndexes;
       this.writers =
           (ParquetValueWriter<Object>[])
               Array.newInstance(ParquetValueWriter.class, writers.size());
