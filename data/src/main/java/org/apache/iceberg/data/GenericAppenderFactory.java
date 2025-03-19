@@ -145,7 +145,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
         case PARQUET:
           return Parquet.write(encryptedOutputFile)
               .schema(schema)
-              .createWriterFunc(GenericParquetWriter::buildWriter)
+              .createWriterFunc(GenericParquetWriter::create)
               .setAll(config)
               .metricsConfig(metricsConfig)
               .overwrite()
@@ -222,7 +222,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
         case PARQUET:
           return Parquet.writeDeletes(file)
-              .createWriterFunc(GenericParquetWriter::buildWriter)
+              .createWriterFunc(GenericParquetWriter::create)
               .withPartition(partition)
               .overwrite()
               .setAll(config)
@@ -276,7 +276,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
 
         case PARQUET:
           return Parquet.writeDeletes(file)
-              .createWriterFunc(GenericParquetWriter::buildWriter)
+              .createWriterFunc(GenericParquetWriter::create)
               .withPartition(partition)
               .overwrite()
               .setAll(config)

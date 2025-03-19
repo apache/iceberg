@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.DoubleFieldMetrics;
@@ -40,6 +41,7 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DecimalUtil;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
@@ -132,8 +134,8 @@ public class ParquetValueWriters {
   }
 
   public static <T extends StructLike> StructWriter<T> recordWriter(
-      List<ParquetValueWriter<?>> writers) {
-    return new RecordWriter<>(writers);
+      Types.StructType struct, List<ParquetValueWriter<?>> writers) {
+    return new RecordWriter<>(struct, writers);
   }
 
   public abstract static class PrimitiveWriter<T> implements ParquetValueWriter<T> {
@@ -391,8 +393,8 @@ public class ParquetValueWriters {
   }
 
   private static class RecordWriter<T extends StructLike> extends StructWriter<T> {
-    private RecordWriter(List<ParquetValueWriter<?>> writers) {
-      super(writers);
+    private RecordWriter(Types.StructType struct, List<ParquetValueWriter<?>> writers) {
+      super(struct, writers);
     }
 
     @Override
@@ -626,11 +628,17 @@ public class ParquetValueWriters {
   }
 
   public abstract static class StructWriter<S> implements ParquetValueWriter<S> {
+    private final int[] fieldIndexes;
     private final ParquetValueWriter<Object>[] writers;
     private final List<TripleWriter<?>> children;
 
-    @SuppressWarnings("unchecked")
     protected StructWriter(List<ParquetValueWriter<?>> writers) {
+      this(null, writers);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected StructWriter(Types.StructType struct, List<ParquetValueWriter<?>> writers) {
+      this.fieldIndexes = writerToFieldIndex(struct, writers.size());
       this.writers =
           (ParquetValueWriter<Object>[])
               Array.newInstance(ParquetValueWriter.class, writers.size());
@@ -648,7 +656,7 @@ public class ParquetValueWriters {
     @Override
     public void write(int repetitionLevel, S value) {
       for (int i = 0; i < writers.length; i += 1) {
-        Object fieldValue = get(value, i);
+        Object fieldValue = get(value, fieldIndexes[i]);
         writers[i].write(repetitionLevel, fieldValue);
       }
     }
@@ -694,5 +702,26 @@ public class ParquetValueWriters {
       }
       throw new IllegalArgumentException("Cannot get value for invalid index: " + index);
     }
+  }
+
+  /** Returns a mapping from writer index to field index, skipping Unknown columns. */
+  static int[] writerToFieldIndex(Types.StructType struct, int numWriters) {
+    if (null == struct) {
+      return IntStream.rangeClosed(0, numWriters).toArray();
+    }
+
+    List<Types.NestedField> recordFields = struct.fields();
+
+    // value writer index to record field index
+    int[] indexes = new int[numWriters];
+    int i = 0;
+    for (int pos = 0; pos < recordFields.size(); pos += 1) {
+      if (recordFields.get(pos).type().typeId() != org.apache.iceberg.types.Type.TypeID.UNKNOWN) {
+        indexes[i] = pos;
+        i += 1;
+      }
+    }
+
+    return indexes;
   }
 }

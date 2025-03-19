@@ -40,11 +40,15 @@ public class InternalWriter<T extends StructLike> extends BaseParquetWriter<T> {
 
   private InternalWriter() {}
 
+  /**
+   * @deprecated will be removed in 1.10.0; use {@link #createWriter(Schema, MessageType)} instead.
+   */
+  @Deprecated
   public static <T extends StructLike> ParquetValueWriter<T> create(MessageType type) {
     return create((Types.StructType) null, type);
   }
 
-  public static <T extends StructLike> ParquetValueWriter<T> create(
+  public static <T extends StructLike> ParquetValueWriter<T> createWriter(
       Schema schema, MessageType type) {
     return create(schema.asStruct(), type);
   }
@@ -56,8 +60,9 @@ public class InternalWriter<T extends StructLike> extends BaseParquetWriter<T> {
   }
 
   @Override
-  protected StructWriter<T> createStructWriter(List<ParquetValueWriter<?>> writers) {
-    return ParquetValueWriters.recordWriter(writers);
+  protected StructWriter<T> createStructWriter(
+      Types.StructType struct, List<ParquetValueWriter<?>> writers) {
+    return ParquetValueWriters.recordWriter(struct, writers);
   }
 
   @Override
