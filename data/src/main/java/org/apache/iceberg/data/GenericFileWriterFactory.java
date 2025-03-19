@@ -68,47 +68,53 @@ class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Sc
 
   @Deprecated
   protected void configureDataWrite(Avro.DataWriteBuilder builder) {
-    throw new UnsupportedOperationException("Deprecated");
+    throwUnsupportedOperationException();
   }
 
   @Deprecated
   protected void configureEqualityDelete(Avro.DeleteWriteBuilder builder) {
-    throw new UnsupportedOperationException("Deprecated");
+    throwUnsupportedOperationException();
   }
 
   @Deprecated
   protected void configurePositionDelete(Avro.DeleteWriteBuilder builder) {
-    throw new UnsupportedOperationException("Deprecated");
+    throwUnsupportedOperationException();
   }
 
   @Deprecated
   protected void configureDataWrite(Parquet.DataWriteBuilder builder) {
-    throw new UnsupportedOperationException("Deprecated");
+    throwUnsupportedOperationException();
   }
 
   @Deprecated
   protected void configureEqualityDelete(Parquet.DeleteWriteBuilder builder) {
-    throw new UnsupportedOperationException("Deprecated");
+    throwUnsupportedOperationException();
   }
 
   @Deprecated
   protected void configurePositionDelete(Parquet.DeleteWriteBuilder builder) {
-    throw new UnsupportedOperationException("Deprecated");
+    throwUnsupportedOperationException();
   }
 
   @Deprecated
   protected void configureDataWrite(ORC.DataWriteBuilder builder) {
-    throw new UnsupportedOperationException("Deprecated");
+    throwUnsupportedOperationException();
   }
 
   @Deprecated
   protected void configureEqualityDelete(ORC.DeleteWriteBuilder builder) {
-    throw new UnsupportedOperationException("Deprecated");
+    throwUnsupportedOperationException();
   }
 
   @Deprecated
   protected void configurePositionDelete(ORC.DeleteWriteBuilder builder) {
-    throw new UnsupportedOperationException("Deprecated");
+    throwUnsupportedOperationException();
+  }
+
+  private void throwUnsupportedOperationException() {
+    throw new UnsupportedOperationException(
+        "Method is deprecated and should not be called. "
+            + "Configuration is already done by the ObjectModelRegistry.");
   }
 
   static class Builder {

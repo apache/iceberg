@@ -314,7 +314,8 @@ public class Avro {
           overwrite);
     }
 
-    // protected because of inheritance until deprecation of the WriteBuilder
+    // supposed to always be a private method used strictly by data and delete write builders
+    // package-protected because of inheritance until deprecation of the WriteBuilder
     static class Context {
       private final CodecFactory codec;
 

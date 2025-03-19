@@ -41,8 +41,8 @@ import org.slf4j.LoggerFactory;
  * and the requested `object model name` the registry returns the correct reader and writer
  * builders. These builders could be used to generate the readers and writers.
  *
- * <p>File formats has to register the {@link org.apache.iceberg.io.ReadBuilder}s and the {@link
- * AppenderBuilder}s which will be used to create the readers and the writers.
+ * <p>File formats has to register the {@link ReadBuilder}s and the {@link AppenderBuilder}s which
+ * will be used to create the readers and the writers.
  */
 public final class ObjectModelRegistry {
   private static final Logger LOG = LoggerFactory.getLogger(ObjectModelRegistry.class);
@@ -55,8 +55,8 @@ public final class ObjectModelRegistry {
 
   private static final Map<Key, Function<EncryptedOutputFile, AppenderBuilder<?, ?>>>
       APPENDER_BUILDERS = Maps.newConcurrentMap();
-  private static final Map<Key, Function<InputFile, org.apache.iceberg.io.ReadBuilder<?>>>
-      READ_BUILDERS = Maps.newConcurrentMap();
+  private static final Map<Key, Function<InputFile, ReadBuilder<?>>> READ_BUILDERS =
+      Maps.newConcurrentMap();
 
   public static final String GENERIC_OBJECT_MODEL = "generic";
 
@@ -66,7 +66,8 @@ public final class ObjectModelRegistry {
    * @param format the file format to write
    * @param objectModelName accepted by the writer
    * @param appenderBuilder the appender builder function
-   * @throws IllegalArgumentException if an appender builder for the given key already exists
+   * @throws IllegalArgumentException if an appender builder for the given {@code format} and {@code
+   *     objectModelName} combination already exists
    */
   public static void registerAppender(
       FileFormat format,
@@ -89,12 +90,11 @@ public final class ObjectModelRegistry {
    * @param format the file format to read
    * @param objectModelName returned by the reader
    * @param readBuilder the read builder function
-   * @throws IllegalArgumentException if a read builder for the given key already exists
+   * @throws IllegalArgumentException if a read builder for the given {@code format} and {@code
+   *     objectModelName} combination already exists
    */
   public static void registerReader(
-      FileFormat format,
-      String objectModelName,
-      Function<InputFile, org.apache.iceberg.io.ReadBuilder<?>> readBuilder) {
+      FileFormat format, String objectModelName, Function<InputFile, ReadBuilder<?>> readBuilder) {
     Key key = new Key(format, objectModelName);
     if (READ_BUILDERS.containsKey(key)) {
       throw new IllegalArgumentException(
@@ -140,7 +140,7 @@ public final class ObjectModelRegistry {
    * @param inputFile to read
    * @return {@link ReadBuilder} for building the actual reader
    */
-  public static org.apache.iceberg.io.ReadBuilder<?> readBuilder(
+  public static ReadBuilder<?> readBuilder(
       FileFormat format, String objectModelName, InputFile inputFile) {
     return READ_BUILDERS.get(new Key(format, objectModelName)).apply(inputFile);
   }
