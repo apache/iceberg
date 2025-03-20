@@ -19,6 +19,7 @@
 package org.apache.iceberg.aws;
 
 import java.util.Map;
+import java.util.Optional;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -63,7 +64,13 @@ public class RESTSigV4AuthManager implements AuthManager {
   public RESTSigV4AuthSession contextualSession(
       SessionCatalog.SessionContext context, AuthSession parent) {
     AwsProperties contextProperties =
-        new AwsProperties(RESTUtil.merge(catalogProperties, context.properties()));
+        new AwsProperties(
+            RESTUtil.merge(
+                catalogProperties,
+                // Use both context properties and credentials to create the AwsProperties instance
+                RESTUtil.merge(
+                    Optional.ofNullable(context.properties()).orElseGet(Map::of),
+                    Optional.ofNullable(context.credentials()).orElseGet(Map::of))));
     RESTSigV4AuthSession sigV4Parent = (RESTSigV4AuthSession) parent;
     return new RESTSigV4AuthSession(
         signer, delegate.contextualSession(context, sigV4Parent.delegate()), contextProperties);
