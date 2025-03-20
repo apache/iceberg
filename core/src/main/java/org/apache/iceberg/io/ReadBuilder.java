@@ -42,24 +42,15 @@ public interface ReadBuilder<R extends ReadBuilder<R>> {
   R project(Schema newSchema);
 
   /**
-   * Sets the reader to case-sensitive when matching column names. Readers might decide not to
-   * implement this feature. The default is behavior is case-sensitive.
+   * Pushes down the {@link Expression} filter for the reader to prevent reading unnecessary
+   * records. Some readers might not be able to filter some part of the exception. In this case the
+   * reader might return unfiltered or partially filtered rows. It is the caller's responsibility to
+   * apply the filter again.
+   *
+   * @param newFilter the filter to set
+   * @param filterCaseSensitive whether the filtering is case-sensitive or not
    */
-  default R caseInsensitive() {
-    return caseSensitive(false);
-  }
-
-  default R caseSensitive(boolean newCaseSensitive) {
-    // Just ignore case sensitivity if not available
-    return (R) this;
-  }
-
-  /**
-   * Enables record filtering. Some readers might not be able to do reader side filtering. In this
-   * case the reader might decide on returning every row. It is the caller's responsibility to apply
-   * the filter again.
-   */
-  default R filterRecords(boolean newFilterRecords) {
+  default R filter(Expression newFilter, boolean filterCaseSensitive) {
     // Skip filtering if not available
     return (R) this;
   }
@@ -68,11 +59,12 @@ public interface ReadBuilder<R extends ReadBuilder<R>> {
    * Pushes down the {@link Expression} filter for the reader to prevent reading unnecessary
    * records. Some readers might not be able to filter some part of the exception. In this case the
    * reader might return unfiltered or partially filtered rows. It is the caller's responsibility to
-   * apply the filter again.
+   * apply the filter again. The default implementation sets the filter to be case-sensitive.
+   *
+   * @param newFilter the filter to set
    */
   default R filter(Expression newFilter) {
-    // Skip filtering if not available
-    return (R) this;
+    return filter(newFilter, true);
   }
 
   /**

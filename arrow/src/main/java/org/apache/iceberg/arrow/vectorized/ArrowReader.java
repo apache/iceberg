@@ -212,7 +212,7 @@ public class ArrowReader extends CloseableGroup {
     private final Map<String, InputFile> inputFiles;
     private final Schema expectedSchema;
     private final String nameMapping;
-    private final boolean caseSensitive;
+    private final boolean filterCaseSensitive;
     private final int batchSize;
     private final boolean reuseContainers;
     private CloseableIterator<ColumnarBatch> currentIterator;
@@ -226,8 +226,8 @@ public class ArrowReader extends CloseableGroup {
      * @param nameMapping Mapping from external schema names to Iceberg type IDs.
      * @param io File I/O.
      * @param encryptionManager Encryption manager.
-     * @param caseSensitive If {@code true}, column names are case sensitive. If {@code false},
-     *     column names are not case sensitive.
+     * @param filterCaseSensitive If {@code true}, column names are case-sensitive in the filters.
+     *     If {@code false}, column names are not case-sensitive.
      * @param batchSize Batch size in number of rows. Each Arrow batch contains a maximum of {@code
      *     batchSize} rows.
      * @param reuseContainers If set to {@code false}, every {@link Iterator#next()} call creates
@@ -244,7 +244,7 @@ public class ArrowReader extends CloseableGroup {
         String nameMapping,
         FileIO io,
         EncryptionManager encryptionManager,
-        boolean caseSensitive,
+        boolean filterCaseSensitive,
         int batchSize,
         boolean reuseContainers) {
       List<FileScanTask> fileTasks =
@@ -297,7 +297,7 @@ public class ArrowReader extends CloseableGroup {
       this.currentIterator = CloseableIterator.empty();
       this.expectedSchema = expectedSchema;
       this.nameMapping = nameMapping;
-      this.caseSensitive = caseSensitive;
+      this.filterCaseSensitive = filterCaseSensitive;
       this.batchSize = batchSize;
       this.reuseContainers = reuseContainers;
     }
@@ -345,8 +345,7 @@ public class ArrowReader extends CloseableGroup {
                 .project(expectedSchema)
                 .split(task.start(), task.length())
                 .recordsPerBatch(batchSize)
-                .filter(task.residual())
-                .caseSensitive(caseSensitive);
+                .filter(task.residual(), filterCaseSensitive);
 
         if (reuseContainers) {
           builder.reuseContainers();

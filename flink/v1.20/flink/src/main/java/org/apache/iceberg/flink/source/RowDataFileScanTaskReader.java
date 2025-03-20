@@ -52,25 +52,25 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
   private final Schema tableSchema;
   private final Schema projectedSchema;
   private final String nameMapping;
-  private final boolean caseSensitive;
+  private final boolean filterCaseSensitive;
   private final FlinkSourceFilter rowFilter;
 
   public RowDataFileScanTaskReader(
       Schema tableSchema,
       Schema projectedSchema,
       String nameMapping,
-      boolean caseSensitive,
+      boolean filterCaseSensitive,
       List<Expression> filters) {
     this.tableSchema = tableSchema;
     this.projectedSchema = projectedSchema;
     this.nameMapping = nameMapping;
-    this.caseSensitive = caseSensitive;
+    this.filterCaseSensitive = filterCaseSensitive;
 
     if (filters != null && !filters.isEmpty()) {
       Expression combinedExpression =
           filters.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
       this.rowFilter =
-          new FlinkSourceFilter(this.projectedSchema, combinedExpression, this.caseSensitive);
+          new FlinkSourceFilter(projectedSchema, combinedExpression, filterCaseSensitive);
     } else {
       this.rowFilter = null;
     }
@@ -122,8 +122,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
               .project(schema)
               .constantFieldAccessors(idToConstant)
               .split(task.start(), task.length())
-              .filter(task.residual())
-              .caseSensitive(caseSensitive)
+              .filter(task.residual(), filterCaseSensitive)
               .reuseContainers();
 
       if (nameMapping != null) {

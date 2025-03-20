@@ -39,14 +39,14 @@ class GenericReader implements Serializable {
   private final FileIO io;
   private final Schema tableSchema;
   private final Schema projection;
-  private final boolean caseSensitive;
+  private final boolean filterCaseSensitive;
   private final boolean reuseContainers;
 
   GenericReader(TableScan scan, boolean reuseContainers) {
     this.io = scan.table().io();
     this.tableSchema = scan.table().schema();
     this.projection = scan.schema();
-    this.caseSensitive = scan.isCaseSensitive();
+    this.filterCaseSensitive = scan.isCaseSensitive();
     this.reuseContainers = reuseContainers;
   }
 
@@ -75,7 +75,7 @@ class GenericReader implements Serializable {
       CloseableIterable<Record> records, Schema recordSchema, Expression residual) {
     if (residual != null && residual != Expressions.alwaysTrue()) {
       InternalRecordWrapper wrapper = new InternalRecordWrapper(recordSchema.asStruct());
-      Evaluator filter = new Evaluator(recordSchema.asStruct(), residual, caseSensitive);
+      Evaluator filter = new Evaluator(recordSchema.asStruct(), residual, filterCaseSensitive);
       return CloseableIterable.filter(records, record -> filter.eval(wrapper.wrap(record)));
     }
 
@@ -92,9 +92,8 @@ class GenericReader implements Serializable {
         .project(fileProjection)
         .constantFieldAccessors(partition)
         .split(task.start(), task.length())
-        .caseSensitive(caseSensitive)
         .reuseContainers(reuseContainers)
-        .filter(task.residual())
+        .filter(task.residual(), filterCaseSensitive)
         .build();
   }
 

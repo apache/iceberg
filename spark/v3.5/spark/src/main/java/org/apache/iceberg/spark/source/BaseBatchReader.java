@@ -68,8 +68,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
             .project(requiredSchema)
             .constantFieldAccessors(idToConstant)
             .split(start, length)
-            .filter(residual)
-            .caseSensitive(caseSensitive())
+            .filter(residual, caseSensitive())
             // Spark eagerly consumes the batches. So the underlying memory allocated could be
             // reused without worrying about subsequent reads clobbering over each other. This
             // improves read performance as every batch read doesn't have to pay the cost of

@@ -1278,7 +1278,7 @@ public class Parquet {
     private BatchReaderFunction<?, F> batchReaderFunction = null;
     private ReaderFunction<?> readerFunction = null;
     private boolean filterRecords = true;
-    private boolean caseSensitive = true;
+    private boolean filterCaseSensitive = true;
     private boolean callInit = false;
     private boolean reuseContainers = false;
     private int maxRecordsPerBatch = 10000;
@@ -1312,26 +1312,27 @@ public class Parquet {
       return (B) this;
     }
 
-    @Override
+    @Deprecated
     public B caseInsensitive() {
       return caseSensitive(false);
     }
 
-    @Override
+    @Deprecated
     public B caseSensitive(boolean newCaseSensitive) {
-      this.caseSensitive = newCaseSensitive;
+      this.filterCaseSensitive = newCaseSensitive;
       return (B) this;
     }
 
-    @Override
+    @Deprecated
     public B filterRecords(boolean newFilterRecords) {
       this.filterRecords = newFilterRecords;
       return (B) this;
     }
 
     @Override
-    public B filter(Expression newFilter) {
+    public B filter(Expression newFilter, boolean newFilterCaseSensitive) {
       this.filter = newFilter;
+      this.filterCaseSensitive = newFilterCaseSensitive;
       return (B) this;
     }
 
@@ -1539,7 +1540,7 @@ public class Parquet {
             .useDictionaryFilter()
             .useRecordFilter(filterRecords)
             .useBloomFilter()
-            .withFilter(ParquetFilters.convert(fileSchema, filter, caseSensitive));
+            .withFilter(ParquetFilters.convert(fileSchema, filter, filterCaseSensitive));
       } else {
         // turn off filtering
         builder
@@ -1591,7 +1592,7 @@ public class Parquet {
             mapping,
             filter,
             reuseContainers,
-            caseSensitive,
+            filterCaseSensitive,
             maxRecordsPerBatch);
       } else {
         Function<MessageType, ParquetValueReader<?>> readBuilder =
@@ -1601,7 +1602,14 @@ public class Parquet {
                     ? readerFunc
                     : fileType -> readerFunction.read(schema, fileType, constantFieldAccessors);
         return new org.apache.iceberg.parquet.ParquetReader<>(
-            file, schema, options, readBuilder, mapping, filter, reuseContainers, caseSensitive);
+            file,
+            schema,
+            options,
+            readBuilder,
+            mapping,
+            filter,
+            reuseContainers,
+            filterCaseSensitive);
       }
     }
 

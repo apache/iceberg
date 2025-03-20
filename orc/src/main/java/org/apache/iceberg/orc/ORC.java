@@ -809,7 +809,7 @@ public class ORC {
     private Long start = null;
     private Long length = null;
     private Expression filter = null;
-    private boolean caseSensitive = true;
+    private boolean filterCaseSensitive = true;
     private NameMapping nameMapping = null;
 
     private Function<TypeDescription, OrcRowReader<?>> readerFunc;
@@ -853,10 +853,10 @@ public class ORC {
       return this;
     }
 
-    @Override
+    @Deprecated
     public ReadBuilder caseSensitive(boolean newCaseSensitive) {
       OrcConf.IS_SCHEMA_EVOLUTION_CASE_SENSITIVE.setBoolean(this.conf, newCaseSensitive);
-      this.caseSensitive = newCaseSensitive;
+      this.filterCaseSensitive = newCaseSensitive;
       return this;
     }
 
@@ -882,7 +882,9 @@ public class ORC {
     }
 
     @Override
-    public ReadBuilder filter(Expression newFilter) {
+    public ReadBuilder filter(Expression newFilter, boolean newFilterCaseSensitive) {
+      OrcConf.IS_SCHEMA_EVOLUTION_CASE_SENSITIVE.setBoolean(this.conf, newFilterCaseSensitive);
+      this.filterCaseSensitive = newFilterCaseSensitive;
       this.filter = newFilter;
       return this;
     }
@@ -964,7 +966,7 @@ public class ORC {
           start,
           length,
           reader,
-          caseSensitive,
+          filterCaseSensitive,
           filter,
           batchReader,
           recordsPerBatch);

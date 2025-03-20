@@ -53,8 +53,7 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
         .constantFieldAccessors(idToConstant)
         .reuseContainers()
         .split(start, length)
-        .filter(residual)
-        .caseSensitive(caseSensitive())
+        .filter(residual, caseSensitive())
         .withNameMapping(nameMapping())
         .build();
   }
