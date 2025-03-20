@@ -50,9 +50,9 @@ public class TestSparkFixupTypes {
 
   @Test
   void fixupShouldCorrectlyFixVariant() {
-    Schema schema = new Schema(Types.NestedField.required(1, "field", Types.VariantType.get()));
+    Schema schema = new Schema(Types.NestedField.required(1, "field", Types.BinaryType.get()));
     Schema referenceSchema =
-        new Schema(Types.NestedField.required(1, "field", Types.StringType.get()));
+        new Schema(Types.NestedField.required(1, "field", Types.VariantType.get()));
 
     Schema fixedSchema = SparkFixupTypes.fixup(schema, referenceSchema);
 
