@@ -16,16 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark;
+package org.apache.iceberg.spark.extensions;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
-import static org.apache.iceberg.spark.SparkTestHelperBase.rowsToJava;
 
 import java.util.List;
 import java.util.Scanner;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -36,8 +36,8 @@ import org.apache.spark.sql.internal.SQLConf;
  * line of SQL, which will then be executed, and the result will be displayed. If you want to debug
  * the code, you can set breakpoints in your IDE.
  */
-public final class SparkQueryRunner {
-  private static final Joiner JOIN = Joiner.on("|");
+public final class SparkQueryRunner extends ExtensionsTestBase {
+  private static final Joiner JOIN = Joiner.on("|").useForNull("NULL");
 
   private SparkQueryRunner() {}
 
@@ -50,6 +50,7 @@ public final class SparkQueryRunner {
         SparkSession.builder()
             .master("local[2]")
             .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
+            .config("spark.sql.extensions", IcebergSparkSessionExtensions.class.getName())
             .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
             .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
             .config("spark.sql.catalog.spark_catalog", SparkSessionCatalog.class.getName())
