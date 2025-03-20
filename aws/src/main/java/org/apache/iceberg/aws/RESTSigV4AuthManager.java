@@ -60,7 +60,8 @@ public class RESTSigV4AuthManager implements AuthManager {
   }
 
   @Override
-  public AuthSession contextualSession(SessionCatalog.SessionContext context, AuthSession parent) {
+  public RESTSigV4AuthSession contextualSession(
+      SessionCatalog.SessionContext context, AuthSession parent) {
     AwsProperties contextProperties =
         new AwsProperties(RESTUtil.merge(catalogProperties, context.properties()));
     RESTSigV4AuthSession sigV4Parent = (RESTSigV4AuthSession) parent;
@@ -69,7 +70,7 @@ public class RESTSigV4AuthManager implements AuthManager {
   }
 
   @Override
-  public AuthSession tableSession(
+  public RESTSigV4AuthSession tableSession(
       TableIdentifier table, Map<String, String> properties, AuthSession parent) {
     AwsProperties tableProperties =
         new AwsProperties(RESTUtil.merge(catalogProperties, properties));
