@@ -285,7 +285,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     Long addedRows = null;
     Long lastRowId = null;
-    if (base.rowLineageEnabled()) {
+    if (base.formatVersion() >= 3) {
       addedRows = calculateAddedRows(manifests);
       lastRowId = base.nextRowId();
     }
