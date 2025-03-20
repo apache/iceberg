@@ -49,7 +49,7 @@ abstract class BaseParquetWriter<T> {
   }
 
   protected abstract ParquetValueWriters.StructWriter<T> createStructWriter(
-      List<ParquetValueWriter<?>> writers);
+      Types.StructType struct, List<ParquetValueWriter<?>> writers);
 
   protected abstract ParquetValueWriter<?> fixedWriter(ColumnDescriptor desc);
 
@@ -85,7 +85,7 @@ abstract class BaseParquetWriter<T> {
         writers.add(ParquetValueWriters.option(fieldType, fieldD, fieldWriters.get(i)));
       }
 
-      return createStructWriter(writers);
+      return createStructWriter(iceberg, writers);
     }
 
     @Override

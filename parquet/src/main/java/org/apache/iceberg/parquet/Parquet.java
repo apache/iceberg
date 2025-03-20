@@ -242,6 +242,12 @@ public class Parquet {
       return this;
     }
 
+    public WriteBuilder createWriterFunc(
+        BiFunction<Schema, MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
+      this.createWriterFunc = newCreateWriterFunc;
+      return this;
+    }
+
     public WriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
       this.metricsConfig = newMetricsConfig;
       return this;
@@ -778,6 +784,12 @@ public class Parquet {
       return this;
     }
 
+    public DataWriteBuilder createWriterFunc(
+        BiFunction<Schema, MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
+      appenderBuilder.createWriterFunc(newCreateWriterFunc);
+      return this;
+    }
+
     public DataWriteBuilder withSpec(PartitionSpec newSpec) {
       this.spec = newSpec;
       return this;
@@ -838,7 +850,7 @@ public class Parquet {
   public static class DeleteWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
-    private Function<MessageType, ParquetValueWriter<?>> createWriterFunc = null;
+    private BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc = null;
     private Schema rowSchema = null;
     private PartitionSpec spec = null;
     private StructLike partition = null;
@@ -891,6 +903,12 @@ public class Parquet {
 
     public DeleteWriteBuilder createWriterFunc(
         Function<MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
+      this.createWriterFunc = (ignored, fileSchema) -> newCreateWriterFunc.apply(fileSchema);
+      return this;
+    }
+
+    public DeleteWriteBuilder createWriterFunc(
+        BiFunction<Schema, MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
       this.createWriterFunc = newCreateWriterFunc;
       return this;
     }
@@ -1001,8 +1019,8 @@ public class Parquet {
         appenderBuilder.schema(DeleteSchemaUtil.posDeleteSchema(rowSchema));
 
         appenderBuilder.createWriterFunc(
-            parquetSchema -> {
-              ParquetValueWriter<?> writer = createWriterFunc.apply(parquetSchema);
+            (schema, parquetSchema) -> {
+              ParquetValueWriter<?> writer = createWriterFunc.apply(schema, parquetSchema);
               if (writer instanceof StructWriter) {
                 return new PositionDeleteStructWriter<T>(
                     (StructWriter<?>) writer, pathTransformFunc);
@@ -1018,9 +1036,9 @@ public class Parquet {
         // We ignore the 'createWriterFunc' and 'rowSchema' even if is provided, since we do not
         // write row data itself
         appenderBuilder.createWriterFunc(
-            parquetSchema ->
+            (schema, parquetSchema) ->
                 new PositionDeleteStructWriter<T>(
-                    (StructWriter<?>) GenericParquetWriter.buildWriter(parquetSchema),
+                    (StructWriter<?>) GenericParquetWriter.create(schema, parquetSchema),
                     Function.identity()));
       }
 

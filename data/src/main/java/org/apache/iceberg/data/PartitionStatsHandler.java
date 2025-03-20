@@ -206,7 +206,7 @@ public class PartitionStatsHandler {
       case PARQUET:
         return Parquet.writeData(outputFile)
             .schema(dataSchema)
-            .createWriterFunc(InternalWriter::create)
+            .createWriterFunc(InternalWriter::createWriter)
             .withSpec(PartitionSpec.unpartitioned())
             .build();
       case AVRO:

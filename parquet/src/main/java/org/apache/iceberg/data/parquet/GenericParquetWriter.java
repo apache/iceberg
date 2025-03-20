@@ -44,6 +44,12 @@ public class GenericParquetWriter extends BaseParquetWriter<Record> {
 
   private GenericParquetWriter() {}
 
+  /**
+   * Build a writer for a Parquet schema.
+   *
+   * @deprecated will be removed in 1.10.0; use {@link #create(Schema, MessageType)} instead.
+   */
+  @Deprecated
   public static ParquetValueWriter<Record> buildWriter(MessageType type) {
     return INSTANCE.createWriter(type);
   }
@@ -52,13 +58,21 @@ public class GenericParquetWriter extends BaseParquetWriter<Record> {
     return INSTANCE.createWriter(schema.asStruct(), type);
   }
 
-  public static ParquetValueWriter<Record> create(Types.StructType struct, MessageType type) {
-    return INSTANCE.createWriter(struct, type);
+  /**
+   * Create a struct writer from a list of writers.
+   *
+   * @deprecated will be removed in 1.10.0; use {@link #createWriter(Types.StructType, MessageType)}
+   *     instead.
+   */
+  @Deprecated
+  protected StructWriter<Record> createStructWriter(List<ParquetValueWriter<?>> writers) {
+    return ParquetValueWriters.recordWriter(null, writers);
   }
 
   @Override
-  protected StructWriter<Record> createStructWriter(List<ParquetValueWriter<?>> writers) {
-    return ParquetValueWriters.recordWriter(writers);
+  protected StructWriter<Record> createStructWriter(
+      Types.StructType struct, List<ParquetValueWriter<?>> writers) {
+    return ParquetValueWriters.recordWriter(struct, writers);
   }
 
   @Override
