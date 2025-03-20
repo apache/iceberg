@@ -64,8 +64,9 @@ public class RESTSigV4AuthManager implements AuthManager {
   public AuthSession contextualSession(SessionCatalog.SessionContext context, AuthSession parent) {
     AwsProperties contextProperties =
         new AwsProperties(RESTUtil.merge(catalogProperties, context.properties()));
+    RESTSigV4AuthSession sigV4Parent = (RESTSigV4AuthSession) parent;
     return new RESTSigV4AuthSession(
-        signer, delegate.contextualSession(context, parent), contextProperties);
+        signer, delegate.contextualSession(context, sigV4Parent.delegate()), contextProperties);
   }
 
   @Override
@@ -73,8 +74,9 @@ public class RESTSigV4AuthManager implements AuthManager {
       TableIdentifier table, Map<String, String> properties, AuthSession parent) {
     AwsProperties tableProperties =
         new AwsProperties(RESTUtil.merge(catalogProperties, properties));
+    RESTSigV4AuthSession sigV4Parent = (RESTSigV4AuthSession) parent;
     return new RESTSigV4AuthSession(
-        signer, delegate.tableSession(table, properties, parent), tableProperties);
+        signer, delegate.tableSession(table, properties, sigV4Parent.delegate()), tableProperties);
   }
 
   @Override

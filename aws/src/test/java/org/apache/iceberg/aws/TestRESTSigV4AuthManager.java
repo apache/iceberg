@@ -20,13 +20,10 @@ package org.apache.iceberg.aws;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
 
 import java.util.Map;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
@@ -34,6 +31,7 @@ import org.apache.iceberg.rest.auth.AuthProperties;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.NoopAuthManager;
 import org.apache.iceberg.rest.auth.OAuth2Manager;
+import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -105,8 +103,9 @@ class TestRESTSigV4AuthManager {
 
   @Test
   void initSession() {
-    AuthManager delegate = Mockito.mock(AuthManager.class);
-    when(delegate.initSession(any(), any())).thenReturn(Mockito.mock(OAuth2Util.AuthSession.class));
+    AuthManager delegate =
+        AuthManagers.loadAuthManager(
+            "test", Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_TYPE_OAUTH2));
     RESTClient client = Mockito.mock(RESTClient.class);
     AuthManager manager = new RESTSigV4AuthManager("test", delegate);
     AuthSession authSession = manager.initSession(client, awsProperties);
@@ -118,9 +117,9 @@ class TestRESTSigV4AuthManager {
 
   @Test
   void catalogSession() {
-    AuthManager delegate = Mockito.mock(AuthManager.class);
-    when(delegate.catalogSession(any(), any()))
-        .thenReturn(Mockito.mock(OAuth2Util.AuthSession.class));
+    AuthManager delegate =
+        AuthManagers.loadAuthManager(
+            "test", Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_TYPE_OAUTH2));
     RESTClient client = Mockito.mock(RESTClient.class);
     AuthManager manager = new RESTSigV4AuthManager("test", delegate);
     AuthSession authSession = manager.catalogSession(client, awsProperties);
@@ -132,16 +131,16 @@ class TestRESTSigV4AuthManager {
 
   @Test
   void contextualSession() {
-    AuthManager delegate = Mockito.mock(AuthManager.class);
-    when(delegate.catalogSession(any(), any()))
-        .thenReturn(Mockito.mock(OAuth2Util.AuthSession.class));
-    when(delegate.contextualSession(any(), any()))
-        .thenReturn(Mockito.mock(OAuth2Util.AuthSession.class));
+    AuthManager delegate =
+        AuthManagers.loadAuthManager(
+            "test", Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_TYPE_OAUTH2));
+    RESTClient client = Mockito.mock(RESTClient.class);
     AuthManager manager = new RESTSigV4AuthManager("test", delegate);
-    manager.catalogSession(Mockito.mock(HTTPClient.class), awsProperties);
-    AuthSession authSession =
-        manager.contextualSession(
-            Mockito.mock(SessionCatalog.SessionContext.class), Mockito.mock(AuthSession.class));
+    AuthSession catalogSession = manager.catalogSession(client, awsProperties);
+    SessionCatalog.SessionContext context =
+        new SessionCatalog.SessionContext(
+            "context1", "identity", Map.of(OAuth2Properties.TOKEN, "token"), Map.of());
+    AuthSession authSession = manager.contextualSession(context, catalogSession);
     assertThat(authSession)
         .isInstanceOf(RESTSigV4AuthSession.class)
         .extracting("delegate")
@@ -150,16 +149,15 @@ class TestRESTSigV4AuthManager {
 
   @Test
   void tableSession() {
-    AuthManager delegate = Mockito.mock(AuthManager.class);
-    when(delegate.catalogSession(any(), any()))
-        .thenReturn(Mockito.mock(OAuth2Util.AuthSession.class));
-    when(delegate.tableSession(any(), any(), any()))
-        .thenReturn(Mockito.mock(OAuth2Util.AuthSession.class));
+    AuthManager delegate =
+        AuthManagers.loadAuthManager(
+            "test", Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_TYPE_OAUTH2));
+    RESTClient client = Mockito.mock(RESTClient.class);
     AuthManager manager = new RESTSigV4AuthManager("test", delegate);
-    manager.catalogSession(Mockito.mock(HTTPClient.class), awsProperties);
+    AuthSession catalogSession = manager.catalogSession(client, awsProperties);
     AuthSession authSession =
         manager.tableSession(
-            Mockito.mock(TableIdentifier.class), Map.of(), Mockito.mock(AuthSession.class));
+            TableIdentifier.of("table1"), Map.of(OAuth2Properties.TOKEN, "token"), catalogSession);
     assertThat(authSession)
         .isInstanceOf(RESTSigV4AuthSession.class)
         .extracting("delegate")
