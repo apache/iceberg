@@ -24,6 +24,7 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.UUID;
 import org.apache.iceberg.util.DateTimeUtil;
 
 public class Variants {
@@ -199,5 +200,37 @@ public class Variants {
 
   public static VariantPrimitive<String> of(String value) {
     return new PrimitiveWrapper<>(PhysicalType.STRING, value);
+  }
+
+  public static VariantPrimitive<Long> ofTimentz(long value) {
+    return new PrimitiveWrapper<>(PhysicalType.TIMENTZ, value);
+  }
+
+  public static VariantPrimitive<Long> ofIsoTimentz(String value) {
+    return ofTimentz(DateTimeUtil.isoTimeToMicros(value));
+  }
+
+  public static VariantPrimitive<Long> ofTimestamptzNano(long value) {
+    return new PrimitiveWrapper<>(PhysicalType.TIMESTAMPTZNS, value);
+  }
+
+  public static VariantPrimitive<Long> ofIsoTimestamptzNano(String value) {
+    return ofTimestamptzNano(DateTimeUtil.isoTimestamptzToNanos(value));
+  }
+
+  public static VariantPrimitive<Long> ofTimestampntzNano(long value) {
+    return new PrimitiveWrapper<>(PhysicalType.TIMESTAMPNTZNS, value);
+  }
+
+  public static VariantPrimitive<Long> ofIsoTimestampntzNano(String value) {
+    return ofTimestampntzNano(DateTimeUtil.isoTimestampToNanos(value));
+  }
+
+  public static VariantPrimitive<UUID> ofUuid(UUID uuid) {
+    return new PrimitiveWrapper<>(PhysicalType.UUID, uuid);
+  }
+
+  public static VariantPrimitive<UUID> ofUuid(String uuid) {
+    return ofUuid(UUID.fromString(uuid));
   }
 }

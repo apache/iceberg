@@ -229,9 +229,9 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
 
     @Override
     public Optional<ParquetValueWriter<?>> visit(TimeLogicalTypeAnnotation time) {
-      // ParquetValueWriter<VariantValue> writer =
-      //     ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), PhysicalType.TIME);
-      return Optional.empty();
+      ParquetValueWriter<VariantValue> writer =
+          ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), PhysicalType.TIMENTZ);
+      return Optional.of(writer);
     }
 
     @Override
@@ -239,6 +239,12 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
       if (timestamp.getUnit() == TimeUnit.MICROS) {
         PhysicalType type =
             timestamp.isAdjustedToUTC() ? PhysicalType.TIMESTAMPTZ : PhysicalType.TIMESTAMPNTZ;
+        ParquetValueWriter<?> writer =
+            ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), type);
+        return Optional.of(writer);
+      } else if (timestamp.getUnit() == TimeUnit.NANOS) {
+        PhysicalType type =
+            timestamp.isAdjustedToUTC() ? PhysicalType.TIMESTAMPTZNS : PhysicalType.TIMESTAMPNTZNS;
         ParquetValueWriter<?> writer =
             ParquetVariantWriters.primitive(ParquetValueWriters.longs(desc), type);
         return Optional.of(writer);
@@ -278,9 +284,9 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
 
     @Override
     public Optional<ParquetValueWriter<?>> visit(UUIDLogicalTypeAnnotation uuidLogicalType) {
-      // ParquetValueWriter<VariantValue> writer =
-      //     ParquetVariantWriters.primitive(ParquetValueWriters.uuids(desc), PhysicalType.UUID);
-      return Optional.empty();
+      ParquetValueWriter<VariantValue> writer =
+          ParquetVariantWriters.primitive(ParquetValueWriters.uuids(desc), PhysicalType.UUID);
+      return Optional.of(writer);
     }
   }
 }

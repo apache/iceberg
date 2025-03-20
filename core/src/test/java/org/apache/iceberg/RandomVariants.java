@@ -107,6 +107,16 @@ public class RandomVariants {
         return Variants.of(type, ByteBuffer.wrap(randomBytes));
       case STRING:
         return Variants.of(type, RandomUtil.generatePrimitive(Types.StringType.get(), random));
+      case TIMENTZ:
+        return Variants.of(type, RandomUtil.generatePrimitive(Types.TimeType.get(), random));
+      case TIMESTAMPTZNS:
+        return Variants.of(
+            type, RandomUtil.generatePrimitive(Types.TimestampNanoType.withZone(), random));
+      case TIMESTAMPNTZNS:
+        return Variants.of(
+            type, RandomUtil.generatePrimitive(Types.TimestampNanoType.withoutZone(), random));
+      case UUID:
+        return Variants.of(type, RandomUtil.generatePrimitive(Types.UUIDType.get(), random));
       case ARRAY:
         // for now, generate an object instead of an array
       case OBJECT:

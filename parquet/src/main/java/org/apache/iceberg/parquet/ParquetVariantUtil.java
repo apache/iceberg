@@ -26,10 +26,12 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.util.BinaryUtil;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.util.UnicodeUtil;
 import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.VariantArray;
@@ -124,6 +126,9 @@ class ParquetVariantUtil {
       case DATE:
       case TIMESTAMPTZ:
       case TIMESTAMPNTZ:
+      case TIMESTAMPTZNS:
+      case TIMESTAMPNTZNS:
+      case TIMENTZ:
       case FLOAT:
       case DOUBLE:
         return (T) value;
@@ -140,6 +145,10 @@ class ParquetVariantUtil {
         return (T) ((Binary) value).toByteBuffer();
       case STRING:
         return (T) ((Binary) value).toStringUsingUTF8();
+      case UUID:
+        {
+          return (T) UUIDUtil.convert(((Binary) value).getBytes());
+        }
       default:
         throw new IllegalStateException("Invalid bound type: " + primitive);
     }
@@ -212,7 +221,7 @@ class ParquetVariantUtil {
 
     @Override
     public Optional<PhysicalType> visit(TimeLogicalTypeAnnotation ignored) {
-      return Optional.empty();
+      return Optional.of(PhysicalType.TIMENTZ);
     }
 
     @Override
@@ -225,6 +234,11 @@ class ParquetVariantUtil {
             return Optional.of(PhysicalType.TIMESTAMPNTZ);
           }
         case NANOS:
+          if (timestamps.isAdjustedToUTC()) {
+            return Optional.of(PhysicalType.TIMESTAMPTZNS);
+          } else {
+            return Optional.of(PhysicalType.TIMESTAMPNTZNS);
+          }
         default:
           return Optional.empty();
       }
@@ -252,7 +266,7 @@ class ParquetVariantUtil {
 
     @Override
     public Optional<PhysicalType> visit(UUIDLogicalTypeAnnotation uuidLogicalType) {
-      return Optional.empty();
+      return Optional.of(PhysicalType.UUID);
     }
   }
 
@@ -417,6 +431,23 @@ class ParquetVariantUtil {
         case STRING:
           return shreddedPrimitive(
               PrimitiveType.PrimitiveTypeName.BINARY, LogicalTypeAnnotation.stringType());
+        case TIMENTZ:
+          return shreddedPrimitive(
+              PrimitiveType.PrimitiveTypeName.INT64,
+              LogicalTypeAnnotation.timeType(false, LogicalTypeAnnotation.TimeUnit.MICROS));
+        case TIMESTAMPTZNS:
+          return shreddedPrimitive(
+              PrimitiveType.PrimitiveTypeName.INT64,
+              LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS));
+        case TIMESTAMPNTZNS:
+          return shreddedPrimitive(
+              PrimitiveType.PrimitiveTypeName.INT64,
+              LogicalTypeAnnotation.timestampType(false, LogicalTypeAnnotation.TimeUnit.NANOS));
+        case UUID:
+          return shreddedPrimitive(
+              PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY,
+              LogicalTypeAnnotation.uuidType(),
+              16);
       }
 
       throw new UnsupportedOperationException("Unsupported shredding type: " + primitive.type());
@@ -471,6 +502,11 @@ class ParquetVariantUtil {
     private static Type shreddedPrimitive(
         PrimitiveType.PrimitiveTypeName primitive, LogicalTypeAnnotation annotation) {
       return Types.optional(primitive).as(annotation).named("typed_value");
+    }
+
+    private static Type shreddedPrimitive(
+        PrimitiveType.PrimitiveTypeName primitive, LogicalTypeAnnotation annotation, int length) {
+      return Types.optional(primitive).as(annotation).length(length).named("typed_value");
     }
   }
 }

@@ -25,6 +25,7 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
@@ -94,6 +95,12 @@ public class TestVariantMetrics {
         Variants.of(new BigDecimal("-9876543210.123456789")), // decimal16
         Variants.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d})),
         Variants.of("iceberg"),
+        Variants.ofIsoTimentz("12:33:54.123456"),
+        Variants.ofIsoTimestamptzNano("2024-11-07T12:33:54.123456789+00:00"),
+        Variants.ofIsoTimestamptzNano("1957-11-07T12:33:54.123456789+00:00"),
+        Variants.ofIsoTimestampntzNano("2024-11-07T12:33:54.123456789"),
+        Variants.ofIsoTimestampntzNano("1957-11-07T12:33:54.123456789"),
+        Variants.ofUuid("f24f9b64-81fa-49d1-b74e-8c09a6e31c56"),
       };
 
   @ParameterizedTest
@@ -481,6 +488,9 @@ public class TestVariantMetrics {
       case INT64:
       case TIMESTAMPTZ:
       case TIMESTAMPNTZ:
+      case TIMENTZ:
+      case TIMESTAMPTZNS:
+      case TIMESTAMPNTZNS:
         return Variants.of(value.type(), (Long) primitive.get() + 1L);
       case FLOAT:
         return Variants.of(value.type(), (Float) primitive.get() + 1.0F);
@@ -496,6 +506,13 @@ public class TestVariantMetrics {
       case STRING:
         return Variants.of(
             value.type(), UnicodeUtil.truncateStringMax((String) primitive.get(), 5));
+      case UUID:
+        {
+          UUID uuid = (UUID) primitive.get();
+          return Variants.of(
+              value.type(),
+              new UUID(uuid.getMostSignificantBits(), uuid.getLeastSignificantBits() + 1));
+        }
     }
 
     throw new UnsupportedOperationException("Cannot increment value: " + value);

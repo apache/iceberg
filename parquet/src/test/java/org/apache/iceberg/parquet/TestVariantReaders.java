@@ -127,6 +127,12 @@ public class TestVariantReaders {
         Variants.of(new BigDecimal("-9876543210.123456789")), // decimal16
         Variants.of(ByteBuffer.wrap(new byte[] {0x0a, 0x0b, 0x0c, 0x0d})),
         Variants.of("iceberg"),
+        Variants.ofIsoTimentz("12:33:54.123456"),
+        Variants.ofIsoTimestamptzNano("2024-11-07T12:33:54.123456789+00:00"),
+        Variants.ofIsoTimestamptzNano("1957-11-07T12:33:54.123456789+00:00"),
+        Variants.ofIsoTimestampntzNano("2024-11-07T12:33:54.123456789"),
+        Variants.ofIsoTimestampntzNano("1957-11-07T12:33:54.123456789"),
+        Variants.ofUuid("f24f9b64-81fa-49d1-b74e-8c09a6e31c56"),
       };
 
   private static Stream<Arguments> metadataAndValues() {
