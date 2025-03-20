@@ -574,12 +574,18 @@ public class Types {
         Preconditions.checkArgument(!crs.isEmpty(), "Invalid CRS: (empty string)");
         Preconditions.checkArgument(
             crs.trim().equals(crs), "CRS must not have leading or trailing spaces: '%s'", crs);
+        this.crs = crs;
+      } else {
+        this.crs = null;
       }
-      this.crs = crs;
+    }
+
+    private GeometryType() {
+      crs = null;
     }
 
     public static GeometryType crs84() {
-      return new GeometryType(null);
+      return new GeometryType();
     }
 
     public static GeometryType of(String crs) {
@@ -634,16 +640,24 @@ public class Types {
         Preconditions.checkArgument(!crs.isEmpty(), "Invalid CRS: (empty string)");
         Preconditions.checkArgument(
             crs.trim().equals(crs), "CRS must not have leading or trailing spaces: '%s'", crs);
+        this.crs = crs;
+      } else {
+        this.crs = null;
       }
-      this.crs = crs;
+
       this.algorithm = algorithm;
     }
 
-    public static GeographyType crs84() {
-      return new GeographyType(null, null);
+    private GeographyType() {
+      this.crs = null;
+      this.algorithm = null;
     }
 
-    public static GeographyType of(String crs) {
+    public static GeographyType crs84() {
+      return new GeographyType();
+    }
+
+    public static GeographyType forCRS(String crs) {
       return new GeographyType(crs, null);
     }
 
