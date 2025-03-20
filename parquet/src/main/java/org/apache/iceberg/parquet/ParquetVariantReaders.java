@@ -368,12 +368,6 @@ public class ParquetVariantReaders {
 
     @Override
     public ValueArray read(VariantMetadata metadata) {
-      // if the current definition level is less than the definition level of this repeated type,
-      // then typed_value is null and the array is null
-      if (column.currentDefinitionLevel() < definitionLevel) {
-        return null;
-      }
-
       ValueArray arr = Variants.array();
       do {
         if (column.currentDefinitionLevel() > definitionLevel) {
