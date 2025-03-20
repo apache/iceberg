@@ -191,7 +191,7 @@ public class ErrorHandlers {
     }
   }
 
-  /** Request error handler specifically for drop operations on namespaces. */
+  /** Request error handler for drop namespace operations. */
   private static class DropNamespaceErrorHandler extends NamespaceErrorHandler {
     private static final ErrorHandler INSTANCE = new DropNamespaceErrorHandler();
 
