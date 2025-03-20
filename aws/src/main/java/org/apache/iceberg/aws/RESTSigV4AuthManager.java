@@ -33,7 +33,6 @@ import software.amazon.awssdk.auth.signer.Aws4Signer;
  *
  * <p>It takes a delegate AuthManager to handle double authentication cases, e.g. on top of OAuth2.
  */
-@SuppressWarnings("unused") // loaded by reflection
 public class RESTSigV4AuthManager implements AuthManager {
 
   private final Aws4Signer signer = Aws4Signer.create();
@@ -41,7 +40,7 @@ public class RESTSigV4AuthManager implements AuthManager {
 
   private Map<String, String> catalogProperties = Map.of();
 
-  public RESTSigV4AuthManager(String name, AuthManager delegate) {
+  public RESTSigV4AuthManager(String ignored, AuthManager delegate) {
     this.delegate = Preconditions.checkNotNull(delegate, "Invalid delegate: null");
   }
 
