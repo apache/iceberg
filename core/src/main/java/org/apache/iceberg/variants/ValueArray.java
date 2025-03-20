@@ -127,4 +127,9 @@ public class ValueArray implements VariantArray {
       return (dataOffset - offset) + dataSize;
     }
   }
+
+  @Override
+  public String toString() {
+    return VariantArray.asString(this);
+  }
 }
