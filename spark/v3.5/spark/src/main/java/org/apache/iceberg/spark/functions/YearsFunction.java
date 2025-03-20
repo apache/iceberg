@@ -31,17 +31,29 @@ import org.apache.spark.sql.types.TimestampType;
  * A Spark function implementation for the Iceberg year transform.
  *
  * <p>Example usage: {@code SELECT system.years('source_col')}.
+ *
+ * <p>Alternate form: {@code SELECT system.year('source_col')}.
  */
 public class YearsFunction extends UnaryUnboundFunction {
+
+  private boolean singular;
+
+  public YearsFunction() {
+    this(false);
+  }
+
+  YearsFunction(boolean singular) {
+    this.singular = singular;
+  }
 
   @Override
   protected BoundFunction doBind(DataType valueType) {
     if (valueType instanceof DateType) {
-      return new DateToYearsFunction();
+      return new DateToYearsFunction(singular);
     } else if (valueType instanceof TimestampType) {
-      return new TimestampToYearsFunction();
+      return new TimestampToYearsFunction(singular);
     } else if (valueType instanceof TimestampNTZType) {
-      return new TimestampNtzToYearsFunction();
+      return new TimestampNtzToYearsFunction(singular);
     } else {
       throw new UnsupportedOperationException(
           "Expected value to be date or timestamp: " + valueType.catalogString());
@@ -57,13 +69,19 @@ public class YearsFunction extends UnaryUnboundFunction {
 
   @Override
   public String name() {
-    return "years";
+    return singular ? "year" : "years";
   }
 
   private abstract static class BaseToYearsFunction extends BaseScalarFunction<Integer> {
+    private boolean singular;
+
+    protected BaseToYearsFunction(boolean singular) {
+      this.singular = singular;
+    }
+
     @Override
     public String name() {
-      return "years";
+      return singular ? "year" : "years";
     }
 
     @Override
@@ -73,6 +91,14 @@ public class YearsFunction extends UnaryUnboundFunction {
   }
 
   public static class DateToYearsFunction extends BaseToYearsFunction {
+    public DateToYearsFunction() {
+      this(false);
+    }
+
+    DateToYearsFunction(boolean singular) {
+      super(singular);
+    }
+
     // magic method used in codegen
     public static int invoke(int days) {
       return DateTimeUtil.daysToYears(days);
@@ -85,7 +111,7 @@ public class YearsFunction extends UnaryUnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.years(date)";
+      return "iceberg." + name() + "(date)";
     }
 
     @Override
@@ -96,6 +122,14 @@ public class YearsFunction extends UnaryUnboundFunction {
   }
 
   public static class TimestampToYearsFunction extends BaseToYearsFunction {
+    public TimestampToYearsFunction() {
+      this(false);
+    }
+
+    TimestampToYearsFunction(boolean singular) {
+      super(singular);
+    }
+
     // magic method used in codegen
     public static int invoke(long micros) {
       return DateTimeUtil.microsToYears(micros);
@@ -108,7 +142,7 @@ public class YearsFunction extends UnaryUnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.years(timestamp)";
+      return "iceberg." + name() + "(timestamp)";
     }
 
     @Override
@@ -119,6 +153,14 @@ public class YearsFunction extends UnaryUnboundFunction {
   }
 
   public static class TimestampNtzToYearsFunction extends BaseToYearsFunction {
+    public TimestampNtzToYearsFunction() {
+      this(false);
+    }
+
+    TimestampNtzToYearsFunction(boolean singular) {
+      super(singular);
+    }
+
     // magic method used in codegen
     public static int invoke(long micros) {
       return DateTimeUtil.microsToYears(micros);
@@ -131,7 +173,7 @@ public class YearsFunction extends UnaryUnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.years(timestamp_ntz)";
+      return "iceberg." + name() + "(timestamp_ntz)";
     }
 
     @Override

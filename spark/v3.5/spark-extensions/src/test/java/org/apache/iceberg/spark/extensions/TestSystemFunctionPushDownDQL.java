@@ -43,6 +43,7 @@ import java.util.List;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.expressions.ExpressionUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.source.PlanUtils;
 import org.apache.spark.sql.Dataset;
@@ -95,18 +96,21 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
 
   private void testYearsFunction(boolean partitioned) {
     int targetYears = timestampStrToYearOrdinal("2017-11-22T00:00:00.000000+00:00");
-    String query =
-        String.format(
-            "SELECT * FROM %s WHERE system.years(ts) = %s ORDER BY id", tableName, targetYears);
+    for (String functionName : ImmutableList.of("year", "years")) {
+      String query =
+          String.format(
+              "SELECT * FROM %s WHERE system.%s(ts) = %s ORDER BY id",
+              tableName, functionName, targetYears);
 
-    Dataset<Row> df = spark.sql(query);
-    LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
+      Dataset<Row> df = spark.sql(query);
+      LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
 
-    checkExpressions(optimizedPlan, partitioned, "years");
-    checkPushedFilters(optimizedPlan, equal(year("ts"), targetYears));
+      checkExpressions(optimizedPlan, partitioned, "years");
+      checkPushedFilters(optimizedPlan, equal(year("ts"), targetYears));
 
-    List<Object[]> actual = rowsToJava(df.collectAsList());
-    assertThat(actual).hasSize(5);
+      List<Object[]> actual = rowsToJava(df.collectAsList());
+      assertThat(actual).hasSize(5);
+    }
   }
 
   @TestTemplate
@@ -123,18 +127,21 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
 
   private void testMonthsFunction(boolean partitioned) {
     int targetMonths = timestampStrToMonthOrdinal("2017-11-22T00:00:00.000000+00:00");
-    String query =
-        String.format(
-            "SELECT * FROM %s WHERE system.months(ts) > %s ORDER BY id", tableName, targetMonths);
+    for (String functionName : ImmutableList.of("month", "months")) {
+      String query =
+          String.format(
+              "SELECT * FROM %s WHERE system.%s(ts) > %s ORDER BY id",
+              tableName, functionName, targetMonths);
 
-    Dataset<Row> df = spark.sql(query);
-    LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
+      Dataset<Row> df = spark.sql(query);
+      LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
 
-    checkExpressions(optimizedPlan, partitioned, "months");
-    checkPushedFilters(optimizedPlan, greaterThan(month("ts"), targetMonths));
+      checkExpressions(optimizedPlan, partitioned, "months");
+      checkPushedFilters(optimizedPlan, greaterThan(month("ts"), targetMonths));
 
-    List<Object[]> actual = rowsToJava(df.collectAsList());
-    assertThat(actual).hasSize(5);
+      List<Object[]> actual = rowsToJava(df.collectAsList());
+      assertThat(actual).hasSize(5);
+    }
   }
 
   @TestTemplate
@@ -152,19 +159,21 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
   private void testDaysFunction(boolean partitioned) {
     String timestamp = "2018-11-20T00:00:00.000000+00:00";
     int targetDays = timestampStrToDayOrdinal(timestamp);
-    String query =
-        String.format(
-            "SELECT * FROM %s WHERE system.days(ts) < date('%s') ORDER BY id",
-            tableName, timestamp);
+    for (String functionName : ImmutableList.of("day", "days")) {
+      String query =
+          String.format(
+              "SELECT * FROM %s WHERE system.%s(ts) < date('%s') ORDER BY id",
+              tableName, functionName, timestamp);
 
-    Dataset<Row> df = spark.sql(query);
-    LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
+      Dataset<Row> df = spark.sql(query);
+      LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
 
-    checkExpressions(optimizedPlan, partitioned, "days");
-    checkPushedFilters(optimizedPlan, lessThan(day("ts"), targetDays));
+      checkExpressions(optimizedPlan, partitioned, "days");
+      checkPushedFilters(optimizedPlan, lessThan(day("ts"), targetDays));
 
-    List<Object[]> actual = rowsToJava(df.collectAsList());
-    assertThat(actual).hasSize(5);
+      List<Object[]> actual = rowsToJava(df.collectAsList());
+      assertThat(actual).hasSize(5);
+    }
   }
 
   @TestTemplate
@@ -181,18 +190,21 @@ public class TestSystemFunctionPushDownDQL extends ExtensionsTestBase {
 
   private void testHoursFunction(boolean partitioned) {
     int targetHours = timestampStrToHourOrdinal("2017-11-22T06:02:09.243857+00:00");
-    String query =
-        String.format(
-            "SELECT * FROM %s WHERE system.hours(ts) >= %s ORDER BY id", tableName, targetHours);
+    for (String functionName : ImmutableList.of("hour", "hours")) {
+      String query =
+          String.format(
+              "SELECT * FROM %s WHERE system.%s(ts) >= %s ORDER BY id",
+              tableName, functionName, targetHours);
 
-    Dataset<Row> df = spark.sql(query);
-    LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
+      Dataset<Row> df = spark.sql(query);
+      LogicalPlan optimizedPlan = df.queryExecution().optimizedPlan();
 
-    checkExpressions(optimizedPlan, partitioned, "hours");
-    checkPushedFilters(optimizedPlan, greaterThanOrEqual(hour("ts"), targetHours));
+      checkExpressions(optimizedPlan, partitioned, "hours");
+      checkPushedFilters(optimizedPlan, greaterThanOrEqual(hour("ts"), targetHours));
 
-    List<Object[]> actual = rowsToJava(df.collectAsList());
-    assertThat(actual).hasSize(8);
+      List<Object[]> actual = rowsToJava(df.collectAsList());
+      assertThat(actual).hasSize(8);
+    }
   }
 
   @TestTemplate
