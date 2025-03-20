@@ -37,6 +37,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.data.ObjectModelRegistry;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -45,6 +46,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.ReadBuilder;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
@@ -121,6 +123,22 @@ public class ArrowReader extends CloseableGroup {
   private final EncryptionManager encryption;
   private final int batchSize;
   private final boolean reuseContainers;
+
+  public static final String ARROW_OBJECT_MODEL = "arrow";
+
+  public static void register() {
+    ObjectModelRegistry.registerReader(
+        FileFormat.PARQUET,
+        ARROW_OBJECT_MODEL,
+        inputFile ->
+            Parquet.read(inputFile)
+                .batchReaderFunction(
+                    (schema, messageType, constantFieldAccessors, deleteFilter, properties) ->
+                        VectorizedCombinedScanIterator.buildReader(
+                            schema,
+                            messageType, /* setArrowValidityVector */
+                            NullCheckingForGet.NULL_CHECKING_ENABLED)));
+  }
 
   /**
    * Create a new instance of the reader.
@@ -322,16 +340,10 @@ public class ArrowReader extends CloseableGroup {
       InputFile location = getInputFile(task);
       Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
       if (task.file().format() == FileFormat.PARQUET) {
-        Parquet.ReadBuilder builder =
-            Parquet.read(location)
+        ReadBuilder<?> builder =
+            ObjectModelRegistry.readBuilder(FileFormat.PARQUET, ARROW_OBJECT_MODEL, location)
                 .project(expectedSchema)
                 .split(task.start(), task.length())
-                .createBatchedReaderFunc(
-                    fileSchema ->
-                        buildReader(
-                            expectedSchema,
-                            fileSchema, /* setArrowValidityVector */
-                            NullCheckingForGet.NULL_CHECKING_ENABLED))
                 .recordsPerBatch(batchSize)
                 .filter(task.residual())
                 .caseSensitive(caseSensitive);
