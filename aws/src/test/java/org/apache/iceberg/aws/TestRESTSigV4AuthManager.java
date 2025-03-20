@@ -119,7 +119,7 @@ class TestRESTSigV4AuthManager {
     RESTClient client = Mockito.mock(RESTClient.class);
     AuthManager manager = new RESTSigV4AuthManager("test", delegate);
     AuthSession authSession = manager.initSession(client, catalogProperties);
-    checkSession((RESTSigV4AuthSession) authSession, "us-west-2", "id", "secret", false);
+    checkSession(authSession, "us-west-2", "id", "secret", false);
   }
 
   @Test
@@ -130,8 +130,7 @@ class TestRESTSigV4AuthManager {
     RESTClient client = Mockito.mock(RESTClient.class);
     AuthManager manager = new RESTSigV4AuthManager("test", delegate);
     AuthSession authSession = manager.catalogSession(client, catalogProperties);
-    assertThat(authSession).isInstanceOf(RESTSigV4AuthSession.class);
-    checkSession((RESTSigV4AuthSession) authSession, "us-west-2", "id", "secret", true);
+    checkSession(authSession, "us-west-2", "id", "secret", true);
   }
 
   @Test
@@ -153,8 +152,7 @@ class TestRESTSigV4AuthManager {
                 "secret2"),
             Map.of(AwsProperties.REST_SIGNER_REGION, "us-east-1"));
     AuthSession authSession = manager.contextualSession(context, catalogSession);
-    assertThat(authSession).isInstanceOf(RESTSigV4AuthSession.class);
-    checkSession((RESTSigV4AuthSession) authSession, "us-east-1", "id2", "secret2", true);
+    checkSession(authSession, "us-east-1", "id2", "secret2", true);
   }
 
   @Test
@@ -175,8 +173,7 @@ class TestRESTSigV4AuthManager {
             "us-east-1");
     AuthSession authSession =
         manager.tableSession(TableIdentifier.of("table1"), tableProperties, catalogSession);
-    assertThat(authSession).isInstanceOf(RESTSigV4AuthSession.class);
-    checkSession((RESTSigV4AuthSession) authSession, "us-east-1", "id2", "secret2", true);
+    checkSession(authSession, "us-east-1", "id2", "secret2", true);
   }
 
   @Test
@@ -188,20 +185,22 @@ class TestRESTSigV4AuthManager {
   }
 
   private static void checkSession(
-      RESTSigV4AuthSession authSession,
+      AuthSession authSession,
       String expectedRegion,
       String expectedAccessKeyId,
       String expectedSecretAccessKey,
       boolean expectedKeepRefreshed) {
+    assertThat(authSession).isInstanceOf(RESTSigV4AuthSession.class);
+    RESTSigV4AuthSession sigV4AuthSession = (RESTSigV4AuthSession) authSession;
     // Check AWS properties present
-    assertThat(authSession).extracting("signingRegion").isEqualTo(Region.of(expectedRegion));
-    assertThat(authSession)
+    assertThat(sigV4AuthSession).extracting("signingRegion").isEqualTo(Region.of(expectedRegion));
+    assertThat(sigV4AuthSession)
         .extracting("credentialsProvider")
         .asInstanceOf(type(AwsCredentialsProvider.class))
         .extracting(AwsCredentialsProvider::resolveCredentials)
         .isEqualTo(AwsBasicCredentials.create(expectedAccessKeyId, expectedSecretAccessKey));
     // Check OAuth2 properties present in delegate
-    assertThat(authSession.delegate())
+    assertThat(sigV4AuthSession.delegate())
         .asInstanceOf(type(OAuth2Util.AuthSession.class))
         .extracting("config")
         .asInstanceOf(type(AuthConfig.class))
