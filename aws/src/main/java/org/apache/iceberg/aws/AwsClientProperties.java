@@ -199,7 +199,8 @@ public class AwsClientProperties implements Serializable {
       String accessKeyId, String secretAccessKey, String sessionToken) {
     if (refreshCredentialsEnabled && !Strings.isNullOrEmpty(refreshCredentialsEndpoint)) {
       clientCredentialsProviderProperties.put(
-          VendedCredentialsProvider.URI, refreshCredentialsEndpoint);
+          VendedCredentialsProvider.CREDENTIALS_ENDPOINT, refreshCredentialsEndpoint);
+      clientCredentialsProviderProperties.put(VendedCredentialsProvider.URI, allProperties.get(CatalogProperties.URI));
       Optional.ofNullable(allProperties.get(OAuth2Properties.TOKEN))
           .ifPresent(
               token ->

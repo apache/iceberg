@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.hadoop.util.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
@@ -44,6 +44,7 @@ import software.amazon.awssdk.utils.cache.RefreshResult;
 
 public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAutoCloseable {
   public static final String URI = "credentials.uri";
+  public static final String CREDENTIALS_ENDPOINT = "credentials.endpoint";
   private volatile HTTPClient client;
   private final Map<String, String> properties;
   private final CachedSupplier<AwsCredentials> credentialCache;
@@ -53,6 +54,7 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
   private VendedCredentialsProvider(Map<String, String> properties) {
     Preconditions.checkArgument(null != properties, "Invalid properties: null");
     Preconditions.checkArgument(null != properties.get(URI), "Invalid URI: null");
+    Preconditions.checkArgument(null != properties.get(CREDENTIALS_ENDPOINT), "Invalid endpoint: null");
     this.properties = properties;
     this.credentialCache =
         CachedSupplier.builder(() -> credentialFromProperties().orElseGet(this::refreshCredential))
@@ -95,7 +97,7 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
   private LoadCredentialsResponse fetchCredentials() {
     return httpClient()
         .get(
-            properties.get(URI),
+            properties.get(CREDENTIALS_ENDPOINT),
             null,
             LoadCredentialsResponse.class,
             Map.of(),
