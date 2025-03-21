@@ -97,16 +97,11 @@ public class ParquetVariantReaders {
   }
 
   public static VariantValueReader array(
-      int valueDefinitionLevel,
-      ParquetValueReader<?> valueReader,
-      int typedDefinitionLevel,
       int repeatedDefinitionLevel,
       int repeatedRepetitionLevel,
       ParquetValueReader<?> elementReader) {
-    VariantValueReader typedReader =
-        new ListReader(
-            repeatedDefinitionLevel, repeatedRepetitionLevel, (VariantValueReader) elementReader);
-    return shredded(valueDefinitionLevel, valueReader, typedDefinitionLevel, typedReader);
+    return new ListReader(
+        repeatedDefinitionLevel, repeatedRepetitionLevel, (VariantValueReader) elementReader);
   }
 
   public static VariantValueReader asVariant(PhysicalType type, ParquetValueReader<?> reader) {
