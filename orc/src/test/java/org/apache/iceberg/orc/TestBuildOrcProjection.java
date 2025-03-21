@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.orc;
 
+import static org.apache.iceberg.orc.ORCSchemaUtil.ICEBERG_ORIGINAL_MISSING;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -163,7 +164,7 @@ public class TestBuildOrcProjection {
 
     assertThatThrownBy(() -> ORCSchemaUtil.buildOrcProjection(evolvedSchema, baseOrcSchema))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Missing required field: b.d (long)");
+        .hasMessage("Missing required field: b.d");
   }
 
   @Test
@@ -188,8 +189,19 @@ public class TestBuildOrcProjection {
                         .withInitialDefault(Literal.of(34L))
                         .build())));
 
-    assertThatThrownBy(() -> ORCSchemaUtil.buildOrcProjection(evolvedSchema, baseOrcSchema))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("ORC cannot read default value for field b.d (long): 34");
+    TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(evolvedSchema, baseOrcSchema);
+    assertThat(newOrcSchema.getChildren()).hasSize(2);
+    assertThat(newOrcSchema.findSubtype("a").getCategory()).isEqualTo(TypeDescription.Category.INT);
+    assertThat(newOrcSchema.findSubtype("b").getId()).isEqualTo(2);
+    assertThat(newOrcSchema.findSubtype("b").getCategory())
+        .isEqualTo(TypeDescription.Category.STRUCT);
+    TypeDescription nestedCol = newOrcSchema.findSubtype("b");
+    assertThat(nestedCol.findSubtype("c").getId()).isEqualTo(3);
+    assertThat(nestedCol.findSubtype("c").getCategory()).isEqualTo(TypeDescription.Category.LONG);
+    assertThat(nestedCol.findSubtype("d_r4").getId()).isEqualTo(4);
+    assertThat(nestedCol.findSubtype("d_r4").getCategory())
+        .isEqualTo(TypeDescription.Category.LONG);
+    assertThat(nestedCol.findSubtype("d_r4").getAttributeValue(ICEBERG_ORIGINAL_MISSING))
+        .isEqualTo("true");
   }
 }

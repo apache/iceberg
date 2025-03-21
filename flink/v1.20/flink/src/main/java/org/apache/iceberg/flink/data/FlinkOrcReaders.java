@@ -39,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 import org.apache.orc.storage.ql.exec.vector.DecimalColumnVector;
@@ -91,8 +92,11 @@ class FlinkOrcReaders {
   }
 
   public static OrcValueReader<RowData> struct(
-      List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
-    return new StructReader(readers, struct, idToConstant);
+      List<OrcValueReader<?>> readers,
+      TypeDescription record,
+      Types.StructType struct,
+      Map<Integer, ?> idToConstant) {
+    return new StructReader(readers, record, struct, idToConstant);
   }
 
   private static class StringReader implements OrcValueReader<StringData> {
@@ -265,8 +269,11 @@ class FlinkOrcReaders {
     private final int numFields;
 
     StructReader(
-        List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
-      super(readers, struct, idToConstant);
+        List<OrcValueReader<?>> readers,
+        TypeDescription record,
+        Types.StructType struct,
+        Map<Integer, ?> idToConstant) {
+      super(readers, record, struct, idToConstant, RowDataUtil::convertConstant);
       this.numFields = struct.fields().size();
     }
 

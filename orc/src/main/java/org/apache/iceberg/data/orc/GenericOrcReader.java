@@ -76,7 +76,7 @@ public class GenericOrcReader implements OrcRowReader<Record> {
         TypeDescription record,
         List<String> names,
         List<OrcValueReader<?>> fields) {
-      return GenericOrcReaders.struct(fields, expected, idToConstant);
+      return GenericOrcReaders.struct(fields, record, expected, idToConstant);
     }
 
     @Override
