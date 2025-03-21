@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.connect;
 
-import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.common.DynConstructors;
 
 class CommitterFactory {
@@ -26,7 +25,7 @@ class CommitterFactory {
     String committerImpl = config.committerImpl();
     DynConstructors.Ctor<Committer> ctor;
     try {
-      ctor = DynConstructors.builder(Catalog.class).impl(committerImpl).buildChecked();
+      ctor = DynConstructors.builder(Committer.class).impl(committerImpl).buildChecked();
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(
           String.format(
@@ -40,7 +39,8 @@ class CommitterFactory {
 
     } catch (ClassCastException e) {
       throw new IllegalArgumentException(
-          String.format("Cannot initialize Catalog, %s does not implement Catalog.", committerImpl),
+          String.format(
+              "Cannot initialize Committer, %s does not implement Committer.", committerImpl),
           e);
     }
     return committer;
