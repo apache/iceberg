@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.connect.channel;
 
+import static org.apache.iceberg.connect.IcebergSinkConfig.KAFKA_SERDE_PROP_PREFIX;
+
 import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
@@ -36,8 +38,6 @@ import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 
-import static org.apache.iceberg.connect.IcebergSinkConfig.KAFKA_SERDE_PROP_PREFIX;
-
 class KafkaClientFactory {
   private final Map<String, String> kafkaProps;
   private final Map<String, Object> kafkaSerdeProps = Maps.newHashMap();
@@ -48,7 +48,8 @@ class KafkaClientFactory {
     while (iterator.hasNext()) {
       Map.Entry<String, String> entry = iterator.next();
       if (entry.getKey().startsWith(KAFKA_SERDE_PROP_PREFIX)) {
-        kafkaSerdeProps.put(entry.getKey().substring(KAFKA_SERDE_PROP_PREFIX.length()), entry.getValue());
+        kafkaSerdeProps.put(
+            entry.getKey().substring(KAFKA_SERDE_PROP_PREFIX.length()), entry.getValue());
         iterator.remove(); // Safe removal while iterating
       }
     }
@@ -62,32 +63,37 @@ class KafkaClientFactory {
 
     try {
       // Resolve key and value serializer classes safely
-      Object keySerializerProp = kafkaSerdeProps.getOrDefault(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
-      Object valueSerializerProp = kafkaSerdeProps.getOrDefault(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class);
+      Object keySerializerProp =
+          kafkaSerdeProps.getOrDefault(
+              ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+      Object valueSerializerProp =
+          kafkaSerdeProps.getOrDefault(
+              ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class);
 
       // Convert String to Class if necessary
-      Class<? extends Serializer<String>> keySerializerClass = (keySerializerProp instanceof String)
+      Class<? extends Serializer<String>> keySerializerClass =
+          (keySerializerProp instanceof String)
               ? (Class<? extends Serializer<String>>) Class.forName((String) keySerializerProp)
               : (Class<? extends Serializer<String>>) keySerializerProp;
 
-      Class<? extends Serializer<byte[]>> valueSerializerClass = (valueSerializerProp instanceof String)
+      Class<? extends Serializer<byte[]>> valueSerializerClass =
+          (valueSerializerProp instanceof String)
               ? (Class<? extends Serializer<byte[]>>) Class.forName((String) valueSerializerProp)
               : (Class<? extends Serializer<byte[]>>) valueSerializerProp;
 
       Serializer<String> keySerializer = keySerializerClass.getDeclaredConstructor().newInstance();
       keySerializer.configure(kafkaSerdeProps, true);
-      Serializer<byte[]> valueSerializer = valueSerializerClass.getDeclaredConstructor().newInstance();
+      Serializer<byte[]> valueSerializer =
+          valueSerializerClass.getDeclaredConstructor().newInstance();
       valueSerializer.configure(kafkaSerdeProps, false);
       KafkaProducer<String, byte[]> result =
-              new KafkaProducer<>(producerProps, keySerializer, valueSerializer);
+          new KafkaProducer<>(producerProps, keySerializer, valueSerializer);
       result.initTransactions();
       return result;
     } catch (Exception e) {
       throw new RuntimeException("Failed to instantiate control topic producer", e);
     }
   }
-
-
 
   @SuppressWarnings("unchecked")
   Consumer<String, byte[]> createConsumer(String consumerGroupId) {
@@ -100,32 +106,38 @@ class KafkaClientFactory {
 
     try {
       // Resolve key and value deserializer classes safely
-      Object keyDeserializerProp = kafkaSerdeProps.getOrDefault(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-      Object valueDeserializerProp = kafkaSerdeProps.getOrDefault(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class);
+      Object keyDeserializerProp =
+          kafkaSerdeProps.getOrDefault(
+              ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+      Object valueDeserializerProp =
+          kafkaSerdeProps.getOrDefault(
+              ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class);
 
       // Convert String to Class if necessary
-      Class<? extends Deserializer<String>> keyDeserializerClass = (keyDeserializerProp instanceof String)
+      Class<? extends Deserializer<String>> keyDeserializerClass =
+          (keyDeserializerProp instanceof String)
               ? (Class<? extends Deserializer<String>>) Class.forName((String) keyDeserializerProp)
               : (Class<? extends Deserializer<String>>) keyDeserializerProp;
 
-      Class<? extends Deserializer<byte[]>> valueDeserializerClass = (valueDeserializerProp instanceof String)
-              ? (Class<? extends Deserializer<byte[]>>) Class.forName((String) valueDeserializerProp)
+      Class<? extends Deserializer<byte[]>> valueDeserializerClass =
+          (valueDeserializerProp instanceof String)
+              ? (Class<? extends Deserializer<byte[]>>)
+                  Class.forName((String) valueDeserializerProp)
               : (Class<? extends Deserializer<byte[]>>) valueDeserializerProp;
 
       // Instantiate deserializers
-      Deserializer<String> keyDeserializer = keyDeserializerClass.getDeclaredConstructor().newInstance();
+      Deserializer<String> keyDeserializer =
+          keyDeserializerClass.getDeclaredConstructor().newInstance();
       keyDeserializer.configure(kafkaSerdeProps, true);
-      Deserializer<byte[]> valueDeserializer = valueDeserializerClass.getDeclaredConstructor().newInstance();
+      Deserializer<byte[]> valueDeserializer =
+          valueDeserializerClass.getDeclaredConstructor().newInstance();
       valueDeserializer.configure(kafkaSerdeProps, false);
 
-      return new KafkaConsumer<>(
-              consumerProps, keyDeserializer, valueDeserializer);
+      return new KafkaConsumer<>(consumerProps, keyDeserializer, valueDeserializer);
     } catch (Exception e) {
       throw new RuntimeException("Failed to instantiate control topic consumer", e);
     }
   }
-
-
 
   Admin createAdmin() {
     Map<String, Object> adminProps = Maps.newHashMap(kafkaProps);
