@@ -1156,7 +1156,7 @@ public class TestRewriteManifestsAction extends TestBase {
       Table table, StructLike partition, List<Pair<CharSequence, Long>> deletes)
       throws IOException {
     OutputFile outputFile = Files.localOutput(File.createTempFile("junit", null, temp.toFile()));
-    return FileHelpers.writeDeleteFile(table, outputFile, partition, deletes);
+    return FileHelpers.writeDeleteFile(table, outputFile, partition, deletes, formatVersion);
   }
 
   private DeleteFile writeEqDeletes(Table table, String key, Object... values) throws IOException {
