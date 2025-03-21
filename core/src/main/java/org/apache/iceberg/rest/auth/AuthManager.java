@@ -33,74 +33,62 @@ import org.apache.iceberg.rest.RESTClient;
 public interface AuthManager extends AutoCloseable {
 
   /**
-   * Returns a temporary session to use for contacting the configuration endpoint only. Note that
-   * the returned session will be closed after the configuration endpoint is contacted, and should
-   * not be cached.
+   * Returns a manager that uses the given REST client for its internal authentication requests,
+   * such as for fetching tokens or refreshing credentials.
    *
-   * <p>The provided REST client is a short-lived client; it should only be used to fetch initial
-   * credentials, if required, and must be discarded after that.
-   *
-   * <p>This method cannot return null. By default, it returns the catalog session.
+   * <p>By default, this method ignores the REST client and returns {@code this}. Implementations
+   * that require a client should override this method.
    */
+  default AuthManager withClient(RESTClient client) {
+    return this;
+  }
+
+  /** Returns an authentication session for the given scope. */
+  default AuthSession authSession(AuthScope scope) {
+    throw new UnsupportedOperationException("AuthManager.authSession is not implemented");
+  }
+
+  /**
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
+   *     instead.
+   */
+  @Deprecated
   default AuthSession initSession(RESTClient initClient, Map<String, String> properties) {
     return catalogSession(initClient, properties);
   }
 
   /**
-   * Returns a long-lived session whose lifetime is tied to the owning catalog. This session serves
-   * as the parent session for all other sessions (contextual and table-specific). It is closed when
-   * the owning catalog is closed.
-   *
-   * <p>The provided REST client is a long-lived, shared client; if required, implementors may store
-   * it and reuse it for all subsequent requests to the authorization server, e.g. for renewing or
-   * refreshing credentials. It is not necessary to close it when {@link #close()} is called.
-   *
-   * <p>This method cannot return null.
-   *
-   * <p>It is not required to cache the returned session internally, as the catalog will keep it
-   * alive for the lifetime of the catalog.
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
+   *     instead.
    */
-  AuthSession catalogSession(RESTClient sharedClient, Map<String, String> properties);
+  @Deprecated
+  default AuthSession catalogSession(RESTClient sharedClient, Map<String, String> properties) {
+    return withClient(sharedClient).authSession(ImmutableAuthScopes.Catalog.of(properties));
+  }
 
   /**
-   * Returns a new session targeting a table or view. This method is intended for components other
-   * that the catalog that need to access tables or views, such as request signer clients.
-   *
-   * <p>This method cannot return null.
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
+   *     instead.
    */
+  @Deprecated
   default AuthSession tableSession(RESTClient sharedClient, Map<String, String> properties) {
     return catalogSession(sharedClient, properties);
   }
 
   /**
-   * Returns a session for a specific context.
-   *
-   * <p>If the context requires a specific {@link AuthSession}, this method should return a new
-   * {@link AuthSession} instance, otherwise it should return the parent session.
-   *
-   * <p>This method cannot return null. By default, it returns the parent session.
-   *
-   * <p>Implementors should cache contextual sessions internally, as the catalog will not cache
-   * them. Also, the owning catalog never closes contextual sessions; implementations should manage
-   * their lifecycle themselves and close them when they are no longer needed.
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
+   *     instead.
    */
+  @Deprecated
   default AuthSession contextualSession(SessionCatalog.SessionContext context, AuthSession parent) {
     return parent;
   }
 
   /**
-   * Returns a new session targeting a specific table or view. The properties are the ones returned
-   * by the table/view endpoint.
-   *
-   * <p>If the table or view requires a specific {@link AuthSession}, this method should return a
-   * new {@link AuthSession} instance, otherwise it should return the parent session.
-   *
-   * <p>This method cannot return null. By default, it returns the parent session.
-   *
-   * <p>Implementors should cache table sessions internally, as the catalog will not cache them.
-   * Also, the owning catalog never closes table sessions; implementations should manage their
-   * lifecycle themselves and close them when they are no longer needed.
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
+   *     instead.
    */
+  @Deprecated
   default AuthSession tableSession(
       TableIdentifier table, Map<String, String> properties, AuthSession parent) {
     return parent;
