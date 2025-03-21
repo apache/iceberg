@@ -27,6 +27,7 @@ import static org.apache.spark.sql.functions.expr;
 import static org.apache.spark.sql.functions.min;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doAnswer;
@@ -79,6 +80,8 @@ import org.apache.iceberg.actions.SizeBasedFileRewriter;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.BaseDVFileWriter;
+import org.apache.iceberg.deletes.DVFileWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -98,7 +101,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
@@ -173,7 +175,8 @@ public class TestRewriteDataFilesAction extends TestBase {
   @TestTemplate
   public void testEmptyTable() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    Map<String, String> options = Maps.newHashMap();
+    Map<String, String> options =
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
     assertThat(table.currentSnapshot()).as("Table must be empty").isNull();
@@ -310,9 +313,159 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testBinPackWithDeletes() {
+  public void testDataFilesRewrittenWithMaxDeleteRatio() throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    Table table = createTable();
+    int numDataFiles = 5;
+    // 100 / 5 = 20 records per data file
+    writeRecords(numDataFiles, 100);
+    // delete > 100% of records for each data file
+    int numPositionsToDelete = 1000;
+    table.refresh();
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    assertThat(dataFiles).hasSize(numDataFiles);
+
+    RowDelta rowDelta = table.newRowDelta();
+    for (DataFile dataFile : dataFiles) {
+      if (formatVersion >= 3) {
+        writeDV(table, dataFile.partition(), dataFile.location(), numPositionsToDelete)
+            .forEach(rowDelta::addDeletes);
+      } else {
+        writePosDeletes(table, dataFile.partition(), dataFile.location(), 4, numPositionsToDelete)
+            .forEach(rowDelta::addDeletes);
+      }
+    }
+
+    rowDelta.commit();
+
+    Set<DeleteFile> deleteFiles = TestHelpers.deleteFiles(table);
+    int expectedDataFiles = formatVersion >= 3 ? numDataFiles : numDataFiles * 4;
+    assertThat(deleteFiles).hasSize(expectedDataFiles);
+
+    // there are 5 data files with a delete ratio of > 100% each, so all data files should be
+    // rewritten. Set MIN_INPUT_FILES > to the number of data files so that compaction is only
+    // triggered when the delete ratio of >= 30% is hit
+    RewriteDataFiles.Result result =
+        SparkActions.get(spark)
+            .rewriteDataFiles(table)
+            .option(SizeBasedFileRewriter.MIN_INPUT_FILES, "10")
+            .option(SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES, "0")
+            .execute();
+
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(numDataFiles);
+
+    table.refresh();
+    List<DataFile> newDataFiles = TestHelpers.dataFiles(table);
+    assertThat(newDataFiles).isEmpty();
+
+    Set<DeleteFile> newDeleteFiles = TestHelpers.deleteFiles(table);
+    assertThat(newDeleteFiles).isEmpty();
+  }
+
+  @TestTemplate
+  public void testDataFilesRewrittenWithHighDeleteRatio() throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    Table table = createTable();
+    int numDataFiles = 5;
+    // 100 / 5 = 20 records per data file
+    writeRecords(numDataFiles, 100);
+    // delete 40% of records for each data file
+    int numPositionsToDelete = 8;
+    table.refresh();
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    assertThat(dataFiles).hasSize(numDataFiles);
+
+    RowDelta rowDelta = table.newRowDelta();
+    for (DataFile dataFile : dataFiles) {
+      if (formatVersion >= 3) {
+        writeDV(table, dataFile.partition(), dataFile.location(), numPositionsToDelete)
+            .forEach(rowDelta::addDeletes);
+      } else {
+        writePosDeletes(table, dataFile.partition(), dataFile.location(), 4, numPositionsToDelete)
+            .forEach(rowDelta::addDeletes);
+      }
+    }
+
+    rowDelta.commit();
+
+    Set<DeleteFile> deleteFiles = TestHelpers.deleteFiles(table);
+    int expectedDataFiles = formatVersion >= 3 ? numDataFiles : numDataFiles * 4;
+    assertThat(deleteFiles).hasSize(expectedDataFiles);
+
+    // there are 5 data files with a delete ratio of 40% each, so all data files should be
+    // rewritten. Set MIN_INPUT_FILES > to the number of data files so that compaction is only
+    // triggered when the delete ratio of >= 30% is hit
+    RewriteDataFiles.Result result =
+        SparkActions.get(spark)
+            .rewriteDataFiles(table)
+            .option(SizeBasedFileRewriter.MIN_INPUT_FILES, "10")
+            .option(SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES, "0")
+            .execute();
+
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(numDataFiles);
+
+    table.refresh();
+    List<DataFile> newDataFiles = TestHelpers.dataFiles(table);
+    assertThat(newDataFiles).hasSize(1);
+
+    Set<DeleteFile> newDeleteFiles = TestHelpers.deleteFiles(table);
+    assertThat(newDeleteFiles).isEmpty();
+  }
+
+  @TestTemplate
+  public void testDataFilesNotRewrittenWithLowDeleteRatio() throws Exception {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    Table table = createTable();
+    int numDataFiles = 5;
+    // 100 / 5 = 20 records per data file
+    writeRecords(numDataFiles, 100);
+    // delete 25% of records for each data file
+    int numPositionsToDelete = 5;
+    table.refresh();
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    assertThat(dataFiles).hasSize(numDataFiles);
+
+    RowDelta rowDelta = table.newRowDelta();
+    for (DataFile dataFile : dataFiles) {
+      if (formatVersion >= 3) {
+        writeDV(table, dataFile.partition(), dataFile.location(), numPositionsToDelete)
+            .forEach(rowDelta::addDeletes);
+      } else {
+        writePosDeletes(table, dataFile.partition(), dataFile.location(), 5, numPositionsToDelete)
+            .forEach(rowDelta::addDeletes);
+      }
+    }
+
+    rowDelta.commit();
+
+    Set<DeleteFile> deleteFiles = TestHelpers.deleteFiles(table);
+    int expectedDataFiles = formatVersion >= 3 ? numDataFiles : numDataFiles * 5;
+    assertThat(deleteFiles).hasSize(expectedDataFiles);
+
+    // there are 5 data files with a delete ratio of 25% each, so data files should not be
+    // rewritten. Set MIN_INPUT_FILES > to the number of data files so that compaction is only
+    // triggered when the delete ratio of >= 30% is hit
+    RewriteDataFiles.Result result =
+        SparkActions.get(spark)
+            .rewriteDataFiles(table)
+            .option(SizeBasedFileRewriter.MIN_INPUT_FILES, "10")
+            .option(SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES, "0")
+            .execute();
+
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(0);
+
+    table.refresh();
+    List<DataFile> newDataFiles = TestHelpers.dataFiles(table);
+    assertThat(newDataFiles).hasSameSizeAs(dataFiles);
+
+    Set<DeleteFile> newDeleteFiles = TestHelpers.deleteFiles(table);
+    assertThat(newDeleteFiles).hasSameSizeAs(deleteFiles);
+  }
+
+  @TestTemplate
+  public void testBinPackWithDeletes() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
     Table table = createTablePartitioned(4, 2);
-    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
     shouldHaveFiles(table, 8);
     table.refresh();
 
@@ -320,14 +473,28 @@ public class TestRewriteDataFilesAction extends TestBase {
     int total = (int) dataFiles.stream().mapToLong(ContentFile::recordCount).sum();
 
     RowDelta rowDelta = table.newRowDelta();
-    // add 1 delete file for data files 0, 1, 2
-    for (int i = 0; i < 3; i++) {
-      writePosDeletesToFile(table, dataFiles.get(i), 1).forEach(rowDelta::addDeletes);
-    }
+    if (formatVersion >= 3) {
+      // delete 1 position for data files 0, 1, 2
+      for (int i = 0; i < 3; i++) {
+        writeDV(table, dataFiles.get(i).partition(), dataFiles.get(i).location(), 1)
+            .forEach(rowDelta::addDeletes);
+      }
 
-    // add 2 delete files for data files 3, 4
-    for (int i = 3; i < 5; i++) {
-      writePosDeletesToFile(table, dataFiles.get(i), 2).forEach(rowDelta::addDeletes);
+      // delete 2 positions for data files 3, 4
+      for (int i = 3; i < 5; i++) {
+        writeDV(table, dataFiles.get(i).partition(), dataFiles.get(i).location(), 2)
+            .forEach(rowDelta::addDeletes);
+      }
+    } else {
+      // add 1 delete file for data files 0, 1, 2
+      for (int i = 0; i < 3; i++) {
+        writePosDeletesToFile(table, dataFiles.get(i), 1).forEach(rowDelta::addDeletes);
+      }
+
+      // add 2 delete files for data files 3, 4
+      for (int i = 3; i < 5; i++) {
+        writePosDeletesToFile(table, dataFiles.get(i), 2).forEach(rowDelta::addDeletes);
+      }
     }
 
     rowDelta.commit();
@@ -335,21 +502,40 @@ public class TestRewriteDataFilesAction extends TestBase {
     List<Object[]> expectedRecords = currentData();
     long dataSizeBefore = testDataSize(table);
 
-    Result result =
-        actions()
-            .rewriteDataFiles(table)
-            // do not include any file based on bin pack file size configs
-            .option(SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES, "0")
-            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
-            .option(SizeBasedFileRewriter.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
-            .option(SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, "2")
-            .execute();
-    assertThat(result.rewrittenDataFilesCount()).isEqualTo(2);
-    assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
+    if (formatVersion >= 3) {
+      Result result =
+          actions()
+              .rewriteDataFiles(table)
+              // do not include any file based on bin pack file size configs
+              .option(SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES, "0")
+              .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
+              .option(SizeBasedFileRewriter.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
+              // set DELETE_FILE_THRESHOLD to 1 since DVs only produce one delete file per data file
+              .option(SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, "1")
+              .execute();
+      assertThat(result.rewrittenDataFilesCount())
+          .as("Action should rewrite 5 data files")
+          .isEqualTo(5);
+      assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
+    } else {
+      Result result =
+          actions()
+              .rewriteDataFiles(table)
+              // do not include any file based on bin pack file size configs
+              .option(SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES, "0")
+              .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
+              .option(SizeBasedFileRewriter.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
+              .option(SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, "2")
+              .execute();
+      assertThat(result.rewrittenDataFilesCount())
+          .as("Action should rewrite 2 data files")
+          .isEqualTo(2);
+      assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
+    }
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);
-    assertThat(actualRecords).hasSize(total - 7);
+    assertThat(actualRecords).as("7 rows are removed").hasSize(total - 7);
   }
 
   @TestTemplate
@@ -358,8 +544,9 @@ public class TestRewriteDataFilesAction extends TestBase {
         TABLES.create(
             SCHEMA,
             SPEC,
-            Collections.singletonMap(TableProperties.FORMAT_VERSION, "2"),
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
             tableLocation);
+
     // data seq = 1, write 4 files in 2 partitions
     List<ThreeColumnRecord> records1 =
         Lists.newArrayList(
@@ -372,6 +559,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     writeRecords(records2);
     table.refresh();
     shouldHaveFiles(table, 4);
+
     // data seq = 2 & 3, write 2 equality deletes in both partitions
     writeEqDeleteRecord(table, "c1", 1, "c3", "AAAA");
     writeEqDeleteRecord(table, "c1", 2, "c3", "CCCC");
@@ -380,23 +568,29 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(existingDeletes)
         .as("Only one equality delete c1=1 is used in query planning")
         .hasSize(1);
+
     // partition evolution
     table.refresh();
     table.updateSpec().addField(Expressions.ref("c3")).commit();
+
     // data seq = 4, write 2 new data files in both partitions for evolved spec
     List<ThreeColumnRecord> records3 =
         Lists.newArrayList(
             new ThreeColumnRecord(1, "A", "CCCC"), new ThreeColumnRecord(2, "D", "DDDD"));
     writeRecords(records3);
+
     List<Object[]> originalData = currentData();
+
     RewriteDataFiles.Result result =
         basicRewrite(table)
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
             .filter(Expressions.equal("c1", 1))
             .option(RewriteDataFiles.REMOVE_DANGLING_DELETES, "true")
             .execute();
+
     existingDeletes = TestHelpers.deleteFiles(table);
     assertThat(existingDeletes).as("Shall pruned dangling deletes after rewrite").hasSize(0);
+
     assertThat(result)
         .extracting(
             Result::addedDataFilesCount,
@@ -405,35 +599,46 @@ public class TestRewriteDataFilesAction extends TestBase {
         .as("Should compact 3 data files into 2 and remove both dangled equality delete file")
         .containsExactly(2, 3, 2);
     shouldHaveMinSequenceNumberInPartition(table, "data_file.partition.c1 == 1", 5);
+
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
     shouldHaveSnapshots(table, 7);
     shouldHaveFiles(table, 5);
   }
 
   @TestTemplate
-  public void testRemoveDangledPositionDeletesPartitionEvolution() {
+  public void testRemoveDangledPositionDeletesPartitionEvolution() throws IOException {
     Table table =
         TABLES.create(
             SCHEMA,
             SPEC,
-            Collections.singletonMap(TableProperties.FORMAT_VERSION, "2"),
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
             tableLocation);
+
     // data seq = 1, write 4 files in 2 partitions
     writeRecords(2, 2, 2);
     List<DataFile> dataFilesBefore = TestHelpers.dataFiles(table, null);
     shouldHaveFiles(table, 4);
+
+    DeleteFile deleteFile;
     // data seq = 2, write 1 position deletes in c1=1
-    table
-        .newRowDelta()
-        .addDeletes(writePosDeletesToFile(table, dataFilesBefore.get(3), 1).get(0))
-        .commit();
+    DataFile dataFile = dataFilesBefore.get(3);
+    if (formatVersion >= 3) {
+      deleteFile = writeDV(table, dataFile.partition(), dataFile.location(), 1).get(0);
+    } else {
+      deleteFile = writePosDeletesToFile(table, dataFile, 1).get(0);
+    }
+    table.newRowDelta().addDeletes(deleteFile).commit();
+
     // partition evolution
     table.updateSpec().addField(Expressions.ref("c3")).commit();
+
     // data seq = 3, write 1 new data files in c1=1 for evolved spec
     writeRecords(1, 1, 1);
     shouldHaveFiles(table, 5);
     List<Object[]> expectedRecords = currentData();
+
     Result result =
         actions()
             .rewriteDataFiles(table)
@@ -441,6 +646,7 @@ public class TestRewriteDataFilesAction extends TestBase {
             .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
             .option(RewriteDataFiles.REMOVE_DANGLING_DELETES, "true")
             .execute();
+
     assertThat(result)
         .extracting(
             Result::addedDataFilesCount,
@@ -449,16 +655,16 @@ public class TestRewriteDataFilesAction extends TestBase {
         .as("Should rewrite 2 data files into 1 and remove 1 dangled position delete file")
         .containsExactly(1, 2, 1);
     shouldHaveMinSequenceNumberInPartition(table, "data_file.partition.c1 == 1", 3);
+
     shouldHaveSnapshots(table, 5);
     assertThat(table.currentSnapshot().summary()).containsEntry("total-position-deletes", "0");
     assertEquals("Rows must match", expectedRecords, currentData());
   }
 
   @TestTemplate
-  public void testBinPackWithDeleteAllData() {
-    Map<String, String> options = Maps.newHashMap();
-    options.put(TableProperties.FORMAT_VERSION, "2");
-    Table table = createTablePartitioned(1, 1, 1, options);
+  public void testBinPackWithDeleteAllData() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    Table table = createTablePartitioned(1, 1, 1);
     shouldHaveFiles(table, 1);
     table.refresh();
 
@@ -466,8 +672,14 @@ public class TestRewriteDataFilesAction extends TestBase {
     int total = (int) dataFiles.stream().mapToLong(ContentFile::recordCount).sum();
 
     RowDelta rowDelta = table.newRowDelta();
+    DataFile dataFile = dataFiles.get(0);
     // remove all data
-    writePosDeletesToFile(table, dataFiles.get(0), total).forEach(rowDelta::addDeletes);
+    if (formatVersion >= 3) {
+      writeDV(table, dataFile.partition(), dataFile.location(), total)
+          .forEach(rowDelta::addDeletes);
+    } else {
+      writePosDeletesToFile(table, dataFile, total).forEach(rowDelta::addDeletes);
+    }
 
     rowDelta.commit();
     table.refresh();
@@ -499,10 +711,10 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testBinPackWithStartingSequenceNumber() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
     Table table = createTablePartitioned(4, 2);
     shouldHaveFiles(table, 8);
     List<Object[]> expectedRecords = currentData();
-    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
     table.refresh();
     long oldSequenceNumber = table.currentSnapshot().sequenceNumber();
     long dataSizeBefore = testDataSize(table);
@@ -573,8 +785,12 @@ public class TestRewriteDataFilesAction extends TestBase {
   @TestTemplate
   public void testRewriteLargeTableHasResiduals() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).build();
-    Map<String, String> options = Maps.newHashMap();
-    options.put(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, "100");
+    Map<String, String> options =
+        ImmutableMap.of(
+            TableProperties.FORMAT_VERSION,
+            String.valueOf(formatVersion),
+            TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES,
+            "100");
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
     // all records belong to the same partition
@@ -1009,8 +1225,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
 
-    // With 10 original groups and Max Commits of 3, we should have commits with 4, 4, and 2.
-    // removing 3 groups leaves us with only 2 new commits, 4 and 3
+    // With 10 original groups and max commits of 3, we have 4 groups per commit.
+    // Removing 3 groups, we are left with 4 groups and 3 groups in two commits.
     shouldHaveSnapshots(table, 3);
     shouldHaveNoOrphans(table);
     shouldHaveACleanCache(table);
@@ -1438,7 +1654,6 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
-    int zOrderedFilesTotal = Iterables.size(table.currentSnapshot().addedDataFiles(table.io()));
     assertThat(table.currentSnapshot().addedDataFiles(table.io()))
         .as("Should have written 1 file")
         .hasSize(1);
@@ -1475,12 +1690,12 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testRewriteJobOrderBytesAsc() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
     Table table = createTablePartitioned(4, 2);
     writeRecords(1, SCALE, 1);
     writeRecords(2, SCALE, 2);
     writeRecords(3, SCALE, 3);
     writeRecords(4, SCALE, 4);
-    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
 
     RewriteDataFilesSparkAction basicRewrite = basicRewrite(table).binPack();
     List<Long> expected =
@@ -1507,12 +1722,12 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testRewriteJobOrderBytesDesc() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
     Table table = createTablePartitioned(4, 2);
     writeRecords(1, SCALE, 1);
     writeRecords(2, SCALE, 2);
     writeRecords(3, SCALE, 3);
     writeRecords(4, SCALE, 4);
-    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
 
     RewriteDataFilesSparkAction basicRewrite = basicRewrite(table).binPack();
     List<Long> expected =
@@ -1539,12 +1754,12 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testRewriteJobOrderFilesAsc() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
     Table table = createTablePartitioned(4, 2);
     writeRecords(1, SCALE, 1);
     writeRecords(2, SCALE, 2);
     writeRecords(3, SCALE, 3);
     writeRecords(4, SCALE, 4);
-    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
 
     RewriteDataFilesSparkAction basicRewrite = basicRewrite(table).binPack();
     List<Long> expected =
@@ -1571,12 +1786,12 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testRewriteJobOrderFilesDesc() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
     Table table = createTablePartitioned(4, 2);
     writeRecords(1, SCALE, 1);
     writeRecords(2, SCALE, 2);
     writeRecords(3, SCALE, 3);
     writeRecords(4, SCALE, 4);
-    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
 
     RewriteDataFilesSparkAction basicRewrite = basicRewrite(table).binPack();
     List<Long> expected =
@@ -1887,7 +2102,8 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   protected Table createTable() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    Map<String, String> options = Maps.newHashMap();
+    Map<String, String> options =
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
     table
         .updateProperties()
@@ -1920,7 +2136,19 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   protected Table createTablePartitioned(int partitions, int files) {
-    return createTablePartitioned(partitions, files, SCALE, Maps.newHashMap());
+    return createTablePartitioned(
+        partitions,
+        files,
+        SCALE,
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)));
+  }
+
+  protected Table createTablePartitioned(int partitions, int files, int numRecords) {
+    return createTablePartitioned(
+        partitions,
+        files,
+        numRecords,
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)));
   }
 
   private Table createTypeTestTable() {
@@ -1936,7 +2164,8 @@ public class TestRewriteDataFilesAction extends TestBase {
             optional(8, "booleanCol", Types.BooleanType.get()),
             optional(9, "binaryCol", Types.BinaryType.get()));
 
-    Map<String, String> options = Maps.newHashMap();
+    Map<String, String> options =
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
     Table table = TABLES.create(schema, PartitionSpec.unpartitioned(), options, tableLocation);
 
     spark
@@ -2053,6 +2282,67 @@ public class TestRewriteDataFilesAction extends TestBase {
     return results;
   }
 
+  private List<DeleteFile> writePosDeletes(
+      Table table,
+      StructLike partition,
+      String path,
+      int outputDeleteFiles,
+      int totalPositionsToDelete) {
+    List<DeleteFile> results = Lists.newArrayList();
+    for (int file = 0; file < outputDeleteFiles; file++) {
+      OutputFile outputFile =
+          table
+              .io()
+              .newOutputFile(
+                  table
+                      .locationProvider()
+                      .newDataLocation(
+                          FileFormat.PARQUET.addExtension(UUID.randomUUID().toString())));
+      EncryptedOutputFile encryptedOutputFile =
+          EncryptedFiles.encryptedOutput(outputFile, EncryptionKeyMetadata.EMPTY);
+
+      GenericAppenderFactory appenderFactory =
+          new GenericAppenderFactory(table.schema(), table.spec(), null, null, null);
+      PositionDeleteWriter<Record> posDeleteWriter =
+          appenderFactory
+              .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "full")
+              .newPosDeleteWriter(encryptedOutputFile, FileFormat.PARQUET, partition);
+
+      PositionDelete<Record> posDelete = PositionDelete.create();
+      int positionsPerDeleteFile = totalPositionsToDelete / outputDeleteFiles;
+
+      for (int position = file * positionsPerDeleteFile;
+          position < (file + 1) * positionsPerDeleteFile;
+          position++) {
+        posDeleteWriter.write(posDelete.set(path, position, null));
+      }
+
+      try {
+        posDeleteWriter.close();
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+
+      results.add(posDeleteWriter.toDeleteFile());
+    }
+
+    return results;
+  }
+
+  private List<DeleteFile> writeDV(
+      Table table, StructLike partition, String path, int numPositionsToDelete) throws IOException {
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PUFFIN).build();
+    DVFileWriter writer = new BaseDVFileWriter(fileFactory, p -> null);
+    try (DVFileWriter closeableWriter = writer) {
+      for (int row = 0; row < numPositionsToDelete; row++) {
+        closeableWriter.delete(path, row, table.spec(), partition);
+      }
+    }
+
+    return writer.result().deleteFiles();
+  }
+
   private void writeEqDeleteRecord(
       Table table, String partCol, Object partVal, String delCol, Object delVal) {
     List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().findField(delCol).fieldId());
@@ -2079,11 +2369,14 @@ public class TestRewriteDataFilesAction extends TestBase {
             ArrayUtil.toIntArray(equalityFieldIds),
             eqDeleteRowSchema,
             null);
+
     EncryptedOutputFile file =
         createEncryptedOutputFile(createPartitionKey(table, partitionRecord), fileFactory);
+
     EqualityDeleteWriter<Record> eqDeleteWriter =
         appenderFactory.newEqDeleteWriter(
             file, FileFormat.PARQUET, createPartitionKey(table, partitionRecord));
+
     try (EqualityDeleteWriter<Record> clsEqDeleteWriter = eqDeleteWriter) {
       clsEqDeleteWriter.write(deleteRecord);
     } catch (Exception e) {
@@ -2096,8 +2389,10 @@ public class TestRewriteDataFilesAction extends TestBase {
     if (table.spec().isUnpartitioned()) {
       return null;
     }
+
     PartitionKey partitionKey = new PartitionKey(table.spec(), table.schema());
     partitionKey.partition(record);
+
     return partitionKey;
   }
 
