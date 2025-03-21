@@ -28,8 +28,11 @@ import java.util.Collection;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types.DoubleType;
 import org.apache.iceberg.types.Types.IntegerType;
+import org.apache.iceberg.types.Types.LongType;
+import org.apache.iceberg.types.Types.StringType;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
 import org.apache.parquet.filter2.compat.FilterCompat;
 import org.junit.jupiter.api.TestTemplate;
@@ -39,20 +42,27 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestParquetFilters {
 
   private static final java.util.Map<String, Integer> ALIASES =
-      new java.util.HashMap<String, Integer>() {
-        {
-          put("id", 1);
-          put("age", 2);
-        }
-      };
+      ImmutableMap.of("id", 1, "age", 2, "timestamp", 3, "name", 4);
 
   private static final Schema SCHEMA =
       new Schema(
-          ALIASES, required(1, "id", IntegerType.get()), required(2, "age", DoubleType.get()));
+          Arrays.asList(
+              required(1, "id", IntegerType.get()),
+              required(2, "age", DoubleType.get()),
+              required(3, "timestamp", LongType.get()),
+              required(4, "name", StringType.get())),
+          ALIASES);
 
   @Parameters(name = "writerVersion={0}")
   public static Collection<WriterVersion> parameters() {
     return Arrays.asList(WriterVersion.PARQUET_1_0, WriterVersion.PARQUET_2_0);
+  }
+
+  private String getFilterPredicateString(FilterCompat.Filter filter)
+      throws NoSuchFieldException, IllegalAccessException {
+    java.lang.reflect.Field privateField = filter.getClass().getDeclaredField("filterPredicate");
+    privateField.setAccessible(true);
+    return privateField.get(filter).toString();
   }
 
   @TestTemplate
@@ -61,9 +71,7 @@ public class TestParquetFilters {
         (FilterCompat.Filter) ParquetFilters.convert(SCHEMA, in("id", 1, 2, 3), true);
 
     try {
-      java.lang.reflect.Field privateField = filter.getClass().getDeclaredField("filterPredicate");
-      privateField.setAccessible(true);
-      assertThat(privateField.get(filter).toString().equalsIgnoreCase("in(id, 1, 2, 3)")).isTrue();
+      assertThat(getFilterPredicateString(filter).equalsIgnoreCase("in(id, 1, 2, 3)")).isTrue();
     } catch (Exception e) {
       assertThat(true).isFalse();
     }
@@ -75,9 +83,36 @@ public class TestParquetFilters {
         (FilterCompat.Filter) ParquetFilters.convert(SCHEMA, notIn("age", 1.0, 2.0, 3.0), true);
 
     try {
-      java.lang.reflect.Field privateField = filter.getClass().getDeclaredField("filterPredicate");
-      privateField.setAccessible(true);
-      assertThat(privateField.get(filter).toString().equalsIgnoreCase("notin(age, 1.0, 2.0, 3.0)"))
+      assertThat(getFilterPredicateString(filter).equalsIgnoreCase("notin(age, 1.0, 2.0, 3.0)"))
+          .isTrue();
+    } catch (Exception e) {
+      assertThat(true).isFalse();
+    }
+  }
+
+  @TestTemplate
+  public void testLongInFilter() {
+    FilterCompat.Filter filter =
+        (FilterCompat.Filter)
+            ParquetFilters.convert(SCHEMA, in("timestamp", 1625097600000L, 1625097600001L), true);
+
+    try {
+      assertThat(
+              getFilterPredicateString(filter)
+                  .equalsIgnoreCase("in(timestamp, 1625097600001, 1625097600000)"))
+          .isTrue();
+    } catch (Exception e) {
+      assertThat(true).isFalse();
+    }
+  }
+
+  @TestTemplate
+  public void testStringNotInFilter() {
+    FilterCompat.Filter filter =
+        (FilterCompat.Filter) ParquetFilters.convert(SCHEMA, notIn("name", "Alice", "Bob"), true);
+
+    try {
+      assertThat(getFilterPredicateString(filter).equalsIgnoreCase("notin(name, Bob, Alice)"))
           .isTrue();
     } catch (Exception e) {
       assertThat(true).isFalse();

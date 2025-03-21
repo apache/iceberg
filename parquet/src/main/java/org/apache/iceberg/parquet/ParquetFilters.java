@@ -19,7 +19,6 @@
 package org.apache.iceberg.parquet;
 
 import java.nio.ByteBuffer;
-import java.util.HashSet;
 import java.util.Set;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.BoundPredicate;
@@ -144,21 +143,21 @@ class ParquetFilters {
           break;
         case INTEGER:
         case DATE:
-          return pred(op, FilterApi.intColumn(path), getParquetPrimitive(lit), (HashSet) litSet);
+          return pred(op, FilterApi.intColumn(path), getParquetPrimitive(lit), litSet);
         case LONG:
         case TIME:
         case TIMESTAMP:
-          return pred(op, FilterApi.longColumn(path), getParquetPrimitive(lit), (HashSet) litSet);
+          return pred(op, FilterApi.longColumn(path), getParquetPrimitive(lit), litSet);
         case FLOAT:
-          return pred(op, FilterApi.floatColumn(path), getParquetPrimitive(lit), (HashSet) litSet);
+          return pred(op, FilterApi.floatColumn(path), getParquetPrimitive(lit), litSet);
         case DOUBLE:
-          return pred(op, FilterApi.doubleColumn(path), getParquetPrimitive(lit), (HashSet) litSet);
+          return pred(op, FilterApi.doubleColumn(path), getParquetPrimitive(lit), litSet);
         case STRING:
         case UUID:
         case FIXED:
         case BINARY:
         case DECIMAL:
-          return pred(op, FilterApi.binaryColumn(path), getParquetPrimitive(lit), (HashSet) litSet);
+          return pred(op, FilterApi.binaryColumn(path), getParquetPrimitive(lit), litSet);
       }
 
       throw new UnsupportedOperationException("Cannot convert to Parquet filter: " + pred);
