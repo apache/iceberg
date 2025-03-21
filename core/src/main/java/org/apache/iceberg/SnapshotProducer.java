@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
@@ -198,7 +197,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   protected ExecutorService workerPool() {
-    return Optional.ofNullable(workerPool).orElseGet(ThreadPools::getWorkerPool);
+    if (workerPool == null) {
+      this.workerPool = ThreadPools.getWorkerPool();
+    }
+    return workerPool;
   }
 
   @Override
