@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import static org.apache.iceberg.rest.HTTPClient.Builder.configHeaders;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -168,7 +166,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   public RESTSessionCatalog() {
-    this(config -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build(), null);
+    this(config -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).withHeaders(RESTUtil.configHeaders(config)).build(), null);
   }
 
   public RESTSessionCatalog(
@@ -1003,7 +1001,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 ResourcePaths.config(),
                 queryParams.build(),
                 ConfigResponse.class,
-                configHeaders(properties),
+                RESTUtil.configHeaders(properties),
                 ErrorHandlers.defaultErrorHandler());
     configResponse.validate();
     return configResponse;

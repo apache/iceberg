@@ -439,14 +439,9 @@ public class HTTPClient extends BaseHTTPClient {
       return this;
     }
 
-    static Map<String, String> configHeaders(Map<String, String> properties) {
-      return RESTUtil.extractPrefixMap(properties, "header.");
-    }
-
     public HTTPClient build() {
       withHeader(CLIENT_VERSION_HEADER, IcebergBuild.fullVersion());
       withHeader(CLIENT_GIT_COMMIT_SHORT_HEADER, IcebergBuild.gitCommitShortId());
-      withHeaders(configHeaders(properties));
 
       if (this.proxyCredentialsProvider != null) {
         Preconditions.checkNotNull(
