@@ -32,7 +32,7 @@ import org.apache.kafka.connect.sink.SinkTaskContext;
 public class MockCommitterImpl implements Committer {
   private boolean isWorkerStarted = false;
   private boolean isCoordinatorStarted = false;
-  private List<SinkRecord> sinkRecords = Lists.newArrayList();
+  private List<SinkRecord> records = Lists.newArrayList();
 
   @Override
   public void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
@@ -72,7 +72,7 @@ public class MockCommitterImpl implements Committer {
     if (!isWorkerStarted) {
       isWorkerStarted = true;
     }
-    sinkRecords.addAll(sinkRecords);
+    records.addAll(sinkRecords);
   }
 
   @Override
