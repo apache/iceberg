@@ -77,7 +77,7 @@ public class SparkOrcReader implements OrcRowReader<InternalRow> {
         TypeDescription record,
         List<String> names,
         List<OrcValueReader<?>> fields) {
-      return SparkOrcValueReaders.struct(fields, expected, idToConstant);
+      return SparkOrcValueReaders.struct(fields, record, expected, idToConstant);
     }
 
     @Override

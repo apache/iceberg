@@ -43,6 +43,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 public class TestFlinkOrcReaderWriter extends DataTest {
   private static final int NUM_RECORDS = 100;
 
+  @Override
+  protected boolean supportsDefaultValues() {
+    return true;
+  }
+
   /** Orc writers don't have notion of non-null / required fields. */
   @Override
   protected boolean allowsWritingNullValuesForRequiredFields() {
@@ -56,9 +61,20 @@ public class TestFlinkOrcReaderWriter extends DataTest {
   }
 
   @Override
-  protected void writeAndValidate(Schema schema, List<Record> expectedRecords) throws IOException {
-    RowType flinkSchema = FlinkSchemaUtil.convert(schema);
-    List<RowData> expectedRows = Lists.newArrayList(RandomRowData.convert(schema, expectedRecords));
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
+    writeAndValidate(writeSchema, expectedSchema, RandomGenericData.generate(writeSchema, 100, 0L));
+  }
+
+  @Override
+  protected void writeAndValidate(Schema schema, List<Record> expectedData) throws IOException {
+    writeAndValidate(schema, schema, expectedData);
+  }
+
+  protected void writeAndValidate(
+      Schema writeSchema, Schema expectedSchema, List<Record> expectedRecords) throws IOException {
+    RowType flinkSchema = FlinkSchemaUtil.convert(writeSchema);
+    List<RowData> expectedRows =
+        Lists.newArrayList(RandomRowData.convert(writeSchema, expectedRecords));
 
     File recordsFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(recordsFile.delete()).isTrue();
@@ -67,7 +83,7 @@ public class TestFlinkOrcReaderWriter extends DataTest {
     // expected Record list.
     try (FileAppender<Record> writer =
         ORC.write(Files.localOutput(recordsFile))
-            .schema(schema)
+            .schema(writeSchema)
             .createWriterFunc(GenericOrcWriter::buildWriter)
             .build()) {
       writer.addAll(expectedRecords);
@@ -75,14 +91,15 @@ public class TestFlinkOrcReaderWriter extends DataTest {
 
     try (CloseableIterable<RowData> reader =
         ORC.read(Files.localInput(recordsFile))
-            .project(schema)
-            .createReaderFunc(type -> new FlinkOrcReader(schema, type))
+            .project(expectedSchema)
+            .createReaderFunc(type -> new FlinkOrcReader(expectedSchema, type))
             .build()) {
       Iterator<Record> expected = expectedRecords.iterator();
       Iterator<RowData> rows = reader.iterator();
       for (int i = 0; i < expectedRecords.size(); i++) {
         assertThat(rows).hasNext();
-        TestHelpers.assertRowData(schema.asStruct(), flinkSchema, expected.next(), rows.next());
+        TestHelpers.assertRowData(
+            writeSchema.asStruct(), flinkSchema, expected.next(), rows.next());
       }
       assertThat(rows).isExhausted();
     }
@@ -92,10 +109,10 @@ public class TestFlinkOrcReaderWriter extends DataTest {
 
     // Write the expected RowData into ORC file, then read them into Record and assert with the
     // expected RowData list.
-    RowType rowType = FlinkSchemaUtil.convert(schema);
+    RowType rowType = FlinkSchemaUtil.convert(writeSchema);
     try (FileAppender<RowData> writer =
         ORC.write(Files.localOutput(rowDataFile))
-            .schema(schema)
+            .schema(writeSchema)
             .createWriterFunc((iSchema, typeDesc) -> FlinkOrcWriter.buildWriter(rowType, iSchema))
             .build()) {
       writer.addAll(expectedRows);
@@ -103,14 +120,15 @@ public class TestFlinkOrcReaderWriter extends DataTest {
 
     try (CloseableIterable<Record> reader =
         ORC.read(Files.localInput(rowDataFile))
-            .project(schema)
-            .createReaderFunc(type -> GenericOrcReader.buildReader(schema, type))
+            .project(expectedSchema)
+            .createReaderFunc(type -> GenericOrcReader.buildReader(expectedSchema, type))
             .build()) {
       Iterator<RowData> expected = expectedRows.iterator();
       Iterator<Record> records = reader.iterator();
       for (int i = 0; i < expectedRecords.size(); i += 1) {
         assertThat(records.hasNext()).isTrue();
-        TestHelpers.assertRowData(schema.asStruct(), flinkSchema, records.next(), expected.next());
+        TestHelpers.assertRowData(
+            writeSchema.asStruct(), flinkSchema, records.next(), expected.next());
       }
       assertThat(records).isExhausted();
     }

@@ -70,7 +70,7 @@ public class FlinkOrcReader implements OrcRowReader<RowData> {
         TypeDescription record,
         List<String> names,
         List<OrcValueReader<?>> fields) {
-      return FlinkOrcReaders.struct(fields, iStruct, idToConstant);
+      return FlinkOrcReaders.struct(fields, record, iStruct, idToConstant);
     }
 
     @Override
