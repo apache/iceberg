@@ -1203,13 +1203,10 @@ public class TestPositionDeletesTable extends CatalogTestBase {
                     .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, fileSetID)
                     .append())
         .isInstanceOf(AnalysisException.class)
-        .hasMessage(
-            "[INCOMPATIBLE_DATA_FOR_TABLE.CANNOT_FIND_DATA] Cannot write incompatible data for the table `"
-                + catalogName
-                + "`.`default`.`"
-                + tableName
-                + "`.`position_deletes`"
-                + ": Cannot find data for the output column `partition`.");
+        .hasMessageContaining(
+            "Cannot write incompatible data to table '%s.default.%s.position_deletes'",
+            catalogName, tableName)
+        .hasMessageContaining("Cannot find data for output column 'partition'.");
 
     dropTable(tableName);
   }
