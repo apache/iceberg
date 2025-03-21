@@ -100,7 +100,6 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public static final int SCHEMA_UPDATE_RETRIES = 2; // 3 total attempts
   public static final int CREATE_TABLE_RETRIES = 2; // 3 total attempts
-  public static final String KAFKA_SERDE_PROP_PREFIX = "serde.";
 
   @VisibleForTesting static final String COMMA_NO_PARENS_REGEX = ",(?![^()]*+\\))";
 

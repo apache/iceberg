@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.connect.channel;
 
-import static org.apache.iceberg.connect.IcebergSinkConfig.KAFKA_SERDE_PROP_PREFIX;
-
 import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
@@ -41,6 +39,7 @@ import org.apache.kafka.common.serialization.StringSerializer;
 class KafkaClientFactory {
   private final Map<String, String> kafkaProps;
   private final Map<String, Object> kafkaSerdeProps = Maps.newHashMap();
+  public static final String KAFKA_SERDE_PROP_PREFIX = "serde.";
 
   KafkaClientFactory(Map<String, String> kafkaProps) {
     this.kafkaProps = kafkaProps;
