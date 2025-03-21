@@ -23,15 +23,18 @@ import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.PartitionMap;
 import org.apache.iceberg.util.PartitionUtil;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 
@@ -53,14 +56,43 @@ public class PartitionStatsUtil {
 
     StructType partitionType = Partitioning.partitionType(table);
     List<ManifestFile> manifests = snapshot.allManifests(table.io());
-    Queue<PartitionMap<PartitionStats>> statsByManifest = Queues.newConcurrentLinkedQueue();
-    Tasks.foreach(manifests)
-        .stopOnFailure()
-        .throwFailureWhenFinished()
-        .executeWith(ThreadPools.getWorkerPool())
-        .run(manifest -> statsByManifest.add(collectStats(table, manifest, partitionType)));
+    return collectStats(table, manifests, partitionType).values();
+  }
 
-    return mergeStats(statsByManifest, table.specs());
+  /**
+   * Computes the partition stats incrementally after the given snapshot to current snapshot.
+   *
+   * @param table the table for which partition stats to be computed.
+   * @param afterSnapshot the snapshot after which partition stats is computed (exclusive).
+   * @param currentSnapshot the snapshot till which partition stats is computed (inclusive).
+   * @return the {@link PartitionMap} of {@link PartitionStats}
+   */
+  public static PartitionMap<PartitionStats> computeStatsIncremental(
+      Table table, Snapshot afterSnapshot, Snapshot currentSnapshot) {
+    Preconditions.checkArgument(table != null, "Table cannot be null");
+    Preconditions.checkArgument(Partitioning.isPartitioned(table), "Table must be partitioned");
+    Preconditions.checkArgument(currentSnapshot != null, "Current snapshot cannot be null");
+    Preconditions.checkArgument(afterSnapshot != null, "Snapshot cannot be null");
+    Preconditions.checkArgument(currentSnapshot != afterSnapshot, "Both the snapshots are same");
+    Preconditions.checkArgument(
+        SnapshotUtil.isAncestorOf(table, currentSnapshot.snapshotId(), afterSnapshot.snapshotId()),
+        "Starting snapshot %s is not an ancestor of current snapshot %s",
+        afterSnapshot.snapshotId(),
+        currentSnapshot.snapshotId());
+
+    Set<Long> snapshotIdsRange =
+        Sets.newHashSet(
+            SnapshotUtil.ancestorIdsBetween(
+                currentSnapshot.snapshotId(), afterSnapshot.snapshotId(), table::snapshot));
+    StructType partitionType = Partitioning.partitionType(table);
+    List<ManifestFile> manifests =
+        currentSnapshot.allManifests(table.io()).stream()
+            .filter(
+                manifestFile ->
+                    snapshotIdsRange.contains(manifestFile.snapshotId())
+                        && !manifestFile.hasExistingFiles())
+            .collect(Collectors.toList());
+    return collectStats(table, manifests, partitionType);
   }
 
   /**
@@ -82,6 +114,25 @@ public class PartitionStatsUtil {
   }
 
   private static PartitionMap<PartitionStats> collectStats(
+      Table table, List<ManifestFile> manifests, StructType partitionType) {
+    Queue<PartitionMap<PartitionStats>> statsByManifest = Queues.newConcurrentLinkedQueue();
+    Tasks.foreach(manifests)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(ThreadPools.getWorkerPool())
+        .run(
+            manifest ->
+                statsByManifest.add(collectStatsForManifest(table, manifest, partitionType)));
+
+    PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
+    for (PartitionMap<PartitionStats> stats : statsByManifest) {
+      mergePartitionMap(stats, statsMap);
+    }
+
+    return statsMap;
+  }
+
+  private static PartitionMap<PartitionStats> collectStatsForManifest(
       Table table, ManifestFile manifest, StructType partitionType) {
     try (ManifestReader<?> reader = openManifest(table, manifest)) {
       PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
@@ -118,22 +169,16 @@ public class PartitionStatsUtil {
     return ManifestFiles.open(manifest, table.io()).select(projection);
   }
 
-  private static Collection<PartitionStats> mergeStats(
-      Queue<PartitionMap<PartitionStats>> statsByManifest, Map<Integer, PartitionSpec> specs) {
-    PartitionMap<PartitionStats> statsMap = PartitionMap.create(specs);
-
-    for (PartitionMap<PartitionStats> stats : statsByManifest) {
-      stats.forEach(
-          (key, value) ->
-              statsMap.merge(
-                  key,
-                  value,
-                  (existingEntry, newEntry) -> {
-                    existingEntry.appendStats(newEntry);
-                    return existingEntry;
-                  }));
-    }
-
-    return statsMap.values();
+  public static void mergePartitionMap(
+      PartitionMap<PartitionStats> fromMap, PartitionMap<PartitionStats> toMap) {
+    fromMap.forEach(
+        (key, value) ->
+            toMap.merge(
+                key,
+                value,
+                (existingEntry, newEntry) -> {
+                  existingEntry.appendStats(newEntry);
+                  return existingEntry;
+                }));
   }
 }

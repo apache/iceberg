@@ -52,6 +52,13 @@ public class TestPartitionStatsUtil {
             () -> PartitionStatsUtil.computeStats(testTable, testTable.currentSnapshot()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("snapshot cannot be null");
+
+    assertThatThrownBy(
+            () ->
+                PartitionStatsUtil.computeStatsIncremental(
+                    testTable, testTable.currentSnapshot(), testTable.currentSnapshot()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Current snapshot cannot be null");
   }
 
   @Test
@@ -73,6 +80,55 @@ public class TestPartitionStatsUtil {
             () -> PartitionStatsUtil.computeStats(testTable, testTable.currentSnapshot()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("table must be partitioned");
+
+    assertThatThrownBy(
+            () ->
+                PartitionStatsUtil.computeStatsIncremental(
+                    testTable, testTable.currentSnapshot(), testTable.currentSnapshot()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Table must be partitioned");
+  }
+
+  @Test
+  public void testNonAncestorSnapshot() throws Exception {
+    Table testTable =
+        TestTables.create(tempDir("invalid_ancestor"), "invalid_ancestor", SCHEMA, SPEC, 2);
+
+    List<DataFile> files = prepareDataFiles(testTable);
+    AppendFiles appendFiles = testTable.newAppend();
+    files.forEach(appendFiles::appendFile);
+    appendFiles.commit();
+    Snapshot snapshot1 = testTable.currentSnapshot();
+
+    appendFiles = testTable.newAppend();
+    files.forEach(appendFiles::appendFile);
+    appendFiles.commit();
+    Snapshot snapshot2 = testTable.currentSnapshot();
+
+    assertThatThrownBy(
+            () -> PartitionStatsUtil.computeStatsIncremental(testTable, snapshot2, snapshot1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            String.format(
+                "Starting snapshot %s is not an ancestor of current snapshot %s",
+                snapshot2.snapshotId(), snapshot1.snapshotId()));
+  }
+
+  @Test
+  public void testSameSnapshots() throws Exception {
+    Table testTable = TestTables.create(tempDir("same_snapshot"), "same_snapshot", SCHEMA, SPEC, 2);
+
+    List<DataFile> files = prepareDataFiles(testTable);
+    AppendFiles appendFiles = testTable.newAppend();
+    files.forEach(appendFiles::appendFile);
+    appendFiles.commit();
+
+    assertThatThrownBy(
+            () ->
+                PartitionStatsUtil.computeStatsIncremental(
+                    testTable, testTable.currentSnapshot(), testTable.currentSnapshot()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Both the snapshots are same");
   }
 
   @Test
@@ -210,6 +266,88 @@ public class TestPartitionStatsUtil {
             null,
             snapshot3.timestampMillis(), // new snapshot from equality delete commit
             snapshot3.snapshotId()));
+  }
+
+  @Test
+  public void testPartitionStatsIncrementalCompute() throws Exception {
+    Table testTable =
+        TestTables.create(tempDir("compute_incremental"), "compute_incremental", SCHEMA, SPEC, 2);
+
+    List<DataFile> files = prepareDataFiles(testTable);
+    for (int i = 0; i < 3; i++) {
+      // insert same set of records thrice to have a new manifest files
+      AppendFiles appendFiles = testTable.newAppend();
+      files.forEach(appendFiles::appendFile);
+      appendFiles.commit();
+    }
+
+    Snapshot snapshotFrom = testTable.currentSnapshot();
+
+    AppendFiles appendFiles = testTable.newAppend();
+    files.forEach(appendFiles::appendFile);
+    appendFiles.commit();
+
+    Snapshot currentSnapshot = testTable.currentSnapshot();
+    Types.StructType partitionType = Partitioning.partitionType(testTable);
+    Collection<PartitionStats> result =
+        PartitionStatsUtil.computeStatsIncremental(
+                testTable, snapshotFrom, testTable.currentSnapshot())
+            .values();
+    // should only contain stats from last append (one data file per partition instead of total 4)
+    validateStats(
+        result,
+        Tuple.tuple(
+            partitionData(partitionType, "foo", "A"),
+            0,
+            files.get(0).recordCount(),
+            1,
+            files.get(0).fileSizeInBytes(),
+            0L,
+            0,
+            0L,
+            0,
+            null,
+            currentSnapshot.timestampMillis(),
+            currentSnapshot.snapshotId()),
+        Tuple.tuple(
+            partitionData(partitionType, "foo", "B"),
+            0,
+            files.get(1).recordCount(),
+            1,
+            files.get(1).fileSizeInBytes(),
+            0L,
+            0,
+            0L,
+            0,
+            null,
+            currentSnapshot.timestampMillis(),
+            currentSnapshot.snapshotId()),
+        Tuple.tuple(
+            partitionData(partitionType, "bar", "A"),
+            0,
+            files.get(2).recordCount(),
+            1,
+            files.get(2).fileSizeInBytes(),
+            0L,
+            0,
+            0L,
+            0,
+            null,
+            currentSnapshot.timestampMillis(),
+            currentSnapshot.snapshotId()),
+        Tuple.tuple(
+            partitionData(partitionType, "bar", "B"),
+            0,
+            files.get(3).recordCount(),
+            1,
+            files.get(3).fileSizeInBytes(),
+            0L,
+            0,
+            0L,
+            0,
+            null,
+            currentSnapshot.timestampMillis(),
+            currentSnapshot.snapshotId()));
   }
 
   @Test
@@ -561,6 +699,10 @@ public class TestPartitionStatsUtil {
     Collection<PartitionStats> result =
         PartitionStatsUtil.computeStats(testTable, testTable.currentSnapshot());
 
+    validateStats(result, expectedValues);
+  }
+
+  private static void validateStats(Collection<PartitionStats> result, Tuple... expectedValues) {
     assertThat(result)
         .extracting(
             PartitionStats::partition,
