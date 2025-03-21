@@ -299,7 +299,10 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
           BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation());
     }
 
-    setSchema(metadata.schema(), parameters);
+    HMSTablePropertyHelper.setSchema(
+        metadata.schema(),
+        parameters,
+        conf.getLong(HIVE_TABLE_PROPERTY_MAX_SIZE, HIVE_TABLE_PROPERTY_MAX_SIZE_DEFAULT));
     tbl.setParameters(parameters);
   }
 
