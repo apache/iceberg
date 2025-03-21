@@ -197,9 +197,8 @@ public class TestTableMetadata {
             refs,
             statisticsFiles,
             partitionStatisticsFiles,
-            ImmutableList.of(),
-            true,
-            40);
+            40,
+            ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
     TableMetadata metadata = TableMetadataParser.fromJson(asJson);
@@ -232,8 +231,6 @@ public class TestTableMetadata {
     assertThat(metadata.statisticsFiles()).isEqualTo(statisticsFiles);
     assertThat(metadata.partitionStatisticsFiles()).isEqualTo(partitionStatisticsFiles);
     assertThat(metadata.refs()).isEqualTo(refs);
-    assertThat(metadata.rowLineageEnabled()).isEqualTo(expected.rowLineageEnabled());
-    assertThat(metadata.nextRowId()).isEqualTo(expected.nextRowId());
   }
 
   @Test
@@ -301,9 +298,8 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of(),
-            ImmutableList.of(),
-            false,
-            0);
+            0,
+            ImmutableList.of());
 
     String asJson = toJsonWithoutSpecAndSchemaList(expected);
     TableMetadata metadata = TableMetadataParser.fromJson(asJson);
@@ -342,8 +338,6 @@ public class TestTableMetadata {
         .isEqualTo(previousSnapshot.allManifests(ops.io()));
     assertThat(metadata.previousFiles()).isEqualTo(expected.previousFiles());
     assertThat(metadata.snapshot(previousSnapshotId).schemaId()).isNull();
-    assertThat(metadata.rowLineageEnabled()).isEqualTo(expected.rowLineageEnabled());
-    assertThat(metadata.nextRowId()).isEqualTo(expected.nextRowId());
   }
 
   @Test
@@ -402,7 +396,7 @@ public class TestTableMetadata {
             () ->
                 new TableMetadata(
                     null,
-                    MAX_FORMAT_VERSION,
+                    2,
                     UUID.randomUUID().toString(),
                     TEST_LOCATION,
                     SEQ_NO,
@@ -424,9 +418,8 @@ public class TestTableMetadata {
                     refs,
                     ImmutableList.of(),
                     ImmutableList.of(),
-                    ImmutableList.of(),
-                    false,
-                    0L))
+                    0L,
+                    ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot ID does not match main branch");
   }
@@ -450,7 +443,7 @@ public class TestTableMetadata {
             () ->
                 new TableMetadata(
                     null,
-                    MAX_FORMAT_VERSION,
+                    2,
                     UUID.randomUUID().toString(),
                     TEST_LOCATION,
                     SEQ_NO,
@@ -472,9 +465,8 @@ public class TestTableMetadata {
                     refs,
                     ImmutableList.of(),
                     ImmutableList.of(),
-                    ImmutableList.of(),
-                    false,
-                    0L))
+                    0L,
+                    ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Current snapshot is not set, but main branch exists");
   }
@@ -492,7 +484,7 @@ public class TestTableMetadata {
             () ->
                 new TableMetadata(
                     null,
-                    MAX_FORMAT_VERSION,
+                    2,
                     UUID.randomUUID().toString(),
                     TEST_LOCATION,
                     SEQ_NO,
@@ -514,9 +506,8 @@ public class TestTableMetadata {
                     refs,
                     ImmutableList.of(),
                     ImmutableList.of(),
-                    ImmutableList.of(),
-                    false,
-                    0L))
+                    0L,
+                    ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageEndingWith("does not exist in the existing snapshots list");
   }
@@ -631,9 +622,8 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of(),
-            ImmutableList.of(),
-            false,
-            0L);
+            0L,
+            ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(base);
     TableMetadata metadataFromJson = TableMetadataParser.fromJson(asJson);
@@ -720,9 +710,8 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of(),
-            ImmutableList.of(),
-            false,
-            0L);
+            0L,
+            ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
 
@@ -824,9 +813,8 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of(),
-            ImmutableList.of(),
-            false,
-            0L);
+            0L,
+            ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
 
@@ -932,9 +920,8 @@ public class TestTableMetadata {
             ImmutableMap.of(),
             ImmutableList.of(),
             ImmutableList.of(),
-            ImmutableList.of(),
-            false,
-            0L);
+            0L,
+            ImmutableList.of());
 
     previousMetadataLog.add(latestPreviousMetadata);
 
@@ -980,9 +967,8 @@ public class TestTableMetadata {
                     ImmutableMap.of(),
                     ImmutableList.of(),
                     ImmutableList.of(),
-                    ImmutableList.of(),
-                    false,
-                    0L))
+                    0L,
+                    ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("UUID is required in format v2");
   }
@@ -1017,9 +1003,8 @@ public class TestTableMetadata {
                     ImmutableMap.of(),
                     ImmutableList.of(),
                     ImmutableList.of(),
-                    ImmutableList.of(),
-                    false,
-                    0L))
+                    0L,
+                    ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Unsupported format version: v%s (supported: v%s)",
@@ -1065,9 +1050,8 @@ public class TestTableMetadata {
                 ImmutableMap.of(),
                 ImmutableList.of(),
                 ImmutableList.of(),
-                ImmutableList.of(),
-                false,
-                0L))
+                0L,
+                ImmutableList.of()))
         .isNotNull();
 
     assertThat(
