@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.connect.channel.CommitterImpl;
+import org.apache.iceberg.connect.channel.MockCommitterImpl;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.kafka.common.config.ConfigException;
 import org.junit.jupiter.api.Test;
@@ -109,5 +111,30 @@ public class IcebergSinkConfigTest {
 
     result = IcebergSinkConfig.checkClassName("org.apache.kafka.clients.producer.KafkaProducer");
     assertThat(result).isFalse();
+  }
+
+  @Test
+  public void testDynamicCommitterImplLoading() {
+    Map<String, String> props =
+        ImmutableMap.of(
+            "topics", "source-topic",
+            "iceberg.catalog.type", "rest",
+            "iceberg.tables", "db.landing",
+            "iceberg.committer.impl", "org.apache.iceberg.connect.channel.MockCommitterImpl");
+    IcebergSinkConfig config = new IcebergSinkConfig(props);
+    Committer committer = CommitterFactory.createCommitter(config);
+    assertThat(committer).isInstanceOf(MockCommitterImpl.class);
+  }
+
+  @Test
+  public void testDynamicCommitterImplLoadingWhenCommitterConfigIsAbsent() {
+    Map<String, String> props =
+        ImmutableMap.of(
+            "topics", "source-topic",
+            "iceberg.catalog.type", "rest",
+            "iceberg.tables", "db.landing");
+    IcebergSinkConfig config = new IcebergSinkConfig(props);
+    Committer committer = CommitterFactory.createCommitter(config);
+    assertThat(committer).isInstanceOf(CommitterImpl.class);
   }
 }
