@@ -38,7 +38,6 @@ import static org.apache.iceberg.TableProperties.MIN_SNAPSHOTS_TO_KEEP_DEFAULT;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
@@ -155,7 +154,10 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   protected ExecutorService planExecutorService() {
-    return Optional.ofNullable(planExecutorService).orElseGet(ThreadPools::getWorkerPool);
+    if (planExecutorService == null) {
+      this.planExecutorService = ThreadPools.getWorkerPool();
+    }
+    return planExecutorService;
   }
 
   @Override
