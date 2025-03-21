@@ -28,6 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTResponse;
+import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.credentials.Credential;
 
 /**
@@ -80,7 +81,24 @@ public class LoadTableResponse implements RESTResponse {
   }
 
   public Map<String, String> config() {
-    return config != null ? config : ImmutableMap.of();
+    Map<String, String> conf = config != null ? config : ImmutableMap.of();
+    List<Credential> storageCredentials = credentials();
+    if (!storageCredentials.isEmpty()) {
+      List<Credential> creds = Lists.newLinkedList(storageCredentials);
+      for (Credential credential : storageCredentials) {
+        // only keep the credentials with the longest prefix
+        creds.removeIf(
+            cred ->
+                credential.prefix().length() > cred.prefix().length()
+                    && credential.prefix().startsWith(cred.prefix()));
+      }
+
+      for (Credential credential : creds) {
+        conf = RESTUtil.merge(conf, credential.config());
+      }
+    }
+
+    return conf;
   }
 
   public List<Credential> credentials() {
