@@ -35,6 +35,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileGenerationUtil;
 import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Parameter;
@@ -281,12 +282,11 @@ public class TestDeleteReachableFilesAction extends TestBase {
 
   @TestTemplate
   public void testPositionDeleteFiles() {
-    assumeThat(formatVersion).as("DV is not supported in Spark 3.4").isEqualTo(2);
     table.newAppend().appendFile(FILE_A).commit();
 
     table.newAppend().appendFile(FILE_B).commit();
 
-    table.newRowDelta().addDeletes(FILE_A_POS_DELETES).commit();
+    table.newRowDelta().addDeletes(fileADeletes()).commit();
 
     DeleteReachableFiles baseRemoveFilesSparkAction =
         sparkActions().deleteReachableFiles(metadataLocation(table)).io(table.io());
@@ -397,5 +397,9 @@ public class TestDeleteReachableFilesAction extends TestBase {
 
   private ActionsProvider sparkActions() {
     return SparkActions.get();
+  }
+
+  private DeleteFile fileADeletes() {
+    return formatVersion >= 3 ? FileGenerationUtil.generateDV(table, FILE_A) : FILE_A_POS_DELETES;
   }
 }
