@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.apache.iceberg.rest.HTTPClient.Builder.configHeaders;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -96,8 +98,6 @@ import org.apache.iceberg.view.ViewUtil;
 import org.apache.iceberg.view.ViewVersion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.apache.iceberg.rest.HTTPClient.Builder.configHeaders;
 
 public class RESTSessionCatalog extends BaseViewSessionCatalog
     implements Configurable<Object>, Closeable {
@@ -1026,8 +1026,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       throw new NoSuchNamespaceException("Invalid namespace: %s", namespace);
     }
   }
-
-
 
   public void commitTransaction(SessionContext context, List<TableCommit> commits) {
     Endpoint.check(endpoints, Endpoint.V1_COMMIT_TRANSACTION);
