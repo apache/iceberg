@@ -16,23 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.types;
+package org.apache.iceberg.connect.transforms;
 
-import java.io.ObjectStreamException;
-import java.io.Serializable;
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
-/** Replacement for primitive types in Java Serialization. */
-class PrimitiveHolder implements Serializable {
-  private String typeAsString = null;
-
-  /** Constructor for Java serialization. */
-  PrimitiveHolder() {}
-
-  PrimitiveHolder(String typeAsString) {
-    this.typeAsString = typeAsString;
-  }
-
-  Object readResolve() throws ObjectStreamException {
-    return Types.fromTypeName(typeAsString);
+public abstract class FileLoads {
+  protected static final String getFile(String fileName) throws IOException, URISyntaxException {
+    URL jsonResource = FileLoads.class.getClassLoader().getResource(fileName);
+    return new String(Files.readAllBytes(Paths.get(jsonResource.toURI())), StandardCharsets.UTF_8);
   }
 }

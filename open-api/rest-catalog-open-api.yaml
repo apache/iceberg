@@ -424,6 +424,15 @@ paths:
               examples:
                 NoSuchNamespaceExample:
                   $ref: '#/components/examples/NoSuchNamespaceError'
+        409:
+          description: Not Empty - Namespace to delete is not empty.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NamespaceNotEmptyExample:
+                  $ref: '#/components/examples/NamespaceNotEmptyError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -4731,7 +4740,7 @@ components:
       value: "accounting%1Ftax"
 
     NamespaceAsPathVariable:
-      summary: A single part namespace, as represented in a path paremeter
+      summary: A single part namespace, as represented in a path parameter
       value: "accounting"
 
     NamespaceAlreadyExistsError:
@@ -4793,6 +4802,16 @@ components:
             "code": 404
           }
         }
+
+    NamespaceNotEmptyError:
+      summary: The requested namespace is not empty
+      value: {
+        "error": {
+          "message": "The given namespace is not empty",
+          "type": "NamespaceNotEmptyException",
+          "code": 409
+        }
+      }
 
     RenameTableSameNamespace:
       summary: Rename a table in the same namespace

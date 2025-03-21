@@ -91,20 +91,9 @@ Hive supports the following additional features with Hive version 4.0.0 and abov
 
 Hive 4 comes with `hive-iceberg` that ships Iceberg, so no additional downloads or jars are needed. For older versions of Hive a runtime jar has to be added.
 
-### Hive 4.0.0
+### Hive 4.0.x
 
-Hive 4.0.0 comes with the Iceberg 1.4.3 included.
-
-### Hive 4.0.0-beta-1
-
-Hive 4.0.0-beta-1 comes with the Iceberg 1.3.0 included.
-
-### Hive 4.0.0-alpha-2
-
-Hive 4.0.0-alpha-2 comes with the Iceberg 0.14.1 included.
-### Hive 4.0.0-alpha-1
-
-Hive 4.0.0-alpha-1 comes with the Iceberg 0.13.1 included.
+Hive 4.0.x comes with Iceberg 1.4.3 included.
 
 ### Hive 2.3.x, Hive 3.1.x
 
@@ -227,7 +216,7 @@ SET iceberg.catalog.glue.lock.table=myGlueLockTable;
 Not all the features below are supported with Hive 2.3.x and Hive 3.1.x. Please refer to the
 [Feature support](#feature-support) paragraph for further details.
 
-One generally applicable difference is that Hive 4.0.0-alpha-1 provides the possibility to use
+One generally applicable difference is that Hive 4 provides the possibility to use
 `STORED BY ICEBERG` instead of the old `STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler'`
 
 ### CREATE TABLE
@@ -281,10 +270,10 @@ The result is:
 | j                                  | IDENTITY       | NULL
 
 You can create Iceberg partitions using the following Iceberg partition specification syntax
-(supported only from Hive 4.0.0-alpha-1):
+(supported only from Hive 4.0.0):
 
 ```sql
-CREATE TABLE x (i int, ts timestamp) PARTITIONED BY SPEC (month(ts), bucket(2, i)) STORED AS ICEBERG;
+CREATE TABLE x (i int, ts timestamp) PARTITIONED BY SPEC (month(ts), bucket(2, i)) STORED BY ICEBERG;
 DESCRIBE x;
 ```
 The result is:
@@ -613,8 +602,8 @@ Here are the features highlights for Iceberg Hive read support:
 1. **Predicate pushdown**: Pushdown of the Hive SQL `WHERE` clause has been implemented so that these filters are used at the Iceberg `TableScan` level as well as by the Parquet and ORC Readers.
 2. **Column projection**: Columns from the Hive SQL `SELECT` clause are projected down to the Iceberg readers to reduce the number of columns read.
 3. **Hive query engines**:
-   - With Hive 2.3.x, 3.1.x both the MapReduce and Tez query execution engines are supported.
-   - With Hive 4.0.0-alpha-1 Tez query execution engine is supported.
+   - With Hive 2.3.x, 3.1.x, both the MapReduce and Tez query execution engines are supported.
+   - With Hive 4.x, the Tez query execution engine is supported.
 
 Some of the advanced / little used optimizations are not yet implemented for Iceberg tables, so you should check your individual queries.
 Also currently the statistics stored in the MetaStore are used for query planning. This is something we are planning to improve in the future.

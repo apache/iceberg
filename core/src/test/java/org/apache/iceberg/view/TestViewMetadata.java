@@ -397,6 +397,31 @@ public class TestViewMetadata {
   }
 
   @Test
+  public void versionsAddedInCurrentBuildAreRetained() {
+    ViewVersion v1 = newViewVersion(1, "select 1 as count");
+    ViewVersion v2 = newViewVersion(2, "select count from t1");
+    ViewVersion v3 = newViewVersion(3, "select count(1) as count from t2");
+
+    ViewMetadata metadata =
+        ViewMetadata.builder()
+            .setLocation("location")
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addVersion(v1)
+            .setCurrentVersionId(v1.versionId())
+            .setProperties(ImmutableMap.of(ViewProperties.VERSION_HISTORY_SIZE, "2"))
+            .build();
+    assertThat(metadata.versions()).containsOnly(v1);
+
+    // make sure all currently added versions are retained
+    ViewMetadata updated = ViewMetadata.buildFrom(metadata).addVersion(v2).addVersion(v3).build();
+    assertThat(updated.versions()).containsExactlyInAnyOrder(v1, v2, v3);
+
+    // rebuild the metadata to expire older versions
+    updated = ViewMetadata.buildFrom(updated).build();
+    assertThat(updated.versions()).containsExactlyInAnyOrder(v1, v3);
+  }
+
+  @Test
   public void viewMetadataAndMetadataChanges() {
     Map<String, String> properties = ImmutableMap.of("key1", "prop1", "key2", "prop2");
     Schema schemaOne = new Schema(0, Types.NestedField.required(1, "x", Types.LongType.get()));

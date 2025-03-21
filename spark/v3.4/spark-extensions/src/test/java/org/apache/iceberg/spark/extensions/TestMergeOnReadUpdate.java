@@ -39,7 +39,6 @@ import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.junit.Test;
-import org.junit.jupiter.api.TestTemplate;
 
 public class TestMergeOnReadUpdate extends TestUpdate {
 
@@ -160,7 +159,7 @@ public class TestMergeOnReadUpdate extends TestUpdate {
         sql("SELECT * FROM %s ORDER BY dep ASC, id ASC", selectTarget()));
   }
 
-  @TestTemplate
+  @Test
   public void testUpdateWithDVAndHistoricalPositionDeletes() {
     assumeThat(formatVersion).isEqualTo(2);
     createTableWithDeleteGranularity(

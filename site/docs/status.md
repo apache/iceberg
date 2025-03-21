@@ -83,7 +83,7 @@ This section lists the libraries that implement the Apache Iceberg specification
 |-----------------------------|------|-----------|------|----|
 | Update schema               | Y    | N         | Y    | N  |
 | Update partition spec       | Y    | N         | Y    | N  |
-| Update table properties     | Y    | Y         | Y    | N  |
+| Update table properties     | Y    | Y         | Y    | Y  |
 | Replace sort order          | Y    | N         | N    | N  |
 | Update table location       | Y    | N         | N    | N  |
 | Update statistics           | Y    | N         | N    | N  |
@@ -97,7 +97,7 @@ This section lists the libraries that implement the Apache Iceberg specification
 |-----------------------------|------|-----------|------|----|
 | Update schema               | Y    | Y         | N    | N  |
 | Update partition spec       | Y    | Y         | N    | N  |
-| Update table properties     | Y    | Y         | Y    | N  |
+| Update table properties     | Y    | Y         | Y    | Y  |
 | Replace sort order          | Y    | N         | N    | N  |
 | Update table location       | Y    | N         | N    | N  |
 | Update statistics           | Y    | N         | N    | N  |
@@ -111,7 +111,7 @@ This section lists the libraries that implement the Apache Iceberg specification
 
 | Operation         | Java | PyIceberg | Rust | Go |
 |-------------------|------|-----------|------|----|
-| Append data files | Y    | Y         | N    | N  |
+| Append data files | Y    | Y         | N    | Y  |
 | Rewrite files     | Y    | Y         | N    | N  |
 | Rewrite manifests | Y    | Y         | N    | N  |
 | Overwrite files   | Y    | Y         | N    | N  |
@@ -121,7 +121,7 @@ This section lists the libraries that implement the Apache Iceberg specification
 
 | Operation         | Java | PyIceberg | Rust | Go |
 |-------------------|------|-----------|------|----|
-| Append data files | Y    | Y         | N    | N  |
+| Append data files | Y    | Y         | N    | Y  |
 | Rewrite files     | Y    | Y         | N    | N  |
 | Rewrite manifests | Y    | Y         | N    | N  |
 | Overwrite files   | Y    | Y         | N    | N  |
@@ -136,18 +136,18 @@ This section lists the libraries that implement the Apache Iceberg specification
 |-----------------------------|------|-----------|------|----|
 | Plan with data file         | Y    | Y         | Y    | Y  |
 | Plan with puffin statistics | Y    | Y         | Y    | Y  |
-| Read data file              | Y    | N         | Y    | N  |
+| Read data file              | Y    | N         | Y    | Y  |
 
 ### Table Spec V2
 
 | Operation                   | Java | PyIceberg | Rust | Go |
 |-----------------------------|------|-----------|------|----|
 | Plan with data file         | Y    | Y         | Y    | Y  |
-| Plan with position deletes  | Y    | Y         | N    | N  |
+| Plan with position deletes  | Y    | Y         | N    | Y  |
 | Plan with equality deletes  | Y    | Y         | N    | N  |
 | Plan with puffin statistics | Y    | N         | N    | N  |
-| Read data file              | Y    | Y         | Y    | N  |
-| Read with position deletes  | Y    | Y         | N    | N  |
+| Read data file              | Y    | Y         | Y    | Y  |
+| Read with position deletes  | Y    | Y         | N    | Y  |
 | Read with equality deletes  | Y    | N         | N    | N  |
 
 ## Table Write Operations
@@ -222,9 +222,9 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 
 | Database | Java | PyIceberg | Rust | Go |
 |----------|------|-----------|------|----|
-| Postgres | Y    | Y         | Y    | N  |
-| MySQL    | Y    | Y         | Y    | N  |
-| SQLite   | Y    | Y         | Y    | N  |
+| Postgres | Y    | Y         | Y    | Y  |
+| MySQL    | Y    | Y         | Y    | Y  |
+| SQLite   | Y    | Y         | Y    | Y  |
 
 #### Table Spec V1
 
@@ -265,10 +265,10 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 
 | Namespace Operation       | Java | PyIceberg | Rust | Go |
 |---------------------------|------|-----------|------|----|
-| listNamespaces            | Y    | N         | N    | N  |
-| createNamespace           | Y    | N         | N    | N  |
+| listNamespaces            | Y    | N         | N    | Y  |
+| createNamespace           | Y    | N         | N    | Y  |
 | dropNamespace             | Y    | Y         | Y    | Y  |
-| namespaceExists           | Y    | N         | N    | N  |
+| namespaceExists           | Y    | N         | N    | Y  |
 | updateNamespaceProperties | Y    | Y         | Y    | Y  |
 | loadNamespaceMetadata     | Y    | N         | N    | N  |
 

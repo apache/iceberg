@@ -229,7 +229,7 @@ UPDATE prod.db.table.branch_audit AS t1
 SET val = 'c'
 
 -- DELETE FROM audit branch
-DELETE FROM prod.dbl.table.branch_audit WHERE id = 2;
+DELETE FROM prod.db.table.branch_audit WHERE id = 2;
 
 -- WAP Branch write
 SET spark.wap.branch = audit-branch

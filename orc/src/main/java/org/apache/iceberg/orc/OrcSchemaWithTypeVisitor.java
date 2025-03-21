@@ -19,6 +19,7 @@
 package org.apache.iceberg.orc;
 
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -36,7 +37,12 @@ public abstract class OrcSchemaWithTypeVisitor<T> {
       Type iType, TypeDescription schema, OrcSchemaWithTypeVisitor<T> visitor) {
     switch (schema.getCategory()) {
       case STRUCT:
-        return visitRecord(iType != null ? iType.asStructType() : null, schema, visitor);
+        String structType = schema.getAttributeValue(ORCSchemaUtil.ICEBERG_STRUCT_TYPE_ATTRIBUTE);
+        if (ORCSchemaUtil.VARIANT.equalsIgnoreCase(structType)) {
+          return visitVariant(iType != null ? iType.asVariantType() : null, schema, visitor);
+        } else {
+          return visitRecord(iType != null ? iType.asStructType() : null, schema, visitor);
+        }
 
       case UNION:
         throw new UnsupportedOperationException("Cannot handle " + schema);
@@ -74,6 +80,23 @@ public abstract class OrcSchemaWithTypeVisitor<T> {
     return visitor.record(struct, record, names, results);
   }
 
+  private static <T> T visitVariant(
+      Types.VariantType iVariant, TypeDescription variant, OrcSchemaWithTypeVisitor<T> visitor) {
+    List<String> names = variant.getFieldNames();
+    Preconditions.checkArgument(
+        names.size() == 2
+            && ORCSchemaUtil.VARIANT_METADATA.equals(names.get(0))
+            && ORCSchemaUtil.VARIANT_VALUE.equals(names.get(1)),
+        "Invalid variant metadata fields: %s",
+        String.join(", ", names));
+
+    List<TypeDescription> children = variant.getChildren();
+    T metadataResult = visit((Type) null, children.get(0), visitor);
+    T valueResult = visit((Type) null, children.get(1), visitor);
+
+    return visitor.variant(iVariant, variant, metadataResult, valueResult);
+  }
+
   public T record(
       Types.StructType iStruct, TypeDescription record, List<String> names, List<T> fields) {
     return null;
@@ -85,6 +108,10 @@ public abstract class OrcSchemaWithTypeVisitor<T> {
 
   public T map(Types.MapType iMap, TypeDescription map, T key, T value) {
     return null;
+  }
+
+  public T variant(Types.VariantType iVariant, TypeDescription variant, T metadata, T value) {
+    throw new UnsupportedOperationException("Variant is not supported");
   }
 
   public T primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {

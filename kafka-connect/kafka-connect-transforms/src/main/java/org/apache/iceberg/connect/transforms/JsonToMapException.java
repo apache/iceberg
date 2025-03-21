@@ -16,19 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.data;
+package org.apache.iceberg.connect.transforms;
 
-import java.io.File;
-import org.apache.iceberg.Files;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.avro.Avro;
+class JsonToMapException extends RuntimeException {
+  JsonToMapException(String errorMessage) {
+    super(errorMessage);
+  }
 
-public class TestFlinkAvroPlannedReaderWriter extends AbstractTestFlinkAvroReaderWriter {
-
-  @Override
-  protected Avro.ReadBuilder createAvroReadBuilder(File recordsFile, Schema schema) {
-    return Avro.read(Files.localInput(recordsFile))
-        .project(schema)
-        .createResolvingReader(FlinkPlannedAvroReader::create);
+  JsonToMapException(String errorMessage, Throwable err) {
+    super(errorMessage, err);
   }
 }

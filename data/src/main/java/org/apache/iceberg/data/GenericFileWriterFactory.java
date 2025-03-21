@@ -80,17 +80,17 @@ class GenericFileWriterFactory extends BaseFileWriterFactory<Record> {
 
   @Override
   protected void configureDataWrite(Parquet.DataWriteBuilder builder) {
-    builder.createWriterFunc(GenericParquetWriter::buildWriter);
+    builder.createWriterFunc(GenericParquetWriter::create);
   }
 
   @Override
   protected void configureEqualityDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(GenericParquetWriter::buildWriter);
+    builder.createWriterFunc(GenericParquetWriter::create);
   }
 
   @Override
   protected void configurePositionDelete(Parquet.DeleteWriteBuilder builder) {
-    builder.createWriterFunc(GenericParquetWriter::buildWriter);
+    builder.createWriterFunc(GenericParquetWriter::create);
   }
 
   @Override

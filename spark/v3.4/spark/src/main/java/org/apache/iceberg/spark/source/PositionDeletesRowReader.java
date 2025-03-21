@@ -33,6 +33,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -89,6 +90,10 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
     Expression residualWithoutConstants =
         ExpressionUtil.extractByIdInclusive(
             task.residual(), expectedSchema(), caseSensitive(), Ints.toArray(nonConstantFieldIds));
+
+    if (ContentFileUtil.isDV(task.file())) {
+      return new DVIterator(inputFile, task.file(), expectedSchema(), idToConstant);
+    }
 
     return newIterable(
             inputFile,

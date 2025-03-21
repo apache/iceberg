@@ -123,7 +123,7 @@ public interface Type extends Serializable {
     }
 
     Object writeReplace() throws ObjectStreamException {
-      return new PrimitiveHolder(toString());
+      return new PrimitiveLikeHolder(toString());
     }
 
     @Override

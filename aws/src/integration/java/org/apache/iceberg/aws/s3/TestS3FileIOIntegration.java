@@ -68,6 +68,7 @@ import software.amazon.awssdk.services.s3.model.VersioningConfiguration;
 import software.amazon.awssdk.services.s3control.S3ControlClient;
 import software.amazon.awssdk.utils.ImmutableMap;
 import software.amazon.awssdk.utils.IoUtils;
+import software.amazon.s3.analyticsaccelerator.util.PrefetchMode;
 
 public class TestS3FileIOIntegration {
 
@@ -256,6 +257,48 @@ public class TestS3FileIOIntegration {
   }
 
   @Test
+  public void testNewInputStreamWithAnalyticsAccelerator() throws Exception {
+    s3.putObject(
+        PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
+        RequestBody.fromBytes(contentBytes));
+    S3FileIO s3FileIO = new S3FileIO();
+    s3FileIO.initialize(
+        ImmutableMap.of(S3FileIOProperties.S3_ANALYTICS_ACCELERATOR_ENABLED, String.valueOf(true)));
+    validateRead(s3FileIO);
+  }
+
+  @Test
+  public void testNewInputStreamWithAnalyticsAcceleratorAndCRT() throws Exception {
+    s3.putObject(
+        PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
+        RequestBody.fromBytes(contentBytes));
+    S3FileIO s3FileIO = new S3FileIO();
+    s3FileIO.initialize(
+        ImmutableMap.of(
+            S3FileIOProperties.S3_ANALYTICS_ACCELERATOR_ENABLED,
+            String.valueOf(true),
+            S3FileIOProperties.S3_CRT_ENABLED,
+            String.valueOf(true)));
+    validateRead(s3FileIO);
+  }
+
+  @Test
+  public void testNewInputStreamWithAnalyticsAcceleratorCustomConfigured() throws Exception {
+    final String prefetchingMode = "logicalio.prefetching.mode";
+    final String s3Uri = String.format("s3://%s/%s/%s.parquet", bucketName, prefix, objectKey);
+    S3FileIO s3FileIO = new S3FileIO();
+    s3FileIO.initialize(
+        ImmutableMap.of(
+            S3FileIOProperties.S3_ANALYTICS_ACCELERATOR_ENABLED,
+            String.valueOf(true),
+            S3FileIOProperties.S3_ANALYTICS_ACCELERATOR_PROPERTIES_PREFIX + prefetchingMode,
+            PrefetchMode.ALL.name()));
+    write(s3FileIO, s3Uri);
+    validateRead(s3FileIO, s3Uri);
+    s3FileIO.deleteFile(s3Uri);
+  }
+
+  @Test
   public void testNewOutputStream() throws Exception {
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
     write(s3FileIO);
@@ -316,6 +359,19 @@ public class TestS3FileIOIntegration {
             S3FileIOProperties.ACCESS_POINTS_PREFIX + bucketName,
             testMultiRegionAccessPointARN(
                 AwsIntegTestUtil.testRegion(), multiRegionAccessPointAlias)));
+    write(s3FileIO);
+    try (InputStream stream =
+        s3.getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build())) {
+      String result = IoUtils.toUtf8String(stream);
+      assertThat(result).isEqualTo(content);
+    }
+  }
+
+  @Test
+  public void testNewOutputStreamWithAnalyticsAccelerator() throws Exception {
+    S3FileIO s3FileIO = new S3FileIO();
+    s3FileIO.initialize(
+        ImmutableMap.of(S3FileIOProperties.S3_ANALYTICS_ACCELERATOR_ENABLED, String.valueOf(true)));
     write(s3FileIO);
     try (InputStream stream =
         s3.getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build())) {

@@ -19,11 +19,13 @@
 package org.apache.iceberg.data.parquet;
 
 import java.util.List;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.MessageType;
 
@@ -38,14 +40,42 @@ public class InternalWriter<T extends StructLike> extends BaseParquetWriter<T> {
 
   private InternalWriter() {}
 
-  @SuppressWarnings("unchecked")
+  /**
+   * Build a writer for a Parquet schema.
+   *
+   * @deprecated will be removed in 1.10.0; use {@link #createWriter(Schema, MessageType)} instead.
+   */
+  @Deprecated
   public static <T extends StructLike> ParquetValueWriter<T> create(MessageType type) {
-    return (ParquetValueWriter<T>) INSTANCE.createWriter(type);
+    return create((Types.StructType) null, type);
+  }
+
+  public static <T extends StructLike> ParquetValueWriter<T> createWriter(
+      Schema schema, MessageType type) {
+    return create(schema.asStruct(), type);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T extends StructLike> ParquetValueWriter<T> create(
+      Types.StructType struct, MessageType type) {
+    return (ParquetValueWriter<T>) INSTANCE.createWriter(struct, type);
+  }
+
+  /**
+   * Create a struct writer from a list of writers.
+   *
+   * @deprecated will be removed in 1.10.0; use {@link #createWriter(Types.StructType, MessageType)}
+   *     instead.
+   */
+  @Deprecated
+  protected StructWriter<T> createStructWriter(List<ParquetValueWriter<?>> writers) {
+    return ParquetValueWriters.recordWriter(null, writers);
   }
 
   @Override
-  protected StructWriter<T> createStructWriter(List<ParquetValueWriter<?>> writers) {
-    return ParquetValueWriters.recordWriter(writers);
+  protected StructWriter<T> createStructWriter(
+      Types.StructType struct, List<ParquetValueWriter<?>> writers) {
+    return ParquetValueWriters.recordWriter(struct, writers);
   }
 
   @Override

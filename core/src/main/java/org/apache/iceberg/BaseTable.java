@@ -54,7 +54,7 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
     this.reporter = reporter;
   }
 
-  MetricsReporter reporter() {
+  public MetricsReporter reporter() {
     return reporter;
   }
 

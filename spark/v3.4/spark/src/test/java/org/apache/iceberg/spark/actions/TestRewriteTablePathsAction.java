@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -59,7 +60,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkCatalog;
-import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
@@ -73,16 +74,18 @@ import org.apache.spark.storage.BlockId;
 import org.apache.spark.storage.BlockInfoManager;
 import org.apache.spark.storage.BlockManager;
 import org.apache.spark.storage.BroadcastBlockId;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import scala.Tuple2;
 
-public class TestRewriteTablePathsAction extends SparkTestBase {
+public class TestRewriteTablePathsAction extends TestBase {
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path staging;
+  @TempDir private Path tableDir;
+  @TempDir private Path newTableDir;
+  @TempDir private Path targetTableDir;
 
   protected ActionsProvider actions() {
     return SparkActions.get();
@@ -96,27 +99,19 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
           optional(3, "c3", Types.StringType.get()));
 
   protected String tableLocation = null;
-  public String staging = null;
-  public String tableDir = null;
-  public String newTableDir = null;
-  public String targetTableDir = null;
   private Table table = null;
 
   private final String ns = "testns";
   private final String backupNs = "backupns";
 
-  @Before
-  public void setupTableLocation() throws Exception {
-    this.tableLocation = temp.newFolder().toURI().toString();
-    this.staging = temp.newFolder("staging").toURI().toString();
-    this.tableDir = temp.newFolder("table").toURI().toString();
-    this.newTableDir = temp.newFolder("newTable").toURI().toString();
-    this.targetTableDir = temp.newFolder("targetTable").toURI().toString();
+  @BeforeEach
+  public void setupTableLocation() {
+    this.tableLocation = tableDir.toFile().toURI().toString();
     this.table = createATableWith2Snapshots(tableLocation);
     createNameSpaces();
   }
 
-  @After
+  @AfterEach
   public void cleanupTableSetup() throws Exception {
     dropNameSpaces();
   }
@@ -241,13 +236,14 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
   }
 
   @Test
-  public void testTableWith3Snapshots() throws Exception {
+  public void testTableWith3Snapshots(@TempDir Path location1, @TempDir Path location2)
+      throws Exception {
     String location = newTableLocation();
     Table tableWith3Snaps = createTableWithSnapshots(location, 3);
     RewriteTablePath.Result result =
         actions()
             .rewriteTablePath(tableWith3Snaps)
-            .rewriteLocationPrefix(location, temp.newFolder().toURI().toString())
+            .rewriteLocationPrefix(location, toAbsolute(location1))
             .startVersion("v2.metadata.json")
             .execute();
 
@@ -257,7 +253,7 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
     RewriteTablePath.Result result1 =
         actions()
             .rewriteTablePath(tableWith3Snaps)
-            .rewriteLocationPrefix(location, temp.newFolder().toURI().toString())
+            .rewriteLocationPrefix(location, toAbsolute(location2))
             .startVersion("v1.metadata.json")
             .execute();
 
@@ -956,15 +952,19 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
   }
 
   protected String newTableLocation() throws IOException {
-    return newTableDir;
+    return toAbsolute(newTableDir);
   }
 
   protected String targetTableLocation() throws IOException {
-    return targetTableDir;
+    return toAbsolute(targetTableDir);
   }
 
   protected String stagingLocation() throws IOException {
-    return staging;
+    return toAbsolute(staging);
+  }
+
+  protected String toAbsolute(Path relative) throws IOException {
+    return relative.toFile().toURI().toString();
   }
 
   private void copyTableFiles(RewriteTablePath.Result result) throws Exception {

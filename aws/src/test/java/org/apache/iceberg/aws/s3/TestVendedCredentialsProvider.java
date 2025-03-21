@@ -302,6 +302,176 @@ public class TestVendedCredentialsProvider {
     }
   }
 
+  @Test
+  public void nonExpiredTokenInProperties() {
+    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    String expiresAt = Long.toString(Instant.now().plus(10, ChronoUnit.HOURS).toEpochMilli());
+    Credential credentialFromProperties =
+        ImmutableCredential.builder()
+            .prefix("s3")
+            .config(
+                ImmutableMap.of(
+                    S3FileIOProperties.ACCESS_KEY_ID,
+                    "randomAccessKeyFromProperties",
+                    S3FileIOProperties.SECRET_ACCESS_KEY,
+                    "randomSecretAccessKeyFromProperties",
+                    S3FileIOProperties.SESSION_TOKEN,
+                    "sessionTokenFromProperties",
+                    S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+                    expiresAt))
+            .build();
+
+    Credential credential =
+        ImmutableCredential.builder()
+            .prefix("s3")
+            .config(
+                ImmutableMap.of(
+                    S3FileIOProperties.ACCESS_KEY_ID,
+                    "randomAccessKey",
+                    S3FileIOProperties.SECRET_ACCESS_KEY,
+                    "randomSecretAccessKey",
+                    S3FileIOProperties.SESSION_TOKEN,
+                    "sessionToken",
+                    S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+                    Long.toString(Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli())))
+            .build();
+    LoadCredentialsResponse response =
+        ImmutableLoadCredentialsResponse.builder().addCredentials(credential).build();
+
+    HttpResponse mockResponse =
+        response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
+    mockServer.when(mockRequest).respond(mockResponse);
+
+    try (VendedCredentialsProvider provider =
+        VendedCredentialsProvider.create(
+            ImmutableMap.of(
+                VendedCredentialsProvider.URI,
+                URI,
+                S3FileIOProperties.ACCESS_KEY_ID,
+                "randomAccessKeyFromProperties",
+                S3FileIOProperties.SECRET_ACCESS_KEY,
+                "randomSecretAccessKeyFromProperties",
+                S3FileIOProperties.SESSION_TOKEN,
+                "sessionTokenFromProperties",
+                S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+                expiresAt))) {
+      AwsCredentials awsCredentials = provider.resolveCredentials();
+
+      verifyCredentials(awsCredentials, credentialFromProperties);
+
+      for (int i = 0; i < 5; i++) {
+        // resolving credentials multiple times should not hit the credentials endpoint again
+        assertThat(provider.resolveCredentials()).isSameAs(awsCredentials);
+      }
+    }
+
+    // token endpoint isn't hit, because the credentials are extracted from the properties
+    mockServer.verify(mockRequest, VerificationTimes.never());
+  }
+
+  @Test
+  public void expiredTokenInProperties() {
+    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+
+    Credential credential =
+        ImmutableCredential.builder()
+            .prefix("s3")
+            .config(
+                ImmutableMap.of(
+                    S3FileIOProperties.ACCESS_KEY_ID,
+                    "randomAccessKey",
+                    S3FileIOProperties.SECRET_ACCESS_KEY,
+                    "randomSecretAccessKey",
+                    S3FileIOProperties.SESSION_TOKEN,
+                    "sessionToken",
+                    S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+                    Long.toString(Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli())))
+            .build();
+    LoadCredentialsResponse response =
+        ImmutableLoadCredentialsResponse.builder().addCredentials(credential).build();
+
+    HttpResponse mockResponse =
+        response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
+    mockServer.when(mockRequest).respond(mockResponse);
+
+    try (VendedCredentialsProvider provider =
+        VendedCredentialsProvider.create(
+            ImmutableMap.of(
+                VendedCredentialsProvider.URI,
+                URI,
+                S3FileIOProperties.ACCESS_KEY_ID,
+                "randomAccessKeyFromProperties",
+                S3FileIOProperties.SECRET_ACCESS_KEY,
+                "randomSecretAccessKeyFromProperties",
+                S3FileIOProperties.SESSION_TOKEN,
+                "sessionTokenFromProperties",
+                S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+                Long.toString(Instant.now().minus(1, ChronoUnit.HOURS).toEpochMilli())))) {
+      AwsCredentials awsCredentials = provider.resolveCredentials();
+
+      verifyCredentials(awsCredentials, credential);
+
+      for (int i = 0; i < 5; i++) {
+        // resolving credentials multiple times should not hit the credentials endpoint again
+        assertThat(provider.resolveCredentials()).isSameAs(awsCredentials);
+      }
+    }
+
+    // token endpoint is hit once due to the properties containing an expired token
+    mockServer.verify(mockRequest, VerificationTimes.once());
+  }
+
+  @Test
+  public void invalidTokenInProperties() {
+    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+
+    Credential credential =
+        ImmutableCredential.builder()
+            .prefix("s3")
+            .config(
+                ImmutableMap.of(
+                    S3FileIOProperties.ACCESS_KEY_ID,
+                    "randomAccessKey",
+                    S3FileIOProperties.SECRET_ACCESS_KEY,
+                    "randomSecretAccessKey",
+                    S3FileIOProperties.SESSION_TOKEN,
+                    "sessionToken",
+                    S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+                    Long.toString(Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli())))
+            .build();
+    LoadCredentialsResponse response =
+        ImmutableLoadCredentialsResponse.builder().addCredentials(credential).build();
+
+    HttpResponse mockResponse =
+        response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
+    mockServer.when(mockRequest).respond(mockResponse);
+
+    // token expiration is missing from the properties
+    try (VendedCredentialsProvider provider =
+        VendedCredentialsProvider.create(
+            ImmutableMap.of(
+                VendedCredentialsProvider.URI,
+                URI,
+                S3FileIOProperties.ACCESS_KEY_ID,
+                "randomAccessKeyFromProperties",
+                S3FileIOProperties.SECRET_ACCESS_KEY,
+                "randomSecretAccessKeyFromProperties",
+                S3FileIOProperties.SESSION_TOKEN,
+                "sessionTokenFromProperties"))) {
+      AwsCredentials awsCredentials = provider.resolveCredentials();
+
+      verifyCredentials(awsCredentials, credential);
+
+      for (int i = 0; i < 5; i++) {
+        // resolving credentials multiple times should not hit the credentials endpoint again
+        assertThat(provider.resolveCredentials()).isSameAs(awsCredentials);
+      }
+    }
+
+    // token endpoint is hit once due to the properties not containing the token's expiration
+    mockServer.verify(mockRequest, VerificationTimes.once());
+  }
+
   private void verifyCredentials(AwsCredentials awsCredentials, Credential credential) {
     assertThat(awsCredentials).isInstanceOf(AwsSessionCredentials.class);
     AwsSessionCredentials creds = (AwsSessionCredentials) awsCredentials;

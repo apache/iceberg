@@ -33,6 +33,9 @@ public class TableUtil {
     } else if (table instanceof HasTableOperations) {
       HasTableOperations ops = (HasTableOperations) table;
       return ops.operations().current().formatVersion();
+    } else if (table instanceof BaseMetadataTable) {
+      BaseMetadataTable metadataTable = (BaseMetadataTable) table;
+      return metadataTable.table().operations().current().formatVersion();
     } else {
       throw new IllegalArgumentException(
           String.format("%s does not have a format version", table.getClass().getSimpleName()));

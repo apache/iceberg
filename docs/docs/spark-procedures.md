@@ -943,7 +943,7 @@ as an `UPDATE_AFTER` image, resulting in the following pre/post update images:
 
 ### `compute_table_stats`
 
-This procedure calculates the [Number of Distinct Values (NDV) statistics](../../format/puffin-spec.md) for a specific table.
+This procedure calculates the [Number of Distinct Values (NDV) statistics](../../puffin-spec.md#apache-datasketches-theta-v1-blob-type) for a specific table.
 By default, statistics are computed for all columns using the table's current snapshot.
 The procedure can be optionally configured to compute statistics for a specific snapshot and/or a subset of columns.
 

@@ -105,7 +105,7 @@ SELECT * FROM nyc.taxis;
 
 #### Adding Iceberg to Hive
 
-If you already have a Hive 4.0.0, or later, environment, it comes with the Iceberg 1.4.3 included. No additional downloads or jars are needed. If you have a Hive 2.3.x or Hive 3.1.x environment see [Enabling Iceberg support in Hive](docs/latest/hive.md#hive-23x-hive-31x).
+If you already have a Hive 4.0.0 or later environment, it comes with the Iceberg 1.4.3 included. No additional downloads or jars are needed. If you have a Hive 2.3.x or Hive 3.1.x environment see [Enabling Iceberg support in Hive](docs/latest/hive.md#hive-23x-hive-31x).
 
 #### Learn More
 

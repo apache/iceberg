@@ -858,6 +858,23 @@ public class Spark3Util {
         .quoted();
   }
 
+  public static org.apache.spark.sql.execution.datasources.PartitionSpec getInferredSpec(
+      SparkSession spark, Path rootPath) {
+    FileStatusCache fileStatusCache = FileStatusCache.getOrCreate(spark);
+    InMemoryFileIndex fileIndex =
+        new InMemoryFileIndex(
+            spark,
+            JavaConverters.collectionAsScalaIterableConverter(ImmutableList.of(rootPath))
+                .asScala()
+                .toSeq(),
+            scala.collection.immutable.Map$.MODULE$.empty(),
+            Option.empty(), // Pass empty so that automatic schema inference is used
+            fileStatusCache,
+            Option.empty(),
+            Option.empty());
+    return fileIndex.partitionSpec();
+  }
+
   /**
    * Use Spark to list all partitions in the table.
    *

@@ -16,19 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.data;
+package org.apache.iceberg.variants;
 
-import java.io.File;
-import org.apache.iceberg.Files;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public class TestFlinkAvroPlannedReaderWriter extends AbstractTestFlinkAvroReaderWriter {
+class VariantData implements Variant {
+  private final VariantMetadata metadata;
+  private final VariantValue value;
+
+  VariantData(VariantMetadata metadata, VariantValue value) {
+    Preconditions.checkArgument(metadata != null, "Invalid variant metadata: null");
+    Preconditions.checkArgument(value != null, "Invalid variant value: null");
+    this.metadata = metadata;
+    this.value = value;
+  }
 
   @Override
-  protected Avro.ReadBuilder createAvroReadBuilder(File recordsFile, Schema schema) {
-    return Avro.read(Files.localInput(recordsFile))
-        .project(schema)
-        .createResolvingReader(FlinkPlannedAvroReader::create);
+  public VariantMetadata metadata() {
+    return metadata;
+  }
+
+  @Override
+  public VariantValue value() {
+    return value;
+  }
+
+  @Override
+  public String toString() {
+    return Variant.toString(this);
   }
 }

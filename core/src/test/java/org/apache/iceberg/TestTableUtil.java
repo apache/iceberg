@@ -80,17 +80,12 @@ public class TestTableUtil {
   @EnumSource(MetadataTableType.class)
   public void formatVersionForMetadataTables(MetadataTableType type) {
     Table table = catalog.createTable(IDENTIFIER, SCHEMA);
+    int formatVersion = ((BaseTable) table).operations().current().formatVersion();
 
     Table metadataTable = MetadataTableUtils.createMetadataTableInstance(table, type);
-    assertThatThrownBy(() -> TableUtil.formatVersion(metadataTable))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("%s does not have a format version", metadataTable.getClass().getSimpleName());
-
-    assertThatThrownBy(() -> TableUtil.formatVersion(SerializableTable.copyOf(metadataTable)))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage(
-            "%s does not have a format version",
-            SerializableTable.SerializableMetadataTable.class.getName());
+    assertThat(TableUtil.formatVersion(metadataTable)).isEqualTo(formatVersion);
+    assertThat(TableUtil.formatVersion(SerializableTable.copyOf(metadataTable)))
+        .isEqualTo(formatVersion);
   }
 
   @Test

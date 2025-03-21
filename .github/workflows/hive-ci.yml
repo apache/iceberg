@@ -47,6 +47,7 @@ on:
     - '.gitignore'
     - '.asf.yaml'
     - 'dev/**'
+    - 'docker/**'
     - 'arrow/**'
     - 'spark/**'
     - 'flink/**'
@@ -56,10 +57,10 @@ on:
     - 'open-api/**'
     - 'format/**'
     - '.gitattributes'
-    - 'README.md'
+    - '**/README.md'
     - 'CONTRIBUTING.md'
-    - 'LICENSE'
-    - 'NOTICE'
+    - '**/LICENSE'
+    - '**/NOTICE'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

@@ -29,17 +29,7 @@ public interface Variant {
   VariantValue value();
 
   static Variant of(VariantMetadata metadata, VariantValue value) {
-    return new Variant() {
-      @Override
-      public VariantMetadata metadata() {
-        return metadata;
-      }
-
-      @Override
-      public VariantValue value() {
-        return value;
-      }
-    };
+    return new VariantData(metadata, value);
   }
 
   static Variant from(ByteBuffer buffer) {
@@ -49,5 +39,9 @@ public interface Variant {
             buffer, metadata.sizeInBytes(), buffer.remaining() - metadata.sizeInBytes());
     VariantValue value = VariantValue.from(metadata, valueBuffer);
     return of(metadata, value);
+  }
+
+  static String toString(Variant variant) {
+    return "Variant(metadata=" + variant.metadata() + ", value=" + variant.value() + ")";
   }
 }

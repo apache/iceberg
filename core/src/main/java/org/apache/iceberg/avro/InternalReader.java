@@ -161,6 +161,12 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition, S
     }
 
     @Override
+    public ValueReader<?> variant(
+        Pair<Integer, Type> partner, ValueReader<?> metadataReader, ValueReader<?> valueReader) {
+      return ValueReaders.variants();
+    }
+
+    @Override
     public ValueReader<?> primitive(Pair<Integer, Type> partner, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
@@ -177,6 +183,8 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition, S
             return (ValueReader<Long>) (decoder, ignored) -> longs.read(decoder, null) * 1000L;
 
           case "timestamp-micros":
+          case "timestamp-nanos":
+            // both are handled in memory as long values, using the type to track units
             return ValueReaders.longs();
 
           case "decimal":
