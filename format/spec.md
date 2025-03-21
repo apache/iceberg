@@ -1475,7 +1475,7 @@ The following table describes the possible values for the some of the field with
 
 Table metadata is serialized as a JSON object according to the following table. Snapshots are not serialized separately. Instead, they are stored in the table metadata JSON. 
 
-A metadata JSON file must end in `.metadata.json`. A metadata JSON file may be compressed with [GZIP](https://datatracker.ietf.org/doc/html/rfc1952). A GZIP compressed file must end with `gz.metadata.json`.
+A metadata JSON file must end in `.metadata.json`. A metadata JSON file may be compressed with [GZIP](https://datatracker.ietf.org/doc/html/rfc1952). A GZIP compressed file must end with `.gz.metadata.json`.
 
 
 |Metadata field|JSON representation|Example|
