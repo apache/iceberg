@@ -29,7 +29,7 @@ public abstract class CatalogTestBase extends TestBaseWithCatalog {
 
   // these parameters are broken out to avoid changes that need to modify lots of test suites
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
-  public static Object[][] parameters() {
+  protected static Object[][] parameters() {
     return new Object[][] {
       {
         SparkCatalogConfig.HIVE.catalogName(),
