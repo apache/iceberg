@@ -1473,7 +1473,10 @@ The following table describes the possible values for the some of the field with
 
 ### Table Metadata and Snapshots
 
-Table metadata is serialized as a JSON object according to the following table. Snapshots are not serialized separately. Instead, they are stored in the table metadata JSON.
+Table metadata is serialized as a JSON object according to the following table. Snapshots are not serialized separately. Instead, they are stored in the table metadata JSON. 
+
+A metadata JSON file must end in `.metadata.json`. A metadata JSON file may be compressed with [GZIP](https://datatracker.ietf.org/doc/html/rfc1952). A GZIP compressed file must end with `gz.metadata.json`.
+
 
 |Metadata field|JSON representation|Example|
 |--- |--- |--- |
@@ -1760,6 +1763,10 @@ Writers should produce positive values for snapshot ids in a manner that minimiz
 The reference Java implementation uses a type 4 uuid and XORs the 4 most significant bytes with the 4 least significant bytes then ANDs with the maximum long value to arrive at a pseudo-random snapshot id with a low probability of collision.
 
 Java writes `-1` for "no current snapshot" with V1 and V2 tables and considers this equivalent to omitted or `null`. This has never been formalized in the spec, but for compatibility, other implementations can accept `-1` as `null`. Java will no longer write `-1` and will use `null` for "no current snapshot" for all tables with a version greater than or equal to V3.
+
+### Legacy naming for GZIP compressed Metadata JSON files
+
+Some implementations have written GZIP compressed metadata JSON files with the suffix `metadata.json.gz`. The reference Java implementation will interpret files with this naming convention as GZIP files.
 
 ## Appendix G: Geospatial Notes
 
