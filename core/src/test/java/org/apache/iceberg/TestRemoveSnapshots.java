@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.times;
@@ -35,7 +36,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
@@ -1770,6 +1773,24 @@ public class TestRemoveSnapshots extends TestBase {
                 meta ->
                     meta.changes().stream()
                         .anyMatch(u -> u instanceof MetadataUpdate.RemoveSchemas)));
+  }
+
+  @TestTemplate
+  public void testCustomWorkerPool() {
+    ExecutorService executor = Executors.newSingleThreadExecutor();
+    // shutdown the executor, cleanExpiredSnapshots should fail
+    executor.shutdownNow();
+    RemoveSnapshots removeSnapshots = (RemoveSnapshots) removeSnapshots(table).planWith(executor);
+
+    table.newAppend().appendFile(FILE_A).commit();
+    table.newAppend().appendFile(FILE_A).commit();
+
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+    assertThrows(
+        RejectedExecutionException.class,
+        () -> {
+          removeSnapshots.expireOlderThan(tAfterCommits).commit();
+        });
   }
 
   private Set<String> manifestPaths(Snapshot snapshot, FileIO io) {
