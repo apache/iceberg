@@ -31,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.ShreddedObject;
+import org.apache.iceberg.variants.ValueArray;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantObject;
@@ -93,6 +94,19 @@ public class ParquetVariantReaders {
         typedDefinitionLevel,
         fieldNames,
         fieldReaders);
+  }
+
+  public static VariantValueReader array(
+      int valueDefinitionLevel,
+      ParquetValueReader<?> valueReader,
+      int typedDefinitionLevel,
+      int repeatedDefinitionLevel,
+      int repeatedRepetitionLevel,
+      ParquetValueReader<?> elementReader) {
+    VariantValueReader typedReader =
+        new ListReader(
+            repeatedDefinitionLevel, repeatedRepetitionLevel, (VariantValueReader) elementReader);
+    return shredded(valueDefinitionLevel, valueReader, typedDefinitionLevel, typedReader);
   }
 
   public static VariantValueReader asVariant(PhysicalType type, ParquetValueReader<?> reader) {
@@ -329,6 +343,57 @@ public class ParquetVariantReaders {
       for (VariantValueReader reader : fieldReaders) {
         reader.setPageSource(pageStore);
       }
+    }
+  }
+
+  private static class ListReader implements VariantValueReader {
+    private final int definitionLevel;
+    private final int repetitionLevel;
+    private final VariantValueReader reader;
+    private final TripleIterator<?> column;
+    private final List<TripleIterator<?>> children;
+
+    protected ListReader(int definitionLevel, int repetitionLevel, VariantValueReader reader) {
+      this.definitionLevel = definitionLevel;
+      this.repetitionLevel = repetitionLevel;
+      this.reader = reader;
+      this.column = reader.column();
+      this.children = reader.columns();
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+      reader.setPageSource(pageStore);
+    }
+
+    @Override
+    public ValueArray read(VariantMetadata metadata) {
+      ValueArray arr = Variants.array();
+      do {
+        if (column.currentDefinitionLevel() > definitionLevel) {
+          arr.add(reader.read(metadata));
+        } else {
+          // consume the empty list triple
+          for (TripleIterator<?> child : children) {
+            child.nextNull();
+          }
+          // if the current definition level is equal to the definition level of this repeated type,
+          // then the result is an empty list and the repetition level will always be <= rl.
+          break;
+        }
+      } while (column.currentRepetitionLevel() > repetitionLevel);
+
+      return arr;
+    }
+
+    @Override
+    public TripleIterator<?> column() {
+      return column;
+    }
+
+    @Override
+    public List<TripleIterator<?>> columns() {
+      return children;
     }
   }
 
