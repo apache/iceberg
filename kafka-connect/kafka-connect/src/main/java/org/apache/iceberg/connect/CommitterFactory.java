@@ -18,20 +18,32 @@
  */
 package org.apache.iceberg.connect;
 
-import java.lang.reflect.InvocationTargetException;
+import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.common.DynConstructors;
 
 class CommitterFactory {
   static Committer createCommitter(IcebergSinkConfig config) {
-    Class<?> committerClass = config.committer();
+    String committerImpl = config.committerImpl();
+    DynConstructors.Ctor<Committer> ctor;
     try {
-      return (Committer) committerClass.getDeclaredConstructor().newInstance();
-    } catch (InstantiationException
-        | IllegalAccessException
-        | NoSuchMethodException
-        | InvocationTargetException e) {
-      throw new RuntimeException(
-          "Failed to create committer instance of class: " + committerClass.getName(), e);
+      ctor = DynConstructors.builder(Catalog.class).impl(committerImpl).buildChecked();
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize Committer implementation %s: %s", committerImpl, e.getMessage()),
+          e);
     }
+
+    Committer committer;
+    try {
+      committer = ctor.newInstance();
+
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          String.format("Cannot initialize Catalog, %s does not implement Catalog.", committerImpl),
+          e);
+    }
+    return committer;
   }
 
   private CommitterFactory() {}

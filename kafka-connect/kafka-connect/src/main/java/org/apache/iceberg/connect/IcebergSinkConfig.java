@@ -28,7 +28,6 @@ import java.util.Properties;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.IcebergBuild;
-import org.apache.iceberg.connect.channel.CommitterImpl;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -102,7 +101,8 @@ public class IcebergSinkConfig extends AbstractConfig {
   public static final String COMMITTER_IMPL_CONFIG = "iceberg.committer.impl";
   public static final String COMMITTER_IMPL_DOC =
       "config to override the default committer implementation";
-  public static final Class<?> COMMITTER_IMPL_DEFAULT = CommitterImpl.class;
+  public static final String COMMITTER_IMPL_DEFAULT =
+      "org.apache.iceberg.connect.channel.CommitterImpl";
 
   public static final String COMMITER_IMPL_CONFIG_PREFIX = "iceberg.committer.";
 
@@ -235,7 +235,7 @@ public class IcebergSinkConfig extends AbstractConfig {
         "If specified, Hadoop config files in this directory will be loaded");
     configDef.define(
         COMMITTER_IMPL_CONFIG,
-        ConfigDef.Type.CLASS,
+        ConfigDef.Type.STRING,
         COMMITTER_IMPL_DEFAULT,
         Importance.HIGH,
         COMMITTER_IMPL_DOC);
@@ -298,8 +298,8 @@ public class IcebergSinkConfig extends AbstractConfig {
     }
   }
 
-  public Class<?> committer() {
-    return getClass(COMMITTER_IMPL_CONFIG);
+  public String committerImpl() {
+    return getString(COMMITTER_IMPL_CONFIG);
   }
 
   public Map<String, String> committerConfig() {
