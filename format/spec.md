@@ -1766,7 +1766,7 @@ Java writes `-1` for "no current snapshot" with V1 and V2 tables and considers t
 
 ### Legacy naming for GZIP compressed Metadata JSON files
 
-Some implementations have written GZIP compressed metadata JSON files with the suffix `metadata.json.gz`. The reference Java implementation will interpret files with this naming convention as GZIP files.
+Some implementations have written GZIP compressed metadata JSON files with the suffix `metadata.json.gz`. The reference Java implementation will interpret files with this naming convention as GZIP files for backwards compatibility.
 
 ## Appendix G: Geospatial Notes
 
