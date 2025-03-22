@@ -24,6 +24,8 @@ import org.apache.iceberg.types.Types;
 
 public class TestViews {
 
+  private TestViews() {}
+
   public static TestView createSampleTestView(String name) {
     return new TestView(
         new TestViewOperations(/* version= */ 1, /* timestampMillis= */ 1737436503101L), name);
@@ -67,6 +69,4 @@ public class TestViews {
     @Override
     public void commit(ViewMetadata base, ViewMetadata updated) {}
   }
-
-  private TestViews() {}
 }
