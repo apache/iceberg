@@ -195,7 +195,9 @@ public abstract class TestReadProjection {
 
     assertThat(projected).as("Should read a non-null record").isNotNull();
     // this is expected because there are no values
-    assertThatThrownBy(() -> projected.get(0)).isInstanceOf(ArrayIndexOutOfBoundsException.class);
+    assertThatThrownBy(() -> projected.get(0))
+        .isInstanceOf(ArrayIndexOutOfBoundsException.class)
+        .hasMessageContaining("out of bounds");
   }
 
   @Test

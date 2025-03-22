@@ -135,7 +135,8 @@ public class TestAssumeRoleAwsClientFactory {
             () ->
                 glueCatalog.createNamespace(
                     Namespace.of("denied_" + UUID.randomUUID().toString().replace("-", ""))))
-        .isInstanceOf(AccessDeniedException.class);
+        .isInstanceOf(AccessDeniedException.class)
+        .hasMessageContaining("Access denied");
 
     Namespace namespace = Namespace.of("allowed_" + UUID.randomUUID().toString().replace("-", ""));
     try {
@@ -180,6 +181,7 @@ public class TestAssumeRoleAwsClientFactory {
                     .newInputFile("s3://" + AwsIntegTestUtil.testBucketName() + "/denied/file")
                     .exists())
         .isInstanceOf(S3Exception.class)
+        .hasMessageContaining("s3 exception")
         .asInstanceOf(InstanceOfAssertFactories.type(S3Exception.class))
         .extracting(SdkServiceException::statusCode)
         .isEqualTo(403);

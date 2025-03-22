@@ -93,6 +93,18 @@
         <property name="message" value="assertThatThrownBy() should be statically imported from org.assertj.core.api.Assertions"/>
     </module>
     <module name="RegexpMultiline">
+        <property name="id" value="AssertThatThrownByWithMessageCheck"/>
+        <property name="matchAcrossLines" value="true"/>
+        <property name="format" value="assertThatThrownBy\((?:(?!\.hasMessage\w*\().)*?isInstanceOf\((?:(?!\.hasMessage\w*\().)*?;"/>
+        <property name="message" value="assertThatThrownBy must include a message check like .hasMessageContaining(...)"/>
+    </module>
+    <module name="RegexpMultiline">
+        <property name="id" value="AssertThatExceptionOfTypeWithMessageCheck"/>
+        <property name="matchAcrossLines" value="true"/>
+        <property name="format" value="assertThatExceptionOfType\((?:(?!\.withMessage\w*\().)*?isThrownBy\((?:(?!\.withMessage\w*\().)*?;"/>
+        <property name="message" value="assertThatExceptionOfType must include a message check like .withMessageContaining(...)"/>
+    </module>
+    <module name="RegexpMultiline">
         <property name="format" value="^\s*import\s+\Qorg.assertj.core.api.Assertions;\E" />
         <property name="message" value="org.assertj.core.api.Assertions should only be used with static imports" />
     </module>
