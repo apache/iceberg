@@ -66,12 +66,12 @@ public class ViewVersionTable extends BaseMetadataTable {
   }
 
   private DataTask task(BaseTableScan scan) {
-    return ViewMetadataReadTask.of(
-        location(),
-        schema(),
-        scan.schema(),
-        viewWrapper.wrappedView().operations().current().versions(),
-        ViewVersionTable::viewVersionToRow);
+    return StaticDataTask.of(
+            viewWrapper.io().newInputFile(location()),
+            schema(),
+            scan.schema(),
+            viewWrapper.wrappedView().operations().current().versions(),
+            ViewVersionTable::viewVersionToRow);
   }
 
   @Override
@@ -106,8 +106,8 @@ public class ViewVersionTable extends BaseMetadataTable {
     }
   }
 
-  private static ViewMetadataReadTask.Row viewVersionToRow(ViewVersion version) {
-    return ViewMetadataReadTask.Row.of(
+  private static StaticDataTask.Row viewVersionToRow(ViewVersion version) {
+    return StaticDataTask.Row.of(
         version.versionId(),
         version.schemaId(),
         version.timestampMillis() * 1000,
@@ -116,7 +116,7 @@ public class ViewVersionTable extends BaseMetadataTable {
             .map(
                 r -> {
                   SQLViewRepresentation sqlViewRepresentation = (SQLViewRepresentation) r;
-                  return ViewMetadataReadTask.Row.of(
+                  return StaticDataTask.Row.of(
                       sqlViewRepresentation.type(),
                       sqlViewRepresentation.sql(),
                       sqlViewRepresentation.dialect());

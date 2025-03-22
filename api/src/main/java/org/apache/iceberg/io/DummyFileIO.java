@@ -27,7 +27,7 @@ public class DummyFileIO implements FileIO {
         return new InputFile() {
             @Override
             public long getLength() {
-                throw new UnsupportedOperationException();
+                return 0L;
             }
 
             @Override
