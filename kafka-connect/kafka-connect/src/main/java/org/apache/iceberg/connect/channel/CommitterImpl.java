@@ -76,16 +76,39 @@ public class CommitterImpl implements Committer {
 
   private boolean hasLeaderPartition(Collection<TopicPartition> currentAssignedPartitions) {
     ConsumerGroupDescription groupDesc;
+
+    if (clientFactory == null) {
+      LOG.warn("Client factory is null, cannot check leader partition");
+      return false;
+    }
+
     try (Admin admin = clientFactory.createAdmin()) {
       groupDesc = KafkaUtils.consumerGroupDescription(config.connectGroupId(), admin);
+    } catch (Exception e) {
+      LOG.error("Failed to check consumer group state due to admin client error", e);
+      return false;
     }
+
+    Collection<MemberDescription> members = groupDesc.members();
+    if (members.isEmpty()) {
+      LOG.error(
+          "Consumer group {} is in {} state with no members - coordinator election cannot proceed",
+          config.connectGroupId(),
+          groupDesc.state());
+      return false;
+    }
+
     if (groupDesc.state() == ConsumerGroupState.STABLE) {
-      Collection<MemberDescription> members = groupDesc.members();
       if (containsFirstPartition(members, currentAssignedPartitions)) {
         membersWhenWorkerIsCoordinator = members;
         return true;
       }
     }
+    LOG.info(
+        "Consumer group {} is in {} state with {} members - waiting for group to stabilize",
+        config.connectGroupId(),
+        groupDesc.state(),
+        members.size());
     return false;
   }
 
@@ -141,7 +164,11 @@ public class CommitterImpl implements Committer {
       stopCoordinator();
     }
     stopWorker();
-    KafkaUtils.seekToLastCommittedOffsets(context);
+    if (clientFactory != null) {
+      KafkaUtils.seekToLastCommittedOffsets(context);
+    } else {
+      LOG.warn("Client factory is null, cannot seek to last committed offsets");
+    }
   }
 
   @Override
