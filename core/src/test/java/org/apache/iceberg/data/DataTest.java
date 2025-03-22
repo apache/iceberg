@@ -148,7 +148,11 @@ public abstract class DataTest {
         .as("variant is not yet implemented")
         .isTrue();
 
-    writeAndValidate(new Schema(required(1, "id", LongType.get()), optional(2, "test_type", type)));
+    writeAndValidate(
+        new Schema(
+            required(1, "id", LongType.get()),
+            optional(2, "test_type", type),
+            required(3, "trailing_data", Types.StringType.get())));
   }
 
   @Test

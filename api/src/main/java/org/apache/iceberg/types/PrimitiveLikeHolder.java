@@ -16,19 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.data;
+package org.apache.iceberg.types;
 
-import java.io.File;
-import org.apache.iceberg.Files;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.avro.Avro;
+import java.io.ObjectStreamException;
+import java.io.Serializable;
 
-public class TestFlinkAvroPlannedReaderWriter extends AbstractTestFlinkAvroReaderWriter {
+/** Replacement for primitive types and Variant type in Java Serialization. */
+class PrimitiveLikeHolder implements Serializable {
+  private String typeAsString = null;
 
-  @Override
-  protected Avro.ReadBuilder createAvroReadBuilder(File recordsFile, Schema schema) {
-    return Avro.read(Files.localInput(recordsFile))
-        .project(schema)
-        .createResolvingReader(FlinkPlannedAvroReader::create);
+  /** Constructor for Java serialization. */
+  PrimitiveLikeHolder() {}
+
+  PrimitiveLikeHolder(String typeAsString) {
+    this.typeAsString = typeAsString;
+  }
+
+  Object readResolve() throws ObjectStreamException {
+    return Types.fromTypeName(typeAsString);
   }
 }

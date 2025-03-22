@@ -22,6 +22,7 @@ import java.util.Deque;
 import java.util.List;
 import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.RowType.RowField;
@@ -173,18 +174,24 @@ public class ParquetWithFlinkSchemaVisitor<T> {
   private static <T> List<T> visitFields(
       RowType struct, GroupType group, ParquetWithFlinkSchemaVisitor<T> visitor) {
     List<RowType.RowField> sFields = struct.getFields();
-    Preconditions.checkArgument(
-        sFields.size() == group.getFieldCount(), "Structs do not match: %s and %s", struct, group);
     List<T> results = Lists.newArrayListWithExpectedSize(group.getFieldCount());
-    for (int i = 0; i < sFields.size(); i += 1) {
-      Type field = group.getFields().get(i);
-      RowType.RowField sField = sFields.get(i);
+
+    int pos = 0;
+    for (RowField sField : sFields) {
+      if (sField.getType().getTypeRoot() == LogicalTypeRoot.NULL) {
+        // skip null types that are not in the Parquet schema
+        continue;
+      }
+
+      Type field = group.getFields().get(pos);
       Preconditions.checkArgument(
           field.getName().equals(AvroSchemaUtil.makeCompatibleName(sField.getName())),
           "Structs do not match: field %s != %s",
           field.getName(),
           sField.getName());
       results.add(visitField(sField, field, visitor));
+
+      pos += 1;
     }
 
     return results;

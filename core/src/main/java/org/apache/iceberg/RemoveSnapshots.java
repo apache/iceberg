@@ -65,14 +65,6 @@ class RemoveSnapshots implements ExpireSnapshots {
   private static final ExecutorService DEFAULT_DELETE_EXECUTOR_SERVICE =
       MoreExecutors.newDirectExecutorService();
 
-  private final Consumer<String> defaultDelete =
-      new Consumer<String>() {
-        @Override
-        public void accept(String file) {
-          ops.io().deleteFile(file);
-        }
-      };
-
   private final TableOperations ops;
   private final Set<Long> idsToRemove = Sets.newHashSet();
   private final long now;
@@ -81,7 +73,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   private TableMetadata base;
   private long defaultExpireOlderThan;
   private int defaultMinNumSnapshots;
-  private Consumer<String> deleteFunc = defaultDelete;
+  private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
   private ExecutorService planExecutorService = ThreadPools.getWorkerPool();
   private Boolean incrementalCleanup;

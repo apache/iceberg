@@ -40,7 +40,7 @@ public class TestGenericReadProjection extends TestReadProjection {
     try (FileAppender<Record> appender =
         Parquet.write(Files.localOutput(file))
             .schema(writeSchema)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .createWriterFunc(GenericParquetWriter::create)
             .build()) {
       appender.add(record);
     }

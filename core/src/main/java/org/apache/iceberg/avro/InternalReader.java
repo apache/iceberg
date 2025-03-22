@@ -161,6 +161,12 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition, S
     }
 
     @Override
+    public ValueReader<?> variant(
+        Pair<Integer, Type> partner, ValueReader<?> metadataReader, ValueReader<?> valueReader) {
+      return ValueReaders.variants();
+    }
+
+    @Override
     public ValueReader<?> primitive(Pair<Integer, Type> partner, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {

@@ -51,6 +51,10 @@ public class FlinkValueWriters {
     return TimestampMicrosWriter.INSTANCE;
   }
 
+  static ValueWriter<TimestampData> timestampNanos() {
+    return TimestampNanosWriter.INSTANCE;
+  }
+
   static ValueWriter<DecimalData> decimal(int precision, int scale) {
     return new DecimalWriter(precision, scale);
   }
@@ -127,6 +131,17 @@ public class FlinkValueWriters {
       long micros =
           timestampData.getMillisecond() * 1000 + timestampData.getNanoOfMillisecond() / 1000;
       encoder.writeLong(micros);
+    }
+  }
+
+  private static class TimestampNanosWriter implements ValueWriter<TimestampData> {
+    private static final TimestampNanosWriter INSTANCE = new TimestampNanosWriter();
+
+    @Override
+    public void write(TimestampData timestampData, Encoder encoder) throws IOException {
+      long nanos =
+          timestampData.getMillisecond() * 1_000_000 + timestampData.getNanoOfMillisecond();
+      encoder.writeLong(nanos);
     }
   }
 

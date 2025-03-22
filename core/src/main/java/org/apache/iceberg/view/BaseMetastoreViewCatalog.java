@@ -124,6 +124,20 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
       return viewDefaultProperties;
     }
 
+    /**
+     * Get view properties that are enforced at Catalog level through catalog properties.
+     *
+     * @return overriding view properties enforced through catalog properties
+     */
+    private Map<String, String> viewOverrideProperties() {
+      Map<String, String> viewOverrideProperties =
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.VIEW_OVERRIDE_PREFIX);
+      LOG.info(
+          "View properties enforced at catalog level through catalog properties: {}",
+          viewOverrideProperties);
+      return viewOverrideProperties;
+    }
+
     @Override
     public ViewBuilder withSchema(Schema newSchema) {
       this.schema = newSchema;
@@ -209,6 +223,8 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
               .putAllSummary(EnvironmentContext.get())
               .build();
 
+      properties.putAll(viewOverrideProperties());
+
       ViewMetadata viewMetadata =
           ViewMetadata.builder()
               .setProperties(properties)
@@ -257,6 +273,8 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
               .timestampMillis(System.currentTimeMillis())
               .putAllSummary(EnvironmentContext.get())
               .build();
+
+      properties.putAll(viewOverrideProperties());
 
       ViewMetadata.Builder builder =
           ViewMetadata.buildFrom(metadata)

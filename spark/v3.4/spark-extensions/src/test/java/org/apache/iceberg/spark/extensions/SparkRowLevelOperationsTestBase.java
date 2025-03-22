@@ -402,7 +402,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
       DataWriter<GenericRecord> dataWriter =
           Parquet.writeData(file)
               .forTable(table)
-              .createWriterFunc(GenericParquetWriter::buildWriter)
+              .createWriterFunc(GenericParquetWriter::create)
               .overwrite()
               .build();
 

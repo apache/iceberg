@@ -89,6 +89,10 @@ public class AvroWithPartnerVisitor<P, R> {
     return null;
   }
 
+  public R variant(P partner, R metadataResult, R valueResult) {
+    throw new UnsupportedOperationException("Visitor does not support variant");
+  }
+
   public R primitive(P partner, Schema primitive) {
     return null;
   }
@@ -100,7 +104,11 @@ public class AvroWithPartnerVisitor<P, R> {
       PartnerAccessors<P> accessors) {
     switch (schema.getType()) {
       case RECORD:
-        return visitRecord(partner, schema, visitor, accessors);
+        if (schema.getLogicalType() instanceof VariantLogicalType) {
+          return visitVariant(partner, schema, visitor, accessors);
+        } else {
+          return visitRecord(partner, schema, visitor, accessors);
+        }
 
       case UNION:
         return visitUnion(partner, schema, visitor, accessors);
@@ -121,6 +129,27 @@ public class AvroWithPartnerVisitor<P, R> {
       default:
         return visitor.primitive(partner, schema);
     }
+  }
+
+  private static <P, R> R visitVariant(
+      P partner,
+      Schema variant,
+      AvroWithPartnerVisitor<P, R> visitor,
+      PartnerAccessors<P> accessors) {
+    // check to make sure this hasn't been visited before
+    String recordName = variant.getFullName();
+    Preconditions.checkState(
+        !visitor.recordLevels.contains(recordName),
+        "Cannot process recursive Avro record %s",
+        recordName);
+    visitor.recordLevels.push(recordName);
+
+    R metadataResult = visit(null, variant.getField("metadata").schema(), visitor, accessors);
+    R valueResult = visit(null, variant.getField("value").schema(), visitor, accessors);
+
+    visitor.recordLevels.pop();
+
+    return visitor.variant(partner, metadataResult, valueResult);
   }
 
   private static <P, R> R visitRecord(

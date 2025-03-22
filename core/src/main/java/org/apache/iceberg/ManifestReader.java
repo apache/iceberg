@@ -25,7 +25,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Evaluator;
@@ -133,12 +132,17 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private static <T extends ContentFile<T>> Map<String, String> readMetadata(InputFile inputFile) {
     Map<String, String> metadata;
     try {
-      try (AvroIterable<ManifestEntry<T>> headerReader =
-          Avro.read(inputFile)
+      try (CloseableIterable<ManifestEntry<T>> headerReader =
+          InternalData.read(FileFormat.AVRO, inputFile)
               .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
-              .classLoader(GenericManifestEntry.class.getClassLoader())
               .build()) {
-        metadata = headerReader.getMetadata();
+
+        if (headerReader instanceof AvroIterable) {
+          metadata = ((AvroIterable<ManifestEntry<T>>) headerReader).getMetadata();
+        } else {
+          throw new RuntimeException(
+              "Reader does not support metadata reading: " + headerReader.getClass().getName());
+        }
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e);

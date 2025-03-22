@@ -178,10 +178,9 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   }
 
   private int formatVersion(Table table) {
-    if (table instanceof HasTableOperations) {
-      HasTableOperations ops = (HasTableOperations) table;
-      return ops.operations().current().formatVersion();
-    } else {
+    try {
+      return TableUtil.formatVersion(table);
+    } catch (IllegalArgumentException e) {
       return UNKNOWN_FORMAT_VERSION;
     }
   }

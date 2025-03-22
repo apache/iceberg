@@ -166,6 +166,39 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
   }
 
   @Test
+  public void overrideViewProperties() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withDefaultCatalog(catalog().name())
+            .withQuery("spark", "select * from ns.tbl")
+            .withProperty("key4", "catalog-overridden-key4")
+            .withProperty("prop1", "val1")
+            .create();
+
+    assertThat(view).isNotNull();
+    assertThat(view.properties())
+        .containsEntry("key1", "catalog-default-key1")
+        .containsEntry("key2", "catalog-default-key2")
+        .containsEntry("key3", "catalog-override-key3")
+        .containsEntry("key4", "catalog-override-key4")
+        .containsEntry("prop1", "val1");
+
+    assertThat(catalog().dropView(identifier)).isTrue();
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+  }
+
+  @Test
   public void completeCreateView() {
     TableIdentifier identifier = TableIdentifier.of("ns", "view");
 

@@ -172,7 +172,7 @@ public class TestRewriteTablePathsAction extends TestBase {
             .select("file_path")
             .as(Encoders.STRING())
             .collectAsList();
-    assertThat(validDataFiles.size()).isEqualTo(2);
+    assertThat(validDataFiles).hasSize(2);
 
     RewriteTablePath.Result result =
         actions()
@@ -234,14 +234,14 @@ public class TestRewriteTablePathsAction extends TestBase {
     List<Tuple2<String, String>> paths = readPathPairList(result.fileListLocation());
 
     String currentSnapshotId = String.valueOf(table.currentSnapshot().snapshotId());
-    assertThat(paths.stream().filter(c -> c._2().contains(currentSnapshotId)).count())
-        .withFailMessage("Should have the current snapshot file")
-        .isEqualTo(1);
+    assertThat(paths.stream().filter(c -> c._2().contains(currentSnapshotId)))
+        .as("Should have the current snapshot file")
+        .hasSize(1);
 
     String parentSnapshotId = String.valueOf(table.currentSnapshot().parentId());
-    assertThat(paths.stream().filter(c -> c._2().contains(parentSnapshotId)).count())
-        .withFailMessage("Should NOT have the parent snapshot file")
-        .isEqualTo(0);
+    assertThat(paths.stream().filter(c -> c._2().contains(parentSnapshotId)))
+        .as("Should NOT have the parent snapshot file")
+        .isEmpty();
   }
 
   @Test
@@ -255,7 +255,7 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     // Write first increment to source table
     dfA.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(location);
-    assertThat(spark.read().format("iceberg").load(location).count()).isEqualTo(1);
+    assertThat(spark.read().format("iceberg").load(location).collectAsList()).hasSize(1);
 
     // Replicate first increment to target table
     RewriteTablePath.Result result =
@@ -264,14 +264,15 @@ public class TestRewriteTablePathsAction extends TestBase {
             .rewriteLocationPrefix(sourceTable.location(), targetTableLocation())
             .execute();
     copyTableFiles(result);
-    assertThat(spark.read().format("iceberg").load(targetTableLocation()).count()).isEqualTo(1);
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
+        .hasSize(1);
 
     // Write second increment to source table
     List<ThreeColumnRecord> recordsB =
         Lists.newArrayList(new ThreeColumnRecord(2, "BBBBBBBBB", "BBB"));
     Dataset<Row> dfB = spark.createDataFrame(recordsB, ThreeColumnRecord.class).coalesce(1);
     dfB.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(location);
-    assertThat(spark.read().format("iceberg").load(location).count()).isEqualTo(2);
+    assertThat(spark.read().format("iceberg").load(location).collectAsList()).hasSize(2);
 
     // Replicate second increment to target table
     sourceTable.refresh();
@@ -353,9 +354,9 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     // verify data rows
     Dataset<Row> resultDF = spark.read().format("iceberg").load(targetTableLocation());
-    assertThat(resultDF.as(Encoders.bean(ThreeColumnRecord.class)).count())
-        .withFailMessage("There are only one row left since we deleted a data file")
-        .isEqualTo(1);
+    assertThat(resultDF.as(Encoders.bean(ThreeColumnRecord.class)).collectAsList())
+        .as("There are only one row left since we deleted a data file")
+        .hasSize(1);
   }
 
   @Test
@@ -374,7 +375,7 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     table.newRowDelta().addDeletes(positionDeletes).commit();
 
-    assertThat(spark.read().format("iceberg").load(table.location()).count()).isEqualTo(1);
+    assertThat(spark.read().format("iceberg").load(table.location()).collectAsList()).hasSize(1);
 
     RewriteTablePath.Result result =
         actions()
@@ -391,7 +392,8 @@ public class TestRewriteTablePathsAction extends TestBase {
     copyTableFiles(result);
 
     // Positional delete affects a single row, so only one row must remain
-    assertThat(spark.read().format("iceberg").load(targetTableLocation()).count()).isEqualTo(1);
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
+        .hasSize(1);
   }
 
   @Test
@@ -410,7 +412,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     DeleteFile positionDeletes = FileHelpers.writePosDeleteFile(table, deleteFile, null, deletes);
     table.newRowDelta().addDeletes(positionDeletes).commit();
 
-    assertThat(spark.read().format("iceberg").load(table.location()).count()).isEqualTo(1);
+    assertThat(spark.read().format("iceberg").load(table.location()).collectAsList()).hasSize(1);
 
     RewriteTablePath.Result result =
         actions()
@@ -432,7 +434,8 @@ public class TestRewriteTablePathsAction extends TestBase {
         "Position deletes should be equal", new Object[] {1, "AAAAAAAAAA", "AAAA"}, deletedRow);
 
     // Positional delete affects a single row, so only one row must remain
-    assertThat(spark.read().format("iceberg").load(targetTableLocation()).count()).isEqualTo(1);
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
+        .hasSize(1);
   }
 
   @Test
@@ -444,7 +447,7 @@ public class TestRewriteTablePathsAction extends TestBase {
         allFiles.map(f -> Pair.of((CharSequence) f.location(), 0L)).collect(Collectors.toList());
 
     // a single position delete with two entries
-    assertThat(deletes.size()).isEqualTo(2);
+    assertThat(deletes).hasSize(2);
 
     File file = new File(removePrefix(table.location() + "/data/deeply/nested/file.parquet"));
     DeleteFile positionDeletes =
@@ -454,7 +457,7 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     table.newRowDelta().addDeletes(positionDeletes).commit();
 
-    assertThat(spark.read().format("iceberg").load(table.location()).count()).isEqualTo(0);
+    assertThat(spark.read().format("iceberg").load(table.location()).collectAsList()).isEmpty();
 
     RewriteTablePath.Result result =
         actions()
@@ -470,7 +473,8 @@ public class TestRewriteTablePathsAction extends TestBase {
     // copy the metadata files and data files
     copyTableFiles(result);
 
-    assertThat(spark.read().format("iceberg").load(targetTableLocation()).count()).isEqualTo(0);
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
+        .isEmpty();
   }
 
   @Test
@@ -524,7 +528,8 @@ public class TestRewriteTablePathsAction extends TestBase {
     copyTableFiles(result);
 
     // Equality deletes affect three rows, so just two rows must remain
-    assertThat(spark.read().format("iceberg").load(targetTableLocation()).count()).isEqualTo(2);
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
+        .hasSize(2);
   }
 
   @Test
@@ -916,7 +921,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     }
 
     sourceTable.refresh();
-    assertThat(sourceTable.statisticsFiles().size()).isEqualTo(iterations);
+    assertThat(sourceTable.statisticsFiles()).hasSize(iterations);
 
     RewriteTablePath.Result result =
         actions()
@@ -1044,7 +1049,7 @@ public class TestRewriteTablePathsAction extends TestBase {
                 .sort("c1", "c2", "c3")
                 .collectAsList());
     // two rows
-    assertThat(originalData.size()).isEqualTo(2);
+    assertThat(originalData).hasSize(2);
 
     // copy table and check the results
     RewriteTablePath.Result result =
@@ -1114,19 +1119,19 @@ public class TestRewriteTablePathsAction extends TestBase {
     Predicate<String> isManifestList = f -> f.contains("snap-") && f.endsWith(".avro");
     Predicate<String> isMetadataJSON = f -> f.endsWith(".metadata.json");
 
-    assertThat(filesToMove.stream().filter(isMetadataJSON).count())
+    assertThat(filesToMove.stream().filter(isMetadataJSON))
         .as("Wrong rebuilt version file count")
-        .isEqualTo(versionFileCount);
-    assertThat(filesToMove.stream().filter(isManifestList).count())
+        .hasSize(versionFileCount);
+    assertThat(filesToMove.stream().filter(isManifestList))
         .as("Wrong rebuilt Manifest list file count")
-        .isEqualTo(manifestListCount);
-    assertThat(filesToMove.stream().filter(isManifest).count())
+        .hasSize(manifestListCount);
+    assertThat(filesToMove.stream().filter(isManifest))
         .as("Wrong rebuilt Manifest file file count")
-        .isEqualTo(manifestFileCount);
-    assertThat(filesToMove.stream().filter(f -> f.endsWith(".stats")).count())
-        .withFailMessage("Wrong rebuilt Statistic file count")
-        .isEqualTo(statisticsFileCount);
-    assertThat(filesToMove.size()).as("Wrong total file count").isEqualTo(totalCount);
+        .hasSize(manifestFileCount);
+    assertThat(filesToMove.stream().filter(f -> f.endsWith(".stats")))
+        .as("Wrong rebuilt Statistic file count")
+        .hasSize(statisticsFileCount);
+    assertThat(filesToMove).as("Wrong total file count").hasSize(totalCount);
   }
 
   protected String newTableLocation() throws IOException {
@@ -1141,7 +1146,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     return toAbsolute(staging);
   }
 
-  protected String toAbsolute(Path relative) throws IOException {
+  protected String toAbsolute(Path relative) {
     return relative.toFile().toURI().toString();
   }
 

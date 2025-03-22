@@ -20,6 +20,10 @@ package org.apache.iceberg.variants;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collection;
 import org.apache.iceberg.util.DateTimeUtil;
 
 public class Variants {
@@ -33,6 +37,63 @@ public class Variants {
     return SerializedMetadata.from(metadata);
   }
 
+  public static VariantMetadata metadata(String... fieldNames) {
+    return metadata(Arrays.asList(fieldNames));
+  }
+
+  public static VariantMetadata metadata(Collection<String> fieldNames) {
+    if (fieldNames.isEmpty()) {
+      return emptyMetadata();
+    }
+
+    int numElements = fieldNames.size();
+    ByteBuffer[] nameBuffers = new ByteBuffer[numElements];
+    boolean sorted = true;
+    String last = null;
+    int pos = 0;
+    int dataSize = 0;
+    for (String name : fieldNames) {
+      nameBuffers[pos] = ByteBuffer.wrap(name.getBytes(StandardCharsets.UTF_8));
+      dataSize += nameBuffers[pos].remaining();
+      if (last != null && last.compareTo(name) >= 0) {
+        sorted = false;
+      }
+
+      last = name;
+      pos += 1;
+    }
+
+    int offsetSize = VariantUtil.sizeOf(dataSize);
+    int offsetListOffset = 1 /* header size */ + offsetSize /* dictionary size */;
+    int dataOffset = offsetListOffset + ((1 + numElements) * offsetSize);
+    int totalSize = dataOffset + dataSize;
+
+    byte header = VariantUtil.metadataHeader(sorted, offsetSize);
+    ByteBuffer buffer = ByteBuffer.allocate(totalSize).order(ByteOrder.LITTLE_ENDIAN);
+
+    buffer.put(0, header);
+    VariantUtil.writeLittleEndianUnsigned(buffer, numElements, 1, offsetSize);
+
+    // write offsets and strings
+    int nextOffset = 0;
+    int index = 0;
+    for (ByteBuffer nameBuffer : nameBuffers) {
+      // write the offset and the string
+      VariantUtil.writeLittleEndianUnsigned(
+          buffer, nextOffset, offsetListOffset + (index * offsetSize), offsetSize);
+      int nameSize = VariantUtil.writeBufferAbsolute(buffer, dataOffset + nextOffset, nameBuffer);
+      // update the offset and index
+      nextOffset += nameSize;
+      index += 1;
+    }
+
+    // write the final size of the data section
+    VariantUtil.writeLittleEndianUnsigned(
+        buffer, nextOffset, offsetListOffset + (index * offsetSize), offsetSize);
+
+    return SerializedMetadata.from(buffer);
+  }
+
   public static VariantValue value(VariantMetadata metadata, ByteBuffer value) {
     return VariantValue.from(metadata, value);
   }
@@ -43,6 +104,20 @@ public class Variants {
 
   public static ShreddedObject object(VariantMetadata metadata) {
     return new ShreddedObject(metadata);
+  }
+
+  public static ShreddedObject object(VariantObject object) {
+    if (object instanceof ShreddedObject) {
+      return new ShreddedObject(((ShreddedObject) object).metadata(), object);
+    } else if (object instanceof SerializedObject) {
+      return new ShreddedObject(((SerializedObject) object).metadata(), object);
+    }
+
+    throw new UnsupportedOperationException("Metadata is required for object: " + object);
+  }
+
+  public static boolean isNull(ByteBuffer valueBuffer) {
+    return VariantUtil.readByte(valueBuffer, 0) == 0;
   }
 
   public static <T> VariantPrimitive<T> of(PhysicalType type, T value) {

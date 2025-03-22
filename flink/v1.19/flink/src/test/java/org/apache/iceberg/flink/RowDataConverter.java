@@ -87,11 +87,9 @@ public class RowDataConverter {
         LocalTime localTime = (LocalTime) object;
         return (int) TimeUnit.NANOSECONDS.toMillis(localTime.toNanoOfDay());
       case TIMESTAMP:
-        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-          return TimestampData.fromInstant(((OffsetDateTime) object).toInstant());
-        } else {
-          return TimestampData.fromLocalDateTime((LocalDateTime) object);
-        }
+        return convertTimestamp(object, ((Types.TimestampType) type).shouldAdjustToUTC());
+      case TIMESTAMP_NANO:
+        return convertTimestamp(object, ((Types.TimestampNanoType) type).shouldAdjustToUTC());
       case STRING:
         return StringData.fromString((String) object);
       case UUID:
@@ -130,6 +128,18 @@ public class RowDataConverter {
         return new GenericMapData(convertedMap);
       default:
         throw new UnsupportedOperationException("Not a supported type: " + type);
+    }
+  }
+
+  private static TimestampData convertTimestamp(Object timestamp, boolean shouldAdjustToUTC) {
+    if (shouldAdjustToUTC) {
+      return TimestampData.fromEpochMillis(
+          ((OffsetDateTime) timestamp).toInstant().toEpochMilli(),
+          ((OffsetDateTime) timestamp).getNano() % 1_000_000);
+    } else {
+      return TimestampData.fromEpochMillis(
+          ((LocalDateTime) timestamp).toInstant(ZoneOffset.UTC).toEpochMilli(),
+          ((LocalDateTime) timestamp).getNano() % 1_000_000);
     }
   }
 }
