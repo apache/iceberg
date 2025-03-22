@@ -2120,7 +2120,7 @@ public class TestViews extends ExtensionsTestBase {
     assertThat(result.get(0)[4].toString())
         .isEqualTo(
             "[[sql,SELECT id FROM table,spark], [sql,SELECT non_existing FROM table,trino]]");
-    }
+  }
 
   public void createViewWithCustomMetadataLocation() {
     String viewName = viewName("v");

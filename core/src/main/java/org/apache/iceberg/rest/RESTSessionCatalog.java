@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.apache.iceberg.MetadataTableType.isViewMetadataTable;
+
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalListener;
@@ -49,7 +51,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
-import org.apache.iceberg.ViewMetadataTableType;
 import org.apache.iceberg.catalog.BaseViewSessionCatalog;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -108,6 +109,7 @@ import org.apache.iceberg.view.ViewMetadata;
 import org.apache.iceberg.view.ViewRepresentation;
 import org.apache.iceberg.view.ViewUtil;
 import org.apache.iceberg.view.ViewVersion;
+import org.apache.iceberg.view.ViewWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -473,26 +475,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public Table loadTable(SessionContext context, TableIdentifier identifier) {
-    try {
-      return loadTableInternal(context, identifier);
-    } catch (NoSuchTableException original) {
-      return loadViewMetadataTable(context, identifier);
-    }
-  }
-
-  private Table loadViewMetadataTable(SessionContext context, TableIdentifier identifier) {
-    String tableName = identifier.name();
-    ViewMetadataTableType type = ViewMetadataTableType.from(tableName);
-    if (type != null) {
-      TableIdentifier baseViewIdentifier = TableIdentifier.of(identifier.namespace().levels());
-      View baseView = loadView(context, baseViewIdentifier);
-      return MetadataTableUtils.createViewMetadataTableInstance(baseView, tableName, type);
-    } else {
-      throw new NoSuchTableException("Table does not exist: %s", identifier);
-    }
-  }
-
-  private Table loadTableInternal(SessionContext context, TableIdentifier identifier) {
     Endpoint.check(
         endpoints,
         Endpoint.V1_LOAD_TABLE,
@@ -513,9 +495,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     } catch (NoSuchTableException original) {
       metadataType = MetadataTableType.from(identifier.name());
-      if (metadataType != null) {
-        // attempt to load a metadata table using the identifier's namespace as the base table
-        TableIdentifier baseIdent = TableIdentifier.of(identifier.namespace().levels());
+      // attempt to load a metadata table using the identifier's namespace as the base table or
+      // view.
+      TableIdentifier baseIdent = TableIdentifier.of(identifier.namespace().levels());
+      // Currently, metadata Tables for Table and View do not share the same name.
+      if (metadataType != null && !isViewMetadataTable(metadataType)) {
         try {
           response = loadInternal(context, baseIdent, snapshotMode);
           loadedIdent = baseIdent;
@@ -523,6 +507,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           // the base table does not exist
           throw original;
         }
+      } else if (metadataType != null) {
+        Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE, () -> original);
+        View loadedView = loadView(context, baseIdent);
+        return MetadataTableUtils.createMetadataTableInstance(
+            new ViewWrapper((BaseView) loadedView), metadataType);
       } else {
         // name is not a metadata table
         throw original;

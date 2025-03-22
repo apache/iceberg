@@ -45,8 +45,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
+import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.TestViews;
-import org.apache.iceberg.view.View;
+import org.apache.iceberg.view.ViewWrapper;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -1734,8 +1735,8 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void testViewVersionTable() throws Exception {
-    View view = TestViews.createSampleTestView("view");
-    ViewVersionTable viewVersionTable = new ViewVersionTable(view);
+    BaseView view = TestViews.createSampleTestView("view");
+    ViewVersionTable viewVersionTable = new ViewVersionTable(new ViewWrapper(view));
 
     TableScan scan = viewVersionTable.newScan();
 

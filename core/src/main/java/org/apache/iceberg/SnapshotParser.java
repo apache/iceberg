@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
+import org.apache.iceberg.io.DummyFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -203,46 +204,5 @@ public class SnapshotParser {
 
   public static Snapshot fromJson(String json) {
     return JsonUtil.parse(json, SnapshotParser::fromJson);
-  }
-
-  /**
-   * The main purpose of this class is to lazily retrieve the path from a v1 Snapshot that has
-   * manifest lists
-   */
-  private static class DummyFileIO implements FileIO {
-    @Override
-    public InputFile newInputFile(String path) {
-      return new InputFile() {
-        @Override
-        public long getLength() {
-          throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public SeekableInputStream newStream() {
-          throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public String location() {
-          return path;
-        }
-
-        @Override
-        public boolean exists() {
-          return true;
-        }
-      };
-    }
-
-    @Override
-    public OutputFile newOutputFile(String path) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void deleteFile(String path) {
-      throw new UnsupportedOperationException();
-    }
   }
 }

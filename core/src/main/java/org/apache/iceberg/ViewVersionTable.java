@@ -21,12 +21,12 @@ package org.apache.iceberg;
 import java.util.stream.Collectors;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.SQLViewRepresentation;
-import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewVersion;
+import org.apache.iceberg.view.ViewWrapper;
 
-public class ViewVersionTable extends BaseViewMetadataTable {
-
+public class ViewVersionTable extends BaseMetadataTable {
   static final Schema VIEW_VERSION_SCHEMA =
       new Schema(
           Types.NestedField.required(1, "version-id", Types.IntegerType.get()),
@@ -48,13 +48,16 @@ public class ViewVersionTable extends BaseViewMetadataTable {
           Types.NestedField.optional(13, "default-catalog", Types.StringType.get()),
           Types.NestedField.required(14, "default-namespace", Types.StringType.get()));
 
-  ViewVersionTable(View view) {
-    super(view, view.name() + ".version");
+  ViewVersionTable(ViewWrapper viewWrapper) {
+    super(viewWrapper, viewWrapper.name() + ".version");
+    this.viewWrapper = viewWrapper;
   }
+
+  private final ViewWrapper viewWrapper ;
 
   @Override
   public TableScan newScan() {
-    return new ViewVersionTableScan(this);
+    return new ViewVersionTableScan(viewWrapper);
   }
 
   @Override
@@ -67,17 +70,22 @@ public class ViewVersionTable extends BaseViewMetadataTable {
         location(),
         schema(),
         scan.schema(),
-        operations().current().versions(),
+        viewWrapper.wrappedView().operations().current().versions(),
         ViewVersionTable::viewVersionToRow);
   }
 
-  private class ViewVersionTableScan extends BaseViewMetadataTableScan {
+  @Override
+  MetadataTableType metadataTableType() {
+    return MetadataTableType.VERSION;
+  }
+
+  private class ViewVersionTableScan extends BaseMetadataTableScan {
     ViewVersionTableScan(Table table) {
-      super(table, VIEW_VERSION_SCHEMA, ViewMetadataTableType.VERSION);
+      super(table, VIEW_VERSION_SCHEMA, MetadataTableType.VERSION);
     }
 
     ViewVersionTableScan(Table table, TableScanContext context) {
-      super(table, VIEW_VERSION_SCHEMA, ViewMetadataTableType.VERSION, context);
+      super(table, VIEW_VERSION_SCHEMA, MetadataTableType.VERSION, context);
     }
 
     @Override

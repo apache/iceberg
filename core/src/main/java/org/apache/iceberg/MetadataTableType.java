@@ -36,7 +36,8 @@ public enum MetadataTableType {
   ALL_FILES,
   ALL_MANIFESTS,
   ALL_ENTRIES,
-  POSITION_DELETES;
+  POSITION_DELETES,
+  VERSION;
 
   public static MetadataTableType from(String name) {
     try {
@@ -44,5 +45,9 @@ public enum MetadataTableType {
     } catch (IllegalArgumentException ignored) {
       return null;
     }
+  }
+
+  public static boolean isViewMetadataTable(MetadataTableType metadataTableType) {
+    return VERSION.equals(metadataTableType);
   }
 }

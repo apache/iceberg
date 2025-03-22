@@ -64,14 +64,6 @@ class ViewMetadataReadTask implements DataTask {
     this.rows = rows;
   }
 
-  ViewMetadataReadTask(
-      DataFile metadataFile, Schema tableSchema, Schema projectedSchema, StructLike[] rows) {
-    this.tableSchema = tableSchema;
-    this.projectedSchema = projectedSchema;
-    this.metadataFile = metadataFile;
-    this.rows = rows;
-  }
-
   @Override
   public Schema schema() {
     return tableSchema;

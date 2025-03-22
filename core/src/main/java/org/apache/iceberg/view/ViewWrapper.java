@@ -16,18 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.view;
 
-import java.util.Locale;
+import org.apache.iceberg.BaseTable;
 
-public enum ViewMetadataTableType {
-  VERSION;
+public class ViewWrapper extends BaseTable {
 
-  public static ViewMetadataTableType from(String name) {
-    try {
-      return ViewMetadataTableType.valueOf(name.toUpperCase(Locale.ROOT));
-    } catch (IllegalArgumentException ignored) {
-      return null;
-    }
+  private final BaseView view;
+
+  public ViewWrapper(BaseView view) {
+    super(new ViewOperationWrapper(view.operations()), view.name());
+    this.view = view;
+  }
+
+  public BaseView wrappedView() {
+    return view;
   }
 }
