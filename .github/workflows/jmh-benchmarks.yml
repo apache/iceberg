@@ -28,8 +28,8 @@ on:
         description: 'The branch name'
         required: true
       spark_version:
-        description: 'The spark project version to use, such as iceberg-spark-3.5'
-        default: 'iceberg-spark-3.5'
+        description: 'The spark project version to use, such as iceberg-spark-4.0'
+        default: 'iceberg-spark-4.0'
         required: true
       benchmarks:
         description: 'A list of comma-separated double-quoted Benchmark names, such as "IcebergSourceFlatParquetDataReadBenchmark", "IcebergSourceFlatParquetDataFilterBenchmark"'
