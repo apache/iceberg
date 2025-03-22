@@ -44,6 +44,8 @@ public interface Type extends Serializable {
     FIXED(ByteBuffer.class),
     BINARY(ByteBuffer.class),
     DECIMAL(BigDecimal.class),
+    GEOMETRY(ByteBuffer.class),
+    GEOGRAPHY(ByteBuffer.class),
     STRUCT(StructLike.class),
     LIST(List.class),
     MAP(Map.class),
