@@ -115,6 +115,7 @@ public class DynConstructors {
   public static class Builder {
     private final Class<?> baseClass;
     private ClassLoader loader = Thread.currentThread().getContextClassLoader();
+    private boolean loaderFallback;
     private Ctor<?> ctor = null;
     private final Map<String, Throwable> problems = Maps.newHashMap();
 
@@ -139,6 +140,17 @@ public class DynConstructors {
       return this;
     }
 
+    /**
+     * Enable falling back to the thread's ClassLoader, if the class is not found using the
+     * specified ClassLoader.
+     *
+     * @return this Builder for method chaining
+     */
+    public Builder enableLoaderFallback() {
+      this.loaderFallback = true;
+      return this;
+    }
+
     public Builder impl(String className, Class<?>... types) {
       // don't do any work if an implementation has been found
       if (ctor != null) {
@@ -146,7 +158,7 @@ public class DynConstructors {
       }
 
       try {
-        Class<?> targetClass = Class.forName(className, true, loader);
+        Class<?> targetClass = classForName(className);
         impl(targetClass, types);
       } catch (NoClassDefFoundError | ClassNotFoundException e) {
         // cannot load this implementation
@@ -177,7 +189,7 @@ public class DynConstructors {
       }
 
       try {
-        Class<?> targetClass = Class.forName(className, true, loader);
+        Class<?> targetClass = classForName(className);
         hiddenImpl(targetClass, types);
       } catch (NoClassDefFoundError | ClassNotFoundException e) {
         // cannot load this implementation
@@ -220,6 +232,18 @@ public class DynConstructors {
         return (Ctor<C>) ctor;
       }
       throw buildRuntimeException(baseClass, problems);
+    }
+
+    private Class<?> classForName(String className) throws ClassNotFoundException {
+      try {
+        return Class.forName(className, true, loader);
+      } catch (ClassNotFoundException e) {
+        if (loaderFallback && loader != Thread.currentThread().getContextClassLoader()) {
+          return Class.forName(className, true, Thread.currentThread().getContextClassLoader());
+        } else {
+          throw e;
+        }
+      }
     }
   }
 

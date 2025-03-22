@@ -54,6 +54,7 @@ public class S3FileIOAwsClientFactories {
       ctor =
           DynConstructors.builder(S3FileIOAwsClientFactory.class)
               .loader(S3FileIOAwsClientFactories.class.getClassLoader())
+              .enableLoaderFallback()
               .hiddenImpl(impl)
               .buildChecked();
     } catch (NoSuchMethodException e) {
