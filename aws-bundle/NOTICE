@@ -32,6 +32,7 @@ NOTICE for Group: software.amazon.awssdk  Name: identity-spi  Version: 2.30.31
 NOTICE for Group: software.amazon.awssdk  Name: json-utils  Version: 2.30.31
 NOTICE for Group: software.amazon.awssdk  Name: kms  Version: 2.30.31
 NOTICE for Group: software.amazon.awssdk  Name: lakeformation  Version: 2.30.31
+NOTICE for Group: software.amazon.awssdk  Name: url-connection-client  Version: 2.30.31
 NOTICE for Group: software.amazon.awssdk  Name: metrics-spi  Version: 2.30.31
 NOTICE for Group: software.amazon.awssdk  Name: netty-nio-client  Version: 2.30.31
 NOTICE for Group: software.amazon.awssdk  Name: profiles  Version: 2.30.31
@@ -44,6 +45,8 @@ NOTICE for Group: software.amazon.awssdk  Name: sdk-core  Version: 2.30.31
 NOTICE for Group: software.amazon.awssdk  Name: sso  Version: 2.30.31
 NOTICE for Group: software.amazon.awssdk  Name: sts  Version: 2.30.31
 NOTICE for Group: software.amazon.awssdk  Name: utils  Version: 2.30.31
+NOTICE for Group: software.amazon.s3.accessgrants  Name: aws-s3-accessgrants-java-plugin  Version: 2.3.0
+NOTICE for Group: software.amazon.s3.analyticsaccelerator  Name: analyticsaccelerator-s3  Version: 1.0.0
 
 AWS SDK for Java 2.0
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
