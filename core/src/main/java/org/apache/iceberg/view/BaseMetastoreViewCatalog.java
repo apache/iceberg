@@ -89,6 +89,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
         return MetadataTableUtils.createMetadataTableInstance(
             new ViewWrapper((BaseView) view), type);
       }
+
       throw original;
     }
   }

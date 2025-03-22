@@ -47,7 +47,7 @@ public class ViewOperationWrapper implements TableOperations {
 
   @Override
   public void commit(TableMetadata base, TableMetadata metadata) {
-    throw new UnsupportedOperationException("Unable to commit WrappedViewOperation");
+    throw new UnsupportedOperationException();
   }
 
   @Override
@@ -62,22 +62,24 @@ public class ViewOperationWrapper implements TableOperations {
 
   @Override
   public String metadataFileLocation(String fileName) {
-    throw new UnsupportedOperationException("Unable to commit WrappedViewOperation");
+    // View metadata has different schema to table metadata.
+    // Throw exception instead of returning view metadata location
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public LocationProvider locationProvider() {
-    throw new UnsupportedOperationException("Unable to commit WrappedViewOperation");
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public TableOperations temp(TableMetadata uncommittedMetadata) {
-    throw new UnsupportedOperationException("Unable to commit WrappedViewOperation");
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public long newSnapshotId() {
-    throw new UnsupportedOperationException("Unable to commit WrappedViewOperation");
+    throw new UnsupportedOperationException();
   }
 
   @Override
