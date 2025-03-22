@@ -50,7 +50,7 @@ public class TestViews {
               .versionId(version)
               .schemaId(0)
               .timestampMillis(timestampMillis)
-              .defaultNamespace(Namespace.of("foo.bar"))
+              .defaultNamespace(Namespace.of("foo", "bar"))
               .build());
       builder.setCurrentVersionId(version).setLocation("s3://foo/bar");
       this.metadata = builder.build();
