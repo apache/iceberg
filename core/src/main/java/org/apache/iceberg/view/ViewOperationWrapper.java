@@ -63,7 +63,7 @@ public class ViewOperationWrapper implements TableOperations {
   @Override
   public String metadataFileLocation(String fileName) {
     // View metadata has different schema to table metadata.
-    // Throw exception instead of returning view metadata location
+    // Throws exception instead of returning view metadata location.
     throw new UnsupportedOperationException();
   }
 
