@@ -23,6 +23,11 @@ title: "Blogs"
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
 <!-- markdown-link-check-disable-next-line -->
+### [How to Load Data into Apache Iceberg: A Step-by-Step Tutorial](https://estuary.dev/blog/loading-data-into-apache-iceberg/)
+**Date**: March 20, 2025, **Company**: Estuary
+**Author**: [Dani Pálma](https://www.linkedin.com/in/danthelion)
+
+<!-- markdown-link-check-disable-next-line -->
 ### [Building a Data Lake with Debezium and Apache Iceberg](https://medium.com/@ismail-simsek/building-a-data-lake-with-debezium-and-apache-iceberg-part-1-25124daf2a95)
 **Date**: November 15th, 2024, **Company**: Memiiso Community
 
