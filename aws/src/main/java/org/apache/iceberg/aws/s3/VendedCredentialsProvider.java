@@ -54,7 +54,8 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
   private VendedCredentialsProvider(Map<String, String> properties) {
     Preconditions.checkArgument(null != properties, "Invalid properties: null");
     Preconditions.checkArgument(null != properties.get(URI), "Invalid URI: null");
-    Preconditions.checkArgument(null != properties.get(CREDENTIALS_ENDPOINT), "Invalid endpoint: null");
+    Preconditions.checkArgument(
+        null != properties.get(CREDENTIALS_ENDPOINT), "Invalid endpoint: null");
     this.properties = properties;
     this.credentialCache =
         CachedSupplier.builder(() -> credentialFromProperties().orElseGet(this::refreshCredential))
