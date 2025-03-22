@@ -43,7 +43,7 @@ import software.amazon.awssdk.utils.cache.CachedSupplier;
 import software.amazon.awssdk.utils.cache.RefreshResult;
 
 public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAutoCloseable {
-  public static final String URI = "credentials.uri";
+  public static final String URI = "credentials.catalog.uri";
   public static final String CREDENTIALS_ENDPOINT = "credentials.endpoint";
   private volatile HTTPClient client;
   private final Map<String, String> properties;
