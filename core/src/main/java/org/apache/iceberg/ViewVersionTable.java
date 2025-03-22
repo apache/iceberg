@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import java.util.stream.Collectors;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.SQLViewRepresentation;
 import org.apache.iceberg.view.ViewVersion;
 import org.apache.iceberg.view.ViewWrapper;
@@ -53,7 +52,7 @@ public class ViewVersionTable extends BaseMetadataTable {
     this.viewWrapper = viewWrapper;
   }
 
-  private final ViewWrapper viewWrapper ;
+  private final ViewWrapper viewWrapper;
 
   @Override
   public TableScan newScan() {
@@ -67,11 +66,11 @@ public class ViewVersionTable extends BaseMetadataTable {
 
   private DataTask task(BaseTableScan scan) {
     return StaticDataTask.of(
-            viewWrapper.io().newInputFile(location()),
-            schema(),
-            scan.schema(),
-            viewWrapper.wrappedView().operations().current().versions(),
-            ViewVersionTable::viewVersionToRow);
+        viewWrapper.io().newInputFile(location()),
+        schema(),
+        scan.schema(),
+        viewWrapper.wrappedView().operations().current().versions(),
+        ViewVersionTable::viewVersionToRow);
   }
 
   @Override

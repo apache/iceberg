@@ -18,42 +18,40 @@
  */
 package org.apache.iceberg.io;
 
-/**
- * Creates a placeholder for FileIO.
- */
+/** Creates a placeholder for FileIO. */
 public class DummyFileIO implements FileIO {
-    @Override
-    public InputFile newInputFile(String path) {
-        return new InputFile() {
-            @Override
-            public long getLength() {
-                return 0L;
-            }
+  @Override
+  public InputFile newInputFile(String path) {
+    return new InputFile() {
+      @Override
+      public long getLength() {
+        return 0L;
+      }
 
-            @Override
-            public SeekableInputStream newStream() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public String location() {
-                return path;
-            }
-
-            @Override
-            public boolean exists() {
-                return true;
-            }
-        };
-    }
-
-    @Override
-    public OutputFile newOutputFile(String path) {
+      @Override
+      public SeekableInputStream newStream() {
         throw new UnsupportedOperationException();
-    }
+      }
 
-    @Override
-    public void deleteFile(String path) {
-        throw new UnsupportedOperationException();
-    }
+      @Override
+      public String location() {
+        return path;
+      }
+
+      @Override
+      public boolean exists() {
+        return true;
+      }
+    };
+  }
+
+  @Override
+  public OutputFile newOutputFile(String path) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public void deleteFile(String path) {
+    throw new UnsupportedOperationException();
+  }
 }

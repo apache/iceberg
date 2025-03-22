@@ -38,15 +38,14 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
-import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.TestViews;
 import org.apache.iceberg.view.ViewVersion;
@@ -1746,13 +1745,13 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertThat(scan.schema()).isEqualTo(ViewVersionTable.VIEW_VERSION_SCHEMA);
 
     List<StaticDataTask> scanTasks =
-            Lists.newArrayList(
-                    Iterators.transform(
-                            scan.planFiles().iterator(),
-                            task -> {
-                              assertThat(task).isInstanceOf(StaticDataTask.class);
-                              return (StaticDataTask) task;
-                            }));
+        Lists.newArrayList(
+            Iterators.transform(
+                scan.planFiles().iterator(),
+                task -> {
+                  assertThat(task).isInstanceOf(StaticDataTask.class);
+                  return (StaticDataTask) task;
+                }));
 
     assertThat(scanTasks).hasSize(1);
     ViewVersion viewVersion = view.currentVersion();
