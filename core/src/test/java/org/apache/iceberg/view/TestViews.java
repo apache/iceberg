@@ -28,7 +28,7 @@ public class TestViews {
 
   public static TestView createSampleTestView(String name) {
     return new TestView(
-        new TestViewOperations(/* version= */ 1, /* timestampMillis= */ 1737436503101L), name);
+        new TestViewOperations(1, 1737436503101L), name);
   }
 
   public static class TestView extends BaseView {
@@ -40,7 +40,7 @@ public class TestViews {
 
   public static class TestViewOperations implements ViewOperations {
 
-    private ViewMetadata metadata;
+    private final ViewMetadata metadata;
 
     public TestViewOperations(int version, long timestampMillis) {
       ViewMetadata.Builder builder = ViewMetadata.builder();
