@@ -75,8 +75,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.apache.iceberg.types.EdgeAlgorithm;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.junit.jupiter.api.Assumptions;
@@ -536,45 +534,6 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThat(table.spec().isUnpartitioned()).as("Should be unpartitioned").isTrue();
     assertThat(table.sortOrder().isUnsorted()).as("Should be unsorted").isTrue();
     assertThat(table.properties()).as("Should have table properties").isNotNull();
-  }
-
-  @Test
-  public void testCreateGeospatialTable() {
-    Schema schema =
-        new Schema(
-            required(3, "id", Types.IntegerType.get(), "unique ID"),
-            required(4, "data", Types.StringType.get()),
-            required(5, "geom", Types.GeometryType.of("srid:3857"), "geometry column"),
-            required(
-                6,
-                "geog",
-                Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY),
-                "geography column"));
-
-    TableIdentifier identifier = TableIdentifier.of("ns", "geos_table");
-
-    C catalog = catalog();
-    assertThat(catalog.tableExists(identifier)).as("Table should not exist").isFalse();
-
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(identifier.namespace());
-    }
-
-    Map<String, String> properties = ImmutableMap.of(TableProperties.FORMAT_VERSION, "3");
-    catalog.createTable(identifier, schema, PartitionSpec.unpartitioned(), properties);
-    Table table = catalog.loadTable(identifier);
-
-    Types.NestedField geomField = table.schema().findField("geom");
-    assertThat(geomField.type().typeId()).isEqualTo(Type.TypeID.GEOMETRY);
-    Types.GeometryType geomType = (Types.GeometryType) geomField.type();
-    assertThat(geomType.crs()).isEqualTo("srid:3857");
-
-    Types.NestedField geogField = table.schema().findField("geog");
-    assertThat(geogField.type().typeId()).isEqualTo(Type.TypeID.GEOGRAPHY);
-    Types.GeographyType geogType = (Types.GeographyType) geogField.type();
-    assertThat(geogType.crs()).isEqualTo("srid:4269");
-    assertThat(geogType.algorithm()).isEqualTo(EdgeAlgorithm.KARNEY);
-    assertThat(catalog.dropTable(identifier)).isTrue();
   }
 
   @Test

@@ -57,7 +57,7 @@ public class TestReadabilityChecks {
         Types.GeometryType.crs84(),
         Types.GeometryType.of("srid:3857"),
         Types.GeographyType.crs84(),
-        Types.GeographyType.forCRS("srid:4269"),
+        Types.GeographyType.of("srid:4269"),
         Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY),
       };
 

@@ -64,10 +64,10 @@ public class Types {
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
   private static final Pattern GEOMETRY_PARAMETERS =
-      Pattern.compile("geometry\\s*(?:\\(\\s*([^,]+?)\\s*\\))?", Pattern.CASE_INSENSITIVE);
+      Pattern.compile("geometry\\s*(?:\\(\\s*([^)]*?)\\s*\\))?", Pattern.CASE_INSENSITIVE);
   private static final Pattern GEOGRAPHY_PARAMETERS =
       Pattern.compile(
-          "geography\\s*(?:\\(\\s*([^,]+)\\s*(?:,\\s*(\\w*)\\s*)?\\))?", Pattern.CASE_INSENSITIVE);
+          "geography\\s*(?:\\(\\s*([^,]*?)\\s*(?:,\\s*(\\w*)\\s*)?\\))?", Pattern.CASE_INSENSITIVE);
   private static final Pattern DECIMAL =
       Pattern.compile("decimal\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)");
 
@@ -80,7 +80,8 @@ public class Types {
     Matcher geometry = GEOMETRY_PARAMETERS.matcher(typeString);
     if (geometry.matches()) {
       String crs = geometry.group(1);
-      return GeometryType.of(crs != null ? crs.trim() : null);
+      Preconditions.checkArgument(!crs.contains(","), "Invalid CRS: %s", crs);
+      return GeometryType.of(crs);
     }
 
     Matcher geography = GEOGRAPHY_PARAMETERS.matcher(typeString);
@@ -88,8 +89,8 @@ public class Types {
       String crs = geography.group(1);
       String algorithmName = geography.group(2);
       EdgeAlgorithm algorithm =
-          algorithmName == null ? null : EdgeAlgorithm.fromName(algorithmName.trim());
-      return GeographyType.of(crs != null ? crs.trim() : null, algorithm);
+          algorithmName == null ? null : EdgeAlgorithm.fromName(algorithmName);
+      return GeographyType.of(crs, algorithm);
     }
 
     Matcher fixed = FIXED.matcher(lowerTypeString);
@@ -566,23 +567,7 @@ public class Types {
   }
 
   public static class GeometryType extends PrimitiveType {
-
-    private final String crs;
-
-    private GeometryType(String crs) {
-      if (crs != null) {
-        Preconditions.checkArgument(!crs.isEmpty(), "Invalid CRS: (empty string)");
-        Preconditions.checkArgument(
-            crs.trim().equals(crs), "CRS must not have leading or trailing spaces: '%s'", crs);
-        this.crs = crs;
-      } else {
-        this.crs = null;
-      }
-    }
-
-    private GeometryType() {
-      crs = null;
-    }
+    public static final String DEFAULT_CRS = "OGC:CRS84";
 
     public static GeometryType crs84() {
       return new GeometryType();
@@ -590,6 +575,17 @@ public class Types {
 
     public static GeometryType of(String crs) {
       return new GeometryType(crs);
+    }
+
+    private final String crs;
+
+    private GeometryType() {
+      crs = null;
+    }
+
+    private GeometryType(String crs) {
+      Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
+      this.crs = DEFAULT_CRS.equalsIgnoreCase(crs) ? null : crs;
     }
 
     @Override
@@ -629,40 +625,32 @@ public class Types {
   }
 
   public static class GeographyType extends PrimitiveType {
-
     public static final String DEFAULT_CRS = "OGC:CRS84";
+
+    public static GeographyType crs84() {
+      return new GeographyType();
+    }
+
+    public static GeographyType of(String crs) {
+      return new GeographyType(crs, null);
+    }
+
+    public static GeographyType of(String crs, EdgeAlgorithm algorithm) {
+      return new GeographyType(crs, algorithm);
+    }
 
     private final String crs;
     private final EdgeAlgorithm algorithm;
-
-    private GeographyType(String crs, EdgeAlgorithm algorithm) {
-      if (crs != null) {
-        Preconditions.checkArgument(!crs.isEmpty(), "Invalid CRS: (empty string)");
-        Preconditions.checkArgument(
-            crs.trim().equals(crs), "CRS must not have leading or trailing spaces: '%s'", crs);
-        this.crs = crs;
-      } else {
-        this.crs = null;
-      }
-
-      this.algorithm = algorithm;
-    }
 
     private GeographyType() {
       this.crs = null;
       this.algorithm = null;
     }
 
-    public static GeographyType crs84() {
-      return new GeographyType();
-    }
-
-    public static GeographyType forCRS(String crs) {
-      return new GeographyType(crs, null);
-    }
-
-    public static GeographyType of(String crs, EdgeAlgorithm algorithm) {
-      return new GeographyType(crs, algorithm);
+    private GeographyType(String crs, EdgeAlgorithm algorithm) {
+      Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
+      this.crs = DEFAULT_CRS.equalsIgnoreCase(crs) ? null : crs;
+      this.algorithm = algorithm;
     }
 
     @Override
