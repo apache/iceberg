@@ -39,7 +39,9 @@ public class TestSerializedMetadata {
 
     assertThat(metadata.isSorted()).isFalse();
     assertThat(metadata.dictionarySize()).isEqualTo(0);
-    assertThatThrownBy(() -> metadata.get(0)).isInstanceOf(ArrayIndexOutOfBoundsException.class);
+    assertThatThrownBy(() -> metadata.get(0))
+        .isInstanceOf(ArrayIndexOutOfBoundsException.class)
+        .hasMessageContaining("out of bounds");
   }
 
   @Test
@@ -109,7 +111,9 @@ public class TestSerializedMetadata {
     assertThat(metadata.get(2)).isEqualTo("c");
     assertThat(metadata.get(3)).isEqualTo("d");
     assertThat(metadata.get(4)).isEqualTo("e");
-    assertThatThrownBy(() -> metadata.get(5)).isInstanceOf(ArrayIndexOutOfBoundsException.class);
+    assertThatThrownBy(() -> metadata.get(5))
+        .isInstanceOf(ArrayIndexOutOfBoundsException.class)
+        .hasMessageContaining("out of bounds");
   }
 
   @Test
@@ -125,7 +129,9 @@ public class TestSerializedMetadata {
     assertThat(metadata.get(2)).isEqualTo("xyz");
     assertThat(metadata.get(3)).isEqualTo("d");
     assertThat(metadata.get(4)).isEqualTo("e");
-    assertThatThrownBy(() -> metadata.get(5)).isInstanceOf(ArrayIndexOutOfBoundsException.class);
+    assertThatThrownBy(() -> metadata.get(5))
+        .isInstanceOf(ArrayIndexOutOfBoundsException.class)
+        .hasMessageContaining("out of bounds");
   }
 
   @Test
@@ -142,7 +148,9 @@ public class TestSerializedMetadata {
     assertThat(metadata.get(2)).isEqualTo("xyz");
     assertThat(metadata.get(3)).isEqualTo("d");
     assertThat(metadata.get(4)).isEqualTo("e");
-    assertThatThrownBy(() -> metadata.get(5)).isInstanceOf(ArrayIndexOutOfBoundsException.class);
+    assertThatThrownBy(() -> metadata.get(5))
+        .isInstanceOf(ArrayIndexOutOfBoundsException.class)
+        .hasMessageContaining("out of bounds");
   }
 
   @Test
@@ -229,7 +237,8 @@ public class TestSerializedMetadata {
   @Test
   public void testMissingLength() {
     assertThatThrownBy(() -> SerializedMetadata.from(new byte[] {0x01}))
-        .isInstanceOf(IndexOutOfBoundsException.class);
+        .isInstanceOf(IndexOutOfBoundsException.class)
+        .hasMessage(null);
   }
 
   @Test
@@ -237,6 +246,7 @@ public class TestSerializedMetadata {
     // missing the 4th length byte
     assertThatThrownBy(
             () -> SerializedMetadata.from(new byte[] {(byte) 0b11010001, 0x00, 0x00, 0x00}))
-        .isInstanceOf(IndexOutOfBoundsException.class);
+        .isInstanceOf(IndexOutOfBoundsException.class)
+        .hasMessage(null);
   }
 }
