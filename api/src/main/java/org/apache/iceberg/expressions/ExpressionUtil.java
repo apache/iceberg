@@ -38,6 +38,9 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.variants.PhysicalType;
+import org.apache.iceberg.variants.VariantObject;
+import org.apache.iceberg.variants.VariantValue;
 
 /** Expression utility methods. */
 public class ExpressionUtil {
@@ -540,9 +543,10 @@ public class ExpressionUtil {
       case DECIMAL:
       case FIXED:
       case BINARY:
-      case VARIANT:
-        // for boolean, uuid, decimal, fixed, variant, unknown, and binary, match the string result
+        // for boolean, uuid, decimal, fixed, unknown, and binary, match the string result
         return sanitizeSimpleString(value.toString());
+      case VARIANT:
+        return sanitizeVariant((VariantValue) value, now, today);
     }
     throw new UnsupportedOperationException(
         String.format("Cannot sanitize value for unsupported type %s: %s", type, value));
@@ -644,6 +648,42 @@ public class ExpressionUtil {
   private static String sanitizeSimpleString(CharSequence value) {
     // hash the value and return the hash as hex
     return String.format(Locale.ROOT, "(hash-%08x)", HASH_FUNC.apply(value));
+  }
+
+  private static String sanitizeVariant(VariantValue value, long now, int today) {
+    VariantObject variantValue = value.asObject();
+    StringBuilder builder = new StringBuilder();
+    builder.append("{");
+    boolean first = true;
+    for (String field : variantValue.fieldNames()) {
+      if (first) {
+        first = false;
+      } else {
+        builder.append(", ");
+      }
+      builder.append(String.format(Locale.ROOT, "(hash-%s)", field)).append(": ");
+      VariantValue fieldValue = variantValue.get(field);
+      PhysicalType fieldType = fieldValue.type();
+      if (fieldType.equals(PhysicalType.INT8)
+          || fieldType.equals(PhysicalType.INT16)
+          || fieldType.equals(PhysicalType.INT32)
+          || fieldType.equals(PhysicalType.INT64)) {
+        builder.append(sanitizeNumber((Number) fieldValue, "int"));
+      } else if (fieldType.equals(PhysicalType.FLOAT) || fieldType.equals(PhysicalType.DOUBLE)) {
+        builder.append(sanitizeNumber((Number) fieldValue, "float"));
+      } else if (fieldType.equals(PhysicalType.DATE)) {
+        builder.append(sanitizeDate(((Number) fieldValue.asPrimitive().get()).intValue(), today));
+      } else if (fieldType.equals(PhysicalType.TIMESTAMPNTZ)
+          || fieldType.equals(PhysicalType.TIMESTAMPTZ)) {
+        builder
+            .append(": ")
+            .append(sanitizeTimestamp(((Number) fieldValue.asPrimitive().get()).longValue(), now));
+      } else {
+        builder.append(": ").append(sanitizeSimpleString(field));
+      }
+    }
+    builder.append("})");
+    return builder.toString();
   }
 
   private static PartitionSpec identitySpec(Schema schema, int... ids) {

@@ -1050,6 +1050,11 @@ public class TestExpressionUtil {
         .isFalse();
   }
 
+  @Test
+  public void testSanitizeVariant() {
+    // to do
+  }
+
   private void assertEquals(Expression expected, Expression actual) {
     assertThat(expected).isInstanceOf(UnboundPredicate.class);
     assertEquals((UnboundPredicate<?>) expected, (UnboundPredicate<?>) actual);
