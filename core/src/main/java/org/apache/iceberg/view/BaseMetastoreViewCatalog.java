@@ -80,18 +80,25 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
   protected Table loadMetadataTable(TableIdentifier identifier) {
     try {
       return super.loadMetadataTable(identifier);
-    } catch (NoSuchTableException original) {
-      String tableName = identifier.name();
-      MetadataTableType type = MetadataTableType.from(tableName);
-      if (type != null && MetadataTableType.isViewMetadataTable(type)) {
-        TableIdentifier baseViewIdentifier = TableIdentifier.of(identifier.namespace().levels());
+    } catch (NoSuchTableException originalException) {
+      return loadMetadataTableForView(identifier, originalException);
+    }
+  }
+
+  private Table loadMetadataTableForView(
+      TableIdentifier identifier, NoSuchTableException originalException) {
+    MetadataTableType type = MetadataTableType.from(identifier.name());
+    if (type != null && MetadataTableType.isViewMetadataTable(type)) {
+      TableIdentifier baseViewIdentifier = TableIdentifier.of(identifier.namespace().levels());
+      try {
         View view = loadView(baseViewIdentifier);
         return MetadataTableUtils.createMetadataTableInstance(
             new ViewWrapper((BaseView) view), type);
+      } catch (NoSuchTableException e) {
+        // If the view is not found, fall back to the original exception.
       }
-
-      throw original;
     }
+    throw originalException;
   }
 
   protected class BaseViewBuilder implements ViewBuilder {

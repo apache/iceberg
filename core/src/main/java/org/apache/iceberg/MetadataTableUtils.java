@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import java.util.Locale;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.view.ViewWrapper;
 
 public class MetadataTableUtils {
@@ -91,8 +90,9 @@ public class MetadataTableUtils {
       case POSITION_DELETES:
         return new PositionDeletesTable(baseTable, metadataTableName);
       case VERSION:
-        Preconditions.checkArgument(baseTable instanceof ViewWrapper);
-        return new ViewVersionTable((ViewWrapper) baseTable);
+        if (baseTable instanceof ViewWrapper) {
+          return new ViewVersionTable((ViewWrapper) baseTable);
+        }
       default:
         throw new NoSuchTableException(
             "Unknown metadata table type: %s for %s", type, metadataTableName);

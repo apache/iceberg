@@ -398,19 +398,21 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       // view.
       TableIdentifier baseIdent = TableIdentifier.of(identifier.namespace().levels());
       // Currently, metadata Tables for Table and View do not share the same name.
-      if (metadataType != null && !isViewMetadataTable(metadataType)) {
+      if (metadataType != null) {
         try {
           response = loadInternal(context, baseIdent, snapshotMode);
           loadedIdent = baseIdent;
         } catch (NoSuchTableException ignored) {
+          if (isViewMetadataTable(metadataType)) {
+            Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE, () -> original);
+            View loadedView = loadView(context, baseIdent);
+            return MetadataTableUtils.createMetadataTableInstance(
+                new ViewWrapper((BaseView) loadedView), metadataType);
+          }
+
           // the base table does not exist
           throw original;
         }
-      } else if (metadataType != null) {
-        Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE, () -> original);
-        View loadedView = loadView(context, baseIdent);
-        return MetadataTableUtils.createMetadataTableInstance(
-            new ViewWrapper((BaseView) loadedView), metadataType);
       } else {
         // name is not a metadata table
         throw original;
