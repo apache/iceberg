@@ -47,9 +47,8 @@ public class MockCommitterImpl implements Committer {
       IcebergSinkConfig config,
       SinkTaskContext context,
       Collection<TopicPartition> addedPartitions) {
-    if (addedPartitions.contains(new TopicPartition("mock-topic", 0))) {
-      isCoordinatorStarted = true;
-    }
+    isCoordinatorStarted =
+        addedPartitions.stream().anyMatch(topicPartition -> topicPartition.partition() == 0);
   }
 
   @Override
@@ -62,9 +61,8 @@ public class MockCommitterImpl implements Committer {
   @Override
   public void close(Collection<TopicPartition> closedPartitions) {
     isWorkerStarted = false;
-    if (closedPartitions.contains(new TopicPartition("mock-topic", 0))) {
-      isCoordinatorStarted = false;
-    }
+    isCoordinatorStarted =
+        !(closedPartitions.stream().anyMatch(topicPartition -> topicPartition.partition() == 0));
   }
 
   @Override
@@ -77,4 +75,8 @@ public class MockCommitterImpl implements Committer {
 
   @Override
   public void configure(Map<String, String> config) {}
+
+  public boolean isCoordinatorStarted() {
+    return isCoordinatorStarted;
+  }
 }

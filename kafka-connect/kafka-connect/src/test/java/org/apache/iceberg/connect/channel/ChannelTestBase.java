@@ -83,6 +83,13 @@ public class ChannelTestBase {
           required(1, "id", Types.LongType.get()),
           optional(2, "data", Types.StringType.get()),
           required(3, "date", Types.StringType.get()));
+  private static final ImmutableMap<String, String> CONFIG_PROPS =
+      ImmutableMap.<String, String>builder()
+          .put("topics", SRC_TOPIC_NAME)
+          .put("iceberg.catalog.type", "rest")
+          .put("iceberg.tables", "db.landing")
+          .put("iceberg.committer.impl", "org.apache.iceberg.connect.channel.MockCommitterImpl")
+          .build();
 
   protected static final String COMMIT_ID_SNAPSHOT_PROP = "kafka.connect.commit-id";
   protected static final String OFFSETS_SNAPSHOT_PROP =
@@ -116,6 +123,7 @@ public class ChannelTestBase {
     producer = new MockProducer<>(false, new StringSerializer(), new ByteArraySerializer());
     producer.initTransactions();
     mockIcebergSinkTask = new MockIcebergSinkTask();
+    mockIcebergSinkTask.start(CONFIG_PROPS);
     consumer = new MockConsumer<>(OffsetResetStrategy.EARLIEST);
     sourceConsumer = new MockConsumer<>(OffsetResetStrategy.EARLIEST);
     sourceConsumer.subscribe(Collections.singleton(SRC_TOPIC_NAME), new Listener());

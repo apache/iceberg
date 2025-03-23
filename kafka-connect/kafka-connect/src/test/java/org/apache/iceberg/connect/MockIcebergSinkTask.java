@@ -20,13 +20,15 @@ package org.apache.iceberg.connect;
 
 import java.util.Collection;
 import java.util.Map;
+import org.apache.iceberg.connect.channel.MockCommitterImpl;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTask;
 
 public class MockIcebergSinkTask extends SinkTask {
 
-  private boolean isCoordinator = false;
+  private IcebergSinkConfig config;
+  private Committer committer;
 
   @Override
   public String version() {
@@ -34,28 +36,30 @@ public class MockIcebergSinkTask extends SinkTask {
   }
 
   @Override
-  public void start(Map<String, String> props) {}
+  public void start(Map<String, String> props) {
+    config = new IcebergSinkConfig(props);
+    committer = CommitterFactory.createCommitter(config);
+  }
 
   @Override
   public void open(Collection<TopicPartition> partitions) {
-    isCoordinator = partitions.stream().anyMatch(tp -> tp.partition() == 0);
+    committer.open(null, config, context, partitions);
   }
 
   @Override
   public void close(Collection<TopicPartition> partitions) {
-    boolean wasCoordinator = partitions.stream().anyMatch(tp -> tp.partition() == 0);
-    if (wasCoordinator) {
-      isCoordinator = false;
-    }
+    committer.close(partitions);
   }
 
   @Override
-  public void put(Collection<SinkRecord> collection) {}
+  public void put(Collection<SinkRecord> collection) {
+    committer.save(collection);
+  }
 
   @Override
   public void stop() {}
 
   public boolean isCoordinatorRunning() {
-    return isCoordinator;
+    return ((MockCommitterImpl) committer).isCoordinatorStarted();
   }
 }
