@@ -2122,15 +2122,39 @@ public class TestViews extends SparkExtensionsTestBase {
                     "[[sql,SELECT id FROM table,spark], [sql,SELECT * FROM table,trino]]");
     assertThat(result.get(0)[5]).isEqualTo(view.currentVersion().defaultCatalog());
     assertThat(result.get(0)[6]).isEqualTo(view.currentVersion().defaultNamespace().toString());
+  }
 
-    result = sql("SELECT `version-id`, representations FROM %s.%s.%s.version", catalogName, NAMESPACE, viewName);
+  @Test
+  public void readFromViewVersionTableWithSelect() throws NoSuchTableException {
+    insertRows(10);
+    String viewName = viewName("simpleView");
+    String sql = String.format("SELECT id FROM %s", tableName);
+
+    ViewCatalog viewCatalog = viewCatalog();
+
+    viewCatalog
+            .buildView(TableIdentifier.of(NAMESPACE, viewName))
+            .withQuery("spark", sql)
+            .withQuery("trino", String.format("SELECT * FROM %s", tableName))
+            .withDefaultNamespace(NAMESPACE)
+            .withDefaultCatalog(catalogName)
+            .withSchema(schema(sql))
+            .create();
+
+    View view = viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName));
+
+    // Similar to table's metadata table, view's metadata table requires fully qualified name.
+    List<Object[]> result =
+            sql(
+                    "SELECT `version-id`, representations FROM %s.%s.%s.version",
+                    catalogName, NAMESPACE, viewName);
     assertThat(result).hasSize(1);
     assertThat(result.get(0).length).isEqualTo(2);
     assertThat(result.get(0)[0]).isEqualTo(view.currentVersion().versionId());
     assertThat(result.get(0)[1].toString())
-            .isEqualTo(
-                    "[[sql,SELECT id FROM table,spark], [sql,SELECT * FROM table,trino]]");
+            .isEqualTo("[[sql,SELECT id FROM table,spark], [sql,SELECT * FROM table,trino]]");
   }
+
 
   public void createViewWithCustomMetadataLocation() throws IOException {
     String viewName = viewName("v");
