@@ -67,6 +67,27 @@ public class TestDynConstructors {
             "org.apache.iceberg.common.TestDynConstructors$MyUnrelatedClass cannot be cast to org.apache.iceberg.common.TestDynConstructors$MyInterface");
   }
 
+  @Test
+  public void testEnableLoaderFallback() throws Exception {
+    assertThatThrownBy(
+            () ->
+                DynConstructors.builder(MyInterface.class)
+                    .loader(ClassLoader.getPlatformClassLoader())
+                    .impl(MyClass.class.getName())
+                    .buildChecked())
+        .isInstanceOf(NoSuchMethodException.class)
+        .hasMessageStartingWith(
+            "Cannot find constructor for interface org.apache.iceberg.common.TestDynConstructors$MyInterface");
+
+    DynConstructors.Ctor<MyInterface> ctor =
+        DynConstructors.builder(MyInterface.class)
+            .loader(ClassLoader.getPlatformClassLoader())
+            .enableLoaderFallback()
+            .impl(MyClass.class)
+            .buildChecked();
+    assertThat(ctor.newInstance()).isInstanceOf(MyClass.class);
+  }
+
   public interface MyInterface {}
 
   public static class MyClass implements MyInterface {}
