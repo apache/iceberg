@@ -152,7 +152,7 @@ public class TestLakeFormationAwsClientFactory {
     try {
       assertThatThrownBy(() -> glueCatalog.createNamespace(deniedNamespace))
           .isInstanceOf(AccessDeniedException.class)
-          .hasMessageContaining("Access denied");
+          .hasMessageContaining("not authorized to perform: glue:CreateDatabase");
     } catch (AssertionError e) {
       glueCatalog.dropNamespace(deniedNamespace);
       throw e;

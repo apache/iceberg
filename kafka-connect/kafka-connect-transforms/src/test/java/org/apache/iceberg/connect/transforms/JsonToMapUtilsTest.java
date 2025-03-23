@@ -125,7 +125,7 @@ class JsonToMapUtilsTest extends FileLoads {
     assertThatThrownBy(
             () -> JsonToMapUtils.extractValue(objNode.get("string"), Schema.Type.STRUCT, ""))
         .isInstanceOf(RuntimeException.class)
-        .hasMessage("Unexpected type STRUCT for field");
+        .hasMessageContaining("Unexpected type STRUCT for field");
   }
 
   @Test

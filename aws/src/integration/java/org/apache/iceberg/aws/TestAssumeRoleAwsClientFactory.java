@@ -136,7 +136,7 @@ public class TestAssumeRoleAwsClientFactory {
                 glueCatalog.createNamespace(
                     Namespace.of("denied_" + UUID.randomUUID().toString().replace("-", ""))))
         .isInstanceOf(AccessDeniedException.class)
-        .hasMessageContaining("Access denied");
+        .hasMessageContaining("not authorized to perform: glue:CreateDatabase");
 
     Namespace namespace = Namespace.of("allowed_" + UUID.randomUUID().toString().replace("-", ""));
     try {
@@ -181,7 +181,7 @@ public class TestAssumeRoleAwsClientFactory {
                     .newInputFile("s3://" + AwsIntegTestUtil.testBucketName() + "/denied/file")
                     .exists())
         .isInstanceOf(S3Exception.class)
-        .hasMessageContaining("s3 exception")
+        .hasMessageContaining("Forbidden")
         .asInstanceOf(InstanceOfAssertFactories.type(S3Exception.class))
         .extracting(SdkServiceException::statusCode)
         .isEqualTo(403);

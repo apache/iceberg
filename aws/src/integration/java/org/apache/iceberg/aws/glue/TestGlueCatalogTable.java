@@ -714,7 +714,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
     String metadataLocation = ((BaseTable) table).operations().current().metadataFileLocation();
     assertThatThrownBy(() -> glueCatalog.registerTable(identifier, metadataLocation))
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessageContaining("Already exists");
+        .hasMessageContaining("Table already exists");
     assertThat(glueCatalog.dropTable(identifier, true)).isTrue();
     assertThat(glueCatalog.dropNamespace(Namespace.of(namespace))).isTrue();
   }
