@@ -49,8 +49,8 @@ public class TestDynConstructors {
             .buildChecked();
     assertThatThrownBy(ctor::newInstance)
         .isInstanceOf(ClassCastException.class)
-        .hasMessage(
-            "org.apache.iceberg.common.TestDynConstructors$MyUnrelatedClass cannot be cast to org.apache.iceberg.common.TestDynConstructors$MyInterface");
+        .hasMessageStartingWith(
+            "class org.apache.iceberg.common.TestDynConstructors$MyUnrelatedClass cannot be cast to class org.apache.iceberg.common.TestDynConstructors$MyInterface");
   }
 
   @Test
@@ -63,8 +63,8 @@ public class TestDynConstructors {
             .buildChecked();
     assertThatThrownBy(ctor::newInstance)
         .isInstanceOf(ClassCastException.class)
-        .hasMessage(
-            "org.apache.iceberg.common.TestDynConstructors$MyUnrelatedClass cannot be cast to org.apache.iceberg.common.TestDynConstructors$MyInterface");
+        .hasMessageStartingWith(
+            "class org.apache.iceberg.common.TestDynConstructors$MyUnrelatedClass cannot be cast to class org.apache.iceberg.common.TestDynConstructors$MyInterface");
   }
 
   @Test

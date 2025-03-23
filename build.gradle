@@ -321,6 +321,9 @@ project(':iceberg-api') {
 }
 
 project(':iceberg-common') {
+  test {
+    useJUnitPlatform()
+  }
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
   }
