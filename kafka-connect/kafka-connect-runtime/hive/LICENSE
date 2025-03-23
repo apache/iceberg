@@ -479,7 +479,7 @@ License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.errorprone  Name: error_prone_annotations  Version: 2.36.0
+Group: com.google.errorprone  Name: error_prone_annotations  Version: 2.37.0
 Project URL (from manifest): https://errorprone.info/error_prone_annotations
 Manifest License: "Apache 2.0";link="http://www.apache.org/licenses/LICENSE-2.0.txt" (Not packaged)
 License (from POM): Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
