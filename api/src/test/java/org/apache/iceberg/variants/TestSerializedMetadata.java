@@ -235,18 +235,20 @@ public class TestSerializedMetadata {
   }
 
   @Test
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   public void testMissingLength() {
+    // no check on the underlying error msg as it might be missing based on the JDK version
     assertThatThrownBy(() -> SerializedMetadata.from(new byte[] {0x01}))
-        .isInstanceOf(IndexOutOfBoundsException.class)
-        .hasMessage(null);
+        .isInstanceOf(IndexOutOfBoundsException.class);
   }
 
   @Test
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   public void testLengthTooShort() {
     // missing the 4th length byte
+    // no check on the underlying error msg as it might be missing based on the JDK version
     assertThatThrownBy(
             () -> SerializedMetadata.from(new byte[] {(byte) 0b11010001, 0x00, 0x00, 0x00}))
-        .isInstanceOf(IndexOutOfBoundsException.class)
-        .hasMessage(null);
+        .isInstanceOf(IndexOutOfBoundsException.class);
   }
 }
