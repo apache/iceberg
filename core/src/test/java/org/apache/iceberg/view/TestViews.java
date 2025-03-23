@@ -66,6 +66,8 @@ public class TestViews {
     }
 
     @Override
-    public void commit(ViewMetadata base, ViewMetadata updated) {}
+    public void commit(ViewMetadata base, ViewMetadata updated) {
+      throw new UnsupportedOperationException();
+    }
   }
 }

@@ -1766,6 +1766,36 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
+  public void testViewVersionTableWithProjection() throws Exception {
+    BaseView view = TestViews.createSampleTestView("view");
+    ViewVersionTable viewVersionTable = new ViewVersionTable(new ViewWrapper(view));
+    Schema projectedSchema =
+        new Schema(
+            Types.NestedField.required(1, "version-id", Types.IntegerType.get()),
+            Types.NestedField.required(2, "schema-id", Types.IntegerType.get()));
+
+    TableScan scan = viewVersionTable.newScan().project(projectedSchema);
+
+    assertThat(scan.schema()).isEqualTo(projectedSchema);
+
+    List<StaticDataTask> scanTasks =
+        Lists.newArrayList(
+            Iterators.transform(
+                scan.planFiles().iterator(),
+                task -> {
+                  assertThat(task).isInstanceOf(StaticDataTask.class);
+                  return (StaticDataTask) task;
+                }));
+
+    assertThat(scanTasks).hasSize(1);
+    ViewVersion viewVersion = view.currentVersion();
+    StructLike actualRow = Iterables.getOnlyElement(scanTasks.get(0).rows());
+    assertThat(actualRow.size()).isEqualTo(2);
+    assertThat(actualRow.get(0, Integer.class)).isEqualTo(viewVersion.versionId());
+    assertThat(actualRow.get(1, Integer.class)).isEqualTo(viewVersion.schemaId());
+  }
+
+  @TestTemplate
   public void testFilesTableEstimateSize() throws Exception {
     preparePartitionedTable(true);
 
