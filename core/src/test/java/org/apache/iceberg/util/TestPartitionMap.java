@@ -231,17 +231,13 @@ public class TestPartitionMap {
   }
 
   @Test
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   public void testNullKey() {
+    // no check on the underlying error msg as it might be missing based on the JDK version
     PartitionMap<String> map = PartitionMap.create(SPECS);
-    assertThatThrownBy(() -> map.put(null, "value"))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("\"key\" is null");
-    assertThatThrownBy(() -> map.get(null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("does not support null keys");
-    assertThatThrownBy(() -> map.remove(null))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("does not support null keys");
+    assertThatThrownBy(() -> map.put(null, "value")).isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> map.get(null)).isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> map.remove(null)).isInstanceOf(NullPointerException.class);
   }
 
   @Test
