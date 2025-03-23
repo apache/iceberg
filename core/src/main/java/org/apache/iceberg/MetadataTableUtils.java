@@ -93,6 +93,7 @@ public class MetadataTableUtils {
         if (baseTable instanceof ViewWrapper) {
           return new ViewVersionTable((ViewWrapper) baseTable);
         }
+        // fall through
       default:
         throw new NoSuchTableException(
             "Unknown metadata table type: %s for %s", type, metadataTableName);

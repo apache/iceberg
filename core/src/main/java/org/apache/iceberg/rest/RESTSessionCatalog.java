@@ -405,9 +405,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         } catch (NoSuchTableException ignored) {
           if (isViewMetadataTable(metadataType)) {
             Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE, () -> original);
-            View loadedView = loadView(context, baseIdent);
-            return MetadataTableUtils.createMetadataTableInstance(
-                new ViewWrapper((BaseView) loadedView), metadataType);
+            try {
+              View loadedView = loadView(context, baseIdent);
+              return MetadataTableUtils.createMetadataTableInstance(
+                  new ViewWrapper((BaseView) loadedView), metadataType);
+            } catch (NoSuchTableException e) {
+              // If the view is not found, fall back to the original exception.
+            }
           }
 
           // the base table does not exist
