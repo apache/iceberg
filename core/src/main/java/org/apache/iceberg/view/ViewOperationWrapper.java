@@ -27,6 +27,11 @@ import org.apache.iceberg.io.DummyFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 
+/**
+ * Adapts {@link ViewOperations} to the {@link TableOperations} interface. It provides a bridge that
+ * allows view metadata to be handled in the context of table operations, wrapping the view-specific
+ * metadata into a {@link TableMetadata} instance.
+ */
 public class ViewOperationWrapper implements TableOperations {
 
   private final ViewOperations viewOperations;
@@ -55,6 +60,11 @@ public class ViewOperationWrapper implements TableOperations {
     return new DummyFileIO();
   }
 
+  /**
+   * Returns the encryption manager for table operations.
+   *
+   * @return the {@link EncryptionManager} from the default table operations implementation
+   */
   @Override
   public EncryptionManager encryption() {
     return TableOperations.super.encryption();
@@ -62,23 +72,26 @@ public class ViewOperationWrapper implements TableOperations {
 
   @Override
   public String metadataFileLocation(String fileName) {
-    // View metadata has different schema to table metadata.
-    // Throws exception instead of returning view metadata location.
+    // Not returning view's metadata location because view metadata uses a different schema compared
+    // to table metadata.
     throw new UnsupportedOperationException();
   }
 
   @Override
   public LocationProvider locationProvider() {
+    // Location provider is not supported for view operations.
     throw new UnsupportedOperationException();
   }
 
   @Override
   public TableOperations temp(TableMetadata uncommittedMetadata) {
+    // Creating temporary table operations is not supported for views.
     throw new UnsupportedOperationException();
   }
 
   @Override
   public long newSnapshotId() {
+    // Generating a new snapshot ID is not supported for view operations.
     throw new UnsupportedOperationException();
   }
 
@@ -87,6 +100,7 @@ public class ViewOperationWrapper implements TableOperations {
     return false;
   }
 
+  /** Wraps the provided view metadata into a {@link TableMetadata} instance. */
   private TableMetadata wrappingViewMetadata(ViewMetadata viewMetadata) {
     TableMetadata.Builder builder = TableMetadata.buildFromEmpty();
     viewMetadata.schemas().forEach(builder::addSchema);

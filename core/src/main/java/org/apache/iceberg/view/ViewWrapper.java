@@ -20,6 +20,10 @@ package org.apache.iceberg.view;
 
 import org.apache.iceberg.BaseTable;
 
+/**
+ * Wraps a {@link BaseView} instance as a {@link BaseTable}. This allows view-specific metadata and
+ * operations to be handled in a table-like context.
+ */
 public class ViewWrapper extends BaseTable {
 
   private final BaseView view;
