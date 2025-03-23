@@ -99,8 +99,6 @@ public class ViewVersionTable extends BaseMetadataTable {
 
     @Override
     public CloseableIterable<FileScanTask> planFiles() {
-      // override planFiles to avoid the check for a current snapshot because this metadata table is
-      // for all snapshots
       return CloseableIterable.withNoopClose(ViewVersionTable.this.task(this));
     }
   }
