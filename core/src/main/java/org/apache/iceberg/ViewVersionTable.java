@@ -26,11 +26,11 @@ import org.apache.iceberg.view.ViewVersion;
 import org.apache.iceberg.view.ViewWrapper;
 
 public class ViewVersionTable extends BaseMetadataTable {
-  static final Schema VIEW_VERSION_SCHEMA =
+  public static final Schema VIEW_VERSION_SCHEMA =
       new Schema(
           Types.NestedField.required(1, "version-id", Types.IntegerType.get()),
           Types.NestedField.required(2, "schema-id", Types.IntegerType.get()),
-          Types.NestedField.required(3, "timestamp-ms", Types.TimestampType.withoutZone()),
+          Types.NestedField.required(3, "timestamp-ms", Types.TimestampType.withZone()),
           Types.NestedField.required(
               4,
               "summary",

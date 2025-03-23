@@ -27,8 +27,7 @@ public class TestViews {
   private TestViews() {}
 
   public static TestView createSampleTestView(String name) {
-    return new TestView(
-        new TestViewOperations(1, 1737436503101L), name);
+    return new TestView(new TestViewOperations(1, 1737436503101L), name);
   }
 
   public static class TestView extends BaseView {

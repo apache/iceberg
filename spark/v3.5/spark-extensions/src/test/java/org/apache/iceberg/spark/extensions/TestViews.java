@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.nio.file.Paths;
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
@@ -2105,21 +2106,36 @@ public class TestViews extends ExtensionsTestBase {
     viewCatalog
         .buildView(TableIdentifier.of(NAMESPACE, viewName))
         .withQuery("spark", sql)
-        // use non-existing column name to make sure only the SQL definition for spark is loaded
-        .withQuery("trino", String.format("SELECT non_existing FROM %s", tableName))
+        .withQuery("trino", String.format("SELECT * FROM %s", tableName))
         .withDefaultNamespace(NAMESPACE)
         .withDefaultCatalog(catalogName)
         .withSchema(schema(sql))
         .create();
 
+    View view = viewCatalog.loadView(TableIdentifier.of(NAMESPACE, viewName));
+
     // Similar to table's metadata table, view's metadata table requires fully qualified name.
     List<Object[]> result = sql("SELECT * FROM %s.%s.%s.version", catalogName, NAMESPACE, viewName);
     assertThat(result).hasSize(1);
     assertThat(result.get(0).length).isEqualTo(7);
-    // representations
+    assertThat(result.get(0)[0]).isEqualTo(view.currentVersion().versionId());
+    assertThat(result.get(0)[1]).isEqualTo(view.currentVersion().schemaId());
+    assertThat(result.get(0)[2]).isEqualTo(new Timestamp(view.currentVersion().timestampMillis()));
+    assertThat(result.get(0)[3]).isEqualTo(view.currentVersion().summary());
     assertThat(result.get(0)[4].toString())
-        .isEqualTo(
-            "[[sql,SELECT id FROM table,spark], [sql,SELECT non_existing FROM table,trino]]");
+        .isEqualTo("[[sql,SELECT id FROM table,spark], [sql,SELECT * FROM table,trino]]");
+    assertThat(result.get(0)[5]).isEqualTo(view.currentVersion().defaultCatalog());
+    assertThat(result.get(0)[6]).isEqualTo(view.currentVersion().defaultNamespace().toString());
+
+    result =
+        sql(
+            "SELECT `version-id`, representations FROM %s.%s.%s.version",
+            catalogName, NAMESPACE, viewName);
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).length).isEqualTo(2);
+    assertThat(result.get(0)[0]).isEqualTo(view.currentVersion().versionId());
+    assertThat(result.get(0)[1].toString())
+        .isEqualTo("[[sql,SELECT id FROM table,spark], [sql,SELECT * FROM table,trino]]");
   }
 
   public void createViewWithCustomMetadataLocation() {
