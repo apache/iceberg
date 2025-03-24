@@ -221,32 +221,38 @@ public class TestManifestReaderStats extends TestBase {
 
     if (dataFile.valueCounts() != null) {
       assertThatThrownBy(() -> dataFile.valueCounts().clear(), "Should not be modifiable")
-          .isInstanceOf(UnsupportedOperationException.class);
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessage(null);
     }
 
     if (dataFile.nullValueCounts() != null) {
       assertThatThrownBy(() -> dataFile.nullValueCounts().clear(), "Should not be modifiable")
-          .isInstanceOf(UnsupportedOperationException.class);
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessage(null);
     }
 
     if (dataFile.nanValueCounts() != null) {
       assertThatThrownBy(() -> dataFile.nanValueCounts().clear(), "Should not be modifiable")
-          .isInstanceOf(UnsupportedOperationException.class);
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessage(null);
     }
 
     if (dataFile.upperBounds() != null) {
       assertThatThrownBy(() -> dataFile.upperBounds().clear(), "Should not be modifiable")
-          .isInstanceOf(UnsupportedOperationException.class);
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessage(null);
     }
 
     if (dataFile.lowerBounds() != null) {
       assertThatThrownBy(() -> dataFile.lowerBounds().clear(), "Should not be modifiable")
-          .isInstanceOf(UnsupportedOperationException.class);
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessage(null);
     }
 
     if (dataFile.columnSizes() != null) {
       assertThatThrownBy(() -> dataFile.columnSizes().clear(), "Should not be modifiable")
-          .isInstanceOf(UnsupportedOperationException.class);
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessage(null);
     }
 
     assertThat(dataFile.location())
@@ -267,8 +273,10 @@ public class TestManifestReaderStats extends TestBase {
         .isEqualTo(FILE_PATH); // always select file path in all test cases
   }
 
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   private void assertNullRecordCount(DataFile dataFile) {
     // record count is a primitive type, accessing null record count will throw NPE
+    // no check on the underlying error msg as it might be missing based on the JDK version
     assertThatThrownBy(dataFile::recordCount).isInstanceOf(NullPointerException.class);
   }
 }

@@ -175,6 +175,7 @@ public class TestPublishChangesProcedure extends SparkExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CALL %s.custom.publish_changes('n', 't', 'not_valid')", catalogName))
         .isInstanceOf(ParseException.class)
+        .hasMessageContaining("Syntax error")
         .satisfies(
             exception -> {
               ParseException parseException = (ParseException) exception;

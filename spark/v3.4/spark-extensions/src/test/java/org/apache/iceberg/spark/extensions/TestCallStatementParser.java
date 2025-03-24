@@ -76,6 +76,7 @@ public class TestCallStatementParser {
   @Test
   public void testDelegateUnsupportedProcedure() {
     assertThatThrownBy(() -> parser.parsePlan("CALL cat.d.t()"))
+        .hasMessageContaining("Syntax error")
         .isInstanceOf(ParseException.class)
         .satisfies(
             exception -> {

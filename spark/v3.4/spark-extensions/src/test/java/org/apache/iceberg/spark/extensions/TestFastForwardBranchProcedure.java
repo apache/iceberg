@@ -178,6 +178,7 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
             () ->
                 sql("CALL %s.custom.fast_forward('test_table', 'main', 'newBranch')", catalogName))
         .isInstanceOf(ParseException.class)
+        .hasMessageContaining("Syntax error")
         .satisfies(
             exception -> {
               ParseException parseException = (ParseException) exception;
