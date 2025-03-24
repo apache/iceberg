@@ -166,7 +166,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   public RESTSessionCatalog() {
-    this(config -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).withHeaders(RESTUtil.configHeaders(config)).build(), null);
+    this(
+        config ->
+            HTTPClient.builder(config)
+                .uri(config.get(CatalogProperties.URI))
+                .withHeaders(RESTUtil.configHeaders(config))
+                .build(),
+        null);
   }
 
   public RESTSessionCatalog(
