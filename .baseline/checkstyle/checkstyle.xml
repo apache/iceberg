@@ -97,14 +97,14 @@
         <property name="fileExtensions" value="java"/>
         <property name="matchAcrossLines" value="true"/>
         <property name="format" value="assertThatThrownBy\((?:(?!\.hasMessage\w*\().)*?isInstanceOf\((?:(?!\.hasMessage\w*\().)*?;"/>
-        <property name="message" value="assertThatThrownBy must include a message check like .hasMessageContaining(...)"/>
+        <property name="message" value="assertThatThrownBy must include a message check like .hasMessage(...)"/>
     </module>
     <module name="RegexpMultiline">
         <property name="id" value="AssertThatExceptionOfTypeWithMessageCheck"/>
         <property name="fileExtensions" value="java"/>
         <property name="matchAcrossLines" value="true"/>
         <property name="format" value="assertThatExceptionOfType\((?:(?!\.withMessage\w*\().)*?isThrownBy\((?:(?!\.withMessage\w*\().)*?;"/>
-        <property name="message" value="assertThatExceptionOfType must include a message check like .withMessageContaining(...)"/>
+        <property name="message" value="assertThatExceptionOfType must include a message check like .withMessage(...)"/>
     </module>
     <module name="RegexpMultiline">
         <property name="format" value="^\s*import\s+\Qorg.assertj.core.api.Assertions;\E" />
