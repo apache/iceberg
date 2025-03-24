@@ -121,8 +121,13 @@ public class Variants {
     return VariantUtil.readByte(valueBuffer, 0) == 0;
   }
 
-  public static ValueArray array() {
-    return new ValueArray();
+  public static ValueArray array(VariantValue... elements) {
+    ValueArray arr = new ValueArray();
+    for (VariantValue element : elements) {
+      arr.add(element);
+    }
+
+    return arr;
   }
 
   public static <T> VariantPrimitive<T> of(PhysicalType type, T value) {

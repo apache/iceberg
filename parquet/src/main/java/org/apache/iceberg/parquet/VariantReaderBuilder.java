@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.parquet;
 
-import static org.apache.iceberg.parquet.ParquetVariantReaders.shredded;
-
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
@@ -139,7 +137,7 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
         typedReader != null
             ? schema.getMaxDefinitionLevel(path(TYPED_VALUE)) - 1
             : Integer.MAX_VALUE;
-    return shredded(valueDL, valueReader, typedDL, typedReader);
+    return ParquetVariantReaders.shredded(valueDL, valueReader, typedDL, typedReader);
   }
 
   @Override
