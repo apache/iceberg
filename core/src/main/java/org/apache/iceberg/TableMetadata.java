@@ -1244,16 +1244,12 @@ public class TableMetadata implements Serializable {
 
       if (formatVersion >= 3) {
         ValidationException.check(
-            snapshot.firstRowId() >= nextRowId,
-            "Cannot add a snapshot whose 'first-row-id' (%s) is less than the metadata 'next-row-id' (%s) because this will end up generating duplicate row_ids.",
+            snapshot.firstRowId() != null, "Cannot add a snapshot: first-row-id is null");
+        ValidationException.check(
+            snapshot.firstRowId() != null && snapshot.firstRowId() >= nextRowId,
+            "Cannot add a snapshot, first-row-id is behind table next-row-id: %s < %s",
             snapshot.firstRowId(),
             nextRowId);
-        ValidationException.check(
-            snapshot.addedRows() != null,
-            "Cannot add a snapshot with a null 'added-rows' field when row lineage is enabled");
-        Preconditions.checkArgument(
-            snapshot.addedRows() >= 0,
-            "Cannot decrease 'last-row-id'. 'last-row-id' must increase monotonically. Snapshot reports %s added rows");
 
         this.nextRowId += snapshot.addedRows();
       }
