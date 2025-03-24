@@ -115,7 +115,6 @@ public class DynConstructors {
   public static class Builder {
     private final Class<?> baseClass;
     private ClassLoader loader = Thread.currentThread().getContextClassLoader();
-    private boolean loaderFallback;
     private Ctor<?> ctor = null;
     private final Map<String, Throwable> problems = Maps.newHashMap();
 
@@ -137,17 +136,6 @@ public class DynConstructors {
      */
     public Builder loader(ClassLoader newLoader) {
       this.loader = newLoader;
-      return this;
-    }
-
-    /**
-     * Enable falling back to the thread's ClassLoader, if the class is not found using the
-     * specified ClassLoader.
-     *
-     * @return this Builder for method chaining
-     */
-    public Builder enableLoaderFallback() {
-      this.loaderFallback = true;
       return this;
     }
 
@@ -238,7 +226,7 @@ public class DynConstructors {
       try {
         return Class.forName(className, true, loader);
       } catch (ClassNotFoundException e) {
-        if (loaderFallback && loader != Thread.currentThread().getContextClassLoader()) {
+        if (loader != Thread.currentThread().getContextClassLoader()) {
           return Class.forName(className, true, Thread.currentThread().getContextClassLoader());
         } else {
           throw e;

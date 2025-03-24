@@ -349,7 +349,6 @@ public class CatalogUtil {
       ctor =
           DynConstructors.builder(FileIO.class)
               .loader(CatalogUtil.class.getClassLoader())
-              .enableLoaderFallback()
               .impl(impl)
               .buildChecked();
     } catch (NoSuchMethodException e) {
@@ -471,7 +470,6 @@ public class CatalogUtil {
       ctor =
           DynConstructors.builder(MetricsReporter.class)
               .loader(CatalogUtil.class.getClassLoader())
-              .enableLoaderFallback()
               .impl(impl)
               .buildChecked();
     } catch (NoSuchMethodException e) {

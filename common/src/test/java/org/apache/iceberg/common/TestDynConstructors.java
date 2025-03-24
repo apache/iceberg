@@ -68,21 +68,10 @@ public class TestDynConstructors {
   }
 
   @Test
-  public void testEnableLoaderFallback() throws Exception {
-    assertThatThrownBy(
-            () ->
-                DynConstructors.builder(MyInterface.class)
-                    .loader(ClassLoader.getPlatformClassLoader())
-                    .impl(MyClass.class.getName())
-                    .buildChecked())
-        .isInstanceOf(NoSuchMethodException.class)
-        .hasMessageStartingWith(
-            "Cannot find constructor for interface org.apache.iceberg.common.TestDynConstructors$MyInterface");
-
+  public void testLoaderFallback() throws Exception {
     DynConstructors.Ctor<MyInterface> ctor =
         DynConstructors.builder(MyInterface.class)
             .loader(ClassLoader.getPlatformClassLoader())
-            .enableLoaderFallback()
             .impl(MyClass.class)
             .buildChecked();
     assertThat(ctor.newInstance()).isInstanceOf(MyClass.class);

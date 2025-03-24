@@ -68,7 +68,6 @@ public class AwsClientFactories {
       ctor =
           DynConstructors.builder(AwsClientFactory.class)
               .loader(AwsClientFactories.class.getClassLoader())
-              .enableLoaderFallback()
               .hiddenImpl(impl)
               .buildChecked();
     } catch (NoSuchMethodException e) {
