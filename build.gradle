@@ -474,6 +474,9 @@ project(':iceberg-aws') {
     implementation platform(libs.jackson.bom)
     implementation libs.jackson.core
     implementation libs.jackson.databind
+    implementation 'io.netty:netty-common:4.1.118.Final'
+    implementation 'io.netty:netty-handler:4.1.118.Final'
+
 
     compileOnly(platform(libs.awssdk.bom))
     compileOnly(libs.awssdk.s3accessgrants)
@@ -556,6 +559,9 @@ project(':iceberg-azure') {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
+    implementation 'io.netty:netty-common:4.1.118.Final'
+    implementation 'io.netty:netty-handler:4.1.118.Final'
+    implementation 'net.minidev:json-smart:2.5.2' 
 
     compileOnly platform(libs.azuresdk.bom)
     compileOnly "com.azure:azure-storage-file-datalake"
