@@ -33,6 +33,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.InputFile;
@@ -52,6 +53,7 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   private static final String REPLACED_MANIFESTS_COUNT = "manifests-replaced";
   private static final String PROCESSED_ENTRY_COUNT = "entries-processed";
 
+  private final String tableName;
   private final Map<Integer, PartitionSpec> specsById;
   private final long manifestTargetSizeBytes;
 
@@ -71,8 +73,9 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
 
-  BaseRewriteManifests(TableOperations ops) {
+  BaseRewriteManifests(String tableName, TableOperations ops) {
     super(ops);
+    this.tableName = tableName;
     this.specsById = ops().current().specsById();
     this.manifestTargetSizeBytes =
         ops()
@@ -191,6 +194,15 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     apply.addAll(keptManifests);
 
     return apply;
+  }
+
+  @Override
+  public Object updateEvent() {
+    long snapshotId = snapshotId();
+    Snapshot snapshot = ops().current().snapshot(snapshotId);
+    long sequenceNumber = snapshot.sequenceNumber();
+    return new CreateSnapshotEvent(
+        tableName, operation(), snapshotId, sequenceNumber, snapshot.summary());
   }
 
   private boolean requiresRewrite(Set<ManifestFile> currentManifests) {
