@@ -192,7 +192,7 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   @Override
   public RewriteManifests rewriteManifests() {
-    return new BaseRewriteManifests(ops).reportWith(reporter);
+    return new BaseRewriteManifests(name, ops).reportWith(reporter);
   }
 
   @Override

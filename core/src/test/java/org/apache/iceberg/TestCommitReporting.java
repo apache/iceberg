@@ -196,14 +196,9 @@ public class TestCommitReporting extends TestBase {
 
     CommitReport report = reporter.lastCommitReport();
     assertThat(report).isNotNull();
-    assertThat(report.operation()).isEqualTo("append");
-    assertThat(report.snapshotId()).isEqualTo(2L);
-    assertThat(report.sequenceNumber()).isEqualTo(2L);
+    assertThat(report.operation()).isEqualTo("replace");
+    assertThat(report.snapshotId()).isEqualTo(3L);
+    assertThat(report.sequenceNumber()).isEqualTo(3L);
     assertThat(report.tableName()).isEqualTo(tableName);
-
-    CommitMetricsResult metrics = report.commitMetrics();
-    assertThat(metrics.addedDataFiles().value()).isEqualTo(1L);
-    assertThat(metrics.addedRecords().value()).isEqualTo(1L);
-    assertThat(metrics.addedFilesSizeInBytes().value()).isEqualTo(10L);
   }
 }
