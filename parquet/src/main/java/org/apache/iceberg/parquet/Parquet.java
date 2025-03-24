@@ -1429,9 +1429,10 @@ public class Parquet {
       return (B) this;
     }
 
-    @Override
+    @Deprecated
     public B recordsPerBatch(int numRowsPerBatch) {
       this.maxRecordsPerBatch = numRowsPerBatch;
+      set(RECORDS_PER_BATCH_KEY, String.valueOf(numRowsPerBatch));
       return (B) this;
     }
 
@@ -1593,7 +1594,9 @@ public class Parquet {
             filter,
             reuseContainers,
             filterCaseSensitive,
-            maxRecordsPerBatch);
+            properties.containsKey(RECORDS_PER_BATCH_KEY)
+                ? Integer.parseInt(properties.get(RECORDS_PER_BATCH_KEY))
+                : maxRecordsPerBatch);
       } else {
         Function<MessageType, ParquetValueReader<?>> readBuilder =
             readerFuncWithSchema != null

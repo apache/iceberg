@@ -123,8 +123,7 @@ public class ArrowReader extends CloseableGroup {
   private final EncryptionManager encryption;
   private final int batchSize;
   private final boolean reuseContainers;
-
-  public static final String ARROW_OBJECT_MODEL = "arrow";
+  private static final String ARROW_OBJECT_MODEL = "arrow";
 
   public static void register() {
     ObjectModelRegistry.registerReader(
@@ -344,7 +343,7 @@ public class ArrowReader extends CloseableGroup {
             ObjectModelRegistry.readBuilder(FileFormat.PARQUET, ARROW_OBJECT_MODEL, location)
                 .project(expectedSchema)
                 .split(task.start(), task.length())
-                .recordsPerBatch(batchSize)
+                .set(ReadBuilder.RECORDS_PER_BATCH_KEY, String.valueOf(batchSize))
                 .filter(task.residual(), filterCaseSensitive);
 
         if (reuseContainers) {

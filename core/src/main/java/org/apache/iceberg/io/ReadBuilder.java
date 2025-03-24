@@ -30,6 +30,9 @@ import org.apache.iceberg.mapping.NameMapping;
  * @param <R> type of the reader
  */
 public interface ReadBuilder<R extends ReadBuilder<R>> {
+  /** The key for the batch size in case of vectorized reads. */
+  String RECORDS_PER_BATCH_KEY = "iceberg.records-per-batch";
+
   /**
    * Restricts the read to the given range: [start, start + length).
    *
@@ -88,11 +91,6 @@ public interface ReadBuilder<R extends ReadBuilder<R>> {
   default R reuseContainers(boolean newReuseContainers) {
     // Skip container reuse configuration if not applicable
     return (R) this;
-  }
-
-  /** Sets the batch size for vectorized readers. */
-  default R recordsPerBatch(int numRowsPerBatch) {
-    throw new UnsupportedOperationException("Not supported");
   }
 
   /**

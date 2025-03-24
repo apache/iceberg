@@ -927,9 +927,10 @@ public class ORC {
       return this;
     }
 
-    @Override
+    @Deprecated
     public ReadBuilder recordsPerBatch(int numRecordsPerBatch) {
       this.recordsPerBatch = numRecordsPerBatch;
+      set(RECORDS_PER_BATCH_KEY, String.valueOf(numRecordsPerBatch));
       return this;
     }
 
@@ -969,7 +970,7 @@ public class ORC {
           filterCaseSensitive,
           filter,
           batchReader,
-          recordsPerBatch);
+          conf.getInt(RECORDS_PER_BATCH_KEY, recordsPerBatch));
     }
   }
 
