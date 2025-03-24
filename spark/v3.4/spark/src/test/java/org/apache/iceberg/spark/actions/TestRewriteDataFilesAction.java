@@ -67,6 +67,7 @@ import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
@@ -1278,6 +1279,48 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testParallelPartialProgressWithMaxFailedCommits() {
+    Table table = createTable(20);
+    int fileSize = averageFileSize(table);
+
+    List<Object[]> originalData = currentData();
+
+    RewriteDataFilesSparkAction realRewrite =
+        basicRewrite(table)
+            .option(
+                RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 1000))
+            .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES, "3")
+            .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
+            .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "3")
+            .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_FAILED_COMMITS, "0");
+
+    RewriteDataFilesSparkAction spyRewrite = Mockito.spy(realRewrite);
+
+    // Fail groups 1, 3, and 7 during rewrite
+    GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
+    doThrow(new RuntimeException("Rewrite Failed"))
+        .when(spyRewrite)
+        .rewriteFiles(any(), argThat(failGroup));
+
+    assertThatThrownBy(() -> spyRewrite.execute())
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining(
+            "1 rewrite commits failed. This is more than the maximum allowed failures of 0");
+
+    table.refresh();
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    // With 10 original groups and max commits of 3, we have 4 groups per commit.
+    // Removing 3 groups, we are left with 4 groups and 3 groups in two commits.
+    // Adding max allowed failed commits doesn't change the number of successful commits.
+    shouldHaveSnapshots(table, 3);
+    shouldHaveNoOrphans(table);
+    shouldHaveACleanCache(table);
+  }
+
+  @TestTemplate
   public void testInvalidOptions() {
     Table table = createTable(20);
 
@@ -1814,6 +1857,23 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(actual).as("Number of files order should be descending").isEqualTo(expected);
     Collections.reverse(expected);
     assertThat(actual).as("Number of files order should not be ascending").isNotEqualTo(expected);
+  }
+
+  @TestTemplate
+  public void testSnapshotProperty() {
+    Table table = createTable(4);
+    Result ignored = basicRewrite(table).snapshotProperty("key", "value").execute();
+    assertThat(table.currentSnapshot().summary())
+        .containsAllEntriesOf(ImmutableMap.of("key", "value"));
+    // make sure internal produced properties are not lost
+    String[] commitMetricsKeys =
+        new String[] {
+          SnapshotSummary.ADDED_FILES_PROP,
+          SnapshotSummary.DELETED_FILES_PROP,
+          SnapshotSummary.TOTAL_DATA_FILES_PROP,
+          SnapshotSummary.CHANGED_PARTITION_COUNT_PROP
+        };
+    assertThat(table.currentSnapshot().summary()).containsKeys(commitMetricsKeys);
   }
 
   @TestTemplate
