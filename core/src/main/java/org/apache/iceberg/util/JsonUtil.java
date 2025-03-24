@@ -149,6 +149,13 @@ public class JsonUtil {
     return pNode.asLong();
   }
 
+  public static Boolean getBoolOrNull(String property, JsonNode node) {
+    if (!node.hasNonNull(property)) {
+      return null;
+    }
+    return getBool(property, node);
+  }
+
   public static boolean getBool(String property, JsonNode node) {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing boolean: %s", property);
     JsonNode pNode = node.get(property);
