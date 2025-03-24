@@ -48,11 +48,6 @@ import org.apache.iceberg.util.Tasks;
 
 public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     implements RewriteManifests {
-  private static final String KEPT_MANIFESTS_COUNT = "manifests-kept";
-  private static final String CREATED_MANIFESTS_COUNT = "manifests-created";
-  private static final String REPLACED_MANIFESTS_COUNT = "manifests-replaced";
-  private static final String PROCESSED_ENTRY_COUNT = "entries-processed";
-
   private final String tableName;
   private final Map<Integer, PartitionSpec> specsById;
   private final long manifestTargetSizeBytes;
@@ -103,12 +98,14 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   protected Map<String, String> summary() {
     int createdManifestsCount =
         newManifests.size() + addedManifests.size() + rewrittenAddedManifests.size();
-    summaryBuilder.set(CREATED_MANIFESTS_COUNT, String.valueOf(createdManifestsCount));
-    summaryBuilder.set(KEPT_MANIFESTS_COUNT, String.valueOf(keptManifests.size()));
     summaryBuilder.set(
-        REPLACED_MANIFESTS_COUNT,
+        SnapshotSummary.CREATED_MANIFESTS_COUNT, String.valueOf(createdManifestsCount));
+    summaryBuilder.set(SnapshotSummary.KEPT_MANIFESTS_COUNT, String.valueOf(keptManifests.size()));
+    summaryBuilder.set(
+        SnapshotSummary.REPLACED_MANIFESTS_COUNT,
         String.valueOf(rewrittenManifests.size() + deletedManifests.size()));
-    summaryBuilder.set(PROCESSED_ENTRY_COUNT, String.valueOf(entryCount.get()));
+    summaryBuilder.set(
+        SnapshotSummary.PROCESSED_MANIFEST_ENTRY_COUNT, String.valueOf(entryCount.get()));
     summaryBuilder.setPartitionSummaryLimit(
         0); // do not include partition summaries because data did not change
     return summaryBuilder.build();
