@@ -25,6 +25,7 @@ import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.util.TimeUtils;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.flink.source.SnapshotExpirationResetStrategy;
 import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 
 public class FlinkReadConf {
@@ -208,6 +209,15 @@ public class FlinkReadConf {
         .option(FlinkReadOptions.WATERMARK_COLUMN_TIME_UNIT)
         .flinkConfig(FlinkReadOptions.WATERMARK_COLUMN_TIME_UNIT_OPTION)
         .defaultValue(FlinkReadOptions.WATERMARK_COLUMN_TIME_UNIT_OPTION.defaultValue())
+        .parse();
+  }
+
+  public SnapshotExpirationResetStrategy snapshotExpirationResetStrategy() {
+    return confParser
+        .enumConfParser(SnapshotExpirationResetStrategy.class)
+        .option(FlinkReadOptions.SNAPSHOT_EXPIRATION_RESET_STRATEGY)
+        .flinkConfig(FlinkReadOptions.SNAPSHOT_EXPIRATION_RESET_STRATEGY_OPTION)
+        .defaultValue(FlinkReadOptions.SNAPSHOT_EXPIRATION_RESET_STRATEGY_OPTION.defaultValue())
         .parse();
   }
 }

@@ -36,6 +36,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.HadoopTableExtension;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.ScanContext;
+import org.apache.iceberg.flink.source.SnapshotExpirationResetStrategy;
 import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -534,6 +535,117 @@ public class TestContinuousSplitPlannerImpl {
     // should discover dataFile2 appended in snapshot2
     verifyMaxPlanningSnapshotCountResult(
         thirdResult, snapshot1, snapshot2, ImmutableSet.of(dataFile2.location()));
+  }
+
+  @Test
+  public void testSnapshotExpirationResetFromDefault() throws Exception {
+    appendTwoSnapshots();
+
+    ScanContext scanContext =
+        ScanContext.builder()
+            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
+            .snapshotExpirationResetStrategy(SnapshotExpirationResetStrategy.DEFAULT)
+            .build();
+    ContinuousSplitPlannerImpl splitPlanner =
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
+
+    ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
+    assertThat(initialResult.fromPosition()).isNull();
+    // For inclusive behavior, the initial result should point to snapshot1's parent,
+    // which leads to null snapshotId and snapshotTimestampMs.
+    assertThat(initialResult.toPosition().snapshotId()).isNull();
+    assertThat(initialResult.toPosition().snapshotTimestampMs()).isNull();
+    assertThat(initialResult.splits()).isEmpty();
+
+    ContinuousEnumerationResult secondResult = splitPlanner.planSplits(initialResult.toPosition());
+    assertThat(secondResult.fromPosition().snapshotId()).isNull();
+    assertThat(secondResult.fromPosition().snapshotTimestampMs()).isNull();
+    assertThat(secondResult.toPosition().snapshotId().longValue())
+        .isEqualTo(snapshot2.snapshotId());
+    assertThat(secondResult.toPosition().snapshotTimestampMs().longValue())
+        .isEqualTo(snapshot2.timestampMillis());
+    IcebergSourceSplit split = Iterables.getOnlyElement(secondResult.splits());
+    assertThat(split.task().files()).hasSize(2);
+    Set<String> discoveredFiles =
+        split.task().files().stream()
+            .map(fileScanTask -> fileScanTask.file().location())
+            .collect(Collectors.toSet());
+    // should discover files appended in both snapshot1 and snapshot2
+    Set<String> expectedFiles = ImmutableSet.of(dataFile1.location(), dataFile2.location());
+    assertThat(discoveredFiles).containsExactlyInAnyOrderElementsOf(expectedFiles);
+
+    IcebergEnumeratorPosition lastPosition = secondResult.toPosition();
+    for (int i = 0; i < 3; ++i) {
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition).lastPosition;
+    }
+  }
+
+  @Test
+  public void testSnapshotExpirationResetFromEarliest() throws Exception {
+    appendTwoSnapshots();
+
+    // find an invalid snapshotId to mock expiration snapshotId
+    long expirationSnapshotId = 0L;
+    while (expirationSnapshotId == snapshot1.snapshotId()
+        || expirationSnapshotId == snapshot2.snapshotId()) {
+      expirationSnapshotId++;
+    }
+
+    ScanContext scanContext =
+        ScanContext.builder()
+            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
+            .snapshotExpirationResetStrategy(SnapshotExpirationResetStrategy.EARLIEST)
+            .build();
+    ContinuousSplitPlannerImpl splitPlanner =
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
+
+    IcebergEnumeratorPosition expirationLastPosition =
+        IcebergEnumeratorPosition.of(expirationSnapshotId, null);
+    ContinuousEnumerationResult secondResult = splitPlanner.planSplits(expirationLastPosition);
+    IcebergSourceSplit split = Iterables.getOnlyElement(secondResult.splits());
+    assertThat(split.task().files()).hasSize(1);
+    Set<String> discoveredFiles =
+        split.task().files().stream()
+            .map(fileScanTask -> fileScanTask.file().location())
+            .collect(Collectors.toSet());
+    // should discover files appended in snapshot2
+    Set<String> expectedFiles = ImmutableSet.of(dataFile2.location());
+    assertThat(discoveredFiles).containsExactlyInAnyOrderElementsOf(expectedFiles);
+
+    IcebergEnumeratorPosition lastPosition = secondResult.toPosition();
+    for (int i = 0; i < 3; ++i) {
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition).lastPosition;
+    }
+  }
+
+  @Test
+  public void testSnapshotExpirationResetFromLatest() throws Exception {
+    appendTwoSnapshots();
+
+    // find an invalid snapshotId to mock expiration snapshotId
+    long expirationSnapshotId = 0L;
+    while (expirationSnapshotId == snapshot1.snapshotId()
+        || expirationSnapshotId == snapshot2.snapshotId()) {
+      expirationSnapshotId++;
+    }
+
+    ScanContext scanContext =
+        ScanContext.builder()
+            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
+            .snapshotExpirationResetStrategy(SnapshotExpirationResetStrategy.LATEST)
+            .build();
+    ContinuousSplitPlannerImpl splitPlanner =
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
+
+    IcebergEnumeratorPosition expirationLastPosition =
+        IcebergEnumeratorPosition.of(expirationSnapshotId, null);
+    ContinuousEnumerationResult secondResult = splitPlanner.planSplits(expirationLastPosition);
+    assertThat(secondResult.splits()).hasSize(0);
+
+    IcebergEnumeratorPosition lastPosition = secondResult.toPosition();
+    for (int i = 0; i < 3; ++i) {
+      lastPosition = verifyOneCycle(splitPlanner, lastPosition).lastPosition;
+    }
   }
 
   @Test

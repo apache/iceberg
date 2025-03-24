@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.flink.source.SnapshotExpirationResetStrategy;
 import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 
 /** Flink source read options */
@@ -120,4 +121,12 @@ public class FlinkReadOptions {
       ConfigOptions.key(PREFIX + WATERMARK_COLUMN_TIME_UNIT)
           .enumType(TimeUnit.class)
           .defaultValue(TimeUnit.MICROSECONDS);
+
+  public static final String SNAPSHOT_EXPIRATION_RESET_STRATEGY =
+      "snapshot-expiration-reset-strategy";
+  public static final ConfigOption<SnapshotExpirationResetStrategy>
+      SNAPSHOT_EXPIRATION_RESET_STRATEGY_OPTION =
+          ConfigOptions.key(PREFIX + SNAPSHOT_EXPIRATION_RESET_STRATEGY)
+              .enumType(SnapshotExpirationResetStrategy.class)
+              .defaultValue(SnapshotExpirationResetStrategy.DEFAULT);
 }
