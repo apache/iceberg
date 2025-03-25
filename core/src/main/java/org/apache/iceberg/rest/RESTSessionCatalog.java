@@ -65,6 +65,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.auth.OAuth2Properties;
+import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
@@ -413,6 +415,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     AuthSession tableSession =
         authManager.tableSession(finalIdentifier, tableConf, contextualSession);
     TableMetadata tableMetadata;
+
+    if (tableSession instanceof OAuth2Util.AuthSession){
+      tableConf.put(OAuth2Properties.TOKEN, ((OAuth2Util.AuthSession) tableSession).token());
+    }
 
     if (snapshotMode == SnapshotMode.REFS) {
       tableMetadata =
