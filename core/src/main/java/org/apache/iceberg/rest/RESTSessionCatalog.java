@@ -416,7 +416,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         authManager.tableSession(finalIdentifier, tableConf, contextualSession);
     TableMetadata tableMetadata;
 
-    if (tableSession instanceof OAuth2Util.AuthSession){
+    if (tableSession instanceof OAuth2Util.AuthSession) {
       tableConf.put(OAuth2Properties.TOKEN, ((OAuth2Util.AuthSession) tableSession).token());
     }
 
