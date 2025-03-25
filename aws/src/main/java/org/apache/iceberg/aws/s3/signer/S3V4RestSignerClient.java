@@ -41,8 +41,8 @@ import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
+import org.apache.iceberg.rest.auth.AuthScopes;
 import org.apache.iceberg.rest.auth.AuthSession;
-import org.apache.iceberg.rest.auth.ImmutableAuthScopes;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.util.PropertyUtil;
@@ -176,8 +176,7 @@ public abstract class S3V4RestSignerClient
           }
 
           authSession =
-              authManager.authSession(
-                  ImmutableAuthScopes.Standalone.of(properties.buildKeepingLast()));
+              authManager.authSession(AuthScopes.Standalone.of(properties.buildKeepingLast()));
         }
       }
     }

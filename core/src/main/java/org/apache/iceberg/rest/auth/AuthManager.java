@@ -63,7 +63,7 @@ public interface AuthManager extends AutoCloseable {
    */
   @Deprecated
   default AuthSession catalogSession(RESTClient sharedClient, Map<String, String> properties) {
-    return withClient(sharedClient).authSession(ImmutableAuthScopes.Catalog.of(properties));
+    return withClient(sharedClient).authSession(AuthScopes.Catalog.of(properties));
   }
 
   /**

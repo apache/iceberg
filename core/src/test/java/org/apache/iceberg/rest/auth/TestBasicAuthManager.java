@@ -30,7 +30,7 @@ class TestBasicAuthManager {
   @Test
   void missingUsername() {
     try (AuthManager authManager = new BasicAuthManager("test")) {
-      assertThatThrownBy(() -> authManager.authSession(ImmutableAuthScopes.Standalone.of(Map.of())))
+      assertThatThrownBy(() -> authManager.authSession(AuthScopes.Standalone.of(Map.of())))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessage(
               "Invalid username: missing required property %s", AuthProperties.BASIC_USERNAME);
@@ -41,8 +41,7 @@ class TestBasicAuthManager {
   void missingPassword() {
     try (AuthManager authManager = new BasicAuthManager("test")) {
       Map<String, String> properties = Map.of(AuthProperties.BASIC_USERNAME, "alice");
-      assertThatThrownBy(
-              () -> authManager.authSession(ImmutableAuthScopes.Standalone.of(properties)))
+      assertThatThrownBy(() -> authManager.authSession(AuthScopes.Standalone.of(properties)))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessage(
               "Invalid password: missing required property %s", AuthProperties.BASIC_PASSWORD);
@@ -54,8 +53,7 @@ class TestBasicAuthManager {
     Map<String, String> properties =
         Map.of(AuthProperties.BASIC_USERNAME, "alice", AuthProperties.BASIC_PASSWORD, "secret");
     try (AuthManager authManager = new BasicAuthManager("test");
-        AuthSession session =
-            authManager.authSession(ImmutableAuthScopes.Standalone.of(properties))) {
+        AuthSession session = authManager.authSession(AuthScopes.Standalone.of(properties))) {
       assertThat(session)
           .isEqualTo(
               DefaultAuthSession.of(HTTPHeaders.of(OAuth2Util.basicAuthHeaders("alice:secret"))));

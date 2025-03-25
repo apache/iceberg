@@ -107,7 +107,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
   @Deprecated
   @SuppressWarnings("deprecation")
   public OAuth2Util.AuthSession initSession(RESTClient initClient, Map<String, String> properties) {
-    return withClient(initClient).authSession(ImmutableAuthScopes.Initial.of(properties));
+    return withClient(initClient).authSession(AuthScopes.Initial.of(properties));
   }
 
   /**
@@ -119,7 +119,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
   @SuppressWarnings("deprecation")
   public OAuth2Util.AuthSession catalogSession(
       RESTClient sharedClient, Map<String, String> properties) {
-    return withClient(sharedClient).authSession(ImmutableAuthScopes.Catalog.of(properties));
+    return withClient(sharedClient).authSession(AuthScopes.Catalog.of(properties));
   }
 
   /**
@@ -131,7 +131,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
   @SuppressWarnings("deprecation")
   public OAuth2Util.AuthSession contextualSession(
       SessionCatalog.SessionContext context, AuthSession parent) {
-    return contextualSession(ImmutableAuthScopes.Contextual.of(context, parent));
+    return contextualSession(AuthScopes.Contextual.of(context, parent));
   }
 
   /**
@@ -143,7 +143,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
   @SuppressWarnings("deprecation")
   public OAuth2Util.AuthSession tableSession(
       TableIdentifier table, Map<String, String> properties, AuthSession parent) {
-    return tableSession(ImmutableAuthScopes.Table.of(table, properties, parent));
+    return tableSession(AuthScopes.Table.of(table, properties, parent));
   }
 
   private OAuth2Util.AuthSession initSession(AuthConfig config) {

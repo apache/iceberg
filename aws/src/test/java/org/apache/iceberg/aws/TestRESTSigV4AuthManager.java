@@ -32,8 +32,8 @@ import org.apache.iceberg.rest.auth.AuthConfig;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthProperties;
+import org.apache.iceberg.rest.auth.AuthScopes;
 import org.apache.iceberg.rest.auth.AuthSession;
-import org.apache.iceberg.rest.auth.ImmutableAuthScopes;
 import org.apache.iceberg.rest.auth.NoopAuthManager;
 import org.apache.iceberg.rest.auth.OAuth2Manager;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
@@ -123,7 +123,7 @@ class TestRESTSigV4AuthManager {
     when(client.withAuthSession(any())).thenReturn(client);
     AuthManager manager = new RESTSigV4AuthManager("test", delegate).withClient(client);
     AuthSession authSession =
-        manager.authSession(ImmutableAuthScopes.Initial.of(catalogProperties));
+        manager.authSession(AuthScopes.Initial.of(catalogProperties));
     checkSession(authSession, "us-west-2", "id", "secret");
   }
 
@@ -136,7 +136,7 @@ class TestRESTSigV4AuthManager {
     when(client.withAuthSession(any())).thenReturn(client);
     AuthManager manager = new RESTSigV4AuthManager("test", delegate).withClient(client);
     AuthSession authSession =
-        manager.authSession(ImmutableAuthScopes.Catalog.of(catalogProperties));
+        manager.authSession(AuthScopes.Catalog.of(catalogProperties));
     checkSession(authSession, "us-west-2", "id", "secret");
   }
 
@@ -149,7 +149,7 @@ class TestRESTSigV4AuthManager {
     when(client.withAuthSession(any())).thenReturn(client);
     AuthManager manager = new RESTSigV4AuthManager("test", delegate).withClient(client);
     AuthSession catalogSession =
-        manager.authSession(ImmutableAuthScopes.Catalog.of(catalogProperties));
+        manager.authSession(AuthScopes.Catalog.of(catalogProperties));
     SessionCatalog.SessionContext context =
         new SessionCatalog.SessionContext(
             "context1",
@@ -161,7 +161,7 @@ class TestRESTSigV4AuthManager {
                 "secret2"),
             Map.of(AwsProperties.REST_SIGNER_REGION, "us-east-1"));
     AuthSession authSession =
-        manager.authSession(ImmutableAuthScopes.Contextual.of(context, catalogSession));
+        manager.authSession(AuthScopes.Contextual.of(context, catalogSession));
 
     checkSession(authSession, "us-east-1", "id2", "secret2");
   }
@@ -175,7 +175,7 @@ class TestRESTSigV4AuthManager {
     when(client.withAuthSession(any())).thenReturn(client);
     AuthManager manager = new RESTSigV4AuthManager("test", delegate).withClient(client);
     AuthSession catalogSession =
-        manager.authSession(ImmutableAuthScopes.Catalog.of(catalogProperties));
+        manager.authSession(AuthScopes.Catalog.of(catalogProperties));
     Map<String, String> tableProperties =
         Map.of(
             AwsProperties.REST_ACCESS_KEY_ID,
@@ -186,8 +186,7 @@ class TestRESTSigV4AuthManager {
             "us-east-1");
     AuthSession authSession =
         manager.authSession(
-            ImmutableAuthScopes.Table.of(
-                TableIdentifier.of("table1"), tableProperties, catalogSession));
+            AuthScopes.Table.of(TableIdentifier.of("table1"), tableProperties, catalogSession));
     checkSession(authSession, "us-east-1", "id2", "secret2");
   }
 
