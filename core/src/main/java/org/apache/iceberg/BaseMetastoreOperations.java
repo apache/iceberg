@@ -28,6 +28,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_TOTAL_WAIT
 import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS_DEFAULT;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.apache.iceberg.util.PropertyUtil;
@@ -63,6 +64,31 @@ public abstract class BaseMetastoreOperations {
       String newMetadataLocation,
       Map<String, String> properties,
       Supplier<Boolean> commitStatusSupplier) {
+    if (metadataLocationCommitted(
+            tableOrViewName, newMetadataLocation, properties, commitStatusSupplier)
+        .orElse(false)) {
+      return CommitStatus.SUCCESS;
+    }
+    return CommitStatus.UNKNOWN;
+  }
+
+  /**
+   * Attempt to load the content and see if any current or past metadata location matches the one we
+   * were attempting to set.
+   *
+   * @param tableOrViewName full name of the Table/View
+   * @param newMetadataLocation the path of the new commit file
+   * @param properties properties for retry
+   * @param commitStatusSupplier check if the latest metadata presents or not using metadata
+   *     location for table.
+   * @return Empty if locations cannot be checked, e.g. unable to refresh. True if the new location
+   *     is committed, false otherwise.
+   */
+  protected Optional<Boolean> metadataLocationCommitted(
+      String tableOrViewName,
+      String newMetadataLocation,
+      Map<String, String> properties,
+      Supplier<Boolean> commitStatusSupplier) {
     int maxAttempts =
         PropertyUtil.propertyAsInt(
             properties, COMMIT_NUM_STATUS_CHECKS, COMMIT_NUM_STATUS_CHECKS_DEFAULT);
@@ -78,7 +104,7 @@ public abstract class BaseMetastoreOperations {
             COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS,
             COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS_DEFAULT);
 
-    AtomicReference<CommitStatus> status = new AtomicReference<>(CommitStatus.UNKNOWN);
+    AtomicReference<Boolean> res = new AtomicReference<>(null);
 
     Tasks.foreach(newMetadataLocation)
         .retry(maxAttempts)
@@ -96,23 +122,24 @@ public abstract class BaseMetastoreOperations {
                     "Commit status check: Commit to {} of {} succeeded",
                     tableOrViewName,
                     newMetadataLocation);
-                status.set(CommitStatus.SUCCESS);
+                res.set(true);
               } else {
                 LOG.warn(
                     "Commit status check: Commit to {} of {} unknown, new metadata location is not current "
                         + "or in history",
                     tableOrViewName,
                     newMetadataLocation);
+                res.set(false);
               }
             });
 
-    if (status.get() == CommitStatus.UNKNOWN) {
+    if (res.get() == null) {
       LOG.error(
           "Cannot determine commit state to {}. Failed during checking {} times. "
               + "Treating commit state as unknown.",
           tableOrViewName,
           maxAttempts);
     }
-    return status.get();
+    return Optional.ofNullable(res.get());
   }
 }

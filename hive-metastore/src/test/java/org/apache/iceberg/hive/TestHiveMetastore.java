@@ -31,6 +31,7 @@ import java.io.Reader;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.apache.hadoop.conf.Configuration;
@@ -128,6 +129,15 @@ public class TestHiveMetastore {
   private TServer server;
   private HiveMetaStore.HMSHandler baseHandler;
   private HiveClientPool clientPool;
+  private final Map<String, String> hiveConfOverride;
+
+  public TestHiveMetastore() {
+    this(null);
+  }
+
+  public TestHiveMetastore(Map<String, String> hiveConfOverride) {
+    this.hiveConfOverride = hiveConfOverride;
+  }
 
   /**
    * Starts a TestHiveMetastore with the default connection pool size (5) and the default HiveConf.
@@ -271,6 +281,11 @@ public class TestHiveMetastore {
     // Setting this to avoid thrift exception during running Iceberg tests outside Iceberg.
     conf.set(
         HiveConf.ConfVars.HIVE_IN_TEST.varname, HiveConf.ConfVars.HIVE_IN_TEST.getDefaultValue());
+    if (hiveConfOverride != null) {
+      for (Map.Entry<String, String> kv : hiveConfOverride.entrySet()) {
+        conf.set(kv.getKey(), kv.getValue());
+      }
+    }
   }
 
   private static void setupMetastoreDB(String dbURL) throws SQLException, IOException {

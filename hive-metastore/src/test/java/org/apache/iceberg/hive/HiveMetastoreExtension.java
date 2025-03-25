@@ -40,16 +40,10 @@ public class HiveMetastoreExtension implements BeforeAllCallback, AfterAllCallba
 
   @Override
   public void beforeAll(ExtensionContext extensionContext) throws Exception {
-    metastore = new TestHiveMetastore();
-    HiveConf hiveConfWithOverrides = new HiveConf(TestHiveMetastore.class);
-    if (hiveConfOverride != null) {
-      for (Map.Entry<String, String> kv : hiveConfOverride.entrySet()) {
-        hiveConfWithOverrides.set(kv.getKey(), kv.getValue());
-      }
-    }
+    metastore = new TestHiveMetastore(hiveConfOverride);
 
-    metastore.start(hiveConfWithOverrides);
-    metastoreClient = new HiveMetaStoreClient(hiveConfWithOverrides);
+    metastore.start(new HiveConf(TestHiveMetastore.class));
+    metastoreClient = new HiveMetaStoreClient(metastore.hiveConf());
     if (null != databaseName) {
       String dbPath = metastore.getDatabasePath(databaseName);
       Database db = new Database(databaseName, "description", dbPath, Maps.newHashMap());

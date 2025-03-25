@@ -310,7 +310,7 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
    * @return true if the new metadata location is the current metadata location or present within
    *     previous metadata files.
    */
-  private boolean checkCurrentMetadataLocation(String newMetadataLocation) {
+  protected boolean checkCurrentMetadataLocation(String newMetadataLocation) {
     TableMetadata metadata = refresh();
     String currentMetadataFileLocation = metadata.metadataFileLocation();
     return currentMetadataFileLocation.equals(newMetadataLocation)
