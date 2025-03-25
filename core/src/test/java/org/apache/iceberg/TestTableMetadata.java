@@ -1808,7 +1808,8 @@ public class TestTableMetadata {
     manifestList.deleteOnExit();
 
     try (ManifestListWriter writer =
-        ManifestLists.write(1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0)) {
+        ManifestLists.write(
+            1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0, 0)) {
       writer.addAll(
           ImmutableList.of(
               new GenericManifestFile(localInput(manifestFile), SPEC_5.specId(), snapshotId)));

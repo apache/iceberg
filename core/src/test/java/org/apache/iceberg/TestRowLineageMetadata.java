@@ -359,7 +359,7 @@ public class TestRowLineageMetadata {
 
     table.newRewrite().deleteFile(filePart1).deleteFile(filePart2).addFile(fileCompacted).commit();
 
-    // Rewrites are currently just treated as appends. In the future we could treat these as no-ops
+    // TODO: update this when first-row-id is preserved for rewritten manifests
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(60);
     assertThat(table.currentSnapshot().addedRows()).isEqualTo(60);
     assertThat(table.ops().current().nextRowId()).isEqualTo(120);

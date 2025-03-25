@@ -271,14 +271,15 @@ public class TestManifestListVersions {
             SEQ_NUM,
             MIN_SEQ_NUM,
             SNAPSHOT_ID,
+            partitionFieldSummaries,
+            KEY_METADATA,
             ADDED_FILES,
             ADDED_ROWS,
             EXISTING_FILES,
             EXISTING_ROWS,
             DELETED_FILES,
             DELETED_ROWS,
-            partitionFieldSummaries,
-            KEY_METADATA);
+            null);
 
     InputFile manifestList = writeManifestList(manifest, 2);
 
@@ -307,7 +308,8 @@ public class TestManifestListVersions {
             manifestList,
             SNAPSHOT_ID,
             SNAPSHOT_ID - 1,
-            formatVersion > 1 ? SEQ_NUM : 0)) {
+            formatVersion > 1 ? SEQ_NUM : 0,
+            0L)) {
       writer.add(manifest);
     }
     return manifestList.toInputFile();
