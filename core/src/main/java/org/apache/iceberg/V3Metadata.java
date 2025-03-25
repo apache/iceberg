@@ -295,6 +295,7 @@ class V3Metadata {
         DataFile.SPLIT_OFFSETS,
         DataFile.EQUALITY_IDS,
         DataFile.SORT_ORDER_ID,
+        DataFile.FIRST_ROW_ID,
         DataFile.REFERENCED_DATA_FILE,
         DataFile.CONTENT_OFFSET,
         DataFile.CONTENT_SIZE);
@@ -483,18 +484,24 @@ class V3Metadata {
         case 15:
           return wrapped.sortOrderId();
         case 16:
-          if (wrapped.content() == FileContent.POSITION_DELETES) {
-            return ((DeleteFile) wrapped).referencedDataFile();
+          if (wrapped.content() == FileContent.DATA) {
+            return wrapped.firstRowId();
           } else {
             return null;
           }
         case 17:
           if (wrapped.content() == FileContent.POSITION_DELETES) {
-            return ((DeleteFile) wrapped).contentOffset();
+            return ((DeleteFile) wrapped).referencedDataFile();
           } else {
             return null;
           }
         case 18:
+          if (wrapped.content() == FileContent.POSITION_DELETES) {
+            return ((DeleteFile) wrapped).contentOffset();
+          } else {
+            return null;
+          }
+        case 19:
           if (wrapped.content() == FileContent.POSITION_DELETES) {
             return ((DeleteFile) wrapped).contentSizeInBytes();
           } else {
@@ -607,6 +614,11 @@ class V3Metadata {
     @Override
     public Long fileSequenceNumber() {
       return wrapped.fileSequenceNumber();
+    }
+
+    @Override
+    public Long firstRowId() {
+      return wrapped.firstRowId();
     }
 
     @Override
