@@ -133,7 +133,7 @@ class TestOAuth2Manager {
   @Test
   void catalogSessionTokenProvided() {
     Map<String, String> properties = Map.of(OAuth2Properties.TOKEN, "test");
-    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client).withClient(client);
+    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client);
         OAuth2Util.AuthSession catalogSession =
             manager.authSession(AuthScopes.Catalog.of(properties))) {
       assertThat(catalogSession.headers()).containsOnly(entry("Authorization", "Bearer test"));
@@ -142,7 +142,7 @@ class TestOAuth2Manager {
           .as("should create refresh executor when token provided")
           .isNotNull();
     }
-    Mockito.verify(client, times(2)).withAuthSession(any());
+    Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
   }
 

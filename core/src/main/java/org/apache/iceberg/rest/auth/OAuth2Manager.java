@@ -71,19 +71,20 @@ public class OAuth2Manager extends RefreshingAuthManager {
 
   @Override
   public OAuth2Manager withClient(RESTClient restClient) {
-    Preconditions.checkNotNull(restClient, "invalid restClient: null");
+    Preconditions.checkArgument(restClient != null, "Invalid REST client: null");
     refreshClient = restClient.withAuthSession(AuthSession.EMPTY);
     return this;
   }
 
   @Override
   public OAuth2Util.AuthSession authSession(AuthScope scope) {
-    Preconditions.checkNotNull(scope, "invalid scope: null");
+    Preconditions.checkArgument(null != scope, "Invalid auth scope: null");
     Preconditions.checkState(
         refreshClient != null, "cannot create AuthSession: no RESTClient available");
     if (sessionCache == null) {
       sessionCache = newSessionCache(name, scope.properties());
     }
+
     AuthConfig config = AuthConfig.fromProperties(scope.properties());
     if (scope instanceof AuthScopes.Initial) {
       warnIfDeprecatedTokenEndpointUsed(scope.properties());
