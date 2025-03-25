@@ -41,7 +41,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
@@ -75,6 +74,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.util.Exceptions;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -263,14 +263,16 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     OutputFile manifestList = manifestListPath();
 
-    try (ManifestListWriter writer =
+    ManifestListWriter writer =
         ManifestLists.write(
             ops.current().formatVersion(),
             manifestList,
             snapshotId(),
             parentSnapshotId,
-            sequenceNumber)) {
+            sequenceNumber,
+            base.nextRowId());
 
+    try (writer) {
       // keep track of the manifest lists created
       manifestLists.add(manifestList.location());
 
@@ -287,11 +289,26 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       throw new RuntimeIOException(e, "Failed to write manifest list file");
     }
 
-    Long addedRows = null;
-    Long firstRowId = null;
+    Long assignedRows = null;
     if (base.formatVersion() >= 3) {
-      addedRows = calculateAddedRows(manifests);
-      firstRowId = base.nextRowId();
+      assignedRows = writer.nextRowId() - base.nextRowId();
+    }
+
+    Map<String, String> summary = summary();
+    String operation = operation();
+
+    if (summary != null && DataOperations.REPLACE.equals(operation)) {
+      long addedRecords =
+          PropertyUtil.propertyAsLong(summary, SnapshotSummary.ADDED_RECORDS_PROP, 0L);
+      long replacedRecords =
+          PropertyUtil.propertyAsLong(summary, SnapshotSummary.DELETED_RECORDS_PROP, 0L);
+
+      // added may be less than replaced when records are already deleted by delete files
+      Preconditions.checkArgument(
+          addedRecords <= replacedRecords,
+          "Invalid REPLACE operation: %s added records > %s replaced records",
+          addedRecords,
+          replacedRecords);
     }
 
     return new BaseSnapshot(
@@ -303,27 +320,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         summary(base),
         base.currentSchemaId(),
         manifestList.location(),
-        firstRowId,
-        addedRows);
-  }
-
-  private Long calculateAddedRows(List<ManifestFile> manifests) {
-    return manifests.stream()
-        .filter(
-            manifest ->
-                manifest.snapshotId() == null
-                    || Objects.equals(manifest.snapshotId(), this.snapshotId))
-        .filter(manifest -> manifest.content() == ManifestContent.DATA)
-        .mapToLong(
-            manifest -> {
-              Preconditions.checkArgument(
-                  manifest.addedRowsCount() != null,
-                  "Cannot determine number of added rows in snapshot because"
-                      + " the entry for manifest %s is missing the field `added-rows-count`",
-                  manifest.path());
-              return manifest.addedRowsCount();
-            })
-        .sum();
+        base.nextRowId(),
+        assignedRows);
   }
 
   protected abstract Map<String, String> summary();
@@ -752,13 +750,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           manifest.sequenceNumber(),
           manifest.minSequenceNumber(),
           snapshotId,
+          stats.summaries(),
+          null,
           addedFiles,
           addedRows,
           existingFiles,
           existingRows,
           deletedFiles,
           deletedRows,
-          stats.summaries(),
           null);
 
     } catch (IOException e) {

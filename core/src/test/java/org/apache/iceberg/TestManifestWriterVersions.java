@@ -287,7 +287,8 @@ public class TestManifestWriterVersions {
             manifestList,
             SNAPSHOT_ID,
             SNAPSHOT_ID - 1,
-            formatVersion > 1 ? SEQUENCE_NUMBER : 0)) {
+            formatVersion > 1 ? SEQUENCE_NUMBER : 0,
+            0)) {
       writer.add(manifest);
     }
     return manifestList.toInputFile();
