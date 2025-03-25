@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.rest.responses;
 
-import static org.apache.iceberg.TestHelpers.MAX_FORMAT_VERSION;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -138,7 +137,7 @@ public class TestLoadTableResponseParser {
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {MAX_FORMAT_VERSION})
+  @ValueSource(ints = 3)
   public void roundTripSerdeV3andHigher(int formatVersion) {
     String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
     TableMetadata metadata =
