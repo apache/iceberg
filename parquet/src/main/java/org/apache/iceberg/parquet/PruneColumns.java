@@ -90,11 +90,11 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
       Type originalField = struct.getType(i);
       Type field = fields.get(i);
       Integer fieldId = getId(originalField);
-      if (fieldId != null && selectedIds.contains(fieldId)) {
-        filteredFields.add(originalField);
-      } else if (field != null) {
-        filteredFields.add(originalField);
+      if (field != null) {
+        filteredFields.add(field);
         hasChange = true;
+      } else if (fieldId != null && selectedIds.contains(fieldId)) {
+        filteredFields.add(originalField);
       }
     }
 
