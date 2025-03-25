@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.gcp.GCPProperties;
@@ -238,6 +239,8 @@ public class GCSFileIOTest {
     try (GCSFileIO fileIO = new GCSFileIO()) {
       fileIO.initialize(
           ImmutableMap.of(
+              CatalogProperties.URI,
+              "http://catalog-endpoint",
               GCS_OAUTH2_TOKEN,
               "gcsToken",
               GCS_OAUTH2_TOKEN_EXPIRES_AT,
