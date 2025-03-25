@@ -42,6 +42,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
@@ -72,6 +73,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.RESTSessionCatalog.SnapshotMode;
+import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.AuthSessionUtil;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
@@ -2065,6 +2067,68 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
+  public void defaultHTTPHeadersPopulated() {
+    Map<String, String> responseHeaders = Maps.newHashMap();
+
+    Map<String, String> properties =
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            httpServer.getURI().toString(),
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            "credential",
+            "catalog:12345");
+
+    RESTCatalog catalog =
+        new RESTCatalog(
+            new SessionCatalog.SessionContext(
+                UUID.randomUUID().toString(),
+                "user",
+                ImmutableMap.of("credential", "user:12345"),
+                ImmutableMap.of()),
+            (config) ->
+                customHTTPClientWithResponseHeaders(
+                    properties, AuthSession.EMPTY, responseHeaders::putAll));
+
+    catalog.initialize("test", properties);
+
+    assertThat(responseHeaders.keySet()).contains(HttpHeaders.CONTENT_TYPE);
+  }
+
+  private HTTPClient customHTTPClientWithResponseHeaders(
+      Map<String, String> properties,
+      AuthSession session,
+      Consumer<Map<String, String>> responseHeaders) {
+    HTTPClient client =
+        Mockito.spy(
+            new HTTPClient(
+                HTTPClient.builder(properties).uri(properties.get(CatalogProperties.URI)).build(),
+                session) {
+              @Override
+              public <T extends RESTResponse> T get(
+                  String path,
+                  Map<String, String> queryParams,
+                  Class<T> responseType,
+                  Map<String, String> headers,
+                  Consumer<ErrorResponse> errorHandler) {
+                HTTPRequest request =
+                    buildRequest(HTTPMethod.GET, path, queryParams, headers, null);
+                return execute(request, responseType, errorHandler, responseHeaders);
+              }
+            });
+
+    Mockito.doAnswer(
+            (Answer<HTTPClient>)
+                invocationOnMock ->
+                    customHTTPClientWithResponseHeaders(
+                        properties, invocationOnMock.getArgument(0), responseHeaders))
+        .when(client)
+        .withAuthSession(any());
+
+    return client;
+  }
+
+  @Test
   public void multipleDiffsAgainstMultipleTablesLastFails() {
     Namespace namespace = Namespace.of("multiDiffNamespace");
     TableIdentifier identifier1 = TableIdentifier.of(namespace, "multiDiffTable1");
@@ -2170,7 +2234,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(RESTCatalogAdapter.Route.LIST_NAMESPACES),
             eq(ImmutableMap.of("pageToken", "", "pageSize", "10")),
             any(),
-            eq(ListNamespacesResponse.class));
+            eq(ListNamespacesResponse.class),
+            any());
 
     // verify second request with updated pageToken
     Mockito.verify(adapter)
@@ -2178,7 +2243,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(RESTCatalogAdapter.Route.LIST_NAMESPACES),
             eq(ImmutableMap.of("pageToken", "10", "pageSize", "10")),
             any(),
-            eq(ListNamespacesResponse.class));
+            eq(ListNamespacesResponse.class),
+            any());
 
     // verify third request with update pageToken
     Mockito.verify(adapter)
@@ -2186,7 +2252,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(RESTCatalogAdapter.Route.LIST_NAMESPACES),
             eq(ImmutableMap.of("pageToken", "20", "pageSize", "10")),
             any(),
-            eq(ListNamespacesResponse.class));
+            eq(ListNamespacesResponse.class),
+            any());
   }
 
   @ParameterizedTest
@@ -2232,7 +2299,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(RESTCatalogAdapter.Route.LIST_TABLES),
             eq(ImmutableMap.of("pageToken", "", "pageSize", "10", "namespace", namespaceName)),
             any(),
-            eq(ListTablesResponse.class));
+            eq(ListTablesResponse.class),
+            any());
 
     // verify second request with updated pageToken
     Mockito.verify(adapter)
@@ -2240,7 +2308,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(RESTCatalogAdapter.Route.LIST_TABLES),
             eq(ImmutableMap.of("pageToken", "10", "pageSize", "10", "namespace", namespaceName)),
             any(),
-            eq(ListTablesResponse.class));
+            eq(ListTablesResponse.class),
+            any());
 
     // verify third request with update pageToken
     Mockito.verify(adapter)
@@ -2248,7 +2317,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(RESTCatalogAdapter.Route.LIST_TABLES),
             eq(ImmutableMap.of("pageToken", "20", "pageSize", "10", "namespace", namespaceName)),
             any(),
-            eq(ListTablesResponse.class));
+            eq(ListTablesResponse.class),
+            any());
   }
 
   @Test
