@@ -46,7 +46,8 @@ class V3Metadata {
           ManifestFile.EXISTING_ROWS_COUNT.asRequired(),
           ManifestFile.DELETED_ROWS_COUNT.asRequired(),
           ManifestFile.PARTITION_SUMMARIES,
-          ManifestFile.KEY_METADATA);
+          ManifestFile.KEY_METADATA,
+          ManifestFile.FIRST_ROW_ID);
 
   /**
    * A wrapper class to write any ManifestFile implementation to Avro using the v3 write schema.
@@ -58,14 +59,16 @@ class V3Metadata {
     private final long commitSnapshotId;
     private final long sequenceNumber;
     private ManifestFile wrapped = null;
+    private Long wrappedFirstRowId = null;
 
     ManifestFileWrapper(long commitSnapshotId, long sequenceNumber) {
       this.commitSnapshotId = commitSnapshotId;
       this.sequenceNumber = sequenceNumber;
     }
 
-    public ManifestFile wrap(ManifestFile file) {
+    public ManifestFile wrap(ManifestFile file, Long firstRowId) {
       this.wrapped = file;
+      this.wrappedFirstRowId = firstRowId;
       return this;
     }
 
@@ -140,6 +143,19 @@ class V3Metadata {
           return wrapped.partitions();
         case 14:
           return wrapped.keyMetadata();
+        case 15:
+          if (wrappedFirstRowId != null) {
+            // if first-row-id is assigned, ensure that it is valid
+            Preconditions.checkState(
+                wrapped.content() == ManifestContent.DATA && wrapped.firstRowId() == null,
+                "Found invalid first-row-id assignment: %s",
+                wrapped);
+            return wrappedFirstRowId;
+          } else if (wrapped.content() == ManifestContent.DATA) {
+            return null;
+          } else {
+            return wrapped.firstRowId();
+          }
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
@@ -233,6 +249,11 @@ class V3Metadata {
     @Override
     public ByteBuffer keyMetadata() {
       return wrapped.keyMetadata();
+    }
+
+    @Override
+    public Long firstRowId() {
+      return wrapped.firstRowId();
     }
 
     @Override
