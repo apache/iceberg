@@ -126,7 +126,7 @@ class ParquetFilters {
       } else if (pred.isLiteralPredicate()) {
         lit = pred.asLiteralPredicate().literal();
       } else if (pred.isSetPredicate()) {
-        litSet = pred.asSetPredicate().asSetPredicate().literalSet();
+        litSet = pred.asSetPredicate().literalSet();
       } else {
         throw new UnsupportedOperationException("Cannot convert to Parquet filter: " + pred);
       }
