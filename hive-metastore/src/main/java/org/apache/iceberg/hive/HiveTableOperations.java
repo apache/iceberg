@@ -277,15 +277,22 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
               e);
         }
 
+        commitStatus = BaseMetastoreOperations.CommitStatus.UNKNOWN;
         if (e.getMessage() != null
             && e.getMessage()
                 .contains(
                     "The table has been modified. The parameter value for key '"
                         + HiveTableOperations.METADATA_LOCATION_PROP
                         + "' is")) {
-          commitStatus = handleConcurrentModification(e, newMetadataLocation, metadata);
+          // It's possible the HMS client incorrectly retries a successful operation, due to network
+          // issue for example, and triggers this exception. So we need double-check to
+          // make sure this is really a concurrent modification
+          commitStatus = handlePossibleConcurrentModification(newMetadataLocation, metadata);
+          if (commitStatus == BaseMetastoreOperations.CommitStatus.FAILURE) {
+            throw new CommitFailedException(
+                e, "The table %s.%s has been modified concurrently", database, tableName);
+          }
         } else {
-          commitStatus = BaseMetastoreOperations.CommitStatus.UNKNOWN;
           LOG.error(
               "Cannot tell if commit to {}.{} succeeded, attempting to reconnect and check.",
               database,
@@ -324,8 +331,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
         "Committed to table {} with the new metadata location {}", fullName, newMetadataLocation);
   }
 
-  private BaseMetastoreOperations.CommitStatus handleConcurrentModification(
-      Throwable throwable, String newMetadataLocation, TableMetadata metadata) {
+  private BaseMetastoreOperations.CommitStatus handlePossibleConcurrentModification(
+      String newMetadataLocation, TableMetadata metadata) {
     Optional<Boolean> locationCommitted =
         metadataLocationCommitted(
             tableName(),
@@ -336,8 +343,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       if (locationCommitted.get()) {
         return BaseMetastoreOperations.CommitStatus.SUCCESS;
       } else {
-        throw new CommitFailedException(
-            throwable, "The table %s.%s has been modified concurrently", database, tableName);
+        return BaseMetastoreOperations.CommitStatus.FAILURE;
       }
     }
     return BaseMetastoreOperations.CommitStatus.UNKNOWN;
