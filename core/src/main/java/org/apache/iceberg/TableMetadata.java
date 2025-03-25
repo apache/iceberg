@@ -53,6 +53,7 @@ public class TableMetadata implements Serializable {
   static final long INVALID_SEQUENCE_NUMBER = -1;
   static final int DEFAULT_TABLE_FORMAT_VERSION = 2;
   static final int SUPPORTED_TABLE_FORMAT_VERSION = 3;
+  static final int MIN_FORMAT_VERSION_ROW_LINEAGE = 3;
   static final int INITIAL_SPEC_ID = 0;
   static final int INITIAL_SORT_ORDER_ID = 1;
   static final int INITIAL_SCHEMA_ID = 0;
@@ -567,6 +568,16 @@ public class TableMetadata implements Serializable {
 
   public TableMetadata withUUID() {
     return new Builder(this).assignUUID().build();
+  }
+
+  /**
+   * Whether row lineage is enabled.
+   *
+   * @deprecated will be removed in 1.10.0; row lineage is required for all v3+ tables.
+   */
+  @Deprecated
+  public boolean rowLineageEnabled() {
+    return formatVersion >= MIN_FORMAT_VERSION_ROW_LINEAGE;
   }
 
   public long nextRowId() {
@@ -1242,7 +1253,7 @@ public class TableMetadata implements Serializable {
       snapshotsById.put(snapshot.snapshotId(), snapshot);
       changes.add(new MetadataUpdate.AddSnapshot(snapshot));
 
-      if (formatVersion >= 3) {
+      if (formatVersion >= MIN_FORMAT_VERSION_ROW_LINEAGE) {
         ValidationException.check(
             snapshot.firstRowId() != null, "Cannot add a snapshot: first-row-id is null");
         ValidationException.check(

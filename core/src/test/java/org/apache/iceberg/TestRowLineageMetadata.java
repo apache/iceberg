@@ -36,8 +36,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestRowLineageMetadata {
-  private static final int ROW_LINEAGE_MIN_FORMAT_VERSION = 3;
-
   @Parameters(name = "formatVersion = {0}")
   private static List<Integer> formatVersion() {
     return Ints.asList(TestHelpers.ALL_VERSIONS);
@@ -92,22 +90,25 @@ public class TestRowLineageMetadata {
             () ->
                 new BaseSnapshot(
                     0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 10L, null))
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid added-rows (required when first-row-id is set): null");
 
     assertThatThrownBy(
             () ->
                 new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", 0L, -1L))
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid added-rows (cannot be negative): -1");
 
     assertThatThrownBy(
             () ->
                 new BaseSnapshot(0, 1, null, 0, DataOperations.APPEND, null, 1, "ml.avro", -1L, 1L))
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid first-row-id (cannot be negative): -1");
   }
 
   @TestTemplate
   public void testSnapshotAddition() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(ROW_LINEAGE_MIN_FORMAT_VERSION);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     long newRows = 30L;
 
@@ -133,7 +134,7 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testInvalidSnapshotAddition() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(ROW_LINEAGE_MIN_FORMAT_VERSION);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     Long newRows = 30L;
 
@@ -164,7 +165,7 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testFastAppend() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(ROW_LINEAGE_MIN_FORMAT_VERSION);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     TestTables.TestTable table =
         TestTables.create(
@@ -185,7 +186,7 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testAppend() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(ROW_LINEAGE_MIN_FORMAT_VERSION);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     TestTables.TestTable table =
         TestTables.create(
@@ -206,7 +207,7 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testAppendBranch() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(ROW_LINEAGE_MIN_FORMAT_VERSION);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
     // Appends to a branch should still change last-row-id even if not on main, these changes
     // should also affect commits to main
 
@@ -239,7 +240,7 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testDeletes() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(ROW_LINEAGE_MIN_FORMAT_VERSION);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     TestTables.TestTable table =
         TestTables.create(
@@ -265,7 +266,7 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testPositionDeletes() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(ROW_LINEAGE_MIN_FORMAT_VERSION);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     TestTables.TestTable table =
         TestTables.create(
@@ -303,7 +304,7 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testEqualityDeletes() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(ROW_LINEAGE_MIN_FORMAT_VERSION);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     TestTables.TestTable table =
         TestTables.create(
@@ -338,7 +339,7 @@ public class TestRowLineageMetadata {
 
   @TestTemplate
   public void testReplace() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(ROW_LINEAGE_MIN_FORMAT_VERSION);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     TestTables.TestTable table =
         TestTables.create(
@@ -358,9 +359,10 @@ public class TestRowLineageMetadata {
 
     table.newRewrite().deleteFile(filePart1).deleteFile(filePart2).addFile(fileCompacted).commit();
 
+    // Rewrites are currently just treated as appends. In the future we could treat these as no-ops
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(60);
-    assertThat(table.currentSnapshot().addedRows()).isEqualTo(0);
-    assertThat(table.ops().current().nextRowId()).isEqualTo(60);
+    assertThat(table.currentSnapshot().addedRows()).isEqualTo(60);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(120);
   }
 
   private final AtomicInteger fileNum = new AtomicInteger(0);

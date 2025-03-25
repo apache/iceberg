@@ -75,7 +75,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.util.Exceptions;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -284,13 +283,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       throw new RuntimeIOException(e, "Failed to write manifest list file");
     }
 
-    Map<String, String> summary = summary();
-    String operation = operation();
-
     Long addedRows = null;
     Long firstRowId = null;
     if (base.formatVersion() >= 3) {
-      addedRows = calculateAddedRows(operation, summary, manifests);
+      addedRows = calculateAddedRows(manifests);
       firstRowId = base.nextRowId();
     }
 
@@ -299,34 +295,15 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         snapshotId(),
         parentSnapshotId,
         System.currentTimeMillis(),
-        operation,
-        summaryWithTotals(base, summary),
+        operation(),
+        summary(base),
         base.currentSchemaId(),
         manifestList.location(),
         firstRowId,
         addedRows);
   }
 
-  private Long calculateAddedRows(
-      String operation, Map<String, String> summary, List<ManifestFile> manifests) {
-    if (summary != null) {
-      long addedRecords =
-          PropertyUtil.propertyAsLong(summary, SnapshotSummary.ADDED_RECORDS_PROP, 0L);
-      if (DataOperations.REPLACE.equals(operation)) {
-        long replacedRecords =
-            PropertyUtil.propertyAsLong(summary, SnapshotSummary.DELETED_RECORDS_PROP, 0L);
-        // added may be less than replaced when records are already deleted by delete files
-        Preconditions.checkArgument(
-            addedRecords <= replacedRecords,
-            "Invalid REPLACE operation: %s added records > %s replaced records",
-            addedRecords,
-            replacedRecords);
-        return 0L;
-      }
-
-      return addedRecords;
-    }
-
+  private Long calculateAddedRows(List<ManifestFile> manifests) {
     return manifests.stream()
         .filter(
             manifest ->
@@ -348,8 +325,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   protected abstract Map<String, String> summary();
 
   /** Returns the snapshot summary from the implementation and updates totals. */
-  private Map<String, String> summaryWithTotals(
-      TableMetadata previous, Map<String, String> summary) {
+  private Map<String, String> summary(TableMetadata previous) {
+    Map<String, String> summary = summary();
+
     if (summary == null) {
       return ImmutableMap.of();
     }

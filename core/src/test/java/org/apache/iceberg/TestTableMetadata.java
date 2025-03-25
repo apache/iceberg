@@ -231,6 +231,7 @@ public class TestTableMetadata {
     assertThat(metadata.statisticsFiles()).isEqualTo(statisticsFiles);
     assertThat(metadata.partitionStatisticsFiles()).isEqualTo(partitionStatisticsFiles);
     assertThat(metadata.refs()).isEqualTo(refs);
+    assertThat(metadata.nextRowId()).isEqualTo(expected.nextRowId());
   }
 
   @Test
@@ -338,6 +339,7 @@ public class TestTableMetadata {
         .isEqualTo(previousSnapshot.allManifests(ops.io()));
     assertThat(metadata.previousFiles()).isEqualTo(expected.previousFiles());
     assertThat(metadata.snapshot(previousSnapshotId).schemaId()).isNull();
+    assertThat(metadata.nextRowId()).isEqualTo(expected.nextRowId());
   }
 
   @Test
@@ -396,7 +398,7 @@ public class TestTableMetadata {
             () ->
                 new TableMetadata(
                     null,
-                    2,
+                    MAX_FORMAT_VERSION,
                     UUID.randomUUID().toString(),
                     TEST_LOCATION,
                     SEQ_NO,
@@ -443,7 +445,7 @@ public class TestTableMetadata {
             () ->
                 new TableMetadata(
                     null,
-                    2,
+                    MAX_FORMAT_VERSION,
                     UUID.randomUUID().toString(),
                     TEST_LOCATION,
                     SEQ_NO,
@@ -484,7 +486,7 @@ public class TestTableMetadata {
             () ->
                 new TableMetadata(
                     null,
-                    2,
+                    MAX_FORMAT_VERSION,
                     UUID.randomUUID().toString(),
                     TEST_LOCATION,
                     SEQ_NO,
