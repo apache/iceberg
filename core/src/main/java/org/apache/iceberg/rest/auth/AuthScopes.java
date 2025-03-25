@@ -36,7 +36,6 @@ public interface AuthScopes {
   @Value.Immutable
   abstract class Initial implements AuthScope {
 
-    @Value.Parameter(order = 1)
     @Override
     public abstract Map<String, String> properties();
 
@@ -54,6 +53,10 @@ public interface AuthScopes {
     public final Initial withParent(AuthSession parent) {
       return this;
     }
+
+    public static Initial of(Map<String, String> properties) {
+      return ImmutableAuthScopes.Initial.builder().properties(properties).build();
+    }
   }
 
   /**
@@ -63,7 +66,6 @@ public interface AuthScopes {
   @Value.Immutable
   abstract class Catalog implements AuthScope {
 
-    @Value.Parameter(order = 1)
     @Override
     public abstract Map<String, String> properties();
 
@@ -81,6 +83,10 @@ public interface AuthScopes {
     public final Catalog withParent(AuthSession parent) {
       return this;
     }
+
+    public static Catalog of(Map<String, String> properties) {
+      return ImmutableAuthScopes.Catalog.builder().properties(properties).build();
+    }
   }
 
   /**
@@ -90,10 +96,8 @@ public interface AuthScopes {
   @Value.Immutable
   abstract class Contextual implements AuthScope {
 
-    @Value.Parameter(order = 1)
     public abstract SessionCatalog.SessionContext context();
 
-    @Value.Parameter(order = 2)
     @Value.Lazy
     @Override
     public Map<String, String> properties() {
@@ -104,7 +108,6 @@ public interface AuthScopes {
       return RESTUtil.merge(properties, credentials);
     }
 
-    @Value.Parameter(order = 3)
     @Override
     @Nonnull
     public abstract AuthSession parent();
@@ -112,6 +115,10 @@ public interface AuthScopes {
     @Override
     public final boolean cacheable() {
       return true;
+    }
+
+    public static Contextual of(SessionCatalog.SessionContext context, AuthSession parent) {
+      return ImmutableAuthScopes.Contextual.builder().context(context).parent(parent).build();
     }
   }
 
@@ -122,14 +129,11 @@ public interface AuthScopes {
   @Value.Immutable
   abstract class Table implements AuthScope {
 
-    @Value.Parameter(order = 1)
     public abstract TableIdentifier identifier();
 
-    @Value.Parameter(order = 2)
     @Override
     public abstract Map<String, String> properties();
 
-    @Value.Parameter(order = 3)
     @Override
     @Nonnull
     public abstract AuthSession parent();
@@ -137,6 +141,15 @@ public interface AuthScopes {
     @Override
     public final boolean cacheable() {
       return true;
+    }
+
+    public static Table of(
+        TableIdentifier identifier, Map<String, String> properties, AuthSession parent) {
+      return ImmutableAuthScopes.Table.builder()
+          .identifier(identifier)
+          .properties(properties)
+          .parent(parent)
+          .build();
     }
   }
 
@@ -147,7 +160,6 @@ public interface AuthScopes {
   @Value.Immutable
   abstract class Standalone implements AuthScope {
 
-    @Value.Parameter(order = 1)
     @Override
     public abstract Map<String, String> properties();
 
@@ -155,6 +167,10 @@ public interface AuthScopes {
     @Override
     public boolean cacheable() {
       return false;
+    }
+
+    public static Standalone of(Map<String, String> properties) {
+      return ImmutableAuthScopes.Standalone.builder().properties(properties).build();
     }
   }
 }
