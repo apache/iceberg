@@ -95,13 +95,16 @@ public class MetadataColumns {
           "Commit snapshot ID");
   public static final NestedField ROW_ID =
       NestedField.optional(
-          Integer.MAX_VALUE - 107, "_row_id", Types.LongType.get(), "Row ID for row lineage");
+          Integer.MAX_VALUE - 107,
+          "_row_id",
+          Types.LongType.get(),
+          "Implicit row ID that is automatically assigned");
   public static final NestedField LAST_UPDATED_SEQUENCE_NUMBER =
       NestedField.optional(
           Integer.MAX_VALUE - 108,
           "_last_updated_sequence_number",
           Types.LongType.get(),
-          "Last updated sequence number for row lineage");
+          "Sequence number when the row was last updated");
 
   private static final Map<String, NestedField> META_COLUMNS =
       ImmutableMap.of(

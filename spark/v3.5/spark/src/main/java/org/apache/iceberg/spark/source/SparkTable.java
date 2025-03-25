@@ -274,7 +274,7 @@ public class SparkTable
               MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name(), DataTypes.LongType, true));
     }
 
-    return metadataColumns.build().toArray(new SparkMetadataColumn[0]);
+    return metadataColumns.build().toArray(SparkMetadataColumn[]::new);
   }
 
   @Override

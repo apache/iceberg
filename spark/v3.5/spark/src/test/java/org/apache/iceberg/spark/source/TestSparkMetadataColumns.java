@@ -320,6 +320,8 @@ public class TestSparkMetadataColumns extends TestBase {
   @TestTemplate
   public void testRowLineageColumnsResolvedInV3OrHigher() {
     if (formatVersion >= 3) {
+      // Test against an empty table to ensure column resolution in formats supporting row lineage
+      // and so that the test doesn't have to change with inheritance
       assertEquals(
           "Rows must match",
           ImmutableList.of(),
@@ -327,9 +329,13 @@ public class TestSparkMetadataColumns extends TestBase {
     } else {
       // Should fail to resolve row lineage metadata columns in V1/V2 tables
       assertThatThrownBy(() -> sql("SELECT _row_id FROM %s", TABLE_NAME))
-          .isInstanceOf(AnalysisException.class);
+          .isInstanceOf(AnalysisException.class)
+          .hasMessageContaining(
+              "A column or function parameter with name `_row_id` cannot be resolved");
       assertThatThrownBy(() -> sql("SELECT _last_updated_sequence_number FROM %s", TABLE_NAME))
-          .isInstanceOf(AnalysisException.class);
+          .isInstanceOf(AnalysisException.class)
+          .hasMessageContaining(
+              "A column or function parameter with name `_last_updated_sequence_number` cannot be resolved");
     }
   }
 
