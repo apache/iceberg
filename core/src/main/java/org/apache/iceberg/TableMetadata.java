@@ -999,6 +999,22 @@ public class TableMetadata implements Serializable {
       this.nextRowId = base.nextRowId;
     }
 
+    /**
+     * Enables row lineage in v3 tables.
+     *
+     * @deprecated will be removed in 1.10.0; row lineage is required for all v3+ tables.
+     */
+    @Deprecated
+    public Builder enableRowLineage() {
+      if (formatVersion < MIN_FORMAT_VERSION_ROW_LINEAGE) {
+        throw new UnsupportedOperationException(
+            "Cannot enable row lineage for format-version=" + formatVersion);
+      }
+
+      // otherwise this is a no-op
+      return null;
+    }
+
     public Builder withMetadataLocation(String newMetadataLocation) {
       this.metadataLocation = newMetadataLocation;
       if (null != base) {
