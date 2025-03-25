@@ -81,6 +81,12 @@ public class CommitterImpl implements Committer {
     }
     if (groupDesc.state() == ConsumerGroupState.STABLE) {
       Collection<MemberDescription> members = groupDesc.members();
+      if (members.size() != config.taskCount()) {
+        throw new IllegalStateException(
+            String.format(
+                "Consumer group = {%s} is in illegal state. Can't have members more than number of workers",
+                config.connectGroupId()));
+      }
       if (containsFirstPartition(members, currentAssignedPartitions)) {
         membersWhenWorkerIsCoordinator = members;
         return true;
