@@ -22,7 +22,6 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.net.URI;
 import java.util.Collections;
 import java.util.List;
@@ -251,28 +250,25 @@ public abstract class S3V4RestSignerClient
     } else {
       Map<String, String> responseHeaders = Maps.newHashMap();
       Consumer<Map<String, String>> responseHeadersConsumer = responseHeaders::putAll;
-      try (RESTClient restClient = httpClient().withAuthSession(authSession())) {
-        S3SignResponse s3SignResponse =
-            restClient.post(
-                endpoint(),
-                remoteSigningRequest,
-                S3SignResponse.class,
-                Map.of(),
-                ErrorHandlers.defaultErrorHandler(),
-                responseHeadersConsumer);
+      S3SignResponse s3SignResponse =
+          httpClient()
+              .withAuthSession(authSession())
+              .post(
+                  endpoint(),
+                  remoteSigningRequest,
+                  S3SignResponse.class,
+                  Map.of(),
+                  ErrorHandlers.defaultErrorHandler(),
+                  responseHeadersConsumer);
 
-        signedComponent =
-            ImmutableSignedComponent.builder()
-                .headers(s3SignResponse.headers())
-                .signedURI(s3SignResponse.uri())
-                .build();
+      signedComponent =
+          ImmutableSignedComponent.builder()
+              .headers(s3SignResponse.headers())
+              .signedURI(s3SignResponse.uri())
+              .build();
 
-        if (canBeCached(responseHeaders)) {
-          SIGNED_COMPONENT_CACHE.put(cacheKey, signedComponent);
-        }
-
-      } catch (IOException e) {
-        throw new UncheckedIOException(e);
+      if (canBeCached(responseHeaders)) {
+        SIGNED_COMPONENT_CACHE.put(cacheKey, signedComponent);
       }
     }
 

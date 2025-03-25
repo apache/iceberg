@@ -331,10 +331,7 @@ public class TestHTTPClient {
       assertThat(child).isNotNull().isNotSameAs(restClient);
     }
 
-    verify(
-            authSession,
-            never().description("Child RESTClient should not close its own AuthSession"))
-        .close();
+    verify(authSession, never().description("RESTClient should not close the AuthSession")).close();
     assertThatCode(() -> testHttpMethodOnSuccess(HttpMethod.POST))
         .as("Parent RESTClient should still be operational after child is closed")
         .doesNotThrowAnyException();
