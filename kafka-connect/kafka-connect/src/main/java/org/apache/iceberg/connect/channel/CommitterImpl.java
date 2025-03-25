@@ -81,12 +81,6 @@ public class CommitterImpl implements Committer {
     }
     if (groupDesc.state() == ConsumerGroupState.STABLE) {
       Collection<MemberDescription> members = groupDesc.members();
-      if (members.size() != config.taskCount()) {
-        throw new IllegalStateException(
-            String.format(
-                "Consumer group = {%s} is in illegal state. Can't have members more than number of workers",
-                config.connectGroupId()));
-      }
       if (containsFirstPartition(members, currentAssignedPartitions)) {
         membersWhenWorkerIsCoordinator = members;
         return true;
@@ -103,6 +97,7 @@ public class CommitterImpl implements Committer {
     TopicPartition firstTopicPartition =
         members.stream()
             .flatMap(member -> member.assignment().topicPartitions().stream())
+            .filter(topicPartition -> config.sourceTopics().contains(topicPartition.topic()))
             .min(new TopicPartitionComparator())
             .orElseThrow(
                 () -> new ConnectException("No partitions assigned, cannot determine leader"));
