@@ -84,7 +84,6 @@ public class RESTSigV4AuthManager implements AuthManager {
    */
   @Override
   @Deprecated
-  @SuppressWarnings("deprecation")
   public RESTSigV4AuthSession initSession(RESTClient initClient, Map<String, String> properties) {
     return new RESTSigV4AuthSession(
         signer, delegate.initSession(initClient, properties), new AwsProperties(properties));
@@ -96,7 +95,6 @@ public class RESTSigV4AuthManager implements AuthManager {
    */
   @Override
   @Deprecated
-  @SuppressWarnings("deprecation")
   public RESTSigV4AuthSession catalogSession(
       RESTClient sharedClient, Map<String, String> properties) {
     this.catalogProperties = properties;
@@ -111,7 +109,6 @@ public class RESTSigV4AuthManager implements AuthManager {
    */
   @Override
   @Deprecated
-  @SuppressWarnings("deprecation")
   public RESTSigV4AuthSession contextualSession(
       SessionCatalog.SessionContext context, AuthSession parent) {
     Preconditions.checkState(
@@ -135,7 +132,6 @@ public class RESTSigV4AuthManager implements AuthManager {
    */
   @Override
   @Deprecated
-  @SuppressWarnings("deprecation")
   public RESTSigV4AuthSession tableSession(
       TableIdentifier table, Map<String, String> properties, AuthSession parent) {
     Preconditions.checkState(
