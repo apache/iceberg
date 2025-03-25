@@ -277,7 +277,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
               e);
         }
 
-        commitStatus = BaseMetastoreOperations.CommitStatus.UNKNOWN;
         if (e.getMessage() != null
             && e.getMessage()
                 .contains(
@@ -286,6 +285,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
                         + "' is")) {
           commitStatus = handleConcurrentModification(e, newMetadataLocation, metadata);
         } else {
+          commitStatus = BaseMetastoreOperations.CommitStatus.UNKNOWN;
           LOG.error(
               "Cannot tell if commit to {}.{} succeeded, attempting to reconnect and check.",
               database,
