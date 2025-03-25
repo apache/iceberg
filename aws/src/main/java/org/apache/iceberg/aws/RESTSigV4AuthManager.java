@@ -63,7 +63,8 @@ public class RESTSigV4AuthManager implements AuthManager {
   @Override
   public RESTSigV4AuthSession contextualSession(
       SessionCatalog.SessionContext context, AuthSession parent) {
-    Preconditions.checkState(parent instanceof RESTSigV4AuthSession, "parent session is not SigV4");
+    Preconditions.checkState(
+        parent instanceof RESTSigV4AuthSession, "Parent session is not SigV4: %s", parent);
     AwsProperties contextProperties =
         new AwsProperties(
             RESTUtil.merge(
@@ -80,7 +81,8 @@ public class RESTSigV4AuthManager implements AuthManager {
   @Override
   public RESTSigV4AuthSession tableSession(
       TableIdentifier table, Map<String, String> properties, AuthSession parent) {
-    Preconditions.checkState(parent instanceof RESTSigV4AuthSession, "parent session is not SigV4");
+    Preconditions.checkState(
+        parent instanceof RESTSigV4AuthSession, "Parent session is not SigV4: %s", parent);
     AwsProperties tableProperties =
         new AwsProperties(RESTUtil.merge(catalogProperties, properties));
     RESTSigV4AuthSession sigV4Parent = (RESTSigV4AuthSession) parent;
