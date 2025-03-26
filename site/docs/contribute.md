@@ -445,7 +445,7 @@ This helps separate logical sections of the code, making it easier to read and d
      return new WriteBuilder(file);
   }
 
-  // BAD: No newline separator after `for` block
+  // BAD: No newline separator before and after `for` block
   public static Schema convert(Schema schema) {
      ImmutableList.Builder<Field> fields = ImmutableList.builder();
      for (NestedField f : schema.columns()) {
