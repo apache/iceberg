@@ -33,19 +33,26 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileGenerationUtil;
 import org.apache.iceberg.FileMetadata;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
@@ -60,14 +67,15 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTableUtil;
-import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -76,17 +84,13 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.TableIdentifier;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
-public class TestRewriteManifestsAction extends SparkTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestRewriteManifestsAction extends TestBase {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA =
@@ -95,47 +99,71 @@ public class TestRewriteManifestsAction extends SparkTestBase {
           optional(2, "c2", Types.StringType.get()),
           optional(3, "c3", Types.StringType.get()));
 
-  @Parameters(name = "snapshotIdInheritanceEnabled = {0}, useCaching = {1}, formatVersion = {2}")
+  @Parameters(
+      name =
+          "snapshotIdInheritanceEnabled = {0}, useCaching = {1}, shouldStageManifests = {2}, formatVersion = {3}")
   public static Object[] parameters() {
     return new Object[][] {
-      new Object[] {"true", "true", 1},
-      new Object[] {"false", "true", 1},
-      new Object[] {"true", "false", 2},
-      new Object[] {"false", "false", 2}
+      new Object[] {"true", "true", false, 1},
+      new Object[] {"false", "true", true, 1},
+      new Object[] {"true", "false", false, 2},
+      new Object[] {"false", "false", false, 2},
+      new Object[] {"true", "false", false, 3},
+      new Object[] {"false", "false", false, 3}
     };
   }
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @Parameter private String snapshotIdInheritanceEnabled;
 
-  private final String snapshotIdInheritanceEnabled;
-  private final String useCaching;
-  private final int formatVersion;
-  private final boolean shouldStageManifests;
+  @Parameter(index = 1)
+  private String useCaching;
+
+  @Parameter(index = 2)
+  private boolean shouldStageManifests;
+
+  @Parameter(index = 3)
+  private int formatVersion;
+
   private String tableLocation = null;
 
-  public TestRewriteManifestsAction(
-      String snapshotIdInheritanceEnabled, String useCaching, int formatVersion) {
-    this.snapshotIdInheritanceEnabled = snapshotIdInheritanceEnabled;
-    this.useCaching = useCaching;
-    this.formatVersion = formatVersion;
-    this.shouldStageManifests = formatVersion == 1 && snapshotIdInheritanceEnabled.equals("false");
-  }
+  @TempDir private Path temp;
+  @TempDir private File tableDir;
 
-  @Before
+  @BeforeEach
   public void setupTableLocation() throws Exception {
-    File tableDir = temp.newFolder();
     this.tableLocation = tableDir.toURI().toString();
   }
 
-  @Test
-  public void testRewriteManifestsEmptyTable() throws IOException {
-    PartitionSpec spec = PartitionSpec.unpartitioned();
+  @TestTemplate
+  public void testRewriteManifestsPreservesOptionalFields() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
     Map<String, String> options = Maps.newHashMap();
     options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
-    options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
-    Assert.assertNull("Table must be empty", table.currentSnapshot());
+    DataFile dataFile1 = newDataFile(table, "c1=0");
+    DataFile dataFile2 = newDataFile(table, "c1=0");
+    DataFile dataFile3 = newDataFile(table, "c1=0");
+    table
+        .newFastAppend()
+        .appendFile(dataFile1)
+        .appendFile(dataFile2)
+        .appendFile(dataFile3)
+        .commit();
+
+    DeleteFile deleteFile1 = newDeletes(table, dataFile1);
+    assertDeletes(dataFile1, deleteFile1);
+    table.newRowDelta().addDeletes(deleteFile1).commit();
+
+    DeleteFile deleteFile2 = newDeletes(table, dataFile2);
+    assertDeletes(dataFile2, deleteFile2);
+    table.newRowDelta().addDeletes(deleteFile2).commit();
+
+    DeleteFile deleteFile3 = newDeletes(table, dataFile3);
+    assertDeletes(dataFile3, deleteFile3);
+    table.newRowDelta().addDeletes(deleteFile3).commit();
 
     SparkActions actions = SparkActions.get();
 
@@ -143,13 +171,51 @@ public class TestRewriteManifestsAction extends SparkTestBase {
         .rewriteManifests(table)
         .rewriteIf(manifest -> true)
         .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
-        .stagingLocation(temp.newFolder().toString())
         .execute();
 
-    Assert.assertNull("Table must stay empty", table.currentSnapshot());
+    table.refresh();
+
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      for (FileScanTask fileTask : tasks) {
+        DataFile dataFile = fileTask.file();
+        DeleteFile deleteFile = Iterables.getOnlyElement(fileTask.deletes());
+        if (dataFile.location().equals(dataFile1.location())) {
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile1.referencedDataFile());
+          assertEqual(deleteFile, deleteFile1);
+        } else if (dataFile.location().equals(dataFile2.location())) {
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile2.referencedDataFile());
+          assertEqual(deleteFile, deleteFile2);
+        } else {
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile3.referencedDataFile());
+          assertEqual(deleteFile, deleteFile3);
+        }
+      }
+    }
   }
 
-  @Test
+  @TestTemplate
+  public void testRewriteManifestsEmptyTable() throws IOException {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    assertThat(table.currentSnapshot()).as("Table must be empty").isNull();
+
+    SparkActions actions = SparkActions.get();
+
+    actions
+        .rewriteManifests(table)
+        .rewriteIf(manifest -> true)
+        .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+        .stagingLocation(java.nio.file.Files.createTempDirectory(temp, "junit").toString())
+        .execute();
+
+    assertThat(table.currentSnapshot()).as("Table must stay empty").isNull();
+  }
+
+  @TestTemplate
   public void testRewriteSmallManifestsNonPartitionedTable() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
@@ -171,7 +237,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     table.refresh();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals("Should have 2 manifests before rewrite", 2, manifests.size());
+    assertThat(manifests).as("Should have 2 manifests before rewrite").hasSize(2);
 
     SparkActions actions = SparkActions.get();
 
@@ -182,20 +248,18 @@ public class TestRewriteManifestsAction extends SparkTestBase {
             .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
             .execute();
 
-    Assert.assertEquals(
-        "Action should rewrite 2 manifests", 2, Iterables.size(result.rewrittenManifests()));
-    Assert.assertEquals(
-        "Action should add 1 manifests", 1, Iterables.size(result.addedManifests()));
+    assertThat(result.rewrittenManifests()).as("Action should rewrite 2 manifests").hasSize(2);
+    assertThat(result.addedManifests()).as("Action should add 1 manifests").hasSize(1);
     assertManifestsLocation(result.addedManifests());
 
     table.refresh();
 
     List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals("Should have 1 manifests after rewrite", 1, newManifests.size());
+    assertThat(newManifests).as("Should have 1 manifests after rewrite").hasSize(1);
 
-    Assert.assertEquals(4, (long) newManifests.get(0).existingFilesCount());
-    Assert.assertFalse(newManifests.get(0).hasAddedFiles());
-    Assert.assertFalse(newManifests.get(0).hasDeletedFiles());
+    assertThat(newManifests.get(0).existingFilesCount()).isEqualTo(4);
+    assertThat(newManifests.get(0).hasAddedFiles()).isFalse();
+    assertThat(newManifests.get(0).hasDeletedFiles()).isFalse();
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
     expectedRecords.addAll(records1);
@@ -205,10 +269,10 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     List<ThreeColumnRecord> actualRecords =
         resultDF.sort("c1", "c2").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
 
-    Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertThat(actualRecords).as("Rows must match").isEqualTo(expectedRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteManifestsWithCommitStateUnknownException() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
@@ -230,7 +294,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     table.refresh();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals("Should have 2 manifests before rewrite", 2, manifests.size());
+    assertThat(manifests).as("Should have 2 manifests before rewrite").hasSize(2);
 
     SparkActions actions = SparkActions.get();
 
@@ -258,11 +322,11 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
     // table should reflect the changes, since the commit was successful
     List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals("Should have 1 manifests after rewrite", 1, newManifests.size());
+    assertThat(newManifests).as("Should have 1 manifests after rewrite").hasSize(1);
 
-    Assert.assertEquals(4, (long) newManifests.get(0).existingFilesCount());
-    Assert.assertFalse(newManifests.get(0).hasAddedFiles());
-    Assert.assertFalse(newManifests.get(0).hasDeletedFiles());
+    assertThat(newManifests.get(0).existingFilesCount()).isEqualTo(4);
+    assertThat(newManifests.get(0).hasAddedFiles()).isFalse();
+    assertThat(newManifests.get(0).hasDeletedFiles()).isFalse();
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
     expectedRecords.addAll(records1);
@@ -272,10 +336,10 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     List<ThreeColumnRecord> actualRecords =
         resultDF.sort("c1", "c2").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
 
-    Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertThat(actualRecords).as("Rows must match").isEqualTo(expectedRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteSmallManifestsPartitionedTable() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 2).build();
     Map<String, String> options = Maps.newHashMap();
@@ -309,7 +373,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     table.refresh();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals("Should have 4 manifests before rewrite", 4, manifests.size());
+    assertThat(manifests).as("Should have 4 manifests before rewrite").hasSize(4);
 
     SparkActions actions = SparkActions.get();
 
@@ -329,24 +393,22 @@ public class TestRewriteManifestsAction extends SparkTestBase {
             .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
             .execute();
 
-    Assert.assertEquals(
-        "Action should rewrite 4 manifests", 4, Iterables.size(result.rewrittenManifests()));
-    Assert.assertEquals(
-        "Action should add 2 manifests", 2, Iterables.size(result.addedManifests()));
+    assertThat(result.rewrittenManifests()).as("Action should rewrite 4 manifests").hasSize(4);
+    assertThat(result.addedManifests()).as("Action should add 2 manifests").hasSize(2);
     assertManifestsLocation(result.addedManifests());
 
     table.refresh();
 
     List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals("Should have 2 manifests after rewrite", 2, newManifests.size());
+    assertThat(newManifests).as("Should have 2 manifests after rewrite").hasSize(2);
 
-    Assert.assertEquals(4, (long) newManifests.get(0).existingFilesCount());
-    Assert.assertFalse(newManifests.get(0).hasAddedFiles());
-    Assert.assertFalse(newManifests.get(0).hasDeletedFiles());
+    assertThat(newManifests.get(0).existingFilesCount()).isEqualTo(4);
+    assertThat(newManifests.get(0).hasAddedFiles()).isFalse();
+    assertThat(newManifests.get(0).hasDeletedFiles()).isFalse();
 
-    Assert.assertEquals(4, (long) newManifests.get(1).existingFilesCount());
-    Assert.assertFalse(newManifests.get(1).hasAddedFiles());
-    Assert.assertFalse(newManifests.get(1).hasDeletedFiles());
+    assertThat(newManifests.get(1).existingFilesCount()).isEqualTo(4);
+    assertThat(newManifests.get(1).hasAddedFiles()).isFalse();
+    assertThat(newManifests.get(1).hasDeletedFiles()).isFalse();
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
     expectedRecords.addAll(records1);
@@ -358,10 +420,10 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     List<ThreeColumnRecord> actualRecords =
         resultDF.sort("c1", "c2").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
 
-    Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertThat(actualRecords).as("Rows must match").isEqualTo(expectedRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteImportedManifests() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c3").build();
     Map<String, String> options = Maps.newHashMap();
@@ -372,7 +434,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     List<ThreeColumnRecord> records =
         Lists.newArrayList(
             new ThreeColumnRecord(1, null, "AAAA"), new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"));
-    File parquetTableDir = temp.newFolder("parquet_table");
+    File parquetTableDir = temp.resolve("parquet_table").toFile();
     String parquetTableLocation = parquetTableDir.toURI().toString();
 
     try {
@@ -386,7 +448,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
           .partitionBy("c3")
           .saveAsTable("parquet_table");
 
-      File stagingDir = temp.newFolder("staging-dir");
+      File stagingDir = temp.resolve("staging-dir").toFile();
       SparkTableUtil.importSparkTable(
           spark, new TableIdentifier("parquet_table"), table, stagingDir.toString());
 
@@ -398,7 +460,8 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
       SparkActions actions = SparkActions.get();
 
-      String rewriteStagingLocation = temp.newFolder().toString();
+      String rewriteStagingLocation =
+          java.nio.file.Files.createTempDirectory(temp, "junit").toString();
 
       RewriteManifests.Result result =
           actions
@@ -408,12 +471,10 @@ public class TestRewriteManifestsAction extends SparkTestBase {
               .stagingLocation(rewriteStagingLocation)
               .execute();
 
-      Assert.assertEquals(
-          "Action should rewrite all manifests",
-          snapshot.allManifests(table.io()),
-          result.rewrittenManifests());
-      Assert.assertEquals(
-          "Action should add 1 manifest", 1, Iterables.size(result.addedManifests()));
+      assertThat(result.rewrittenManifests())
+          .as("Action should rewrite all manifests")
+          .isEqualTo(snapshot.allManifests(table.io()));
+      assertThat(result.addedManifests()).as("Action should add 1 manifest").hasSize(1);
       assertManifestsLocation(result.addedManifests(), rewriteStagingLocation);
 
     } finally {
@@ -421,7 +482,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteLargeManifestsPartitionedTable() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c3").build();
     Map<String, String> options = Maps.newHashMap();
@@ -437,7 +498,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     table.newFastAppend().appendManifest(appendManifest).commit();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals("Should have 1 manifests before rewrite", 1, manifests.size());
+    assertThat(manifests).as("Should have 1 manifests before rewrite").hasSize(1);
 
     // set the target manifest size to a small value to force splitting records into multiple files
     table
@@ -449,7 +510,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
     SparkActions actions = SparkActions.get();
 
-    String stagingLocation = temp.newFolder().toString();
+    String stagingLocation = java.nio.file.Files.createTempDirectory(temp, "junit").toString();
 
     RewriteManifests.Result result =
         actions
@@ -469,7 +530,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     assertThat(newManifests).hasSizeGreaterThanOrEqualTo(2);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteManifestsWithPredicate() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 2).build();
     Map<String, String> options = Maps.newHashMap();
@@ -493,11 +554,11 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     table.refresh();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals("Should have 3 manifests before rewrite", 3, manifests.size());
+    assertThat(manifests).as("Should have 3 manifests before rewrite").hasSize(3);
 
     SparkActions actions = SparkActions.get();
 
-    String stagingLocation = temp.newFolder().toString();
+    String stagingLocation = java.nio.file.Files.createTempDirectory(temp, "junit").toString();
 
     // rewrite only the first manifest
     RewriteManifests.Result result =
@@ -511,22 +572,22 @@ public class TestRewriteManifestsAction extends SparkTestBase {
             .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
             .execute();
 
-    Assert.assertEquals(
-        "Action should rewrite 2 manifest", 2, Iterables.size(result.rewrittenManifests()));
-    Assert.assertEquals(
-        "Action should add 1 manifests", 1, Iterables.size(result.addedManifests()));
+    assertThat(result.rewrittenManifests()).as("Action should rewrite 2 manifest").hasSize(2);
+    assertThat(result.addedManifests()).as("Action should add 1 manifests").hasSize(1);
     assertManifestsLocation(result.addedManifests(), stagingLocation);
 
     table.refresh();
 
     List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals("Should have 2 manifests after rewrite", 2, newManifests.size());
-
-    Assert.assertFalse("First manifest must be rewritten", newManifests.contains(manifests.get(0)));
-    Assert.assertFalse(
-        "Second manifest must be rewritten", newManifests.contains(manifests.get(1)));
-    Assert.assertTrue(
-        "Third manifest must not be rewritten", newManifests.contains(manifests.get(2)));
+    assertThat(newManifests)
+        .as("Should have 2 manifests after rewrite")
+        .hasSize(2)
+        .as("First manifest must be rewritten")
+        .doesNotContain(manifests.get(0))
+        .as("Second manifest must be rewritten")
+        .doesNotContain(manifests.get(1))
+        .as("Third manifest must not be rewritten")
+        .contains(manifests.get(2));
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
     expectedRecords.add(records1.get(0));
@@ -539,10 +600,10 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     List<ThreeColumnRecord> actualRecords =
         resultDF.sort("c1", "c2").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
 
-    Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertThat(actualRecords).as("Rows must match").isEqualTo(expectedRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteSmallManifestsNonPartitionedV2Table() {
     assumeThat(formatVersion).isGreaterThan(1);
 
@@ -567,7 +628,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     DataFile file2 = Iterables.getOnlyElement(snapshot2.addedDataFiles(table.io()));
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals("Should have 2 manifests before rewrite", 2, manifests.size());
+    assertThat(manifests).as("Should have 2 manifests before rewrite").hasSize(2);
 
     SparkActions actions = SparkActions.get();
     RewriteManifests.Result result =
@@ -575,21 +636,19 @@ public class TestRewriteManifestsAction extends SparkTestBase {
             .rewriteManifests(table)
             .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
             .execute();
-    Assert.assertEquals(
-        "Action should rewrite 2 manifests", 2, Iterables.size(result.rewrittenManifests()));
-    Assert.assertEquals(
-        "Action should add 1 manifests", 1, Iterables.size(result.addedManifests()));
+    assertThat(result.rewrittenManifests()).as("Action should rewrite 2 manifests").hasSize(2);
+    assertThat(result.addedManifests()).as("Action should add 1 manifests").hasSize(1);
     assertManifestsLocation(result.addedManifests());
 
     table.refresh();
 
     List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals("Should have 1 manifests after rewrite", 1, newManifests.size());
+    assertThat(newManifests).as("Should have 1 manifests after rewrite").hasSize(1);
 
     ManifestFile newManifest = Iterables.getOnlyElement(newManifests);
-    Assert.assertEquals(2, (long) newManifest.existingFilesCount());
-    Assert.assertFalse(newManifest.hasAddedFiles());
-    Assert.assertFalse(newManifest.hasDeletedFiles());
+    assertThat(newManifest.existingFilesCount()).isEqualTo(2);
+    assertThat(newManifest.hasAddedFiles()).isFalse();
+    assertThat(newManifest.hasDeletedFiles()).isFalse();
 
     validateDataManifest(
         table,
@@ -607,10 +666,10 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     List<ThreeColumnRecord> actualRecords =
         resultDF.sort("c1", "c2").as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
 
-    Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertThat(actualRecords).as("Rows must match").isEqualTo(expectedRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteLargeManifestsEvolvedUnpartitionedV1Table() throws IOException {
     assumeThat(formatVersion).isEqualTo(1);
 
@@ -659,9 +718,9 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     assertThat(manifests).hasSizeGreaterThanOrEqualTo(2);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteSmallDeleteManifestsNonPartitionedTable() throws IOException {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isEqualTo(2);
 
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
@@ -732,9 +791,9 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     assertThat(actualRecords()).isEqualTo(expectedRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteSmallDeleteManifestsPartitionedTable() throws IOException {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isEqualTo(2);
 
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c3").build();
     Map<String, String> options = Maps.newHashMap();
@@ -835,9 +894,9 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     assertThat(actualRecords()).isEqualTo(expectedRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteLargeDeleteManifestsPartitionedTable() throws IOException {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isEqualTo(2);
 
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c3").build();
     Map<String, String> options = Maps.newHashMap();
@@ -874,7 +933,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
 
     SparkActions actions = SparkActions.get();
 
-    String stagingLocation = temp.newFolder().toString();
+    String stagingLocation = java.nio.file.Files.createTempDirectory(temp, "junit").toString();
 
     RewriteManifests.Result result =
         actions
@@ -896,6 +955,62 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     // the current snapshot must return the correct number of delete manifests
     List<ManifestFile> deleteManifests = table.currentSnapshot().deleteManifests(table.io());
     assertThat(deleteManifests).hasSizeGreaterThanOrEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsAfterUpgradeToV3() throws IOException {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
+    Map<String, String> options = ImmutableMap.of(TableProperties.FORMAT_VERSION, "2");
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    DataFile dataFile1 = newDataFile(table, "c1=1");
+    DeleteFile deleteFile1 = newDeletes(table, dataFile1);
+    table.newRowDelta().addRows(dataFile1).addDeletes(deleteFile1).commit();
+
+    DataFile dataFile2 = newDataFile(table, "c1=1");
+    DeleteFile deleteFile2 = newDeletes(table, dataFile2);
+    table.newRowDelta().addRows(dataFile2).addDeletes(deleteFile2).commit();
+
+    // upgrade the table to enable DVs
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+
+    DataFile dataFile3 = newDataFile(table, "c1=1");
+    DeleteFile dv3 = newDV(table, dataFile3);
+    table.newRowDelta().addRows(dataFile3).addDeletes(dv3).commit();
+
+    SparkActions actions = SparkActions.get();
+
+    RewriteManifests.Result result =
+        actions
+            .rewriteManifests(table)
+            .rewriteIf(manifest -> true)
+            .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+            .execute();
+
+    assertThat(result.rewrittenManifests()).as("Action should rewrite 6 manifests").hasSize(6);
+    assertThat(result.addedManifests()).as("Action should add 2 manifests").hasSize(2);
+    assertManifestsLocation(result.addedManifests());
+
+    table.refresh();
+
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      for (FileScanTask fileTask : tasks) {
+        DataFile dataFile = fileTask.file();
+        DeleteFile deleteFile = Iterables.getOnlyElement(fileTask.deletes());
+        if (dataFile.location().equals(dataFile1.location())) {
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile1.referencedDataFile());
+          assertEqual(deleteFile, deleteFile1);
+        } else if (dataFile.location().equals(dataFile2.location())) {
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile2.referencedDataFile());
+          assertEqual(deleteFile, deleteFile2);
+        } else {
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(dv3.referencedDataFile());
+          assertEqual(deleteFile, dv3);
+        }
+      }
+    }
   }
 
   private List<ThreeColumnRecord> actualRecords() {
@@ -948,8 +1063,8 @@ public class TestRewriteManifestsAction extends SparkTestBase {
   }
 
   private ManifestFile writeManifest(Table table, List<DataFile> files) throws IOException {
-    File manifestFile = temp.newFile("generated-manifest.avro");
-    Assert.assertTrue(manifestFile.delete());
+    File manifestFile = File.createTempFile("generated-manifest", ".avro", temp.toFile());
+    assertThat(manifestFile.delete()).isTrue();
     OutputFile outputFile = table.io().newOutputFile(manifestFile.getCanonicalPath());
 
     ManifestWriter<DataFile> writer =
@@ -981,14 +1096,36 @@ public class TestRewriteManifestsAction extends SparkTestBase {
         .withRecordCount(1);
   }
 
+  private DeleteFile newDeletes(Table table, DataFile dataFile) {
+    return formatVersion >= 3 ? newDV(table, dataFile) : newDeleteFileWithRef(table, dataFile);
+  }
+
+  private DeleteFile newDeleteFileWithRef(Table table, DataFile dataFile) {
+    return FileGenerationUtil.generatePositionDeleteFileWithRef(table, dataFile);
+  }
+
+  private DeleteFile newDV(Table table, DataFile dataFile) {
+    return FileGenerationUtil.generateDV(table, dataFile);
+  }
+
   private DeleteFile newDeleteFile(Table table, String partitionPath) {
-    return FileMetadata.deleteFileBuilder(table.spec())
-        .ofPositionDeletes()
-        .withPath("/path/to/pos-deletes-" + UUID.randomUUID() + ".parquet")
-        .withFileSizeInBytes(5)
-        .withPartitionPath(partitionPath)
-        .withRecordCount(1)
-        .build();
+    return formatVersion >= 3
+        ? FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/pos-deletes-" + UUID.randomUUID() + ".puffin")
+            .withFileSizeInBytes(5)
+            .withPartitionPath(partitionPath)
+            .withRecordCount(1)
+            .withContentOffset(ThreadLocalRandom.current().nextInt())
+            .withContentSizeInBytes(ThreadLocalRandom.current().nextInt())
+            .build()
+        : FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/pos-deletes-" + UUID.randomUUID() + ".parquet")
+            .withFileSizeInBytes(5)
+            .withPartitionPath(partitionPath)
+            .withRecordCount(1)
+            .build();
   }
 
   private List<Pair<CharSequence, Long>> generatePosDeletes(String predicate) {
@@ -1018,8 +1155,8 @@ public class TestRewriteManifestsAction extends SparkTestBase {
   private Pair<DeleteFile, CharSequenceSet> writePosDeletes(
       Table table, StructLike partition, List<Pair<CharSequence, Long>> deletes)
       throws IOException {
-    OutputFile outputFile = Files.localOutput(temp.newFile());
-    return FileHelpers.writeDeleteFile(table, outputFile, partition, deletes);
+    OutputFile outputFile = Files.localOutput(File.createTempFile("junit", null, temp.toFile()));
+    return FileHelpers.writeDeleteFile(table, outputFile, partition, deletes, formatVersion);
   }
 
   private DeleteFile writeEqDeletes(Table table, String key, Object... values) throws IOException {
@@ -1036,7 +1173,29 @@ public class TestRewriteManifestsAction extends SparkTestBase {
       deletes.add(delete.copy(key, value));
     }
 
-    OutputFile outputFile = Files.localOutput(temp.newFile());
+    OutputFile outputFile = Files.localOutput(File.createTempFile("junit", null, temp.toFile()));
     return FileHelpers.writeDeleteFile(table, outputFile, partition, deletes, deleteSchema);
+  }
+
+  private void assertDeletes(DataFile dataFile, DeleteFile deleteFile) {
+    assertThat(deleteFile.referencedDataFile()).isEqualTo(dataFile.location());
+    if (formatVersion >= 3) {
+      assertThat(deleteFile.contentOffset()).isNotNull();
+      assertThat(deleteFile.contentSizeInBytes()).isNotNull();
+    } else {
+      assertThat(deleteFile.contentOffset()).isNull();
+      assertThat(deleteFile.contentSizeInBytes()).isNull();
+    }
+  }
+
+  private void assertEqual(DeleteFile deleteFile1, DeleteFile deleteFile2) {
+    assertThat(deleteFile1.location()).isEqualTo(deleteFile2.location());
+    assertThat(deleteFile1.content()).isEqualTo(deleteFile2.content());
+    assertThat(deleteFile1.specId()).isEqualTo(deleteFile2.specId());
+    assertThat(deleteFile1.partition()).isEqualTo(deleteFile2.partition());
+    assertThat(deleteFile1.format()).isEqualTo(deleteFile2.format());
+    assertThat(deleteFile1.referencedDataFile()).isEqualTo(deleteFile2.referencedDataFile());
+    assertThat(deleteFile1.contentOffset()).isEqualTo(deleteFile2.contentOffset());
+    assertThat(deleteFile1.contentSizeInBytes()).isEqualTo(deleteFile2.contentSizeInBytes());
   }
 }

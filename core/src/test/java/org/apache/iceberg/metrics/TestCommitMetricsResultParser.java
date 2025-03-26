@@ -92,6 +92,10 @@ public class TestCommitMetricsResultParser {
             .put(SnapshotSummary.REMOVED_EQ_DELETES_PROP, "20")
             .put(SnapshotSummary.TOTAL_POS_DELETES_PROP, "21")
             .put(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "22")
+            .put(SnapshotSummary.CREATED_MANIFESTS_COUNT, "10")
+            .put(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "4")
+            .put(SnapshotSummary.KEPT_MANIFESTS_COUNT, "6")
+            .put(SnapshotSummary.PROCESSED_MANIFEST_ENTRY_COUNT, "20")
             .build();
 
     CommitMetricsResult result = CommitMetricsResult.from(commitMetrics, snapshotSummary);
@@ -121,6 +125,10 @@ public class TestCommitMetricsResultParser {
     assertThat(result.removedEqualityDeletes().value()).isEqualTo(20L);
     assertThat(result.totalPositionalDeletes().value()).isEqualTo(21L);
     assertThat(result.totalEqualityDeletes().value()).isEqualTo(22L);
+    assertThat(result.manifestsCreated().value()).isEqualTo(10L);
+    assertThat(result.manifestsReplaced().value()).isEqualTo(4L);
+    assertThat(result.manifestsKept().value()).isEqualTo(6L);
+    assertThat(result.manifestEntriesProcessed().value()).isEqualTo(20L);
 
     String expectedJson =
         "{\n"
@@ -228,6 +236,22 @@ public class TestCommitMetricsResultParser {
             + "  \"total-equality-deletes\" : {\n"
             + "    \"unit\" : \"count\",\n"
             + "    \"value\" : 22\n"
+            + "  },\n"
+            + "  \"manifests-created\" : {\n"
+            + "    \"unit\" : \"count\",\n"
+            + "    \"value\" : 10\n"
+            + "  },\n"
+            + "  \"manifests-replaced\" : {\n"
+            + "    \"unit\" : \"count\",\n"
+            + "    \"value\" : 4\n"
+            + "  },\n"
+            + "  \"manifests-kept\" : {\n"
+            + "    \"unit\" : \"count\",\n"
+            + "    \"value\" : 6\n"
+            + "  },\n"
+            + "  \"manifest-entries-processed\" : {\n"
+            + "    \"unit\" : \"count\",\n"
+            + "    \"value\" : 20\n"
             + "  }\n"
             + "}";
 

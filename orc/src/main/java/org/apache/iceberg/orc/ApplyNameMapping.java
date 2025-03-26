@@ -90,6 +90,13 @@ class ApplyNameMapping extends OrcSchemaVisitor<TypeDescription> {
   }
 
   @Override
+  public TypeDescription variant(
+      TypeDescription variant, TypeDescription metadata, TypeDescription value) {
+    MappedField field = nameMapping.find(currentPath());
+    return setId(variant.clone(), field);
+  }
+
+  @Override
   public TypeDescription primitive(TypeDescription primitive) {
     MappedField field = nameMapping.find(currentPath());
     return setId(primitive.clone(), field);

@@ -381,7 +381,8 @@ public class TestExpressionBinding {
   @FieldSource("UNSUPPORTED_PATHS")
   public void testExtractBindingWithInvalidPath(String path) {
     assertThatThrownBy(() -> Binder.bind(STRUCT, lessThan(extract("var", path, "long"), 100)))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageMatching("(Unsupported|Invalid) path.*");
   }
 
   @Test

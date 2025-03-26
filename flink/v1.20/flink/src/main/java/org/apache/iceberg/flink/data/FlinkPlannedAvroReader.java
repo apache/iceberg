@@ -97,7 +97,8 @@ public class FlinkPlannedAvroReader implements DatumReader<RowData>, SupportsRow
 
       Types.StructType expected = partner.asStructType();
       List<Pair<Integer, ValueReader<?>>> readPlan =
-          ValueReaders.buildReadPlan(expected, record, fieldReaders, idToConstant);
+          ValueReaders.buildReadPlan(
+              expected, record, fieldReaders, idToConstant, RowDataUtil::convertConstant);
 
       // TODO: should this pass expected so that struct.get can reuse containers?
       return FlinkValueReaders.struct(readPlan, expected.fields().size());
@@ -141,6 +142,9 @@ public class FlinkPlannedAvroReader implements DatumReader<RowData>, SupportsRow
 
           case "timestamp-micros":
             return FlinkValueReaders.timestampMicros();
+
+          case "timestamp-nanos":
+            return FlinkValueReaders.timestampNanos();
 
           case "decimal":
             LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;

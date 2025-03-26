@@ -196,7 +196,8 @@ public class BaseTransaction implements Transaction {
   @Override
   public RewriteManifests rewriteManifests() {
     checkLastOperationCommitted("RewriteManifests");
-    RewriteManifests rewrite = new BaseRewriteManifests(transactionOps).reportWith(reporter);
+    RewriteManifests rewrite =
+        new BaseRewriteManifests(tableName, transactionOps).reportWith(reporter);
     rewrite.deleteWith(enqueueDelete);
     updates.add(rewrite);
     return rewrite;

@@ -72,6 +72,7 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
     }
   }
 
+  @SuppressWarnings("JavaUtilDate")
   private R applyWithSchema(R record) {
     Struct value = Requirements.requireStruct(record.value(), "Debezium transform");
 

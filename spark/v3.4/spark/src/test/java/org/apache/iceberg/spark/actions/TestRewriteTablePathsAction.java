@@ -25,8 +25,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -35,10 +37,11 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.ImmutableGenericPartitionStatisticsFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -46,6 +49,7 @@ import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.actions.ActionsProvider;
+import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.actions.RewriteTablePath;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
@@ -55,14 +59,15 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkCatalog;
-import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.SparkEnv;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.Dataset;
@@ -73,16 +78,18 @@ import org.apache.spark.storage.BlockId;
 import org.apache.spark.storage.BlockInfoManager;
 import org.apache.spark.storage.BlockManager;
 import org.apache.spark.storage.BroadcastBlockId;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import scala.Tuple2;
 
-public class TestRewriteTablePathsAction extends SparkTestBase {
+public class TestRewriteTablePathsAction extends TestBase {
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path staging;
+  @TempDir private Path tableDir;
+  @TempDir private Path newTableDir;
+  @TempDir private Path targetTableDir;
 
   protected ActionsProvider actions() {
     return SparkActions.get();
@@ -96,28 +103,20 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
           optional(3, "c3", Types.StringType.get()));
 
   protected String tableLocation = null;
-  public String staging = null;
-  public String tableDir = null;
-  public String newTableDir = null;
-  public String targetTableDir = null;
   private Table table = null;
 
   private final String ns = "testns";
   private final String backupNs = "backupns";
 
-  @Before
-  public void setupTableLocation() throws Exception {
-    this.tableLocation = temp.newFolder().toURI().toString();
-    this.staging = temp.newFolder("staging").toURI().toString();
-    this.tableDir = temp.newFolder("table").toURI().toString();
-    this.newTableDir = temp.newFolder("newTable").toURI().toString();
-    this.targetTableDir = temp.newFolder("targetTable").toURI().toString();
+  @BeforeEach
+  public void setupTableLocation() {
+    this.tableLocation = tableDir.toFile().toURI().toString();
     this.table = createATableWith2Snapshots(tableLocation);
     createNameSpaces();
   }
 
-  @After
-  public void cleanupTableSetup() throws Exception {
+  @AfterEach
+  public void cleanupTableSetup() {
     dropNameSpaces();
   }
 
@@ -131,6 +130,11 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
 
   protected Table createTableWithSnapshots(
       String location, int snapshotNumber, Map<String, String> properties) {
+    return createTableWithSnapshots(location, snapshotNumber, properties, "append");
+  }
+
+  private Table createTableWithSnapshots(
+      String location, int snapshotNumber, Map<String, String> properties, String mode) {
     Table newTable = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, location);
 
     List<ThreeColumnRecord> records =
@@ -139,7 +143,7 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
 
     for (int i = 0; i < snapshotNumber; i++) {
-      df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(location);
+      df.select("c1", "c2", "c3").write().format("iceberg").mode(mode).save(location);
     }
 
     return newTable;
@@ -168,7 +172,7 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
             .select("file_path")
             .as(Encoders.STRING())
             .collectAsList();
-    assertThat(validDataFiles.size()).isEqualTo(2);
+    assertThat(validDataFiles).hasSize(2);
 
     RewriteTablePath.Result result =
         actions()
@@ -230,24 +234,72 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
     List<Tuple2<String, String>> paths = readPathPairList(result.fileListLocation());
 
     String currentSnapshotId = String.valueOf(table.currentSnapshot().snapshotId());
-    assertThat(paths.stream().filter(c -> c._2().contains(currentSnapshotId)).count())
-        .withFailMessage("Should have the current snapshot file")
-        .isEqualTo(1);
+    assertThat(paths.stream().filter(c -> c._2().contains(currentSnapshotId)))
+        .as("Should have the current snapshot file")
+        .hasSize(1);
 
     String parentSnapshotId = String.valueOf(table.currentSnapshot().parentId());
-    assertThat(paths.stream().filter(c -> c._2().contains(parentSnapshotId)).count())
-        .withFailMessage("Should NOT have the parent snapshot file")
-        .isEqualTo(0);
+    assertThat(paths.stream().filter(c -> c._2().contains(parentSnapshotId)))
+        .as("Should NOT have the parent snapshot file")
+        .isEmpty();
   }
 
   @Test
-  public void testTableWith3Snapshots() throws Exception {
+  public void testIncrementalRewrite() throws Exception {
+    String location = newTableLocation();
+    Table sourceTable =
+        TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), location);
+    List<ThreeColumnRecord> recordsA =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
+    Dataset<Row> dfA = spark.createDataFrame(recordsA, ThreeColumnRecord.class).coalesce(1);
+
+    // Write first increment to source table
+    dfA.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(location);
+    assertThat(spark.read().format("iceberg").load(location).collectAsList()).hasSize(1);
+
+    // Replicate first increment to target table
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .rewriteLocationPrefix(sourceTable.location(), targetTableLocation())
+            .execute();
+    copyTableFiles(result);
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
+        .hasSize(1);
+
+    // Write second increment to source table
+    List<ThreeColumnRecord> recordsB =
+        Lists.newArrayList(new ThreeColumnRecord(2, "BBBBBBBBB", "BBB"));
+    Dataset<Row> dfB = spark.createDataFrame(recordsB, ThreeColumnRecord.class).coalesce(1);
+    dfB.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(location);
+    assertThat(spark.read().format("iceberg").load(location).collectAsList()).hasSize(2);
+
+    // Replicate second increment to target table
+    sourceTable.refresh();
+    Table targetTable = TABLES.load(targetTableLocation());
+    String targetTableMetadata = currentMetadata(targetTable).metadataFileLocation();
+    String startVersion = fileName(targetTableMetadata);
+    RewriteTablePath.Result incrementalRewriteResult =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .rewriteLocationPrefix(sourceTable.location(), targetTableLocation())
+            .startVersion(startVersion)
+            .execute();
+    copyTableFiles(incrementalRewriteResult);
+    List<Object[]> actual = rowsSorted(targetTableLocation(), "c1");
+    List<Object[]> expected = rowsSorted(location, "c1");
+    assertEquals("Rows should match after copy", expected, actual);
+  }
+
+  @Test
+  public void testTableWith3Snapshots(@TempDir Path location1, @TempDir Path location2)
+      throws Exception {
     String location = newTableLocation();
     Table tableWith3Snaps = createTableWithSnapshots(location, 3);
     RewriteTablePath.Result result =
         actions()
             .rewriteTablePath(tableWith3Snaps)
-            .rewriteLocationPrefix(location, temp.newFolder().toURI().toString())
+            .rewriteLocationPrefix(location, toAbsolute(location1))
             .startVersion("v2.metadata.json")
             .execute();
 
@@ -257,7 +309,7 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
     RewriteTablePath.Result result1 =
         actions()
             .rewriteTablePath(tableWith3Snaps)
-            .rewriteLocationPrefix(location, temp.newFolder().toURI().toString())
+            .rewriteLocationPrefix(location, toAbsolute(location2))
             .startVersion("v1.metadata.json")
             .execute();
 
@@ -302,9 +354,9 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
 
     // verify data rows
     Dataset<Row> resultDF = spark.read().format("iceberg").load(targetTableLocation());
-    assertThat(resultDF.as(Encoders.bean(ThreeColumnRecord.class)).count())
-        .withFailMessage("There are only one row left since we deleted a data file")
-        .isEqualTo(1);
+    assertThat(resultDF.as(Encoders.bean(ThreeColumnRecord.class)).collectAsList())
+        .as("There are only one row left since we deleted a data file")
+        .hasSize(1);
   }
 
   @Test
@@ -323,7 +375,7 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
 
     table.newRowDelta().addDeletes(positionDeletes).commit();
 
-    assertThat(spark.read().format("iceberg").load(table.location()).count()).isEqualTo(1);
+    assertThat(spark.read().format("iceberg").load(table.location()).collectAsList()).hasSize(1);
 
     RewriteTablePath.Result result =
         actions()
@@ -340,7 +392,8 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
     copyTableFiles(result);
 
     // Positional delete affects a single row, so only one row must remain
-    assertThat(spark.read().format("iceberg").load(targetTableLocation()).count()).isEqualTo(1);
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
+        .hasSize(1);
   }
 
   @Test
@@ -359,7 +412,7 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
     DeleteFile positionDeletes = FileHelpers.writePosDeleteFile(table, deleteFile, null, deletes);
     table.newRowDelta().addDeletes(positionDeletes).commit();
 
-    assertThat(spark.read().format("iceberg").load(table.location()).count()).isEqualTo(1);
+    assertThat(spark.read().format("iceberg").load(table.location()).collectAsList()).hasSize(1);
 
     RewriteTablePath.Result result =
         actions()
@@ -381,7 +434,8 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
         "Position deletes should be equal", new Object[] {1, "AAAAAAAAAA", "AAAA"}, deletedRow);
 
     // Positional delete affects a single row, so only one row must remain
-    assertThat(spark.read().format("iceberg").load(targetTableLocation()).count()).isEqualTo(1);
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
+        .hasSize(1);
   }
 
   @Test
@@ -393,7 +447,7 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
         allFiles.map(f -> Pair.of((CharSequence) f.location(), 0L)).collect(Collectors.toList());
 
     // a single position delete with two entries
-    assertThat(deletes.size()).isEqualTo(2);
+    assertThat(deletes).hasSize(2);
 
     File file = new File(removePrefix(table.location() + "/data/deeply/nested/file.parquet"));
     DeleteFile positionDeletes =
@@ -403,7 +457,7 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
 
     table.newRowDelta().addDeletes(positionDeletes).commit();
 
-    assertThat(spark.read().format("iceberg").load(table.location()).count()).isEqualTo(0);
+    assertThat(spark.read().format("iceberg").load(table.location()).collectAsList()).isEmpty();
 
     RewriteTablePath.Result result =
         actions()
@@ -419,7 +473,8 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
     // copy the metadata files and data files
     copyTableFiles(result);
 
-    assertThat(spark.read().format("iceberg").load(targetTableLocation()).count()).isEqualTo(0);
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
+        .isEmpty();
   }
 
   @Test
@@ -473,7 +528,8 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
     copyTableFiles(result);
 
     // Equality deletes affect three rows, so just two rows must remain
-    assertThat(spark.read().format("iceberg").load(targetTableLocation()).count()).isEqualTo(2);
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
+        .hasSize(2);
   }
 
   @Test
@@ -482,10 +538,13 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
     Table sourceTable = createTableWithSnapshots(location, 2);
     // expire the first snapshot
     Table staticTable = newStaticTable(location + "metadata/v2.metadata.json", table.io());
-    actions()
-        .expireSnapshots(sourceTable)
-        .expireSnapshotId(staticTable.currentSnapshot().snapshotId())
-        .execute();
+    int expiredManifestListCount = 1;
+    ExpireSnapshots.Result expireResult =
+        actions()
+            .expireSnapshots(sourceTable)
+            .expireSnapshotId(staticTable.currentSnapshot().snapshotId())
+            .execute();
+    assertThat(expireResult.deletedManifestListsCount()).isEqualTo(expiredManifestListCount);
 
     // create 100 more snapshots
     List<ThreeColumnRecord> records =
@@ -496,9 +555,12 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
     }
     sourceTable.refresh();
 
+    // each iteration generate 1 version file, 1 manifest list, 1 manifest and 1 data file
+    int totalIteration = 102;
     // v1/v2/v3.metadata.json has been deleted in v104.metadata.json, and there is no way to find
     // the first snapshot
     // from the version file history
+    int missingVersionFile = 1;
     RewriteTablePath.Result result =
         actions()
             .rewriteTablePath(sourceTable)
@@ -506,7 +568,12 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
             .rewriteLocationPrefix(location, targetTableLocation())
             .execute();
 
-    checkFileNum(101, 101, 101, 406, result);
+    checkFileNum(
+        totalIteration - missingVersionFile,
+        totalIteration - expiredManifestListCount,
+        totalIteration,
+        totalIteration * 4 - missingVersionFile - expiredManifestListCount,
+        result);
   }
 
   @Test
@@ -538,13 +605,76 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
   }
 
   @Test
+  public void testRewritePathWithNonLiveEntry() throws Exception {
+    String location = newTableLocation();
+    // first overwrite generate 1 manifest and 1 data file
+    // each subsequent overwrite on unpartitioned table generate 2 manifests and 1 data file
+    Table tableWith3Snaps = createTableWithSnapshots(location, 3, Maps.newHashMap(), "overwrite");
+
+    Snapshot oldest = SnapshotUtil.oldestAncestor(tableWith3Snaps);
+    String oldestDataFilePath =
+        Iterables.getOnlyElement(
+                tableWith3Snaps.snapshot(oldest.snapshotId()).addedDataFiles(tableWith3Snaps.io()))
+            .location();
+    String deletedDataFilePathInTargetLocation =
+        String.format("%sdata/%s", targetTableLocation(), fileName(oldestDataFilePath));
+
+    // expire the oldest snapshot and remove oldest DataFile
+    ExpireSnapshots.Result expireResult =
+        actions().expireSnapshots(tableWith3Snaps).expireSnapshotId(oldest.snapshotId()).execute();
+    assertThat(expireResult)
+        .as("Should deleted 1 data files in root snapshot")
+        .extracting(
+            ExpireSnapshots.Result::deletedManifestListsCount,
+            ExpireSnapshots.Result::deletedManifestsCount,
+            ExpireSnapshots.Result::deletedDataFilesCount)
+        .contains(1L, 1L, 1L);
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(tableWith3Snaps)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(tableWith3Snaps.location(), targetTableLocation())
+            .execute();
+
+    // 5 version files include 1 table creation 3 overwrite and 1 snapshot expiration
+    // 3 overwrites generate 3 manifest list and 5 manifests with 3 data files
+    // snapshot expiration removed 1 of each
+    checkFileNum(5, 2, 4, 13, result);
+
+    // copy the metadata files and data files
+    copyTableFiles(result);
+
+    // expect deleted data file is excluded from rewrite and copy
+    List<String> copiedDataFiles =
+        spark
+            .read()
+            .format("iceberg")
+            .load(targetTableLocation() + "#all_files")
+            .select("file_path")
+            .as(Encoders.STRING())
+            .collectAsList();
+    assertThat(copiedDataFiles).hasSize(2).doesNotContain(deletedDataFilePathInTargetLocation);
+
+    // expect manifest entries still contain deleted entry
+    List<String> copiedEntries =
+        spark
+            .read()
+            .format("iceberg")
+            .load(targetTableLocation() + "#all_entries")
+            .filter("status == 2")
+            .select("data_file.file_path")
+            .as(Encoders.STRING())
+            .collectAsList();
+    assertThat(copiedEntries).contains(deletedDataFilePathInTargetLocation);
+  }
+
+  @Test
   public void testStartSnapshotWithoutValidSnapshot() throws Exception {
     // expire one snapshot
     actions().expireSnapshots(table).expireSnapshotId(table.currentSnapshot().parentId()).execute();
 
-    assertThat(((List) table.snapshots()).size())
-        .withFailMessage("1 out 2 snapshot has been removed")
-        .isEqualTo(1);
+    assertThat(table.snapshots()).hasSize(1);
 
     RewriteTablePath.Result result =
         actions()
@@ -577,7 +707,7 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
   }
 
   @Test
-  public void testMoveVersionWithInvalidSnapshots() throws Exception {
+  public void testMoveVersionWithInvalidSnapshots() {
     // expire one snapshot
     actions().expireSnapshots(table).expireSnapshotId(table.currentSnapshot().parentId()).execute();
 
@@ -742,24 +872,27 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
   }
 
   @Test
-  public void testStatisticFile() throws IOException {
+  public void testPartitionStatisticFile() throws IOException {
     String sourceTableLocation = newTableLocation();
     Map<String, String> properties = Maps.newHashMap();
     properties.put("format-version", "2");
-    String tableName = "v2tblwithstats";
+    String tableName = "v2tblwithPartStats";
     Table sourceTable =
         createMetastoreTable(sourceTableLocation, properties, "default", tableName, 0);
 
     TableMetadata metadata = currentMetadata(sourceTable);
-    TableMetadata withStatistics =
+    TableMetadata withPartStatistics =
         TableMetadata.buildFrom(metadata)
-            .setStatistics(
-                new GenericStatisticsFile(
-                    43, "/some/path/to/stats/file", 128, 27, ImmutableList.of()))
+            .setPartitionStatistics(
+                ImmutableGenericPartitionStatisticsFile.builder()
+                    .snapshotId(11L)
+                    .path("/some/partition/stats/file.parquet")
+                    .fileSizeInBytes(42L)
+                    .build())
             .build();
 
     OutputFile file = sourceTable.io().newOutputFile(metadata.metadataFileLocation());
-    TableMetadataParser.overwrite(withStatistics, file);
+    TableMetadataParser.overwrite(withPartStatistics, file);
 
     assertThatThrownBy(
             () ->
@@ -768,7 +901,36 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
                     .rewriteLocationPrefix(sourceTableLocation, targetTableLocation())
                     .execute())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Statistic files are not supported yet");
+        .hasMessageContaining("Partition statistics files are not supported yet");
+  }
+
+  @Test
+  public void testTableWithManyStatisticFiles() throws IOException {
+    String sourceTableLocation = newTableLocation();
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("format-version", "2");
+    String tableName = "v2tblwithmanystats";
+    Table sourceTable =
+        createMetastoreTable(sourceTableLocation, properties, "default", tableName, 0);
+
+    int iterations = 10;
+    for (int i = 0; i < iterations; i++) {
+      sql("insert into hive.default.%s values (%s, 'AAAAAAAAAA', 'AAAA')", tableName, i);
+      sourceTable.refresh();
+      actions().computeTableStats(sourceTable).execute();
+    }
+
+    sourceTable.refresh();
+    assertThat(sourceTable.statisticsFiles()).hasSize(iterations);
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(sourceTable)
+            .rewriteLocationPrefix(sourceTableLocation, targetTableLocation())
+            .execute();
+
+    checkFileNum(
+        iterations * 2 + 1, iterations, iterations, iterations, iterations * 6 + 1, result);
   }
 
   @Test
@@ -887,7 +1049,7 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
                 .sort("c1", "c2", "c3")
                 .collectAsList());
     // two rows
-    assertThat(originalData.size()).isEqualTo(2);
+    assertThat(originalData).hasSize(2);
 
     // copy table and check the results
     RewriteTablePath.Result result =
@@ -936,6 +1098,16 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
       int manifestFileCount,
       int totalCount,
       RewriteTablePath.Result result) {
+    checkFileNum(versionFileCount, manifestListCount, manifestFileCount, 0, totalCount, result);
+  }
+
+  protected void checkFileNum(
+      int versionFileCount,
+      int manifestListCount,
+      int manifestFileCount,
+      int statisticsFileCount,
+      int totalCount,
+      RewriteTablePath.Result result) {
     List<String> filesToMove =
         spark
             .read()
@@ -943,28 +1115,39 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
             .load(result.fileListLocation())
             .as(Encoders.STRING())
             .collectAsList();
-    assertThat(filesToMove.stream().filter(f -> f.endsWith(".metadata.json")).count())
-        .withFailMessage("Wrong rebuilt version file count")
-        .isEqualTo(versionFileCount);
-    assertThat(filesToMove.stream().filter(f -> f.contains("snap-")).count())
-        .withFailMessage("Wrong rebuilt Manifest list file count")
-        .isEqualTo(manifestListCount);
-    assertThat(filesToMove.stream().filter(f -> f.endsWith("-m0.avro")).count())
-        .withFailMessage("Wrong rebuilt Manifest file file count")
-        .isEqualTo(manifestFileCount);
-    assertThat(filesToMove.size()).withFailMessage("Wrong total file count").isEqualTo(totalCount);
+    Predicate<String> isManifest = f -> f.endsWith("-m0.avro") || f.endsWith("-m1.avro");
+    Predicate<String> isManifestList = f -> f.contains("snap-") && f.endsWith(".avro");
+    Predicate<String> isMetadataJSON = f -> f.endsWith(".metadata.json");
+
+    assertThat(filesToMove.stream().filter(isMetadataJSON))
+        .as("Wrong rebuilt version file count")
+        .hasSize(versionFileCount);
+    assertThat(filesToMove.stream().filter(isManifestList))
+        .as("Wrong rebuilt Manifest list file count")
+        .hasSize(manifestListCount);
+    assertThat(filesToMove.stream().filter(isManifest))
+        .as("Wrong rebuilt Manifest file file count")
+        .hasSize(manifestFileCount);
+    assertThat(filesToMove.stream().filter(f -> f.endsWith(".stats")))
+        .as("Wrong rebuilt Statistic file count")
+        .hasSize(statisticsFileCount);
+    assertThat(filesToMove).as("Wrong total file count").hasSize(totalCount);
   }
 
   protected String newTableLocation() throws IOException {
-    return newTableDir;
+    return toAbsolute(newTableDir);
   }
 
   protected String targetTableLocation() throws IOException {
-    return targetTableDir;
+    return toAbsolute(targetTableDir);
   }
 
   protected String stagingLocation() throws IOException {
-    return staging;
+    return toAbsolute(staging);
+  }
+
+  protected String toAbsolute(Path relative) {
+    return relative.toFile().toURI().toString();
   }
 
   private void copyTableFiles(RewriteTablePath.Result result) throws Exception {
@@ -1053,6 +1236,10 @@ public class TestRewriteTablePathsAction extends SparkTestBase {
 
   private List<Object[]> rows(String location) {
     return rowsToJava(spark.read().format("iceberg").load(location).collectAsList());
+  }
+
+  private List<Object[]> rowsSorted(String location, String sortCol) {
+    return rowsToJava(spark.read().format("iceberg").load(location).sort(sortCol).collectAsList());
   }
 
   private PositionDelete<GenericRecord> positionDelete(

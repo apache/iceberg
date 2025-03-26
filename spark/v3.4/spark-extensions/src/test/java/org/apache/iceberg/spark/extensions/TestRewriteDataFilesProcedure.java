@@ -720,6 +720,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         .hasMessage("Named and positional arguments cannot be mixed");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.rewrite_data_files('n', 't')", catalogName))
+        .hasMessageContaining("Syntax error")
         .isInstanceOf(ParseException.class)
         .satisfies(
             exception -> {
