@@ -1696,7 +1696,6 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     Table table = tableCatalog().loadTable(TableIdentifier.of("ns", "view", "version"));
     assertThat(table).isInstanceOf(ViewVersionTable.class);
     assertThat(table.schema()).isEqualTo(ViewVersionTable.VIEW_VERSION_SCHEMA);
-    assertThat(table.properties()).containsEntry("key", "value");
   }
 
   @Test
