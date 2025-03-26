@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.apache.iceberg.rest.RESTUtil.DEFAULT_CLIENT_BUILDER;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
@@ -43,8 +45,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
 
-import static org.apache.iceberg.rest.RESTUtil.DEFAULT_CLIENT_BUILDER;
-
 public class RESTCatalog
     implements Catalog, ViewCatalog, SupportsNamespaces, Configurable<Object>, Closeable {
   private final RESTSessionCatalog sessionCatalog;
@@ -54,8 +54,7 @@ public class RESTCatalog
   private final ViewCatalog viewSessionCatalog;
 
   public RESTCatalog() {
-    this(
-        SessionCatalog.SessionContext.createEmpty());
+    this(SessionCatalog.SessionContext.createEmpty());
   }
 
   public RESTCatalog(SessionCatalog.SessionContext context) {

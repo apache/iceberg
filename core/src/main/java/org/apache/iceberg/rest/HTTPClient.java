@@ -135,7 +135,7 @@ public class HTTPClient extends BaseHTTPClient {
     return new HTTPClient(this, session);
   }
 
-  public Map<String, String> getBaseHeaders(){
+  public Map<String, String> getBaseHeaders() {
     return baseHeaders;
   }
 

@@ -168,9 +168,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   public RESTSessionCatalog() {
-    this(
-        DEFAULT_CLIENT_BUILDER,
-        null);
+    this(DEFAULT_CLIENT_BUILDER, null);
   }
 
   public RESTSessionCatalog(
@@ -247,9 +245,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     this.reportingViaRestEnabled =
         PropertyUtil.propertyAsBoolean(mergedProps, REST_METRICS_REPORTING_ENABLED, true);
     super.initialize(name, mergedProps);
-  }
-
-  public Map<String, String> clientHeaders(){
   }
 
   @Override

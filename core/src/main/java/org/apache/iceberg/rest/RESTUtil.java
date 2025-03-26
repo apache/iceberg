@@ -40,10 +40,12 @@ public class RESTUtil {
   private static final Joiner NAMESPACE_ESCAPED_JOINER = Joiner.on(NAMESPACE_ESCAPED_SEPARATOR);
   private static final Splitter NAMESPACE_ESCAPED_SPLITTER =
       Splitter.on(NAMESPACE_ESCAPED_SEPARATOR);
-  public static final Function<Map<String, String>, RESTClient> DEFAULT_CLIENT_BUILDER = config -> HTTPClient.builder(config)
-          .uri(config.get(CatalogProperties.URI))
-          .withHeaders(RESTUtil.configHeaders(config))
-          .build();
+  public static final Function<Map<String, String>, RESTClient> DEFAULT_CLIENT_BUILDER =
+      config ->
+          HTTPClient.builder(config)
+              .uri(config.get(CatalogProperties.URI))
+              .withHeaders(RESTUtil.configHeaders(config))
+              .build();
 
   private RESTUtil() {}
 
