@@ -36,10 +36,12 @@ import static org.mockito.Mockito.verify;
 
 import com.azure.core.credential.AzureSasCredential;
 import com.azure.core.credential.TokenCredential;
+import com.azure.identity.DefaultAzureCredential;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
+import java.util.Optional;
 import org.apache.iceberg.TestHelpers;
-import org.apache.iceberg.azure.adlsv2.VendedAzureSasCredentialPolicy;
+import org.apache.iceberg.azure.adlsv2.VendedAdlsCredentialProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
@@ -82,11 +84,13 @@ public class AzurePropertiesTest {
 
     DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
     props.applyClientConfiguration("account1", clientBuilder);
+    Optional<VendedAdlsCredentialProvider> vendedAdlsCredentialProvider =
+        props.vendedAdlsCredentialProvider();
 
     verify(clientBuilder, never()).credential(any(AzureSasCredential.class));
     verify(clientBuilder, never()).sasToken(any());
     verify(clientBuilder, never()).credential(any(StorageSharedKeyCredential.class));
-    verify(clientBuilder, times(1)).addPolicy(any(VendedAzureSasCredentialPolicy.class));
+    assertThat(vendedAdlsCredentialProvider).isPresent();
   }
 
   @Test
@@ -101,7 +105,10 @@ public class AzurePropertiesTest {
 
     DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
     props.applyClientConfiguration("account1", clientBuilder);
-    verify(clientBuilder, never()).addPolicy(any(VendedAzureSasCredentialPolicy.class));
+    Optional<VendedAdlsCredentialProvider> vendedAdlsCredentialProvider =
+        props.vendedAdlsCredentialProvider();
+    verify(clientBuilder).credential(any(DefaultAzureCredential.class));
+    assertThat(vendedAdlsCredentialProvider).isEmpty();
   }
 
   @Test
