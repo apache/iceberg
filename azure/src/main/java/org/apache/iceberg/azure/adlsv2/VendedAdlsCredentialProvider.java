@@ -57,7 +57,7 @@ public class VendedAdlsCredentialProvider implements Serializable {
     this.properties = SerializableMap.copyOf(properties);
   }
 
-  public String credentialForAccount(String storageAccount) {
+  String credentialForAccount(String storageAccount) {
     return sasCredentialByAccount()
         .computeIfAbsent(
             storageAccount,
