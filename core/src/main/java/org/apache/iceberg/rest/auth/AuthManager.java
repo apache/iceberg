@@ -54,7 +54,7 @@ public interface AuthManager extends AutoCloseable {
    */
   @Deprecated
   default AuthSession initSession(RESTClient initClient, Map<String, String> properties) {
-    return catalogSession(initClient, properties);
+    return withClient(initClient).authSession(AuthScopes.Initial.of(properties));
   }
 
   /**
@@ -81,7 +81,7 @@ public interface AuthManager extends AutoCloseable {
    */
   @Deprecated
   default AuthSession contextualSession(SessionCatalog.SessionContext context, AuthSession parent) {
-    return parent;
+    return authSession(AuthScopes.Contextual.of(context, parent));
   }
 
   /**
@@ -91,7 +91,7 @@ public interface AuthManager extends AutoCloseable {
   @Deprecated
   default AuthSession tableSession(
       TableIdentifier table, Map<String, String> properties, AuthSession parent) {
-    return parent;
+    return authSession(AuthScopes.Table.of(table, properties, parent));
   }
 
   /**
