@@ -27,6 +27,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Predicate;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -48,49 +49,52 @@ public class PartitionStatsUtil {
    * @param table the table for which partition stats to be computed.
    * @param snapshot the snapshot for which partition stats is computed.
    * @return the collection of {@link PartitionStats}
+   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #computeStats(Table, Snapshot,
+   *     Snapshot)} instead.
    */
+  @Deprecated
   public static Collection<PartitionStats> computeStats(Table table, Snapshot snapshot) {
-    Preconditions.checkArgument(table != null, "table cannot be null");
-    Preconditions.checkArgument(Partitioning.isPartitioned(table), "table must be partitioned");
-    Preconditions.checkArgument(snapshot != null, "snapshot cannot be null");
-
-    StructType partitionType = Partitioning.partitionType(table);
-    List<ManifestFile> manifests = snapshot.allManifests(table.io());
-    return collectStats(table, manifests, partitionType).values();
+    return computeStats(table, null, snapshot).values();
   }
 
   /**
-   * Computes the partition stats incrementally after the given snapshot to current snapshot.
+   * Computes the partition stats incrementally after the given snapshot to current snapshot. If the
+   * given snapshot is null, computes the stats completely instead of incrementally.
    *
    * @param table the table for which partition stats to be computed.
    * @param afterSnapshot the snapshot after which partition stats is computed (exclusive).
    * @param currentSnapshot the snapshot till which partition stats is computed (inclusive).
    * @return the {@link PartitionMap} of {@link PartitionStats}
    */
-  public static PartitionMap<PartitionStats> computeStatsIncremental(
+  public static PartitionMap<PartitionStats> computeStats(
       Table table, Snapshot afterSnapshot, Snapshot currentSnapshot) {
     Preconditions.checkArgument(table != null, "Table cannot be null");
     Preconditions.checkArgument(Partitioning.isPartitioned(table), "Table must be partitioned");
     Preconditions.checkArgument(currentSnapshot != null, "Current snapshot cannot be null");
-    Preconditions.checkArgument(afterSnapshot != null, "Snapshot cannot be null");
-    Preconditions.checkArgument(currentSnapshot != afterSnapshot, "Both the snapshots are same");
-    Preconditions.checkArgument(
-        SnapshotUtil.isAncestorOf(table, currentSnapshot.snapshotId(), afterSnapshot.snapshotId()),
-        "Starting snapshot %s is not an ancestor of current snapshot %s",
-        afterSnapshot.snapshotId(),
-        currentSnapshot.snapshotId());
 
-    Set<Long> snapshotIdsRange =
-        Sets.newHashSet(
-            SnapshotUtil.ancestorIdsBetween(
-                currentSnapshot.snapshotId(), afterSnapshot.snapshotId(), table::snapshot));
+    Predicate<ManifestFile> manifestFilePredicate = file -> true;
+    if (afterSnapshot != null) {
+      Preconditions.checkArgument(currentSnapshot != afterSnapshot, "Both the snapshots are same");
+      Preconditions.checkArgument(
+          SnapshotUtil.isAncestorOf(
+              table, currentSnapshot.snapshotId(), afterSnapshot.snapshotId()),
+          "Starting snapshot %s is not an ancestor of current snapshot %s",
+          afterSnapshot.snapshotId(),
+          currentSnapshot.snapshotId());
+      Set<Long> snapshotIdsRange =
+          Sets.newHashSet(
+              SnapshotUtil.ancestorIdsBetween(
+                  currentSnapshot.snapshotId(), afterSnapshot.snapshotId(), table::snapshot));
+      manifestFilePredicate =
+          manifestFile ->
+              snapshotIdsRange.contains(manifestFile.snapshotId())
+                  && !manifestFile.hasExistingFiles();
+    }
+
     StructType partitionType = Partitioning.partitionType(table);
     List<ManifestFile> manifests =
         currentSnapshot.allManifests(table.io()).stream()
-            .filter(
-                manifestFile ->
-                    snapshotIdsRange.contains(manifestFile.snapshotId())
-                        && !manifestFile.hasExistingFiles())
+            .filter(manifestFilePredicate)
             .collect(Collectors.toList());
     return collectStats(table, manifests, partitionType);
   }
@@ -169,7 +173,7 @@ public class PartitionStatsUtil {
     return ManifestFiles.open(manifest, table.io()).select(projection);
   }
 
-  public static void mergePartitionMap(
+  private static void mergePartitionMap(
       PartitionMap<PartitionStats> fromMap, PartitionMap<PartitionStats> toMap) {
     fromMap.forEach(
         (key, value) ->

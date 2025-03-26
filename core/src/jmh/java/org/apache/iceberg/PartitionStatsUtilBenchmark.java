@@ -97,7 +97,7 @@ public class PartitionStatsUtilBenchmark {
   @Threads(1)
   public void benchmarkPartitionStats() {
     Collection<PartitionStats> partitionStats =
-        PartitionStatsUtil.computeStats(table, table.currentSnapshot());
+        PartitionStatsUtil.computeStats(table, null, table.currentSnapshot()).values();
     assertThat(partitionStats).hasSize(PARTITION_PER_MANIFEST);
 
     PartitionStatsUtil.sortStats(partitionStats, Partitioning.partitionType(table));

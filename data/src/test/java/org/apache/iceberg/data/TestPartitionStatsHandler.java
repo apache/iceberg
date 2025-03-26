@@ -144,7 +144,7 @@ public class TestPartitionStatsHandler {
 
     assertThatThrownBy(() -> PartitionStatsHandler.computeAndWriteStatsFile(testTable))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("table must be partitioned");
+        .hasMessage("Table must be partitioned");
   }
 
   @Test
