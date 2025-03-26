@@ -323,12 +323,12 @@ public class TestPartitionStatsHandler {
     List<Record> records = prepareRecords(testTable.schema());
     List<DataFile> dataFiles = dataFiles(testTable, records);
 
-    Snapshot snapshot1 = appendThriceAndValidate(testTable, dataFiles);
+    Snapshot snapshot1 = appendMultipleAndValidate(testTable, dataFiles);
 
     commitDeletesAndValidate(testTable, dataFiles, snapshot1);
   }
 
-  private static Snapshot appendThriceAndValidate(Table testTable, List<DataFile> dataFiles)
+  private static Snapshot appendMultipleAndValidate(Table testTable, List<DataFile> dataFiles)
       throws IOException {
     for (int i = 0; i < 3; i++) {
       // insert same set of seven records thrice to have a new manifest files
@@ -481,7 +481,7 @@ public class TestPartitionStatsHandler {
     List<Record> records = prepareRecords(testTable.schema());
     List<DataFile> dataFiles = dataFiles(testTable, records);
 
-    Snapshot snapshot1 = appendThriceAndValidate(testTable, dataFiles);
+    Snapshot snapshot1 = appendMultipleAndValidate(testTable, dataFiles);
 
     commitDeletesAndValidate(testTable, dataFiles, snapshot1);
 

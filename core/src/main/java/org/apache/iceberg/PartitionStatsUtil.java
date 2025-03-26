@@ -62,29 +62,28 @@ public class PartitionStatsUtil {
    * given snapshot is null, computes the stats completely instead of incrementally.
    *
    * @param table the table for which partition stats to be computed.
-   * @param afterSnapshot the snapshot after which partition stats is computed (exclusive).
+   * @param fromSnapshot the snapshot after which partition stats is computed (exclusive).
    * @param currentSnapshot the snapshot till which partition stats is computed (inclusive).
    * @return the {@link PartitionMap} of {@link PartitionStats}
    */
   public static PartitionMap<PartitionStats> computeStats(
-      Table table, Snapshot afterSnapshot, Snapshot currentSnapshot) {
+      Table table, Snapshot fromSnapshot, Snapshot currentSnapshot) {
     Preconditions.checkArgument(table != null, "Table cannot be null");
     Preconditions.checkArgument(Partitioning.isPartitioned(table), "Table must be partitioned");
     Preconditions.checkArgument(currentSnapshot != null, "Current snapshot cannot be null");
 
     Predicate<ManifestFile> manifestFilePredicate = file -> true;
-    if (afterSnapshot != null) {
-      Preconditions.checkArgument(currentSnapshot != afterSnapshot, "Both the snapshots are same");
+    if (fromSnapshot != null) {
+      Preconditions.checkArgument(currentSnapshot != fromSnapshot, "Both the snapshots are same");
       Preconditions.checkArgument(
-          SnapshotUtil.isAncestorOf(
-              table, currentSnapshot.snapshotId(), afterSnapshot.snapshotId()),
+          SnapshotUtil.isAncestorOf(table, currentSnapshot.snapshotId(), fromSnapshot.snapshotId()),
           "Starting snapshot %s is not an ancestor of current snapshot %s",
-          afterSnapshot.snapshotId(),
+          fromSnapshot.snapshotId(),
           currentSnapshot.snapshotId());
       Set<Long> snapshotIdsRange =
           Sets.newHashSet(
               SnapshotUtil.ancestorIdsBetween(
-                  currentSnapshot.snapshotId(), afterSnapshot.snapshotId(), table::snapshot));
+                  currentSnapshot.snapshotId(), fromSnapshot.snapshotId(), table::snapshot));
       manifestFilePredicate =
           manifestFile ->
               snapshotIdsRange.contains(manifestFile.snapshotId())

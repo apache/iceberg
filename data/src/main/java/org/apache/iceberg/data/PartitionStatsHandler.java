@@ -133,8 +133,7 @@ public class PartitionStatsHandler {
       return null;
     }
 
-    return incrementalComputeAndWrite(
-        table, table.currentSnapshot().snapshotId(), true /* recompute */);
+    return computeAndWrite(table, table.currentSnapshot().snapshotId(), true /* recompute */);
   }
 
   /**
@@ -147,7 +146,7 @@ public class PartitionStatsHandler {
    */
   public static PartitionStatisticsFile computeAndWriteStatsFile(Table table, long snapshotId)
       throws IOException {
-    return incrementalComputeAndWrite(table, snapshotId, true /* recompute */);
+    return computeAndWrite(table, snapshotId, true /* recompute */);
   }
 
   /**
@@ -162,57 +161,18 @@ public class PartitionStatsHandler {
    */
   public static PartitionStatisticsFile computeAndWriteStatsFileIncremental(
       Table table, long snapshotId) throws IOException {
-    return incrementalComputeAndWrite(table, snapshotId, false /* recompute */);
+    return computeAndWrite(table, snapshotId, false /* recompute */);
   }
 
-  private static PartitionStatisticsFile incrementalComputeAndWrite(
+  private static PartitionStatisticsFile computeAndWrite(
       Table table, long snapshotId, boolean recompute) throws IOException {
     Preconditions.checkArgument(table != null, "Table cannot be null");
     Snapshot snapshot = table.snapshot(snapshotId);
     Preconditions.checkArgument(snapshot != null, "Snapshot not found: %s", snapshotId);
 
     StructType partitionType = Partitioning.partitionType(table);
-    PartitionMap<PartitionStats> resultStatsMap;
-
-    if (recompute) {
-      resultStatsMap = PartitionStatsUtil.computeStats(table, null, snapshot);
-    } else {
-      PartitionStatisticsFile statisticsFile = latestStatsFile(table, snapshotId);
-      if (statisticsFile == null) {
-        LOG.info("Previous stats not found. Computing the stats for whole table.");
-        resultStatsMap = PartitionStatsUtil.computeStats(table, null, table.snapshot(snapshotId));
-      } else {
-        PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
-        // read previous stats, note that partition field will be read as GenericRecord
-        try (CloseableIterable<PartitionStats> oldStats =
-            readPartitionStatsFile(
-                schema(partitionType), Files.localInput(statisticsFile.path()))) {
-          oldStats.forEach(
-              partitionStats ->
-                  statsMap.put(
-                      partitionStats.specId(), partitionStats.partition(), partitionStats));
-        }
-
-        // incrementally compute the new stats, here partition field will be written as
-        // PartitionData
-        PartitionMap<PartitionStats> incrementalStatsMap =
-            PartitionStatsUtil.computeStats(
-                table, table.snapshot(statisticsFile.snapshotId()), table.snapshot(snapshotId));
-
-        // convert PartitionData into GenericRecord and merge stats
-        incrementalStatsMap.forEach(
-            (key, value) ->
-                statsMap.merge(
-                    Pair.of(key.first(), partitionDataToRecord((PartitionData) key.second())),
-                    value,
-                    (existingEntry, newEntry) -> {
-                      existingEntry.appendStats(newEntry);
-                      return existingEntry;
-                    }));
-        resultStatsMap = statsMap;
-      }
-    }
-
+    PartitionMap<PartitionStats> resultStatsMap =
+        computeStats(table, snapshot, partitionType, recompute);
     if (resultStatsMap.isEmpty()) {
       return null;
     }
@@ -221,6 +181,47 @@ public class PartitionStatsHandler {
         PartitionStatsUtil.sortStats(resultStatsMap.values(), partitionType);
     return writePartitionStatsFile(
         table, snapshot.snapshotId(), schema(partitionType), sortedStats);
+  }
+
+  private static PartitionMap<PartitionStats> computeStats(
+      Table table, Snapshot snapshot, StructType partitionType, boolean recompute)
+      throws IOException {
+    if (recompute) {
+      return PartitionStatsUtil.computeStats(table, null, snapshot);
+    }
+
+    PartitionStatisticsFile statisticsFile = latestStatsFile(table, snapshot.snapshotId());
+    if (statisticsFile == null) {
+      LOG.info("Previous stats not found. Computing the stats for whole table.");
+      return PartitionStatsUtil.computeStats(table, null, snapshot);
+    }
+
+    PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
+    // read previous stats, note that partition field will be read as GenericRecord
+    try (CloseableIterable<PartitionStats> oldStats =
+        readPartitionStatsFile(schema(partitionType), Files.localInput(statisticsFile.path()))) {
+      oldStats.forEach(
+          partitionStats ->
+              statsMap.put(partitionStats.specId(), partitionStats.partition(), partitionStats));
+    }
+
+    // incrementally compute the new stats, partition field will be written as PartitionData
+    PartitionMap<PartitionStats> incrementalStatsMap =
+        PartitionStatsUtil.computeStats(
+            table, table.snapshot(statisticsFile.snapshotId()), snapshot);
+
+    // convert PartitionData into GenericRecord and merge stats
+    incrementalStatsMap.forEach(
+        (key, value) ->
+            statsMap.merge(
+                Pair.of(key.first(), partitionDataToRecord((PartitionData) key.second())),
+                value,
+                (existingEntry, newEntry) -> {
+                  existingEntry.appendStats(newEntry);
+                  return existingEntry;
+                }));
+
+    return statsMap;
   }
 
   private static GenericRecord partitionDataToRecord(PartitionData data) {
