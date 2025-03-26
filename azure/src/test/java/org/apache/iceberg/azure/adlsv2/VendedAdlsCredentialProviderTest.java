@@ -60,12 +60,13 @@ public class VendedAdlsCredentialProviderTest extends BaseVendedCredentialsTest 
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid URI: null");
 
-    VendedAdlsCredentialProvider provider =
+    try (VendedAdlsCredentialProvider provider =
         new VendedAdlsCredentialProvider(
-            ImmutableMap.of(VendedAdlsCredentialProvider.URI, "invalid uri"));
-    assertThatThrownBy(() -> provider.credentialForAccount(STORAGE_ACCOUNT))
-        .isInstanceOf(RESTException.class)
-        .hasMessageStartingWith("Failed to create request URI from base invalid uri");
+            ImmutableMap.of(VendedAdlsCredentialProvider.URI, "invalid uri"))) {
+      assertThatThrownBy(() -> provider.credentialForAccount(STORAGE_ACCOUNT))
+          .isInstanceOf(RESTException.class)
+          .hasMessageStartingWith("Failed to create request URI from base invalid uri");
+    }
   }
 
   @Test
@@ -79,12 +80,13 @@ public class VendedAdlsCredentialProviderTest extends BaseVendedCredentialsTest 
             .withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    VendedAdlsCredentialProvider provider =
+    try (VendedAdlsCredentialProvider provider =
         new VendedAdlsCredentialProvider(
-            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI));
-    assertThatThrownBy(() -> provider.credentialForAccount(STORAGE_ACCOUNT))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Invalid ADLS Credentials for storage-account account1: empty");
+            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI))) {
+      assertThatThrownBy(() -> provider.credentialForAccount(STORAGE_ACCOUNT))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage("Invalid ADLS Credentials for storage-account account1: empty");
+    }
   }
 
   @Test
@@ -103,12 +105,13 @@ public class VendedAdlsCredentialProviderTest extends BaseVendedCredentialsTest 
         response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    VendedAdlsCredentialProvider provider =
+    try (VendedAdlsCredentialProvider provider =
         new VendedAdlsCredentialProvider(
-            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI));
-    assertThatThrownBy(() -> provider.credentialForAccount(STORAGE_ACCOUNT))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Invalid ADLS Credentials: adls.sas-token-expires-at-ms.account1 not set");
+            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI))) {
+      assertThatThrownBy(() -> provider.credentialForAccount(STORAGE_ACCOUNT))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage("Invalid ADLS Credentials: adls.sas-token-expires-at-ms.account1 not set");
+    }
   }
 
   @Test
@@ -130,17 +133,19 @@ public class VendedAdlsCredentialProviderTest extends BaseVendedCredentialsTest 
         response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    VendedAdlsCredentialProvider provider =
+    try (VendedAdlsCredentialProvider provider =
         new VendedAdlsCredentialProvider(
-            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI));
-    String azureSasCredential = provider.credentialForAccount(STORAGE_ACCOUNT);
-    assertThat(azureSasCredential)
-        .isEqualTo(credential.config().get(ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT));
+            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI))) {
+      String azureSasCredential = provider.credentialForAccount(STORAGE_ACCOUNT);
+      assertThat(azureSasCredential)
+          .isEqualTo(credential.config().get(ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT));
 
-    for (int i = 0; i < 5; i++) {
-      // resolving credentials multiple times should not hit the credentials endpoint again
-      assertThat(provider.credentialForAccount(STORAGE_ACCOUNT)).isSameAs(azureSasCredential);
+      for (int i = 0; i < 5; i++) {
+        // resolving credentials multiple times should not hit the credentials endpoint again
+        assertThat(provider.credentialForAccount(STORAGE_ACCOUNT)).isSameAs(azureSasCredential);
+      }
     }
+
     mockServer.verify(mockRequest, VerificationTimes.once());
   }
 
@@ -163,17 +168,19 @@ public class VendedAdlsCredentialProviderTest extends BaseVendedCredentialsTest 
         response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    VendedAdlsCredentialProvider provider =
+    try (VendedAdlsCredentialProvider provider =
         new VendedAdlsCredentialProvider(
-            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI));
-    String azureSasCredential = provider.credentialForAccount(STORAGE_ACCOUNT);
-    assertThat(azureSasCredential)
-        .isEqualTo(credential.config().get(ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT));
+            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI))) {
+      String azureSasCredential = provider.credentialForAccount(STORAGE_ACCOUNT);
+      assertThat(azureSasCredential)
+          .isEqualTo(credential.config().get(ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT));
 
-    // resolving credentials multiple times should hit the credentials endpoint again
-    String refreshedAzureSasCredential = provider.credentialForAccount(STORAGE_ACCOUNT);
-    assertThat(refreshedAzureSasCredential)
-        .isEqualTo(credential.config().get(ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT));
+      // resolving credentials multiple times should hit the credentials endpoint again
+      String refreshedAzureSasCredential = provider.credentialForAccount(STORAGE_ACCOUNT);
+      assertThat(refreshedAzureSasCredential)
+          .isEqualTo(credential.config().get(ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT));
+    }
+
     mockServer.verify(mockRequest, VerificationTimes.exactly(2));
   }
 
@@ -206,13 +213,14 @@ public class VendedAdlsCredentialProviderTest extends BaseVendedCredentialsTest 
         response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    VendedAdlsCredentialProvider provider =
+    try (VendedAdlsCredentialProvider provider =
         new VendedAdlsCredentialProvider(
-            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI));
-    assertThatThrownBy(() -> provider.credentialForAccount(STORAGE_ACCOUNT))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "Invalid ADLS Credentials: only one ADLS credential should exist per storage-account");
+            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI))) {
+      assertThatThrownBy(() -> provider.credentialForAccount(STORAGE_ACCOUNT))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage(
+              "Invalid ADLS Credentials: only one ADLS credential should exist per storage-account");
+    }
   }
 
   @Test
@@ -244,16 +252,17 @@ public class VendedAdlsCredentialProviderTest extends BaseVendedCredentialsTest 
         response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    VendedAdlsCredentialProvider provider =
+    try (VendedAdlsCredentialProvider provider =
         new VendedAdlsCredentialProvider(
-            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI));
-    String azureSasCredential1 = provider.credentialForAccount(STORAGE_ACCOUNT);
-    String azureSasCredential2 = provider.credentialForAccount(STORAGE_ACCOUNT_2);
-    assertThat(azureSasCredential1).isNotSameAs(azureSasCredential2);
-    assertThat(azureSasCredential1)
-        .isEqualTo(credential1.config().get(ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT));
-    assertThat(azureSasCredential2)
-        .isEqualTo(credential2.config().get(ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT_2));
+            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI))) {
+      String azureSasCredential1 = provider.credentialForAccount(STORAGE_ACCOUNT);
+      String azureSasCredential2 = provider.credentialForAccount(STORAGE_ACCOUNT_2);
+      assertThat(azureSasCredential1).isNotSameAs(azureSasCredential2);
+      assertThat(azureSasCredential1)
+          .isEqualTo(credential1.config().get(ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT));
+      assertThat(azureSasCredential2)
+          .isEqualTo(credential2.config().get(ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT_2));
+    }
   }
 
   @Test
@@ -275,18 +284,20 @@ public class VendedAdlsCredentialProviderTest extends BaseVendedCredentialsTest 
         response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    VendedAdlsCredentialProvider provider =
+    try (VendedAdlsCredentialProvider provider =
         new VendedAdlsCredentialProvider(
-            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI));
-    String azureSasCredential = provider.credentialForAccount(STORAGE_ACCOUNT);
-    assertThat(azureSasCredential)
-        .isEqualTo(credential.config().get(ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT));
+            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI))) {
+      String azureSasCredential = provider.credentialForAccount(STORAGE_ACCOUNT);
+      assertThat(azureSasCredential)
+          .isEqualTo(credential.config().get(ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT));
 
-    VendedAdlsCredentialProvider deserializedProvider = TestHelpers.roundTripSerialize(provider);
-    String reGeneratedAzureSasCredential =
-        deserializedProvider.credentialForAccount(STORAGE_ACCOUNT);
+      VendedAdlsCredentialProvider deserializedProvider = TestHelpers.roundTripSerialize(provider);
+      String reGeneratedAzureSasCredential =
+          deserializedProvider.credentialForAccount(STORAGE_ACCOUNT);
 
-    assertThat(azureSasCredential).isNotSameAs(reGeneratedAzureSasCredential);
+      assertThat(azureSasCredential).isNotSameAs(reGeneratedAzureSasCredential);
+    }
+
     mockServer.verify(mockRequest, VerificationTimes.exactly(2));
   }
 }
