@@ -72,7 +72,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.RESTSessionCatalog.SnapshotMode;
+import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthSessionUtil;
+import org.apache.iceberg.rest.auth.OAuth2Manager;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
@@ -330,6 +332,20 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .hasMessage("Invalid uri for http client: null");
 
     restCat.close();
+  }
+
+  @Test
+  public void testCustomAuthManager() throws IOException {
+    AuthManager authManager = Mockito.spy(new OAuth2Manager("test"));
+    RESTCatalogAdapter adapter = new RESTCatalogAdapter(backendCatalog);
+    SessionCatalog.SessionContext context = SessionCatalog.SessionContext.createEmpty();
+    RESTCatalog restCat =
+        new RESTCatalog(context, config -> adapter, (name, config) -> authManager);
+    restCat.initialize("test", Map.of());
+    restCat.close();
+    Mockito.verify(authManager).initSession(adapter, Map.of());
+    Mockito.verify(authManager).catalogSession(adapter, Map.of());
+    Mockito.verify(authManager).close();
   }
 
   @Test

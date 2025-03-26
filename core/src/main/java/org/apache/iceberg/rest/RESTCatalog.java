@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.PartitionSpec;
@@ -41,6 +42,8 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.rest.auth.AuthManager;
+import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
 
@@ -65,7 +68,14 @@ public class RESTCatalog
   public RESTCatalog(
       SessionCatalog.SessionContext context,
       Function<Map<String, String>, RESTClient> clientBuilder) {
-    this.sessionCatalog = new RESTSessionCatalog(clientBuilder, null);
+    this(context, clientBuilder, AuthManagers::loadAuthManager);
+  }
+
+  public RESTCatalog(
+      SessionCatalog.SessionContext context,
+      Function<Map<String, String>, RESTClient> clientBuilder,
+      BiFunction<String, Map<String, String>, AuthManager> authManagerBuilder) {
+    this.sessionCatalog = new RESTSessionCatalog(clientBuilder, null, authManagerBuilder);
     this.delegate = sessionCatalog.asCatalog(context);
     this.nsDelegate = (SupportsNamespaces) delegate;
     this.context = context;
