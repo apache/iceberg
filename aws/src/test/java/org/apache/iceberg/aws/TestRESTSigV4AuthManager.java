@@ -122,8 +122,7 @@ class TestRESTSigV4AuthManager {
     RESTClient client = Mockito.mock(RESTClient.class);
     when(client.withAuthSession(any())).thenReturn(client);
     AuthManager manager = new RESTSigV4AuthManager("test", delegate).withClient(client);
-    AuthSession authSession =
-        manager.authSession(AuthScopes.Initial.of(catalogProperties));
+    AuthSession authSession = manager.authSession(AuthScopes.Initial.of(catalogProperties));
     checkSession(authSession, "us-west-2", "id", "secret");
   }
 
@@ -135,8 +134,7 @@ class TestRESTSigV4AuthManager {
     RESTClient client = Mockito.mock(RESTClient.class);
     when(client.withAuthSession(any())).thenReturn(client);
     AuthManager manager = new RESTSigV4AuthManager("test", delegate).withClient(client);
-    AuthSession authSession =
-        manager.authSession(AuthScopes.Catalog.of(catalogProperties));
+    AuthSession authSession = manager.authSession(AuthScopes.Catalog.of(catalogProperties));
     checkSession(authSession, "us-west-2", "id", "secret");
   }
 
@@ -148,8 +146,7 @@ class TestRESTSigV4AuthManager {
     RESTClient client = Mockito.mock(RESTClient.class);
     when(client.withAuthSession(any())).thenReturn(client);
     AuthManager manager = new RESTSigV4AuthManager("test", delegate).withClient(client);
-    AuthSession catalogSession =
-        manager.authSession(AuthScopes.Catalog.of(catalogProperties));
+    AuthSession catalogSession = manager.authSession(AuthScopes.Catalog.of(catalogProperties));
     SessionCatalog.SessionContext context =
         new SessionCatalog.SessionContext(
             "context1",
@@ -174,8 +171,7 @@ class TestRESTSigV4AuthManager {
     RESTClient client = Mockito.mock(RESTClient.class);
     when(client.withAuthSession(any())).thenReturn(client);
     AuthManager manager = new RESTSigV4AuthManager("test", delegate).withClient(client);
-    AuthSession catalogSession =
-        manager.authSession(AuthScopes.Catalog.of(catalogProperties));
+    AuthSession catalogSession = manager.authSession(AuthScopes.Catalog.of(catalogProperties));
     Map<String, String> tableProperties =
         Map.of(
             AwsProperties.REST_ACCESS_KEY_ID,
