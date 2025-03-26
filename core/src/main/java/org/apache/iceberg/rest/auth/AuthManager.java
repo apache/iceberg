@@ -49,6 +49,15 @@ public interface AuthManager extends AutoCloseable {
   }
 
   /**
+   * Returns a temporary session to use for contacting the configuration endpoint only. Note that
+   * the returned session will be closed after the configuration endpoint is contacted, and should
+   * not be cached.
+   *
+   * <p>The provided REST client is a short-lived client; it should only be used to fetch initial
+   * credentials, if required, and must be discarded after that.
+   *
+   * <p>This method cannot return null. By default, it returns the catalog session.
+   *
    * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
    *     instead.
    */
@@ -58,6 +67,19 @@ public interface AuthManager extends AutoCloseable {
   }
 
   /**
+   * Returns a long-lived session whose lifetime is tied to the owning catalog. This session serves
+   * as the parent session for all other sessions (contextual and table-specific). It is closed when
+   * the owning catalog is closed.
+   *
+   * <p>The provided REST client is a long-lived, shared client; if required, implementors may store
+   * it and reuse it for all subsequent requests to the authorization server, e.g. for renewing or
+   * refreshing credentials. It is not necessary to close it when {@link #close()} is called.
+   *
+   * <p>This method cannot return null.
+   *
+   * <p>It is not required to cache the returned session internally, as the catalog will keep it
+   * alive for the lifetime of the catalog.
+   *
    * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
    *     instead.
    */
@@ -67,6 +89,11 @@ public interface AuthManager extends AutoCloseable {
   }
 
   /**
+   * Returns a new session targeting a table or view. This method is intended for components other
+   * that the catalog that need to access tables or views, such as request signer clients.
+   *
+   * <p>This method cannot return null.
+   *
    * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
    *     instead.
    */
@@ -76,6 +103,17 @@ public interface AuthManager extends AutoCloseable {
   }
 
   /**
+   * Returns a session for a specific context.
+   *
+   * <p>If the context requires a specific {@link AuthSession}, this method should return a new
+   * {@link AuthSession} instance, otherwise it should return the parent session.
+   *
+   * <p>This method cannot return null. By default, it returns the parent session.
+   *
+   * <p>Implementors should cache contextual sessions internally, as the catalog will not cache
+   * them. Also, the owning catalog never closes contextual sessions; implementations should manage
+   * their lifecycle themselves and close them when they are no longer needed.
+   *
    * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
    *     instead.
    */
@@ -85,6 +123,18 @@ public interface AuthManager extends AutoCloseable {
   }
 
   /**
+   * Returns a new session targeting a specific table or view. The properties are the ones returned
+   * by the table/view endpoint.
+   *
+   * <p>If the table or view requires a specific {@link AuthSession}, this method should return a
+   * new {@link AuthSession} instance, otherwise it should return the parent session.
+   *
+   * <p>This method cannot return null. By default, it returns the parent session.
+   *
+   * <p>Implementors should cache table sessions internally, as the catalog will not cache them.
+   * Also, the owning catalog never closes table sessions; implementations should manage their
+   * lifecycle themselves and close them when they are no longer needed.
+   *
    * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #authSession(AuthScope)}
    *     instead.
    */
