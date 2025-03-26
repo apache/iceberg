@@ -76,17 +76,8 @@ public class CommitterImpl implements Committer {
 
   private boolean hasLeaderPartition(Collection<TopicPartition> currentAssignedPartitions) {
     ConsumerGroupDescription groupDesc;
-
-    if (clientFactory == null) {
-      LOG.warn("Client factory is null, cannot check leader partition");
-      return false;
-    }
-
     try (Admin admin = clientFactory.createAdmin()) {
       groupDesc = KafkaUtils.consumerGroupDescription(config.connectGroupId(), admin);
-    } catch (Exception e) {
-      LOG.error("Failed to check consumer group state due to admin client error", e);
-      return false;
     }
 
     Collection<MemberDescription> members = groupDesc.members();
@@ -164,11 +155,7 @@ public class CommitterImpl implements Committer {
       stopCoordinator();
     }
     stopWorker();
-    if (clientFactory != null) {
-      KafkaUtils.seekToLastCommittedOffsets(context);
-    } else {
-      LOG.warn("Client factory is null, cannot seek to last committed offsets");
-    }
+    KafkaUtils.seekToLastCommittedOffsets(context);
   }
 
   @Override
