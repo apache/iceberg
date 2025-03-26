@@ -198,7 +198,7 @@ public class AwsClientProperties implements Serializable {
     if (refreshCredentialsEnabled && !Strings.isNullOrEmpty(refreshCredentialsEndpoint)) {
       clientCredentialsProviderProperties.putAll(allProperties);
       clientCredentialsProviderProperties.put(
-              VendedCredentialsProvider.URI, refreshCredentialsEndpoint);
+          VendedCredentialsProvider.URI, refreshCredentialsEndpoint);
       return credentialsProvider(VendedCredentialsProvider.class.getName());
     }
 
