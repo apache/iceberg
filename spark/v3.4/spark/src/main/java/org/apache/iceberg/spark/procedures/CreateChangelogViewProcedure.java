@@ -272,7 +272,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
    * @return A name that can be safely used within Spark to reference a column by its name.
    */
   private static String delimitedName(String columnName) {
-    final var delimited = columnName.startsWith("`") && columnName.endsWith("`");
+    var delimited = columnName.startsWith("`") && columnName.endsWith("`");
     if (delimited) {
       return columnName;
     } else {

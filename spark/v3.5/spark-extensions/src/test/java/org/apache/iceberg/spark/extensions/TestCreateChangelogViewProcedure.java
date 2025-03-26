@@ -129,15 +129,14 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
         snap2.snapshotId(),
         "cdc_view");
 
-    final var df = spark.sql("select * from cdc_view");
-    final var fieldNames =
+    var df = spark.sql("select * from cdc_view");
+    var fieldNames =
         Arrays.stream(df.schema().fields()).map(StructField::name).collect(Collectors.toList());
     assertThat(fieldNames)
         .containsExactly(
             "the id", "the.data", "_change_type", "_change_ordinal", "_commit_snapshot_id");
 
-    final var rows = df.collectAsList();
-    assertThat(rows).hasSize(2);
+    assertThat(df.collectAsList()).hasSize(2);
   }
 
   @TestTemplate
