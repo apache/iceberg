@@ -648,6 +648,9 @@ Notes:
 5. The `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. For deletion vectors, these values are required and must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
 6. The following field ids are reserved on `data_file`: 141.
 
+For `variant` type, the `lower_bounds` and `upper_bounds` store the minimum and maximum values for all shredded subcolumns within a file. These bounds are represented as a Variant object, where each subcolumn path serves as a key and the corresponding bound value as the value. The object is then serialized into binary format (see [Variant encoding](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md)).
+Subcolumn paths follow the JSON path format, such as `$.event.event_type` for standard keys or `$.event.["user.name"]` for keys containing dots.
+
 For `geometry` and `geography` types, `lower_bounds` and `upper_bounds` are both points of the following coordinates X, Y, Z, and M (see [Appendix G](#appendix-g-geospatial-notes)) which are the lower / upper bound of all objects in the file. For the X values only, xmin may be greater than xmax, in which case an object in this bounding box may match if it contains an X such that `x >= xmin` OR`x <= xmax`. In geographic terminology, the concepts of `xmin`, `xmax`, `ymin`, and `ymax` are also known as `westernmost`, `easternmost`, `southernmost` and `northernmost`, respectively. For `geography` types, these points are further restricted to the canonical ranges of [-180 180] for X and [-90 90] for Y.
 
 The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
@@ -1558,6 +1561,7 @@ The binary single-value serialization can be used to store the lower and upper b
 |------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **`geometry`**               | A single point, encoded as a x:y:z:m concatenation of its 8-byte little-endian IEEE 754 coordinate values. x and y are mandatory. This becomes x:y if z and m are both unset, x:y:z if only m is unset, and x:y:NaN:m if only z is unset. |
 | **`geography`**              | A single point, encoded as a x:y:z:m concatenation of its 8-byte little-endian IEEE 754 coordinate values. x and y are mandatory. This becomes x:y if z and m are both unset, x:y:z if only m is unset, and x:y:NaN:m if only z is unset. |
+| **`variant`**              | A `Variant` object, where each subcolumn path serves as a key and the corresponding bound value as the value. Subcolumn paths follow the JSON path format. |
 
 ### JSON single-value serialization
 
