@@ -521,12 +521,30 @@ project(':iceberg-aws') {
     jvmArgs += project.property('extraJvmArgs')
   }
 
+  task verificationIntegrationTest(type: Test) {
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.integration.output.classesDirs
+    classpath = sourceSets.integration.runtimeClasspath
+    jvmArgs += project.property('extraJvmArgs')
+
+    // Include only specific tests
+    filter {
+      includeTestsMatching "org.apache.iceberg.aws.*.TestMock*"
+    }
+  }
+
   def s3SignerSpec = "$projectDir/src/main/resources/s3-signer-open-api.yaml"
   tasks.register('validateS3SignerSpec', org.openapitools.generator.gradle.plugin.tasks.ValidateTask) {
     inputSpec.set(s3SignerSpec)
     recommend.set(true)
   }
-  check.dependsOn('validateS3SignerSpec')
+  tasks.named('check') {
+    // Only add verificationIntegrationTest to check task if integrationTest are not excluded
+    if (!gradle.startParameter.excludedTaskNames.contains('integrationTest')) {
+      dependsOn verificationIntegrationTest
+    }
+    dependsOn validateS3SignerSpec
+  }
 }
 
 project(':iceberg-azure') {

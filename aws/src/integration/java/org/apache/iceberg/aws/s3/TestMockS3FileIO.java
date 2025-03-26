@@ -104,7 +104,7 @@ import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 
 @Testcontainers
-public class TestS3FileIO {
+public class TestMockS3FileIO {
   @Container private static final MinIOContainer MINIO = MinioUtil.createContainer();
 
   private final SerializableSupplier<S3Client> s3 = () -> MinioUtil.createS3Client(MINIO);

@@ -49,7 +49,7 @@ import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 
-public class TestFlakyS3InputStream extends TestS3InputStream {
+public class TestMockFlakyS3InputStream extends TestMockS3InputStream {
 
   private AtomicInteger resetForRetryCounter;
 

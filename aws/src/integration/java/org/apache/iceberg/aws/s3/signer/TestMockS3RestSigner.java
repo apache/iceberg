@@ -73,7 +73,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 
 @Testcontainers
-public class TestS3RestSigner {
+public class TestMockS3RestSigner {
 
   private static final Region REGION = Region.US_WEST_2;
   private static final String BUCKET = "iceberg-s3-signer-test";

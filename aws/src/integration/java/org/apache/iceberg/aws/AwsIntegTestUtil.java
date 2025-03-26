@@ -29,6 +29,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.model.DeleteDatabaseRequest;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.Delete;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectVersionsRequest;
@@ -107,6 +108,12 @@ public class AwsIntegTestUtil {
    */
   public static String testMultiRegionAccessPointAlias() {
     return System.getenv("AWS_TEST_MULTI_REGION_ACCESS_POINT_ALIAS");
+  }
+
+  public static void createS3Bucket(S3Client s3, String bucketName) {
+    CreateBucketRequest createBucketRequest =
+        CreateBucketRequest.builder().bucket(bucketName).build();
+    s3.createBucket(createBucketRequest);
   }
 
   public static void cleanS3GeneralPurposeBucket(S3Client s3, String bucketName, String prefix) {

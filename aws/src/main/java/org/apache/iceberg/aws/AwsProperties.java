@@ -41,6 +41,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.glue.GlueClientBuilder;
+import software.amazon.awssdk.services.kms.KmsClientBuilder;
 
 public class AwsProperties implements Serializable {
 
@@ -105,6 +106,8 @@ public class AwsProperties implements Serializable {
   public static final String DYNAMODB_TABLE_NAME = "dynamodb.table-name";
 
   public static final String DYNAMODB_TABLE_NAME_DEFAULT = "iceberg";
+
+  public static final String KMS_ENDPOINT = "kms.endpoint";
 
   /**
    * The implementation class of {@link AwsClientFactory} to customize AWS client configurations. If
@@ -225,6 +228,8 @@ public class AwsProperties implements Serializable {
   private String dynamoDbTableName;
   private final String dynamoDbEndpoint;
 
+  private final String kmsEndpoint;
+
   private String restSigningRegion;
   private final String restSigningName;
   private String restAccessKeyId;
@@ -250,6 +255,8 @@ public class AwsProperties implements Serializable {
 
     this.dynamoDbEndpoint = null;
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
+
+    this.kmsEndpoint = null;
 
     this.restSigningName = REST_SIGNING_NAME_DEFAULT;
   }
@@ -287,6 +294,8 @@ public class AwsProperties implements Serializable {
     this.dynamoDbEndpoint = properties.get(DYNAMODB_ENDPOINT);
     this.dynamoDbTableName =
         PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME, DYNAMODB_TABLE_NAME_DEFAULT);
+
+    this.kmsEndpoint = properties.get(KMS_ENDPOINT);
 
     this.restSigningRegion = properties.get(REST_SIGNER_REGION);
     this.restSigningName = properties.getOrDefault(REST_SIGNING_NAME, REST_SIGNING_NAME_DEFAULT);
@@ -383,6 +392,10 @@ public class AwsProperties implements Serializable {
    */
   public <T extends DynamoDbClientBuilder> void applyDynamoDbEndpointConfigurations(T builder) {
     configureEndpoint(builder, dynamoDbEndpoint);
+  }
+
+  public <T extends KmsClientBuilder> void applyKmsEndpointConfigurations(T builder) {
+    configureEndpoint(builder, kmsEndpoint);
   }
 
   public Region restSigningRegion() {

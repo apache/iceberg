@@ -73,8 +73,8 @@ import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.utils.BinaryUtils;
 
 @Testcontainers
-public class TestS3OutputStream {
-  private static final Logger LOG = LoggerFactory.getLogger(TestS3OutputStream.class);
+public class TestMockS3OutputStream {
+  private static final Logger LOG = LoggerFactory.getLogger(TestMockS3OutputStream.class);
   private static final String BUCKET = "test-bucket";
   private static final int FIVE_MBS = 5 * 1024 * 1024;
 
@@ -100,7 +100,7 @@ public class TestS3OutputStream {
               "s3.delete.tags.xyz",
               "456"));
 
-  public TestS3OutputStream() throws IOException {}
+  public TestMockS3OutputStream() throws IOException {}
 
   @BeforeEach
   public void before() {

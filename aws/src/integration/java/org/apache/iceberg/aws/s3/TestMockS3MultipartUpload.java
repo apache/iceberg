@@ -21,14 +21,20 @@ package org.apache.iceberg.aws.s3;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import org.apache.iceberg.aws.AwsClientFactories;
+import org.apache.iceberg.aws.AwsClientFactory;
+import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
+import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.aws.moto.BaseAwsMockTest;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,9 +42,10 @@ import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.s3.S3Client;
 
 /** Long-running tests to ensure multipart upload logic is resilient */
-public class TestS3MultipartUpload {
+public class TestMockS3MultipartUpload extends BaseAwsMockTest {
 
   private final Random random = new Random(1);
+  private static Map<String, String> baseProps;
   private static S3Client s3;
   private static String bucketName;
   private static String prefix;
@@ -48,8 +55,24 @@ public class TestS3MultipartUpload {
 
   @BeforeAll
   public static void beforeClass() {
-    s3 = AwsClientFactories.defaultFactory().s3();
-    bucketName = AwsIntegTestUtil.testBucketName();
+    baseProps =
+        ImmutableMap.of(
+            S3FileIOProperties.CHUNK_ENCODING_ENABLED,
+            "false",
+            S3FileIOProperties.ENDPOINT,
+            MOTO_CONTAINER.endpoint(),
+            AwsProperties.KMS_ENDPOINT,
+            MOTO_CONTAINER.endpoint(),
+            AwsClientProperties.CLIENT_REGION,
+            "us-east-1");
+
+    AwsClientFactory clientFactory = AwsClientFactories.defaultFactory();
+    clientFactory.initialize(baseProps);
+    s3 = clientFactory.s3();
+
+    bucketName = genRandomBucketName();
+    AwsIntegTestUtil.createS3Bucket(s3, bucketName);
+
     prefix = UUID.randomUUID().toString();
     properties = new S3FileIOProperties();
     properties.setMultiPartSize(S3FileIOProperties.MULTIPART_SIZE_MIN);

@@ -36,7 +36,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 @Testcontainers
-public class TestMinioUtil {
+public class TestMockMinioUtil {
   @Container private static final MinIOContainer MINIO = MinioUtil.createContainer();
 
   @Test

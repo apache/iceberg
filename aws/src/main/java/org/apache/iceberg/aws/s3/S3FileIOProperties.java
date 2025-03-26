@@ -290,6 +290,10 @@ public class S3FileIOProperties implements Serializable {
 
   public static final boolean CHECKSUM_ENABLED_DEFAULT = false;
 
+  public static final String CHUNK_ENCODING_ENABLED = "s3.chunked-encoding.enabled";
+
+  public static final boolean CHUNK_ENCODING_ENABLED_DEFAULT = true;
+
   public static final String REMOTE_SIGNING_ENABLED = "s3.remote-signing-enabled";
 
   public static final boolean REMOTE_SIGNING_ENABLED_DEFAULT = false;
@@ -508,6 +512,7 @@ public class S3FileIOProperties implements Serializable {
   private String stagingDirectory;
   private ObjectCannedACL acl;
   private boolean isChecksumEnabled;
+  private boolean isChunkEncodingEnabled;
   private final Set<Tag> writeTags;
   private boolean isWriteTableTagEnabled;
   private boolean isWriteNamespaceTagEnabled;
@@ -550,6 +555,7 @@ public class S3FileIOProperties implements Serializable {
     this.deleteBatchSize = DELETE_BATCH_SIZE_DEFAULT;
     this.stagingDirectory = System.getProperty("java.io.tmpdir");
     this.isChecksumEnabled = CHECKSUM_ENABLED_DEFAULT;
+    this.isChunkEncodingEnabled = CHUNK_ENCODING_ENABLED_DEFAULT;
     this.writeTags = Sets.newHashSet();
     this.isWriteTableTagEnabled = WRITE_TABLE_TAG_ENABLED_DEFAULT;
     this.isWriteNamespaceTagEnabled = WRITE_NAMESPACE_TAG_ENABLED_DEFAULT;
@@ -640,6 +646,9 @@ public class S3FileIOProperties implements Serializable {
         "Cannot support S3 CannedACL " + aclType);
     this.isChecksumEnabled =
         PropertyUtil.propertyAsBoolean(properties, CHECKSUM_ENABLED, CHECKSUM_ENABLED_DEFAULT);
+    this.isChunkEncodingEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, CHUNK_ENCODING_ENABLED, CHECKSUM_ENABLED_DEFAULT);
     this.deleteBatchSize =
         PropertyUtil.propertyAsInt(properties, DELETE_BATCH_SIZE, DELETE_BATCH_SIZE_DEFAULT);
     Preconditions.checkArgument(
@@ -982,6 +991,7 @@ public class S3FileIOProperties implements Serializable {
         .crossRegionAccessEnabled(isCrossRegionAccessEnabled)
         .serviceConfiguration(
             S3Configuration.builder()
+                .chunkedEncodingEnabled(isChunkEncodingEnabled)
                 .pathStyleAccessEnabled(isPathStyleAccess)
                 .useArnRegionEnabled(isUseArnRegionEnabled)
                 .accelerateModeEnabled(isAccelerationEnabled)

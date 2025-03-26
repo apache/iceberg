@@ -151,6 +151,7 @@ public class AwsClientFactories {
       return KmsClient.builder()
           .applyMutation(awsClientProperties::applyClientRegionConfiguration)
           .applyMutation(httpClientProperties::applyHttpClientConfigurations)
+          .applyMutation(awsProperties::applyKmsEndpointConfigurations)
           .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
           .applyMutation(awsClientProperties::applyRetryConfigurations)
           .build();

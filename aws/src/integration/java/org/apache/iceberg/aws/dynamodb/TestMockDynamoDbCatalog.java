@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -34,8 +33,11 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
+import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.aws.moto.BaseAwsMockTest;
+import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -56,8 +58,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
-public class TestDynamoDbCatalog {
-
+public class TestMockDynamoDbCatalog extends BaseAwsMockTest {
   private static final ForkJoinPool POOL = new ForkJoinPool(16);
   private static final Schema SCHEMA =
       new Schema(Types.NestedField.required(1, "id", Types.StringType.get()));
@@ -67,22 +68,39 @@ public class TestDynamoDbCatalog {
   private static S3Client s3;
   private static DynamoDbCatalog catalog;
   private static String testBucket;
+  private static String path;
+  private static Map<String, String> baseProps;
 
   @BeforeAll
   public static void beforeClass() {
     catalogTableName = genRandomName();
-    AwsClientFactory clientFactory = AwsClientFactories.defaultFactory();
-    dynamo = clientFactory.dynamo();
-    s3 = clientFactory.s3();
     catalog = new DynamoDbCatalog();
-    testBucket = AwsIntegTestUtil.testBucketName();
-    catalog.initialize(
-        "test",
+    testBucket = genRandomBucketName();
+    path = "s3://" + testBucket + "/" + genRandomName();
+
+    baseProps =
         ImmutableMap.of(
+            S3FileIOProperties.CHUNK_ENCODING_ENABLED,
+            "false",
+            AwsProperties.DYNAMODB_ENDPOINT,
+            MOTO_CONTAINER.endpoint(),
+            S3FileIOProperties.ENDPOINT,
+            MOTO_CONTAINER.endpoint(),
+            AwsClientProperties.CLIENT_REGION,
+            "us-east-1",
             AwsProperties.DYNAMODB_TABLE_NAME,
             catalogTableName,
             CatalogProperties.WAREHOUSE_LOCATION,
-            "s3://" + testBucket + "/" + genRandomName()));
+            path);
+
+    AwsClientFactory clientFactory = AwsClientFactories.defaultFactory();
+    clientFactory.initialize(baseProps);
+
+    dynamo = clientFactory.dynamo();
+    s3 = clientFactory.s3();
+    AwsIntegTestUtil.createS3Bucket(s3, testBucket);
+
+    catalog.initialize("test", baseProps);
   }
 
   @AfterAll
@@ -242,7 +260,7 @@ public class TestDynamoDbCatalog {
                         .build()))
         .as("metadata location should be deleted")
         .isInstanceOf(NoSuchKeyException.class)
-        .hasMessageContaining("not found");
+        .hasMessageContaining("Status Code: 404");
   }
 
   @Test
@@ -393,9 +411,5 @@ public class TestDynamoDbCatalog {
         .hasMessageContaining("already exists");
     assertThat(catalog.dropTable(identifier, true)).isTrue();
     assertThat(catalog.dropNamespace(namespace)).isTrue();
-  }
-
-  private static String genRandomName() {
-    return UUID.randomUUID().toString().replace("-", "");
   }
 }
