@@ -27,18 +27,26 @@ import org.junit.jupiter.api.Test;
 public class TestTimeTransforms {
   @Test
   public void testMicrosSatisfiesOrderOfDates() {
+    assertThat(Identity.get().satisfiesOrderOf(Dates.DAY)).isTrue();
+    assertThat(Identity.get().satisfiesOrderOf(Dates.MONTH)).isTrue();
+    assertThat(Identity.get().satisfiesOrderOf(Dates.YEAR)).isTrue();
+
+    assertThat(Hours.get().satisfiesOrderOf(Identity.get())).isFalse();
     assertThat(Hours.get().satisfiesOrderOf(Dates.DAY)).isTrue();
     assertThat(Hours.get().satisfiesOrderOf(Dates.MONTH)).isTrue();
     assertThat(Hours.get().satisfiesOrderOf(Dates.YEAR)).isTrue();
 
+    assertThat(Days.get().satisfiesOrderOf(Identity.get())).isFalse();
     assertThat(Days.get().satisfiesOrderOf(Dates.DAY)).isTrue();
     assertThat(Days.get().satisfiesOrderOf(Dates.MONTH)).isTrue();
     assertThat(Days.get().satisfiesOrderOf(Dates.YEAR)).isTrue();
 
+    assertThat(Months.get().satisfiesOrderOf(Identity.get())).isFalse();
     assertThat(Months.get().satisfiesOrderOf(Dates.DAY)).isFalse();
     assertThat(Months.get().satisfiesOrderOf(Dates.MONTH)).isTrue();
     assertThat(Months.get().satisfiesOrderOf(Dates.YEAR)).isTrue();
 
+    assertThat(Years.get().satisfiesOrderOf(Identity.get())).isFalse();
     assertThat(Years.get().satisfiesOrderOf(Dates.DAY)).isFalse();
     assertThat(Years.get().satisfiesOrderOf(Dates.MONTH)).isFalse();
     assertThat(Years.get().satisfiesOrderOf(Dates.YEAR)).isTrue();
