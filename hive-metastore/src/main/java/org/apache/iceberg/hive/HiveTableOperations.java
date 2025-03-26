@@ -285,9 +285,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
                         + HiveTableOperations.METADATA_LOCATION_PROP
                         + "' is")) {
           // It's possible the HMS client incorrectly retries a successful operation, due to network
-          // issue for example, and triggers this exception. So we need double-check to
-          // make sure this is really a concurrent modification
-          commitStatus = handlePossibleConcurrentModification(newMetadataLocation, metadata);
+          // issue for example, and triggers this exception. So we need double-check to make sure
+          // this is really a concurrent modification. Hitting this exception means no pending
+          // requests, if any, can succeed later, so it's safe to check status in strict mode
+          commitStatus = checkCommitStatusStrict(newMetadataLocation, metadata);
           if (commitStatus == BaseMetastoreOperations.CommitStatus.FAILURE) {
             throw new CommitFailedException(
                 e, "The table %s.%s has been modified concurrently", database, tableName);
@@ -329,24 +330,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
     LOG.info(
         "Committed to table {} with the new metadata location {}", fullName, newMetadataLocation);
-  }
-
-  private BaseMetastoreOperations.CommitStatus handlePossibleConcurrentModification(
-      String newMetadataLocation, TableMetadata metadata) {
-    Optional<Boolean> locationCommitted =
-        metadataLocationCommitted(
-            tableName(),
-            newMetadataLocation,
-            metadata.properties(),
-            () -> checkCurrentMetadataLocation(newMetadataLocation));
-    if (locationCommitted.isPresent()) {
-      if (locationCommitted.get()) {
-        return BaseMetastoreOperations.CommitStatus.SUCCESS;
-      } else {
-        return BaseMetastoreOperations.CommitStatus.FAILURE;
-      }
-    }
-    return BaseMetastoreOperations.CommitStatus.UNKNOWN;
   }
 
   private void setHmsTableParameters(

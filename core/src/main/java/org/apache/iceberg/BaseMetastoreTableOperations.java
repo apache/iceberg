@@ -23,6 +23,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import org.apache.iceberg.BaseMetastoreOperations.CommitStatus;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -286,15 +287,38 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
    * were attempting to set. This is used as a last resort when we are dealing with exceptions that
    * may indicate the commit has failed but are not proof that this is the case. Past locations must
    * also be searched on the chance that a second committer was able to successfully commit on top
-   * of our commit.
+   * of our commit. When the {@code newMetadataLocation} is not found, the method returns {@link
+   * CommitStatus#UNKNOWN}.
+   *
+   * @param newMetadataLocation the path of the new commit file
+   * @param config metadata to use for configuration
+   * @return Commit Status of Success, Unknown
+   */
+  protected CommitStatus checkCommitStatus(String newMetadataLocation, TableMetadata config) {
+    return CommitStatus.valueOf(
+        checkCommitStatus(
+                tableName(),
+                newMetadataLocation,
+                config.properties(),
+                () -> checkCurrentMetadataLocation(newMetadataLocation))
+            .name());
+  }
+
+  /**
+   * Attempt to load the table and see if any current or past metadata location matches the one we
+   * were attempting to set. This is used as a last resort when we are dealing with exceptions that
+   * may indicate the commit has failed but are not proof that this is the case. Past locations must
+   * also be searched on the chance that a second committer was able to successfully commit on top
+   * of our commit. When the {@code newMetadataLocation} is not found, the method returns {@link
+   * CommitStatus#FAILURE}.
    *
    * @param newMetadataLocation the path of the new commit file
    * @param config metadata to use for configuration
    * @return Commit Status of Success, Failure or Unknown
    */
-  protected CommitStatus checkCommitStatus(String newMetadataLocation, TableMetadata config) {
+  protected CommitStatus checkCommitStatusStrict(String newMetadataLocation, TableMetadata config) {
     return CommitStatus.valueOf(
-        checkCommitStatus(
+        checkCommitStatusStrict(
                 tableName(),
                 newMetadataLocation,
                 config.properties(),
@@ -310,7 +334,7 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
    * @return true if the new metadata location is the current metadata location or present within
    *     previous metadata files.
    */
-  protected boolean checkCurrentMetadataLocation(String newMetadataLocation) {
+  private boolean checkCurrentMetadataLocation(String newMetadataLocation) {
     TableMetadata metadata = refresh();
     String currentMetadataFileLocation = metadata.metadataFileLocation();
     return currentMetadataFileLocation.equals(newMetadataLocation)
