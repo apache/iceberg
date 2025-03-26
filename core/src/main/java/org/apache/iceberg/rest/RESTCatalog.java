@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -44,6 +43,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewBuilder;
 
+import static org.apache.iceberg.rest.RESTUtil.DEFAULT_CLIENT_BUILDER;
+
 public class RESTCatalog
     implements Catalog, ViewCatalog, SupportsNamespaces, Configurable<Object>, Closeable {
   private final RESTSessionCatalog sessionCatalog;
@@ -54,12 +55,11 @@ public class RESTCatalog
 
   public RESTCatalog() {
     this(
-        SessionCatalog.SessionContext.createEmpty(),
-        config ->
-            HTTPClient.builder(config)
-                .uri(config.get(CatalogProperties.URI))
-                .withHeaders(RESTUtil.configHeaders(config))
-                .build());
+        SessionCatalog.SessionContext.createEmpty());
+  }
+
+  public RESTCatalog(SessionCatalog.SessionContext context) {
+    this(context, DEFAULT_CLIENT_BUILDER);
   }
 
   public RESTCatalog(Function<Map<String, String>, RESTClient> clientBuilder) {

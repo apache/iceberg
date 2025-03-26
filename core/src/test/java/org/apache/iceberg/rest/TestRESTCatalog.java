@@ -18,19 +18,9 @@
  */
 package org.apache.iceberg.rest;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyMap;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.ImmutableMap;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -67,7 +57,6 @@ import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
@@ -99,6 +88,18 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
+
+import static org.apache.iceberg.rest.RESTUtil.DEFAULT_CLIENT_BUILDER;
+import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
@@ -174,8 +175,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     RESTCatalog catalog =
         new RESTCatalog(
-            context,
-            (config) -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build());
+            context);
     catalog.setConf(conf);
     Map<String, String> properties =
         ImmutableMap.of(
@@ -330,6 +330,24 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .hasMessage("Invalid uri for http client: null");
 
     restCat.close();
+  }
+
+  @Test
+  public void testCatalogProperties(){
+    Map<String, String> headerProperties = ImmutableMap.of(CatalogProperties.HTTP_HEADER_PREFIX + "test-header", "test-value");
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    RESTCatalog catalog = initCatalog("test", headerProperties);
+
+    assertThat(catalog.properties()).containsEntry(CatalogProperties.HTTP_HEADER_PREFIX + "test-header", "test-value");
+  }
+
+  @Test
+  public void testDefaultClientBuilder(){
+    Map<String, String> headerProperties = ImmutableMap.of(CatalogProperties.HTTP_HEADER_PREFIX + "test-header", "test-value");
+    RESTClient client = DEFAULT_CLIENT_BUILDER.apply(headerProperties);
+    assertThat(client).isInstanceOf(HTTPClient.class);
+    assertThat(((HTTPClient) client).getBaseHeaders()).containsEntry("test-header", "test-value");
   }
 
   @Test

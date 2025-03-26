@@ -135,6 +135,10 @@ public class HTTPClient extends BaseHTTPClient {
     return new HTTPClient(this, session);
   }
 
+  public Map<String, String> getBaseHeaders(){
+    return baseHeaders;
+  }
+
   private static String extractResponseBodyAsString(CloseableHttpResponse response) {
     try {
       if (response.getEntity() == null) {
