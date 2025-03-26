@@ -219,4 +219,12 @@ public class ADLSFileIO implements DelegateFileIO {
       }
     }
   }
+
+  @Override
+  public void close() {
+    if (vendedAdlsCredentialProvider != null) {
+      vendedAdlsCredentialProvider.close();
+    }
+    DelegateFileIO.super.close();
+  }
 }

@@ -22,34 +22,36 @@ import com.azure.core.credential.AccessToken;
 import com.azure.core.credential.SimpleTokenCache;
 import java.io.IOException;
 import java.io.Serializable;
+import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.azure.AzureProperties;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
-import org.apache.iceberg.rest.HTTPHeaders;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.auth.AuthManager;
+import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
-import org.apache.iceberg.rest.auth.DefaultAuthSession;
-import org.apache.iceberg.rest.auth.OAuth2Properties;
-import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 import org.apache.iceberg.util.SerializableMap;
 import reactor.core.publisher.Mono;
 
-public class VendedAdlsCredentialProvider implements Serializable {
+public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable {
 
   public static final String URI = "credentials.uri";
 
   private final SerializableMap<String, String> properties;
   private transient volatile Map<String, SimpleTokenCache> sasCredentialByAccount;
-  private transient volatile AuthSession authSession;
+  private transient volatile HTTPClient client;
+  private transient AuthManager authManager;
+  private transient AuthSession authSession;
 
   public VendedAdlsCredentialProvider(Map<String, String> properties) {
     Preconditions.checkArgument(null != properties, "Invalid properties: null");
@@ -111,39 +113,28 @@ public class VendedAdlsCredentialProvider implements Serializable {
   }
 
   private RESTClient httpClient() {
-    return HTTPClient.builder(properties)
-        .uri(properties.get(URI))
-        .withAuthSession(authSession())
-        .build();
-  }
-
-  private AuthSession authSession() {
-    if (this.authSession == null) {
+    if (null == client) {
       synchronized (this) {
-        if (this.authSession == null) {
-          this.authSession =
-              DefaultAuthSession.of(
-                  HTTPHeaders.of(OAuth2Util.authHeaders(properties.get(OAuth2Properties.TOKEN))));
+        if (null == client) {
+          authManager = AuthManagers.loadAuthManager("adls-credentials-refresh", properties);
+          HTTPClient httpClient = HTTPClient.builder(properties).uri(properties.get(URI)).build();
+          authSession = authManager.catalogSession(httpClient, properties);
+          client = httpClient.withAuthSession(authSession);
         }
       }
     }
-    return this.authSession;
+
+    return client;
   }
 
   private LoadCredentialsResponse fetchCredentials() {
-    LoadCredentialsResponse response;
-    try (RESTClient client = httpClient()) {
-      response =
-          client.get(
-              properties.get(URI),
-              null,
-              LoadCredentialsResponse.class,
-              Map.of(),
-              ErrorHandlers.defaultErrorHandler());
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-    return response;
+    return httpClient()
+        .get(
+            properties.get(URI),
+            null,
+            LoadCredentialsResponse.class,
+            Map.of(),
+            ErrorHandlers.defaultErrorHandler());
   }
 
   private void checkCredential(Credential credential, String property) {
@@ -151,5 +142,19 @@ public class VendedAdlsCredentialProvider implements Serializable {
         credential.config().containsKey(property),
         "Invalid ADLS Credentials: %s not set",
         property);
+  }
+
+  @Override
+  public void close() {
+    CloseableGroup closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(authSession);
+    closeableGroup.addCloseable(authManager);
+    closeableGroup.addCloseable(client);
+    closeableGroup.setSuppressCloseFailure(true);
+    try {
+      closeableGroup.close();
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close the VendedAdlsCredentialProvider", e);
+    }
   }
 }
