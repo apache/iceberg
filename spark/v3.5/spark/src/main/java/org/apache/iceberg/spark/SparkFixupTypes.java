@@ -47,7 +47,7 @@ class SparkFixupTypes extends FixupTypes {
         }
         break;
       case BINARY:
-        if (source.typeId() == Type.TypeID.FIXED) {
+        if (source.typeId() == Type.TypeID.FIXED || source.typeId() == Type.TypeID.VARIANT) {
           return true;
         }
         break;
