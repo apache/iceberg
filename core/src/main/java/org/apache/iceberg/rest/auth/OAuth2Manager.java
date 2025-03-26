@@ -86,6 +86,7 @@ public class OAuth2Manager extends RefreshingAuthManager {
     }
 
     AuthConfig config = AuthConfig.fromProperties(scope.properties());
+    keepRefreshed(config.keepRefreshed());
     if (scope instanceof AuthScopes.Initial) {
       warnIfDeprecatedTokenEndpointUsed(scope.properties());
       return initSession(config);
