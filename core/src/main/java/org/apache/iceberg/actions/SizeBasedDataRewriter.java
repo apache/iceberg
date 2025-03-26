@@ -35,8 +35,8 @@ import org.apache.iceberg.util.PropertyUtil;
 /**
  * Deprecated {@link SizeBasedDataRewriter} abstract class.
  *
- * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link RewriteFileGroupPlanner} and
- *     {@link FileRewriteRunner}
+ * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link BinPackRewriteFileGroupPlanner}
+ *     and {@link FileRewriteRunner}
  */
 @Deprecated
 public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileScanTask, DataFile> {
@@ -56,15 +56,15 @@ public abstract class SizeBasedDataRewriter extends SizeBasedFileRewriter<FileSc
   public static final int DELETE_FILE_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
 
   /**
-   * The minimum deletion ratio that needs to be associated with a data file for it to be considered
-   * for rewriting. If the deletion ratio of a data file is greater than or equal to this value, it
-   * will be rewritten regardless of its file size determined by {@link #MIN_FILE_SIZE_BYTES} and
-   * {@link #MAX_FILE_SIZE_BYTES}. If a file group contains a file that satisfies this condition,
-   * the file group will be rewritten regardless of the number of files in the file group determined
-   * by {@link #MIN_INPUT_FILES}.
+   * The percentage of the deleted records in a data file that enforces a data file rewrite. If the
+   * deletion ratio of a data file is greater or equal than this value, it will be rewritten
+   * regardless of its file size determined by {@link #MIN_FILE_SIZE_BYTES} and {@link
+   * #MAX_FILE_SIZE_BYTES}. If a file group contains a file that satisfies this condition, the file
+   * group will be rewritten regardless of the number of files in the file group determined by
+   * {@link #MIN_INPUT_FILES}.
    *
-   * <p>Defaults to 0.3, which means that if the deletion ratio of a file reaches or exceeds 30%, it
-   * may trigger the rewriting operation.
+   * <p>Defaults to 0.3, which means that if the number of deleted records in a file reaches or
+   * exceeds 30%, it may trigger the rewriting operation.
    */
   public static final String DELETE_RATIO_THRESHOLD = "delete-ratio-threshold";
 

@@ -73,9 +73,9 @@ class TestSizeBasedFileRewritePlanner {
 
     Map<String, String> options =
         ImmutableMap.of(
-            RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, String.valueOf(minFileSize),
-            RewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES, String.valueOf(targetFileSize),
-            RewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES, String.valueOf(maxFileSize));
+            BinPackRewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, String.valueOf(minFileSize),
+            BinPackRewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES, String.valueOf(targetFileSize),
+            BinPackRewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES, String.valueOf(maxFileSize));
     planner.init(options);
 
     // the total task size is 580 MB and the target file size is 512 MB
@@ -98,12 +98,12 @@ class TestSizeBasedFileRewritePlanner {
         .as("Planner must report all supported options")
         .isEqualTo(
             ImmutableSet.of(
-                RewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES,
-                RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES,
-                RewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES,
-                RewriteFileGroupPlanner.MIN_INPUT_FILES,
-                RewriteFileGroupPlanner.REWRITE_ALL,
-                RewriteFileGroupPlanner.MAX_FILE_GROUP_SIZE_BYTES));
+                BinPackRewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES,
+                BinPackRewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES,
+                BinPackRewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES,
+                BinPackRewriteFileGroupPlanner.MIN_INPUT_FILES,
+                BinPackRewriteFileGroupPlanner.REWRITE_ALL,
+                BinPackRewriteFileGroupPlanner.MAX_FILE_GROUP_SIZE_BYTES));
   }
 
   @Test

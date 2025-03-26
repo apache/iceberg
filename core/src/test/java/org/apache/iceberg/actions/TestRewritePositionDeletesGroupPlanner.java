@@ -112,9 +112,9 @@ class TestRewritePositionDeletesGroupPlanner {
     RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
     planner.init(
         ImmutableMap.of(
-            RewriteFileGroupPlanner.MIN_INPUT_FILES,
+            BinPackRewriteFileGroupPlanner.MIN_INPUT_FILES,
             "1",
-            RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES,
+            BinPackRewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES,
             "30"));
 
     FileRewritePlan<FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
@@ -145,7 +145,7 @@ class TestRewritePositionDeletesGroupPlanner {
     RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
     planner.init(
         ImmutableMap.of(
-            RewriteFileGroupPlanner.REWRITE_ALL, "true", REWRITE_JOB_ORDER, order.name()));
+            BinPackRewriteFileGroupPlanner.REWRITE_ALL, "true", REWRITE_JOB_ORDER, order.name()));
 
     FileRewritePlan<FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
         plan = planner.plan();

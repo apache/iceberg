@@ -55,7 +55,7 @@ import org.slf4j.LoggerFactory;
  * SizeBasedFileRewritePlanner} with delete file number and delete ratio thresholds and job {@link
  * RewriteDataFiles#REWRITE_JOB_ORDER} handling.
  */
-public class RewriteFileGroupPlanner
+public class BinPackRewriteFileGroupPlanner
     extends SizeBasedFileRewritePlanner<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> {
   /**
    * The minimum number of deletes that needs to be associated with a data file for it to be
@@ -86,7 +86,7 @@ public class RewriteFileGroupPlanner
 
   public static final double DELETE_RATIO_THRESHOLD_DEFAULT = 0.3;
 
-  private static final Logger LOG = LoggerFactory.getLogger(RewriteFileGroupPlanner.class);
+  private static final Logger LOG = LoggerFactory.getLogger(BinPackRewriteFileGroupPlanner.class);
 
   private final Expression filter;
   private final Long snapshotId;
@@ -96,11 +96,11 @@ public class RewriteFileGroupPlanner
   private double deleteRatioThreshold;
   private RewriteJobOrder rewriteJobOrder;
 
-  public RewriteFileGroupPlanner(Table table) {
+  public BinPackRewriteFileGroupPlanner(Table table) {
     this(table, Expressions.alwaysTrue());
   }
 
-  public RewriteFileGroupPlanner(Table table, Expression filter) {
+  public BinPackRewriteFileGroupPlanner(Table table, Expression filter) {
     this(
         table,
         filter,
@@ -117,7 +117,7 @@ public class RewriteFileGroupPlanner
    *     commit time when replacing the files
    * @param caseSensitive property used for scanning
    */
-  public RewriteFileGroupPlanner(
+  public BinPackRewriteFileGroupPlanner(
       Table table, Expression filter, Long snapshotId, boolean caseSensitive) {
     super(table);
     this.filter = filter;

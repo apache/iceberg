@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.actions;
 
+import static org.apache.iceberg.actions.BinPackRewriteFileGroupPlanner.MAX_FILE_SIZE_DEFAULT_RATIO;
 import static org.apache.iceberg.actions.RewriteDataFiles.REWRITE_JOB_ORDER;
-import static org.apache.iceberg.actions.RewriteFileGroupPlanner.MAX_FILE_SIZE_DEFAULT_RATIO;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -52,9 +52,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-class TestRewriteFileGroupPlanner {
+class TestBinPackRewriteFileGroupPlanner {
   private static final Map<String, String> REWRITE_ALL =
-      ImmutableMap.of(RewriteFileGroupPlanner.REWRITE_ALL, "true");
+      ImmutableMap.of(BinPackRewriteFileGroupPlanner.REWRITE_ALL, "true");
 
   private static final DataFile FILE_1 = newDataFile("data_bucket=0", 10);
   private static final DataFile FILE_2 = newDataFile("data_bucket=0", 10);
@@ -90,8 +90,8 @@ class TestRewriteFileGroupPlanner {
   @Test
   void testPartitionedTable() {
     addFiles();
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
-    planner.init(ImmutableMap.of(RewriteFileGroupPlanner.REWRITE_ALL, "true"));
+    BinPackRewriteFileGroupPlanner planner = new BinPackRewriteFileGroupPlanner(table);
+    planner.init(ImmutableMap.of(BinPackRewriteFileGroupPlanner.REWRITE_ALL, "true"));
 
     FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
 
@@ -110,12 +110,12 @@ class TestRewriteFileGroupPlanner {
         .appendFile(newDataFile("", 20))
         .appendFile(newDataFile("", 30))
         .commit();
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    BinPackRewriteFileGroupPlanner planner = new BinPackRewriteFileGroupPlanner(table);
     planner.init(
         ImmutableMap.of(
-            RewriteFileGroupPlanner.MIN_INPUT_FILES,
+            BinPackRewriteFileGroupPlanner.MIN_INPUT_FILES,
             "1",
-            RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES,
+            BinPackRewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES,
             "30"));
 
     FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
@@ -126,7 +126,7 @@ class TestRewriteFileGroupPlanner {
 
   @Test
   void testEmptyTable() {
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    BinPackRewriteFileGroupPlanner planner = new BinPackRewriteFileGroupPlanner(table);
     planner.init(REWRITE_ALL);
 
     FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
@@ -141,10 +141,10 @@ class TestRewriteFileGroupPlanner {
       names = {"FILES_DESC", "FILES_ASC", "BYTES_DESC", "BYTES_ASC"})
   void testJobOrder(RewriteJobOrder order) {
     addFiles();
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    BinPackRewriteFileGroupPlanner planner = new BinPackRewriteFileGroupPlanner(table);
     planner.init(
         ImmutableMap.of(
-            RewriteFileGroupPlanner.REWRITE_ALL, "true", REWRITE_JOB_ORDER, order.name()));
+            BinPackRewriteFileGroupPlanner.REWRITE_ALL, "true", REWRITE_JOB_ORDER, order.name()));
 
     FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
 
@@ -158,12 +158,12 @@ class TestRewriteFileGroupPlanner {
   @Test
   void testMaxGroupSize() {
     addFiles();
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    BinPackRewriteFileGroupPlanner planner = new BinPackRewriteFileGroupPlanner(table);
     planner.init(
         ImmutableMap.of(
-            RewriteFileGroupPlanner.REWRITE_ALL,
+            BinPackRewriteFileGroupPlanner.REWRITE_ALL,
             "true",
-            RewriteFileGroupPlanner.MAX_FILE_GROUP_SIZE_BYTES,
+            BinPackRewriteFileGroupPlanner.MAX_FILE_GROUP_SIZE_BYTES,
             "10"));
 
     FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
@@ -177,8 +177,8 @@ class TestRewriteFileGroupPlanner {
   @Test
   void testFilter() {
     addFiles();
-    RewriteFileGroupPlanner planner =
-        new RewriteFileGroupPlanner(
+    BinPackRewriteFileGroupPlanner planner =
+        new BinPackRewriteFileGroupPlanner(
             table,
             Expressions.or(
                 Expressions.equal(Expressions.bucket("data", 16), 0),
@@ -197,12 +197,12 @@ class TestRewriteFileGroupPlanner {
   void testMaxOutputFileSize() {
     addFiles();
     int targetFileSize = 10;
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    BinPackRewriteFileGroupPlanner planner = new BinPackRewriteFileGroupPlanner(table);
     planner.init(
         ImmutableMap.of(
-            RewriteFileGroupPlanner.REWRITE_ALL,
+            BinPackRewriteFileGroupPlanner.REWRITE_ALL,
             "true",
-            RewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES,
+            BinPackRewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES,
             String.valueOf(targetFileSize)));
 
     FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
@@ -215,12 +215,12 @@ class TestRewriteFileGroupPlanner {
   @Test
   void testExpectedOutputFiles() {
     addFiles();
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    BinPackRewriteFileGroupPlanner planner = new BinPackRewriteFileGroupPlanner(table);
     planner.init(
         ImmutableMap.of(
-            RewriteFileGroupPlanner.REWRITE_ALL,
+            BinPackRewriteFileGroupPlanner.REWRITE_ALL,
             "true",
-            RewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES,
+            BinPackRewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES,
             "21"));
 
     FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
@@ -255,7 +255,7 @@ class TestRewriteFileGroupPlanner {
       options.put(RewriteDataFiles.OUTPUT_SPEC_ID, String.valueOf(oldSpecId));
     }
 
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    BinPackRewriteFileGroupPlanner planner = new BinPackRewriteFileGroupPlanner(table);
     planner.init(options);
 
     FileRewritePlan<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> plan = planner.plan();
@@ -266,26 +266,26 @@ class TestRewriteFileGroupPlanner {
 
   @Test
   void testValidOptions() {
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    BinPackRewriteFileGroupPlanner planner = new BinPackRewriteFileGroupPlanner(table);
 
     assertThat(planner.validOptions())
         .as("Planner must report all supported options")
         .isEqualTo(
             ImmutableSet.of(
-                RewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES,
-                RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES,
-                RewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES,
-                RewriteFileGroupPlanner.MIN_INPUT_FILES,
-                RewriteFileGroupPlanner.REWRITE_ALL,
-                RewriteFileGroupPlanner.MAX_FILE_GROUP_SIZE_BYTES,
-                RewriteFileGroupPlanner.DELETE_FILE_THRESHOLD,
-                RewriteFileGroupPlanner.DELETE_RATIO_THRESHOLD,
+                BinPackRewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES,
+                BinPackRewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES,
+                BinPackRewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES,
+                BinPackRewriteFileGroupPlanner.MIN_INPUT_FILES,
+                BinPackRewriteFileGroupPlanner.REWRITE_ALL,
+                BinPackRewriteFileGroupPlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                BinPackRewriteFileGroupPlanner.DELETE_FILE_THRESHOLD,
+                BinPackRewriteFileGroupPlanner.DELETE_RATIO_THRESHOLD,
                 RewriteDataFiles.REWRITE_JOB_ORDER));
   }
 
   @Test
   void testInvalidOption() {
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    BinPackRewriteFileGroupPlanner planner = new BinPackRewriteFileGroupPlanner(table);
 
     Map<String, String> invalidRewriteJobOrderOptions =
         ImmutableMap.of(RewriteDataFiles.REWRITE_JOB_ORDER, "foo");
@@ -301,19 +301,19 @@ class TestRewriteFileGroupPlanner {
             "Cannot use output spec id 1234 because the table does not contain a reference to this spec-id.");
 
     Map<String, String> invalidDeleteFileThresholdOptions =
-        ImmutableMap.of(RewriteFileGroupPlanner.DELETE_FILE_THRESHOLD, "-1");
+        ImmutableMap.of(BinPackRewriteFileGroupPlanner.DELETE_FILE_THRESHOLD, "-1");
     assertThatThrownBy(() -> planner.init(invalidDeleteFileThresholdOptions))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("'delete-file-threshold' is set to -1 but must be >= 0");
 
     Map<String, String> negativeDeleteRatioThresholdOptions =
-        ImmutableMap.of(RewriteFileGroupPlanner.DELETE_RATIO_THRESHOLD, "-1");
+        ImmutableMap.of(BinPackRewriteFileGroupPlanner.DELETE_RATIO_THRESHOLD, "-1");
     assertThatThrownBy(() -> planner.init(negativeDeleteRatioThresholdOptions))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("'delete-ratio-threshold' is set to -1.0 but must be > 0");
 
     Map<String, String> invalidDeleteRatioThresholdOptions =
-        ImmutableMap.of(RewriteFileGroupPlanner.DELETE_RATIO_THRESHOLD, "127");
+        ImmutableMap.of(BinPackRewriteFileGroupPlanner.DELETE_RATIO_THRESHOLD, "127");
     assertThatThrownBy(() -> planner.init(invalidDeleteRatioThresholdOptions))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("'delete-ratio-threshold' is set to 127.0 but must be <= 1");
@@ -321,7 +321,7 @@ class TestRewriteFileGroupPlanner {
 
   @Test
   void testSizeFiltering() {
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    BinPackRewriteFileGroupPlanner planner = new BinPackRewriteFileGroupPlanner(table);
     FileScanTask tooSmallTask = new MockFileScanTask(100L);
     FileScanTask optimal = new MockFileScanTask(450);
     FileScanTask tooBigTask = new MockFileScanTask(1000L);
@@ -329,9 +329,9 @@ class TestRewriteFileGroupPlanner {
 
     Map<String, String> options =
         ImmutableMap.of(
-            RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, "250",
-            RewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES, "500",
-            RewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES, "750");
+            BinPackRewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, "250",
+            BinPackRewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES, "500",
+            BinPackRewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES, "750");
     planner.init(options);
 
     Iterable<List<FileScanTask>> groups = planner.planFileGroups(tasks);
@@ -343,7 +343,7 @@ class TestRewriteFileGroupPlanner {
 
   @Test
   void testGroupWithEnoughFiles() {
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    BinPackRewriteFileGroupPlanner planner = new BinPackRewriteFileGroupPlanner(table);
     List<FileScanTask> tasks =
         ImmutableList.of(
             new MockFileScanTask(100L),
@@ -353,10 +353,10 @@ class TestRewriteFileGroupPlanner {
 
     Map<String, String> options =
         ImmutableMap.of(
-            RewriteFileGroupPlanner.MIN_INPUT_FILES, "3",
-            RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, "150",
-            RewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES, "1000",
-            RewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES, "5000");
+            BinPackRewriteFileGroupPlanner.MIN_INPUT_FILES, "3",
+            BinPackRewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, "150",
+            BinPackRewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES, "1000",
+            BinPackRewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES, "5000");
     planner.init(options);
 
     Iterable<List<FileScanTask>> groups = planner.planFileGroups(tasks);
@@ -367,16 +367,16 @@ class TestRewriteFileGroupPlanner {
 
   @Test
   void testGroupWithEnoughData() {
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    BinPackRewriteFileGroupPlanner planner = new BinPackRewriteFileGroupPlanner(table);
     List<FileScanTask> tasks =
         ImmutableList.of(
             new MockFileScanTask(100L), new MockFileScanTask(100L), new MockFileScanTask(100L));
 
     Map<String, String> options =
         ImmutableMap.of(
-            RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, "200",
-            RewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES, "250",
-            RewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES, "500");
+            BinPackRewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, "200",
+            BinPackRewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES, "250",
+            BinPackRewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES, "500");
     planner.init(options);
 
     Iterable<List<FileScanTask>> groups = planner.planFileGroups(tasks);
@@ -387,14 +387,14 @@ class TestRewriteFileGroupPlanner {
 
   @Test
   void testFileSizeAboveTarget() {
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    BinPackRewriteFileGroupPlanner planner = new BinPackRewriteFileGroupPlanner(table);
     List<FileScanTask> tasks = ImmutableList.of(new MockFileScanTask(2000L));
 
     Map<String, String> options =
         ImmutableMap.of(
-            RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, "200",
-            RewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES, "250",
-            RewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES, "500");
+            BinPackRewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, "200",
+            BinPackRewriteFileGroupPlanner.TARGET_FILE_SIZE_BYTES, "250",
+            BinPackRewriteFileGroupPlanner.MAX_FILE_SIZE_BYTES, "500");
     planner.init(options);
 
     Iterable<List<FileScanTask>> groups = planner.planFileGroups(tasks);
@@ -405,15 +405,15 @@ class TestRewriteFileGroupPlanner {
 
   @Test
   void testDeleteFileThreshold() {
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    BinPackRewriteFileGroupPlanner planner = new BinPackRewriteFileGroupPlanner(table);
     FileScanTask tooManyDeletesTask = MockFileScanTask.mockTaskWithDeletes(1000L, 3);
     FileScanTask optimalTask = MockFileScanTask.mockTaskWithDeletes(1001L, 1);
     List<FileScanTask> tasks = ImmutableList.of(tooManyDeletesTask, optimalTask);
 
     Map<String, String> options =
         ImmutableMap.of(
-            RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, "0",
-            RewriteFileGroupPlanner.DELETE_FILE_THRESHOLD, "2");
+            BinPackRewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, "0",
+            BinPackRewriteFileGroupPlanner.DELETE_FILE_THRESHOLD, "2");
     planner.init(options);
 
     Iterable<List<FileScanTask>> groups = planner.planFileGroups(tasks);
@@ -425,7 +425,7 @@ class TestRewriteFileGroupPlanner {
 
   @Test
   void testDeleteRatioThreshold() {
-    RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(table);
+    BinPackRewriteFileGroupPlanner planner = new BinPackRewriteFileGroupPlanner(table);
     FileScanTask tooManyDeletesTask =
         MockFileScanTask.mockTaskWithFileScopedDeleteRecords(1000L, 100, 1, 20);
     FileScanTask optimalTask =
@@ -434,8 +434,8 @@ class TestRewriteFileGroupPlanner {
 
     Map<String, String> options =
         ImmutableMap.of(
-            RewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, "0",
-            RewriteFileGroupPlanner.DELETE_RATIO_THRESHOLD, "0.2");
+            BinPackRewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES, "0",
+            BinPackRewriteFileGroupPlanner.DELETE_RATIO_THRESHOLD, "0.2");
     planner.init(options);
 
     Iterable<List<FileScanTask>> groups = planner.planFileGroups(tasks);
