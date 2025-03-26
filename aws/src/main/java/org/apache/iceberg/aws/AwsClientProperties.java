@@ -20,7 +20,6 @@ package org.apache.iceberg.aws;
 
 import java.io.Serializable;
 import java.util.Map;
-import java.util.Optional;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.s3.VendedCredentialsProvider;
 import org.apache.iceberg.common.DynClasses;
@@ -28,7 +27,6 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.rest.RESTUtil;
-import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -198,14 +196,9 @@ public class AwsClientProperties implements Serializable {
   public AwsCredentialsProvider credentialsProvider(
       String accessKeyId, String secretAccessKey, String sessionToken) {
     if (refreshCredentialsEnabled && !Strings.isNullOrEmpty(refreshCredentialsEndpoint)) {
+      clientCredentialsProviderProperties.putAll(allProperties);
       clientCredentialsProviderProperties.put(
-          VendedCredentialsProvider.CREDENTIALS_ENDPOINT, refreshCredentialsEndpoint);
-      clientCredentialsProviderProperties.put(
-          VendedCredentialsProvider.URI, allProperties.get(CatalogProperties.URI));
-      Optional.ofNullable(allProperties.get(OAuth2Properties.TOKEN))
-          .ifPresent(
-              token ->
-                  clientCredentialsProviderProperties.putIfAbsent(OAuth2Properties.TOKEN, token));
+              VendedCredentialsProvider.URI, refreshCredentialsEndpoint);
       return credentialsProvider(VendedCredentialsProvider.class.getName());
     }
 

@@ -24,11 +24,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import org.apache.hadoop.util.Preconditions;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -43,24 +45,25 @@ import software.amazon.awssdk.utils.cache.CachedSupplier;
 import software.amazon.awssdk.utils.cache.RefreshResult;
 
 public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAutoCloseable {
-  public static final String URI = "credentials.catalog.uri";
-  public static final String CREDENTIALS_ENDPOINT = "credentials.endpoint";
+  public static final String URI = "credentials.uri";
   private volatile HTTPClient client;
   private final Map<String, String> properties;
   private final CachedSupplier<AwsCredentials> credentialCache;
+  private final String catalogEndpoint;
+  private final String credentialsEndpoint;
   private AuthManager authManager;
   private AuthSession authSession;
 
   private VendedCredentialsProvider(Map<String, String> properties) {
     Preconditions.checkArgument(null != properties, "Invalid properties: null");
     Preconditions.checkArgument(null != properties.get(URI), "Invalid URI: null");
-    Preconditions.checkArgument(
-        null != properties.get(CREDENTIALS_ENDPOINT), "Invalid endpoint: null");
     this.properties = properties;
     this.credentialCache =
         CachedSupplier.builder(() -> credentialFromProperties().orElseGet(this::refreshCredential))
             .cachedValueName(VendedCredentialsProvider.class.getName())
             .build();
+    this.catalogEndpoint = properties.get(CatalogProperties.URI);
+    this.credentialsEndpoint = RESTUtil.resolveEndpoint(catalogEndpoint, properties.get(URI));
   }
 
   @Override
@@ -85,7 +88,7 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
       synchronized (this) {
         if (null == client) {
           authManager = AuthManagers.loadAuthManager("s3-credentials-refresh", properties);
-          HTTPClient httpClient = HTTPClient.builder(properties).uri(properties.get(URI)).build();
+          HTTPClient httpClient = HTTPClient.builder(properties).uri(catalogEndpoint).build();
           authSession = authManager.catalogSession(httpClient, properties);
           client = httpClient.withAuthSession(authSession);
         }
@@ -98,7 +101,7 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
   private LoadCredentialsResponse fetchCredentials() {
     return httpClient()
         .get(
-            properties.get(CREDENTIALS_ENDPOINT),
+            credentialsEndpoint,
             null,
             LoadCredentialsResponse.class,
             Map.of(),
