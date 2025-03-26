@@ -94,6 +94,9 @@ public class Avro {
     DEFAULT_MODEL.addLogicalTypeConversion(new VariantConversion());
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #appender(OutputFile)} instead.
+   */
   @Deprecated
   public static WriteBuilder write(OutputFile file) {
     if (file instanceof EncryptedOutputFile) {
@@ -103,6 +106,10 @@ public class Avro {
     return new WriteBuilder(file);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #appender(EncryptedOutputFile)}
+   *     instead.
+   */
   @Deprecated
   public static WriteBuilder write(EncryptedOutputFile file) {
     return new WriteBuilder(file.encryptingOutputFile());
@@ -118,6 +125,9 @@ public class Avro {
     return new AppenderBuilder<>(file);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link AppenderBuilder} instead.
+   */
   @Deprecated
   public static class WriteBuilder extends AppenderBuilderInternal<WriteBuilder, Object> {
     private WriteBuilder(OutputFile file) {
@@ -152,6 +162,11 @@ public class Avro {
       this.file = file;
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use specific methods {@link
+     *     #schema(org.apache.iceberg.Schema)}, {@link #set(String, String)}, {@link
+     *     #metricsConfig(MetricsConfig)} instead.
+     */
     @Deprecated
     public B forTable(Table table) {
       schema(table.schema());
@@ -200,6 +215,10 @@ public class Avro {
       return (B) this;
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #set(String, String)}
+     *     instead.
+     */
     @Deprecated
     public B setAll(Map<String, String> properties) {
       config.putAll(properties);
@@ -388,16 +407,28 @@ public class Avro {
     }
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use ObjectModelRegistry.writerBuilder
+   *     instead.
+   */
   @Deprecated
   public static DataWriteBuilder writeData(OutputFile file) {
     return new DataWriteBuilder(file);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use ObjectModelRegistry.writerBuilder
+   *     instead.
+   */
   @Deprecated
   public static DataWriteBuilder writeData(EncryptedOutputFile file) {
     return new DataWriteBuilder(file.encryptingOutputFile());
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use ObjectModelRegistry.writerBuilder
+   *     instead.
+   */
   @Deprecated
   public static class DataWriteBuilder {
     private final WriteBuilder appenderBuilder;
@@ -491,16 +522,31 @@ public class Avro {
     }
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
+   *     ObjectModelRegistry.positionDeleteWriterBuilder and
+   *     ObjectModelRegistry.equalityDeleteWriterBuilder instead.
+   */
   @Deprecated
   public static DeleteWriteBuilder writeDeletes(OutputFile file) {
     return new DeleteWriteBuilder(file);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
+   *     ObjectModelRegistry.positionDeleteWriterBuilder and
+   *     ObjectModelRegistry.equalityDeleteWriterBuilder instead.
+   */
   @Deprecated
   public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
     return new DeleteWriteBuilder(file.encryptingOutputFile());
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
+   *     ObjectModelRegistry.positionDeleteWriterBuilder and
+   *     ObjectModelRegistry.equalityDeleteWriterBuilder instead.
+   */
   @Deprecated
   public static class DeleteWriteBuilder {
     private final WriteBuilder appenderBuilder;
@@ -776,6 +822,10 @@ public class Avro {
       return this;
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #readerFunction(BiFunction)}
+     *     instead.
+     */
     @Deprecated
     public ReadBuilder createReaderFunc(Function<Schema, DatumReader<?>> newReaderFunction) {
       Preconditions.checkState(
@@ -785,6 +835,10 @@ public class Avro {
       return this;
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #readerFunction(BiFunction)}
+     *     instead.
+     */
     @Deprecated
     public ReadBuilder createReaderFunc(
         BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<?>> newReaderFunction) {

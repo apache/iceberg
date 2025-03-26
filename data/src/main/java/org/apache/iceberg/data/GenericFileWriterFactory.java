@@ -66,46 +66,82 @@ class GenericFileWriterFactory extends RegistryBasedFileWriterFactory<Record, Sc
     return new Builder(table);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   *     configuration is done by the {@link ObjectModelRegistry}.
+   */
   @Deprecated
   protected void configureDataWrite(Avro.DataWriteBuilder builder) {
     throwUnsupportedOperationException();
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   *     configuration is done by the {@link ObjectModelRegistry}.
+   */
   @Deprecated
   protected void configureEqualityDelete(Avro.DeleteWriteBuilder builder) {
     throwUnsupportedOperationException();
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   *     configuration is done by the {@link ObjectModelRegistry}.
+   */
   @Deprecated
   protected void configurePositionDelete(Avro.DeleteWriteBuilder builder) {
     throwUnsupportedOperationException();
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   *     configuration is done by the {@link ObjectModelRegistry}.
+   */
   @Deprecated
   protected void configureDataWrite(Parquet.DataWriteBuilder builder) {
     throwUnsupportedOperationException();
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   *     configuration is done by the {@link ObjectModelRegistry}.
+   */
   @Deprecated
   protected void configureEqualityDelete(Parquet.DeleteWriteBuilder builder) {
     throwUnsupportedOperationException();
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   *     configuration is done by the {@link ObjectModelRegistry}.
+   */
   @Deprecated
   protected void configurePositionDelete(Parquet.DeleteWriteBuilder builder) {
     throwUnsupportedOperationException();
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   *     configuration is done by the {@link ObjectModelRegistry}.
+   */
   @Deprecated
   protected void configureDataWrite(ORC.DataWriteBuilder builder) {
     throwUnsupportedOperationException();
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   *     configuration is done by the {@link ObjectModelRegistry}.
+   */
   @Deprecated
   protected void configureEqualityDelete(ORC.DeleteWriteBuilder builder) {
     throwUnsupportedOperationException();
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. It won't be called starting 1.10.0 as the
+   *     configuration is done by the {@link ObjectModelRegistry}.
+   */
   @Deprecated
   protected void configurePositionDelete(ORC.DeleteWriteBuilder builder) {
     throwUnsupportedOperationException();

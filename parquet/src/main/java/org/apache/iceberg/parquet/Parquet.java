@@ -135,6 +135,11 @@ public class Parquet {
           "parquet.read.support.class",
           "parquet.crypto.factory.class");
 
+  public static final String WRITER_VERSION_KEY = "parquet.writer.version";
+
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #appender(OutputFile)} instead.
+   */
   @Deprecated
   public static WriteBuilder write(OutputFile file) {
     if (file instanceof EncryptedOutputFile) {
@@ -144,6 +149,10 @@ public class Parquet {
     return new WriteBuilder(file);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #appender(EncryptedOutputFile)}
+   *     instead.
+   */
   @Deprecated
   public static WriteBuilder write(EncryptedOutputFile file) {
     if (file instanceof NativeEncryptionOutputFile) {
@@ -171,6 +180,9 @@ public class Parquet {
     return new AppenderBuilder<>(file);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link AppenderBuilder} instead.
+   */
   @Deprecated
   public static class WriteBuilder extends AppenderBuilderInternal<WriteBuilder, Object> {
     private WriteBuilder(OutputFile file) {
@@ -201,7 +213,6 @@ public class Parquet {
     private WriterFunction<?, E> writerFunction = null;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
-    private WriterVersion writerVersion = WriterVersion.PARQUET_1_0;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
@@ -216,6 +227,11 @@ public class Parquet {
       }
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use specific methods {@link
+     *     #schema(org.apache.iceberg.Schema)}, {@link #set(String, String)}, {@link
+     *     #metricsConfig(MetricsConfig)} instead.
+     */
     @Deprecated
     public B forTable(Table table) {
       schema(table.schema());
@@ -267,6 +283,10 @@ public class Parquet {
       return (B) this;
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #set(String, String)}
+     *     instead.
+     */
     @Deprecated
     public B setAll(Map<String, String> properties) {
       config.putAll(properties);
@@ -329,19 +349,28 @@ public class Parquet {
       return (B) this;
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #set(String, String)} with
+     *     {@link #WRITER_VERSION_KEY} instead.
+     */
     @Deprecated
-    // This should be coming from a writer configuration instead of having a separate method, so it
-    // is accessible through the generic API
     public B writerVersion(WriterVersion version) {
-      this.writerVersion = version;
-      return (B) this;
+      return set(WRITER_VERSION_KEY, version.name());
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+     *     #fileEncryptionKey(ByteBuffer)} instead.
+     */
     @Deprecated
     public B withFileEncryptionKey(ByteBuffer encryptionKey) {
       return fileEncryptionKey(encryptionKey);
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #aadPrefix(ByteBuffer)}
+     *     instead.
+     */
     @Deprecated
     public B withAADPrefix(ByteBuffer aadPrefix) {
       return aadPrefix(aadPrefix);
@@ -373,11 +402,12 @@ public class Parquet {
 
     /*
      * Sets the writer version. Default value is PARQUET_1_0 (v1).
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #set(String, String)} with {@link #WRITER_VERSION_KEY} instead.
      */
+    @Deprecated
     @VisibleForTesting
     B withWriterVersion(WriterVersion version) {
-      this.writerVersion = version;
-      return (B) this;
+      return set(WRITER_VERSION_KEY, version.name());
     }
 
     // supposed to always be a private method used strictly by data and delete write builders
@@ -475,6 +505,10 @@ public class Parquet {
 
       // add the Iceberg schema to keyValueMetadata
       meta("iceberg.schema", SchemaParser.toJson(schema));
+
+      String version = config.get(WRITER_VERSION_KEY);
+      WriterVersion writerVersion =
+          version != null ? WriterVersion.valueOf(version) : WriterVersion.PARQUET_1_0;
 
       // Map Iceberg properties to pass down to the Parquet writer
       Context context = createContextFunc.apply(config);
@@ -833,11 +867,19 @@ public class Parquet {
     }
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use ObjectModelRegistry.writerBuilder
+   *     instead.
+   */
   @Deprecated
   public static DataWriteBuilder writeData(OutputFile file) {
     return new DataWriteBuilder(file);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use ObjectModelRegistry.writerBuilder
+   *     instead.
+   */
   @Deprecated
   public static DataWriteBuilder writeData(EncryptedOutputFile file) {
     if (file instanceof NativeEncryptionOutputFile) {
@@ -850,6 +892,10 @@ public class Parquet {
     }
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use ObjectModelRegistry.writerBuilder
+   *     instead.
+   */
   @Deprecated
   public static class DataWriteBuilder {
     private final WriteBuilder appenderBuilder;
@@ -960,11 +1006,21 @@ public class Parquet {
     }
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
+   *     ObjectModelRegistry.positionDeleteWriterBuilder and
+   *     ObjectModelRegistry.equalityDeleteWriterBuilder instead.
+   */
   @Deprecated
   public static DeleteWriteBuilder writeDeletes(OutputFile file) {
     return new DeleteWriteBuilder(file);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
+   *     ObjectModelRegistry.positionDeleteWriterBuilder and
+   *     ObjectModelRegistry.equalityDeleteWriterBuilder instead.
+   */
   @Deprecated
   public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
     if (file instanceof NativeEncryptionOutputFile) {
@@ -977,6 +1033,11 @@ public class Parquet {
     }
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
+   *     ObjectModelRegistry.positionDeleteWriterBuilder and
+   *     ObjectModelRegistry.equalityDeleteWriterBuilder instead.
+   */
   @Deprecated
   public static class DeleteWriteBuilder {
     private final WriteBuilder appenderBuilder;
@@ -1312,17 +1373,29 @@ public class Parquet {
       return (B) this;
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #filter(Expression, boolean)}
+     *     instead.
+     */
     @Deprecated
     public B caseInsensitive() {
       return caseSensitive(false);
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #filter(Expression, boolean)}
+     *     instead.
+     */
     @Deprecated
     public B caseSensitive(boolean newCaseSensitive) {
       this.filterCaseSensitive = newCaseSensitive;
       return (B) this;
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #filter(Expression, boolean)}
+     *     instead.
+     */
     @Deprecated
     public B filterRecords(boolean newFilterRecords) {
       this.filterRecords = newFilterRecords;
@@ -1337,7 +1410,7 @@ public class Parquet {
     }
 
     /**
-     * @deprecated will be removed in 2.0.0; use {@link #createReaderFunc(Function)} instead
+     * @deprecated will be removed in 1.11.0; use {@link #readerFunction(ReaderFunction)} instead.
      */
     @Deprecated
     public B readSupport(ReadSupport<?> newFilterSupport) {
@@ -1345,6 +1418,9 @@ public class Parquet {
       return (B) this;
     }
 
+    /**
+     * @deprecated will be removed in 1.11.0; use {@link #readerFunction(ReaderFunction)} instead.
+     */
     @Deprecated
     public B createReaderFunc(Function<MessageType, ParquetValueReader<?>> newReaderFunction) {
       Preconditions.checkState(
@@ -1369,6 +1445,10 @@ public class Parquet {
       return (B) this;
     }
 
+    /**
+     * @deprecated will be removed in 1.11.0; use {@link #batchReaderFunction(BatchReaderFunction)}
+     *     instead.
+     */
     @Deprecated
     public B createBatchedReaderFunc(Function<MessageType, VectorizedReader<?>> func) {
       Preconditions.checkState(
@@ -1410,7 +1490,7 @@ public class Parquet {
     }
 
     /**
-     * @deprecated will be removed in 2.0.0; use {@link #createReaderFunc(Function)} instead
+     * @deprecated will be removed in 1.11.0; use {@link #readerFunction(ReaderFunction)} instead.
      */
     @Deprecated
     public B callInit() {
@@ -1429,11 +1509,13 @@ public class Parquet {
       return (B) this;
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #set(String, String)} with
+     *     {@link #RECORDS_PER_BATCH_KEY} instead.
+     */
     @Deprecated
     public B recordsPerBatch(int numRowsPerBatch) {
-      this.maxRecordsPerBatch = numRowsPerBatch;
-      set(RECORDS_PER_BATCH_KEY, String.valueOf(numRowsPerBatch));
-      return (B) this;
+      return set(RECORDS_PER_BATCH_KEY, String.valueOf(numRowsPerBatch));
     }
 
     @Override

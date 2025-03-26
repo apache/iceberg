@@ -106,11 +106,19 @@ public class ORC {
 
   private ORC() {}
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #appender(EncryptedOutputFile)}
+   *     instead.
+   */
   @Deprecated
   public static WriteBuilder write(OutputFile file) {
     return new WriteBuilder(file);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #appender(EncryptedOutputFile)}
+   *     instead.
+   */
   @Deprecated
   public static WriteBuilder write(EncryptedOutputFile file) {
     Preconditions.checkState(
@@ -124,6 +132,9 @@ public class ORC {
     return new AppenderBuilder<>(file.encryptingOutputFile());
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link AppenderBuilder} instead.
+   */
   @Deprecated
   public static class WriteBuilder extends AppenderBuilderInternal<WriteBuilder, Object> {
     private WriteBuilder(OutputFile file) {
@@ -163,6 +174,11 @@ public class ORC {
       }
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use specific methods {@link
+     *     #schema(org.apache.iceberg.Schema)}, {@link #set(String, String)}, {@link
+     *     #metricsConfig(MetricsConfig)} instead.
+     */
     @Deprecated
     public B forTable(Table table) {
       schema(table.schema());
@@ -171,6 +187,10 @@ public class ORC {
       return (B) this;
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #meta(String, String)}
+     *     instead.
+     */
     @Deprecated
     public B metadata(String property, String value) {
       metadata.put(property, value.getBytes(StandardCharsets.UTF_8));
@@ -183,6 +203,10 @@ public class ORC {
       return (B) this;
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+     *     #writerFunction(WriterFunction)} instead.
+     */
     @Deprecated
     public B createWriterFunc(
         BiFunction<Schema, TypeDescription, OrcRowWriter<?>> newWriterFunction) {
@@ -204,6 +228,10 @@ public class ORC {
       return (B) this;
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #set(String, String)}
+     *     instead.
+     */
     @Deprecated
     public B setAll(Map<String, String> properties) {
       config.putAll(properties);
@@ -228,6 +256,9 @@ public class ORC {
       return (B) this;
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #overwrite(boolean)} instead.
+     */
     @Deprecated
     public B overwrite() {
       return overwrite(true);
@@ -294,6 +325,9 @@ public class ORC {
       return build();
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #build(WriteMode)} instead.
+     */
     @Deprecated
     public <D> FileAppender<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
@@ -499,11 +533,19 @@ public class ORC {
     }
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use ObjectModelRegistry.writerBuilder
+   *     instead.
+   */
   @Deprecated
   public static DataWriteBuilder writeData(OutputFile file) {
     return new DataWriteBuilder(file);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use ObjectModelRegistry.writerBuilder
+   *     instead.
+   */
   @Deprecated
   public static DataWriteBuilder writeData(EncryptedOutputFile file) {
     Preconditions.checkState(
@@ -511,6 +553,10 @@ public class ORC {
     return new DataWriteBuilder(file.encryptingOutputFile());
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use ObjectModelRegistry.writerBuilder
+   *     instead.
+   */
   @Deprecated
   public static class DataWriteBuilder {
     private final WriteBuilder appenderBuilder;
@@ -605,11 +651,21 @@ public class ORC {
     }
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
+   *     ObjectModelRegistry.positionDeleteWriterBuilder and
+   *     ObjectModelRegistry.equalityDeleteWriterBuilder instead.
+   */
   @Deprecated
   public static DeleteWriteBuilder writeDeletes(OutputFile file) {
     return new DeleteWriteBuilder(file);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
+   *     ObjectModelRegistry.positionDeleteWriterBuilder and
+   *     ObjectModelRegistry.equalityDeleteWriterBuilder instead.
+   */
   @Deprecated
   public static DeleteWriteBuilder writeDeletes(EncryptedOutputFile file) {
     Preconditions.checkState(
@@ -617,6 +673,11 @@ public class ORC {
     return new DeleteWriteBuilder(file.encryptingOutputFile());
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use
+   *     ObjectModelRegistry.positionDeleteWriterBuilder and
+   *     ObjectModelRegistry.equalityDeleteWriterBuilder instead.
+   */
   @Deprecated
   public static class DeleteWriteBuilder {
     private final WriteBuilder appenderBuilder;
@@ -816,7 +877,6 @@ public class ORC {
     private Function<TypeDescription, OrcBatchReader<?>> batchedReaderFunc;
     private ReaderFunction<?> readerFunction;
     private BatchReaderFunction<?> batchReaderFunction;
-    private int recordsPerBatch = VectorizedRowBatch.DEFAULT_SIZE;
     private Map<Integer, ?> constantFieldAccessors = ImmutableMap.of();
 
     private ReadBuilder(InputFile file) {
@@ -853,6 +913,10 @@ public class ORC {
       return this;
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #filter(Expression, boolean)}
+     *     instead.
+     */
     @Deprecated
     public ReadBuilder caseSensitive(boolean newCaseSensitive) {
       OrcConf.IS_SCHEMA_EVOLUTION_CASE_SENSITIVE.setBoolean(this.conf, newCaseSensitive);
@@ -860,6 +924,10 @@ public class ORC {
       return this;
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #set(String, String)}
+     *     instead.
+     */
     @Deprecated
     public ReadBuilder config(String property, String value) {
       conf.set(property, value);
@@ -872,6 +940,10 @@ public class ORC {
       return this;
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+     *     #readerFunction(ReaderFunction)} instead.
+     */
     @Deprecated
     public ReadBuilder createReaderFunc(Function<TypeDescription, OrcRowReader<?>> newReaderFunc) {
       Preconditions.checkState(
@@ -895,6 +967,10 @@ public class ORC {
       return this;
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link
+     *     #batchReaderFunction(BatchReaderFunction)} instead.
+     */
     @Deprecated
     public ReadBuilder createBatchedReaderFunc(
         Function<TypeDescription, OrcBatchReader<?>> newReaderFunction) {
@@ -927,11 +1003,13 @@ public class ORC {
       return this;
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #set(String, String)} with
+     *     {@link ReadBuilder#RECORDS_PER_BATCH_KEY} instead.
+     */
     @Deprecated
     public ReadBuilder recordsPerBatch(int numRecordsPerBatch) {
-      this.recordsPerBatch = numRecordsPerBatch;
-      set(RECORDS_PER_BATCH_KEY, String.valueOf(numRecordsPerBatch));
-      return this;
+      return set(RECORDS_PER_BATCH_KEY, String.valueOf(numRecordsPerBatch));
     }
 
     @Override
@@ -970,7 +1048,7 @@ public class ORC {
           filterCaseSensitive,
           filter,
           batchReader,
-          conf.getInt(RECORDS_PER_BATCH_KEY, recordsPerBatch));
+          conf.getInt(RECORDS_PER_BATCH_KEY, VectorizedRowBatch.DEFAULT_SIZE));
     }
   }
 
