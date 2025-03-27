@@ -44,58 +44,48 @@ public class PartitionStatsUtil {
   private PartitionStatsUtil() {}
 
   /**
-   * Computes the partition stats for the given snapshot of the table.
+   * Fully computes the partition stats for the given snapshot of the table.
    *
    * @param table the table for which partition stats to be computed.
    * @param snapshot the snapshot for which partition stats is computed.
    * @return the collection of {@link PartitionStats}
-   * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link #computeStats(Table, Snapshot,
-   *     Snapshot)} instead.
    */
-  @Deprecated
   public static Collection<PartitionStats> computeStats(Table table, Snapshot snapshot) {
-    return computeStats(table, null, snapshot).values();
+    Preconditions.checkArgument(table != null, "Table cannot be null");
+    Preconditions.checkArgument(Partitioning.isPartitioned(table), "Table must be partitioned");
+    Preconditions.checkArgument(snapshot != null, "Current snapshot cannot be null");
+
+    return collectStats(table, snapshot, file -> true, false /* incremental */).values();
   }
 
   /**
-   * Computes the partition stats incrementally after the given snapshot to current snapshot. If the
-   * given snapshot is null, computes the stats completely instead of incrementally.
+   * Incrementally computes the partition stats after the given snapshot to current snapshot.
    *
    * @param table the table for which partition stats to be computed.
    * @param fromSnapshot the snapshot after which partition stats is computed (exclusive).
    * @param currentSnapshot the snapshot till which partition stats is computed (inclusive).
    * @return the {@link PartitionMap} of {@link PartitionStats}
    */
-  public static PartitionMap<PartitionStats> computeStats(
+  public static PartitionMap<PartitionStats> computeStatsIncremental(
       Table table, Snapshot fromSnapshot, Snapshot currentSnapshot) {
     Preconditions.checkArgument(table != null, "Table cannot be null");
     Preconditions.checkArgument(Partitioning.isPartitioned(table), "Table must be partitioned");
     Preconditions.checkArgument(currentSnapshot != null, "Current snapshot cannot be null");
+    Preconditions.checkArgument(fromSnapshot != null, "From snapshot cannot be null");
+    Preconditions.checkArgument(currentSnapshot != fromSnapshot, "Both the snapshots are same");
+    Preconditions.checkArgument(
+        SnapshotUtil.isAncestorOf(table, currentSnapshot.snapshotId(), fromSnapshot.snapshotId()),
+        "Starting snapshot %s is not an ancestor of current snapshot %s",
+        fromSnapshot.snapshotId(),
+        currentSnapshot.snapshotId());
 
-    Predicate<ManifestFile> manifestFilePredicate = file -> true;
-    if (fromSnapshot != null) {
-      Preconditions.checkArgument(currentSnapshot != fromSnapshot, "Both the snapshots are same");
-      Preconditions.checkArgument(
-          SnapshotUtil.isAncestorOf(table, currentSnapshot.snapshotId(), fromSnapshot.snapshotId()),
-          "Starting snapshot %s is not an ancestor of current snapshot %s",
-          fromSnapshot.snapshotId(),
-          currentSnapshot.snapshotId());
-      Set<Long> snapshotIdsRange =
-          Sets.newHashSet(
-              SnapshotUtil.ancestorIdsBetween(
-                  currentSnapshot.snapshotId(), fromSnapshot.snapshotId(), table::snapshot));
-      manifestFilePredicate =
-          manifestFile ->
-              snapshotIdsRange.contains(manifestFile.snapshotId())
-                  && !manifestFile.hasExistingFiles();
-    }
-
-    StructType partitionType = Partitioning.partitionType(table);
-    List<ManifestFile> manifests =
-        currentSnapshot.allManifests(table.io()).stream()
-            .filter(manifestFilePredicate)
-            .collect(Collectors.toList());
-    return collectStats(table, manifests, partitionType);
+    Set<Long> snapshotIdsRange =
+        Sets.newHashSet(
+            SnapshotUtil.ancestorIdsBetween(
+                currentSnapshot.snapshotId(), fromSnapshot.snapshotId(), table::snapshot));
+    Predicate<ManifestFile> manifestFilePredicate =
+        manifestFile -> snapshotIdsRange.contains(manifestFile.snapshotId());
+    return collectStats(table, currentSnapshot, manifestFilePredicate, true /* incremental */);
   }
 
   /**
@@ -117,7 +107,11 @@ public class PartitionStatsUtil {
   }
 
   private static PartitionMap<PartitionStats> collectStats(
-      Table table, List<ManifestFile> manifests, StructType partitionType) {
+      Table table, Snapshot snapshot, Predicate<ManifestFile> predicate, boolean incremental) {
+    StructType partitionType = Partitioning.partitionType(table);
+    List<ManifestFile> manifests =
+        snapshot.allManifests(table.io()).stream().filter(predicate).collect(Collectors.toList());
+
     Queue<PartitionMap<PartitionStats>> statsByManifest = Queues.newConcurrentLinkedQueue();
     Tasks.foreach(manifests)
         .stopOnFailure()
@@ -125,7 +119,8 @@ public class PartitionStatsUtil {
         .executeWith(ThreadPools.getWorkerPool())
         .run(
             manifest ->
-                statsByManifest.add(collectStatsForManifest(table, manifest, partitionType)));
+                statsByManifest.add(
+                    collectStatsForManifest(table, manifest, partitionType, incremental)));
 
     PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
     for (PartitionMap<PartitionStats> stats : statsByManifest) {
@@ -136,7 +131,7 @@ public class PartitionStatsUtil {
   }
 
   private static PartitionMap<PartitionStats> collectStatsForManifest(
-      Table table, ManifestFile manifest, StructType partitionType) {
+      Table table, ManifestFile manifest, StructType partitionType, boolean incremental) {
     try (ManifestReader<?> reader = openManifest(table, manifest)) {
       PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
       int specId = manifest.partitionSpecId();
@@ -155,7 +150,11 @@ public class PartitionStatsUtil {
                 ((PartitionData) file.partition()).copy(),
                 () -> new PartitionStats(key, specId));
         if (entry.isLive()) {
-          stats.liveEntry(file, snapshot);
+          // Live can have both added and existing entries. Don't consider existing entries for
+          // incremental compute as it was already included in previous compute.
+          if (!incremental || entry.status() == ManifestEntry.Status.ADDED) {
+            stats.liveEntry(file, snapshot);
+          }
         } else {
           stats.deletedEntry(snapshot);
         }

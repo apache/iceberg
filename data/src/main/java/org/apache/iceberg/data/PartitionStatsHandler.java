@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -58,8 +59,6 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionMap;
 import org.apache.iceberg.util.SnapshotUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Computes, writes and reads the {@link PartitionStatisticsFile}. Uses generic readers and writers
@@ -68,8 +67,6 @@ import org.slf4j.LoggerFactory;
 public class PartitionStatsHandler {
 
   private PartitionStatsHandler() {}
-
-  private static final Logger LOG = LoggerFactory.getLogger(PartitionStatsHandler.class);
 
   public static final int PARTITION_FIELD_ID = 0;
   public static final String PARTITION_FIELD_NAME = "partition";
@@ -171,29 +168,29 @@ public class PartitionStatsHandler {
     Preconditions.checkArgument(snapshot != null, "Snapshot not found: %s", snapshotId);
 
     StructType partitionType = Partitioning.partitionType(table);
-    PartitionMap<PartitionStats> resultStatsMap =
-        computeStats(table, snapshot, partitionType, recompute);
-    if (resultStatsMap.isEmpty()) {
+
+    Collection<PartitionStats> stats;
+    if (recompute) {
+      stats = PartitionStatsUtil.computeStats(table, snapshot);
+    } else {
+      stats = incrementalComputeAndMerge(table, snapshot, partitionType);
+    }
+
+    if (stats.isEmpty()) {
       return null;
     }
 
-    List<PartitionStats> sortedStats =
-        PartitionStatsUtil.sortStats(resultStatsMap.values(), partitionType);
+    List<PartitionStats> sortedStats = PartitionStatsUtil.sortStats(stats, partitionType);
     return writePartitionStatsFile(
         table, snapshot.snapshotId(), schema(partitionType), sortedStats);
   }
 
-  private static PartitionMap<PartitionStats> computeStats(
-      Table table, Snapshot snapshot, StructType partitionType, boolean recompute)
-      throws IOException {
-    if (recompute) {
-      return PartitionStatsUtil.computeStats(table, null, snapshot);
-    }
-
+  private static Collection<PartitionStats> incrementalComputeAndMerge(
+      Table table, Snapshot snapshot, StructType partitionType) throws IOException {
     PartitionStatisticsFile statisticsFile = latestStatsFile(table, snapshot.snapshotId());
     if (statisticsFile == null) {
-      LOG.info("Previous stats not found. Computing the stats for whole table.");
-      return PartitionStatsUtil.computeStats(table, null, snapshot);
+      throw new RuntimeException(
+          "Previous stats not found for incremental compute. Try full compute");
     }
 
     PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
@@ -207,7 +204,7 @@ public class PartitionStatsHandler {
 
     // incrementally compute the new stats, partition field will be written as PartitionData
     PartitionMap<PartitionStats> incrementalStatsMap =
-        PartitionStatsUtil.computeStats(
+        PartitionStatsUtil.computeStatsIncremental(
             table, table.snapshot(statisticsFile.snapshotId()), snapshot);
 
     // convert PartitionData into GenericRecord and merge stats
@@ -221,7 +218,7 @@ public class PartitionStatsHandler {
                   return existingEntry;
                 }));
 
-    return statsMap;
+    return statsMap.values();
   }
 
   private static GenericRecord partitionDataToRecord(PartitionData data) {
@@ -233,7 +230,8 @@ public class PartitionStatsHandler {
     return record;
   }
 
-  private static PartitionStatisticsFile latestStatsFile(Table table, long snapshotId) {
+  @VisibleForTesting
+  static PartitionStatisticsFile latestStatsFile(Table table, long snapshotId) {
     List<PartitionStatisticsFile> partitionStatisticsFiles = table.partitionStatisticsFiles();
     if (partitionStatisticsFiles.isEmpty()) {
       return null;

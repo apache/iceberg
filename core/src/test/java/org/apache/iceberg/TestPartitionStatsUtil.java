@@ -49,7 +49,14 @@ public class TestPartitionStatsUtil {
   public void testPartitionStatsOnEmptyTable() throws Exception {
     Table testTable = TestTables.create(tempDir("empty_table"), "empty_table", SCHEMA, SPEC, 2);
     assertThatThrownBy(
-            () -> PartitionStatsUtil.computeStats(testTable, null, testTable.currentSnapshot()))
+            () -> PartitionStatsUtil.computeStats(testTable, testTable.currentSnapshot()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Current snapshot cannot be null");
+
+    assertThatThrownBy(
+            () ->
+                PartitionStatsUtil.computeStatsIncremental(
+                    testTable, testTable.currentSnapshot(), testTable.currentSnapshot()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Current snapshot cannot be null");
   }
@@ -70,7 +77,14 @@ public class TestPartitionStatsUtil {
     appendFiles.commit();
 
     assertThatThrownBy(
-            () -> PartitionStatsUtil.computeStats(testTable, null, testTable.currentSnapshot()))
+            () -> PartitionStatsUtil.computeStats(testTable, testTable.currentSnapshot()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Table must be partitioned");
+
+    assertThatThrownBy(
+            () ->
+                PartitionStatsUtil.computeStatsIncremental(
+                    testTable, testTable.currentSnapshot(), testTable.currentSnapshot()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Table must be partitioned");
   }
@@ -91,7 +105,8 @@ public class TestPartitionStatsUtil {
     appendFiles.commit();
     Snapshot snapshot2 = testTable.currentSnapshot();
 
-    assertThatThrownBy(() -> PartitionStatsUtil.computeStats(testTable, snapshot2, snapshot1))
+    assertThatThrownBy(
+            () -> PartitionStatsUtil.computeStatsIncremental(testTable, snapshot2, snapshot1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             String.format(
@@ -110,7 +125,7 @@ public class TestPartitionStatsUtil {
 
     assertThatThrownBy(
             () ->
-                PartitionStatsUtil.computeStats(
+                PartitionStatsUtil.computeStatsIncremental(
                     testTable, testTable.currentSnapshot(), testTable.currentSnapshot()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Both the snapshots are same");
@@ -275,7 +290,8 @@ public class TestPartitionStatsUtil {
     Snapshot currentSnapshot = testTable.currentSnapshot();
     Types.StructType partitionType = Partitioning.partitionType(testTable);
     Collection<PartitionStats> result =
-        PartitionStatsUtil.computeStats(testTable, snapshotFrom, testTable.currentSnapshot())
+        PartitionStatsUtil.computeStatsIncremental(
+                testTable, snapshotFrom, testTable.currentSnapshot())
             .values();
     // should only contain stats from last append (one data file per partition instead of total 4)
     validateStats(
@@ -681,8 +697,7 @@ public class TestPartitionStatsUtil {
   private static void computeAndValidatePartitionStats(Table testTable, Tuple... expectedValues) {
     // compute and commit partition stats file
     Collection<PartitionStats> result =
-        PartitionStatsUtil.computeStats(testTable, null, testTable.currentSnapshot()).values();
-
+        PartitionStatsUtil.computeStats(testTable, testTable.currentSnapshot());
     validateStats(result, expectedValues);
   }
 

@@ -29,6 +29,7 @@ import static org.apache.iceberg.data.PartitionStatsHandler.POSITION_DELETE_FILE
 import static org.apache.iceberg.data.PartitionStatsHandler.POSITION_DELETE_RECORD_COUNT;
 import static org.apache.iceberg.data.PartitionStatsHandler.TOTAL_DATA_FILE_SIZE_IN_BYTES;
 import static org.apache.iceberg.data.PartitionStatsHandler.TOTAL_RECORD_COUNT;
+import static org.apache.iceberg.data.PartitionStatsHandler.latestStatsFile;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -629,6 +630,59 @@ public class TestPartitionStatsHandler {
             null,
             snapshot.timestampMillis(),
             snapshot.snapshotId()));
+  }
+
+  @Test
+  public void testIncrementalComputeWithoutPreviousStats() throws Exception {
+    Table testTable =
+        TestTables.create(tempDir("incremental_error"), "incremental_error", SCHEMA, SPEC, 2);
+
+    List<DataFile> dataFiles = dataFiles(testTable, prepareRecords(testTable.schema()));
+    AppendFiles appendFiles = testTable.newAppend();
+    dataFiles.forEach(appendFiles::appendFile);
+    appendFiles.commit();
+
+    assertThatThrownBy(
+            () ->
+                PartitionStatsHandler.computeAndWriteStatsFileIncremental(
+                    testTable, testTable.currentSnapshot().snapshotId()))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage("Previous stats not found for incremental compute. Try full compute");
+  }
+
+  @Test
+  public void testLatestStatsFile() throws Exception {
+    Table testTable = TestTables.create(tempDir("stats_file"), "stats_file", SCHEMA, SPEC, 2);
+
+    List<DataFile> dataFiles = dataFiles(testTable, prepareRecords(testTable.schema()));
+    AppendFiles appendFiles = testTable.newAppend();
+    dataFiles.forEach(appendFiles::appendFile);
+    appendFiles.commit();
+
+    PartitionStatisticsFile statisticsFile =
+        PartitionStatsHandler.computeAndWriteStatsFile(
+            testTable, testTable.currentSnapshot().snapshotId());
+    testTable.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+
+    PartitionStatisticsFile latestStatsFile =
+        latestStatsFile(testTable, testTable.currentSnapshot().snapshotId());
+    assertThat(latestStatsFile).isEqualTo(statisticsFile);
+
+    // another commit but without stats file
+    appendFiles = testTable.newAppend();
+    dataFiles.forEach(appendFiles::appendFile);
+    appendFiles.commit();
+    // should point to last stats file
+    latestStatsFile = latestStatsFile(testTable, testTable.currentSnapshot().snapshotId());
+    assertThat(latestStatsFile).isEqualTo(statisticsFile);
+
+    // compute stats
+    statisticsFile =
+        PartitionStatsHandler.computeAndWriteStatsFile(
+            testTable, testTable.currentSnapshot().snapshotId());
+    testTable.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+    latestStatsFile = latestStatsFile(testTable, testTable.currentSnapshot().snapshotId());
+    assertThat(latestStatsFile).isEqualTo(statisticsFile);
   }
 
   private OutputFile outputFile() throws IOException {
