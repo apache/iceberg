@@ -20,8 +20,6 @@ package org.apache.iceberg.aws.s3;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -340,21 +338,19 @@ public class TestS3FileIO {
             .collect(Collectors.toList());
 
     // Assert that the returned FileInfo instances match the expected values
-    assertEquals(2, fileInfoList.size());
-    assertTrue(
-        fileInfoList.stream()
-            .anyMatch(
-                fi ->
-                    fi.location().endsWith("file1.txt")
-                        && fi.size() == 1024
-                        && fi.createdAtMillis() > Instant.now().minusSeconds(120).toEpochMilli()));
-    assertTrue(
-        fileInfoList.stream()
-            .anyMatch(
-                fi ->
-                    fi.location().endsWith("file2.txt")
-                        && fi.size() == 2048
-                        && fi.createdAtMillis() < Instant.now().minusSeconds(30).toEpochMilli()));
+    assertThat(fileInfoList).hasSize(2);
+    assertThat(fileInfoList)
+        .anyMatch(
+            fi ->
+                fi.location().endsWith("file1.txt")
+                    && fi.size() == 1024
+                    && fi.createdAtMillis() > Instant.now().minusSeconds(120).toEpochMilli());
+    assertThat(fileInfoList)
+        .anyMatch(
+            fi ->
+                fi.location().endsWith("file2.txt")
+                    && fi.size() == 2048
+                    && fi.createdAtMillis() < Instant.now().minusSeconds(30).toEpochMilli());
   }
 
   /**
