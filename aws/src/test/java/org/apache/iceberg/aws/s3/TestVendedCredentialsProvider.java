@@ -80,6 +80,12 @@ public class TestVendedCredentialsProvider {
     assertThatThrownBy(() -> VendedCredentialsProvider.create(ImmutableMap.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid credentials URI: null");
+    assertThatThrownBy(
+            () ->
+                VendedCredentialsProvider.create(
+                    ImmutableMap.of("credentials.uri", "/credentials/uri")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid catalog endpoint: null");
 
     try (VendedCredentialsProvider provider =
         VendedCredentialsProvider.create(
