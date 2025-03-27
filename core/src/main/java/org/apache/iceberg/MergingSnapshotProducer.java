@@ -915,16 +915,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         filterManager.filterManifests(
             SnapshotUtil.schemaFor(base, targetBranch()),
             snapshot != null ? snapshot.dataManifests(ops().io()) : null);
-    long minDataSequenceNumber =
-        filtered.stream()
-            .map(ManifestFile::minSequenceNumber)
-            .filter(
-                seq ->
-                    seq
-                        != ManifestWriter
-                            .UNASSIGNED_SEQ) // filter out unassigned in rewritten manifests
-            .reduce(base.lastSequenceNumber(), Math::min);
-    deleteFilterManager.dropDeleteFilesOlderThan(minDataSequenceNumber);
+
+    long newMinSequenceNumber = minDataSequenceNumber(base, filtered);
+    deleteFilterManager.dropDeleteFilesOlderThan(newMinSequenceNumber);
     List<ManifestFile> filteredDeletes =
         deleteFilterManager.filterManifests(
             SnapshotUtil.schemaFor(base, targetBranch()),
@@ -953,6 +946,31 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Iterables.addAll(manifests, deleteMergeManager.mergeManifests(unmergedDeleteManifests));
 
     return manifests;
+  }
+
+  private long minDataSequenceNumber(TableMetadata base, List<ManifestFile> keptManifests) {
+    long minAddedDataSequenceNumber =
+        addedDataFiles().stream()
+            .map(ContentFile::dataSequenceNumber)
+            .filter(Objects::nonNull)
+            .filter(seq -> seq >= 0)
+            .reduce(base.nextSequenceNumber(), Math::min);
+
+    long minExistingDataSequenceNumber =
+        keptManifests.stream()
+            .map(ManifestFile::minSequenceNumber)
+            .filter(
+                seq ->
+                    seq
+                        != ManifestWriter
+                            .UNASSIGNED_SEQ) // filter out unassigned in rewritten manifests
+            .reduce(base.lastSequenceNumber(), Math::min);
+
+    return Math.min(
+        Math.min(Integer.MAX_VALUE, minExistingDataSequenceNumber),
+        newDataFilesDataSequenceNumber != null
+            ? newDataFilesDataSequenceNumber
+            : Integer.MAX_VALUE);
   }
 
   @Override
