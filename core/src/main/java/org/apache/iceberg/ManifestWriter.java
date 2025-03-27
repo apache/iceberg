@@ -44,6 +44,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private final Long snapshotId;
   private final GenericManifestEntry<F> reused;
   private final PartitionSummary stats;
+  private final Long firstRowId;
 
   private boolean closed = false;
   private int addedFiles = 0;
@@ -54,7 +55,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private long deletedRows = 0L;
   private Long minDataSequenceNumber = null;
 
-  private ManifestWriter(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
+  private ManifestWriter(
+      PartitionSpec spec, EncryptedOutputFile file, Long snapshotId, Long firstRowId) {
     this.file = file.encryptingOutputFile();
     this.specId = spec.specId();
     this.writer = newAppender(spec, this.file);
@@ -62,6 +64,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     this.reused =
         new GenericManifestEntry<>(V1Metadata.entrySchema(spec.partitionType()).asStruct());
     this.stats = new PartitionSummary(spec);
+    this.firstRowId = firstRowId;
     this.keyMetadataBuffer = (file.keyMetadata() == null) ? null : file.keyMetadata().buffer();
   }
 
@@ -201,14 +204,15 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         UNASSIGNED_SEQ,
         minSeqNumber,
         snapshotId,
+        stats.summaries(),
+        keyMetadataBuffer,
         addedFiles,
         addedRows,
         existingFiles,
         existingRows,
         deletedFiles,
         deletedRows,
-        stats.summaries(),
-        keyMetadataBuffer);
+        firstRowId);
   }
 
   @Override
@@ -220,8 +224,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V3Writer extends ManifestWriter<DataFile> {
     private final V3Metadata.ManifestEntryWrapper<DataFile> entryWrapper;
 
-    V3Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
-      super(spec, file, snapshotId);
+    V3Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId, Long firstRowId) {
+      super(spec, file, snapshotId, firstRowId);
       this.entryWrapper = new V3Metadata.ManifestEntryWrapper<>(snapshotId);
     }
 
@@ -255,7 +259,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     private final V3Metadata.ManifestEntryWrapper<DeleteFile> entryWrapper;
 
     V3DeleteWriter(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
-      super(spec, file, snapshotId);
+      super(spec, file, snapshotId, null);
       this.entryWrapper = new V3Metadata.ManifestEntryWrapper<>(snapshotId);
     }
 
@@ -294,7 +298,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     private final V2Metadata.ManifestEntryWrapper<DataFile> entryWrapper;
 
     V2Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
-      super(spec, file, snapshotId);
+      super(spec, file, snapshotId, null);
       this.entryWrapper = new V2Metadata.ManifestEntryWrapper<>(snapshotId);
     }
 
@@ -328,7 +332,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     private final V2Metadata.ManifestEntryWrapper<DeleteFile> entryWrapper;
 
     V2DeleteWriter(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
-      super(spec, file, snapshotId);
+      super(spec, file, snapshotId, null);
       this.entryWrapper = new V2Metadata.ManifestEntryWrapper<>(snapshotId);
     }
 
@@ -367,7 +371,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     private final V1Metadata.ManifestEntryWrapper entryWrapper;
 
     V1Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
-      super(spec, file, snapshotId);
+      super(spec, file, snapshotId, null);
       this.entryWrapper = new V1Metadata.ManifestEntryWrapper();
     }
 
