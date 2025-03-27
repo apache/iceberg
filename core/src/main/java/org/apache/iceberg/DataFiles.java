@@ -318,7 +318,7 @@ public class DataFiles {
       return this;
     }
 
-    public Builder withFirstRowId(long nextRowId) {
+    public Builder withFirstRowId(Long nextRowId) {
       this.firstRowId = nextRowId;
       return this;
     }
