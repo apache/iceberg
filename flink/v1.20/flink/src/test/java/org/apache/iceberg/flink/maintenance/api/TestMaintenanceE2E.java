@@ -52,6 +52,19 @@ class TestMaintenanceE2E extends OperatorTestBase {
                 .retainLast(5)
                 .deleteBatchSize(5)
                 .parallelism(8))
+        .add(
+            RewriteDataFiles.builder()
+                .scheduleOnDataFileCount(10)
+                .partialProgressEnabled(true)
+                .partialProgressMaxCommits(10)
+                .maxRewriteBytes(1000L)
+                .targetFileSizeBytes(1000L)
+                .minFileSizeBytes(1000L)
+                .maxFileSizeBytes(1000L)
+                .minInputFiles(10)
+                .deleteFileThreshold(10)
+                .rewriteAll(false)
+                .maxFileGroupSizeBytes(1000L))
         .append();
 
     JobClient jobClient = null;
