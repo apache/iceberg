@@ -122,14 +122,13 @@ public class Conversions {
         // There are 2 representations of geometry and geography in iceberg:
         //
         // 1. Well-known binary (WKB) format for general storage and processing
-        // 2. For bound values (partition and sort keys), points are encoded as 4 little-endian
+        // 2. For bound values (partition and sort keys), points are encoded as little-endian
         // doubles:
         //    X (longitude/easting), Y (latitude/northing), Z (optional elevation), and M (optional
         // measure)
         //
         // No matter what representation is used, geospatial values are always represented as byte
-        // buffers,
-        // so we can just return the value as is.
+        // buffers, so we can just return the value as is.
         return (ByteBuffer) value;
       default:
         throw new UnsupportedOperationException("Cannot serialize type: " + typeId);
@@ -193,8 +192,8 @@ public class Conversions {
         return new BigDecimal(new BigInteger(unscaledBytes), decimal.scale());
       case GEOMETRY:
       case GEOGRAPHY:
-        // GEOMETRY and GEOGRAPHY types are handled by passing through the byte buffer. Please
-        // refer to the comment in toByteBuffer for more details.
+        // GEOMETRY and GEOGRAPHY values are represented as byte buffers. Please refer to the
+        // comment in toByteBuffer for more details.
         return tmp;
       default:
         throw new UnsupportedOperationException("Cannot deserialize type: " + type);

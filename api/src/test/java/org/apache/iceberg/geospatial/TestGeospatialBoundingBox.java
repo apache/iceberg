@@ -54,7 +54,7 @@ public class TestGeospatialBoundingBox {
     maxBuffer.putDouble(0, 3.0); // x
     maxBuffer.putDouble(8, 4.0); // y
 
-    GeospatialBoundingBox box = GeospatialBoundingBox.create(minBuffer, maxBuffer);
+    GeospatialBoundingBox box = GeospatialBoundingBox.fromByteBuffers(minBuffer, maxBuffer);
 
     assertThat(box.min().x()).isEqualTo(1.0);
     assertThat(box.min().y()).isEqualTo(2.0);
@@ -101,7 +101,7 @@ public class TestGeospatialBoundingBox {
   public void testSanitized() {
     GeospatialBoundingBox box = GeospatialBoundingBox.SANITIZED;
     GeospatialBoundingBox box2 =
-        GeospatialBoundingBox.create(box.min().toByteBuffer(), box.max().toByteBuffer());
+        GeospatialBoundingBox.fromByteBuffers(box.min().toByteBuffer(), box.max().toByteBuffer());
     assertThat(box).isEqualTo(box2);
     assertThat(box.toString()).isEqualTo("BoundingBox{sanitized}");
     assertThat(box2.toString()).isEqualTo("BoundingBox{sanitized}");

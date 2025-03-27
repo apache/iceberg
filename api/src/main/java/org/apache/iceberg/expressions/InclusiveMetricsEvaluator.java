@@ -479,16 +479,15 @@ public class InclusiveMetricsEvaluator {
       T upper = upperBound(term);
 
       if (lower == null || upper == null) {
-        return ROWS_MIGHT_MATCH; // no information
+        return ROWS_MIGHT_MATCH;
       }
 
       if (lit.value() != null && lower instanceof ByteBuffer && upper instanceof ByteBuffer) {
-        // Construct a bounding box from the min/max bounds
         GeospatialBoundingBox dataBox =
-            GeospatialBoundingBox.create((ByteBuffer) lower, (ByteBuffer) upper);
+            GeospatialBoundingBox.fromByteBuffers((ByteBuffer) lower, (ByteBuffer) upper);
         GeospatialBoundingBox queryBox = lit.value();
 
-        // If the data box and query box don't intersect, no records can match
+        // If the data box and query box doesn't intersect, no records can match
         GeospatialPredicateEvaluators.GeospatialPredicateEvaluator evaluator =
             GeospatialPredicateEvaluators.create(term.ref().type());
         if (!evaluator.intersects(dataBox, queryBox)) {

@@ -46,17 +46,63 @@ import java.util.Objects;
  * deserialization of these bounds to/from byte arrays, conforming to the Iceberg specification.
  */
 public class GeospatialBound implements Serializable, Comparable<GeospatialBound> {
-  private final double x;
-  private final double y;
-  private final double z;
-  private final double m;
+  /**
+   * Parses a geospatial bound from a byte buffer according to Iceberg spec.
+   *
+   * <p>Based on the buffer size, this method determines which coordinates are present: - 16 bytes
+   * (2 doubles): x and y only - 24 bytes (3 doubles): x, y, and z - 32 bytes (4 doubles): x, y, z
+   * (might be NaN), and m
+   *
+   * @param buffer the ByteBuffer containing the serialized geospatial bound
+   * @return a GeospatialBound object representing the parsed bound
+   * @throws IllegalArgumentException if the buffer has an invalid size
+   */
+  public static GeospatialBound fromByteBuffer(ByteBuffer buffer) {
+    // Create a duplicate to avoid modifying the original buffer's position and byte order
+    ByteBuffer tmp = buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN);
 
-  /** Private constructor - use factory methods instead. */
-  private GeospatialBound(double x, double y, double z, double m) {
-    this.x = x;
-    this.y = y;
-    this.z = z;
-    this.m = m;
+    int size = tmp.remaining();
+
+    if (size == 2 * Double.BYTES) {
+      // x:y format (2 doubles)
+      double coordX = tmp.getDouble();
+      double coordY = tmp.getDouble();
+      return createXY(coordX, coordY);
+    } else if (size == 3 * Double.BYTES) {
+      // x:y:z format (3 doubles)
+      double coordX = tmp.getDouble();
+      double coordY = tmp.getDouble();
+      double coordZ = tmp.getDouble();
+      return createXYZ(coordX, coordY, coordZ);
+    } else if (size == 4 * Double.BYTES) {
+      // x:y:z:m format (4 doubles) - z might be NaN
+      double coordX = tmp.getDouble();
+      double coordY = tmp.getDouble();
+      double coordZ = tmp.getDouble();
+      double coordM = tmp.getDouble();
+      return new GeospatialBound(coordX, coordY, coordZ, coordM);
+    } else {
+      throw new IllegalArgumentException(
+          "Invalid buffer size for GeospatialBound: expected 16, 24, or 32 bytes, got " + size);
+    }
+  }
+
+  /**
+   * Parses a geospatial bound from a byte array according to Iceberg spec.
+   *
+   * @param bytes the byte array containing the serialized geospatial bound
+   * @return a GeospatialBound object representing the parsed bound
+   * @throws IllegalArgumentException if the byte array has an invalid length
+   */
+  public static GeospatialBound fromByteArray(byte[] bytes) {
+    int length = bytes.length;
+    if (length != 2 * Double.BYTES && length != 3 * Double.BYTES && length != 4 * Double.BYTES) {
+      throw new IllegalArgumentException(
+          "Invalid byte array length for GeospatialBound: expected 16, 24, or 32 bytes, got "
+              + length);
+    }
+
+    return fromByteBuffer(ByteBuffer.wrap(bytes));
   }
 
   /**
@@ -66,6 +112,7 @@ public class GeospatialBound implements Serializable, Comparable<GeospatialBound
    * @param y the Y coordinate (latitude/northing)
    * @return a GeospatialBound with XY coordinates
    */
+  @SuppressWarnings("ParameterName")
   public static GeospatialBound createXY(double x, double y) {
     return new GeospatialBound(x, y, Double.NaN, Double.NaN);
   }
@@ -78,6 +125,7 @@ public class GeospatialBound implements Serializable, Comparable<GeospatialBound
    * @param z the Z coordinate (elevation)
    * @return a GeospatialBound with XYZ coordinates
    */
+  @SuppressWarnings("ParameterName")
   public static GeospatialBound createXYZ(double x, double y, double z) {
     return new GeospatialBound(x, y, z, Double.NaN);
   }
@@ -91,6 +139,7 @@ public class GeospatialBound implements Serializable, Comparable<GeospatialBound
    * @param m the M value (measure)
    * @return a GeospatialBound with XYZM coordinates
    */
+  @SuppressWarnings("ParameterName")
   public static GeospatialBound createXYZM(double x, double y, double z, double m) {
     return new GeospatialBound(x, y, z, m);
   }
@@ -103,8 +152,30 @@ public class GeospatialBound implements Serializable, Comparable<GeospatialBound
    * @param m the M value (measure)
    * @return a GeospatialBound with XYM coordinates
    */
+  @SuppressWarnings("ParameterName")
   public static GeospatialBound createXYM(double x, double y, double m) {
     return new GeospatialBound(x, y, Double.NaN, m);
+  }
+
+  @SuppressWarnings("MemberName")
+  private final double x;
+
+  @SuppressWarnings("MemberName")
+  private final double y;
+
+  @SuppressWarnings("MemberName")
+  private final double z;
+
+  @SuppressWarnings("MemberName")
+  private final double m;
+
+  /** Private constructor - use factory methods instead. */
+  @SuppressWarnings("ParameterName")
+  private GeospatialBound(double x, double y, double z, double m) {
+    this.x = x;
+    this.y = y;
+    this.z = z;
+    this.m = m;
   }
 
   /**
@@ -112,6 +183,7 @@ public class GeospatialBound implements Serializable, Comparable<GeospatialBound
    *
    * @return X coordinate value
    */
+  @SuppressWarnings("MethodName")
   public double x() {
     return x;
   }
@@ -121,6 +193,7 @@ public class GeospatialBound implements Serializable, Comparable<GeospatialBound
    *
    * @return Y coordinate value
    */
+  @SuppressWarnings("MethodName")
   public double y() {
     return y;
   }
@@ -130,6 +203,7 @@ public class GeospatialBound implements Serializable, Comparable<GeospatialBound
    *
    * @return Z coordinate value or NaN if not set
    */
+  @SuppressWarnings("MethodName")
   public double z() {
     return z;
   }
@@ -139,6 +213,7 @@ public class GeospatialBound implements Serializable, Comparable<GeospatialBound
    *
    * @return M value or NaN if not set
    */
+  @SuppressWarnings("MethodName")
   public double m() {
     return m;
   }
@@ -202,64 +277,6 @@ public class GeospatialBound implements Serializable, Comparable<GeospatialBound
     return buffer;
   }
 
-  /**
-   * Parses a geospatial bound from a byte buffer according to Iceberg spec.
-   *
-   * <p>Based on the buffer size, this method determines which coordinates are present: - 16 bytes
-   * (2 doubles): x and y only - 24 bytes (3 doubles): x, y, and z - 32 bytes (4 doubles): x, y, z
-   * (might be NaN), and m
-   *
-   * @param buffer the ByteBuffer containing the serialized geospatial bound
-   * @return a GeospatialBound object representing the parsed bound
-   * @throws IllegalArgumentException if the buffer has an invalid size
-   */
-  public static GeospatialBound fromByteBuffer(ByteBuffer buffer) {
-    // Create a duplicate to avoid modifying the original buffer's position and byte order
-    ByteBuffer tmp = buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN);
-
-    int size = tmp.remaining();
-
-    if (size == 2 * Double.BYTES) {
-      // x:y format (2 doubles)
-      double coordX = tmp.getDouble();
-      double coordY = tmp.getDouble();
-      return createXY(coordX, coordY);
-    } else if (size == 3 * Double.BYTES) {
-      // x:y:z format (3 doubles)
-      double coordX = tmp.getDouble();
-      double coordY = tmp.getDouble();
-      double coordZ = tmp.getDouble();
-      return createXYZ(coordX, coordY, coordZ);
-    } else if (size == 4 * Double.BYTES) {
-      // x:y:z:m format (4 doubles) - z might be NaN
-      double coordX = tmp.getDouble();
-      double coordY = tmp.getDouble();
-      double coordZ = tmp.getDouble();
-      double coordM = tmp.getDouble();
-      return new GeospatialBound(coordX, coordY, coordZ, coordM);
-    } else {
-      throw new IllegalArgumentException(
-          "Invalid buffer size for GeospatialBound: expected 16, 24, or 32 bytes, got " + size);
-    }
-  }
-
-  /**
-   * Parses a geospatial bound from a byte array according to Iceberg spec.
-   *
-   * @param bytes the byte array containing the serialized geospatial bound
-   * @return a GeospatialBound object representing the parsed bound
-   * @throws IllegalArgumentException if the byte array has an invalid length
-   */
-  public static GeospatialBound fromByteArray(byte[] bytes) {
-    int length = bytes.length;
-    if (length != 2 * Double.BYTES && length != 3 * Double.BYTES && length != 4 * Double.BYTES) {
-      throw new IllegalArgumentException(
-          "Invalid byte array length for GeospatialBound: expected 16, 24, or 32 bytes, got "
-              + length);
-    }
-    return fromByteBuffer(ByteBuffer.wrap(bytes));
-  }
-
   @Override
   public String toString() {
     return "GeospatialBound(" + simpleString() + ")";
@@ -281,16 +298,14 @@ public class GeospatialBound implements Serializable, Comparable<GeospatialBound
   }
 
   @Override
-  public boolean equals(Object o) {
-    if (this == o) {
+  public boolean equals(Object other) {
+    if (this == other) {
       return true;
-    }
-    if (o == null || getClass() != o.getClass()) {
+    } else if (!(other instanceof GeospatialBound)) {
       return false;
     }
 
-    GeospatialBound that = (GeospatialBound) o;
-
+    GeospatialBound that = (GeospatialBound) other;
     return Double.compare(that.x, x) == 0
         && Double.compare(that.y, y) == 0
         && Double.compare(that.z, z) == 0
@@ -303,11 +318,11 @@ public class GeospatialBound implements Serializable, Comparable<GeospatialBound
   }
 
   @Override
-  public int compareTo(GeospatialBound o) {
+  public int compareTo(GeospatialBound other) {
     return Comparator.comparingDouble(GeospatialBound::x)
         .thenComparingDouble(GeospatialBound::y)
         .thenComparingDouble(GeospatialBound::z)
         .thenComparingDouble(GeospatialBound::m)
-        .compare(this, o);
+        .compare(this, other);
   }
 }

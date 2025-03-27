@@ -160,16 +160,14 @@ public class Evaluator implements Serializable {
 
     @Override
     public <T> Boolean stIntersects(Bound<T> valueExpr, Literal<GeospatialBoundingBox> literal) {
-      // We don't know how to evaluate ST_Intersects, so we return true to be safe.
-      // Reading data using GenericReader with spaital filters will yield false positives.
-      return true;
+      throw new UnsupportedOperationException(
+          "Evaluation of stIntersects against geometry/geography value is not implemented.");
     }
 
     @Override
     public <T> Boolean stDisjoint(Bound<T> valueExpr, Literal<GeospatialBoundingBox> literal) {
-      // We don't know how to evaluate ST_Disjoint, so we return true to be safe.
-      // Reading data using GenericReader with spaital filters will yield false positives.
-      return true;
+      throw new UnsupportedOperationException(
+          "Evaluation of stDisjoint against geometry/geography value is not implemented.");
     }
   }
 }

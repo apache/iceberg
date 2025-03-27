@@ -282,7 +282,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
     return new BoundGeospatialPredicate(
         op(),
         (BoundTerm<ByteBuffer>) boundTerm,
-        Literals.from(GeospatialBoundingBox.create(min.value(), max.value())));
+        Literals.from(GeospatialBoundingBox.fromByteBuffers(min.value(), max.value())));
   }
 
   @Override
@@ -319,7 +319,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
         String opName = op() == Operation.ST_INTERSECTS ? " stIntersects " : " stDisjoint ";
         return term()
             + opName
-            + GeospatialBoundingBox.create(minLiteral.value(), maxLiteral.value());
+            + GeospatialBoundingBox.fromByteBuffers(minLiteral.value(), maxLiteral.value());
       case IN:
         return term() + " in (" + COMMA.join(literals()) + ")";
       case NOT_IN:

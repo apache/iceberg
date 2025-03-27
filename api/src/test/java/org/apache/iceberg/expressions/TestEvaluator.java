@@ -840,34 +840,13 @@ public class TestEvaluator {
     // Create a WKB point at (2, 3)
     ByteBuffer wkb =
         ByteBuffer.wrap(
-            new byte[] {
-              1, // little endian byte order
-              1,
-              0,
-              0,
-              0, // type: Point (1)
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              64, // X coordinate: 2.0 in IEEE 754
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              8,
-              64 // Y coordinate: 3.0 in IEEE 754
-            });
+            new byte[] {1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 0, 0, 0, 8, 64});
 
     Evaluator evaluator =
         new Evaluator(geoStruct, Expressions.geospatialPredicate(operation, columnName, bbox));
-    assertThat(evaluator.eval(TestHelpers.Row.of(wkb, wkb)))
-        .as("Geospatial predicates always evaluate to true")
-        .isTrue();
+    assertThatThrownBy(() -> evaluator.eval(TestHelpers.Row.of(wkb, wkb)))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageMatching(
+            "Evaluation of \\w+ against geometry/geography value is not implemented.");
   }
 }

@@ -36,7 +36,10 @@ public class BoundGeospatialPredicate extends BoundPredicate<ByteBuffer> {
 
   @Override
   public boolean test(ByteBuffer value) {
-    return true;
+    throw new UnsupportedOperationException(
+        "Evaluation of spatial predicate \""
+            + op()
+            + "\" against geometry/geography value is not implemented.");
   }
 
   @Override
@@ -56,13 +59,14 @@ public class BoundGeospatialPredicate extends BoundPredicate<ByteBuffer> {
 
   @Override
   public boolean isEquivalentTo(Expression expr) {
-    if (expr instanceof BoundGeospatialPredicate) {
-      BoundGeospatialPredicate other = (BoundGeospatialPredicate) expr;
-      return op() == other.op()
-          && term().isEquivalentTo(other.term())
-          && literal.value().equals(other.literal.value());
+    if (!(expr instanceof BoundGeospatialPredicate)) {
+      return false;
     }
-    return false;
+
+    BoundGeospatialPredicate other = (BoundGeospatialPredicate) expr;
+    return op() == other.op()
+        && term().isEquivalentTo(other.term())
+        && literal.value().equals(other.literal.value());
   }
 
   @Override

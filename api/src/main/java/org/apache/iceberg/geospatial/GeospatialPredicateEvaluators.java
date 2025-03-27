@@ -18,19 +18,21 @@
  */
 package org.apache.iceberg.geospatial;
 
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 
 public class GeospatialPredicateEvaluators {
+  private GeospatialPredicateEvaluators() {}
 
   public interface GeospatialPredicateEvaluator {
     /**
      * Test whether this bounding box intersects with another.
      *
-     * @param a the first bounding box
-     * @param b the second bounding box
+     * @param bbox1 the first bounding box
+     * @param bbox2 the second bounding box
      * @return true if this box intersects the other box
      */
-    boolean intersects(GeospatialBoundingBox a, GeospatialBoundingBox b);
+    boolean intersects(GeospatialBoundingBox bbox1, GeospatialBoundingBox bbox2);
   }
 
   public static GeospatialPredicateEvaluator create(Type type) {
@@ -47,26 +49,27 @@ public class GeospatialPredicateEvaluators {
 
   static class GeometryEvaluator implements GeospatialPredicateEvaluator {
     @Override
-    public boolean intersects(GeospatialBoundingBox a, GeospatialBoundingBox b) {
-      return intersectsWithWrapAround(a, b);
+    public boolean intersects(GeospatialBoundingBox bbox1, GeospatialBoundingBox bbox2) {
+      return intersectsWithWrapAround(bbox1, bbox2);
     }
 
-    static boolean intersectsWithWrapAround(GeospatialBoundingBox a, GeospatialBoundingBox b) {
+    static boolean intersectsWithWrapAround(
+        GeospatialBoundingBox bbox1, GeospatialBoundingBox bbox2) {
       // Let's check y first, and if y does not intersect, we can return false
-      if (a.min().y() > b.max().y() || a.max().y() < b.min().y()) {
+      if (bbox1.min().y() > bbox2.max().y() || bbox1.max().y() < bbox2.min().y()) {
         return false;
       }
 
       // Now check x, need to take wrap-around into account
-      if (a.min().x() <= a.max().x() && b.min().x() <= b.max().x()) {
+      if (bbox1.min().x() <= bbox1.max().x() && bbox2.min().x() <= bbox2.max().x()) {
         // No wrap-around
-        return a.min().x() <= b.max().x() && a.max().x() >= b.min().x();
-      } else if (a.min().x() > a.max().x() && b.min().x() <= b.max().x()) {
-        // a wraps around the antimeridian, b does not
-        return a.min().x() <= b.max().x() || a.max().x() >= b.min().x();
-      } else if (a.min().x() <= a.max().x() && b.min().x() > b.max().x()) {
-        // b wraps around the antimeridian, a does not
-        return intersectsWithWrapAround(b, a);
+        return bbox1.min().x() <= bbox2.max().x() && bbox1.max().x() >= bbox2.min().x();
+      } else if (bbox1.min().x() > bbox1.max().x() && bbox2.min().x() <= bbox2.max().x()) {
+        // bbox1 wraps around the antimeridian, bbox2 does not
+        return bbox1.min().x() <= bbox2.max().x() || bbox1.max().x() >= bbox2.min().x();
+      } else if (bbox1.min().x() <= bbox1.max().x() && bbox2.min().x() > bbox2.max().x()) {
+        // bbox2 wraps around the antimeridian, bbox1 does not
+        return intersectsWithWrapAround(bbox2, bbox1);
       } else {
         // Both wrap around the antimeridian, they must intersect
         return true;
@@ -76,22 +79,22 @@ public class GeospatialPredicateEvaluators {
 
   static class GeographyEvaluator implements GeospatialPredicateEvaluator {
     @Override
-    public boolean intersects(GeospatialBoundingBox a, GeospatialBoundingBox b) {
-      validateBoundingBox(a);
-      validateBoundingBox(b);
-      return GeometryEvaluator.intersectsWithWrapAround(a, b);
+    public boolean intersects(GeospatialBoundingBox bbox1, GeospatialBoundingBox bbox2) {
+      validateBoundingBox(bbox1);
+      validateBoundingBox(bbox2);
+      return GeometryEvaluator.intersectsWithWrapAround(bbox1, bbox2);
     }
 
-    private void validateBoundingBox(GeospatialBoundingBox box) {
-      if (box.min().y() < -90 || box.max().y() > 90) {
-        throw new IllegalArgumentException("Latitude out of range: " + box);
-      }
-      if (box.min().x() < -180
-          || box.min().x() > 180
-          || box.max().x() < -180
-          || box.max().x() > 180) {
-        throw new IllegalArgumentException("Longitude out of range: " + box);
-      }
+    private void validateBoundingBox(GeospatialBoundingBox bbox) {
+      Preconditions.checkArgument(
+          bbox.min().y() >= -90 && bbox.max().y() <= 90, "Latitude out of range: %s", bbox);
+      Preconditions.checkArgument(
+          bbox.min().x() >= -180
+              && bbox.min().x() <= 180
+              && bbox.max().x() >= -180
+              && bbox.max().x() <= 180,
+          "Longitude out of range: %s",
+          bbox);
     }
   }
 }

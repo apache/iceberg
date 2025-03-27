@@ -30,22 +30,22 @@ import java.util.Objects;
  * approximation of a more complex geometry for efficient filtering and data skipping.
  */
 public class GeospatialBoundingBox implements Serializable, Comparable<GeospatialBoundingBox> {
-  private final GeospatialBound min;
-  private final GeospatialBound max;
-
   public static final GeospatialBoundingBox SANITIZED =
       new GeospatialBoundingBox(
           GeospatialBound.createXY(Double.NaN, Double.NaN),
           GeospatialBound.createXY(Double.NaN, Double.NaN));
 
+  private final GeospatialBound min;
+  private final GeospatialBound max;
+
   /**
-   * Create an appropriate GeospatialBoundingBox according to the geospatial type.
+   * Create a {@link GeospatialBoundingBox} object from buffers containing min and max bounds
    *
    * @param min the serialized minimum bound
    * @param max the serialized maximum bound
    * @return a GeospatialBoundingBox instance
    */
-  public static GeospatialBoundingBox create(ByteBuffer min, ByteBuffer max) {
+  public static GeospatialBoundingBox fromByteBuffers(ByteBuffer min, ByteBuffer max) {
     return new GeospatialBoundingBox(
         GeospatialBound.fromByteBuffer(min), GeospatialBound.fromByteBuffer(max));
   }
@@ -74,10 +74,14 @@ public class GeospatialBoundingBox implements Serializable, Comparable<Geospatia
   }
 
   @Override
-  public boolean equals(Object o) {
-    if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
-    GeospatialBoundingBox that = (GeospatialBoundingBox) o;
+  public boolean equals(Object other) {
+    if (this == other) {
+      return true;
+    } else if (!(other instanceof GeospatialBoundingBox)) {
+      return false;
+    }
+
+    GeospatialBoundingBox that = (GeospatialBoundingBox) other;
     return Objects.equals(min, that.min) && Objects.equals(max, that.max);
   }
 
@@ -91,15 +95,17 @@ public class GeospatialBoundingBox implements Serializable, Comparable<Geospatia
     if (SANITIZED.equals(this)) {
       return "BoundingBox{sanitized}";
     }
+
     return "BoundingBox{min=" + min.simpleString() + ", max=" + max.simpleString() + '}';
   }
 
   @Override
-  public int compareTo(GeospatialBoundingBox o) {
-    int minComparison = min.compareTo(o.min);
+  public int compareTo(GeospatialBoundingBox other) {
+    int minComparison = min.compareTo(other.min);
     if (minComparison != 0) {
       return minComparison;
     }
-    return max.compareTo(o.max);
+
+    return max.compareTo(other.max);
   }
 }
