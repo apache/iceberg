@@ -32,7 +32,6 @@ import static org.mockito.Mockito.verify;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.ImmutableMap;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -69,6 +68,7 @@ import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
@@ -173,7 +173,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             ImmutableMap.of("credential", "user:12345"),
             ImmutableMap.of());
 
-    RESTCatalog catalog = new RESTCatalog(context);
+    RESTCatalog catalog =
+        new RESTCatalog(
+            context,
+            (config) ->
+                HTTPClient.builder(config)
+                    .uri(config.get(CatalogProperties.URI))
+                    .withHeaders(RESTUtil.configHeaders(config))
+                    .build());
     catalog.setConf(conf);
     Map<String, String> properties =
         ImmutableMap.of(
@@ -331,24 +338,34 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testCatalogProperties() {
-    Map<String, String> headerProperties =
-        ImmutableMap.of(CatalogProperties.HTTP_HEADER_PREFIX + "test-header", "test-value");
-    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+  public void testDefaultHeadersPropagated() {
+    Map<String, String> catalogHeaders =
+        ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=catalog");
 
-    RESTCatalog catalog = initCatalog("test", headerProperties);
+    Map<String, String> properties =
+        ImmutableMap.of(
+            "test-header", "test-value", CatalogProperties.URI, httpServer.getURI().toString());
+    Map<String, String> expectedHeaders = ImmutableMap.of("test-header", "test-value");
 
-    assertThat(catalog.properties())
-        .containsEntry(CatalogProperties.HTTP_HEADER_PREFIX + "test-header", "test-value");
-  }
+    HTTPClient client = Mockito.spy((HTTPClient) DEFAULT_CLIENT_BUILDER.apply(properties));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> client);
+    catalog.initialize("test", properties);
 
-  @Test
-  public void testDefaultClientBuilder() {
-    Map<String, String> headerProperties =
-        ImmutableMap.of(CatalogProperties.HTTP_HEADER_PREFIX + "test-header", "test-value");
-    RESTClient client = DEFAULT_CLIENT_BUILDER.apply(headerProperties);
-    assertThat(client).isInstanceOf(HTTPClient.class);
-    assertThat(((HTTPClient) client).getBaseHeaders()).containsEntry("test-header", "test-value");
+    assertThat(catalog.namespaceExists(Namespace.of("non-existing"))).isFalse();
+
+    Mockito.verify(client)
+        .execute(
+            reqMatcher(HTTPMethod.GET, "v1/config", expectedHeaders, Map.of()),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+    Mockito.verify(client)
+        .execute(
+            reqMatcher(HTTPMethod.HEAD, "v1/namespaces/non-existing", expectedHeaders, Map.of()),
+            any(),
+            any(),
+            any());
   }
 
   @Test

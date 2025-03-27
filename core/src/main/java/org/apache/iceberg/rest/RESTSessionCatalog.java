@@ -97,8 +97,6 @@ import org.apache.iceberg.view.ViewVersion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.rest.RESTUtil.DEFAULT_CLIENT_BUILDER;
-
 public class RESTSessionCatalog extends BaseViewSessionCatalog
     implements Configurable<Object>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
@@ -168,7 +166,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   public RESTSessionCatalog() {
-    this(DEFAULT_CLIENT_BUILDER, null);
+    this(
+        config ->
+            HTTPClient.builder(config)
+                .uri(config.get(CatalogProperties.URI))
+                .withHeaders(RESTUtil.configHeaders(config))
+                .build(),
+        null);
   }
 
   public RESTSessionCatalog(
