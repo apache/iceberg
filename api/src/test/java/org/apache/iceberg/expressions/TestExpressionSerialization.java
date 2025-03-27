@@ -185,6 +185,7 @@ public class TestExpressionSerialization {
       BoundGeospatialPredicate lpred = (BoundGeospatialPredicate) left;
       BoundGeospatialPredicate rpred = (BoundGeospatialPredicate) right;
       return lpred.isEquivalentTo(rpred);
+
     } else if (left instanceof BoundPredicate) {
       BoundPredicate lpred = (BoundPredicate) left;
       BoundPredicate rpred = (BoundPredicate) right;
@@ -202,6 +203,7 @@ public class TestExpressionSerialization {
       } else {
         return lpred.isUnaryPredicate() && rpred.isUnaryPredicate();
       }
+
     } else {
       throw new UnsupportedOperationException(
           String.format("Predicate equality check for %s is not supported", left.getClass()));

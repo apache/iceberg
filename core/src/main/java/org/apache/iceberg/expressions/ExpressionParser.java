@@ -202,7 +202,8 @@ public class ExpressionParser {
                 gen.writeFieldName(VALUE);
                 Literal<ByteBuffer> min = pred.literals().get(0).to(Types.BinaryType.get());
                 Literal<ByteBuffer> max = pred.literals().get(1).to(Types.BinaryType.get());
-                GeospatialBoundingBox bbox = GeospatialBoundingBox.create(min.value(), max.value());
+                GeospatialBoundingBox bbox =
+                    GeospatialBoundingBox.fromByteBuffers(min.value(), max.value());
                 geospatialBoundingBox(bbox);
               } else {
                 gen.writeFieldName(VALUE);
@@ -356,7 +357,6 @@ public class ExpressionParser {
         return Expressions.or(
             fromJson(JsonUtil.get(LEFT, json), schema),
             fromJson(JsonUtil.get(RIGHT, json), schema));
-
       case ST_INTERSECTS:
       case ST_DISJOINT:
         return geospatialPredicateFromJson(op, json);
