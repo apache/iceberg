@@ -32,7 +32,6 @@ public class CatalogProperties {
   public static final String VIEW_DEFAULT_PREFIX = "view-default.";
   public static final String VIEW_OVERRIDE_PREFIX = "view-override.";
   public static final String METRICS_REPORTER_IMPL = "metrics-reporter-impl";
-  public static final String HTTP_HEADER_PREFIX = "header.";
 
   /**
    * Controls whether the catalog will cache table entries upon load.

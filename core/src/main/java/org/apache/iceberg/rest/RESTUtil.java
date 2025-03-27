@@ -240,6 +240,6 @@ public class RESTUtil {
   }
 
   public static Map<String, String> configHeaders(Map<String, String> properties) {
-    return RESTUtil.extractPrefixMap(properties, CatalogProperties.HTTP_HEADER_PREFIX);
+    return RESTUtil.extractPrefixMap(properties, "header.");
   }
 }
