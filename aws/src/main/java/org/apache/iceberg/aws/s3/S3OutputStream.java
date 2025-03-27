@@ -424,7 +424,10 @@ class S3OutputStream extends PositionOutputStream {
                       .orElseGet(() -> new ByteArrayInputStream(new byte[0])));
 
       PutObjectRequest.Builder requestBuilder =
-          PutObjectRequest.builder().bucket(location.bucket()).key(location.key());
+          PutObjectRequest.builder()
+              .bucket(location.bucket())
+              .key(location.key())
+              .overrideConfiguration(S3RequestUtil.disableStrongIntegrityChecksums());
 
       if (writeTags != null && !writeTags.isEmpty()) {
         requestBuilder.tagging(Tagging.builder().tagSet(writeTags).build());
