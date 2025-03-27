@@ -131,8 +131,8 @@ public class ADLSFileIO implements DelegateFileIO {
     this.properties = SerializableMap.copyOf(props);
     this.azureProperties = new AzureProperties(properties);
     initMetrics(properties);
-    this.vendedAdlsCredentialProvider =
-        this.azureProperties.vendedAdlsCredentialProvider().orElse(null);
+    this.azureProperties.vendedAdlsCredentialProvider()
+        .ifPresent((provider -> this.vendedAdlsCredentialProvider = provider));
   }
 
   @SuppressWarnings("CatchBlockLogException")
