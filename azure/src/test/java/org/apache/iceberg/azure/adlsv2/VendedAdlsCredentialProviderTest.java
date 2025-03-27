@@ -29,6 +29,8 @@ import com.azure.core.http.HttpMethod;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Map;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -44,28 +46,46 @@ import org.mockserver.verify.VerificationTimes;
 
 public class VendedAdlsCredentialProviderTest extends BaseVendedCredentialsTest {
   private static final String CREDENTIALS_URI = String.format("%s%s", baseUri, "/v1/credentials");
+  private static final String CATALOG_URI = String.format("%s%s", baseUri, "/v1/");
   private static final String STORAGE_ACCOUNT = "account1";
   private static final String CREDENTIAL_PREFIX =
       "abfs://container@account1.dfs.core.windows.net/dir";
   private static final String STORAGE_ACCOUNT_2 = "account2";
   private static final String CREDENTIAL_PREFIX_2 =
       "abfs://container@account2.dfs.core.windows.net/dir";
+  private static final Map<String, String> PROPERTIES =
+      ImmutableMap.of(
+          VendedAdlsCredentialProvider.URI, CREDENTIALS_URI, CatalogProperties.URI, CATALOG_URI);
 
   @Test
   public void invalidOrMissingUri() {
     assertThatThrownBy(() -> new VendedAdlsCredentialProvider(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid properties: null");
-    assertThatThrownBy(() -> new VendedAdlsCredentialProvider(ImmutableMap.of()))
+    assertThatThrownBy(
+            () ->
+                new VendedAdlsCredentialProvider(
+                    ImmutableMap.of(CatalogProperties.URI, CATALOG_URI)))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid URI: null");
+        .hasMessage("Invalid credentials endpoint: null");
+    assertThatThrownBy(
+            () ->
+                new VendedAdlsCredentialProvider(
+                    ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid catalog endpoint: null");
 
     try (VendedAdlsCredentialProvider provider =
         new VendedAdlsCredentialProvider(
-            ImmutableMap.of(VendedAdlsCredentialProvider.URI, "invalid uri"))) {
+            ImmutableMap.of(
+                VendedAdlsCredentialProvider.URI,
+                "invalid uri",
+                CatalogProperties.URI,
+                CATALOG_URI))) {
       assertThatThrownBy(() -> provider.credentialForAccount(STORAGE_ACCOUNT))
           .isInstanceOf(RESTException.class)
-          .hasMessageStartingWith("Failed to create request URI from base invalid uri");
+          .hasMessageStartingWith(
+              "Failed to create request URI from base %sinvalid uri", CATALOG_URI);
     }
   }
 
@@ -80,9 +100,7 @@ public class VendedAdlsCredentialProviderTest extends BaseVendedCredentialsTest 
             .withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    try (VendedAdlsCredentialProvider provider =
-        new VendedAdlsCredentialProvider(
-            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI))) {
+    try (VendedAdlsCredentialProvider provider = new VendedAdlsCredentialProvider(PROPERTIES)) {
       assertThatThrownBy(() -> provider.credentialForAccount(STORAGE_ACCOUNT))
           .isInstanceOf(IllegalStateException.class)
           .hasMessage("Invalid ADLS Credentials for storage-account account1: empty");
@@ -105,9 +123,7 @@ public class VendedAdlsCredentialProviderTest extends BaseVendedCredentialsTest 
         response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    try (VendedAdlsCredentialProvider provider =
-        new VendedAdlsCredentialProvider(
-            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI))) {
+    try (VendedAdlsCredentialProvider provider = new VendedAdlsCredentialProvider(PROPERTIES)) {
       assertThatThrownBy(() -> provider.credentialForAccount(STORAGE_ACCOUNT))
           .isInstanceOf(IllegalStateException.class)
           .hasMessage("Invalid ADLS Credentials: adls.sas-token-expires-at-ms.account1 not set");
@@ -133,9 +149,7 @@ public class VendedAdlsCredentialProviderTest extends BaseVendedCredentialsTest 
         response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    try (VendedAdlsCredentialProvider provider =
-        new VendedAdlsCredentialProvider(
-            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI))) {
+    try (VendedAdlsCredentialProvider provider = new VendedAdlsCredentialProvider(PROPERTIES)) {
       String azureSasCredential = provider.credentialForAccount(STORAGE_ACCOUNT);
       assertThat(azureSasCredential)
           .isEqualTo(credential.config().get(ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT));
@@ -168,9 +182,7 @@ public class VendedAdlsCredentialProviderTest extends BaseVendedCredentialsTest 
         response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    try (VendedAdlsCredentialProvider provider =
-        new VendedAdlsCredentialProvider(
-            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI))) {
+    try (VendedAdlsCredentialProvider provider = new VendedAdlsCredentialProvider(PROPERTIES)) {
       String azureSasCredential = provider.credentialForAccount(STORAGE_ACCOUNT);
       assertThat(azureSasCredential)
           .isEqualTo(credential.config().get(ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT));
@@ -213,9 +225,7 @@ public class VendedAdlsCredentialProviderTest extends BaseVendedCredentialsTest 
         response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    try (VendedAdlsCredentialProvider provider =
-        new VendedAdlsCredentialProvider(
-            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI))) {
+    try (VendedAdlsCredentialProvider provider = new VendedAdlsCredentialProvider(PROPERTIES)) {
       assertThatThrownBy(() -> provider.credentialForAccount(STORAGE_ACCOUNT))
           .isInstanceOf(IllegalStateException.class)
           .hasMessage(
@@ -252,9 +262,7 @@ public class VendedAdlsCredentialProviderTest extends BaseVendedCredentialsTest 
         response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    try (VendedAdlsCredentialProvider provider =
-        new VendedAdlsCredentialProvider(
-            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI))) {
+    try (VendedAdlsCredentialProvider provider = new VendedAdlsCredentialProvider(PROPERTIES)) {
       String azureSasCredential1 = provider.credentialForAccount(STORAGE_ACCOUNT);
       String azureSasCredential2 = provider.credentialForAccount(STORAGE_ACCOUNT_2);
       assertThat(azureSasCredential1).isNotSameAs(azureSasCredential2);
@@ -284,9 +292,7 @@ public class VendedAdlsCredentialProviderTest extends BaseVendedCredentialsTest 
         response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    try (VendedAdlsCredentialProvider provider =
-        new VendedAdlsCredentialProvider(
-            ImmutableMap.of(VendedAdlsCredentialProvider.URI, CREDENTIALS_URI))) {
+    try (VendedAdlsCredentialProvider provider = new VendedAdlsCredentialProvider(PROPERTIES)) {
       String azureSasCredential = provider.credentialForAccount(STORAGE_ACCOUNT);
       assertThat(azureSasCredential)
           .isEqualTo(credential.config().get(ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT));

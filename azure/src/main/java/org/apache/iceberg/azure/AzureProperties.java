@@ -31,7 +31,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTUtil;
-import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 
@@ -109,9 +108,6 @@ public class AzureProperties implements Serializable {
       Map<String, String> credentialProviderProperties = Maps.newHashMap(allProperties);
       credentialProviderProperties.put(
           VendedAdlsCredentialProvider.URI, adlsRefreshCredentialsEndpoint);
-      Optional.ofNullable(allProperties.get(OAuth2Properties.TOKEN))
-          .ifPresent(
-              token -> credentialProviderProperties.putIfAbsent(OAuth2Properties.TOKEN, token));
       return Optional.of(new VendedAdlsCredentialProvider(credentialProviderProperties));
     } else {
       return Optional.empty();

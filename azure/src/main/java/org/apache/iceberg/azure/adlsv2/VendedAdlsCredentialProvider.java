@@ -28,6 +28,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -48,6 +49,8 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
   public static final String URI = "credentials.uri";
 
   private final SerializableMap<String, String> properties;
+  private final String credentialsEndpoint;
+  private final String catalogEndpoint;
   private transient volatile Map<String, SimpleTokenCache> sasCredentialByAccount;
   private transient volatile HTTPClient client;
   private transient AuthManager authManager;
@@ -55,8 +58,12 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
 
   public VendedAdlsCredentialProvider(Map<String, String> properties) {
     Preconditions.checkArgument(null != properties, "Invalid properties: null");
-    Preconditions.checkArgument(null != properties.get(URI), "Invalid URI: null");
+    Preconditions.checkArgument(null != properties.get(URI), "Invalid credentials endpoint: null");
+    Preconditions.checkArgument(
+        null != properties.get(CatalogProperties.URI), "Invalid catalog endpoint: null");
     this.properties = SerializableMap.copyOf(properties);
+    this.credentialsEndpoint = properties.get(URI);
+    this.catalogEndpoint = properties.get(CatalogProperties.URI);
   }
 
   String credentialForAccount(String storageAccount) {
@@ -117,7 +124,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
       synchronized (this) {
         if (null == client) {
           authManager = AuthManagers.loadAuthManager("adls-credentials-refresh", properties);
-          HTTPClient httpClient = HTTPClient.builder(properties).uri(properties.get(URI)).build();
+          HTTPClient httpClient = HTTPClient.builder(properties).uri(catalogEndpoint).build();
           authSession = authManager.catalogSession(httpClient, properties);
           client = httpClient.withAuthSession(authSession);
         }
@@ -130,7 +137,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
   private LoadCredentialsResponse fetchCredentials() {
     return httpClient()
         .get(
-            properties.get(URI),
+            credentialsEndpoint,
             null,
             LoadCredentialsResponse.class,
             Map.of(),

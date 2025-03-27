@@ -27,13 +27,13 @@ import com.azure.core.http.policy.AzureSasCredentialPolicy;
 import com.azure.core.http.policy.HttpPipelinePolicy;
 import reactor.core.publisher.Mono;
 
-public class VendedAzureSasCredentialPolicy implements HttpPipelinePolicy {
+class VendedAzureSasCredentialPolicy implements HttpPipelinePolicy {
   private final String account;
   private final VendedAdlsCredentialProvider vendedAdlsCredentialProvider;
   private AzureSasCredential azureSasCredential;
   private AzureSasCredentialPolicy azureSasCredentialPolicy;
 
-  public VendedAzureSasCredentialPolicy(
+  VendedAzureSasCredentialPolicy(
       String account, VendedAdlsCredentialProvider vendedAdlsCredentialProvider) {
     this.account = account;
     this.vendedAdlsCredentialProvider = vendedAdlsCredentialProvider;
