@@ -33,7 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** A cache for {@link AuthSession} instances. */
-public class AuthSessionCache implements AutoCloseable {
+public class AuthSessionCache<K, V extends AuthSession> implements AutoCloseable {
 
   private static final Logger LOG = LoggerFactory.getLogger(AuthSessionCache.class);
 
@@ -41,7 +41,7 @@ public class AuthSessionCache implements AutoCloseable {
   private final Executor executor;
   private final Ticker ticker;
 
-  private volatile Cache<String, AuthSession> sessionCache;
+  private volatile Cache<K, V> sessionCache;
 
   /**
    * Creates a new cache with the given session timeout, and with default executor and default
@@ -80,18 +80,16 @@ public class AuthSessionCache implements AutoCloseable {
    *
    * @param key the key to use for the session.
    * @param loader the loader to use to load the session if it is not already cached.
-   * @param <T> the type of the session.
    * @return the cached session.
    */
-  @SuppressWarnings("unchecked")
-  public <T extends AuthSession> T cachedSession(String key, Function<String, T> loader) {
-    return (T) sessionCache().get(key, loader);
+  public V cachedSession(K key, Function<K, V> loader) {
+    return sessionCache().get(key, loader);
   }
 
   @Override
   public void close() {
     try {
-      Cache<String, AuthSession> cache = sessionCache;
+      Cache<K, V> cache = sessionCache;
       this.sessionCache = null;
       if (cache != null) {
         cache.invalidateAll();
@@ -110,7 +108,7 @@ public class AuthSessionCache implements AutoCloseable {
   }
 
   @VisibleForTesting
-  Cache<String, AuthSession> sessionCache() {
+  Cache<K, V> sessionCache() {
     if (sessionCache == null) {
       synchronized (this) {
         if (sessionCache == null) {
@@ -122,8 +120,8 @@ public class AuthSessionCache implements AutoCloseable {
     return sessionCache;
   }
 
-  private Cache<String, AuthSession> newSessionCache() {
-    Caffeine<String, AuthSession> builder =
+  private Cache<K, V> newSessionCache() {
+    Caffeine<K, V> builder =
         Caffeine.newBuilder()
             .executor(executor)
             .expireAfterAccess(sessionTimeout)
