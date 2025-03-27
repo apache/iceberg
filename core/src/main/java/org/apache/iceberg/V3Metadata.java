@@ -151,7 +151,7 @@ class V3Metadata {
                 "Found invalid first-row-id assignment: %s",
                 wrapped);
             return wrappedFirstRowId;
-          } else if (wrapped.content() == ManifestContent.DATA) {
+          } else if (wrapped.content() != ManifestContent.DATA) {
             return null;
           } else {
             return wrapped.firstRowId();

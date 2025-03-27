@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TestHelpers.MAX_FORMAT_VERSION;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -45,6 +46,8 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestManifestListVersions {
   private static final String PATH = "s3://bucket/table/m1.avro";
@@ -62,6 +65,8 @@ public class TestManifestListVersions {
   private static final List<ManifestFile.PartitionFieldSummary> PARTITION_SUMMARIES =
       ImmutableList.of();
   private static final ByteBuffer KEY_METADATA = null;
+  private static final long FIRST_ROW_ID = 100L;
+  private static final long WRITER_FIRST_ROW_ID = 130L;
 
   private static final ManifestFile TEST_MANIFEST =
       new GenericManifestFile(
@@ -72,14 +77,15 @@ public class TestManifestListVersions {
           SEQ_NUM,
           MIN_SEQ_NUM,
           SNAPSHOT_ID,
+          PARTITION_SUMMARIES,
+          KEY_METADATA,
           ADDED_FILES,
           ADDED_ROWS,
           EXISTING_FILES,
           EXISTING_ROWS,
           DELETED_FILES,
           DELETED_ROWS,
-          PARTITION_SUMMARIES,
-          KEY_METADATA);
+          FIRST_ROW_ID);
 
   private static final ManifestFile TEST_DELETE_MANIFEST =
       new GenericManifestFile(
@@ -90,14 +96,15 @@ public class TestManifestListVersions {
           SEQ_NUM,
           MIN_SEQ_NUM,
           SNAPSHOT_ID,
+          PARTITION_SUMMARIES,
+          KEY_METADATA,
           ADDED_FILES,
           ADDED_ROWS,
           EXISTING_FILES,
           EXISTING_ROWS,
           DELETED_FILES,
           DELETED_ROWS,
-          PARTITION_SUMMARIES,
-          KEY_METADATA);
+          null);
 
   @TempDir private Path temp;
 
@@ -111,6 +118,9 @@ public class TestManifestListVersions {
   @Test
   public void testV1Write() throws IOException {
     ManifestFile manifest = writeAndReadManifestList(1);
+
+    // v3 fields are not written and are defaulted
+    assertThat(manifest.firstRowId()).isNull();
 
     // v2 fields are not written and are defaulted
     assertThat(manifest.sequenceNumber()).isEqualTo(0);
@@ -134,6 +144,9 @@ public class TestManifestListVersions {
   public void testV2Write() throws IOException {
     ManifestFile manifest = writeAndReadManifestList(2);
 
+    // v3 fields are not written and are defaulted
+    assertThat(manifest.firstRowId()).isNull();
+
     // all v2 fields should be read correctly
     assertThat(manifest.path()).isEqualTo(PATH);
     assertThat(manifest.length()).isEqualTo(LENGTH);
@@ -151,24 +164,139 @@ public class TestManifestListVersions {
   }
 
   @Test
+  public void testV3Write() throws IOException {
+    ManifestFile manifest = writeAndReadManifestList(3);
+
+    // all v3 fields should be read correctly
+    assertThat(manifest.path()).isEqualTo(PATH);
+    assertThat(manifest.length()).isEqualTo(LENGTH);
+    assertThat(manifest.partitionSpecId()).isEqualTo(SPEC_ID);
+    assertThat(manifest.content()).isEqualTo(ManifestContent.DATA);
+    assertThat(manifest.sequenceNumber()).isEqualTo(SEQ_NUM);
+    assertThat(manifest.minSequenceNumber()).isEqualTo(MIN_SEQ_NUM);
+    assertThat(manifest.snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(manifest.addedFilesCount()).isEqualTo(ADDED_FILES);
+    assertThat(manifest.addedRowsCount()).isEqualTo(ADDED_ROWS);
+    assertThat(manifest.existingFilesCount()).isEqualTo(EXISTING_FILES);
+    assertThat(manifest.existingRowsCount()).isEqualTo(EXISTING_ROWS);
+    assertThat(manifest.deletedFilesCount()).isEqualTo(DELETED_FILES);
+    assertThat(manifest.deletedRowsCount()).isEqualTo(DELETED_ROWS);
+    assertThat(manifest.firstRowId()).isEqualTo(FIRST_ROW_ID);
+  }
+
+  @Test
+  public void testV3WriteFirstRowIdAssignment() throws IOException {
+    ManifestFile missingFirstRowId =
+        new GenericManifestFile(
+            PATH,
+            LENGTH,
+            SPEC_ID,
+            ManifestContent.DATA,
+            SEQ_NUM,
+            MIN_SEQ_NUM,
+            SNAPSHOT_ID,
+            PARTITION_SUMMARIES,
+            KEY_METADATA,
+            ADDED_FILES,
+            ADDED_ROWS,
+            EXISTING_FILES,
+            EXISTING_ROWS,
+            DELETED_FILES,
+            DELETED_ROWS,
+            null);
+
+    // write uses firstRowId=WRITER_FIRST_ROW_ID and ADDED_ROWS are assigned
+    long nextRowId = WRITER_FIRST_ROW_ID + ADDED_ROWS;
+    ManifestFile manifest =
+        Iterables.getOnlyElement(
+            ManifestLists.read(writeManifestList(3, nextRowId, missingFirstRowId)));
+
+    // all v3 fields should be read correctly
+    assertThat(manifest.path()).isEqualTo(PATH);
+    assertThat(manifest.length()).isEqualTo(LENGTH);
+    assertThat(manifest.partitionSpecId()).isEqualTo(SPEC_ID);
+    assertThat(manifest.content()).isEqualTo(ManifestContent.DATA);
+    assertThat(manifest.sequenceNumber()).isEqualTo(SEQ_NUM);
+    assertThat(manifest.minSequenceNumber()).isEqualTo(MIN_SEQ_NUM);
+    assertThat(manifest.snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(manifest.addedFilesCount()).isEqualTo(ADDED_FILES);
+    assertThat(manifest.addedRowsCount()).isEqualTo(ADDED_ROWS);
+    assertThat(manifest.existingFilesCount()).isEqualTo(EXISTING_FILES);
+    assertThat(manifest.existingRowsCount()).isEqualTo(EXISTING_ROWS);
+    assertThat(manifest.deletedFilesCount()).isEqualTo(DELETED_FILES);
+    assertThat(manifest.deletedRowsCount()).isEqualTo(DELETED_ROWS);
+    assertThat(manifest.firstRowId()).isEqualTo(WRITER_FIRST_ROW_ID);
+  }
+
+  @Test
+  public void testV3WriteMixedRowIdAssignment() throws IOException {
+    ManifestFile missingFirstRowId =
+        new GenericManifestFile(
+            PATH,
+            LENGTH,
+            SPEC_ID,
+            ManifestContent.DATA,
+            SEQ_NUM,
+            MIN_SEQ_NUM,
+            SNAPSHOT_ID,
+            PARTITION_SUMMARIES,
+            KEY_METADATA,
+            ADDED_FILES,
+            ADDED_ROWS,
+            EXISTING_FILES,
+            EXISTING_ROWS,
+            DELETED_FILES,
+            DELETED_ROWS,
+            null);
+
+    // write uses firstRowId=WRITER_FIRST_ROW_ID and ADDED_ROWS are assigned twice
+    long nextRowId = WRITER_FIRST_ROW_ID + ADDED_ROWS + ADDED_ROWS;
+    List<ManifestFile> manifests =
+        ManifestLists.read(
+            writeManifestList(3, nextRowId, missingFirstRowId, TEST_MANIFEST, missingFirstRowId));
+
+    // all v2 fields should be read correctly
+    for (ManifestFile manifest : manifests) {
+      assertThat(manifest.path()).isEqualTo(PATH);
+      assertThat(manifest.length()).isEqualTo(LENGTH);
+      assertThat(manifest.partitionSpecId()).isEqualTo(SPEC_ID);
+      assertThat(manifest.content()).isEqualTo(ManifestContent.DATA);
+      assertThat(manifest.sequenceNumber()).isEqualTo(SEQ_NUM);
+      assertThat(manifest.minSequenceNumber()).isEqualTo(MIN_SEQ_NUM);
+      assertThat(manifest.snapshotId()).isEqualTo(SNAPSHOT_ID);
+      assertThat(manifest.addedFilesCount()).isEqualTo(ADDED_FILES);
+      assertThat(manifest.addedRowsCount()).isEqualTo(ADDED_ROWS);
+      assertThat(manifest.existingFilesCount()).isEqualTo(EXISTING_FILES);
+      assertThat(manifest.existingRowsCount()).isEqualTo(EXISTING_ROWS);
+      assertThat(manifest.deletedFilesCount()).isEqualTo(DELETED_FILES);
+      assertThat(manifest.deletedRowsCount()).isEqualTo(DELETED_ROWS);
+    }
+
+    assertThat(manifests.get(0).firstRowId()).isEqualTo(WRITER_FIRST_ROW_ID);
+    assertThat(manifests.get(1).firstRowId()).isEqualTo(FIRST_ROW_ID);
+    assertThat(manifests.get(2).firstRowId()).isEqualTo(WRITER_FIRST_ROW_ID + ADDED_ROWS);
+  }
+
+  @Test
   public void testV1ForwardCompatibility() throws IOException {
     InputFile manifestList = writeManifestList(TEST_MANIFEST, 1);
     GenericData.Record generic = readGeneric(manifestList, V1Metadata.MANIFEST_LIST_SCHEMA);
 
     // v1 metadata should match even though order changed
-    assertThat(generic.get("manifest_path")).asString().isEqualTo(PATH);
-    assertThat(generic.get("manifest_length")).isEqualTo(LENGTH);
-    assertThat(generic.get("partition_spec_id")).isEqualTo(SPEC_ID);
-    assertThat(generic.get("added_snapshot_id")).isEqualTo(SNAPSHOT_ID);
-    assertThat(generic.get("added_files_count")).isEqualTo(ADDED_FILES);
-    assertThat(generic.get("existing_files_count")).isEqualTo(EXISTING_FILES);
-    assertThat(generic.get("deleted_files_count")).isEqualTo(DELETED_FILES);
-    assertThat(generic.get("added_rows_count")).isEqualTo(ADDED_ROWS);
-    assertThat(generic.get("existing_rows_count")).isEqualTo(EXISTING_ROWS);
-    assertThat(generic.get("deleted_rows_count")).isEqualTo(DELETED_ROWS);
+    assertThat(generic.get(ManifestFile.PATH.name())).asString().isEqualTo(PATH);
+    assertThat(generic.get(ManifestFile.LENGTH.name())).isEqualTo(LENGTH);
+    assertThat(generic.get(ManifestFile.SPEC_ID.name())).isEqualTo(SPEC_ID);
+    assertThat(generic.get(ManifestFile.SNAPSHOT_ID.name())).isEqualTo(SNAPSHOT_ID);
+    assertThat(generic.get(ManifestFile.ADDED_FILES_COUNT.name())).isEqualTo(ADDED_FILES);
+    assertThat(generic.get(ManifestFile.EXISTING_FILES_COUNT.name())).isEqualTo(EXISTING_FILES);
+    assertThat(generic.get(ManifestFile.DELETED_FILES_COUNT.name())).isEqualTo(DELETED_FILES);
+    assertThat(generic.get(ManifestFile.ADDED_ROWS_COUNT.name())).isEqualTo(ADDED_ROWS);
+    assertThat(generic.get(ManifestFile.EXISTING_ROWS_COUNT.name())).isEqualTo(EXISTING_ROWS);
+    assertThat(generic.get(ManifestFile.DELETED_ROWS_COUNT.name())).isEqualTo(DELETED_ROWS);
     assertEmptyAvroField(generic, ManifestFile.MANIFEST_CONTENT.name());
     assertEmptyAvroField(generic, ManifestFile.SEQUENCE_NUMBER.name());
     assertEmptyAvroField(generic, ManifestFile.MIN_SEQUENCE_NUMBER.name());
+    assertEmptyAvroField(generic, ManifestFile.FIRST_ROW_ID.name());
   }
 
   @Test
@@ -179,19 +307,20 @@ public class TestManifestListVersions {
     GenericData.Record generic = readGeneric(manifestList, V1Metadata.MANIFEST_LIST_SCHEMA);
 
     // v1 metadata should match even though order changed
-    assertThat(generic.get("manifest_path")).asString().isEqualTo(PATH);
-    assertThat(generic.get("manifest_length")).isEqualTo(LENGTH);
-    assertThat(generic.get("partition_spec_id")).isEqualTo(SPEC_ID);
-    assertThat(generic.get("added_snapshot_id")).isEqualTo(SNAPSHOT_ID);
-    assertThat(generic.get("added_files_count")).isEqualTo(ADDED_FILES);
-    assertThat(generic.get("existing_files_count")).isEqualTo(EXISTING_FILES);
-    assertThat(generic.get("deleted_files_count")).isEqualTo(DELETED_FILES);
-    assertThat(generic.get("added_rows_count")).isEqualTo(ADDED_ROWS);
-    assertThat(generic.get("existing_rows_count")).isEqualTo(EXISTING_ROWS);
-    assertThat(generic.get("deleted_rows_count")).isEqualTo(DELETED_ROWS);
+    assertThat(generic.get(ManifestFile.PATH.name())).asString().isEqualTo(PATH);
+    assertThat(generic.get(ManifestFile.LENGTH.name())).isEqualTo(LENGTH);
+    assertThat(generic.get(ManifestFile.SPEC_ID.name())).isEqualTo(SPEC_ID);
+    assertThat(generic.get(ManifestFile.SNAPSHOT_ID.name())).isEqualTo(SNAPSHOT_ID);
+    assertThat(generic.get(ManifestFile.ADDED_FILES_COUNT.name())).isEqualTo(ADDED_FILES);
+    assertThat(generic.get(ManifestFile.EXISTING_FILES_COUNT.name())).isEqualTo(EXISTING_FILES);
+    assertThat(generic.get(ManifestFile.DELETED_FILES_COUNT.name())).isEqualTo(DELETED_FILES);
+    assertThat(generic.get(ManifestFile.ADDED_ROWS_COUNT.name())).isEqualTo(ADDED_ROWS);
+    assertThat(generic.get(ManifestFile.EXISTING_ROWS_COUNT.name())).isEqualTo(EXISTING_ROWS);
+    assertThat(generic.get(ManifestFile.DELETED_ROWS_COUNT.name())).isEqualTo(DELETED_ROWS);
     assertEmptyAvroField(generic, ManifestFile.MANIFEST_CONTENT.name());
     assertEmptyAvroField(generic, ManifestFile.SEQUENCE_NUMBER.name());
     assertEmptyAvroField(generic, ManifestFile.MIN_SEQUENCE_NUMBER.name());
+    assertEmptyAvroField(generic, ManifestFile.FIRST_ROW_ID.name());
   }
 
   @Test
@@ -201,14 +330,14 @@ public class TestManifestListVersions {
 
     Collection<String> columnNamesWithoutRowStats =
         ImmutableList.of(
-            "manifest_path",
-            "manifest_length",
-            "partition_spec_id",
-            "added_snapshot_id",
-            "added_files_count",
-            "existing_files_count",
-            "deleted_files_count",
-            "partitions");
+            ManifestFile.PATH.name(),
+            ManifestFile.LENGTH.name(),
+            ManifestFile.SPEC_ID.name(),
+            ManifestFile.SNAPSHOT_ID.name(),
+            ManifestFile.ADDED_FILES_COUNT.name(),
+            ManifestFile.EXISTING_FILES_COUNT.name(),
+            ManifestFile.DELETED_FILES_COUNT.name(),
+            ManifestFile.PARTITION_SUMMARIES.name());
     Schema schemaWithoutRowStats =
         V1Metadata.MANIFEST_LIST_SCHEMA.select(columnNamesWithoutRowStats);
 
@@ -224,14 +353,14 @@ public class TestManifestListVersions {
           AvroSchemaUtil.convert(schemaWithoutRowStats, "manifest_file");
       GenericData.Record withoutRowStats =
           new GenericRecordBuilder(avroSchema)
-              .set("manifest_path", "path/to/manifest.avro")
-              .set("manifest_length", 1024L)
-              .set("partition_spec_id", 1)
-              .set("added_snapshot_id", 100L)
-              .set("added_files_count", 2)
-              .set("existing_files_count", 3)
-              .set("deleted_files_count", 4)
-              .set("partitions", null)
+              .set(ManifestFile.PATH.name(), "path/to/manifest.avro")
+              .set(ManifestFile.LENGTH.name(), 1024L)
+              .set(ManifestFile.SPEC_ID.name(), 1)
+              .set(ManifestFile.SNAPSHOT_ID.name(), 100L)
+              .set(ManifestFile.ADDED_FILES_COUNT.name(), 2)
+              .set(ManifestFile.EXISTING_FILES_COUNT.name(), 3)
+              .set(ManifestFile.DELETED_FILES_COUNT.name(), 4)
+              .set(ManifestFile.PARTITION_SUMMARIES.name(), null)
               .build();
       appender.add(withoutRowStats);
     }
@@ -248,10 +377,12 @@ public class TestManifestListVersions {
     assertThat(manifest.hasDeletedFiles()).isTrue();
     assertThat(manifest.deletedFilesCount()).isEqualTo(4);
     assertThat(manifest.deletedRowsCount()).isNull();
+    assertThat(manifest.firstRowId()).isNull();
   }
 
-  @Test
-  public void testManifestsPartitionSummary() throws IOException {
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2, MAX_FORMAT_VERSION})
+  public void testManifestsPartitionSummary(int formatVersion) throws IOException {
     ByteBuffer firstSummaryLowerBound = Conversions.toByteBuffer(Types.IntegerType.get(), 10);
     ByteBuffer firstSummaryUpperBound = Conversions.toByteBuffer(Types.IntegerType.get(), 100);
     ByteBuffer secondSummaryLowerBound = Conversions.toByteBuffer(Types.IntegerType.get(), 20);
@@ -281,7 +412,8 @@ public class TestManifestListVersions {
             DELETED_ROWS,
             null);
 
-    InputFile manifestList = writeManifestList(manifest, 2);
+    InputFile manifestList =
+        writeManifestList(formatVersion, WRITER_FIRST_ROW_ID + ADDED_ROWS, manifest);
 
     List<ManifestFile> files = ManifestLists.read(manifestList);
     ManifestFile returnedManifest = Iterables.getOnlyElement(files);
@@ -301,18 +433,34 @@ public class TestManifestListVersions {
   }
 
   private InputFile writeManifestList(ManifestFile manifest, int formatVersion) throws IOException {
-    OutputFile manifestList = new InMemoryOutputFile();
-    try (FileAppender<ManifestFile> writer =
+    return writeManifestList(formatVersion, WRITER_FIRST_ROW_ID, manifest);
+  }
+
+  private InputFile writeManifestList(int formatVersion, long nextRowId, ManifestFile... manifests)
+      throws IOException {
+    OutputFile outputFile = new InMemoryOutputFile();
+    ManifestListWriter writer =
         ManifestLists.write(
             formatVersion,
-            manifestList,
+            outputFile,
             SNAPSHOT_ID,
             SNAPSHOT_ID - 1,
             formatVersion > 1 ? SEQ_NUM : 0,
-            0L)) {
-      writer.add(manifest);
+            WRITER_FIRST_ROW_ID);
+
+    try (writer) {
+      for (ManifestFile manifest : manifests) {
+        writer.add(manifest);
+      }
     }
-    return manifestList.toInputFile();
+
+    if (formatVersion >= 3) {
+      assertThat(writer.nextRowId()).isEqualTo(nextRowId);
+    } else {
+      assertThat(writer.nextRowId()).isNull();
+    }
+
+    return outputFile.toInputFile();
   }
 
   private GenericData.Record readGeneric(InputFile manifestList, Schema schema) throws IOException {
