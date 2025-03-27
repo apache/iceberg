@@ -131,7 +131,8 @@ public class ADLSFileIO implements DelegateFileIO {
     this.properties = SerializableMap.copyOf(props);
     this.azureProperties = new AzureProperties(properties);
     initMetrics(properties);
-    this.azureProperties.vendedAdlsCredentialProvider()
+    this.azureProperties
+        .vendedAdlsCredentialProvider()
         .ifPresent((provider -> this.vendedAdlsCredentialProvider = provider));
   }
 
