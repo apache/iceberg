@@ -65,11 +65,6 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
     sql("ALTER TABLE %s SET IDENTIFIER FIELDS id", tableName);
   }
 
-  public void createTableWithTwoNonStandardColumns() {
-    sql("CREATE TABLE %s (`the id` INT, `the.data` STRING) USING iceberg", tableName);
-    sql("ALTER TABLE %s ADD PARTITION FIELD `the.data`", tableName);
-  }
-
   @Test
   public void testCustomizedViewName() {
     createTableWithTwoColumns();
@@ -105,7 +100,9 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
   @TestTemplate
   public void testNonStandardColumnNames() {
-    createTableWithTwoNonStandardColumns();
+    sql("CREATE TABLE %s (`the id` INT, `the.data` STRING) USING iceberg", tableName);
+    sql("ALTER TABLE %s ADD PARTITION FIELD `the.data`", tableName);
+
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
     sql("INSERT INTO %s VALUES (2, 'b')", tableName);
 
