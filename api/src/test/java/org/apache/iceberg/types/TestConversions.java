@@ -45,6 +45,7 @@ import org.junit.jupiter.api.Test;
 public class TestConversions {
 
   @Test
+  @SuppressWarnings("MethodLength")
   public void testByteBufferConversions() {
     // booleans are stored as 0x00 for 'false' and a non-zero byte for 'true'
     assertConversion(false, BooleanType.get(), new byte[] {0x00});
