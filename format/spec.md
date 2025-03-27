@@ -1611,7 +1611,7 @@ All readers are required to read tables with unknown partition transforms, ignor
 Writing v3 metadata:
 
 * Partition Field and Sort Field JSON:
-    * `source-ids` was added and is required in case of multi-argument transforms.
+    * `source-ids` was added and is required in the case of multi-argument transforms.
     * `source-id` should still be written in the case of single-argument transforms.
 
 Row-level delete changes:
