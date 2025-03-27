@@ -40,6 +40,7 @@ import com.azure.identity.DefaultAzureCredential;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import java.util.Optional;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.azure.adlsv2.VendedAdlsCredentialProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -80,7 +81,12 @@ public class AzurePropertiesTest {
   @Test
   public void testWithRefreshCredentialsEndpoint() {
     AzureProperties props =
-        new AzureProperties(ImmutableMap.of(ADLS_REFRESH_CREDENTIALS_ENDPOINT, "endpoint"));
+        new AzureProperties(
+            ImmutableMap.of(
+                ADLS_REFRESH_CREDENTIALS_ENDPOINT,
+                "endpoint",
+                CatalogProperties.URI,
+                "catalog-endpoint"));
 
     DataLakeFileSystemClientBuilder clientBuilder = mock(DataLakeFileSystemClientBuilder.class);
     props.applyClientConfiguration("account1", clientBuilder);
