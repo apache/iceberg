@@ -28,7 +28,7 @@ import org.apache.iceberg.util.PropertyUtil;
 
 /**
  * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link
- *     RewritePositionDeletesGroupPlanner} and {@link FileRewriteRunner}
+ *     BinPackRewritePositionDeletePlanner} and {@link FileRewriteRunner}
  */
 @Deprecated
 public abstract class SizeBasedPositionDeletesRewriter

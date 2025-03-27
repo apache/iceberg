@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.actions;
 
+import static org.apache.iceberg.actions.BinPackRewritePositionDeletePlanner.MAX_FILE_SIZE_DEFAULT_RATIO;
 import static org.apache.iceberg.actions.RewritePositionDeleteFiles.REWRITE_JOB_ORDER;
-import static org.apache.iceberg.actions.RewritePositionDeletesGroupPlanner.MAX_FILE_SIZE_DEFAULT_RATIO;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -52,9 +52,9 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
-class TestRewritePositionDeletesGroupPlanner {
+class TestBinPackRewritePositionDeletePlanner {
   private static final Map<String, String> REWRITE_ALL =
-      ImmutableMap.of(RewritePositionDeletesGroupPlanner.REWRITE_ALL, "true");
+      ImmutableMap.of(BinPackRewritePositionDeletePlanner.REWRITE_ALL, "true");
 
   private static final DataFile FILE_1 = newDataFile("data_bucket=0");
   private static final DataFile FILE_2 = newDataFile("data_bucket=1");
@@ -86,8 +86,8 @@ class TestRewritePositionDeletesGroupPlanner {
   @Test
   void testPartitionedTable() {
     addFiles();
-    RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
-    planner.init(ImmutableMap.of(RewritePositionDeletesGroupPlanner.REWRITE_ALL, "true"));
+    BinPackRewritePositionDeletePlanner planner = new BinPackRewritePositionDeletePlanner(table);
+    planner.init(ImmutableMap.of(BinPackRewritePositionDeletePlanner.REWRITE_ALL, "true"));
 
     FileRewritePlan<FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
         plan = planner.plan();
@@ -109,12 +109,12 @@ class TestRewritePositionDeletesGroupPlanner {
         .addDeletes(newDeleteFile(30))
         .commit();
 
-    RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
+    BinPackRewritePositionDeletePlanner planner = new BinPackRewritePositionDeletePlanner(table);
     planner.init(
         ImmutableMap.of(
-            BinPackRewriteFileGroupPlanner.MIN_INPUT_FILES,
+            BinPackRewriteFilePlanner.MIN_INPUT_FILES,
             "1",
-            BinPackRewriteFileGroupPlanner.MIN_FILE_SIZE_BYTES,
+            BinPackRewriteFilePlanner.MIN_FILE_SIZE_BYTES,
             "30"));
 
     FileRewritePlan<FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
@@ -126,7 +126,7 @@ class TestRewritePositionDeletesGroupPlanner {
 
   @Test
   void testEmptyTable() {
-    RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
+    BinPackRewritePositionDeletePlanner planner = new BinPackRewritePositionDeletePlanner(table);
     planner.init(REWRITE_ALL);
 
     FileRewritePlan<FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
@@ -142,10 +142,10 @@ class TestRewritePositionDeletesGroupPlanner {
       names = {"FILES_DESC", "FILES_ASC", "BYTES_DESC", "BYTES_ASC"})
   void testJobOrder(RewriteJobOrder order) {
     addFiles();
-    RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
+    BinPackRewritePositionDeletePlanner planner = new BinPackRewritePositionDeletePlanner(table);
     planner.init(
         ImmutableMap.of(
-            BinPackRewriteFileGroupPlanner.REWRITE_ALL, "true", REWRITE_JOB_ORDER, order.name()));
+            BinPackRewriteFilePlanner.REWRITE_ALL, "true", REWRITE_JOB_ORDER, order.name()));
 
     FileRewritePlan<FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
         plan = planner.plan();
@@ -166,12 +166,12 @@ class TestRewritePositionDeletesGroupPlanner {
   @Test
   void testMaxGroupSize() {
     addFiles();
-    RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
+    BinPackRewritePositionDeletePlanner planner = new BinPackRewritePositionDeletePlanner(table);
     planner.init(
         ImmutableMap.of(
-            RewritePositionDeletesGroupPlanner.REWRITE_ALL,
+            BinPackRewritePositionDeletePlanner.REWRITE_ALL,
             "true",
-            RewritePositionDeletesGroupPlanner.MAX_FILE_GROUP_SIZE_BYTES,
+            BinPackRewritePositionDeletePlanner.MAX_FILE_GROUP_SIZE_BYTES,
             "10"));
 
     FileRewritePlan<FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
@@ -186,8 +186,8 @@ class TestRewritePositionDeletesGroupPlanner {
   @Test
   void testFilter() {
     addFiles();
-    RewritePositionDeletesGroupPlanner planner =
-        new RewritePositionDeletesGroupPlanner(
+    BinPackRewritePositionDeletePlanner planner =
+        new BinPackRewritePositionDeletePlanner(
             table,
             Expressions.or(
                 Expressions.equal(Expressions.bucket("data", 16), 0),
@@ -209,12 +209,12 @@ class TestRewritePositionDeletesGroupPlanner {
   void testMaxOutputFileSize() {
     addFiles();
     int targetFileSize = 10;
-    RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
+    BinPackRewritePositionDeletePlanner planner = new BinPackRewritePositionDeletePlanner(table);
     planner.init(
         ImmutableMap.of(
-            RewritePositionDeletesGroupPlanner.REWRITE_ALL,
+            BinPackRewritePositionDeletePlanner.REWRITE_ALL,
             "true",
-            RewritePositionDeletesGroupPlanner.TARGET_FILE_SIZE_BYTES,
+            BinPackRewritePositionDeletePlanner.TARGET_FILE_SIZE_BYTES,
             String.valueOf(targetFileSize)));
 
     FileRewritePlan<FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
@@ -227,24 +227,24 @@ class TestRewritePositionDeletesGroupPlanner {
 
   @Test
   void testValidOptions() {
-    RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
+    BinPackRewritePositionDeletePlanner planner = new BinPackRewritePositionDeletePlanner(table);
 
     assertThat(planner.validOptions())
         .as("Planner must report all supported options")
         .isEqualTo(
             ImmutableSet.of(
-                RewritePositionDeletesGroupPlanner.TARGET_FILE_SIZE_BYTES,
-                RewritePositionDeletesGroupPlanner.MIN_FILE_SIZE_BYTES,
-                RewritePositionDeletesGroupPlanner.MAX_FILE_SIZE_BYTES,
-                RewritePositionDeletesGroupPlanner.MIN_INPUT_FILES,
-                RewritePositionDeletesGroupPlanner.REWRITE_ALL,
-                RewritePositionDeletesGroupPlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                BinPackRewritePositionDeletePlanner.TARGET_FILE_SIZE_BYTES,
+                BinPackRewritePositionDeletePlanner.MIN_FILE_SIZE_BYTES,
+                BinPackRewritePositionDeletePlanner.MAX_FILE_SIZE_BYTES,
+                BinPackRewritePositionDeletePlanner.MIN_INPUT_FILES,
+                BinPackRewritePositionDeletePlanner.REWRITE_ALL,
+                BinPackRewritePositionDeletePlanner.MAX_FILE_GROUP_SIZE_BYTES,
                 RewriteDataFiles.REWRITE_JOB_ORDER));
   }
 
   @Test
   void testInvalidOption() {
-    RewritePositionDeletesGroupPlanner planner = new RewritePositionDeletesGroupPlanner(table);
+    BinPackRewritePositionDeletePlanner planner = new BinPackRewritePositionDeletePlanner(table);
 
     Map<String, String> invalidRewriteJobOrderOptions =
         ImmutableMap.of(RewritePositionDeleteFiles.REWRITE_JOB_ORDER, "foo");

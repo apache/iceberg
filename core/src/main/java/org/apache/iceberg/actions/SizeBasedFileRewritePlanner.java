@@ -162,7 +162,7 @@ public abstract class SizeBasedFileRewritePlanner<
     return table;
   }
 
-  protected boolean wronglySized(T task) {
+  protected boolean outsideDesiredFileSizeRange(T task) {
     return task.length() < minFileSize || task.length() > maxFileSize;
   }
 

@@ -54,17 +54,17 @@ import org.slf4j.LoggerFactory;
  * These will be grouped by partitions based on their size using fix sized bins. Extends the {@link
  * SizeBasedFileRewritePlanner} with {@link RewritePositionDeleteFiles#REWRITE_JOB_ORDER} handling.
  */
-public class RewritePositionDeletesGroupPlanner
+public class BinPackRewritePositionDeletePlanner
     extends SizeBasedFileRewritePlanner<
         FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup> {
   private static final Logger LOG =
-      LoggerFactory.getLogger(RewritePositionDeletesGroupPlanner.class);
+      LoggerFactory.getLogger(BinPackRewritePositionDeletePlanner.class);
 
   private final Expression filter;
   private final boolean caseSensitive;
   private RewriteJobOrder rewriteJobOrder;
 
-  public RewritePositionDeletesGroupPlanner(Table table) {
+  public BinPackRewritePositionDeletePlanner(Table table) {
     this(table, Expressions.alwaysTrue(), false);
   }
 
@@ -75,7 +75,8 @@ public class RewritePositionDeletesGroupPlanner
    * @param filter used to remove files from the plan
    * @param caseSensitive property used for scanning
    */
-  public RewritePositionDeletesGroupPlanner(Table table, Expression filter, boolean caseSensitive) {
+  public BinPackRewritePositionDeletePlanner(
+      Table table, Expression filter, boolean caseSensitive) {
     super(table);
     this.caseSensitive = caseSensitive;
     this.filter = filter;
@@ -136,7 +137,7 @@ public class RewritePositionDeletesGroupPlanner
 
   @Override
   protected Iterable<PositionDeletesScanTask> filterFiles(Iterable<PositionDeletesScanTask> tasks) {
-    return Iterables.filter(tasks, this::wronglySized);
+    return Iterables.filter(tasks, this::outsideDesiredFileSizeRange);
   }
 
   @Override

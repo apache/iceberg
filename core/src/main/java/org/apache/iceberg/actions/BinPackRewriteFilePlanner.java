@@ -55,7 +55,7 @@ import org.slf4j.LoggerFactory;
  * SizeBasedFileRewritePlanner} with delete file number and delete ratio thresholds and job {@link
  * RewriteDataFiles#REWRITE_JOB_ORDER} handling.
  */
-public class BinPackRewriteFileGroupPlanner
+public class BinPackRewriteFilePlanner
     extends SizeBasedFileRewritePlanner<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> {
   /**
    * The minimum number of deletes that needs to be associated with a data file for it to be
@@ -72,21 +72,21 @@ public class BinPackRewriteFileGroupPlanner
   public static final int DELETE_FILE_THRESHOLD_DEFAULT = Integer.MAX_VALUE;
 
   /**
-   * The minimum deletion ratio that needs to be associated with a data file for it to be considered
-   * for rewriting. If the deletion ratio of a data file is greater than or equal to this value, it
-   * will be rewritten regardless of its file size determined by {@link #MIN_FILE_SIZE_BYTES} and
-   * {@link #MAX_FILE_SIZE_BYTES}. If a file group contains a file that satisfies this condition,
-   * the file group will be rewritten regardless of the number of files in the file group determined
-   * by {@link #MIN_INPUT_FILES}.
+   * The ratio of the deleted rows in a data file for it to be considered for rewriting. If the
+   * deletion ratio of a data file is greater than or equal to this value, it will be rewritten
+   * regardless of its file size determined by {@link #MIN_FILE_SIZE_BYTES} and {@link
+   * #MAX_FILE_SIZE_BYTES}. If a file group contains a file that satisfies this condition, the file
+   * group will be rewritten regardless of the number of files in the file group determined by
+   * {@link #MIN_INPUT_FILES}.
    *
-   * <p>Defaults to 0.3, which means that if the deletion ratio of a file reaches or exceeds 30%, it
-   * may trigger the rewriting operation.
+   * <p>Defaults to 0.3, which means that if the number of deleted records in a file reaches or
+   * exceeds 30%, it will trigger the rewriting operation.
    */
   public static final String DELETE_RATIO_THRESHOLD = "delete-ratio-threshold";
 
   public static final double DELETE_RATIO_THRESHOLD_DEFAULT = 0.3;
 
-  private static final Logger LOG = LoggerFactory.getLogger(BinPackRewriteFileGroupPlanner.class);
+  private static final Logger LOG = LoggerFactory.getLogger(BinPackRewriteFilePlanner.class);
 
   private final Expression filter;
   private final Long snapshotId;
@@ -96,11 +96,11 @@ public class BinPackRewriteFileGroupPlanner
   private double deleteRatioThreshold;
   private RewriteJobOrder rewriteJobOrder;
 
-  public BinPackRewriteFileGroupPlanner(Table table) {
+  public BinPackRewriteFilePlanner(Table table) {
     this(table, Expressions.alwaysTrue());
   }
 
-  public BinPackRewriteFileGroupPlanner(Table table, Expression filter) {
+  public BinPackRewriteFilePlanner(Table table, Expression filter) {
     this(
         table,
         filter,
@@ -113,11 +113,11 @@ public class BinPackRewriteFileGroupPlanner
    *
    * @param table to plan for
    * @param filter used to remove files from the plan
-   * @param snapshotId used as a basis for planning - should be used as starting snapshot id at
-   *     commit time when replacing the files
+   * @param snapshotId a snapshot ID used for planning and as the starting snapshot id for commit
+   *     validation when replacing the files
    * @param caseSensitive property used for scanning
    */
-  public BinPackRewriteFileGroupPlanner(
+  public BinPackRewriteFilePlanner(
       Table table, Expression filter, Long snapshotId, boolean caseSensitive) {
     super(table);
     this.filter = filter;
@@ -170,7 +170,9 @@ public class BinPackRewriteFileGroupPlanner
   @Override
   protected Iterable<FileScanTask> filterFiles(Iterable<FileScanTask> tasks) {
     return Iterables.filter(
-        tasks, task -> wronglySized(task) || tooManyDeletes(task) || tooHighDeleteRatio(task));
+        tasks,
+        task ->
+            outsideDesiredFileSizeRange(task) || tooManyDeletes(task) || tooHighDeleteRatio(task));
   }
 
   @Override
