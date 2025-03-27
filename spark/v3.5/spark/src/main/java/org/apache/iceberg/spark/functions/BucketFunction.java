@@ -222,6 +222,11 @@ public class BucketFunction implements UnboundFunction {
       return BucketUtil.hash(value);
     }
 
+    // Visible for testing
+    public static int hash(String value) {
+      return BucketUtil.hash(value);
+    }
+
     @Override
     public DataType[] inputTypes() {
       return new DataType[] {DataTypes.IntegerType, DataTypes.StringType};
