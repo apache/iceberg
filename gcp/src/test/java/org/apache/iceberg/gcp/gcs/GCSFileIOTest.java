@@ -44,6 +44,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
@@ -61,6 +62,7 @@ import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -280,6 +282,26 @@ public class GCSFileIOTest {
   }
 
   @Test
+  public void noStorageCredentialConfigured() {
+    AccessToken expectedToken = new AccessToken("gcsTokenFromProperties", new Date(1000L));
+
+    Storage client;
+    try (GCSFileIO fileIO = new GCSFileIO()) {
+      fileIO.setCredentials(ImmutableList.of());
+      fileIO.initialize(
+          ImmutableMap.of(
+              GCS_OAUTH2_TOKEN, "gcsTokenFromProperties", GCS_OAUTH2_TOKEN_EXPIRES_AT, "1000"));
+      client = fileIO.client();
+    }
+
+    assertThat(client.getOptions().getCredentials())
+        .isInstanceOf(OAuth2Credentials.class)
+        .extracting("value")
+        .extracting("temporaryAccess")
+        .isEqualTo(expectedToken);
+  }
+
+  @Test
   public void singleStorageCredentialConfigured() {
     StorageCredential gcsCredential =
         ImmutableStorageCredential.builder()
@@ -346,5 +368,77 @@ public class GCSFileIOTest {
                         "1000")))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Invalid GCS Credentials: only one GCS credential should exist");
+  }
+
+  @Test
+  public void fileIOWithStorageCredentialsKryoSerialization() throws IOException {
+    GCSFileIO fileIO = new GCSFileIO();
+    fileIO.setCredentials(
+        ImmutableList.of(StorageCredential.create("prefix", Map.of("key1", "val1"))));
+    fileIO.initialize(Map.of());
+
+    assertThat(TestHelpers.KryoHelpers.roundTripSerialize(fileIO).credentials())
+        .isEqualTo(fileIO.credentials());
+  }
+
+  @Test
+  public void fileIOWithStorageCredentialsJavaSerialization()
+      throws IOException, ClassNotFoundException {
+    GCSFileIO fileIO = new GCSFileIO();
+    fileIO.setCredentials(
+        ImmutableList.of(StorageCredential.create("prefix", Map.of("key1", "val1"))));
+    fileIO.initialize(Map.of());
+
+    assertThat(TestHelpers.roundTripSerialize(fileIO).credentials())
+        .isEqualTo(fileIO.credentials());
+  }
+
+  @Test
+  public void resolvingFileIOLoadWithStorageCredentials()
+      throws IOException, ClassNotFoundException {
+    StorageCredential credential = StorageCredential.create("prefix", Map.of("key1", "val1"));
+    List<StorageCredential> storageCredentials = ImmutableList.of(credential);
+    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
+    resolvingFileIO.setCredentials(storageCredentials);
+    resolvingFileIO.initialize(ImmutableMap.of());
+
+    FileIO result =
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(resolvingFileIO)
+            .invoke("gs://foo/bar");
+    assertThat(result)
+        .isInstanceOf(GCSFileIO.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(GCSFileIO.class))
+        .extracting(GCSFileIO::credentials)
+        .isEqualTo(storageCredentials);
+
+    // make sure credentials are still present after kryo serde
+    ResolvingFileIO fileIO = TestHelpers.KryoHelpers.roundTripSerialize(resolvingFileIO);
+    assertThat(fileIO.credentials()).isEqualTo(storageCredentials);
+    result =
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(fileIO)
+            .invoke("gs://foo/bar");
+    assertThat(result)
+        .isInstanceOf(GCSFileIO.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(GCSFileIO.class))
+        .extracting(GCSFileIO::credentials)
+        .isEqualTo(storageCredentials);
+
+    // make sure credentials are still present after java serde
+    fileIO = TestHelpers.roundTripSerialize(resolvingFileIO);
+    assertThat(fileIO.credentials()).isEqualTo(storageCredentials);
+    result =
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(fileIO)
+            .invoke("gs://foo/bar");
+    assertThat(result)
+        .isInstanceOf(GCSFileIO.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(GCSFileIO.class))
+        .extracting(GCSFileIO::credentials)
+        .isEqualTo(storageCredentials);
   }
 }

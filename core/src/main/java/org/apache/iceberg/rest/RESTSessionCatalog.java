@@ -55,7 +55,6 @@ import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOTracker;
-import org.apache.iceberg.io.ImmutableStorageCredential;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
@@ -975,16 +974,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       return ioBuilder.apply(context, properties);
     } else {
       String ioImpl = properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL);
-      List<StorageCredential> credentials =
+      return CatalogUtil.loadFileIO(
+          ioImpl,
+          properties,
+          conf,
           storageCredentials.stream()
-              .map(
-                  c ->
-                      ImmutableStorageCredential.builder()
-                          .prefix(c.prefix())
-                          .config(c.config())
-                          .build())
-              .collect(Collectors.toList());
-      return CatalogUtil.loadFileIO(ioImpl, properties, conf, credentials);
+              .map(c -> StorageCredential.create(c.prefix(), c.config()))
+              .collect(Collectors.toList()));
     }
   }
 

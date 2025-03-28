@@ -20,6 +20,10 @@ package org.apache.iceberg.io;
 
 import java.util.List;
 
+/**
+ * This interface is intended as an extension for {@link FileIO} implementations to be able to
+ * provide and retrieve storage credentials
+ */
 public interface SupportsStorageCredentials {
 
   void setCredentials(List<StorageCredential> credentials);

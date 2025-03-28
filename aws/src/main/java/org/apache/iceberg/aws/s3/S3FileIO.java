@@ -567,7 +567,8 @@ public class S3FileIO
   @Override
   public void setCredentials(List<StorageCredential> credentials) {
     Preconditions.checkArgument(credentials != null, "Invalid storage credentials: null");
-    this.storageCredentials = credentials;
+    // copy credentials into a modifiable collection for Kryo serde
+    this.storageCredentials = Lists.newArrayList(credentials);
   }
 
   @Override
@@ -584,6 +585,6 @@ public class S3FileIO
     Preconditions.checkState(
         s3Credentials.size() <= 1, "Invalid S3 Credentials: only one S3 credential should exist");
 
-    return s3Credentials.isEmpty() ? ImmutableMap.of() : s3Credentials.get(0).config();
+    return s3Credentials.isEmpty() ? Map.of() : s3Credentials.get(0).config();
   }
 }
