@@ -60,36 +60,38 @@ class TestOAuth2Manager {
   @Test
   void initSessionNoOAuth2Properties() {
     Map<String, String> properties = Map.of();
-    try (OAuth2Manager manager = new OAuth2Manager("test");
-        OAuth2Util.AuthSession session = manager.initSession(client, properties)) {
+    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client);
+        OAuth2Util.AuthSession session = manager.authSession(AuthScopes.Initial.of(properties))) {
       assertThat(session.headers()).isEmpty();
       assertThat(manager)
           .extracting("refreshExecutor")
           .as("should not create refresh executor for init session")
           .isNull();
     }
-    Mockito.verifyNoInteractions(client);
+    Mockito.verify(client).withAuthSession(any());
+    Mockito.verifyNoMoreInteractions(client);
   }
 
   @Test
   void initSessionTokenProvided() {
     Map<String, String> properties = Map.of(OAuth2Properties.TOKEN, "test");
-    try (OAuth2Manager manager = new OAuth2Manager("test");
-        OAuth2Util.AuthSession session = manager.initSession(client, properties)) {
+    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client);
+        OAuth2Util.AuthSession session = manager.authSession(AuthScopes.Initial.of(properties))) {
       assertThat(session.headers()).containsOnly(entry("Authorization", "Bearer test"));
       assertThat(manager)
           .extracting("refreshExecutor")
           .as("should not create refresh executor for init session")
           .isNull();
     }
-    Mockito.verifyNoInteractions(client);
+    Mockito.verify(client).withAuthSession(any());
+    Mockito.verifyNoMoreInteractions(client);
   }
 
   @Test
   void initSessionCredentialsProvided() {
     Map<String, String> properties = Map.of(OAuth2Properties.CREDENTIAL, "client:secret");
-    try (OAuth2Manager manager = new OAuth2Manager("test");
-        OAuth2Util.AuthSession session = manager.initSession(client, properties)) {
+    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client);
+        OAuth2Util.AuthSession session = manager.authSession(AuthScopes.Initial.of(properties))) {
       assertThat(session.headers()).containsOnly(entry("Authorization", "Bearer test"));
       assertThat(manager)
           .extracting("refreshExecutor")
@@ -108,15 +110,16 @@ class TestOAuth2Manager {
             eq(OAuthTokenResponse.class),
             eq(Map.of()),
             any());
-    Mockito.verify(client).withAuthSession(any());
+    Mockito.verify(client, times(2)).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
   }
 
   @Test
   void catalogSessionNoOAuth2Properties() {
     Map<String, String> properties = Map.of();
-    try (OAuth2Manager manager = new OAuth2Manager("test");
-        OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, properties)) {
+    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client);
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(properties))) {
       assertThat(catalogSession.headers()).isEmpty();
       assertThat(manager)
           .extracting("refreshExecutor")
@@ -130,8 +133,9 @@ class TestOAuth2Manager {
   @Test
   void catalogSessionTokenProvided() {
     Map<String, String> properties = Map.of(OAuth2Properties.TOKEN, "test");
-    try (OAuth2Manager manager = new OAuth2Manager("test");
-        OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, properties)) {
+    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client);
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(properties))) {
       assertThat(catalogSession.headers()).containsOnly(entry("Authorization", "Bearer test"));
       assertThat(manager)
           .extracting("refreshExecutor")
@@ -146,8 +150,9 @@ class TestOAuth2Manager {
   void catalogSessionRefreshDisabled() {
     Map<String, String> properties =
         Map.of(OAuth2Properties.TOKEN, "test", OAuth2Properties.TOKEN_REFRESH_ENABLED, "false");
-    try (OAuth2Manager manager = new OAuth2Manager("test");
-        OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, properties)) {
+    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client);
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(properties))) {
       assertThat(catalogSession.headers()).containsOnly(entry("Authorization", "Bearer test"));
       assertThat(manager)
           .extracting("refreshExecutor")
@@ -163,9 +168,10 @@ class TestOAuth2Manager {
     // Emulates the cases where the credentials are exchanged for a token when initSession is
     // called, and the obtained token is used for the catalog session.
     Map<String, String> properties = Map.of(OAuth2Properties.CREDENTIAL, "client:secret");
-    try (OAuth2Manager manager = new OAuth2Manager("test");
-        OAuth2Util.AuthSession ignored = manager.initSession(client, properties);
-        OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, properties)) {
+    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client);
+        OAuth2Util.AuthSession ignored = manager.authSession(AuthScopes.Initial.of(properties));
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(properties))) {
       assertThat(catalogSession.headers()).containsOnly(entry("Authorization", "Bearer test"));
       assertThat(manager)
           .extracting("refreshExecutor")
@@ -193,8 +199,9 @@ class TestOAuth2Manager {
     // Emulate the case where initSession is not called before catalogSession,
     // so the credentials are exchanged for a token during the catalogSession call.
     Map<String, String> properties = Map.of(OAuth2Properties.CREDENTIAL, "client:secret");
-    try (OAuth2Manager manager = new OAuth2Manager("test");
-        OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, properties)) {
+    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client);
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(properties))) {
       assertThat(catalogSession.headers()).containsOnly(entry("Authorization", "Bearer test"));
       assertThat(manager)
           .extracting("refreshExecutor")
@@ -219,10 +226,11 @@ class TestOAuth2Manager {
   void contextualSessionEmptyContext() {
     SessionCatalog.SessionContext context = SessionCatalog.SessionContext.createEmpty();
     Map<String, String> properties = Map.of();
-    try (OAuth2Manager manager = new OAuth2Manager("test");
-        OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, properties);
+    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client);
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(properties));
         OAuth2Util.AuthSession contextualSession =
-            manager.contextualSession(context, catalogSession)) {
+            manager.authSession(AuthScopes.Contextual.of(context, catalogSession))) {
       assertThat(contextualSession).isSameAs(catalogSession);
       assertThat(manager)
           .extracting("refreshExecutor")
@@ -231,7 +239,7 @@ class TestOAuth2Manager {
       assertThat(manager)
           .extracting("sessionCache")
           .asInstanceOf(type(AuthSessionCache.class))
-          .as("should not create session cache for empty context")
+          .as("should not create cache entry for empty context")
           .satisfies(cache -> assertThat(cache.sessionCache().asMap()).isEmpty());
     }
     Mockito.verify(client).withAuthSession(any());
@@ -244,10 +252,11 @@ class TestOAuth2Manager {
         new SessionCatalog.SessionContext(
             "test", "test", Map.of(OAuth2Properties.TOKEN, "context-token"), Map.of());
     Map<String, String> properties = Map.of();
-    try (OAuth2Manager manager = new OAuth2Manager("test");
-        OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, properties);
+    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client);
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(properties));
         OAuth2Util.AuthSession contextualSession =
-            manager.contextualSession(context, catalogSession)) {
+            manager.authSession(AuthScopes.Contextual.of(context, catalogSession))) {
       assertThat(contextualSession).isNotSameAs(catalogSession);
       assertThat(contextualSession.headers())
           .containsOnly(entry("Authorization", "Bearer context-token"));
@@ -271,10 +280,11 @@ class TestOAuth2Manager {
         new SessionCatalog.SessionContext(
             "test", "test", Map.of(OAuth2Properties.CREDENTIAL, "client:secret"), Map.of());
     Map<String, String> properties = Map.of();
-    try (OAuth2Manager manager = new OAuth2Manager("test");
-        OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, properties);
+    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client);
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(properties));
         OAuth2Util.AuthSession contextualSession =
-            manager.contextualSession(context, catalogSession)) {
+            manager.authSession(AuthScopes.Contextual.of(context, catalogSession))) {
       assertThat(contextualSession).isNotSameAs(catalogSession);
       assertThat(contextualSession.headers()).containsOnly(entry("Authorization", "Bearer test"));
       assertThat(manager)
@@ -309,10 +319,11 @@ class TestOAuth2Manager {
         new SessionCatalog.SessionContext(
             "test", "test", Map.of(OAuth2Properties.ACCESS_TOKEN_TYPE, "context-token"), Map.of());
     Map<String, String> properties = Map.of(OAuth2Properties.TOKEN, "catalog-token");
-    try (OAuth2Manager manager = new OAuth2Manager("test");
-        OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, properties);
+    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client);
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(properties));
         OAuth2Util.AuthSession contextualSession =
-            manager.contextualSession(context, catalogSession)) {
+            manager.authSession(AuthScopes.Contextual.of(context, catalogSession))) {
       assertThat(contextualSession.headers()).containsOnly(entry("Authorization", "Bearer test"));
       assertThat(manager)
           .extracting("refreshExecutor")
@@ -348,12 +359,13 @@ class TestOAuth2Manager {
         new SessionCatalog.SessionContext(
             "test", "test", Map.of(OAuth2Properties.TOKEN, "context-token"), Map.of());
     Map<String, String> properties = Map.of();
-    try (OAuth2Manager manager = Mockito.spy(new OAuth2Manager("test"));
-        OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, properties);
+    try (OAuth2Manager manager = Mockito.spy(new OAuth2Manager("test").withClient(client));
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(properties));
         OAuth2Util.AuthSession contextualSession1 =
-            manager.contextualSession(context, catalogSession);
+            manager.authSession(AuthScopes.Contextual.of(context, catalogSession));
         OAuth2Util.AuthSession contextualSession2 =
-            manager.contextualSession(context, catalogSession)) {
+            manager.authSession(AuthScopes.Contextual.of(context, catalogSession))) {
       assertThat(contextualSession1).isNotSameAs(catalogSession);
       assertThat(contextualSession2).isNotSameAs(catalogSession);
       assertThat(contextualSession1).isSameAs(contextualSession2);
@@ -363,7 +375,8 @@ class TestOAuth2Manager {
           .as("should only create and cache contextual session once")
           .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
       Mockito.verify(manager, times(1))
-          .newSessionFromAccessToken("context-token", Map.of(), catalogSession);
+          .newSessionFromAccessToken(
+              "context-token", Map.of("token", "context-token"), catalogSession);
     }
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
@@ -373,10 +386,11 @@ class TestOAuth2Manager {
   void tableSessionNoTableCredentials() {
     Map<String, String> properties = Map.of();
     TableIdentifier table = TableIdentifier.of("ns", "tbl");
-    try (OAuth2Manager manager = new OAuth2Manager("test");
-        OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, properties);
+    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client);
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(properties));
         OAuth2Util.AuthSession tableSession =
-            manager.tableSession(table, properties, catalogSession)) {
+            manager.authSession(AuthScopes.Table.of(table, properties, catalogSession))) {
       assertThat(tableSession).isSameAs(catalogSession);
       assertThat(manager)
           .extracting("refreshExecutor")
@@ -397,10 +411,11 @@ class TestOAuth2Manager {
     Map<String, String> catalogProperties = Map.of();
     Map<String, String> tableProperties = Map.of(OAuth2Properties.TOKEN, "table-token");
     TableIdentifier table = TableIdentifier.of("ns", "tbl");
-    try (OAuth2Manager manager = new OAuth2Manager("test");
-        OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, catalogProperties);
+    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client);
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(catalogProperties));
         OAuth2Util.AuthSession tableSession =
-            manager.tableSession(table, tableProperties, catalogSession)) {
+            manager.authSession(AuthScopes.Table.of(table, tableProperties, catalogSession))) {
       assertThat(tableSession).isNotSameAs(catalogSession);
       assertThat(tableSession.headers()).containsOnly(entry("Authorization", "Bearer table-token"));
       assertThat(manager)
@@ -422,10 +437,11 @@ class TestOAuth2Manager {
     Map<String, String> catalogProperties = Map.of(OAuth2Properties.TOKEN, "catalog-token");
     Map<String, String> tableProperties = Map.of(OAuth2Properties.ACCESS_TOKEN_TYPE, "table-token");
     TableIdentifier table = TableIdentifier.of("ns", "tbl");
-    try (OAuth2Manager manager = new OAuth2Manager("test");
-        OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, catalogProperties);
+    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client);
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(catalogProperties));
         OAuth2Util.AuthSession tableSession =
-            manager.tableSession(table, tableProperties, catalogSession)) {
+            manager.authSession(AuthScopes.Table.of(table, tableProperties, catalogSession))) {
       assertThat(tableSession.headers()).containsOnly(entry("Authorization", "Bearer test"));
       assertThat(manager)
           .extracting("refreshExecutor")
@@ -460,12 +476,13 @@ class TestOAuth2Manager {
     Map<String, String> catalogProperties = Map.of();
     Map<String, String> tableProperties = Map.of(OAuth2Properties.TOKEN, "table-token");
     TableIdentifier table = TableIdentifier.of("ns", "tbl");
-    try (OAuth2Manager manager = Mockito.spy(new OAuth2Manager("test"));
-        OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, catalogProperties);
+    try (OAuth2Manager manager = Mockito.spy(new OAuth2Manager("test").withClient(client));
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(catalogProperties));
         OAuth2Util.AuthSession tableSession1 =
-            manager.tableSession(table, tableProperties, catalogSession);
+            manager.authSession(AuthScopes.Table.of(table, tableProperties, catalogSession));
         OAuth2Util.AuthSession tableSession2 =
-            manager.tableSession(table, tableProperties, catalogSession)) {
+            manager.authSession(AuthScopes.Table.of(table, tableProperties, catalogSession))) {
       assertThat(tableSession1).isNotSameAs(catalogSession);
       assertThat(tableSession2).isNotSameAs(catalogSession);
       assertThat(tableSession1).isSameAs(tableSession2);
@@ -488,10 +505,11 @@ class TestOAuth2Manager {
     Map<String, String> catalogProperties = Map.of();
     Map<String, String> tableProperties = Map.of(OAuth2Properties.CREDENTIAL, "client:secret");
     TableIdentifier table = TableIdentifier.of("ns", "tbl");
-    try (OAuth2Manager manager = Mockito.spy(new OAuth2Manager("test"));
-        OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, catalogProperties);
+    try (OAuth2Manager manager = Mockito.spy(new OAuth2Manager("test").withClient(client));
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(catalogProperties));
         OAuth2Util.AuthSession tableSession =
-            manager.tableSession(table, tableProperties, catalogSession)) {
+            manager.authSession(AuthScopes.Table.of(table, tableProperties, catalogSession))) {
       assertThat(tableSession).isSameAs(catalogSession);
       assertThat(manager)
           .extracting("refreshExecutor")
@@ -500,8 +518,177 @@ class TestOAuth2Manager {
       assertThat(manager)
           .extracting("sessionCache")
           .asInstanceOf(type(AuthSessionCache.class))
-          .as("should not create session cache for ignored table credentials")
+          .as("should not create cache entry for ignored table credentials")
           .satisfies(cache -> assertThat(cache.sessionCache().asMap()).isEmpty());
+    }
+    Mockito.verify(client).withAuthSession(any());
+    Mockito.verifyNoMoreInteractions(client);
+  }
+
+  @Test
+  void genericSessionNoCredentials() {
+    Map<String, String> properties = Map.of();
+    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client);
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(properties));
+        OAuth2Util.AuthSession standaloneSession =
+            manager.authSession(
+                ImmutableAuthScopes.Standalone.builder().parent(catalogSession).build())) {
+      assertThat(standaloneSession).isSameAs(catalogSession);
+      assertThat(manager)
+          .extracting("refreshExecutor")
+          .as("should not create refresh executor when no credentials provided")
+          .isNull();
+      assertThat(manager)
+          .extracting("sessionCache")
+          .asInstanceOf(type(AuthSessionCache.class))
+          .as("should not create session cache for non-cacheable scope")
+          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).isEmpty());
+    }
+    Mockito.verify(client).withAuthSession(any());
+    Mockito.verifyNoMoreInteractions(client);
+  }
+
+  @Test
+  void genericSessionTokenProvided() {
+    Map<String, String> catalogProperties = Map.of();
+    Map<String, String> standaloneProperties =
+        Map.of(OAuth2Properties.TOKEN, "generic-token", OAuth2Properties.SCOPE, "sign");
+    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client);
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(catalogProperties));
+        OAuth2Util.AuthSession standaloneSession =
+            manager.authSession(AuthScopes.Standalone.of(standaloneProperties))) {
+      assertThat(standaloneSession).isNotSameAs(catalogSession);
+      assertThat(standaloneSession.headers())
+          .containsOnly(entry("Authorization", "Bearer generic-token"));
+      assertThat(manager)
+          .extracting("refreshExecutor")
+          .as("should create refresh executor when generic session created")
+          .isNotNull();
+      assertThat(manager)
+          .extracting("sessionCache")
+          .asInstanceOf(type(AuthSessionCache.class))
+          .as("should not create session cache for non-cacheable scope")
+          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).isEmpty());
+    }
+    Mockito.verify(client).withAuthSession(any());
+    Mockito.verifyNoMoreInteractions(client);
+  }
+
+  @Test
+  void genericSessionCredentialsProvided() {
+    Map<String, String> catalogProperties = Map.of();
+    Map<String, String> standaloneProperties =
+        Map.of(OAuth2Properties.CREDENTIAL, "client:secret", OAuth2Properties.SCOPE, "sign");
+    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client);
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(catalogProperties));
+        OAuth2Util.AuthSession standaloneSession =
+            manager.authSession(AuthScopes.Standalone.of(standaloneProperties))) {
+      assertThat(standaloneSession).isNotSameAs(catalogSession);
+      assertThat(standaloneSession.headers()).containsOnly(entry("Authorization", "Bearer test"));
+      assertThat(manager)
+          .extracting("refreshExecutor")
+          .as("should create refresh executor when contextual session created")
+          .isNotNull();
+      assertThat(manager)
+          .extracting("sessionCache")
+          .asInstanceOf(type(AuthSessionCache.class))
+          .as("should not create session cache for non-cacheable scope")
+          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).isEmpty());
+    }
+    Mockito.verify(client)
+        .postForm(
+            any(),
+            eq(
+                Map.of(
+                    "grant_type", "client_credentials",
+                    "client_id", "client",
+                    "client_secret", "secret",
+                    "scope", "sign")),
+            eq(OAuthTokenResponse.class),
+            eq(Map.of()),
+            any());
+    Mockito.verify(client).withAuthSession(any());
+    Mockito.verifyNoMoreInteractions(client);
+  }
+
+  @Test
+  void genericSessionTokenExchange() {
+    Map<String, String> catalogProperties =
+        Map.of(OAuth2Properties.TOKEN, "catalog-token", OAuth2Properties.SCOPE, "sign");
+    Map<String, String> standaloneProperties =
+        Map.of(OAuth2Properties.ACCESS_TOKEN_TYPE, "generic-token");
+    try (OAuth2Manager manager = new OAuth2Manager("test").withClient(client);
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(catalogProperties));
+        OAuth2Util.AuthSession standaloneSession =
+            manager.authSession(
+                ImmutableAuthScopes.Standalone.builder()
+                    .properties(standaloneProperties)
+                    .parent(catalogSession)
+                    .build())) {
+      assertThat(standaloneSession.headers()).containsOnly(entry("Authorization", "Bearer test"));
+      assertThat(manager)
+          .extracting("refreshExecutor")
+          .as("should create refresh executor when generic session created")
+          .isNotNull();
+      assertThat(manager)
+          .extracting("sessionCache")
+          .asInstanceOf(type(AuthSessionCache.class))
+          .as("should not create session cache for non-cacheable scope")
+          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).isEmpty());
+    }
+    Mockito.verify(client)
+        .postForm(
+            any(),
+            eq(
+                Map.of(
+                    "grant_type", "urn:ietf:params:oauth:grant-type:token-exchange",
+                    "subject_token", "generic-token",
+                    "subject_token_type", "urn:ietf:params:oauth:token-type:access_token",
+                    "actor_token", "catalog-token",
+                    "actor_token_type", "urn:ietf:params:oauth:token-type:access_token",
+                    "scope", "sign")),
+            eq(OAuthTokenResponse.class),
+            eq(Map.of("Authorization", "Bearer catalog-token")),
+            any());
+    Mockito.verify(client).withAuthSession(any());
+    Mockito.verifyNoMoreInteractions(client);
+  }
+
+  @Test
+  void genericSessionCacheHit() {
+    Map<String, String> catalogProperties = Map.of();
+    Map<String, String> standaloneProperties =
+        Map.of(OAuth2Properties.TOKEN, "generic-token", OAuth2Properties.SCOPE, "sign");
+    try (OAuth2Manager manager = Mockito.spy(new OAuth2Manager("test").withClient(client));
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(catalogProperties));
+        OAuth2Util.AuthSession standaloneSession1 =
+            manager.authSession(
+                ImmutableAuthScopes.Standalone.builder()
+                    .properties(standaloneProperties)
+                    .cacheable(true)
+                    .build());
+        OAuth2Util.AuthSession standaloneSession2 =
+            manager.authSession(
+                ImmutableAuthScopes.Standalone.builder()
+                    .properties(standaloneProperties)
+                    .cacheable(true)
+                    .build())) {
+      assertThat(standaloneSession1).isNotSameAs(catalogSession);
+      assertThat(standaloneSession2).isNotSameAs(catalogSession);
+      assertThat(standaloneSession1).isSameAs(standaloneSession2);
+      assertThat(manager)
+          .extracting("sessionCache")
+          .asInstanceOf(type(AuthSessionCache.class))
+          .as("should only create and cache generic session once")
+          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).hasSize(1));
+      Mockito.verify(manager, times(1))
+          .newSessionFromAccessToken(
+              eq("generic-token"), eq(Map.of("token", "generic-token", "scope", "sign")), any());
     }
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
@@ -514,6 +701,7 @@ class TestOAuth2Manager {
         new SessionCatalog.SessionContext(
             "test", "test", Map.of(OAuth2Properties.TOKEN, "context-token"), Map.of());
     Map<String, String> tableProperties = Map.of(OAuth2Properties.TOKEN, "table-token");
+    Map<String, String> standaloneProperties = Map.of(OAuth2Properties.TOKEN, "generic-token");
     TableIdentifier table = TableIdentifier.of("ns", "tbl");
     try (OAuth2Manager manager =
             new OAuth2Manager("test") {
@@ -529,12 +717,19 @@ class TestOAuth2Manager {
                   String token, Map<String, String> properties, OAuth2Util.AuthSession parent) {
                 return Mockito.spy(super.newSessionFromAccessToken(token, properties, parent));
               }
-            };
-        OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, catalogProperties);
+            }.withClient(client);
+        OAuth2Util.AuthSession catalogSession =
+            manager.authSession(AuthScopes.Catalog.of(catalogProperties));
         OAuth2Util.AuthSession contextualSession =
-            manager.contextualSession(context, catalogSession);
+            manager.authSession(AuthScopes.Contextual.of(context, catalogSession));
         OAuth2Util.AuthSession tableSession =
-            manager.tableSession(table, tableProperties, contextualSession)) {
+            manager.authSession(AuthScopes.Table.of(table, tableProperties, contextualSession));
+        OAuth2Util.AuthSession standaloneSession =
+            manager.authSession(
+                ImmutableAuthScopes.Standalone.builder()
+                    .properties(standaloneProperties)
+                    .cacheable(true)
+                    .build())) {
       manager.close();
       assertThat(manager)
           .extracting("refreshExecutor")
@@ -544,6 +739,7 @@ class TestOAuth2Manager {
       // all cached sessions should be closed
       Mockito.verify(contextualSession).close();
       Mockito.verify(tableSession).close();
+      Mockito.verify(standaloneSession).close();
     }
     Mockito.verify(client).withAuthSession(any());
     Mockito.verifyNoMoreInteractions(client);
