@@ -33,3 +33,16 @@ RewriteDataFilesActionResult result = Actions.forTable(table)
 ```
 
 For more details of the rewrite files action, please refer to [RewriteDataFilesAction](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/flink/actions/RewriteDataFilesAction.html)
+
+## Clean orphan files action
+
+Iceberg provides API to clean orphan files by submitting Flink batch jobs. The behavior of this Flink action is the same as Spark's [cleanOrphanFiles](maintenance.md#clean-orphan-files).
+```java
+import org.apache.iceberg.flink.actions.Actions;
+TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path");
+Table table = tableLoader.loadTable();
+CleanOrphanFilesActionResult result = Actions.forTable(table)
+        .cleanOrphanFiles()
+        .execute();
+```
+For more details of the clean orphan files action, please refer to [CleanOrphanFilesAction](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/flink/actions/CleanOrphanFilesAction.html)
