@@ -289,8 +289,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       throw new RuntimeIOException(e, "Failed to write manifest list file");
     }
 
+    Long nextRowId = null;
     Long assignedRows = null;
     if (base.formatVersion() >= 3) {
+      nextRowId = base.nextRowId();
       assignedRows = writer.nextRowId() - base.nextRowId();
     }
 
@@ -320,7 +322,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         summary(base),
         base.currentSchemaId(),
         manifestList.location(),
-        base.nextRowId(),
+        nextRowId,
         assignedRows);
   }
 
