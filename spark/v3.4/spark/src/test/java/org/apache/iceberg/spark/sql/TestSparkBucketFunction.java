@@ -82,7 +82,7 @@ public class TestSparkBucketFunction extends SparkTestBaseWithCatalog {
     Assert.assertEquals(
         "Spec example: hash(\"iceberg\") = 1210000089",
         1210000089,
-        new BucketFunction.BucketString().hash("iceberg".getBytes(StandardCharsets.UTF_8)));
+        new BucketFunction.BucketString().hash("iceberg"));
 
     Assert.assertEquals(
         "Verify that the hash string and hash raw bytes produce the same result",
