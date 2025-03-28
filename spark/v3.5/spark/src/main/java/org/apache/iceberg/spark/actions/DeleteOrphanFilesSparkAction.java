@@ -102,7 +102,7 @@ import scala.Tuple2;
  * corrupt the state of the table if another operation is writing at the same time.
  */
 public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFilesSparkAction>
-        implements DeleteOrphanFiles {
+    implements DeleteOrphanFiles {
 
   private static final Logger LOG = LoggerFactory.getLogger(DeleteOrphanFilesSparkAction.class);
   private static final Map<String, String> EQUAL_SCHEMES_DEFAULT = ImmutableMap.of("s3n,s3a", "s3");
@@ -309,22 +309,22 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
     if (isSupportPrefixOperations) {
       Predicate<org.apache.iceberg.io.FileInfo> predicate =
-              fileInfo -> fileInfo.createdAtMillis() < olderThanTimestamp;
+          fileInfo -> fileInfo.createdAtMillis() < olderThanTimestamp;
       listDirRecursivelyWithFileIO(
-              (SupportsPrefixOperations) table.io(), location, predicate, pathFilter, matchingFiles);
+          (SupportsPrefixOperations) table.io(), location, predicate, pathFilter, matchingFiles);
     } else {
       Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
       // list at most MAX_DRIVER_LISTING_DEPTH levels and only dirs that have
       // less than MAX_DRIVER_LISTING_DIRECT_SUB_DIRS direct sub dirs on the driver
       listDirRecursivelyWithHadoop(
-        location,
-        predicate,
-        hadoopConf.value(),
-        MAX_DRIVER_LISTING_DEPTH,
-        MAX_DRIVER_LISTING_DIRECT_SUB_DIRS,
-        subDirs,
-        pathFilter,
-        matchingFiles);
+          location,
+          predicate,
+          hadoopConf.value(),
+          MAX_DRIVER_LISTING_DEPTH,
+          MAX_DRIVER_LISTING_DIRECT_SUB_DIRS,
+          subDirs,
+          pathFilter,
+          matchingFiles);
     }
 
     JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
@@ -350,7 +350,11 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       Predicate<org.apache.iceberg.io.FileInfo> predicate,
       PathFilter pathFilter,
       List<String> matchingFiles) {
-    Iterable<org.apache.iceberg.io.FileInfo> files = io.listPrefix(dir);
+    String listPath = dir;
+    if (!dir.endsWith("/")) {
+      listPath = dir + "/";
+    }
+    Iterable<org.apache.iceberg.io.FileInfo> files = io.listPrefix(listPath);
     for (org.apache.iceberg.io.FileInfo file : files) {
       Path path = new Path(file.location());
       if (!isHiddenPath(dir, path, pathFilter) && predicate.test(file)) {
@@ -359,14 +363,15 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     }
   }
 
-  private static boolean isHiddenPath(String parentDir, Path path, PathFilter pathFilter) {
+  private static boolean isHiddenPath(String baseDir, Path path, PathFilter pathFilter) {
     boolean isHiddenPath = false;
-    while (path.getParent().toString().contains(parentDir)) {
-      if (!pathFilter.accept(path)) {
+    Path currentPath = path;
+    while (currentPath.getParent().toString().contains(baseDir)) {
+      if (!pathFilter.accept(currentPath)) {
         isHiddenPath = true;
         break;
       }
-      path = path.getParent();
+      currentPath = currentPath.getParent();
     }
     return isHiddenPath;
   }
