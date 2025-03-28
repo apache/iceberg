@@ -18,12 +18,6 @@
  */
 package org.apache.iceberg.aws.s3;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockserver.integration.ClientAndServer.startClientAndServer;
-import static org.mockserver.model.HttpRequest.request;
-import static org.mockserver.model.HttpResponse.response;
-
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.CatalogProperties;
@@ -46,15 +40,16 @@ import org.mockserver.verify.VerificationTimes;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockserver.integration.ClientAndServer.startClientAndServer;
+import static org.mockserver.model.HttpRequest.request;
+import static org.mockserver.model.HttpResponse.response;
+
 public class TestVendedCredentialsProvider {
 
   private static final int PORT = 3232;
-  private static final String CREDENTIALS_URI =
-      String.format("http://127.0.0.1:%d/v1/credentials", PORT);
-  private static final String CATALOG_URI = String.format("http://127.0.0.1:%d/v1", PORT);
-  private static final ImmutableMap<String, String> PROPERTIES =
-      ImmutableMap.of(
-          VendedCredentialsProvider.URI, CREDENTIALS_URI, CatalogProperties.URI, CATALOG_URI);
+  private static final String URI = String.format("http://127.0.0.1:%d/v1/credentials", PORT);
   private static ClientAndServer mockServer;
 
   @BeforeAll
@@ -79,20 +74,20 @@ public class TestVendedCredentialsProvider {
         .hasMessage("Invalid properties: null");
     assertThatThrownBy(() -> VendedCredentialsProvider.create(ImmutableMap.of()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid credentials URI: null");
+        .hasMessage("Invalid credentials endpoint: null");
     assertThatThrownBy(
             () ->
                 VendedCredentialsProvider.create(
-                    ImmutableMap.of("credentials.uri", "/credentials/uri")))
+                    ImmutableMap.of(VendedCredentialsProvider.URI, "/credentials/uri")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid catalog endpoint: null");
 
     try (VendedCredentialsProvider provider =
         VendedCredentialsProvider.create(
-            ImmutableMap.of(VendedCredentialsProvider.URI, "invalid uri"))) {
+            ImmutableMap.of(VendedCredentialsProvider.URI, "/credentials/uri", CatalogProperties.URI, "invalid catalog uri"))) {
       assertThatThrownBy(provider::resolveCredentials)
           .isInstanceOf(RESTException.class)
-          .hasMessageStartingWith("Failed to create request URI from base invalid uri");
+          .hasMessageStartingWith("Failed to create request URI from base invalid catalog uri");
     }
   }
 
@@ -107,7 +102,8 @@ public class TestVendedCredentialsProvider {
             .withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    try (VendedCredentialsProvider provider = VendedCredentialsProvider.create(PROPERTIES)) {
+    try (VendedCredentialsProvider provider =
+        VendedCredentialsProvider.create(ImmutableMap.of(VendedCredentialsProvider.URI, URI))) {
       assertThatThrownBy(provider::resolveCredentials)
           .isInstanceOf(IllegalStateException.class)
           .hasMessage("Invalid S3 Credentials: empty");
@@ -135,7 +131,8 @@ public class TestVendedCredentialsProvider {
         response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    try (VendedCredentialsProvider provider = VendedCredentialsProvider.create(PROPERTIES)) {
+    try (VendedCredentialsProvider provider =
+        VendedCredentialsProvider.create(ImmutableMap.of(VendedCredentialsProvider.URI, URI))) {
       assertThatThrownBy(provider::resolveCredentials)
           .isInstanceOf(IllegalStateException.class)
           .hasMessage("Invalid S3 Credentials: s3.session-token not set");
@@ -165,7 +162,8 @@ public class TestVendedCredentialsProvider {
         response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    try (VendedCredentialsProvider provider = VendedCredentialsProvider.create(PROPERTIES)) {
+    try (VendedCredentialsProvider provider =
+        VendedCredentialsProvider.create(ImmutableMap.of(VendedCredentialsProvider.URI, URI))) {
       assertThatThrownBy(provider::resolveCredentials)
           .isInstanceOf(IllegalStateException.class)
           .hasMessage("Invalid S3 Credentials: s3.session-token-expires-at-ms not set");
@@ -196,7 +194,8 @@ public class TestVendedCredentialsProvider {
         response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    try (VendedCredentialsProvider provider = VendedCredentialsProvider.create(PROPERTIES)) {
+    try (VendedCredentialsProvider provider =
+        VendedCredentialsProvider.create(ImmutableMap.of(VendedCredentialsProvider.URI, URI))) {
       AwsCredentials awsCredentials = provider.resolveCredentials();
 
       verifyCredentials(awsCredentials, credential);
@@ -234,7 +233,8 @@ public class TestVendedCredentialsProvider {
         response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    try (VendedCredentialsProvider provider = VendedCredentialsProvider.create(PROPERTIES)) {
+    try (VendedCredentialsProvider provider =
+        VendedCredentialsProvider.create(ImmutableMap.of(VendedCredentialsProvider.URI, URI))) {
       AwsCredentials awsCredentials = provider.resolveCredentials();
       verifyCredentials(awsCredentials, credential);
 
@@ -301,7 +301,8 @@ public class TestVendedCredentialsProvider {
         response(LoadCredentialsResponseParser.toJson(response)).withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    try (VendedCredentialsProvider provider = VendedCredentialsProvider.create(PROPERTIES)) {
+    try (VendedCredentialsProvider provider =
+        VendedCredentialsProvider.create(ImmutableMap.of(VendedCredentialsProvider.URI, URI))) {
       assertThatThrownBy(provider::resolveCredentials)
           .isInstanceOf(IllegalStateException.class)
           .hasMessage("Invalid S3 Credentials: only one S3 credential should exist");
@@ -352,7 +353,7 @@ public class TestVendedCredentialsProvider {
         VendedCredentialsProvider.create(
             ImmutableMap.of(
                 VendedCredentialsProvider.URI,
-                CREDENTIALS_URI,
+                URI,
                 S3FileIOProperties.ACCESS_KEY_ID,
                 "randomAccessKeyFromProperties",
                 S3FileIOProperties.SECRET_ACCESS_KEY,
@@ -404,7 +405,7 @@ public class TestVendedCredentialsProvider {
         VendedCredentialsProvider.create(
             ImmutableMap.of(
                 VendedCredentialsProvider.URI,
-                CREDENTIALS_URI,
+                URI,
                 S3FileIOProperties.ACCESS_KEY_ID,
                 "randomAccessKeyFromProperties",
                 S3FileIOProperties.SECRET_ACCESS_KEY,
@@ -457,7 +458,7 @@ public class TestVendedCredentialsProvider {
         VendedCredentialsProvider.create(
             ImmutableMap.of(
                 VendedCredentialsProvider.URI,
-                CREDENTIALS_URI,
+                URI,
                 S3FileIOProperties.ACCESS_KEY_ID,
                 "randomAccessKeyFromProperties",
                 S3FileIOProperties.SECRET_ACCESS_KEY,
