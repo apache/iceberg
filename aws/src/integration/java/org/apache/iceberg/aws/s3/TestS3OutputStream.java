@@ -72,9 +72,10 @@ import software.amazon.awssdk.services.s3.model.Tag;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.utils.BinaryUtils;
 
+@org.junit.jupiter.api.Tag("verification")
 @Testcontainers
-public class TestMockS3OutputStream {
-  private static final Logger LOG = LoggerFactory.getLogger(TestMockS3OutputStream.class);
+public class TestS3OutputStream {
+  private static final Logger LOG = LoggerFactory.getLogger(TestS3OutputStream.class);
   private static final String BUCKET = "test-bucket";
   private static final int FIVE_MBS = 5 * 1024 * 1024;
 
@@ -100,7 +101,7 @@ public class TestMockS3OutputStream {
               "s3.delete.tags.xyz",
               "456"));
 
-  public TestMockS3OutputStream() throws IOException {}
+  public TestS3OutputStream() throws IOException {}
 
   @BeforeEach
   public void before() {

@@ -31,7 +31,6 @@ import java.util.stream.IntStream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
-import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.moto.BaseAwsMockTest;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
@@ -40,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
@@ -51,7 +51,8 @@ import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
 
-public class TestMockDynamoDbLockManager extends BaseAwsMockTest {
+@Tag("verification")
+public class TestDynamoDbLockManager extends BaseAwsMockTest {
 
   private static final ForkJoinPool POOL = new ForkJoinPool(16);
 
@@ -71,9 +72,7 @@ public class TestMockDynamoDbLockManager extends BaseAwsMockTest {
             S3FileIOProperties.CHUNK_ENCODING_ENABLED,
             "false",
             AwsProperties.DYNAMODB_ENDPOINT,
-            MOTO_CONTAINER.endpoint(),
-            AwsClientProperties.CLIENT_REGION,
-            "us-east-1");
+            MOTO_CONTAINER.endpoint());
 
     AwsClientFactory clientFactory = AwsClientFactories.defaultFactory();
     clientFactory.initialize(baseProps);

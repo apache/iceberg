@@ -522,15 +522,13 @@ project(':iceberg-aws') {
   }
 
   task verificationIntegrationTest(type: Test) {
-    useJUnitPlatform()
+    useJUnitPlatform {
+      includeTags 'verification'
+    }
+
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath
     jvmArgs += project.property('extraJvmArgs')
-
-    // Include only specific tests
-    filter {
-      includeTestsMatching "org.apache.iceberg.aws.*.TestMock*"
-    }
   }
 
   def s3SignerSpec = "$projectDir/src/main/resources/s3-signer-open-api.yaml"

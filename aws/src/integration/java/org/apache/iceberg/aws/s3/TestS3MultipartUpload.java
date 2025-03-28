@@ -28,7 +28,6 @@ import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
-import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.moto.BaseAwsMockTest;
@@ -38,11 +37,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.s3.S3Client;
 
 /** Long-running tests to ensure multipart upload logic is resilient */
-public class TestMockS3MultipartUpload extends BaseAwsMockTest {
+@Tag("verification")
+public class TestS3MultipartUpload extends BaseAwsMockTest {
 
   private final Random random = new Random(1);
   private static Map<String, String> baseProps;
@@ -62,9 +63,7 @@ public class TestMockS3MultipartUpload extends BaseAwsMockTest {
             S3FileIOProperties.ENDPOINT,
             MOTO_CONTAINER.endpoint(),
             AwsProperties.KMS_ENDPOINT,
-            MOTO_CONTAINER.endpoint(),
-            AwsClientProperties.CLIENT_REGION,
-            "us-east-1");
+            MOTO_CONTAINER.endpoint());
 
     AwsClientFactory clientFactory = AwsClientFactories.defaultFactory();
     clientFactory.initialize(baseProps);

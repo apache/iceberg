@@ -33,7 +33,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
-import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.moto.BaseAwsMockTest;
@@ -49,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.DeleteTableRequest;
@@ -58,7 +58,8 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
-public class TestMockDynamoDbCatalog extends BaseAwsMockTest {
+@Tag("verification")
+public class TestDynamoDbCatalog extends BaseAwsMockTest {
   private static final ForkJoinPool POOL = new ForkJoinPool(16);
   private static final Schema SCHEMA =
       new Schema(Types.NestedField.required(1, "id", Types.StringType.get()));
@@ -86,8 +87,6 @@ public class TestMockDynamoDbCatalog extends BaseAwsMockTest {
             MOTO_CONTAINER.endpoint(),
             S3FileIOProperties.ENDPOINT,
             MOTO_CONTAINER.endpoint(),
-            AwsClientProperties.CLIENT_REGION,
-            "us-east-1",
             AwsProperties.DYNAMODB_TABLE_NAME,
             catalogTableName,
             CatalogProperties.WAREHOUSE_LOCATION,

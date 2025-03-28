@@ -174,7 +174,7 @@ public class S3SignerServlet extends HttpServlet {
   private S3SignResponse signRequest(S3SignRequest request) {
     AwsS3V4SignerParams signingParams =
         AwsS3V4SignerParams.builder()
-            .awsCredentials(TestMockS3RestSigner.CREDENTIALS_PROVIDER.resolveCredentials())
+            .awsCredentials(TestS3RestSigner.CREDENTIALS_PROVIDER.resolveCredentials())
             .enablePayloadSigning(false)
             .signingClockOverride(SIGNING_CLOCK)
             .enableChunkedEncoding(false)

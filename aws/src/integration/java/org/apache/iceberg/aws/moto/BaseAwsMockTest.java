@@ -49,8 +49,4 @@ public class BaseAwsMockTest {
   public static String genRandomBucketName() {
     return String.format("bucket-%s", genRandomName());
   }
-
-  public static String getDummyAccountId() {
-    return "012345678901";
-  }
 }

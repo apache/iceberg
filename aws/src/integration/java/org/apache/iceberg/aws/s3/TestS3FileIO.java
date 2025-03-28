@@ -82,6 +82,7 @@ import org.apache.iceberg.util.SerializableSupplier;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.testcontainers.containers.MinIOContainer;
@@ -103,8 +104,9 @@ import software.amazon.awssdk.services.s3.model.S3Error;
 import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 
+@Tag("verification")
 @Testcontainers
-public class TestMockS3FileIO {
+public class TestS3FileIO {
   @Container private static final MinIOContainer MINIO = MinioUtil.createContainer();
 
   private final SerializableSupplier<S3Client> s3 = () -> MinioUtil.createS3Client(MINIO);
