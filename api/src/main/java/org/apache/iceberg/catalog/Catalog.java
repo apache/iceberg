@@ -351,7 +351,8 @@ public interface Catalog {
   /**
    * Register a table with the catalog, optionally overwrite existing table metadata.
    *
-   * <p><strong>Note:</strong> Overwriting an existing table may result in a new table UUID.
+   * <p><strong>Note:</strong> Overwriting an existing table may result in the change of table UUID,
+   * to match the one in the metadata file.
    *
    * @param identifier a table identifier
    * @param metadataFileLocation the location of a metadata file

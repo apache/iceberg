@@ -1177,7 +1177,6 @@ acceptedBreaks:
       old: "class org.apache.iceberg.Metrics"
       new: "class org.apache.iceberg.Metrics"
       justification: "Java serialization across versions is not guaranteed"
-    org.apache.iceberg:iceberg-api:
     - code: "java.method.addedToInterface"
       new: "method org.apache.iceberg.Table org.apache.iceberg.catalog.SessionCatalog::registerTable(org.apache.iceberg.catalog.SessionCatalog.SessionContext,\
         \ org.apache.iceberg.catalog.TableIdentifier, java.lang.String, boolean)"
