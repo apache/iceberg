@@ -46,13 +46,33 @@ public class TestIntegrationDynamicTable extends IntegrationTestBase {
     catalog().createTable(TABLE_IDENTIFIER2, TestEvent.TEST_SCHEMA);
 
     boolean useSchema = branch == null; // use a schema for one of the tests
-//<<<<<<< HEAD
     runTest(branch, useSchema, ImmutableMap.of(), List.of(TABLE_IDENTIFIER1, TABLE_IDENTIFIER2));
-//=======
-    boolean useNewConfiguration = branch == null; // use new configuration for one of the tests
-    runTest(branch, useSchema, useNewConfiguration, List.of(TABLE_IDENTIFIER1, TABLE_IDENTIFIER2));
-//>>>>>>> 137439d47 (Overload existing configuration instead of new configuration keys)
+    verify(branch);
+  }
 
+  @ParameterizedTest
+  @NullSource
+  @ValueSource(strings = "test_branch")
+  public void testIcebergSinkNewConfig(String branch) {
+    // partitioned table
+    catalog().createTable(TABLE_IDENTIFIER1, TestEvent.TEST_SCHEMA, TestEvent.TEST_SPEC);
+    // unpartitioned table
+    catalog().createTable(TABLE_IDENTIFIER2, TestEvent.TEST_SCHEMA);
+
+    boolean useSchema = branch == null; // use a schema for one of the tests
+    runTest(
+        branch,
+        useSchema,
+        ImmutableMap.of(
+            "iceberg.tables.route-with",
+            "org.apache.iceberg.connect.data.RecordRouter$DynamicRecordRouter",
+            "iceberg.tables.dynamic-enabled",
+            "false"),
+        List.of(TABLE_IDENTIFIER1, TABLE_IDENTIFIER2));
+    verify(branch);
+  }
+
+  private void verify(String branch) {
     List<DataFile> files = dataFiles(TABLE_IDENTIFIER1, branch);
     assertThat(files).hasSize(1);
     assertThat(files.get(0).recordCount()).isEqualTo(1);
@@ -70,43 +90,6 @@ public class TestIntegrationDynamicTable extends IntegrationTestBase {
         .config("iceberg.tables.dynamic-enabled", true)
         .config("iceberg.tables.route-field", "payload");
   }
-
-  private void runTest(String branch, boolean useSchema, boolean useNewConfiguration) {
-    // set offset reset to earliest so we don't miss any test messages
-    KafkaConnectUtils.Config connectorConfig =
-        new KafkaConnectUtils.Config(connectorName())
-            .config("topics", testTopic())
-            .config("connector.class", IcebergSinkConnector.class.getName())
-            .config("tasks.max", 2)
-            .config("consumer.override.auto.offset.reset", "earliest")
-            .config("key.converter", "org.apache.kafka.connect.json.JsonConverter")
-            .config("key.converter.schemas.enable", false)
-            .config("value.converter", "org.apache.kafka.connect.json.JsonConverter")
-            .config("value.converter.schemas.enable", useSchema)
-            .config("iceberg.tables.route-field", "payload")
-            .config("iceberg.control.commit.interval-ms", 1000)
-            .config("iceberg.control.commit.timeout-ms", Integer.MAX_VALUE)
-            .config("iceberg.kafka.auto.offset.reset", "earliest");
-
-    if (useNewConfiguration) {
-      connectorConfig.config(
-          "iceberg.tables.route-with",
-          "org.apache.iceberg.connect.data.RecordRouter$DynamicRecordRouter");
-    } else {
-      connectorConfig.config("iceberg.tables.dynamic-enabled", true);
-    }
-
-    context().connectorCatalogProperties().forEach(connectorConfig::config);
-
-    if (branch != null) {
-      connectorConfig.config("iceberg.tables.default-commit-branch", branch);
-    }
-
-    if (!useSchema) {
-      connectorConfig.config("value.converter.schemas.enable", false);
-    }
-
-    context().startConnector(connectorConfig);
 
   @Override
   protected void sendEvents(boolean useSchema) {

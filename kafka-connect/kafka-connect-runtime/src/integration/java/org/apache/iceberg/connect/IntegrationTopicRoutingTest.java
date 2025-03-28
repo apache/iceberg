@@ -20,16 +20,14 @@ package org.apache.iceberg.connect;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.awaitility.Awaitility;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.kafka.common.errors.TopicExistsException;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
@@ -45,23 +43,6 @@ public class IntegrationTopicRoutingTest extends IntegrationTestBase {
   private static final String TEST_TOPIC1 = "topic1";
   private static final String TEST_TOPIC2 = "topic2";
 
-  @BeforeEach
-  public void before() {
-    createTopic(TEST_TOPIC1, TEST_TOPIC_PARTITIONS);
-    createTopic(TEST_TOPIC2, TEST_TOPIC_PARTITIONS);
-    ((SupportsNamespaces) catalog()).createNamespace(Namespace.of(TEST_DB));
-  }
-
-  @AfterEach
-  public void after() {
-    context().stopConnector(connectorName());
-    deleteTopic(TEST_TOPIC1);
-    deleteTopic(TEST_TOPIC2);
-    catalog().dropTable(TABLE_IDENTIFIER1);
-    catalog().dropTable(TABLE_IDENTIFIER2);
-    ((SupportsNamespaces) catalog()).dropNamespace(Namespace.of(TEST_DB));
-  }
-
   @ParameterizedTest
   @NullSource
   @ValueSource(strings = "test_branch")
@@ -72,59 +53,7 @@ public class IntegrationTopicRoutingTest extends IntegrationTestBase {
     catalog().createTable(TABLE_IDENTIFIER2, TestEvent.TEST_SCHEMA);
 
     boolean useSchema = branch == null; // use a schema for one of the tests
-    // set offset reset to earliest so we don't miss any test messages
-    KafkaConnectUtils.Config connectorConfig =
-        new KafkaConnectUtils.Config(connectorName())
-            .config("topics", String.format("%s,%s", TEST_TOPIC1, TEST_TOPIC2))
-            .config("connector.class", IcebergSinkConnector.class.getName())
-            .config("tasks.max", 2)
-            .config("consumer.override.auto.offset.reset", "earliest")
-            .config("key.converter", "org.apache.kafka.connect.json.JsonConverter")
-            .config("key.converter.schemas.enable", false)
-            .config("value.converter", "org.apache.kafka.connect.json.JsonConverter")
-            .config("value.converter.schemas.enable", useSchema)
-            .config(
-                "iceberg.tables.route-with",
-                "org.apache.iceberg.connect.data.RecordRouter$TopicRecordRouter")
-            .config(
-                "iceberg.tables",
-                String.format("%s.%s,%s.%s", TEST_DB, TEST_TABLE1, TEST_DB, TEST_TABLE2))
-            .config(String.format("iceberg.table.%s.%s.route-regex", TEST_DB, TEST_TABLE1), ".*1")
-            .config(String.format("iceberg.table.%s.%s.route-regex", TEST_DB, TEST_TABLE2), ".*2")
-            .config("iceberg.control.commit.interval-ms", 1000)
-            .config("iceberg.control.commit.timeout-ms", Integer.MAX_VALUE)
-            .config("iceberg.kafka.auto.offset.reset", "earliest");
-
-    runTest(connectorConfig, branch, useSchema);
-  }
-
-  private void runTest(KafkaConnectUtils.Config connectorConfig, String branch, boolean useSchema) {
-
-    context().connectorCatalogProperties().forEach(connectorConfig::config);
-
-    if (branch != null) {
-      connectorConfig.config("iceberg.tables.default-commit-branch", branch);
-    }
-
-    if (!useSchema) {
-      connectorConfig.config("value.converter.schemas.enable", false);
-    }
-
-    context().startConnector(connectorConfig);
-
-    TestEvent event1 = new TestEvent(1, "type1", Instant.now(), "test1");
-    TestEvent event2 = new TestEvent(2, "type2", Instant.now(), "test2");
-    TestEvent event3 = new TestEvent(3, "type3", Instant.now(), "test3");
-
-    send(TEST_TOPIC1, event1, useSchema);
-    send(TEST_TOPIC2, event2, useSchema);
-    send(TEST_TOPIC2, event3, useSchema);
-    flush();
-
-    Awaitility.await()
-        .atMost(Duration.ofSeconds(30))
-        .pollInterval(Duration.ofSeconds(1))
-        .untilAsserted(this::assertSnapshotAdded);
+    runTest(branch, useSchema, ImmutableMap.of(), List.of(TABLE_IDENTIFIER1, TABLE_IDENTIFIER2));
 
     List<DataFile> files = dataFiles(TABLE_IDENTIFIER1, branch);
     assertThat(files).hasSize(1);
@@ -132,16 +61,39 @@ public class IntegrationTopicRoutingTest extends IntegrationTestBase {
     assertSnapshotProps(TABLE_IDENTIFIER1, branch);
 
     files = dataFiles(TABLE_IDENTIFIER2, branch);
-    assertThat(files).hasSize(2);
-    assertThat(files.get(0).recordCount()).isEqualTo(1);
-    assertThat(files.get(1).recordCount()).isEqualTo(1);
+    assertThat(files).hasSize(1);
+    assertThat(files.get(0).recordCount()).isEqualTo(2);
     assertSnapshotProps(TABLE_IDENTIFIER2, branch);
   }
 
-  private void assertSnapshotAdded() {
-    Table table = catalog().loadTable(TABLE_IDENTIFIER1);
-    assertThat(table.snapshots()).hasSize(1);
-    table = catalog().loadTable(TABLE_IDENTIFIER2);
-    assertThat(table.snapshots()).hasSize(1);
+  @Override
+  KafkaConnectUtils.Config createConfig(boolean useSchema) {
+    return createCommonConfig(useSchema)
+        .config("topics", String.format("%s,%s", TEST_TOPIC1, TEST_TOPIC2))
+        .config(
+            "iceberg.tables.route-with",
+            "org.apache.iceberg.connect.data.RecordRouter$TopicRecordRouter")
+        .config(
+            "iceberg.tables",
+            String.format("%s.%s,%s.%s", TEST_DB, TEST_TABLE1, TEST_DB, TEST_TABLE2))
+        .config(String.format("iceberg.table.%s.%s.route-regex", TEST_DB, TEST_TABLE1), ".*1")
+        .config(String.format("iceberg.table.%s.%s.route-regex", TEST_DB, TEST_TABLE2), ".*2");
+  }
+
+  @Override
+  void sendEvents(boolean useSchema) {
+    TestEvent event1 = new TestEvent(1, "type1", Instant.now(), "test1");
+    TestEvent event2 = new TestEvent(2, "type2", Instant.now(), "test2");
+    TestEvent event3 = new TestEvent(3, "type3", Instant.now(), "test3");
+
+    send(TEST_TOPIC1, event1, useSchema);
+    send(TEST_TOPIC2, event2, useSchema);
+    send(TEST_TOPIC2, event3, useSchema);
+  }
+
+  @Override
+  void dropTables() {
+    catalog().dropTable(TABLE_IDENTIFIER1);
+    catalog().dropTable(TABLE_IDENTIFIER2);
   }
 }
