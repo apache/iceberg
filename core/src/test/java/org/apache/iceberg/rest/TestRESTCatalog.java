@@ -18,6 +18,17 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
@@ -90,17 +101,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyMap;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-
 public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
   private static final ResourcePaths RESOURCE_PATHS =
@@ -125,7 +125,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         HTTPHeaders.of(Map.of("Authorization", "Bearer client-credentials-token:sub=catalog"));
     HTTPHeaders contextHeaders =
         HTTPHeaders.of(Map.of("Authorization", "Bearer client-credentials-token:sub=user"));
-    HTTPHeaders generalTestHeaders = HTTPHeaders.of(Map.of("Authorization", "Bearer client-credentials-token:sub=general"));
+    HTTPHeaders generalTestHeaders =
+        HTTPHeaders.of(Map.of("Authorization", "Bearer client-credentials-token:sub=general"));
 
     RESTCatalogAdapter adaptor =
         new RESTCatalogAdapter(backendCatalog) {
@@ -139,9 +140,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             // different method calls
             if (!"v1/oauth/tokens".equals(request.path())) {
               if ("v1/config".equals(request.path())) {
-                assertThat(request.headers().entries()).containsAnyElementsOf(Sets.union(catalogHeaders.entries(), generalTestHeaders.entries()));
+                assertThat(request.headers().entries())
+                    .containsAnyElementsOf(
+                        Sets.union(catalogHeaders.entries(), generalTestHeaders.entries()));
               } else {
-                assertThat(request.headers().entries()).containsAnyElementsOf(Sets.union(contextHeaders.entries(), generalTestHeaders.entries()));
+                assertThat(request.headers().entries())
+                    .containsAnyElementsOf(
+                        Sets.union(contextHeaders.entries(), generalTestHeaders.entries()));
               }
             }
             Object body = roundTripSerialize(request.body(), "request");
@@ -345,8 +350,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     Map<String, String> properties =
         ImmutableMap.of(
-            "header.X-Iceberg-Access-Delegation", "vended-credential", CatalogProperties.URI, httpServer.getURI().toString());
-    HTTPHeaders.HTTPHeader expectedHeader = HTTPHeaders.HTTPHeader.of("X-Iceberg-Access-Delegation", "vended-credential");
+            "header.X-Iceberg-Access-Delegation",
+            "vended-credential",
+            CatalogProperties.URI,
+            httpServer.getURI().toString());
+    HTTPHeaders.HTTPHeader expectedHeader =
+        HTTPHeaders.HTTPHeader.of("X-Iceberg-Access-Delegation", "vended-credential");
     HTTPClient client =
         Mockito.spy(
             HTTPClient.builder(properties)
@@ -367,7 +376,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
     Mockito.verify(client)
         .execute(
-            reqContainsHeader(HTTPMethod.HEAD, "v1/namespaces/non-existing", expectedHeader, Map.of()),
+            reqContainsHeader(
+                HTTPMethod.HEAD, "v1/namespaces/non-existing", expectedHeader, Map.of()),
             any(),
             any(),
             any());
@@ -2732,11 +2742,17 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 && req.queryParameters().equals(parameters));
   }
 
-  static HTTPRequest reqContainsHeader(HTTPMethod method, String path, HTTPHeaders.HTTPHeader header, Map<String, String> parameters) {
-    return argThat(req ->req.method() == method
-            && req.path().equals(path)
-            && req.headers().entries().contains(header)
-            && req.queryParameters().equals(parameters));
+  static HTTPRequest reqContainsHeader(
+      HTTPMethod method,
+      String path,
+      HTTPHeaders.HTTPHeader header,
+      Map<String, String> parameters) {
+    return argThat(
+        req ->
+            req.method() == method
+                && req.path().equals(path)
+                && req.headers().entries().contains(header)
+                && req.queryParameters().equals(parameters));
   }
 
   static HTTPRequest reqMatcher(
