@@ -32,6 +32,7 @@ import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
@@ -83,6 +84,31 @@ public class AwsClientProperties implements Serializable {
 
   /** Controls whether vended credentials should be refreshed or not. Defaults to true. */
   public static final String REFRESH_CREDENTIALS_ENABLED = "client.refresh-credentials-enabled";
+
+  /**
+   * Configure the access key ID used for {@link StaticCredentialsProvider}.
+   *
+   * <p>When set, will use the basic or session credentials provided to create AWS client access
+   * credentials. If {@link #SESSION_TOKEN} is set, session credential is used, otherwise basic
+   * credential is used.
+   */
+  public static final String ACCESS_KEY_ID = "static.access-key-id";
+
+  /**
+   * Configure the static secret access key used for {@link StaticCredentialsProvider}.
+   *
+   * <p>When set, will use the basic or session credentials provided to create AWS client access
+   * credentials. If {@link #SESSION_TOKEN} is set, session credential is used, otherwise basic
+   * credential is used.
+   */
+  public static final String SECRET_ACCESS_KEY = "static.secret-access-key";
+
+  /**
+   * Configure the static session token used for {@link StaticCredentialsProvider}.
+   *
+   * <p>When set, will use the session credentials provided to create AWS client access credentials.
+   */
+  public static final String SESSION_TOKEN = "static.session-token";
 
   private String clientRegion;
   private final String clientCredentialsProvider;
@@ -226,6 +252,37 @@ public class AwsClientProperties implements Serializable {
   }
 
   /**
+   * Retrieves AWS credentials from the configured properties and returns an {@link AwsCredentials}
+   * instance.
+   *
+   * <p>This method checks for the presence of an access key ID and a secret access key. If either
+   * is missing, it throws an {@link IllegalArgumentException}. If a session token is provided, it
+   * returns an {@link AwsSessionCredentials} instance; otherwise, it returns an {@link
+   * AwsBasicCredentials} instance.
+   *
+   * @return an {@link AwsCredentials} instance, either {@link AwsBasicCredentials} or {@link
+   *     AwsSessionCredentials}
+   * @throws IllegalArgumentException if either the access key ID or secret access key is missing
+   */
+  public AwsCredentials staticCredentials() {
+    String accessKeyId =
+        clientCredentialsProviderProperties.get(CLIENT_CREDENTIAL_PROVIDER_PREFIX + ACCESS_KEY_ID);
+    String secretAccessKey =
+        clientCredentialsProviderProperties.get(
+            CLIENT_CREDENTIAL_PROVIDER_PREFIX + SECRET_ACCESS_KEY);
+    String sessionToken =
+        clientCredentialsProviderProperties.get(CLIENT_CREDENTIAL_PROVIDER_PREFIX + SESSION_TOKEN);
+    if (Strings.isNullOrEmpty(accessKeyId) || Strings.isNullOrEmpty(secretAccessKey)) {
+      throw new IllegalArgumentException(
+          "Both access key ID and secret access key must be provided.");
+    }
+
+    return Strings.isNullOrEmpty(sessionToken)
+        ? AwsBasicCredentials.create(accessKeyId, secretAccessKey)
+        : AwsSessionCredentials.create(accessKeyId, secretAccessKey, sessionToken);
+  }
+
+  /**
    * Configure <a
    * href="https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/core/retry/RetryMode.html">RetryMode</a>
    * to ADAPTIVE_V2 for AWS clients
@@ -277,11 +334,19 @@ public class AwsClientProperties implements Serializable {
       throws NoSuchMethodException {
     AwsCredentialsProvider provider;
     try {
-      provider =
-          DynMethods.builder("create")
-              .hiddenImpl(providerClass, Map.class)
-              .buildStaticChecked()
-              .invoke(clientCredentialsProviderProperties);
+      if (StaticCredentialsProvider.class.equals(providerClass)) {
+        provider =
+            DynMethods.builder("create")
+                .hiddenImpl(providerClass, AwsCredentials.class)
+                .buildStaticChecked()
+                .invoke(staticCredentials());
+      } else {
+        provider =
+            DynMethods.builder("create")
+                .hiddenImpl(providerClass, Map.class)
+                .buildStaticChecked()
+                .invoke(clientCredentialsProviderProperties);
+      }
     } catch (NoSuchMethodException e) {
       provider =
           DynMethods.builder("create").hiddenImpl(providerClass).buildStaticChecked().invoke();
