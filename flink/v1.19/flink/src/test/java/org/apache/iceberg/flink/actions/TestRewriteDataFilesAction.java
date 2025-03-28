@@ -434,7 +434,8 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
                     .useStartingSequenceNumber(false)
                     .execute(),
             "Rewrite using new sequence number should fail")
-        .isInstanceOf(ValidationException.class);
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot commit, found new delete for replaced data file");
 
     // Rewrite using the starting sequence number should succeed
     RewriteDataFilesActionResult result =

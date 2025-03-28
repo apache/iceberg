@@ -53,7 +53,12 @@ public class TestReadabilityChecks {
         Types.BinaryType.get(),
         Types.DecimalType.of(9, 2),
         Types.DecimalType.of(11, 2),
-        Types.DecimalType.of(9, 3)
+        Types.DecimalType.of(9, 3),
+        Types.GeometryType.crs84(),
+        Types.GeometryType.of("srid:3857"),
+        Types.GeographyType.crs84(),
+        Types.GeographyType.of("srid:4269"),
+        Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY),
       };
 
   @Test

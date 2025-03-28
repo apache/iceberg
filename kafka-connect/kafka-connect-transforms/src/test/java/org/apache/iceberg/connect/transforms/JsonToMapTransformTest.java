@@ -84,7 +84,9 @@ public class JsonToMapTransformTest extends FileLoads {
               offset,
               timestamp,
               TimestampType.CREATE_TIME);
-      assertThatThrownBy(() -> smt.apply(record)).isInstanceOf(JsonToMapException.class);
+      assertThatThrownBy(() -> smt.apply(record))
+          .isInstanceOf(JsonToMapException.class)
+          .hasMessageContaining("not valid json");
     }
   }
 
@@ -103,7 +105,9 @@ public class JsonToMapTransformTest extends FileLoads {
               offset,
               timestamp,
               TimestampType.CREATE_TIME);
-      assertThatThrownBy(() -> smt.apply(record)).isInstanceOf(JsonToMapException.class);
+      assertThatThrownBy(() -> smt.apply(record))
+          .isInstanceOf(JsonToMapException.class)
+          .hasMessageContaining("not valid json");
     }
   }
 

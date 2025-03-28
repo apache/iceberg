@@ -18,7 +18,17 @@
  */
 package org.apache.iceberg.data;
 
-import static org.apache.iceberg.data.PartitionStatsHandler.Column;
+import static org.apache.iceberg.data.PartitionStatsHandler.DATA_FILE_COUNT;
+import static org.apache.iceberg.data.PartitionStatsHandler.DATA_RECORD_COUNT;
+import static org.apache.iceberg.data.PartitionStatsHandler.EQUALITY_DELETE_FILE_COUNT;
+import static org.apache.iceberg.data.PartitionStatsHandler.EQUALITY_DELETE_RECORD_COUNT;
+import static org.apache.iceberg.data.PartitionStatsHandler.LAST_UPDATED_AT;
+import static org.apache.iceberg.data.PartitionStatsHandler.LAST_UPDATED_SNAPSHOT_ID;
+import static org.apache.iceberg.data.PartitionStatsHandler.PARTITION_FIELD_ID;
+import static org.apache.iceberg.data.PartitionStatsHandler.POSITION_DELETE_FILE_COUNT;
+import static org.apache.iceberg.data.PartitionStatsHandler.POSITION_DELETE_RECORD_COUNT;
+import static org.apache.iceberg.data.PartitionStatsHandler.TOTAL_DATA_FILE_SIZE_IN_BYTES;
+import static org.apache.iceberg.data.PartitionStatsHandler.TOTAL_RECORD_COUNT;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -185,7 +195,7 @@ public class TestPartitionStatsHandler {
     Schema dataSchema = PartitionStatsHandler.schema(partitionSchema);
 
     PartitionData partitionData =
-        new PartitionData(dataSchema.findField(Column.PARTITION.name()).type().asStructType());
+        new PartitionData(dataSchema.findField(PARTITION_FIELD_ID).type().asStructType());
     partitionData.set(0, true);
     partitionData.set(1, 42);
     partitionData.set(2, 42L);
@@ -204,9 +214,9 @@ public class TestPartitionStatsHandler {
     partitionData.set(14, Literal.of("10:10:10").to(Types.TimeType.get()).value());
 
     PartitionStats partitionStats = new PartitionStats(partitionData, RANDOM.nextInt(10));
-    partitionStats.set(Column.DATA_RECORD_COUNT.id(), RANDOM.nextLong());
-    partitionStats.set(Column.DATA_FILE_COUNT.id(), RANDOM.nextInt());
-    partitionStats.set(Column.TOTAL_DATA_FILE_SIZE_IN_BYTES.id(), 1024L * RANDOM.nextInt(20));
+    partitionStats.set(DATA_RECORD_COUNT.fieldId(), RANDOM.nextLong());
+    partitionStats.set(DATA_FILE_COUNT.fieldId(), RANDOM.nextInt());
+    partitionStats.set(TOTAL_DATA_FILE_SIZE_IN_BYTES.fieldId(), 1024L * RANDOM.nextInt(20));
     List<PartitionStats> expected = Collections.singletonList(partitionStats);
     PartitionStatisticsFile statisticsFile =
         PartitionStatsHandler.writePartitionStatsFile(testTable, 42L, dataSchema, expected);
@@ -243,21 +253,21 @@ public class TestPartitionStatsHandler {
     ImmutableList.Builder<PartitionStats> partitionListBuilder = ImmutableList.builder();
     for (int i = 0; i < 5; i++) {
       PartitionData partitionData =
-          new PartitionData(dataSchema.findField(Column.PARTITION.name()).type().asStructType());
+          new PartitionData(dataSchema.findField(PARTITION_FIELD_ID).type().asStructType());
       partitionData.set(0, RANDOM.nextInt());
 
       PartitionStats stats = new PartitionStats(partitionData, RANDOM.nextInt(10));
-      stats.set(Column.PARTITION.ordinal(), partitionData);
-      stats.set(Column.DATA_RECORD_COUNT.ordinal(), RANDOM.nextLong());
-      stats.set(Column.DATA_FILE_COUNT.ordinal(), RANDOM.nextInt());
-      stats.set(Column.TOTAL_DATA_FILE_SIZE_IN_BYTES.ordinal(), 1024L * RANDOM.nextInt(20));
-      stats.set(Column.POSITION_DELETE_RECORD_COUNT.ordinal(), null);
-      stats.set(Column.POSITION_DELETE_FILE_COUNT.ordinal(), null);
-      stats.set(Column.EQUALITY_DELETE_RECORD_COUNT.ordinal(), null);
-      stats.set(Column.EQUALITY_DELETE_FILE_COUNT.ordinal(), null);
-      stats.set(Column.TOTAL_RECORD_COUNT.ordinal(), null);
-      stats.set(Column.LAST_UPDATED_AT.ordinal(), null);
-      stats.set(Column.LAST_UPDATED_SNAPSHOT_ID.ordinal(), null);
+      stats.set(PARTITION_FIELD_ID, partitionData);
+      stats.set(DATA_RECORD_COUNT.fieldId(), RANDOM.nextLong());
+      stats.set(DATA_FILE_COUNT.fieldId(), RANDOM.nextInt());
+      stats.set(TOTAL_DATA_FILE_SIZE_IN_BYTES.fieldId(), 1024L * RANDOM.nextInt(20));
+      stats.set(POSITION_DELETE_RECORD_COUNT.fieldId(), null);
+      stats.set(POSITION_DELETE_FILE_COUNT.fieldId(), null);
+      stats.set(EQUALITY_DELETE_RECORD_COUNT.fieldId(), null);
+      stats.set(EQUALITY_DELETE_FILE_COUNT.fieldId(), null);
+      stats.set(TOTAL_RECORD_COUNT.fieldId(), null);
+      stats.set(LAST_UPDATED_AT.fieldId(), null);
+      stats.set(LAST_UPDATED_SNAPSHOT_ID.fieldId(), null);
 
       partitionListBuilder.add(stats);
     }
@@ -338,7 +348,7 @@ public class TestPartitionStatsHandler {
     Snapshot snapshot1 = testTable.currentSnapshot();
     Schema recordSchema = PartitionStatsHandler.schema(Partitioning.partitionType(testTable));
     Types.StructType partitionType =
-        recordSchema.findField(Column.PARTITION.name()).type().asStructType();
+        recordSchema.findField(PARTITION_FIELD_ID).type().asStructType();
     computeAndValidatePartitionStats(
         testTable,
         recordSchema,
@@ -402,7 +412,7 @@ public class TestPartitionStatsHandler {
     Snapshot snapshot3 = testTable.currentSnapshot();
 
     recordSchema = PartitionStatsHandler.schema(Partitioning.partitionType(testTable));
-    partitionType = recordSchema.findField(Column.PARTITION.name()).type().asStructType();
+    partitionType = recordSchema.findField(PARTITION_FIELD_ID).type().asStructType();
     computeAndValidatePartitionStats(
         testTable,
         recordSchema,

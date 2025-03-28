@@ -205,8 +205,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows", expectedRecords, actualRecords);
-    assertEquals("Position deletes", expectedDeletes, actualDeletes);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
   }
 
   @TestTemplate
@@ -241,8 +241,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows", expectedRecords, actualRecords);
-    assertEquals("Position deletes", expectedDeletes, actualDeletes);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
   }
 
   @TestTemplate
@@ -287,8 +287,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows", expectedRecords, actualRecords);
-    assertEquals("Position deletes", expectedDeletes, actualDeletes);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
 
     withSQLConf(
         ImmutableMap.of(SQLConf.CASE_SENSITIVE().key(), "true"),
@@ -337,8 +337,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows", expectedRecords, actualRecords);
-    assertEquals("Position deletes", expectedDeletes, actualDeletes);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
   }
 
   @TestTemplate
@@ -382,7 +382,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows", expectedRecords, actualRecords);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
     assertThat(actualDeletes).as("New position deletes").isEmpty();
   }
 
@@ -524,8 +524,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows", expectedRecords, actualRecords);
-    assertEquals("Position deletes", expectedDeletes, actualDeletes);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
   }
 
   @TestTemplate
@@ -572,8 +572,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     // Only non-compacted deletes remain
     List<Object[]> expectedDeletesFiltered =
         filterDeletes(expectedDeletes, ImmutableList.of(2), ImmutableList.of(3));
-    assertEquals("Rows", expectedRecords, actualRecords);
-    assertEquals("Position deletes", expectedDeletesFiltered, allDeletes);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletesFiltered, allDeletes);
   }
 
   @TestTemplate
@@ -624,8 +624,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows", expectedRecords, actualRecords);
-    assertEquals("Position deletes", expectedDeletes, actualDeletes);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
   }
 
   @TestTemplate
@@ -671,8 +671,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows", expectedRecords, actualRecords);
-    assertEquals("Position deletes", expectedDeletes, actualDeletes);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
   }
 
   @TestTemplate
@@ -721,7 +721,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     checkSequenceNumbers(table, rewrittenDeleteFiles, newDeleteFiles);
 
     List<Object[]> actualRecords = records(table);
-    assertEquals("Rows", expectedRecords, actualRecords);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
   }
 
   @TestTemplate
@@ -816,8 +816,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows", expectedRecords, actualRecords);
-    assertEquals("Position deletes", expectedDeletes, actualDeletes);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
   }
 
   @TestTemplate

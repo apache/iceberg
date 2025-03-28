@@ -321,6 +321,9 @@ project(':iceberg-api') {
 }
 
 project(':iceberg-common') {
+  test {
+    useJUnitPlatform()
+  }
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
   }
@@ -563,6 +566,8 @@ project(':iceberg-azure') {
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.testcontainers
+    testImplementation libs.mockserver.netty
+    testImplementation libs.mockserver.client.java
   }
 
   sourceSets {
