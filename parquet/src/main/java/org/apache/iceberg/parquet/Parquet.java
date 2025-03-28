@@ -84,6 +84,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
+import org.apache.iceberg.io.AppenderBuilder;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
@@ -138,7 +139,7 @@ public class Parquet {
   public static final String WRITER_VERSION_KEY = "parquet.writer.version";
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #appender(OutputFile)} instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
    */
   @Deprecated
   public static WriteBuilder write(OutputFile file) {
@@ -150,8 +151,7 @@ public class Parquet {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #appender(EncryptedOutputFile)}
-   *     instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
    */
   @Deprecated
   public static WriteBuilder write(EncryptedOutputFile file) {
@@ -165,23 +165,8 @@ public class Parquet {
     }
   }
 
-  public static <E> AppenderBuilder<E> appender(EncryptedOutputFile file) {
-    if (file instanceof NativeEncryptionOutputFile) {
-      NativeEncryptionOutputFile nativeFile = (NativeEncryptionOutputFile) file;
-      return new AppenderBuilder<E>(nativeFile.plainOutputFile())
-          .withFileEncryptionKey(nativeFile.keyMetadata().encryptionKey())
-          .withAADPrefix(nativeFile.keyMetadata().aadPrefix());
-    } else {
-      return new AppenderBuilder<>(file.encryptingOutputFile());
-    }
-  }
-
-  public static <E> AppenderBuilder<E> appender(OutputFile file) {
-    return new AppenderBuilder<>(file);
-  }
-
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link AppenderBuilder} instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
    */
   @Deprecated
   public static class WriteBuilder extends AppenderBuilderInternal<WriteBuilder, Object> {
@@ -190,16 +175,70 @@ public class Parquet {
     }
   }
 
-  public static class AppenderBuilder<E> extends AppenderBuilderInternal<AppenderBuilder<E>, E> {
-    private AppenderBuilder(OutputFile file) {
-      super(file);
+  public static class ObjectModel<D, F, E> implements org.apache.iceberg.io.ObjectModel<E> {
+    private final String name;
+    private final ReaderFunction<D> readerFunction;
+    private final BatchReaderFunction<D, F> batchReaderFunction;
+    private final WriterFunction<D, E> writerFunction;
+    private final Function<CharSequence, ?> pathTransformFunc;
+
+    private ObjectModel(
+        String name,
+        ReaderFunction<D> readerFunction,
+        BatchReaderFunction<D, F> batchReaderFunction,
+        WriterFunction<D, E> writerFunction,
+        Function<CharSequence, ?> pathTransformFunc) {
+      this.name = name;
+      this.readerFunction = readerFunction;
+      this.batchReaderFunction = batchReaderFunction;
+      this.writerFunction = writerFunction;
+      this.pathTransformFunc = pathTransformFunc;
+    }
+
+    public ObjectModel(
+        String name,
+        ReaderFunction<D> readerFunction,
+        WriterFunction<D, E> writerFunction,
+        Function<CharSequence, ?> pathTransformFunc) {
+      this(name, readerFunction, null, writerFunction, pathTransformFunc);
+    }
+
+    public ObjectModel(String name, BatchReaderFunction<D, F> batchReaderFunction) {
+      this(name, null, batchReaderFunction, null, null);
+    }
+
+    @Override
+    public FileFormat format() {
+      return FileFormat.PARQUET;
+    }
+
+    @Override
+    public String name() {
+      return name;
+    }
+
+    @Override
+    public <B extends org.apache.iceberg.io.AppenderBuilder<B, E>> B appenderBuilder(
+        OutputFile outputFile) {
+      AppenderBuilderInternal<?, E> internal = new AppenderBuilderInternal<>(outputFile);
+      return (B) internal.writerFunction(writerFunction).pathTransformFunc(pathTransformFunc);
+    }
+
+    @Override
+    public <B extends org.apache.iceberg.io.ReadBuilder<B>> B readBuilder(InputFile inputFile) {
+      if (batchReaderFunction != null) {
+        return (B)
+            new ReadBuilder(inputFile)
+                .batchReaderFunction((BatchReaderFunction<Object, Object>) batchReaderFunction);
+      } else {
+        return (B) new ReadBuilder(inputFile).readerFunction(readerFunction);
+      }
     }
   }
 
-  /** Will be removed when the {@link Parquet.WriteBuilder} is removed. */
   @SuppressWarnings("unchecked")
   static class AppenderBuilderInternal<B extends AppenderBuilderInternal<B, E>, E>
-      implements InternalData.WriteBuilder, org.apache.iceberg.io.AppenderBuilder<B, E> {
+      implements InternalData.WriteBuilder, AppenderBuilder<B, E> {
     private final OutputFile file;
     private final Configuration conf;
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
@@ -1286,6 +1325,13 @@ public class Parquet {
     }
   }
 
+  /**
+   * Old reader API.
+   *
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use ObjectModelRegistry.readerBuilder
+   *     instead.
+   */
+  @Deprecated
   public static ReadBuilder read(InputFile file) {
     if (file instanceof NativeEncryptionInputFile) {
       NativeEncryptionInputFile nativeFile = (NativeEncryptionInputFile) file;
@@ -1297,32 +1343,20 @@ public class Parquet {
     }
   }
 
-  public static <F> ReadBuilderWithFilter<F> readWithFilter(InputFile file) {
-    if (file instanceof NativeEncryptionInputFile) {
-      NativeEncryptionInputFile nativeFile = (NativeEncryptionInputFile) file;
-      return new ReadBuilderWithFilter<F>(nativeFile.encryptedInputFile())
-          .withFileEncryptionKey(nativeFile.keyMetadata().encryptionKey())
-          .withAADPrefix(nativeFile.keyMetadata().aadPrefix());
-    } else {
-      return new ReadBuilderWithFilter<>(file);
-    }
-  }
-
+  /**
+   * Old reader API.
+   *
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
+   */
+  @Deprecated
   public static class ReadBuilder extends ReadBuilderInternal<ReadBuilder, Object> {
     private ReadBuilder(InputFile file) {
       super(file);
     }
   }
 
-  public static class ReadBuilderWithFilter<F>
-      extends ReadBuilderInternal<ReadBuilderWithFilter<F>, F> {
-    private ReadBuilderWithFilter(InputFile file) {
-      super(file);
-    }
-  }
-
   @SuppressWarnings("unchecked")
-  static class ReadBuilderInternal<B extends ReadBuilderInternal<B, F>, F>
+  private static class ReadBuilderInternal<B extends ReadBuilderInternal<B, F>, F>
       implements InternalData.ReadBuilder,
           org.apache.iceberg.io.ReadBuilder<B>,
           SupportsDeleteFilter<F> {

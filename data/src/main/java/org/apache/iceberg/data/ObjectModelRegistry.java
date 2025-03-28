@@ -20,12 +20,12 @@ package org.apache.iceberg.data;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.AppenderBuilder;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.ObjectModel;
 import org.apache.iceberg.io.ReadBuilder;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
@@ -53,55 +53,32 @@ public final class ObjectModelRegistry {
           "org.apache.iceberg.flink.data.FlinkObjectModels",
           "org.apache.iceberg.spark.source.SparkObjectModels");
 
-  private static final Map<Key, Function<EncryptedOutputFile, AppenderBuilder<?, ?>>>
-      APPENDER_BUILDERS = Maps.newConcurrentMap();
-  private static final Map<Key, Function<InputFile, ReadBuilder<?>>> READ_BUILDERS =
-      Maps.newConcurrentMap();
+  private static final Map<Key, ObjectModel<?>> OBJECT_MODELS = Maps.newConcurrentMap();
 
   /**
-   * Registers a new appender builder for the given format/object model name.
+   * Registers a new format/object model.
    *
-   * @param format the file format to write
-   * @param objectModelName accepted by the writer
-   * @param appenderBuilder the appender builder function
-   * @throws IllegalArgumentException if an appender builder for the given {@code format} and {@code
-   *     objectModelName} combination already exists
-   */
-  public static void registerAppender(
-      FileFormat format,
-      String objectModelName,
-      Function<EncryptedOutputFile, AppenderBuilder<?, ?>> appenderBuilder) {
-    Key key = new Key(format, objectModelName);
-    if (APPENDER_BUILDERS.containsKey(key)) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Appender builder %s clashes with %s. Both serves %s",
-              appenderBuilder.getClass(), APPENDER_BUILDERS.get(key), key));
-    }
-
-    APPENDER_BUILDERS.put(key, appenderBuilder);
-  }
-
-  /**
-   * Registers a new reader builder for the given format/object model name.
-   *
-   * @param format the file format to read
-   * @param objectModelName returned by the reader
-   * @param readBuilder the read builder function
+   * @param objectModel the object model
    * @throws IllegalArgumentException if a read builder for the given {@code format} and {@code
    *     objectModelName} combination already exists
    */
-  public static void registerReader(
-      FileFormat format, String objectModelName, Function<InputFile, ReadBuilder<?>> readBuilder) {
-    Key key = new Key(format, objectModelName);
-    if (READ_BUILDERS.containsKey(key)) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Read builder %s clashes with %s. Both serves %s",
-              readBuilder.getClass(), READ_BUILDERS.get(key), key));
-    }
+  @SuppressWarnings("CatchBlockLogException")
+  public static void registerObjectModel(ObjectModel<?> objectModel) {
+    try {
+      Key key = new Key(objectModel.format(), objectModel.name());
+      if (OBJECT_MODELS.containsKey(key)) {
+        throw new IllegalArgumentException(
+            String.format(
+                "Read builder %s clashes with %s. Both serves %s",
+                objectModel.getClass(), OBJECT_MODELS.get(key), key));
+      }
 
-    READ_BUILDERS.put(new Key(format, objectModelName), readBuilder);
+      OBJECT_MODELS.put(key, objectModel);
+    } catch (RuntimeException e) {
+      // failing to register readers/writers is normal and does not require a stack trace
+      LOG.info(
+          "Unable to use register object model {} for data files: {}", objectModel, e.getMessage());
+    }
   }
 
   @SuppressWarnings("CatchBlockLogException")
@@ -140,7 +117,8 @@ public final class ObjectModelRegistry {
    */
   public static ReadBuilder<?> readBuilder(
       FileFormat format, String objectModelName, InputFile inputFile) {
-    return READ_BUILDERS.get(new Key(format, objectModelName)).apply(inputFile);
+    return OBJECT_MODELS.get(new Key(format, objectModelName)).readBuilder(inputFile);
+    //    return READ_BUILDERS.get(new Key(format, objectModelName)).apply(inputFile);
   }
 
   /**
@@ -204,11 +182,11 @@ public final class ObjectModelRegistry {
   }
 
   @SuppressWarnings("unchecked")
-  private static <E> WriteBuilder<?, ?, E> writerFor(
+  private static <B extends AppenderBuilder<B, E>, E> WriteBuilder<?, ?, E> writerFor(
       FileFormat format, String objectModelName, EncryptedOutputFile outputFile) {
     return new WriteBuilder<>(
-        (AppenderBuilder<?, E>)
-            APPENDER_BUILDERS.get(new Key(format, objectModelName)).apply(outputFile),
+        ((ObjectModel<E>) OBJECT_MODELS.get(new Key(format, objectModelName)))
+            .<B>appenderBuilder(outputFile.encryptingOutputFile()),
         outputFile.encryptingOutputFile().location(),
         format);
   }

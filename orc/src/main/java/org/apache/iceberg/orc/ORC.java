@@ -107,8 +107,7 @@ public class ORC {
   private ORC() {}
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #appender(EncryptedOutputFile)}
-   *     instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
    */
   @Deprecated
   public static WriteBuilder write(OutputFile file) {
@@ -116,8 +115,7 @@ public class ORC {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #appender(EncryptedOutputFile)}
-   *     instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
    */
   @Deprecated
   public static WriteBuilder write(EncryptedOutputFile file) {
@@ -126,14 +124,8 @@ public class ORC {
     return new WriteBuilder(file.encryptingOutputFile());
   }
 
-  public static <E> AppenderBuilder<E> appender(EncryptedOutputFile file) {
-    Preconditions.checkState(
-        !(file instanceof NativeEncryptionOutputFile), "Native ORC encryption is not supported");
-    return new AppenderBuilder<>(file.encryptingOutputFile());
-  }
-
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link AppenderBuilder} instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
    */
   @Deprecated
   public static class WriteBuilder extends AppenderBuilderInternal<WriteBuilder, Object> {
@@ -142,15 +134,67 @@ public class ORC {
     }
   }
 
-  public static class AppenderBuilder<E> extends AppenderBuilderInternal<AppenderBuilder<E>, E> {
-    private AppenderBuilder(OutputFile file) {
-      super(file);
+  public static class ObjectModel<D, E> implements org.apache.iceberg.io.ObjectModel<E> {
+    private final String name;
+    private final ReaderFunction<D> readerFunction;
+    private final BatchReaderFunction<D> batchReaderFunction;
+    private final WriterFunction<E> writerFunction;
+    private final Function<CharSequence, ?> pathTransformFunc;
+
+    private ObjectModel(
+        String name,
+        ReaderFunction<D> readerFunction,
+        BatchReaderFunction<D> batchReaderFunction,
+        WriterFunction<E> writerFunction,
+        Function<CharSequence, ?> pathTransformFunc) {
+      this.name = name;
+      this.readerFunction = readerFunction;
+      this.batchReaderFunction = batchReaderFunction;
+      this.writerFunction = writerFunction;
+      this.pathTransformFunc = pathTransformFunc;
+    }
+
+    public ObjectModel(
+        String name,
+        ReaderFunction<D> readerFunction,
+        WriterFunction<E> writerFunction,
+        Function<CharSequence, ?> pathTransformFunc) {
+      this(name, readerFunction, null, writerFunction, pathTransformFunc);
+    }
+
+    public ObjectModel(String name, BatchReaderFunction<D> batchReaderFunction) {
+      this(name, null, batchReaderFunction, null, null);
+    }
+
+    @Override
+    public FileFormat format() {
+      return FileFormat.ORC;
+    }
+
+    @Override
+    public String name() {
+      return name;
+    }
+
+    @Override
+    public <B extends org.apache.iceberg.io.AppenderBuilder<B, E>> B appenderBuilder(
+        OutputFile outputFile) {
+      AppenderBuilderInternal<?, E> internal = new AppenderBuilderInternal<>(outputFile);
+      return (B) internal.writerFunction(writerFunction).pathTransformFunc(pathTransformFunc);
+    }
+
+    @Override
+    public <B extends org.apache.iceberg.io.ReadBuilder<B>> B readBuilder(InputFile inputFile) {
+      if (batchReaderFunction != null) {
+        return (B) new ReadBuilder(inputFile).batchReaderFunction(batchReaderFunction);
+      } else {
+        return (B) new ReadBuilder(inputFile).readerFunction(readerFunction);
+      }
     }
   }
 
-  /** Will be removed when the {@link WriteBuilder} is removed. */
   @SuppressWarnings("unchecked")
-  static class AppenderBuilderInternal<B extends AppenderBuilderInternal<B, E>, E>
+  private static class AppenderBuilderInternal<B extends AppenderBuilderInternal<B, E>, E>
       implements org.apache.iceberg.io.AppenderBuilder<B, E> {
     private final OutputFile file;
     private final Configuration conf;
@@ -856,6 +900,10 @@ public class ORC {
     }
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
+   */
+  @Deprecated
   public static ReadBuilder read(InputFile file) {
     Preconditions.checkState(
         !(file instanceof NativeEncryptionInputFile), "Native ORC encryption is not supported");
@@ -863,6 +911,10 @@ public class ORC {
     return new ReadBuilder(file);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
+   */
+  @Deprecated
   public static class ReadBuilder implements org.apache.iceberg.io.ReadBuilder<ReadBuilder> {
     private final InputFile file;
     private final Configuration conf;

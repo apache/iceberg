@@ -19,7 +19,6 @@
 package org.apache.iceberg.data;
 
 import java.util.function.Function;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataWriter;
 import org.apache.iceberg.data.avro.PlannedDataReader;
@@ -29,53 +28,65 @@ import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class GenericObjectModels {
+  private static final Logger LOG = LoggerFactory.getLogger(GenericObjectModels.class);
+
   public static final String GENERIC_OBJECT_MODEL = "generic";
 
   public static void register() {
-    ObjectModelRegistry.registerReader(
-        FileFormat.PARQUET,
-        GENERIC_OBJECT_MODEL,
-        inputFile -> Parquet.read(inputFile).readerFunction(GenericParquetReaders::buildReader));
+    // ORC, Parquet are optional dependencies. If they are not present, we should just log and
+    // ignore NoClassDefFoundErrors
+    registerAvro();
+    registerParquet();
+    registerOrc();
+  }
 
-    ObjectModelRegistry.registerAppender(
-        FileFormat.PARQUET,
-        GENERIC_OBJECT_MODEL,
-        outputFile ->
-            Parquet.appender(outputFile)
-                .writerFunction(
+  private static void registerParquet() {
+    logAngIgnoreNoClassDefFoundError(
+        () ->
+            ObjectModelRegistry.registerObjectModel(
+                new Parquet.ObjectModel<>(
+                    GENERIC_OBJECT_MODEL,
+                    GenericParquetReaders::buildReader,
                     (nativeSchema, icebergSchema, messageType) ->
-                        GenericParquetWriter.create(icebergSchema, messageType))
-                .pathTransformFunc(Function.identity()));
+                        GenericParquetWriter.create(icebergSchema, messageType),
+                    Function.identity())));
+  }
 
-    ObjectModelRegistry.registerReader(
-        FileFormat.AVRO,
-        GENERIC_OBJECT_MODEL,
-        inputFile -> Avro.read(inputFile).readerFunction(PlannedDataReader::create));
+  private static void registerAvro() {
+    logAngIgnoreNoClassDefFoundError(
+        () ->
+            ObjectModelRegistry.registerObjectModel(
+                new Avro.ObjectModel<>(
+                    GENERIC_OBJECT_MODEL,
+                    PlannedDataReader::create,
+                    (avroSchema, unused) -> DataWriter.create(avroSchema))));
+  }
 
-    ObjectModelRegistry.registerAppender(
-        FileFormat.AVRO,
-        GENERIC_OBJECT_MODEL,
-        outputFile ->
-            Avro.appender(outputFile)
-                .writerFunction((avroSchema, unused) -> DataWriter.create(avroSchema)));
-
-    ObjectModelRegistry.registerReader(
-        FileFormat.ORC,
-        GENERIC_OBJECT_MODEL,
-        inputFile -> ORC.read(inputFile).readerFunction(GenericOrcReader::buildReader));
-
-    ObjectModelRegistry.registerAppender(
-        FileFormat.ORC,
-        GENERIC_OBJECT_MODEL,
-        outputFile ->
-            ORC.appender(outputFile)
-                .writerFunction(
+  private static void registerOrc() {
+    logAngIgnoreNoClassDefFoundError(
+        () ->
+            ObjectModelRegistry.registerObjectModel(
+                new ORC.ObjectModel<>(
+                    GENERIC_OBJECT_MODEL,
+                    GenericOrcReader::buildReader,
                     (schema, messageType, nativeSchema) ->
-                        GenericOrcWriter.buildWriter(schema, messageType))
-                .pathTransformFunc(Function.identity()));
+                        GenericOrcWriter.buildWriter(schema, messageType),
+                    Function.identity())));
   }
 
   private GenericObjectModels() {}
+
+  @SuppressWarnings("CatchBlockLogException")
+  private static void logAngIgnoreNoClassDefFoundError(Runnable runnable) {
+    try {
+      runnable.run();
+    } catch (NoClassDefFoundError e) {
+      // Log the exception and ignore it
+      LOG.info("Exception occurred when trying to register object models: {}", e.getMessage());
+    }
+  }
 }

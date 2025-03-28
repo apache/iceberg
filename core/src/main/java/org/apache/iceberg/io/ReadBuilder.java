@@ -27,9 +27,9 @@ import org.apache.iceberg.mapping.NameMapping;
 /**
  * Interface which should be implemented by the data file format implementations.
  *
- * @param <R> type of the reader
+ * @param <B> type of the reader
  */
-public interface ReadBuilder<R extends ReadBuilder<R>> {
+public interface ReadBuilder<B extends ReadBuilder<B>> {
   /** The key for the batch size in case of vectorized reads. */
   String RECORDS_PER_BATCH_KEY = "iceberg.records-per-batch";
 
@@ -39,10 +39,10 @@ public interface ReadBuilder<R extends ReadBuilder<R>> {
    * @param newStart the start position for this read
    * @param newLength the length of the range this read should scan
    */
-  R split(long newStart, long newLength);
+  B split(long newStart, long newLength);
 
   /** Read only the given columns. */
-  R project(Schema newSchema);
+  B project(Schema newSchema);
 
   /**
    * Pushes down the {@link Expression} filter for the reader to prevent reading unnecessary
@@ -53,9 +53,9 @@ public interface ReadBuilder<R extends ReadBuilder<R>> {
    * @param newFilter the filter to set
    * @param filterCaseSensitive whether the filtering is case-sensitive or not
    */
-  default R filter(Expression newFilter, boolean filterCaseSensitive) {
+  default B filter(Expression newFilter, boolean filterCaseSensitive) {
     // Skip filtering if not available
-    return (R) this;
+    return (B) this;
   }
 
   /**
@@ -66,7 +66,7 @@ public interface ReadBuilder<R extends ReadBuilder<R>> {
    *
    * @param newFilter the filter to set
    */
-  default R filter(Expression newFilter) {
+  default B filter(Expression newFilter) {
     return filter(newFilter, true);
   }
 
@@ -74,13 +74,13 @@ public interface ReadBuilder<R extends ReadBuilder<R>> {
    * Sets configuration key/value pairs for the reader. Reader builders could ignore configuration
    * keys not known for them.
    */
-  default R set(String key, String value) {
+  default B set(String key, String value) {
     // Skip configuration if not applicable
-    return (R) this;
+    return (B) this;
   }
 
   /** Enables reusing the containers returned by the reader. Decreases pressure on GC. */
-  default R reuseContainers() {
+  default B reuseContainers() {
     return reuseContainers(true);
   }
 
@@ -88,9 +88,9 @@ public interface ReadBuilder<R extends ReadBuilder<R>> {
    * Reusing the containers returned by the reader decreases pressure on GC. Readers could decide to
    * ignore the user provided setting if is not supported by them.
    */
-  default R reuseContainers(boolean newReuseContainers) {
+  default B reuseContainers(boolean newReuseContainers) {
     // Skip container reuse configuration if not applicable
-    return (R) this;
+    return (B) this;
   }
 
   /**
@@ -98,16 +98,16 @@ public interface ReadBuilder<R extends ReadBuilder<R>> {
    * from metadata, and not coming from the data files themselves. The keys of the map are the
    * column ids, the values are the accessors generating the values.
    */
-  R constantFieldAccessors(Map<Integer, ?> constantFieldAccessors);
+  B constantFieldAccessors(Map<Integer, ?> constantFieldAccessors);
 
   /** Sets a mapping from external schema names to Iceberg type IDs. */
-  R withNameMapping(NameMapping newNameMapping);
+  B withNameMapping(NameMapping newNameMapping);
 
   /**
    * Sets the file encryption key used for reading the file. If encryption is not supported by the
    * reader then an exception should be thrown.
    */
-  default R withFileEncryptionKey(ByteBuffer encryptionKey) {
+  default B withFileEncryptionKey(ByteBuffer encryptionKey) {
     throw new UnsupportedOperationException("Not supported");
   }
 
@@ -115,7 +115,7 @@ public interface ReadBuilder<R extends ReadBuilder<R>> {
    * Sets the additional authentication data prefix for encryption. If encryption is not supported
    * by the reader then an exception should be thrown.
    */
-  default R withAADPrefix(ByteBuffer aadPrefix) {
+  default B withAADPrefix(ByteBuffer aadPrefix) {
     throw new UnsupportedOperationException("Not supported");
   }
 

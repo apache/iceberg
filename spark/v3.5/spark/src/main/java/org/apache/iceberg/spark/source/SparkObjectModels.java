@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
 
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.ObjectModelRegistry;
@@ -36,6 +35,7 @@ import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkObjectModels {
@@ -43,67 +43,37 @@ public class SparkObjectModels {
   public static final String SPARK_VECTORIZED_OBJECT_MODEL = "spark-vectorized";
 
   public static void register() {
-    // Base readers
-    ObjectModelRegistry.registerReader(
-        FileFormat.PARQUET,
-        SPARK_OBJECT_MODEL,
-        inputFile -> Parquet.read(inputFile).readerFunction(SparkParquetReaders::buildReader));
+    ObjectModelRegistry.registerObjectModel(
+        new Avro.ObjectModel<StructType>(
+            SPARK_OBJECT_MODEL,
+            SparkPlannedAvroReader::create,
+            (schema, engineSchema) -> new SparkAvroWriter(engineSchema),
+            (schema, engineSchema) ->
+                new SparkAvroWriter(
+                    (StructType) engineSchema.apply(DELETE_FILE_ROW_FIELD_NAME).dataType())));
 
-    ObjectModelRegistry.registerReader(
-        FileFormat.AVRO,
-        SPARK_OBJECT_MODEL,
-        inputFile -> Avro.read(inputFile).readerFunction(SparkPlannedAvroReader::create));
+    ObjectModelRegistry.registerObjectModel(
+        new Parquet.ObjectModel<InternalRow, DeleteFilter<InternalRow>, StructType>(
+            SPARK_OBJECT_MODEL,
+            SparkParquetReaders::buildReader,
+            (engineSchema, icebergSchema, messageType) ->
+                SparkParquetWriters.buildWriter(engineSchema, messageType),
+            path -> UTF8String.fromString(path.toString())));
 
-    ObjectModelRegistry.registerReader(
-        FileFormat.ORC,
-        SPARK_OBJECT_MODEL,
-        inputFile -> ORC.read(inputFile).readerFunction(SparkOrcReader::new));
+    ObjectModelRegistry.registerObjectModel(
+        new Parquet.ObjectModel<ColumnarBatch, DeleteFilter<InternalRow>, StructType>(
+            SPARK_VECTORIZED_OBJECT_MODEL, VectorizedSparkParquetReaders::buildReader));
 
-    // Vectorized readers
-    ObjectModelRegistry.registerReader(
-        FileFormat.PARQUET,
-        SPARK_VECTORIZED_OBJECT_MODEL,
-        inputFile ->
-            Parquet.<DeleteFilter<InternalRow>>readWithFilter(inputFile)
-                .batchReaderFunction(VectorizedSparkParquetReaders::buildReader));
+    ObjectModelRegistry.registerObjectModel(
+        new ORC.ObjectModel<InternalRow, StructType>(
+            SPARK_OBJECT_MODEL,
+            SparkOrcReader::new,
+            (schema, messageType, engineSchema) -> new SparkOrcWriter(schema, messageType),
+            path -> UTF8String.fromString(path.toString())));
 
-    ObjectModelRegistry.registerReader(
-        FileFormat.ORC,
-        SPARK_VECTORIZED_OBJECT_MODEL,
-        inputFile ->
-            ORC.read(inputFile).batchReaderFunction(VectorizedSparkOrcReaders::buildReader));
-
-    // Appenders
-    ObjectModelRegistry.registerAppender(
-        FileFormat.AVRO,
-        SPARK_OBJECT_MODEL,
-        outputFile ->
-            Avro.<StructType>appender(outputFile)
-                .writerFunction((schema, engineSchema) -> new SparkAvroWriter(engineSchema))
-                .deleteRowWriterFunction(
-                    (schema, engineSchema) ->
-                        new SparkAvroWriter(
-                            (StructType)
-                                engineSchema.apply(DELETE_FILE_ROW_FIELD_NAME).dataType())));
-
-    ObjectModelRegistry.registerAppender(
-        FileFormat.PARQUET,
-        SPARK_OBJECT_MODEL,
-        outputFile ->
-            Parquet.<StructType>appender(outputFile)
-                .writerFunction(
-                    (engineSchema, icebergSchema, messageType) ->
-                        SparkParquetWriters.buildWriter(engineSchema, messageType))
-                .pathTransformFunc(path -> UTF8String.fromString(path.toString())));
-
-    ObjectModelRegistry.registerAppender(
-        FileFormat.ORC,
-        SPARK_OBJECT_MODEL,
-        outputFile ->
-            ORC.appender(outputFile)
-                .writerFunction(
-                    (schema, messageType, engineSchema) -> new SparkOrcWriter(schema, messageType))
-                .pathTransformFunc(path -> UTF8String.fromString(path.toString())));
+    ObjectModelRegistry.registerObjectModel(
+        new ORC.ObjectModel<ColumnarBatch, StructType>(
+            SPARK_VECTORIZED_OBJECT_MODEL, VectorizedSparkOrcReaders::buildReader));
   }
 
   private SparkObjectModels() {}

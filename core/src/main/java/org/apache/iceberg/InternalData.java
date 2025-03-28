@@ -54,7 +54,7 @@ public class InternalData {
   private static void registerSupportedFormats() {
     InternalData.register(
         FileFormat.AVRO,
-        outputFile -> Avro.appender(outputFile).createWriterFunc(InternalWriter::create),
+        outputFile -> Avro.write(outputFile).createWriterFunc(InternalWriter::create),
         inputFile -> Avro.read(inputFile).createResolvingReader(InternalReader::create));
 
     try {

@@ -20,9 +20,9 @@ package org.apache.iceberg.flink.data;
 
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
 
+import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.ObjectModelRegistry;
 import org.apache.iceberg.orc.ORC;
@@ -32,53 +32,30 @@ public class FlinkObjectModels {
   public static final String FLINK_OBJECT_MODEL = "flink";
 
   public static void register() {
-    ObjectModelRegistry.registerReader(
-        FileFormat.PARQUET,
-        FLINK_OBJECT_MODEL,
-        inputFile -> Parquet.read(inputFile).readerFunction(FlinkParquetReaders::buildReader));
+    ObjectModelRegistry.registerObjectModel(
+        new Parquet.ObjectModel<RowData, Object, RowType>(
+            FLINK_OBJECT_MODEL,
+            FlinkParquetReaders::buildReader,
+            (engineType, unused, messageType) ->
+                FlinkParquetWriters.buildWriter(engineType, messageType),
+            path -> StringData.fromString(path.toString())));
 
-    ObjectModelRegistry.registerReader(
-        FileFormat.AVRO,
-        FLINK_OBJECT_MODEL,
-        inputFile -> Avro.read(inputFile).readerFunction(FlinkPlannedAvroReader::create));
+    ObjectModelRegistry.registerObjectModel(
+        new Avro.ObjectModel<RowType>(
+            FLINK_OBJECT_MODEL,
+            FlinkPlannedAvroReader::create,
+            (unused, rowType) -> new FlinkAvroWriter(rowType),
+            (unused, rowType) ->
+                new FlinkAvroWriter(
+                    (RowType)
+                        rowType.getTypeAt(rowType.getFieldIndex(DELETE_FILE_ROW_FIELD_NAME)))));
 
-    ObjectModelRegistry.registerReader(
-        FileFormat.ORC,
-        FLINK_OBJECT_MODEL,
-        inputFile -> ORC.read(inputFile).readerFunction(FlinkOrcReader::new));
-
-    ObjectModelRegistry.registerAppender(
-        FileFormat.AVRO,
-        FLINK_OBJECT_MODEL,
-        outputFile ->
-            Avro.<RowType>appender(outputFile)
-                .writerFunction((unused, rowType) -> new FlinkAvroWriter(rowType))
-                .deleteRowWriterFunction(
-                    (unused, rowType) ->
-                        new FlinkAvroWriter(
-                            (RowType)
-                                rowType.getTypeAt(
-                                    rowType.getFieldIndex(DELETE_FILE_ROW_FIELD_NAME)))));
-
-    ObjectModelRegistry.registerAppender(
-        FileFormat.PARQUET,
-        FLINK_OBJECT_MODEL,
-        outputFile ->
-            Parquet.<RowType>appender(outputFile)
-                .writerFunction(
-                    (engineType, icebergSchema, messageType) ->
-                        FlinkParquetWriters.buildWriter(engineType, messageType))
-                .pathTransformFunc(path -> StringData.fromString(path.toString())));
-
-    ObjectModelRegistry.registerAppender(
-        FileFormat.ORC,
-        FLINK_OBJECT_MODEL,
-        outputFile ->
-            ORC.<RowType>appender(outputFile)
-                .writerFunction(
-                    (schema, messageType, nativeSchema) ->
-                        FlinkOrcWriter.buildWriter(nativeSchema, schema))
-                .pathTransformFunc(path -> StringData.fromString(path.toString())));
+    ObjectModelRegistry.registerObjectModel(
+        new ORC.ObjectModel<RowData, RowType>(
+            FLINK_OBJECT_MODEL,
+            FlinkOrcReader::new,
+            (schema, messageType, nativeSchema) -> FlinkOrcWriter.buildWriter(nativeSchema, schema),
+            path -> StringData.fromString(path.toString())));
   }
 
   private FlinkObjectModels() {}

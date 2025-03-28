@@ -58,7 +58,7 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
-import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
+import org.apache.iceberg.io.AppenderBuilder;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
@@ -95,7 +95,7 @@ public class Avro {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #appender(OutputFile)} instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
    */
   @Deprecated
   public static WriteBuilder write(OutputFile file) {
@@ -107,26 +107,15 @@ public class Avro {
   }
 
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #appender(EncryptedOutputFile)}
-   *     instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
    */
   @Deprecated
   public static WriteBuilder write(EncryptedOutputFile file) {
     return new WriteBuilder(file.encryptingOutputFile());
   }
 
-  public static <E> AppenderBuilder<E> appender(EncryptedOutputFile file) {
-    Preconditions.checkState(
-        !(file instanceof NativeEncryptionOutputFile), "Native Avro encryption is not supported");
-    return new AppenderBuilder<>(file.encryptingOutputFile());
-  }
-
-  public static <E> AppenderBuilder<E> appender(OutputFile file) {
-    return new AppenderBuilder<>(file);
-  }
-
   /**
-   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link AppenderBuilder} instead.
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
    */
   @Deprecated
   public static class WriteBuilder extends AppenderBuilderInternal<WriteBuilder, Object> {
@@ -135,16 +124,57 @@ public class Avro {
     }
   }
 
-  public static class AppenderBuilder<E> extends AppenderBuilderInternal<AppenderBuilder<E>, E> {
-    private AppenderBuilder(OutputFile file) {
-      super(file);
+  public static class ObjectModel<E> implements org.apache.iceberg.io.ObjectModel<E> {
+    private final String name;
+    private final BiFunction<org.apache.iceberg.Schema, Map<Integer, ?>, DatumReader<?>>
+        readerFunction;
+    private final BiFunction<Schema, E, DatumWriter<?>> writerFunction;
+    private final BiFunction<Schema, E, DatumWriter<?>> deleteRowWriterFunction;
+
+    public ObjectModel(
+        String name,
+        BiFunction<org.apache.iceberg.Schema, Map<Integer, ?>, DatumReader<?>> readerFunction,
+        BiFunction<Schema, E, DatumWriter<?>> writerFunction,
+        BiFunction<Schema, E, DatumWriter<?>> deleteRowWriterFunction) {
+      this.name = name;
+      this.readerFunction = readerFunction;
+      this.writerFunction = writerFunction;
+      this.deleteRowWriterFunction = deleteRowWriterFunction;
+    }
+
+    public ObjectModel(
+        String name,
+        BiFunction<org.apache.iceberg.Schema, Map<Integer, ?>, DatumReader<?>> readerFunction,
+        BiFunction<Schema, E, DatumWriter<?>> writerFunction) {
+      this(name, readerFunction, writerFunction, null);
+    }
+
+    @Override
+    public FileFormat format() {
+      return FileFormat.AVRO;
+    }
+
+    @Override
+    public String name() {
+      return name;
+    }
+
+    @Override
+    public <B extends AppenderBuilder<B, E>> B appenderBuilder(OutputFile outputFile) {
+      AppenderBuilderInternal<?, E> internal = new AppenderBuilderInternal<>(outputFile);
+      return (B)
+          internal.writerFunction(writerFunction).deleteRowWriterFunction(deleteRowWriterFunction);
+    }
+
+    @Override
+    public <B extends org.apache.iceberg.io.ReadBuilder<B>> B readBuilder(InputFile inputFile) {
+      return (B) new ReadBuilder(inputFile).readerFunction(readerFunction);
     }
   }
 
-  /** Will be removed when the {@link WriteBuilder} is removed. */
   @SuppressWarnings("unchecked")
-  static class AppenderBuilderInternal<B extends AppenderBuilderInternal<B, E>, E>
-      implements InternalData.WriteBuilder, org.apache.iceberg.io.AppenderBuilder<B, E> {
+  private static class AppenderBuilderInternal<B extends AppenderBuilderInternal<B, E>, E>
+      implements InternalData.WriteBuilder, AppenderBuilder<B, E> {
     private final OutputFile file;
     private final Map<String, String> config = Maps.newHashMap();
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
@@ -781,6 +811,10 @@ public class Avro {
     return new ReadBuilder(file);
   }
 
+  /**
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Use the ObjectModelRegistry instead.
+   */
+  @Deprecated
   public static class ReadBuilder
       implements InternalData.ReadBuilder, org.apache.iceberg.io.ReadBuilder<ReadBuilder> {
     private final InputFile file;

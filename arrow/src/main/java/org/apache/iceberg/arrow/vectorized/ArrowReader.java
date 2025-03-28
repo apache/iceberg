@@ -126,17 +126,14 @@ public class ArrowReader extends CloseableGroup {
   private static final String ARROW_OBJECT_MODEL = "arrow";
 
   public static void register() {
-    ObjectModelRegistry.registerReader(
-        FileFormat.PARQUET,
-        ARROW_OBJECT_MODEL,
-        inputFile ->
-            Parquet.read(inputFile)
-                .batchReaderFunction(
-                    (schema, messageType, constantFieldAccessors, deleteFilter, properties) ->
-                        VectorizedCombinedScanIterator.buildReader(
-                            schema,
-                            messageType, /* setArrowValidityVector */
-                            NullCheckingForGet.NULL_CHECKING_ENABLED)));
+    ObjectModelRegistry.registerObjectModel(
+        new Parquet.ObjectModel<>(
+            ARROW_OBJECT_MODEL,
+            (schema, messageType, constantFieldAccessors, deleteFilter, properties) ->
+                VectorizedCombinedScanIterator.buildReader(
+                    schema,
+                    messageType, /* setArrowValidityVector */
+                    NullCheckingForGet.NULL_CHECKING_ENABLED)));
   }
 
   /**
