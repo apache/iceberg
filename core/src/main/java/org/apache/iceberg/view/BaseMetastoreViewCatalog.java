@@ -23,13 +23,17 @@ import java.util.Map;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.EnvironmentContext;
+import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -70,6 +74,31 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
   @Override
   public ViewBuilder buildView(TableIdentifier identifier) {
     return new BaseViewBuilder(identifier);
+  }
+
+  @Override
+  protected Table loadMetadataTable(TableIdentifier identifier) {
+    try {
+      return super.loadMetadataTable(identifier);
+    } catch (NoSuchTableException originalException) {
+      return loadMetadataTableForView(identifier, originalException);
+    }
+  }
+
+  private Table loadMetadataTableForView(
+      TableIdentifier identifier, NoSuchTableException originalException) {
+    MetadataTableType type = MetadataTableType.from(identifier.name());
+    if (type != null && MetadataTableType.isViewMetadataTable(type)) {
+      TableIdentifier baseViewIdentifier = TableIdentifier.of(identifier.namespace().levels());
+      try {
+        View view = loadView(baseViewIdentifier);
+        return MetadataTableUtils.createMetadataTableInstance(
+            new ViewWrapper((BaseView) view), type);
+      } catch (NoSuchTableException e) {
+        // If the view is not found, fall back to the original exception.
+      }
+    }
+    throw originalException;
   }
 
   protected class BaseViewBuilder implements ViewBuilder {

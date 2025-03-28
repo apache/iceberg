@@ -96,7 +96,7 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
     return new BaseMetastoreCatalogTableBuilder(identifier, schema);
   }
 
-  private Table loadMetadataTable(TableIdentifier identifier) {
+  protected Table loadMetadataTable(TableIdentifier identifier) {
     String tableName = identifier.name();
     MetadataTableType type = MetadataTableType.from(tableName);
     if (type != null) {

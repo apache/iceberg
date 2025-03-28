@@ -16,38 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.view;
 
-import java.util.Locale;
+import org.apache.iceberg.BaseTable;
 
-public enum MetadataTableType {
-  ENTRIES,
-  FILES,
-  DATA_FILES,
-  DELETE_FILES,
-  HISTORY,
-  METADATA_LOG_ENTRIES,
-  SNAPSHOTS,
-  REFS,
-  MANIFESTS,
-  PARTITIONS,
-  ALL_DATA_FILES,
-  ALL_DELETE_FILES,
-  ALL_FILES,
-  ALL_MANIFESTS,
-  ALL_ENTRIES,
-  POSITION_DELETES,
-  VERSION;
+/**
+ * Wraps a {@link BaseView} instance as a {@link BaseTable}. This allows view-specific metadata and
+ * operations to be handled in a table-like context.
+ */
+public class ViewWrapper extends BaseTable {
 
-  public static MetadataTableType from(String name) {
-    try {
-      return MetadataTableType.valueOf(name.toUpperCase(Locale.ROOT));
-    } catch (IllegalArgumentException ignored) {
-      return null;
-    }
+  private final BaseView view;
+
+  public ViewWrapper(BaseView view) {
+    super(new ViewOperationWrapper(view.operations()), view.name());
+    this.view = view;
   }
 
-  public static boolean isViewMetadataTable(MetadataTableType metadataTableType) {
-    return VERSION.equals(metadataTableType);
+  public BaseView wrappedView() {
+    return view;
   }
 }
