@@ -196,7 +196,8 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
       columnsToKeep = column -> !column.equals(MetadataColumns.CHANGE_TYPE.name());
     }
 
-    Column[] repartitionSpec = Arrays.stream(df.columns())
+    Column[] repartitionSpec =
+        Arrays.stream(df.columns())
             .filter(columnsToKeep)
             .map(CreateChangelogViewProcedure::delimitedName)
             .map(df::col)
@@ -211,8 +212,8 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     } else {
       Table table = loadSparkTable(tableIdent).table();
       return table.schema().identifierFieldNames().stream()
-              .map(CreateChangelogViewProcedure::delimitedName)
-              .toArray(String[]::new);
+          .map(CreateChangelogViewProcedure::delimitedName)
+          .toArray(String[]::new);
     }
   }
 
@@ -264,10 +265,11 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   }
 
   /**
-   * Ensure that column can be referenced using this name.
-   * Issues may come from field names that contain non-standard characters.
-   * In Spark, this can be fixed by using
-   * <a href="https://spark.apache.org/docs/3.5.0/sql-ref-identifier.html#delimited-identifier">backtick quotes</a>.
+   * Ensure that column can be referenced using this name. Issues may come from field names that
+   * contain non-standard characters. In Spark, this can be fixed by using <a
+   * href="https://spark.apache.org/docs/3.5.0/sql-ref-identifier.html#delimited-identifier">backtick
+   * quotes</a>.
+   *
    * @param columnName Column name that potentially can contain non-standard characters.
    * @return A name that can be safely used within Spark to reference a column by its name.
    */
