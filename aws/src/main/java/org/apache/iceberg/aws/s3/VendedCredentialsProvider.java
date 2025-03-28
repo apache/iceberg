@@ -30,7 +30,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTClient;
-import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -65,7 +64,7 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
             .cachedValueName(VendedCredentialsProvider.class.getName())
             .build();
     this.catalogEndpoint = properties.get(CatalogProperties.URI);
-    this.credentialsEndpoint = RESTUtil.resolveEndpoint(catalogEndpoint, properties.get(URI));
+    this.credentialsEndpoint = properties.get(URI);
   }
 
   @Override
