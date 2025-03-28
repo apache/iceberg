@@ -18,6 +18,12 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockserver.integration.ClientAndServer.startClientAndServer;
+import static org.mockserver.model.HttpRequest.request;
+import static org.mockserver.model.HttpResponse.response;
+
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.CatalogProperties;
@@ -39,12 +45,6 @@ import org.mockserver.model.HttpResponse;
 import org.mockserver.verify.VerificationTimes;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockserver.integration.ClientAndServer.startClientAndServer;
-import static org.mockserver.model.HttpRequest.request;
-import static org.mockserver.model.HttpResponse.response;
 
 public class TestVendedCredentialsProvider {
 
@@ -89,7 +89,11 @@ public class TestVendedCredentialsProvider {
 
     try (VendedCredentialsProvider provider =
         VendedCredentialsProvider.create(
-            ImmutableMap.of(VendedCredentialsProvider.URI, "/credentials/uri", CatalogProperties.URI, "invalid catalog uri"))) {
+            ImmutableMap.of(
+                VendedCredentialsProvider.URI,
+                "/credentials/uri",
+                CatalogProperties.URI,
+                "invalid catalog uri"))) {
       assertThatThrownBy(provider::resolveCredentials)
           .isInstanceOf(RESTException.class)
           .hasMessageStartingWith("Failed to create request URI from base invalid catalog uri");
@@ -351,8 +355,8 @@ public class TestVendedCredentialsProvider {
     try (VendedCredentialsProvider provider =
         VendedCredentialsProvider.create(
             ImmutableMap.of(
-                    CatalogProperties.URI,
-                    CATALOG_URI,
+                CatalogProperties.URI,
+                CATALOG_URI,
                 VendedCredentialsProvider.URI,
                 CREDENTIALS_URI,
                 S3FileIOProperties.ACCESS_KEY_ID,
@@ -405,8 +409,8 @@ public class TestVendedCredentialsProvider {
     try (VendedCredentialsProvider provider =
         VendedCredentialsProvider.create(
             ImmutableMap.of(
-                    CatalogProperties.URI,
-                    CATALOG_URI,
+                CatalogProperties.URI,
+                CATALOG_URI,
                 VendedCredentialsProvider.URI,
                 CREDENTIALS_URI,
                 S3FileIOProperties.ACCESS_KEY_ID,
@@ -460,7 +464,7 @@ public class TestVendedCredentialsProvider {
     try (VendedCredentialsProvider provider =
         VendedCredentialsProvider.create(
             ImmutableMap.of(
-                    CatalogProperties.URI,
+                CatalogProperties.URI,
                 CATALOG_URI,
                 VendedCredentialsProvider.URI,
                 CREDENTIALS_URI,
