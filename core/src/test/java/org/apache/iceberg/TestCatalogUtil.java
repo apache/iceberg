@@ -522,7 +522,7 @@ public class TestCatalogUtil {
   public static class TestFileIOWithStorageCredentials
       implements FileIO, SupportsStorageCredentials {
 
-    private List<? extends StorageCredential> storageCredentials;
+    private List<StorageCredential> storageCredentials;
 
     public TestFileIOWithStorageCredentials() {}
 
@@ -540,12 +540,12 @@ public class TestCatalogUtil {
     public void deleteFile(String path) {}
 
     @Override
-    public void setCredentials(List<? extends StorageCredential> credentials) {
+    public void setCredentials(List<StorageCredential> credentials) {
       this.storageCredentials = credentials;
     }
 
     @Override
-    public List<? extends StorageCredential> credentials() {
+    public List<StorageCredential> credentials() {
       return storageCredentials;
     }
   }

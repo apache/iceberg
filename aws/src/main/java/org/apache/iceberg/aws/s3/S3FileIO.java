@@ -105,7 +105,7 @@ public class S3FileIO
   private MetricsContext metrics = MetricsContext.nullMetrics();
   private final AtomicBoolean isResourceClosed = new AtomicBoolean(false);
   private transient StackTraceElement[] createStack;
-  private List<? extends StorageCredential> storageCredentials = ImmutableList.of();
+  private List<StorageCredential> storageCredentials = ImmutableList.of();
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -565,13 +565,13 @@ public class S3FileIO
   }
 
   @Override
-  public void setCredentials(List<? extends StorageCredential> credentials) {
+  public void setCredentials(List<StorageCredential> credentials) {
     Preconditions.checkArgument(credentials != null, "Invalid storage credentials: null");
     this.storageCredentials = credentials;
   }
 
   @Override
-  public List<? extends StorageCredential> credentials() {
+  public List<StorageCredential> credentials() {
     return ImmutableList.copyOf(storageCredentials);
   }
 
