@@ -154,6 +154,9 @@ class V3Metadata {
           } else if (wrapped.content() != ManifestContent.DATA) {
             return null;
           } else {
+            Preconditions.checkState(
+                wrapped.firstRowId() != null,
+                "Found unassigned first-row-id for file: " + wrapped.path());
             return wrapped.firstRowId();
           }
         default:
