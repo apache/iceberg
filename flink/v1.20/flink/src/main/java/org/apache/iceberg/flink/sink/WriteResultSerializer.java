@@ -26,7 +26,7 @@ import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
 import org.apache.flink.util.InstantiationUtil;
 import org.apache.iceberg.io.WriteResult;
 
-class WriteResultSerializer implements SimpleVersionedSerializer<WriteResult> {
+public class WriteResultSerializer implements SimpleVersionedSerializer<WriteResult> {
   private static final int VERSION = 1;
 
   @Override
