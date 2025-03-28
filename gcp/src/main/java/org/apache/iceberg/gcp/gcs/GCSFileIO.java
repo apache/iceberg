@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.gcp.gcs;
 
+import com.google.api.client.util.Lists;
 import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.OAuth2Credentials;
 import com.google.auth.oauth2.OAuth2CredentialsWithRefresh;
@@ -265,7 +266,8 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   @Override
   public void setCredentials(List<StorageCredential> credentials) {
     Preconditions.checkArgument(credentials != null, "Invalid storage credentials: null");
-    this.storageCredentials = credentials;
+    // copy credentials into a modifiable collection for Kryo serde
+    this.storageCredentials = Lists.newArrayList(credentials);
   }
 
   @Override
@@ -283,6 +285,6 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
         gcsCredentials.size() <= 1,
         "Invalid GCS Credentials: only one GCS credential should exist");
 
-    return gcsCredentials.isEmpty() ? ImmutableMap.of() : gcsCredentials.get(0).config();
+    return gcsCredentials.isEmpty() ? Map.of() : gcsCredentials.get(0).config();
   }
 }

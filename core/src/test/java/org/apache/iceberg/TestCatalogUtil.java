@@ -30,14 +30,12 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.ImmutableStorageCredential;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
@@ -164,26 +162,21 @@ public class TestCatalogUtil {
   @Test
   public void loadCustomFileIOSupportingStorageCredentials() {
     StorageCredential gcsCredential =
-        ImmutableStorageCredential.builder()
-            .prefix("gs://custom-uri")
-            .config(
-                ImmutableMap.of(
-                    "gcs.oauth2.token", "gcsToken", "gcs.oauth2.token-expires-at", "1000"))
-            .build();
+        StorageCredential.create(
+            "gs://custom-uri",
+            Map.of("gcs.oauth2.token", "gcsToken", "gcs.oauth2.token-expires-at", "1000"));
     StorageCredential s3Credential =
-        ImmutableStorageCredential.builder()
-            .prefix("s3://custom-uri")
-            .config(
-                ImmutableMap.of(
-                    "s3.access-key-id",
-                    "keyId",
-                    "s3.secret-access-key",
-                    "accessKey",
-                    "s3.session-token",
-                    "sessionToken"))
-            .build();
+        StorageCredential.create(
+            "s3://custom-uri",
+            Map.of(
+                "s3.access-key-id",
+                "keyId",
+                "s3.secret-access-key",
+                "accessKey",
+                "s3.session-token",
+                "sessionToken"));
 
-    List<StorageCredential> storageCredentials = ImmutableList.of(gcsCredential, s3Credential);
+    List<StorageCredential> storageCredentials = List.of(gcsCredential, s3Credential);
     FileIO fileIO =
         CatalogUtil.loadFileIO(
             TestFileIOWithStorageCredentials.class.getName(),

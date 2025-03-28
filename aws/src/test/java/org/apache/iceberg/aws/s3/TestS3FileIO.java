@@ -460,6 +460,29 @@ public class TestS3FileIO {
   }
 
   @Test
+  public void fileIOWithStorageCredentialsKryoSerialization() throws IOException {
+    S3FileIO fileIO = new S3FileIO();
+    fileIO.setCredentials(
+        ImmutableList.of(StorageCredential.create("prefix", Map.of("key1", "val1"))));
+    fileIO.initialize(Map.of());
+
+    assertThat(TestHelpers.KryoHelpers.roundTripSerialize(fileIO).credentials())
+        .isEqualTo(fileIO.credentials());
+  }
+
+  @Test
+  public void fileIOWithStorageCredentialsJavaSerialization()
+      throws IOException, ClassNotFoundException {
+    S3FileIO fileIO = new S3FileIO();
+    fileIO.setCredentials(
+        ImmutableList.of(StorageCredential.create("prefix", Map.of("key1", "val1"))));
+    fileIO.initialize(Map.of());
+
+    assertThat(TestHelpers.roundTripSerialize(fileIO).credentials())
+        .isEqualTo(fileIO.credentials());
+  }
+
+  @Test
   public void testS3FileIOJavaSerialization() throws IOException, ClassNotFoundException {
     FileIO testS3FileIO = new S3FileIO();
 
@@ -541,6 +564,55 @@ public class TestS3FileIO {
 
     assertThat(inputFile.getLength()).isEqualTo(manifest.length());
     verify(s3mock, never()).headObject(any(HeadObjectRequest.class));
+  }
+
+  @Test
+  public void resolvingFileIOLoadWithStorageCredentials()
+      throws IOException, ClassNotFoundException {
+    StorageCredential credential = StorageCredential.create("prefix", Map.of("key1", "val1"));
+    List<StorageCredential> storageCredentials = ImmutableList.of(credential);
+    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
+    resolvingFileIO.setCredentials(storageCredentials);
+    resolvingFileIO.initialize(ImmutableMap.of());
+
+    FileIO result =
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(resolvingFileIO)
+            .invoke("s3://foo/bar");
+    assertThat(result)
+        .isInstanceOf(S3FileIO.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(S3FileIO.class))
+        .extracting(S3FileIO::credentials)
+        .isEqualTo(storageCredentials);
+
+    // make sure credentials are still present after kryo serde
+    ResolvingFileIO io = TestHelpers.KryoHelpers.roundTripSerialize(resolvingFileIO);
+    assertThat(io.credentials()).isEqualTo(storageCredentials);
+    result =
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(io)
+            .invoke("s3://foo/bar");
+    assertThat(result)
+        .isInstanceOf(S3FileIO.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(S3FileIO.class))
+        .extracting(S3FileIO::credentials)
+        .isEqualTo(storageCredentials);
+
+    // make sure credentials are still present after java serde
+    io = TestHelpers.roundTripSerialize(resolvingFileIO);
+    assertThat(io.credentials()).isEqualTo(storageCredentials);
+    result =
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(io)
+            .invoke("s3://foo/bar");
+    assertThat(result)
+        .isInstanceOf(S3FileIO.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(S3FileIO.class))
+        .extracting(S3FileIO::credentials)
+        .isEqualTo(storageCredentials);
   }
 
   @Test
