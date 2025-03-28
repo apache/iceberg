@@ -372,7 +372,7 @@ public class CatalogUtil {
       String impl,
       Map<String, String> properties,
       Object hadoopConf,
-      List<? extends StorageCredential> storageCredentials) {
+      List<StorageCredential> storageCredentials) {
     LOG.info("Loading custom FileIO implementation: {}", impl);
     DynConstructors.Ctor<FileIO> ctor;
     try {

@@ -22,7 +22,7 @@ import java.util.List;
 
 public interface SupportsStorageCredentials {
 
-  void setCredentials(List<? extends StorageCredential> credentials);
+  void setCredentials(List<StorageCredential> credentials);
 
-  List<? extends StorageCredential> credentials();
+  List<StorageCredential> credentials();
 }
