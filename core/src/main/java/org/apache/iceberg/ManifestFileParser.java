@@ -114,6 +114,7 @@ class ManifestFileParser {
     generator.writeEndObject();
   }
 
+  @SuppressWarnings("CyclomaticComplexity")
   static ManifestFile fromJson(JsonNode jsonNode) {
     Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for manifest file: null");
     Preconditions.checkArgument(
