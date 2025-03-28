@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import static org.apache.iceberg.rest.RESTUtil.DEFAULT_CLIENT_BUILDER;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -346,8 +345,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         ImmutableMap.of(
             "test-header", "test-value", CatalogProperties.URI, httpServer.getURI().toString());
     Map<String, String> expectedHeaders = ImmutableMap.of("test-header", "test-value");
-
-    HTTPClient client = Mockito.spy((HTTPClient) DEFAULT_CLIENT_BUILDER.apply(properties));
+    HTTPClient client =
+        Mockito.spy(
+            HTTPClient.builder(properties)
+                .withHeaders(RESTUtil.merge(RESTUtil.configHeaders(properties), catalogHeaders))
+                .uri(properties.get(CatalogProperties.URI))
+                .build());
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> client);
     catalog.initialize("test", properties);

@@ -22,8 +22,6 @@ import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
-import java.util.function.Function;
-import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -40,12 +38,6 @@ public class RESTUtil {
   private static final Joiner NAMESPACE_ESCAPED_JOINER = Joiner.on(NAMESPACE_ESCAPED_SEPARATOR);
   private static final Splitter NAMESPACE_ESCAPED_SPLITTER =
       Splitter.on(NAMESPACE_ESCAPED_SEPARATOR);
-  public static final Function<Map<String, String>, RESTClient> DEFAULT_CLIENT_BUILDER =
-      config ->
-          HTTPClient.builder(config)
-              .uri(config.get(CatalogProperties.URI))
-              .withHeaders(RESTUtil.configHeaders(config))
-              .build();
 
   private RESTUtil() {}
 
