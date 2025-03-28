@@ -52,7 +52,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
-public class TestBase {
+public abstract class TestBase {
   // Schema passed to create tables
   public static final Schema SCHEMA =
       new Schema(
