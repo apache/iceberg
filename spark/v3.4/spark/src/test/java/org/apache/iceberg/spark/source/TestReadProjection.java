@@ -127,6 +127,7 @@ public abstract class TestReadProjection {
   }
 
   @Test
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   public void testEmptyProjection() throws Exception {
     Schema schema =
         new Schema(
@@ -141,6 +142,7 @@ public abstract class TestReadProjection {
 
     Assert.assertNotNull("Should read a non-null record", projected);
     // this is expected because there are no values
+    // no check on the underlying error msg as it might be missing based on the JDK version
     assertThatThrownBy(() -> projected.get(0)).isInstanceOf(ArrayIndexOutOfBoundsException.class);
   }
 

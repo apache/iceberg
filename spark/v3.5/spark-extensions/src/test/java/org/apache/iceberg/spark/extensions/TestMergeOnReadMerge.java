@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -40,7 +41,9 @@ import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Encoders;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestMergeOnReadMerge extends TestMerge {
 
   @Override

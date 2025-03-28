@@ -163,7 +163,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @BeforeEach
-  public void setupTableLocation() throws Exception {
+  public void setupTableLocation() {
     this.tableLocation = tableDir.toURI().toString();
   }
 
