@@ -347,7 +347,7 @@ public class TestHiveViewCommits {
 
   @Test
   public void testInvalidObjectException() {
-    TableIdentifier badTi = TableIdentifier.of(DB_NAME, "`test_iceberg_view`");
+    TableIdentifier badTi = TableIdentifier.of(DB_NAME, "tábl_view");
     assertThatThrownBy(
             () ->
                 catalog
@@ -357,7 +357,7 @@ public class TestHiveViewCommits {
                     .withQuery("hive", "select * from ns.tbl")
                     .create())
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Invalid Hive object for " + DB_NAME + "." + "`test_iceberg_view`");
+        .hasMessage("Invalid Hive object for " + DB_NAME + "." + "tábl_view");
   }
 
   /** Uses NoLock and pretends we throw an error because of a concurrent commit */

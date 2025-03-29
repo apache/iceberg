@@ -726,6 +726,13 @@ project(':iceberg-gcp') {
 }
 
 project(':iceberg-hive-metastore') {
+
+  sourceSets {
+    test {
+      java.srcDirs = ['../hive2-metastore/src/test/java', 'src/test/java']
+    }
+  }
+
   test {
     useJUnitPlatform()
   }
@@ -789,6 +796,167 @@ project(':iceberg-hive-metastore') {
       exclude group: 'javax.transaction', module: 'transaction-api'
       exclude group: 'com.zaxxer', module: 'HikariCP'
     }
+
+    compileOnly(libs.hadoop3.client) {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    }
+
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation libs.awaitility
+  }
+}
+
+project(':iceberg-hive3-metastore') {
+
+  sourceSets {
+    main {
+      java.srcDirs = ['../hive-metastore/src/main/java']
+    }
+    test {
+      java.srcDirs = ['../hive-metastore/src/test/java', 'src/test/java']
+      resources.srcDirs = ['../hive-metastore/src/test/resources']
+    }
+  }
+
+  test {
+    useJUnitPlatform()
+  }
+
+  dependencies {
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    implementation project(':iceberg-core')
+    api project(':iceberg-api')
+    implementation project(':iceberg-common')
+    annotationProcessor libs.immutables.value
+    compileOnly libs.immutables.value
+
+    implementation libs.caffeine
+
+    compileOnly libs.avro.avro
+
+    compileOnly(libs.hive3.metastore) {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hbase'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'co.cask.tephra'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
+      exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
+      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
+      exclude group: 'com.tdunning', module: 'json'
+      exclude group: 'javax.transaction', module: 'transaction-api'
+      exclude group: 'com.zaxxer', module: 'HikariCP'
+    }
+
+    // By default, hive-exec is a fat/uber jar and it exports a guava library
+    // that's really old. We use the core classifier to be able to override our guava
+    // version. Luckily, hive-exec seems to work okay so far with this version of guava
+    // See: https://github.com/apache/hive/blob/master/ql/pom.xml#L911 for more context.
+    testImplementation("${libs.hive3.exec.get().module}:${libs.hive3.exec.get().getVersion()}:core") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hive', module: 'hive-llap-tez'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'com.google.protobuf', module: 'protobuf-java'
+      exclude group: 'org.apache.calcite'
+      exclude group: 'org.apache.calcite.avatica'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
+
+    testImplementation(libs.hive3.metastore) {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hbase'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'co.cask.tephra'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
+      exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
+      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
+      exclude group: 'com.tdunning', module: 'json'
+      exclude group: 'javax.transaction', module: 'transaction-api'
+      exclude group: 'com.zaxxer', module: 'HikariCP'
+    }
+
+    compileOnly(libs.hadoop3.client) {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    }
+
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation libs.awaitility
+  }
+}
+
+project(':iceberg-hive4-metastore') {
+
+  sourceSets {
+    main {
+      java.srcDirs = ['../hive-metastore/src/main/java']
+    }
+    test {
+      java.srcDirs = ['../hive-metastore/src/test/java', 'src/test/java']
+      resources.srcDirs = ['../hive-metastore/src/test/resources']
+    }
+  }
+
+  test {
+    useJUnitPlatform()
+  }
+
+  dependencies {
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    implementation project(':iceberg-core')
+    api project(':iceberg-api')
+    implementation project(':iceberg-common')
+    annotationProcessor libs.immutables.value
+    compileOnly libs.immutables.value
+
+    implementation libs.caffeine
+
+    compileOnly libs.avro.avro
+
+    compileOnly(libs.hive4.metastore) {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hbase'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'co.cask.tephra'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
+      exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
+      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
+      exclude group: 'com.tdunning', module: 'json'
+      exclude group: 'javax.transaction', module: 'transaction-api'
+      exclude group: 'com.zaxxer', module: 'HikariCP'
+    }
+
+    // By default, hive-exec is a fat/uber jar and it exports a guava library
+    // that's really old. We use the core classifier to be able to override our guava
+    // version. Luckily, hive-exec seems to work okay so far with this version of guava
+    // See: https://github.com/apache/hive/blob/master/ql/pom.xml#L911 for more context.
+    testImplementation("${libs.hive4.exec.get().module}:${libs.hive4.exec.get().getVersion()}:core") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hive', module: 'hive-llap-tez'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'com.google.protobuf', module: 'protobuf-java'
+      exclude group: 'org.apache.calcite'
+      exclude group: 'org.apache.calcite.avatica'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
+
+    testImplementation libs.hive4.standalone.metastore.server
+    testImplementation libs.hadoop3.hdfs
 
     compileOnly(libs.hadoop3.client) {
       exclude group: 'org.apache.avro', module: 'avro'
