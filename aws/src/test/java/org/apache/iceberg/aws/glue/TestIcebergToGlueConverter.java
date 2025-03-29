@@ -60,7 +60,7 @@ public class TestIcebergToGlueConverter {
     List<Namespace> badNames =
         Lists.newArrayList(
             Namespace.of("db", "a"),
-            Namespace.of("db-1"),
+            Namespace.of("db^1"),
             Namespace.empty(),
             Namespace.of(""),
             Namespace.of(new String(new char[600]).replace("\0", "a")));
@@ -78,7 +78,7 @@ public class TestIcebergToGlueConverter {
   @Test
   public void testSkipNamespaceValidation() {
     List<Namespace> acceptableNames =
-        Lists.newArrayList(Namespace.of("db-1"), Namespace.of("db-1-1-1"));
+        Lists.newArrayList(Namespace.of("db^1"), Namespace.of("db-1-1-1"));
     for (Namespace name : acceptableNames) {
       assertThat(IcebergToGlueConverter.toDatabaseName(name, true)).isEqualTo(name.toString());
     }
