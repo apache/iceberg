@@ -116,6 +116,6 @@ public abstract class CatalogTestBase extends TestBase {
   }
 
   static String getURI(HiveConf conf) {
-    return conf.get(HiveConf.ConfVars.METASTOREURIS.varname);
+    return conf.get("hive.metastore.uris");
   }
 }

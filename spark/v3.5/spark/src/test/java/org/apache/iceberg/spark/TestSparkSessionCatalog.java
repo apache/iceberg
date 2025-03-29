@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark;
 
-import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -27,9 +26,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class TestSparkSessionCatalog extends TestBase {
-  private final String envHmsUriKey = "spark.hadoop." + METASTOREURIS.varname;
+  private final String envHmsUriKey = "spark.hadoop.hive.metastore.uris";
   private final String catalogHmsUriKey = "spark.sql.catalog.spark_catalog.uri";
-  private final String hmsUri = hiveConf.get(METASTOREURIS.varname);
+  private final String hmsUri = hiveConf.get("hive.metastore.uris");
 
   @BeforeAll
   public static void setUpCatalog() {

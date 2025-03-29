@@ -29,7 +29,6 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.test.junit5.MiniClusterExtension;
 import org.apache.flink.util.CloseableIterator;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -61,9 +60,8 @@ public class TestIcebergSourceReaderDeletes extends TestFlinkReaderDeletesBase {
 
     Map<String, String> properties = Maps.newHashMap();
     properties.put(
-        CatalogProperties.WAREHOUSE_LOCATION,
-        hiveConf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname));
-    properties.put(CatalogProperties.URI, hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname));
+        CatalogProperties.WAREHOUSE_LOCATION, hiveConf.get("hive.metastore.warehouse.dir"));
+    properties.put(CatalogProperties.URI, hiveConf.get("hive.metastore.uris"));
     properties.put(
         CatalogProperties.CLIENT_POOL_SIZE,
         Integer.toString(hiveConf.getInt("iceberg.hive.client-pool-size", 5)));
