@@ -20,13 +20,16 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.junit.Assert.assertThrows;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.spark.sql.types.StructField;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -93,6 +96,48 @@ public class TestCreateChangelogViewProcedure extends SparkExtensionsTestBase {
 
     long rowCount = sql("select * from %s", "cdc_view").stream().count();
     Assert.assertEquals(2, rowCount);
+  }
+
+  @Test
+  public void testNonStandardColumnNames() {
+    sql("CREATE TABLE %s (`the id` INT, `the.data` STRING) USING iceberg", tableName);
+    sql("ALTER TABLE %s ADD PARTITION FIELD `the.data`", tableName);
+
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Snapshot snap1 = table.currentSnapshot();
+
+    sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
+
+    table.refresh();
+
+    Snapshot snap2 = table.currentSnapshot();
+
+    sql(
+        "CALL %s.system.create_changelog_view("
+            + "table => '%s',"
+            + "options => map('%s','%s','%s','%s'),"
+            + "changelog_view => '%s')",
+        catalogName,
+        tableName,
+        SparkReadOptions.START_SNAPSHOT_ID,
+        snap1.snapshotId(),
+        SparkReadOptions.END_SNAPSHOT_ID,
+        snap2.snapshotId(),
+        "cdc_view");
+
+    var df = spark.sql("select * from cdc_view");
+    var fieldNames =
+        Arrays.stream(df.schema().fields()).map(StructField::name).collect(Collectors.toList());
+
+    Assert.assertEquals(
+        "Result Schema should match",
+        List.of("the id", "the.data", "_change_type", "_change_ordinal", "_commit_snapshot_id"),
+        fieldNames);
+    Assert.assertEquals("Result Row Count should match", 2, df.collectAsList().size());
   }
 
   @Test
