@@ -47,7 +47,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.EnvironmentContext;
@@ -109,7 +108,7 @@ public class TestHiveCommitLocks {
   private static final HiveMetastoreExtension HIVE_METASTORE_EXTENSION =
       HiveMetastoreExtension.builder()
           .withDatabase(DB_NAME)
-          .withConfig(ImmutableMap.of(HiveConf.ConfVars.HIVE_TXN_TIMEOUT.varname, "1s"))
+          .withConfig(ImmutableMap.of("hive.txn.timeout", "1s"))
           .build();
 
   private static HiveCatalog catalog;
