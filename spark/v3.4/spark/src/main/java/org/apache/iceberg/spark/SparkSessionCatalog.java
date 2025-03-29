@@ -20,7 +20,6 @@ package org.apache.iceberg.spark;
 
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
@@ -339,7 +338,7 @@ public class SparkSessionCatalog<
     }
 
     Configuration conf = SparkSession.active().sessionState().newHadoopConf();
-    String envHmsUri = conf.get(HiveConf.ConfVars.METASTOREURIS.varname, null);
+    String envHmsUri = conf.get("hive.metastore.uris", null);
     if (envHmsUri == null) {
       return;
     }
