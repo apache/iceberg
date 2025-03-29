@@ -25,6 +25,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -690,7 +691,7 @@ public class TestUpdateRequirements {
   }
 
   @Test
-  public void addAndRemoveSnapshot() {
+  public void addAndRemoveSnapshots() {
     List<UpdateRequirement> requirements =
         UpdateRequirements.forUpdateTable(
             metadata, ImmutableList.of(new MetadataUpdate.AddSnapshot(mock(Snapshot.class))));
@@ -704,7 +705,7 @@ public class TestUpdateRequirements {
 
     requirements =
         UpdateRequirements.forUpdateTable(
-            metadata, ImmutableList.of(new MetadataUpdate.RemoveSnapshot(0L)));
+            metadata, ImmutableList.of(new MetadataUpdate.RemoveSnapshots(Set.of(0L))));
 
     assertThat(requirements)
         .hasSize(1)
@@ -747,7 +748,7 @@ public class TestUpdateRequirements {
 
     requirements =
         UpdateRequirements.forUpdateTable(
-            metadata, ImmutableList.of(new MetadataUpdate.RemoveSnapshot(0L)));
+            metadata, ImmutableList.of(new MetadataUpdate.RemoveSnapshots(Set.of(0L))));
     requirements.forEach(req -> req.validate(metadata));
 
     assertThat(requirements)

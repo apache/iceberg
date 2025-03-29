@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.util.Set;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -96,7 +97,8 @@ public class TestCommitTransactionRequestParser {
                 new UpdateRequirement.AssertDefaultSpecID(4),
                 new UpdateRequirement.AssertCurrentSchemaID(24)),
             ImmutableList.of(
-                new MetadataUpdate.RemoveSnapshot(101L), new MetadataUpdate.SetCurrentSchema(25)));
+                new MetadataUpdate.RemoveSnapshots(Set.of(101L)),
+                new MetadataUpdate.SetCurrentSchema(25)));
 
     CommitTransactionRequest request =
         new CommitTransactionRequest(

@@ -1436,12 +1436,14 @@ public class TableMetadata implements Serializable {
     private Builder rewriteSnapshotsInternal(Collection<Long> idsToRemove, boolean suppress) {
       List<Snapshot> retainedSnapshots =
           Lists.newArrayListWithExpectedSize(snapshots.size() - idsToRemove.size());
+      Set<Long> removeSnapshotIds = Sets.newHashSet();
+
       for (Snapshot snapshot : snapshots) {
         long snapshotId = snapshot.snapshotId();
         if (idsToRemove.contains(snapshotId)) {
           snapshotsById.remove(snapshotId);
           if (!suppress) {
-            changes.add(new MetadataUpdate.RemoveSnapshot(snapshotId));
+            removeSnapshotIds.add(snapshotId);
           }
           removeStatistics(snapshotId);
           removePartitionStatistics(snapshotId);
@@ -1450,6 +1452,7 @@ public class TableMetadata implements Serializable {
         }
       }
 
+      changes.add(new MetadataUpdate.RemoveSnapshots(removeSnapshotIds));
       this.snapshots = retainedSnapshots;
 
       // remove any refs that are no longer valid
@@ -1865,7 +1868,7 @@ public class TableMetadata implements Serializable {
       Set<Long> intermediateSnapshotIds = intermediateSnapshotIdSet(changes, currentSnapshotId);
       boolean hasIntermediateSnapshots = !intermediateSnapshotIds.isEmpty();
       boolean hasRemovedSnapshots =
-          changes.stream().anyMatch(MetadataUpdate.RemoveSnapshot.class::isInstance);
+          changes.stream().anyMatch(MetadataUpdate.RemoveSnapshots.class::isInstance);
 
       if (!hasIntermediateSnapshots && !hasRemovedSnapshots) {
         return snapshotLog;
