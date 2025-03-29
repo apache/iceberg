@@ -73,7 +73,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   public void cleanNamespaces() {
     sql("DROP TABLE IF EXISTS %s.tl", flinkDatabase);
     sql("DROP TABLE IF EXISTS %s.tl2", flinkDatabase);
-    sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
+    dropDatabase(flinkDatabase, true);
     super.clean();
   }
 
@@ -186,6 +186,40 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     CatalogTable catalogTable = catalogTable("tl2");
     assertThat(catalogTable.getSchema())
         .isEqualTo(TableSchema.builder().field("id", DataTypes.BIGINT()).build());
+  }
+
+  @TestTemplate
+  public void testCreateTableLikeInDiffIcebergCatalog() throws TableNotExistException {
+    sql("CREATE TABLE tl(id BIGINT)");
+
+    String catalog2 = catalogName + "2";
+    sql("CREATE CATALOG %s WITH %s", catalog2, toWithClause(config));
+    sql("CREATE DATABASE %s", catalog2 + ".testdb");
+    sql("CREATE TABLE %s LIKE tl", catalog2 + ".testdb.tl2");
+
+    CatalogTable catalogTable = catalogTable(catalog2, "testdb", "tl2");
+    assertThat(catalogTable.getSchema())
+        .isEqualTo(TableSchema.builder().field("id", DataTypes.BIGINT()).build());
+
+    dropCatalog(catalog2, true);
+  }
+
+  @TestTemplate
+  public void testCreateTableLikeInFlinkCatalog() throws TableNotExistException {
+    sql("CREATE TABLE tl(id BIGINT)");
+
+    sql("CREATE TABLE `default_catalog`.`default_database`.tl2 LIKE tl");
+
+    CatalogTable catalogTable = catalogTable("default_catalog", "default_database", "tl2");
+    assertThat(catalogTable.getSchema())
+        .isEqualTo(TableSchema.builder().field("id", DataTypes.BIGINT()).build());
+
+    String srcCatalogProps = FlinkCreateTableOptions.toJson(catalogName, DATABASE, "tl", config);
+    Map<String, String> options = catalogTable.getOptions();
+    assertThat(options.get(FlinkCreateTableOptions.CONNECTOR_PROPS_KEY))
+        .isEqualTo(FlinkDynamicTableFactory.FACTORY_IDENTIFIER);
+    assertThat(options.get(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY))
+        .isEqualTo(srcCatalogProps);
   }
 
   @TestTemplate
@@ -639,11 +673,11 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   private void validateTableFiles(Table tbl, DataFile... expectedFiles) {
     tbl.refresh();
     Set<CharSequence> expectedFilePaths =
-        Arrays.stream(expectedFiles).map(DataFile::path).collect(Collectors.toSet());
+        Arrays.stream(expectedFiles).map(DataFile::location).collect(Collectors.toSet());
     Set<CharSequence> actualFilePaths =
         StreamSupport.stream(tbl.newScan().planFiles().spliterator(), false)
             .map(FileScanTask::file)
-            .map(ContentFile::path)
+            .map(ContentFile::location)
             .collect(Collectors.toSet());
     assertThat(actualFilePaths).as("Files should match").isEqualTo(expectedFilePaths);
   }
@@ -653,10 +687,12 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   }
 
   private CatalogTable catalogTable(String name) throws TableNotExistException {
+    return catalogTable(getTableEnv().getCurrentCatalog(), DATABASE, name);
+  }
+
+  private CatalogTable catalogTable(String catalog, String database, String table)
+      throws TableNotExistException {
     return (CatalogTable)
-        getTableEnv()
-            .getCatalog(getTableEnv().getCurrentCatalog())
-            .get()
-            .getTable(new ObjectPath(DATABASE, name));
+        getTableEnv().getCatalog(catalog).get().getTable(new ObjectPath(database, table));
   }
 }
