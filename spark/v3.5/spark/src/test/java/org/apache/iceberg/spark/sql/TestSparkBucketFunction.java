@@ -78,6 +78,10 @@ public class TestSparkBucketFunction extends TestBaseWithCatalog {
         .as("Spec example: hash(\"iceberg\") = 1210000089")
         .isEqualTo(1210000089);
 
+    assertThat(new BucketFunction.BucketString().hash("iceberg".getBytes(StandardCharsets.UTF_8)))
+        .as("Verify that the hash string and hash raw bytes produce the same result")
+        .isEqualTo(new BucketFunction.BucketString().hash("iceberg"));
+
     ByteBuffer bytes = ByteBuffer.wrap(new byte[] {0, 1, 2, 3});
     assertThat(new BucketFunction.BucketBinary().hash(bytes))
         .as("Spec example: hash([00 01 02 03]) = -188683207")
