@@ -72,7 +72,6 @@ public class FlinkCatalogFactory implements CatalogFactory {
   public static final String DEFAULT_DATABASE_NAME = "default";
   public static final String DEFAULT_CATALOG_NAME = "default_catalog";
   public static final String BASE_NAMESPACE = "base-namespace";
-
   public static final String TYPE = "type";
   public static final String PROPERTY_VERSION = "property-version";
 
@@ -169,6 +168,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
         defaultDatabase,
         baseNamespace,
         catalogLoader,
+        properties,
         cacheEnabled,
         cacheExpirationIntervalMs);
   }
