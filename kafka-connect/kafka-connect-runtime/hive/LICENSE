@@ -1940,3 +1940,9 @@ Project URL (from POM): https://github.com/mongodb/mongo-java-driver
 License (from POM): The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
+
+Group: software.amazon.s3.analyticsaccelerator  Name: analyticsaccelerator-s3  Version: 1.0.0
+Project URL: https://github.com/awslabs/analytics-accelerator-s3
+License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
