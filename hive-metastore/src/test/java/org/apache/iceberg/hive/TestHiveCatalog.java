@@ -42,7 +42,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -445,7 +444,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
   @Test
   public void testDatabaseAndNamespaceWithLocation() throws Exception {
-    Namespace namespace1 = Namespace.of("noLocation");
+    Namespace namespace1 = Namespace.of("nolocation");
     catalog.createNamespace(namespace1, META);
     Database database1 =
         HIVE_METASTORE_EXTENSION.metastoreClient().getDatabase(namespace1.toString());
@@ -1138,7 +1137,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
     catalogWithSlash.initialize(
         "hive_catalog", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, wareHousePath + "/"));
-    assertThat(catalogWithSlash.getConf().get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname))
+    assertThat(catalogWithSlash.getConf().get("hive.metastore.warehouse.dir"))
         .as("Should have trailing slash stripped")
         .isEqualTo(wareHousePath);
   }
