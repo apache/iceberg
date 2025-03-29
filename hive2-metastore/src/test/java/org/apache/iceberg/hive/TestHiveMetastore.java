@@ -177,8 +177,7 @@ public class TestHiveMetastore {
       // in Hive3, setting this as a system prop ensures that it will be picked up whenever a new
       // HiveConf is created
       System.setProperty(
-          HiveConf.ConfVars.METASTOREURIS.varname,
-          hiveConf.getVar(HiveConf.ConfVars.METASTOREURIS));
+          "hive.metastore.uris", hiveConf.getVar(HiveConf.getConfVars("hive.metastore.uris")));
 
       this.clientPool = new HiveClientPool(1, hiveConf);
     } catch (Exception e) {
@@ -255,9 +254,7 @@ public class TestHiveMetastore {
   private TServer newThriftServer(TServerSocket socket, int poolSize, HiveConf conf)
       throws Exception {
     HiveConf serverConf = new HiveConf(conf);
-    serverConf.set(
-        HiveConf.ConfVars.METASTORECONNECTURLKEY.varname,
-        "jdbc:derby:" + DERBY_PATH + ";create=true");
+    serverConf.set("javax.jdo.option.ConnectionURL", "jdbc:derby:" + DERBY_PATH + ";create=true");
     baseHandler = HMS_HANDLER_CTOR.newInstance("new db based metaserver", serverConf);
     IHMSHandler handler = GET_BASE_HMS_HANDLER.invoke(serverConf, baseHandler, false);
 
@@ -273,15 +270,13 @@ public class TestHiveMetastore {
   }
 
   private void initConf(HiveConf conf, int port, boolean directSql) {
-    conf.set(HiveConf.ConfVars.METASTOREURIS.varname, "thrift://localhost:" + port);
-    conf.set(
-        HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file:" + HIVE_LOCAL_DIR.getAbsolutePath());
-    conf.set(HiveConf.ConfVars.METASTORE_TRY_DIRECT_SQL.varname, String.valueOf(directSql));
-    conf.set(HiveConf.ConfVars.METASTORE_DISALLOW_INCOMPATIBLE_COL_TYPE_CHANGES.varname, "false");
+    conf.set("hive.metastore.uris", "thrift://localhost:" + port);
+    conf.set("hive.metastore.warehouse.dir", "file:" + HIVE_LOCAL_DIR.getAbsolutePath());
+    conf.set("hive.metastore.try.direct.sql", String.valueOf(directSql));
+    conf.set("hive.metastore.disallow.incompatible.col.type.changes", "false");
     conf.set("iceberg.hive.client-pool-size", "2");
     // Setting this to avoid thrift exception during running Iceberg tests outside Iceberg.
-    conf.set(
-        HiveConf.ConfVars.HIVE_IN_TEST.varname, HiveConf.ConfVars.HIVE_IN_TEST.getDefaultValue());
+    conf.set("hive.in.test", "false");
     conf.set("datanucleus.connectionPoolingType", "DBCP");
   }
 
