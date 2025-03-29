@@ -110,7 +110,6 @@ public class TableMetadataParser {
   static final String METADATA_LOG = "metadata-log";
   static final String STATISTICS = "statistics";
   static final String PARTITION_STATISTICS = "partition-statistics";
-  static final String ROW_LINEAGE = "row-lineage";
   static final String NEXT_ROW_ID = "next-row-id";
   static final int MIN_NULL_CURRENT_SNAPSHOT_VERSION = 3;
 
@@ -226,8 +225,7 @@ public class TableMetadataParser {
       }
     }
 
-    if (metadata.rowLineageEnabled()) {
-      generator.writeBooleanField(ROW_LINEAGE, metadata.rowLineageEnabled());
+    if (metadata.formatVersion() >= 3) {
       generator.writeNumberField(NEXT_ROW_ID, metadata.nextRowId());
     }
 
@@ -465,12 +463,10 @@ public class TableMetadataParser {
       currentSnapshotId = -1L;
     }
 
-    Boolean rowLineage = JsonUtil.getBoolOrNull(ROW_LINEAGE, node);
     long lastRowId;
-    if (rowLineage != null && rowLineage) {
+    if (formatVersion >= 3) {
       lastRowId = JsonUtil.getLong(NEXT_ROW_ID, node);
     } else {
-      rowLineage = TableMetadata.DEFAULT_ROW_LINEAGE;
       lastRowId = TableMetadata.INITIAL_ROW_ID;
     }
 
@@ -565,9 +561,8 @@ public class TableMetadataParser {
         refs,
         statisticsFiles,
         partitionStatisticsFiles,
-        ImmutableList.of() /* no changes from the file */,
-        rowLineage,
-        lastRowId);
+        lastRowId,
+        ImmutableList.of() /* no changes from the file */);
   }
 
   private static Map<String, SnapshotRef> refsFromJson(JsonNode refMap) {

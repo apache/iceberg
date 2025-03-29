@@ -44,6 +44,7 @@ class ManifestFileParser {
   private static final String DELETED_ROWS_COUNT = "deleted-rows-count";
   private static final String PARTITION_FIELD_SUMMARY = "partition-field-summary";
   private static final String KEY_METADATA = "key-metadata";
+  private static final String FIRST_ROW_ID = "first-row-id";
 
   private ManifestFileParser() {}
 
@@ -106,9 +107,14 @@ class ManifestFileParser {
       SingleValueParser.toJson(DataFile.KEY_METADATA.type(), manifestFile.keyMetadata(), generator);
     }
 
+    if (manifestFile.firstRowId() != null) {
+      generator.writeNumberField(FIRST_ROW_ID, manifestFile.firstRowId());
+    }
+
     generator.writeEndObject();
   }
 
+  @SuppressWarnings("CyclomaticComplexity")
   static ManifestFile fromJson(JsonNode jsonNode) {
     Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for manifest file: null");
     Preconditions.checkArgument(
@@ -181,6 +187,8 @@ class ManifestFileParser {
 
     ByteBuffer keyMetadata = JsonUtil.getByteBufferOrNull(KEY_METADATA, jsonNode);
 
+    Long firstRowId = JsonUtil.getLongOrNull(FIRST_ROW_ID, jsonNode);
+
     return new GenericManifestFile(
         path,
         length,
@@ -196,7 +204,8 @@ class ManifestFileParser {
         existingFilesCount,
         existingRowsCount,
         deletedFilesCount,
-        deletedRowsCount);
+        deletedRowsCount,
+        firstRowId);
   }
 
   private static class PartitionFieldSummaryParser {
