@@ -34,7 +34,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+/**
+ * @deprecated The tested class is deprecated since 1.9.0, will be removed in 1.10.0
+ */
 @ExtendWith(ParameterizedTestExtension.class)
+@Deprecated
 public class TestSizeBasedRewriter extends TestBase {
 
   @TestTemplate
