@@ -53,6 +53,8 @@ public class TestIcebergToGlueConverter {
   @Test
   public void testToDatabaseName() {
     assertThat(IcebergToGlueConverter.toDatabaseName(Namespace.of("db"), false)).isEqualTo("db");
+    assertThat(IcebergToGlueConverter.toDatabaseName(Namespace.of("my-glue-database"), false))
+        .isEqualTo("my-glue-database");
   }
 
   @Test
@@ -60,7 +62,7 @@ public class TestIcebergToGlueConverter {
     List<Namespace> badNames =
         Lists.newArrayList(
             Namespace.of("db", "a"),
-            Namespace.of("db-1"),
+            Namespace.of("db№1"),
             Namespace.empty(),
             Namespace.of(""),
             Namespace.of(new String(new char[600]).replace("\0", "a")));
@@ -70,15 +72,14 @@ public class TestIcebergToGlueConverter {
           .isInstanceOf(ValidationException.class)
           .hasMessageStartingWith("Cannot convert namespace")
           .hasMessageEndingWith(
-              "to Glue database name, "
-                  + "because it must be 1-252 chars of lowercase letters, numbers, underscore");
+              "to Glue database name, because it must be 1-255 ASCII chars from 0x20 to 0x7E");
     }
   }
 
   @Test
   public void testSkipNamespaceValidation() {
     List<Namespace> acceptableNames =
-        Lists.newArrayList(Namespace.of("db-1"), Namespace.of("db-1-1-1"));
+        Lists.newArrayList(Namespace.of("db№1"), Namespace.of("db-1-1-1"));
     for (Namespace name : acceptableNames) {
       assertThat(IcebergToGlueConverter.toDatabaseName(name, true)).isEqualTo(name.toString());
     }
@@ -90,7 +91,7 @@ public class TestIcebergToGlueConverter {
         Lists.newArrayList(
             TableIdentifier.parse("db.a-1"),
             TableIdentifier.parse("db.a-1-1"),
-            TableIdentifier.parse("db.a#1"));
+            TableIdentifier.parse("db.a№1"));
     for (TableIdentifier identifier : acceptableIdentifiers) {
       assertThat(IcebergToGlueConverter.getTableName(identifier, true))
           .isEqualTo(identifier.name());
