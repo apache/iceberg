@@ -73,19 +73,19 @@ public class TestHiveClientPool {
   @Test
   public void testConf() {
     HiveConf conf = createHiveConf();
-    conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file:/mywarehouse/");
+    conf.set("hive.metastore.warehouse.dir", "file:/mywarehouse/");
 
     HiveClientPool clientPool = new HiveClientPool(10, conf);
     HiveConf clientConf = clientPool.hiveConf();
 
-    assertThat(clientConf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname))
-        .isEqualTo(conf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname));
+    assertThat(clientConf.get("hive.metastore.warehouse.dir"))
+        .isEqualTo(conf.get("hive.metastore.warehouse.dir"));
     assertThat(clientPool.poolSize()).isEqualTo(10);
 
     // 'hive.metastore.sasl.enabled' should be 'true' as defined in xml
-    assertThat(clientConf.get(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL.varname))
-        .isEqualTo(conf.get(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL.varname));
-    assertThat(clientConf.getBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL)).isTrue();
+    assertThat(clientConf.get("hive.metastore.sasl.enabled"))
+        .isEqualTo(conf.get("hive.metastore.sasl.enabled"));
+    assertThat(clientConf.getBoolVar(HiveConf.getConfVars("hive.metastore.sasl.enabled"))).isTrue();
   }
 
   private HiveConf createHiveConf() {

@@ -22,6 +22,7 @@ import static org.apache.iceberg.PartitionSpec.builderFor;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.atLeastOnce;
@@ -48,7 +49,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.EnvironmentContext;
@@ -111,7 +111,7 @@ public class TestHiveCommitLocks {
   private static final HiveMetastoreExtension HIVE_METASTORE_EXTENSION =
       HiveMetastoreExtension.builder()
           .withDatabase(DB_NAME)
-          .withConfig(ImmutableMap.of(HiveConf.ConfVars.HIVE_TXN_TIMEOUT.varname, "1s"))
+          .withConfig(ImmutableMap.of("hive.txn.timeout", "1s"))
           .build();
 
   private static HiveCatalog catalog;
@@ -209,6 +209,9 @@ public class TestHiveCommitLocks {
 
   @Test
   public void testMultipleAlterTableForNoLock() throws Exception {
+    assumeThat(HiveVersion.current())
+        .as("Hive 3 does not contain HIVE-26882")
+        .isNotEqualTo(HiveVersion.HIVE_3);
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
     table.updateProperties().set(TableProperties.HIVE_LOCK_ENABLED, "false").commit();
     spyOps.refresh();
