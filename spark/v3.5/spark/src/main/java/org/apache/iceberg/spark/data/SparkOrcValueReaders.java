@@ -26,8 +26,10 @@ import org.apache.iceberg.orc.OrcValueReader;
 import org.apache.iceberg.orc.OrcValueReaders;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 import org.apache.orc.storage.ql.exec.vector.DecimalColumnVector;
@@ -70,8 +72,11 @@ public class SparkOrcValueReaders {
   }
 
   static OrcValueReader<?> struct(
-      List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
-    return new StructReader(readers, struct, idToConstant);
+      List<OrcValueReader<?>> readers,
+      TypeDescription record,
+      Types.StructType struct,
+      Map<Integer, ?> idToConstant) {
+    return new StructReader(readers, record, struct, idToConstant);
   }
 
   static OrcValueReader<?> array(OrcValueReader<?> elementReader) {
@@ -143,8 +148,11 @@ public class SparkOrcValueReaders {
     private final int numFields;
 
     protected StructReader(
-        List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
-      super(readers, struct, idToConstant);
+        List<OrcValueReader<?>> readers,
+        TypeDescription record,
+        Types.StructType struct,
+        Map<Integer, ?> idToConstant) {
+      super(readers, record, struct, idToConstant, SparkUtil::internalToSpark);
       this.numFields = struct.fields().size();
     }
 

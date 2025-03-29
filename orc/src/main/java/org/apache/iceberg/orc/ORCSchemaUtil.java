@@ -67,6 +67,7 @@ public final class ORCSchemaUtil {
 
   static final String ICEBERG_ID_ATTRIBUTE = "iceberg.id";
   static final String ICEBERG_REQUIRED_ATTRIBUTE = "iceberg.required";
+  static final String ICEBERG_ORIGINAL_MISSING = "iceberg.original-missing";
 
   /**
    * The name of the ORC {@link TypeDescription} attribute indicating the Iceberg type corresponding
@@ -383,19 +384,15 @@ public final class ORCSchemaUtil {
           if (isRequired) {
             Preconditions.checkArgument(
                 field.initialDefault() != null,
-                "Missing required field: %s (%s)",
-                root.findColumnName(fieldId),
-                type);
+                "Missing required field: %s",
+                root.findColumnName(fieldId));
           }
 
-          if (field.initialDefault() != null) {
-            throw new UnsupportedOperationException(
-                String.format(
-                    "ORC cannot read default value for field %s (%s): %s",
-                    root.findColumnName(fieldId), type, field.initialDefault()));
-          }
-
+          // Create the type for the missing attribute
           orcType = convert(fieldId, type, false);
+          if (orcType != null) {
+            orcType.setAttribute(ICEBERG_ORIGINAL_MISSING, "true");
+          }
         }
     }
 

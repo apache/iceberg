@@ -21,9 +21,11 @@ package org.apache.iceberg.orc;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 import org.apache.orc.storage.ql.exec.vector.DoubleColumnVector;
@@ -136,8 +138,18 @@ public class OrcValueReaders {
     private final OrcValueReader<?>[] readers;
     private final boolean[] isConstantOrMetadataField;
 
+    @Deprecated
     protected StructReader(
         List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
+      this(readers, null, struct, idToConstant, null);
+    }
+
+    protected StructReader(
+        List<OrcValueReader<?>> readers,
+        TypeDescription record,
+        Types.StructType struct,
+        Map<Integer, ?> idToConstant,
+        BiFunction<Type, Object, Object> convertConstant) {
       List<Types.NestedField> fields = struct.fields();
       this.readers = new OrcValueReader[fields.size()];
       this.isConstantOrMetadataField = new boolean[fields.size()];
@@ -157,6 +169,15 @@ public class OrcValueReaders {
           // in case of any other metadata field, fill with nulls
           this.isConstantOrMetadataField[pos] = true;
           this.readers[pos] = constants(null);
+        } else if (record != null
+            && record
+                    .getChildren()
+                    .get(readerIndex)
+                    .getAttributeValue(ORCSchemaUtil.ICEBERG_ORIGINAL_MISSING)
+                != null) {
+          this.readers[pos] =
+              constants(convertConstant.apply(field.type(), field.initialDefault()));
+          readerIndex++;
         } else {
           this.readers[pos] = readers.get(readerIndex++);
         }
