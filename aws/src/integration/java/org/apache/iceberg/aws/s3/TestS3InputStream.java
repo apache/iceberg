@@ -28,6 +28,7 @@ import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -39,6 +40,7 @@ import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
+@Tag("verification")
 @Testcontainers
 public class TestS3InputStream {
   @Container private static final MinIOContainer MINIO = MinioUtil.createContainer();
