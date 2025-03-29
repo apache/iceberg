@@ -98,6 +98,14 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String DEFAULT_CONTROL_TOPIC = "control-iceberg";
   public static final String DEFAULT_CONTROL_GROUP_PREFIX = "cg-control-";
 
+  public static final String COMMITTER_IMPL_CONFIG = "iceberg.committer.impl";
+  public static final String COMMITTER_IMPL_DOC =
+      "config to override the default committer implementation";
+  public static final String COMMITTER_IMPL_DEFAULT =
+      "org.apache.iceberg.connect.channel.CommitterImpl";
+
+  public static final String COMMITER_IMPL_CONFIG_PREFIX = "iceberg.committer.";
+
   public static final int SCHEMA_UPDATE_RETRIES = 2; // 3 total attempts
   public static final int CREATE_TABLE_RETRIES = 2; // 3 total attempts
 
@@ -225,6 +233,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         null,
         Importance.MEDIUM,
         "If specified, Hadoop config files in this directory will be loaded");
+    configDef.define(
+        COMMITTER_IMPL_CONFIG,
+        ConfigDef.Type.STRING,
+        COMMITTER_IMPL_DEFAULT,
+        Importance.HIGH,
+        COMMITTER_IMPL_DOC);
     return configDef;
   }
 
@@ -236,6 +250,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private final Map<String, String> writeProps;
   private final Map<String, TableSinkConfig> tableConfigMap = Maps.newHashMap();
   private final JsonConverter jsonConverter;
+  private final Map<String, String> committerConfig;
 
   public IcebergSinkConfig(Map<String, String> originalProps) {
     super(CONFIG_DEF, originalProps);
@@ -250,6 +265,9 @@ public class IcebergSinkConfig extends AbstractConfig {
     this.autoCreateProps =
         PropertyUtil.propertiesWithPrefix(originalProps, AUTO_CREATE_PROP_PREFIX);
     this.writeProps = PropertyUtil.propertiesWithPrefix(originalProps, WRITE_PROP_PREFIX);
+
+    this.committerConfig =
+        PropertyUtil.propertiesWithPrefix(originalProps, COMMITER_IMPL_CONFIG_PREFIX);
 
     this.jsonConverter = new JsonConverter();
     jsonConverter.configure(
@@ -278,6 +296,14 @@ public class IcebergSinkConfig extends AbstractConfig {
     if (!condition) {
       throw new ConfigException(msg);
     }
+  }
+
+  public String committerImpl() {
+    return getString(COMMITTER_IMPL_CONFIG);
+  }
+
+  public Map<String, String> committerConfig() {
+    return committerConfig;
   }
 
   public String connectorName() {

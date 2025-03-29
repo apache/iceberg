@@ -18,11 +18,32 @@
  */
 package org.apache.iceberg.connect;
 
-import org.apache.iceberg.connect.channel.CommitterImpl;
+import org.apache.iceberg.common.DynConstructors;
 
 class CommitterFactory {
   static Committer createCommitter(IcebergSinkConfig config) {
-    return new CommitterImpl();
+    String committerImpl = config.committerImpl();
+    DynConstructors.Ctor<Committer> ctor;
+    try {
+      ctor = DynConstructors.builder(Committer.class).impl(committerImpl).buildChecked();
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize Committer implementation %s: %s", committerImpl, e.getMessage()),
+          e);
+    }
+
+    Committer committer;
+    try {
+      committer = ctor.newInstance();
+
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot initialize Committer, %s does not implement Committer.", committerImpl),
+          e);
+    }
+    return committer;
   }
 
   private CommitterFactory() {}
