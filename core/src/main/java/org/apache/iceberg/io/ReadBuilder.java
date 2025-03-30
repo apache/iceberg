@@ -25,12 +25,16 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.mapping.NameMapping;
 
 /**
- * Interface which should be implemented by the data file format implementations.
+ * File formats should implement this interface to provide a builder for reading data files. {@link
+ * ReadBuilder} reads the data files with the specified parameters. The returned objects are defined
+ * by the {@link ObjectModel} which is used to read the data.
  *
- * @param <B> type of the reader
+ * <p>This interface is directly exposed for the users to parameterize readers.
+ *
+ * @param <B> type returned by builder API to allow chained calls
  */
 public interface ReadBuilder<B extends ReadBuilder<B>> {
-  /** The key for the batch size in case of vectorized reads. */
+  /** The configuration key for the batch size in case of vectorized reads. */
   String RECORDS_PER_BATCH_KEY = "iceberg.records-per-batch";
 
   /**
@@ -46,7 +50,7 @@ public interface ReadBuilder<B extends ReadBuilder<B>> {
 
   /**
    * Pushes down the {@link Expression} filter for the reader to prevent reading unnecessary
-   * records. Some readers might not be able to filter some part of the exception. In this case the
+   * records. Some readers might not be able to filter some part of the expression. In this case the
    * reader might return unfiltered or partially filtered rows. It is the caller's responsibility to
    * apply the filter again.
    *
@@ -71,7 +75,7 @@ public interface ReadBuilder<B extends ReadBuilder<B>> {
   }
 
   /**
-   * Sets configuration key/value pairs for the reader. Reader builders could ignore configuration
+   * Sets configuration key/value pairs for the reader. Reader builders should ignore configuration
    * keys not known for them.
    */
   default B set(String key, String value) {

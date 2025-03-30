@@ -21,33 +21,45 @@ package org.apache.iceberg.io;
 import org.apache.iceberg.FileFormat;
 
 /**
- * An interface for object models that can be used to read and write Iceberg data files.
+ * Direct conversion is used between file formats and engine internal formats for performance
+ * reasons. Object models encapsulate these conversions.
  *
- * @param <E> the native type of the object model
+ * <p>{@link ReadBuilder} is provided for reading data files stored in a given {@link FileFormat}
+ * into the engine specific object model.
+ *
+ * <p>{@link AppenderBuilder} is provided for writing engine specific object model to data/delete
+ * files stored in a given {@link FileFormat}.
+ *
+ * <p>Iceberg supports the following object models natively:
+ *
+ * <ul>
+ *   <li>generic - reads and writes Iceberg {@link org.apache.iceberg.data.Record}s
+ *   <li>spark - reads and writes Spark InternalRow records
+ *   <li>spark-vectorized - vectorized reads for Spark columnar batches. Not supported for {@link
+ *       FileFormat#AVRO}
+ *   <li>flink - reads and writes Flink RowData records
+ *   <li>arrow - vectorized reads for into Arrow columnar format. Only supported for {@link
+ *       FileFormat#PARQUET}
+ * </ul>
+ *
+ * <p>Engines could implement their own object models to leverage Iceberg data file reading and
+ * writing capabilities.
+ *
+ * @param <E> the engine specific schema of the input data for the appender
  */
 public interface ObjectModel<E> {
-  /** The file format which is read by the object model. */
+  /** The file format which is read/written by the object model. */
   FileFormat format();
 
   /**
    * The name of the object model. Allows users to specify the object model to map the data file for
-   * reading and writing. The currently supported object models are:
-   *
-   * <ul>
-   *   <li>generic - reads and writes Iceberg {@link org.apache.iceberg.data.Record}s
-   *   <li>spark - reads and writes Spark InternalRow records
-   *   <li>spark-vectorized - vectorized reads for Spark columnar batches. Not supported for {@link
-   *       FileFormat#AVRO}
-   *   <li>flink - reads and writes Flink RowData records
-   *   <li>arrow - vectorized reads for into Arrow columnar format. Only supported for {@link
-   *       FileFormat#PARQUET}
-   * </ul>
+   * reading and writing.
    */
   String name();
 
   /**
    * The appender builder for the output file which writes the data in the specified file format and
-   * accepts the specified object model.
+   * accepts the records defined by this object model.
    *
    * @param outputFile to write to
    * @return the appender builder
@@ -57,7 +69,7 @@ public interface ObjectModel<E> {
 
   /**
    * The reader builder for the input file which reads the data from the specified file format and
-   * returns the specified object model.
+   * returns the records in this object model.
    *
    * @param inputFile to read from
    * @return the reader builder

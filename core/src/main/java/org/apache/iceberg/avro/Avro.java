@@ -285,7 +285,7 @@ public class Avro {
     }
 
     // supposed to always be a private method used strictly by data and delete write builders
-    // protected because of inheritance until deprecation of the WriteBuilder
+    // package-private because of inheritance until deprecation of the WriteBuilder
     B createContextFunc(Function<Map<String, String>, Context> newCreateContextFunc) {
       this.createContextFunc = newCreateContextFunc;
       return (B) this;

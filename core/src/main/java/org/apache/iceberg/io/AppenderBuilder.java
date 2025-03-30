@@ -25,20 +25,20 @@ import org.apache.iceberg.Schema;
 
 /**
  * Interface which should be implemented by the data file format implementations. The {@link
- * AppenderBuilder} will be parametrized and finally the {@link
- * AppenderBuilder#build(AppenderBuilder.WriteMode)} method is used to generate the appender for the
- * specific writer use-cases. The following input should be handled by the appender in the specific
- * modes:
+ * AppenderBuilder} will be parametrized based on the user provided configuration and finally the
+ * {@link AppenderBuilder#build(AppenderBuilder.WriteMode)} method is used to generate the appender
+ * for the specific writer use-cases. The following input should be handled by the appender in the
+ * specific modes:
  *
  * <ul>
- *   <li>The appender's native input type
+ *   <li>The appender's engine specific input type
  *       <ul>
  *         <li>{@link AppenderBuilder.WriteMode#APPENDER}
  *         <li>{@link AppenderBuilder.WriteMode#DATA_WRITER}
  *         <li>{@link AppenderBuilder.WriteMode#EQUALITY_DELETE_WRITER}
  *       </ul>
- *   <li>{@link org.apache.iceberg.deletes.PositionDelete} where the row's type is the appender's
- *       native input type
+ *   <li>{@link org.apache.iceberg.deletes.PositionDelete} where the type of the row is the
+ *       appender's engine specific input type
  *       <ul>
  *         <li>{@link AppenderBuilder.WriteMode#POSITION_DELETE_WRITER}
  *         <li>{@link AppenderBuilder.WriteMode#POSITION_DELETE_WITH_ROW_WRITER}
@@ -46,7 +46,7 @@ import org.apache.iceberg.Schema;
  * </ul>
  *
  * @param <B> type returned by builder API to allow chained calls
- * @param <E> type for the engine specific schema
+ * @param <E> the engine specific schema of the input data
  */
 public interface AppenderBuilder<B extends AppenderBuilder<B, E>, E> {
   /** Set the file schema. */
@@ -99,8 +99,9 @@ public interface AppenderBuilder<B extends AppenderBuilder<B, E>, E> {
   }
 
   /**
-   * Sets the engine native schema for the appender. Used to identify the engine specific input type
-   * when there is N to 1 mapping between the engine type and the Iceberg type.
+   * Sets the engine native schema for the input. Defines the input type when there is N to 1
+   * mapping between the engine type and the Iceberg type, and providing the Iceberg schema is not
+   * enough for the conversion.
    */
   B engineSchema(E newEngineSchema);
 
