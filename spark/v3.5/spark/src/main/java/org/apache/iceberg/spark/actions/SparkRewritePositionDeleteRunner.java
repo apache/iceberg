@@ -34,7 +34,8 @@ import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.SizeBasedPositionDeletesRewriter;
+import org.apache.iceberg.actions.RewritePositionDeleteFiles;
+import org.apache.iceberg.actions.RewritePositionDeletesGroup;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.PositionDeletesRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
@@ -51,19 +52,22 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
 
-class SparkBinPackPositionDeletesRewriter extends SizeBasedPositionDeletesRewriter {
+class SparkRewritePositionDeleteRunner
+    extends SparkRewriteRunner<
+        RewritePositionDeleteFiles.FileGroupInfo,
+        PositionDeletesScanTask,
+        DeleteFile,
+        RewritePositionDeletesGroup> {
 
-  private final SparkSession spark;
   private final SparkTableCache tableCache = SparkTableCache.get();
   private final ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
   private final PositionDeletesRewriteCoordinator coordinator =
       PositionDeletesRewriteCoordinator.get();
 
-  SparkBinPackPositionDeletesRewriter(SparkSession spark, Table table) {
-    super(table);
+  SparkRewritePositionDeleteRunner(SparkSession spark, Table table) {
     // Disable Adaptive Query Execution as this may change the output partitioning of our write
-    this.spark = spark.cloneSession();
-    this.spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
+    super(spark.cloneSession(), table);
+    this.spark().conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
   }
 
   @Override
@@ -72,12 +76,12 @@ class SparkBinPackPositionDeletesRewriter extends SizeBasedPositionDeletesRewrit
   }
 
   @Override
-  public Set<DeleteFile> rewrite(List<PositionDeletesScanTask> group) {
+  public Set<DeleteFile> rewrite(RewritePositionDeletesGroup group) {
     String groupId = UUID.randomUUID().toString();
     Table deletesTable = MetadataTableUtils.createMetadataTableInstance(table(), POSITION_DELETES);
     try {
       tableCache.add(groupId, deletesTable);
-      taskSetManager.stageTasks(deletesTable, groupId, group);
+      taskSetManager.stageTasks(deletesTable, groupId, group.fileScanTasks());
 
       doRewrite(groupId, group);
 
@@ -89,19 +93,20 @@ class SparkBinPackPositionDeletesRewriter extends SizeBasedPositionDeletesRewrit
     }
   }
 
-  protected void doRewrite(String groupId, List<PositionDeletesScanTask> group) {
+  protected void doRewrite(String groupId, RewritePositionDeletesGroup group) {
     // all position deletes are of the same partition, because they are in same file group
-    Preconditions.checkArgument(!group.isEmpty(), "Empty group");
-    Types.StructType partitionType = group.get(0).spec().partitionType();
-    StructLike partition = group.get(0).partition();
+    Preconditions.checkArgument(!group.rewrittenDeleteFiles().isEmpty(), "Empty group");
+    DeleteFile deleteFile = group.rewrittenDeleteFiles().iterator().next();
+    Types.StructType partitionType = table().specs().get(deleteFile.specId()).partitionType();
+    StructLike partition = deleteFile.partition();
 
     // read the deletes packing them into splits of the required size
     Dataset<Row> posDeletes =
-        spark
+        spark()
             .read()
             .format("iceberg")
             .option(SparkReadOptions.SCAN_TASK_SET_ID, groupId)
-            .option(SparkReadOptions.SPLIT_SIZE, splitSize(inputSize(group)))
+            .option(SparkReadOptions.SPLIT_SIZE, group.inputSplitSize())
             .option(SparkReadOptions.FILE_OPEN_COST, "0")
             .load(groupId);
 
@@ -116,7 +121,7 @@ class SparkBinPackPositionDeletesRewriter extends SizeBasedPositionDeletesRewrit
         .write()
         .format("iceberg")
         .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupId)
-        .option(SparkWriteOptions.TARGET_DELETE_FILE_SIZE_BYTES, writeMaxFileSize())
+        .option(SparkWriteOptions.TARGET_DELETE_FILE_SIZE_BYTES, group.maxOutputFileSize())
         .mode("append")
         .save(groupId);
   }
@@ -136,10 +141,10 @@ class SparkBinPackPositionDeletesRewriter extends SizeBasedPositionDeletesRewrit
                 })
             .reduce(Column::and);
     if (condition.isPresent()) {
-      return SparkTableUtil.loadMetadataTable(spark, table(), MetadataTableType.DATA_FILES)
+      return SparkTableUtil.loadMetadataTable(spark(), table(), MetadataTableType.DATA_FILES)
           .filter(condition.get());
     } else {
-      return SparkTableUtil.loadMetadataTable(spark, table(), MetadataTableType.DATA_FILES);
+      return SparkTableUtil.loadMetadataTable(spark(), table(), MetadataTableType.DATA_FILES);
     }
   }
 }
