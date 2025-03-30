@@ -199,3 +199,41 @@ This is only applicable to {@link StatisticsType#Map} for low-cardinality scenar
 {@link StatisticsType#Sketch} high-cardinality sort columns, they are usually not used as
 partition columns. Otherwise, too many partitions and small files may be generated during
 write. Sketch range partitioner simply splits high-cardinality keys into ordered ranges.
+
+### Exec options
+
+When constructing Flink Iceberg source via Java API, configs can be set in Configuration like this:
+
+```
+configuration.setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, true);
+FlinkSource.forRowData()
+    .flinkConf(configuration)
+    ...
+```
+
+When using table API, options can be set in Flink's TableEnvironment.
+
+```
+TableEnvironment tEnv = createTableEnv();
+tEnv.getConfig()
+    .getConfiguration()
+    .setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, true);
+```
+
+For Flink SQL, set options can be passed like this:
+```
+SET table.exec.iceberg.infer-source-parallelism.max=10;
+
+SELECT * FROM tableName;
+```
+
+| Flink configuration                             | Default                             | Description                                                                                                                                                |
+|-------------------------------------------------|-------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| table.exec.iceberg.infer-source-parallelism     | true                                | If false, parallelism of source are set by config. If true, source parallelism is inferred according to splits number.                                     |
+| table.exec.iceberg.infer-source-parallelism.max | 100                                 | Sets max infer parallelism for source operator.                                                                                                            |        
+| table.exec.iceberg.expose-split-locality-info   | null                                | If true, expose split host information to use Flink's locality aware split assigner.                                                                       |
+| table.exec.iceberg.fetch-batch-record-count     | 2048                                | The target number of records for Iceberg reader fetch batch.                                                                                               |
+| table.exec.iceberg.worker-pool-size             | ThreadPools.WORKER_THREAD_POOL_SIZE | The size of workers pool used to plan or scan manifests. If the value of Runtime.getRuntime().availableProcessors() is compared to 2, take the larger one. |
+| table.exec.iceberg.use-flip27-source            | true                                | If true, Use the FLIP-27 based Iceberg source implementation.                                                                                              |
+| table.exec.iceberg.use-v2-sink                  | false                               | If true,Use the SinkV2 API based Iceberg sink implementation.                                                                                              |
+| table.exec.iceberg.split-assigner-type          | SIMPLE                              | Split assigner type that determine how splits are assigned to readers. SIMPLE: simple assigner that doesn't provide any guarantee on order or locality.    |
