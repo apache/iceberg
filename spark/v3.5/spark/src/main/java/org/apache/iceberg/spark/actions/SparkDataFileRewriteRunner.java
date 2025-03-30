@@ -18,42 +18,36 @@
  */
 package org.apache.iceberg.spark.actions;
 
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.SizeBasedDataRewriter;
+import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
+import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkTableCache;
 import org.apache.spark.sql.SparkSession;
 
-abstract class SparkSizeBasedDataRewriter extends SizeBasedDataRewriter {
-
-  private final SparkSession spark;
+abstract class SparkDataFileRewriteRunner
+    extends SparkRewriteRunner<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> {
   private final SparkTableCache tableCache = SparkTableCache.get();
   private final ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
   private final FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
 
-  SparkSizeBasedDataRewriter(SparkSession spark, Table table) {
-    super(table);
-    this.spark = spark;
+  SparkDataFileRewriteRunner(SparkSession spark, Table table) {
+    super(spark, table);
   }
 
-  protected abstract void doRewrite(String groupId, List<FileScanTask> group);
-
-  protected SparkSession spark() {
-    return spark;
-  }
+  abstract void doRewrite(String groupId, RewriteFileGroup fileGroup);
 
   @Override
-  public Set<DataFile> rewrite(List<FileScanTask> group) {
+  public Set<DataFile> rewrite(RewriteFileGroup group) {
     String groupId = UUID.randomUUID().toString();
     try {
       tableCache.add(groupId, table());
-      taskSetManager.stageTasks(table(), groupId, group);
+      taskSetManager.stageTasks(table(), groupId, group.fileScanTasks());
 
       doRewrite(groupId, group);
 
