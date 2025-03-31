@@ -79,7 +79,6 @@ public class CommitterImpl implements Committer {
     try (Admin admin = clientFactory.createAdmin()) {
       groupDesc = KafkaUtils.consumerGroupDescription(config.connectGroupId(), admin);
     }
-
     if (groupDesc.state() == ConsumerGroupState.STABLE) {
       Collection<MemberDescription> members = groupDesc.members();
       if (containsFirstPartition(members, currentAssignedPartitions)) {
