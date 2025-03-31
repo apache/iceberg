@@ -28,6 +28,7 @@ import java.net.URISyntaxException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
@@ -54,7 +55,6 @@ public class VortexSmokeTest {
   private static final String AWS_SECRET_KEY = System.getenv("AWS_SECRET_KEY");
   private static final Configuration CONF = new Configuration();
   private static final String WAREHOUSE = "s3a://vortex-iceberg-dev/warehouse";
-  //  private static final String PARQUET_WAREHOUSE = "s3a://vortex-iceberg-dev/parquet-warehouse";
 
   private static final Map<String, LocalDate> FILES_TO_PARTITION_VALUES;
   private static final Map<String, Long> RECORD_COUNTS;
@@ -137,17 +137,22 @@ public class VortexSmokeTest {
   // Step 1: create the warehouse, populate it with Citibike data.
   @Test
   public void setupWarehouse() throws IOException, URISyntaxException {
-    setupWarehouseFormat(FileFormat.VORTEX);
-    setupWarehouseFormat(FileFormat.PARQUET);
+//    setupWarehouseFormat(FileFormat.VORTEX);
+//    setupWarehouseFormat(FileFormat.PARQUET);
+    // Parquet with row group size 1MM
+    setupWarehouseFormat(FileFormat.PARQUET, Optional.of("parquet1m"));
   }
 
-  private void setupWarehouseFormat(FileFormat format) throws IOException {
-    // Root path to the data files
-    URI rootUri = URI.create("s3a://vortex-iceberg-dev/warehouse/data/");
+  private void setupWarehouseFormat(FileFormat format, Optional<String> variant)
+      throws IOException {
+    String subpath = variant.orElse("data");
+    URI rootUri = URI.create(String.format("s3a://vortex-iceberg-dev/warehouse/%s/", subpath));
+
+    String namespace = variant.orElseGet(() -> format.name().toLowerCase());
 
     // Create the table
     try (HadoopCatalog catalog = new HadoopCatalog(CONF, WAREHOUSE)) {
-      TableIdentifier tableId = TableIdentifier.of(format.name().toLowerCase(), "trips");
+      TableIdentifier tableId = TableIdentifier.of(namespace, "trips");
       PartitionSpec spec = PartitionSpec.builderFor(CITIBIKE_SCHEMA).month("started_at").build();
       // Create a new table, with a partition space on started_at time
       Table table = catalog.createTable(tableId, CITIBIKE_SCHEMA, spec);
@@ -178,7 +183,7 @@ public class VortexSmokeTest {
 
   // Run some Spark SQL queries against the warehouse (using partition pruning!)
   @ParameterizedTest
-  @ValueSource(strings = {"vortex", "parquet"})
+  @ValueSource(strings = {"vortex", "parquet", "parquet1m"})
   public void scanWarehouse(String format) {
     try (SparkSession spark = newSparkSession("scanWarehouse")) {
       spark.sql(String.format("select count(*) from %s.trips", format)).show();
@@ -187,8 +192,7 @@ public class VortexSmokeTest {
       Dataset<Row> df =
           spark.sql(
               String.format(
-                  "select count(*) from %s.trips where started_at BETWEEN '2024-12-1 00:00:00' AND '2024-12-31 23:59:59' AND member_casual = 'member'",
-                  format));
+                  "select count(*) from %s.trips where member_casual = 'member'", format));
       // Show codegen
       df.queryExecution().debug().codegen();
       // Time execution
