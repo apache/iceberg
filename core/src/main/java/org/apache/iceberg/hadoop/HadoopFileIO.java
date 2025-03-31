@@ -30,15 +30,14 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
+import org.apache.hadoop.io.wrappedio.WrappedIO;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.hadoop.wrappedio.DynamicWrappedIO;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
@@ -63,10 +62,6 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   private static final Logger LOG = LoggerFactory.getLogger(HadoopFileIO.class);
   private static final String DELETE_FILE_PARALLELISM = "iceberg.hadoop.delete-file-parallelism";
 
-  /** Is bulk delete enabled on hadoop runtimes with API support: {@value}. */
-  public static final String BULK_DELETE_ENABLED = "iceberg.hadoop.bulk.delete.enabled";
-
-  private static final boolean BULK_DELETE_ENABLED_DEFAULT = false;
   private static final String DELETE_FILE_POOL_NAME = "iceberg-hadoopfileio-delete";
   private static final int DELETE_RETRY_ATTEMPTS = 3;
   private static final int DEFAULT_DELETE_CORE_MULTIPLE = 4;
@@ -74,22 +69,6 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   private volatile SerializableSupplier<Configuration> hadoopConf;
   private SerializableMap<String, String> properties = SerializableMap.copyOf(ImmutableMap.of());
-
-  /** Has an attempt to configure the bulk delete binding been made? */
-  private final AtomicBoolean bulkDeleteConfigured = new AtomicBoolean(false);
-
-  /**
-   * Flag to indicate that bulk delete is present and should be used. This is set in {@link
-   * #maybeUseBulkDeleteApi()} if all the conditions are met. If some problems surface during actual
-   * use, this value is changed to {@code false}; hence the use of an atomic boolean.
-   */
-  private final AtomicBoolean useBulkDelete = new AtomicBoolean(false);
-
-  /**
-   * Dynamically loaded accessor of Hadoop Wrapped IO classes. Marked as volatile as its creation in
-   * {@link #maybeUseBulkDeleteApi()} is synchronized and IDEs then complain about mixed use.
-   */
-  private transient volatile DynamicWrappedIO wrappedIO;
 
   /**
    * Constructor used for dynamic FileIO loading.
@@ -208,46 +187,6 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   }
 
   /**
-   * Initialize the wrapped IO class if configured to do so.
-   *
-   * @return true if bulk delete should be used.
-   */
-  private synchronized boolean maybeUseBulkDeleteApi() {
-    if (!bulkDeleteConfigured.compareAndSet(false, true)) {
-      // configured already, so return.
-      return useBulkDelete.get();
-    }
-    boolean enableBulkDelete = conf().getBoolean(BULK_DELETE_ENABLED, BULK_DELETE_ENABLED_DEFAULT);
-    if (!enableBulkDelete) {
-      LOG.debug("Bulk delete is disabled");
-      useBulkDelete.set(false);
-    } else {
-      // library is configured to use bulk delete, so try to load it
-      // and probe for the bulk delete methods being found.
-      // this is only satisfied on Hadoop releases with the WrappedIO class.
-      wrappedIO = new DynamicWrappedIO(getClass().getClassLoader());
-      final boolean available = wrappedIO.bulkDeleteAvailable();
-      useBulkDelete.set(available);
-      if (available) {
-        LOG.debug("Bulk delete is enabled and available");
-      } else {
-        LOG.debug("Bulk delete enabled but not available");
-      }
-    }
-    return useBulkDelete.get();
-  }
-
-  /**
-   * Will this instance use bulk delete operations? Exported for testing in hadoop-aws. Calling this
-   * method will trigger a load of the WrappedIO class if required.
-   *
-   * @return true if bulk delete is enabled and available.
-   */
-  public boolean isBulkDeleteApiUsed() {
-    return maybeUseBulkDeleteApi();
-  }
-
-  /**
    * Delete files.
    *
    * <p>If the Hadoop bulk deletion API is available and enabled, this API is used through {@link
@@ -258,29 +197,23 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
    */
   @Override
   public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
-    if (maybeUseBulkDeleteApi()) {
-      // bulk delete.
-      try {
-        final int count = bulkDeleteFiles(pathsToDelete);
-        if (count != 0) {
-          throw new BulkDeletionFailureException(count);
-        }
-        // deletion worked.
-        return;
-      } catch (UnsupportedOperationException e) {
-        // Something went very wrong with reflection here.
-        // Probably a mismatch between the hadoop FS APIs and the implementation
-        // class, either due to mocking or library versions.
-
-        // Log
-        LOG.debug("Failed to use bulk delete -falling back to single delete calls", e);
-
-        // disable further attempts to use the API.
-        useBulkDelete.set(false);
-
-        // And fall through to the classic delete
+    // bulk delete.
+    try {
+      final int count = bulkDeleteFiles(pathsToDelete);
+      if (count != 0) {
+        throw new BulkDeletionFailureException(count);
       }
+      // deletion worked.
+      return;
+    } catch (UnsupportedOperationException e) {
+      // Something went very wrong with reflection here.
+      // Probably a mismatch between the hadoop FS APIs and the implementation
+      // class, either due to mocking or library versions.
+
+      // Log and fall back to the classic delete
+      LOG.debug("Failed to use bulk delete -falling back", e);
     }
+
     // classic delete in which each file is deleted individually
     // in a separate thread.
     AtomicInteger failureCount = new AtomicInteger(0);
@@ -303,10 +236,9 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   /**
    * Bulk delete files.
    *
-   * <p>When implemented in the hadoop filesystem APIs, all filesystems support a bulk delete of a
-   * page size &gt; 1. On S3 a larger bulk delete operation is supported, with the page size set by
-   * {@code fs.s3a.bulk.delete.page.size}. Note: some third party S3 stores do not support bulk
-   * delete, in which case the page size is 1).
+   * <p>All filesystems support a bulk delete of a page size &gt; 1. On S3 a larger bulk delete
+   * operation is supported, with the page size set by {@code fs.s3a.bulk.delete.page.size}. Note:
+   * some third party S3 stores do not support bulk delete, in which case the page size is 1).
    *
    * <p>A page of paths to delete is built up for each filesystem; when the page size is reached a
    * bulk delete is submitted for execution in a separate thread.
@@ -367,15 +299,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
       Path fsRoot = fs.makeQualified(rootPath);
       int pageSize;
       if (!fsPageSizeMap.containsKey(fsRoot)) {
-        try {
-          pageSize = wrappedIO.bulkDelete_pageSize(fs, rootPath);
-        } catch (UnsupportedOperationException | UncheckedIOException e) {
-          throw e;
-        } catch (RuntimeException e) {
-          // something else went wrong..downgrade to unsupported.
-          LOG.debug("Failed to invoke bulkDelete_pageSize", e);
-          throw new UnsupportedOperationException("Failed to invoke bulkDelete_pageSize: " + e, e);
-        }
+        pageSize = WrappedIO.bulkDelete_pageSize(fs, rootPath);
         fsPageSizeMap.put(fsRoot, pageSize);
       } else {
         pageSize = fsPageSizeMap.get(fsRoot);
@@ -384,7 +308,9 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
       // retrieve or create set paths for the specific filesystem
       Set<Path> pathsForFilesystem = fsMap.get(fsRoot);
       // add the target. This updates the value in the map.
-      pathsForFilesystem.add(target);
+      // and qualify the target path so it will be under the root path
+      Path targetPath = fs.makeQualified(target);
+      pathsForFilesystem.add(targetPath);
 
       if (pathsForFilesystem.size() == pageSize) {
         // the page size has been reached.
@@ -449,7 +375,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
       FileSystem fs, final Path fsRoot, Collection<Path> paths) {
 
     LOG.debug("Deleting batch of {} files under {}", paths.size(), fsRoot);
-    return wrappedIO.bulkDelete_delete(fs, fsRoot, paths);
+    return WrappedIO.bulkDelete_delete(fs, fsRoot, paths);
   }
 
   private int deleteThreads() {
@@ -468,11 +394,6 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     }
 
     return executorService;
-  }
-
-  @Override
-  public String toString() {
-    return super.toString();
   }
 
   /**
