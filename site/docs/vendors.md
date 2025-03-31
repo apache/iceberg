@@ -22,6 +22,10 @@ title: "Vendors"
 
 This page contains some of the vendors who are shipping and supporting Apache Iceberg in their products
 
+### [Amazon Web Services (AWS)](https://aws.com)
+
+AWS provides a [comprehensive suite of services](https://aws.amazon.com/what-is/apache-iceberg/#seo-faq-pairs#what-aws-services-support-iceberg) to support Apache Iceberg as part of its modern data architecture. [Amazon Athena](https://aws.amazon.com/athena/) offers a serverless, interactive query engine with native support for Iceberg, enabling fast and cost-efficient querying of large-scale datasets. [Amazon EMR](https://aws.amazon.com/emr/) integrates Iceberg with Apache Spark, Apache Flink, Apache Hive, Presto and Trino, making it easy to process and analyze data at scale. [AWS Glue](https://aws.amazon.com/glue/) provides fully managed data integration capabilities, including schema evolution, maintenance, optimizations and partition management for Iceberg tables. With [Amazon S3](https://aws.amazon.com/s3/) as the underlying storage layer, AWS enables a high-performance and cost-effective data lakehouse solution powered by Iceberg.
+
 ### [Bodo](https://bodo.ai)
 
 Bodo is a high performance SQL & Python compute engine that brings HPC and supercomputing techniques to data analytics.
@@ -92,6 +96,14 @@ PuppyGraph is a cloud-native graph analytics engine that enables users to query 
 <!-- markdown-link-check-disable-next-line -->
 [Snowflake](https://www.snowflake.com/) is a single, cross-cloud platform that enables every organization to mobilize their data with Snowflake’s Data Cloud. Snowflake supports Apache Iceberg by offering [Snowflake-managed Iceberg Tables](https://docs.snowflake.com/en/user-guide/tables-iceberg#use-snowflake-as-the-iceberg-catalog) for full DML as well as [externally managed Iceberg Tables with catalog integrations](https://docs.snowflake.com/en/user-guide/tables-iceberg#use-a-catalog-integration) for read-only access.
 
+### [Stackable](https://stackable.tech)
+
+Stackable is the provider of the Stackable Data Platform - a modular, open source data platform for innovative data applications.
+
+True to the philosophy of 'your data, your platform', Stackable enables the creation of flexible, scalable data architectures for data meshes, data lakehouses, event streaming, machine learning, and with the seamless integration of Apache Iceberg via [Trino](https://trino.io), [Apache NiFi](https://nifi.apache.org) and [Apache Spark](https://spark.apache.org)
+
+The Stackable Data Platform is completely open source, providing maximum portability without vendor lock-in. It also enables true data sovereignty - whether in the private or public cloud. With 24/7 support and strict SLAs, Stackable guarantees stability and efficiency - modern, flexible and secure.
+
 ### [Starburst](https://starburst.io)
 
 Starburst is a commercial offering for the [Trino query engine](https://trino.io). Trino is a distributed MPP SQL query engine that can query data in Iceberg at interactive speeds. Trino also enables you to join Iceberg tables with an [array of other systems](https://trino.io/docs/current/connector.html). Starburst offers both an [enterprise deployment](https://www.starburst.io/platform/starburst-enterprise/) and a [fully managed service](https://www.starburst.io/platform/starburst-galaxy/) to make managing and scaling Trino a flawless experience. Starburst also provides customer support and houses many of the original contributors to the open-source project that know Trino best. Learn more about [the Starburst Iceberg connector](https://docs.starburst.io/latest/connector/iceberg.html).
@@ -107,4 +119,3 @@ Starburst is a commercial offering for the [Trino query engine](https://trino.io
 ### [VeloDB](https://velodb.io)
 
 [VeloDB](https://www.velodb.io/) is a commercial data warehouse powered by [Apache Doris](https://doris.apache.org/), an open-source, real-time data warehouse. It also provides powerful [query acceleration for Iceberg tables and efficient data writeback](https://doris.apache.org/docs/dev/lakehouse/catalogs/iceberg-catalog). VeloDB offers [enterprise version](https://www.velodb.io/enterprise) and [cloud service](https://www.velodb.io/cloud), which are fully compatible with open-source Apache Doris. Quick start with Apache Doris and Apache Iceberg [here](https://doris.apache.org/docs/lakehouse/lakehouse-best-practices/doris-iceberg).
-

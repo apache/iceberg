@@ -177,6 +177,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.custom.expire_snapshots('n', 't')", catalogName))
         .isInstanceOf(ParseException.class)
+        .hasMessageContaining("Syntax error")
         .satisfies(
             exception -> {
               ParseException parseException = (ParseException) exception;
@@ -455,7 +456,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
             table.currentSnapshot().sequenceNumber(),
             statsFileLocation1,
             table.io());
-    table.updateStatistics().setStatistics(statisticsFile1.snapshotId(), statisticsFile1).commit();
+    table.updateStatistics().setStatistics(statisticsFile1).commit();
 
     sql("INSERT INTO %s SELECT 20, 'def'", tableName);
     table.refresh();
@@ -466,7 +467,7 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
             table.currentSnapshot().sequenceNumber(),
             statsFileLocation2,
             table.io());
-    table.updateStatistics().setStatistics(statisticsFile2.snapshotId(), statisticsFile2).commit();
+    table.updateStatistics().setStatistics(statisticsFile2).commit();
 
     waitUntilAfter(table.currentSnapshot().timestampMillis());
 

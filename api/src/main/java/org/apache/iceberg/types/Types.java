@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.types;
 
+import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
@@ -40,8 +41,8 @@ public class Types {
 
   private Types() {}
 
-  private static final ImmutableMap<String, PrimitiveType> TYPES =
-      ImmutableMap.<String, PrimitiveType>builder()
+  private static final ImmutableMap<String, Type> TYPES =
+      ImmutableMap.<String, Type>builder()
           .put(BooleanType.get().toString(), BooleanType.get())
           .put(IntegerType.get().toString(), IntegerType.get())
           .put(LongType.get().toString(), LongType.get())
@@ -57,16 +58,40 @@ public class Types {
           .put(UUIDType.get().toString(), UUIDType.get())
           .put(BinaryType.get().toString(), BinaryType.get())
           .put(UnknownType.get().toString(), UnknownType.get())
+          .put(VariantType.get().toString(), VariantType.get())
+          .put(GeometryType.crs84().toString(), GeometryType.crs84())
+          .put(GeographyType.crs84().toString(), GeographyType.crs84())
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
+  private static final Pattern GEOMETRY_PARAMETERS =
+      Pattern.compile("geometry\\s*(?:\\(\\s*([^)]*?)\\s*\\))?", Pattern.CASE_INSENSITIVE);
+  private static final Pattern GEOGRAPHY_PARAMETERS =
+      Pattern.compile(
+          "geography\\s*(?:\\(\\s*([^,]*?)\\s*(?:,\\s*(\\w*)\\s*)?\\))?", Pattern.CASE_INSENSITIVE);
   private static final Pattern DECIMAL =
       Pattern.compile("decimal\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)");
 
-  public static PrimitiveType fromPrimitiveString(String typeString) {
+  public static Type fromTypeName(String typeString) {
     String lowerTypeString = typeString.toLowerCase(Locale.ROOT);
     if (TYPES.containsKey(lowerTypeString)) {
       return TYPES.get(lowerTypeString);
+    }
+
+    Matcher geometry = GEOMETRY_PARAMETERS.matcher(typeString);
+    if (geometry.matches()) {
+      String crs = geometry.group(1);
+      Preconditions.checkArgument(!crs.contains(","), "Invalid CRS: %s", crs);
+      return GeometryType.of(crs);
+    }
+
+    Matcher geography = GEOGRAPHY_PARAMETERS.matcher(typeString);
+    if (geography.matches()) {
+      String crs = geography.group(1);
+      String algorithmName = geography.group(2);
+      EdgeAlgorithm algorithm =
+          algorithmName == null ? null : EdgeAlgorithm.fromName(algorithmName);
+      return GeographyType.of(crs, algorithm);
     }
 
     Matcher fixed = FIXED.matcher(lowerTypeString);
@@ -80,6 +105,15 @@ public class Types {
     }
 
     throw new IllegalArgumentException("Cannot parse type string to primitive: " + typeString);
+  }
+
+  public static PrimitiveType fromPrimitiveString(String typeString) {
+    Type type = fromTypeName(typeString);
+    if (type.isPrimitiveType()) {
+      return type.asPrimitiveType();
+    }
+
+    throw new IllegalArgumentException("Cannot parse type string: variant is not a primitive type");
   }
 
   public static class BooleanType extends PrimitiveType {
@@ -432,6 +466,20 @@ public class Types {
     }
 
     @Override
+    public boolean isVariantType() {
+      return true;
+    }
+
+    @Override
+    public VariantType asVariantType() {
+      return this;
+    }
+
+    Object writeReplace() throws ObjectStreamException {
+      return new PrimitiveLikeHolder(toString());
+    }
+
+    @Override
     public boolean equals(Object o) {
       if (this == o) {
         return true;
@@ -520,6 +568,135 @@ public class Types {
     @Override
     public int hashCode() {
       return Objects.hash(DecimalType.class, scale, precision);
+    }
+  }
+
+  public static class GeometryType extends PrimitiveType {
+    public static final String DEFAULT_CRS = "OGC:CRS84";
+
+    public static GeometryType crs84() {
+      return new GeometryType();
+    }
+
+    public static GeometryType of(String crs) {
+      return new GeometryType(crs);
+    }
+
+    private final String crs;
+
+    private GeometryType() {
+      crs = null;
+    }
+
+    private GeometryType(String crs) {
+      Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
+      this.crs = DEFAULT_CRS.equalsIgnoreCase(crs) ? null : crs;
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.GEOMETRY;
+    }
+
+    public String crs() {
+      return crs;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      } else if (!(o instanceof GeometryType)) {
+        return false;
+      }
+
+      GeometryType that = (GeometryType) o;
+      return Objects.equals(crs, that.crs);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(GeometryType.class, crs);
+    }
+
+    @Override
+    public String toString() {
+      if (crs == null) {
+        return "geometry";
+      }
+
+      return String.format("geometry(%s)", crs);
+    }
+  }
+
+  public static class GeographyType extends PrimitiveType {
+    public static final String DEFAULT_CRS = "OGC:CRS84";
+
+    public static GeographyType crs84() {
+      return new GeographyType();
+    }
+
+    public static GeographyType of(String crs) {
+      return new GeographyType(crs, null);
+    }
+
+    public static GeographyType of(String crs, EdgeAlgorithm algorithm) {
+      return new GeographyType(crs, algorithm);
+    }
+
+    private final String crs;
+    private final EdgeAlgorithm algorithm;
+
+    private GeographyType() {
+      this.crs = null;
+      this.algorithm = null;
+    }
+
+    private GeographyType(String crs, EdgeAlgorithm algorithm) {
+      Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
+      this.crs = DEFAULT_CRS.equalsIgnoreCase(crs) ? null : crs;
+      this.algorithm = algorithm;
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.GEOGRAPHY;
+    }
+
+    public String crs() {
+      return crs;
+    }
+
+    public EdgeAlgorithm algorithm() {
+      return algorithm;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      } else if (!(o instanceof GeographyType)) {
+        return false;
+      }
+
+      GeographyType that = (GeographyType) o;
+      return Objects.equals(crs, that.crs) && Objects.equals(algorithm, that.algorithm);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(GeographyType.class, crs, algorithm);
+    }
+
+    @Override
+    public String toString() {
+      if (algorithm != null) {
+        return String.format("geography(%s, %s)", crs != null ? crs : DEFAULT_CRS, algorithm);
+      } else if (crs != null) {
+        return String.format("geography(%s)", crs);
+      } else {
+        return "geography";
+      }
     }
   }
 
@@ -692,6 +869,10 @@ public class Types {
         Literal<?> writeDefault) {
       Preconditions.checkNotNull(name, "Name cannot be null");
       Preconditions.checkNotNull(type, "Type cannot be null");
+      Preconditions.checkArgument(
+          isOptional || !type.equals(UnknownType.get()),
+          "Cannot create required field with unknown type: %s",
+          name);
       this.isOptional = isOptional;
       this.id = id;
       this.name = name;
@@ -706,7 +887,10 @@ public class Types {
         throw new IllegalArgumentException(
             String.format("Invalid default value for %s: %s (must be null)", type, defaultValue));
       } else if (defaultValue != null) {
-        return defaultValue.to(type);
+        Literal<?> typedDefault = defaultValue.to(type);
+        Preconditions.checkArgument(
+            typedDefault != null, "Cannot cast default value to %s: %s", type, defaultValue);
+        return typedDefault;
       }
 
       return null;

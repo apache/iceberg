@@ -19,7 +19,9 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -32,7 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.PlanningMode;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -40,41 +42,17 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.internal.SQLConf;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Test;
+import org.awaitility.Awaitility;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestCopyOnWriteUpdate extends TestUpdate {
-
-  public TestCopyOnWriteUpdate(
-      String catalogName,
-      String implementation,
-      Map<String, String> config,
-      String fileFormat,
-      boolean vectorized,
-      String distributionMode,
-      boolean fanoutEnabled,
-      String branch,
-      PlanningMode planningMode,
-      int formatVersion) {
-    super(
-        catalogName,
-        implementation,
-        config,
-        fileFormat,
-        vectorized,
-        distributionMode,
-        fanoutEnabled,
-        branch,
-        planningMode,
-        formatVersion);
-  }
 
   @Override
   protected Map<String, String> extraTableProperties() {
@@ -82,11 +60,11 @@ public class TestCopyOnWriteUpdate extends TestUpdate {
         TableProperties.UPDATE_MODE, RowLevelOperationMode.COPY_ON_WRITE.modeName());
   }
 
-  @Test
+  @TestTemplate
   public synchronized void testUpdateWithConcurrentTableRefresh() throws Exception {
     // this test can only be run with Hive tables as it requires a reliable lock
     // also, the table cache must be enabled so that the same table instance can be reused
-    Assume.assumeTrue(catalogName.equalsIgnoreCase("testhive"));
+    assumeThat(catalogName).isEqualToIgnoringCase("testhive");
 
     createAndInitTable("id INT, dep STRING");
 
@@ -111,9 +89,11 @@ public class TestCopyOnWriteUpdate extends TestUpdate {
         executorService.submit(
             () -> {
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                int currentNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(10, TimeUnit.MILLISECONDS)
+                    .atMost(5, TimeUnit.SECONDS)
+                    .until(() -> barrier.get() >= currentNumOperations * 2);
 
                 sql("UPDATE %s SET id = -1 WHERE id = 1", commitTarget());
 
@@ -130,9 +110,11 @@ public class TestCopyOnWriteUpdate extends TestUpdate {
               record.set(1, "hr"); // dep
 
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                int currentNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(10, TimeUnit.MILLISECONDS)
+                    .atMost(5, TimeUnit.SECONDS)
+                    .until(() -> !shouldAppend.get() || barrier.get() >= currentNumOperations * 2);
 
                 if (!shouldAppend.get()) {
                   return;
@@ -146,7 +128,6 @@ public class TestCopyOnWriteUpdate extends TestUpdate {
                   }
 
                   appendFiles.commit();
-                  sleep(10);
                 }
 
                 barrier.incrementAndGet();
@@ -165,10 +146,10 @@ public class TestCopyOnWriteUpdate extends TestUpdate {
     }
 
     executorService.shutdown();
-    Assert.assertTrue("Timeout", executorService.awaitTermination(2, TimeUnit.MINUTES));
+    assertThat(executorService.awaitTermination(2, TimeUnit.MINUTES)).as("Timeout").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testRuntimeFilteringWithReportedPartitioning() {
     createAndInitTable("id INT, dep STRING");
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
@@ -189,7 +170,7 @@ public class TestCopyOnWriteUpdate extends TestUpdate {
     withSQLConf(sqlConf, () -> sql("UPDATE %s SET id = -1 WHERE id = 2", commitTarget()));
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 3 snapshots").hasSize(3);
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     validateCopyOnWrite(currentSnapshot, "1", "1", "1");

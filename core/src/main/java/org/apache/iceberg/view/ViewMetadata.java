@@ -35,6 +35,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -462,9 +463,18 @@ public interface ViewMetadata extends Serializable {
           ViewProperties.VERSION_HISTORY_SIZE,
           historySize);
 
-      // expire old versions, but keep at least the versions added in this builder
-      int numAddedVersions = (int) changes(MetadataUpdate.AddViewVersion.class).count();
-      int numVersionsToKeep = Math.max(numAddedVersions, historySize);
+      // expire old versions, but keep at least the versions added in this builder and the current
+      // version
+      int numVersions =
+          ImmutableSet.builder()
+              .addAll(
+                  changes(MetadataUpdate.AddViewVersion.class)
+                      .map(v -> v.viewVersion().versionId())
+                      .collect(Collectors.toSet()))
+              .add(currentVersionId)
+              .build()
+              .size();
+      int numVersionsToKeep = Math.max(numVersions, historySize);
 
       List<ViewVersion> retainedVersions;
       List<ViewHistoryEntry> retainedHistory;

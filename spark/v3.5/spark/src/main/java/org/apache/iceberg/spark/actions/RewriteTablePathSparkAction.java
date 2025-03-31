@@ -239,7 +239,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   private String jobDesc() {
-    if (startVersionName != null) {
+    if (startVersionName == null) {
       return String.format(
           "Replacing path prefixes '%s' with '%s' in the metadata files of table %s,"
               + "up to version '%s'.",
@@ -691,7 +691,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             .buildPositionWriter();
       case PARQUET:
         return Parquet.writeDeletes(outputFile)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .createWriterFunc(GenericParquetWriter::create)
             .withPartition(partition)
             .rowSchema(rowSchema)
             .withSpec(spec)

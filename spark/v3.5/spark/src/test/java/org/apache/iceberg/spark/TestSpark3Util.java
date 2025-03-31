@@ -105,12 +105,13 @@ public class TestSpark3Util extends TestBase {
                 3,
                 "pairs",
                 Types.MapType.ofOptional(4, 5, Types.StringType.get(), Types.LongType.get())),
-            required(6, "time", Types.TimestampType.withoutZone()));
+            required(6, "time", Types.TimestampType.withoutZone()),
+            required(7, "v", Types.VariantType.get()));
 
     assertThat(Spark3Util.describe(schema))
         .as("Schema description isn't correct.")
         .isEqualTo(
-            "struct<data: list<string> not null,pairs: map<string, bigint>,time: timestamp not null>");
+            "struct<data: list<string> not null,pairs: map<string, bigint>,time: timestamp not null,v: variant not null>");
   }
 
   @Test

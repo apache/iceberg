@@ -566,6 +566,11 @@ public class Spark3Util {
     }
 
     @Override
+    public String variant(Types.VariantType variant) {
+      return "variant";
+    }
+
+    @Override
     public String primitive(Type.PrimitiveType primitive) {
       switch (primitive.typeId()) {
         case BOOLEAN:
@@ -856,6 +861,23 @@ public class Spark3Util {
     return CatalogV2Implicits.MultipartIdentifierHelper(
             JavaConverters.asScalaIteratorConverter(parts.iterator()).asScala().toSeq())
         .quoted();
+  }
+
+  public static org.apache.spark.sql.execution.datasources.PartitionSpec getInferredSpec(
+      SparkSession spark, Path rootPath) {
+    FileStatusCache fileStatusCache = FileStatusCache.getOrCreate(spark);
+    InMemoryFileIndex fileIndex =
+        new InMemoryFileIndex(
+            spark,
+            JavaConverters.collectionAsScalaIterableConverter(ImmutableList.of(rootPath))
+                .asScala()
+                .toSeq(),
+            scala.collection.immutable.Map$.MODULE$.empty(),
+            Option.empty(), // Pass empty so that automatic schema inference is used
+            fileStatusCache,
+            Option.empty(),
+            Option.empty());
+    return fileIndex.partitionSpec();
   }
 
   /**

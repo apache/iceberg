@@ -108,6 +108,7 @@ import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.avro.AvroWriteSupport;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
+import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.crypto.FileDecryptionProperties;
 import org.apache.parquet.crypto.FileEncryptionProperties;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -159,9 +160,10 @@ public class Parquet {
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
     private final Map<String, String> config = Maps.newLinkedHashMap();
     private Schema schema = null;
+    private VariantShreddingFunction variantShreddingFunc = null;
     private String name = "table";
     private WriteSupport<?> writeSupport = null;
-    private Function<MessageType, ParquetValueWriter<?>> createWriterFunc = null;
+    private BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc = null;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
     private WriterVersion writerVersion = WriterVersion.PARQUET_1_0;
@@ -188,6 +190,19 @@ public class Parquet {
     @Override
     public WriteBuilder schema(Schema newSchema) {
       this.schema = newSchema;
+      return this;
+    }
+
+    /**
+     * Set a {@link VariantShreddingFunction} that is called with each variant field's name and
+     * field ID to produce the shredding type as a {@code typed_value} field. This field is added to
+     * the result variant struct alongside the {@code metadata} and {@code value} fields.
+     *
+     * @param func {@link VariantShreddingFunction} that produces a shredded {@code typed_value}
+     * @return this for method chaining
+     */
+    public WriteBuilder variantShreddingFunc(VariantShreddingFunction func) {
+      this.variantShreddingFunc = func;
       return this;
     }
 
@@ -221,6 +236,14 @@ public class Parquet {
 
     public WriteBuilder createWriterFunc(
         Function<MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
+      if (newCreateWriterFunc != null) {
+        this.createWriterFunc = (icebergSchema, type) -> newCreateWriterFunc.apply(type);
+      }
+      return this;
+    }
+
+    public WriteBuilder createWriterFunc(
+        BiFunction<Schema, MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
       this.createWriterFunc = newCreateWriterFunc;
       return this;
     }
@@ -283,7 +306,7 @@ public class Parquet {
       return this;
     }
 
-    private <T> void setBloomFilterConfig(
+    private void setBloomFilterConfig(
         Context context,
         MessageType parquetSchema,
         BiConsumer<String, Boolean> withBloomFilterEnabled,
@@ -291,6 +314,7 @@ public class Parquet {
 
       Map<Integer, String> fieldIdToParquetPath =
           parquetSchema.getColumns().stream()
+              .filter(col -> col.getPrimitiveType().getId() != null)
               .collect(
                   Collectors.toMap(
                       col -> col.getPrimitiveType().getId().intValue(),
@@ -361,7 +385,7 @@ public class Parquet {
       }
 
       set("parquet.avro.write-old-list-structure", "false");
-      MessageType type = ParquetSchemaUtil.convert(schema, name);
+      MessageType type = ParquetSchemaUtil.convert(schema, name, variantShreddingFunc);
 
       FileEncryptionProperties fileEncryptionProperties = null;
       if (fileEncryptionKey != null) {
@@ -405,6 +429,7 @@ public class Parquet {
             conf,
             file,
             schema,
+            type,
             rowGroupSize,
             metadata,
             createWriterFunc,
@@ -759,6 +784,12 @@ public class Parquet {
       return this;
     }
 
+    public DataWriteBuilder createWriterFunc(
+        BiFunction<Schema, MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
+      appenderBuilder.createWriterFunc(newCreateWriterFunc);
+      return this;
+    }
+
     public DataWriteBuilder withSpec(PartitionSpec newSpec) {
       this.spec = newSpec;
       return this;
@@ -819,7 +850,7 @@ public class Parquet {
   public static class DeleteWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
-    private Function<MessageType, ParquetValueWriter<?>> createWriterFunc = null;
+    private BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc = null;
     private Schema rowSchema = null;
     private PartitionSpec spec = null;
     private StructLike partition = null;
@@ -872,6 +903,12 @@ public class Parquet {
 
     public DeleteWriteBuilder createWriterFunc(
         Function<MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
+      this.createWriterFunc = (ignored, fileSchema) -> newCreateWriterFunc.apply(fileSchema);
+      return this;
+    }
+
+    public DeleteWriteBuilder createWriterFunc(
+        BiFunction<Schema, MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
       this.createWriterFunc = newCreateWriterFunc;
       return this;
     }
@@ -982,8 +1019,8 @@ public class Parquet {
         appenderBuilder.schema(DeleteSchemaUtil.posDeleteSchema(rowSchema));
 
         appenderBuilder.createWriterFunc(
-            parquetSchema -> {
-              ParquetValueWriter<?> writer = createWriterFunc.apply(parquetSchema);
+            (schema, parquetSchema) -> {
+              ParquetValueWriter<?> writer = createWriterFunc.apply(schema, parquetSchema);
               if (writer instanceof StructWriter) {
                 return new PositionDeleteStructWriter<T>(
                     (StructWriter<?>) writer, pathTransformFunc);
@@ -999,9 +1036,9 @@ public class Parquet {
         // We ignore the 'createWriterFunc' and 'rowSchema' even if is provided, since we do not
         // write row data itself
         appenderBuilder.createWriterFunc(
-            parquetSchema ->
+            (schema, parquetSchema) ->
                 new PositionDeleteStructWriter<T>(
-                    (StructWriter<?>) GenericParquetWriter.buildWriter(parquetSchema),
+                    (StructWriter<?>) GenericParquetWriter.create(schema, parquetSchema),
                     Function.identity()));
       }
 
@@ -1251,7 +1288,7 @@ public class Parquet {
           }
           optionsBuilder = HadoopReadOptions.builder(conf);
         } else {
-          optionsBuilder = ParquetReadOptions.builder();
+          optionsBuilder = ParquetReadOptions.builder(new PlainParquetConfiguration());
         }
 
         for (Map.Entry<String, String> entry : properties.entrySet()) {
@@ -1291,7 +1328,7 @@ public class Parquet {
         } else {
           Function<MessageType, ParquetValueReader<?>> readBuilder =
               readerFuncWithSchema != null
-                  ? (fileType) -> readerFuncWithSchema.apply(schema, fileType)
+                  ? fileType -> readerFuncWithSchema.apply(schema, fileType)
                   : readerFunc;
           return new org.apache.iceberg.parquet.ParquetReader<>(
               file, schema, options, readBuilder, mapping, filter, reuseContainers, caseSensitive);
@@ -1324,7 +1361,9 @@ public class Parquet {
         // TODO: should not need to get the schema to push down before opening the file.
         // Parquet should allow setting a filter inside its read support
         ParquetReadOptions decryptOptions =
-            ParquetReadOptions.builder().withDecryption(fileDecryptionProperties).build();
+            ParquetReadOptions.builder(new PlainParquetConfiguration())
+                .withDecryption(fileDecryptionProperties)
+                .build();
         MessageType type;
         try (ParquetFileReader schemaReader =
             ParquetFileReader.open(ParquetIO.file(file), decryptOptions)) {

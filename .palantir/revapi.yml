@@ -1171,6 +1171,88 @@ acceptedBreaks:
         \ java.util.function.Function<T, java.lang.Long>, org.apache.iceberg.io.CloseableIterable<java.lang.Long>,\
         \ java.util.function.Consumer<T>)"
       justification: "Removing deprecated code"
+  "1.8.0":
+    org.apache.iceberg:iceberg-api:
+    - code: "java.class.defaultSerializationChanged"
+      old: "class org.apache.iceberg.Metrics"
+      new: "class org.apache.iceberg.Metrics"
+      justification: "Java serialization across versions is not guaranteed"
+    org.apache.iceberg:iceberg-core:
+    - code: "java.method.removed"
+      old: "method java.lang.String[] org.apache.iceberg.hadoop.Util::blockLocations(org.apache.iceberg.CombinedScanTask,\
+        \ org.apache.hadoop.conf.Configuration)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.TableMetadata org.apache.iceberg.TableMetadata::updateSchema(org.apache.iceberg.Schema,\
+        \ int)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.TableMetadata.Builder org.apache.iceberg.TableMetadata.Builder::addSchema(org.apache.iceberg.Schema,\
+        \ int)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.TableMetadata.Builder org.apache.iceberg.TableMetadata.Builder::setStatistics(long,\
+        \ org.apache.iceberg.StatisticsFile)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.UpdateStatistics org.apache.iceberg.SetStatistics::setStatistics(long,\
+        \ org.apache.iceberg.StatisticsFile)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MetadataUpdate.AddSchema::<init>(org.apache.iceberg.Schema,\
+        \ int)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.MetadataUpdate.SetStatistics::<init>(long,\
+        \ org.apache.iceberg.StatisticsFile)"
+      justification: "Removing deprecated code"
+    - code: "java.method.returnTypeChanged"
+      old: "method org.apache.iceberg.inmemory.InMemoryCatalog.InMemoryViewOperations\
+        \ org.apache.iceberg.inmemory.InMemoryCatalog::newViewOps(org.apache.iceberg.catalog.TableIdentifier)"
+      new: "method org.apache.iceberg.view.ViewOperations org.apache.iceberg.inmemory.InMemoryCatalog::newViewOps(org.apache.iceberg.catalog.TableIdentifier)"
+      justification: "Break is acceptable because class is exposed outside of its\
+        \ visibility scope"
+    - code: "java.method.returnTypeChanged"
+      old: "method org.apache.iceberg.rest.RESTSessionCatalog.RESTViewBuilder org.apache.iceberg.rest.RESTSessionCatalog::buildView(org.apache.iceberg.catalog.SessionCatalog.SessionContext,\
+        \ org.apache.iceberg.catalog.TableIdentifier)"
+      new: "method org.apache.iceberg.view.ViewBuilder org.apache.iceberg.rest.RESTSessionCatalog::buildView(org.apache.iceberg.catalog.SessionCatalog.SessionContext,\
+        \ org.apache.iceberg.catalog.TableIdentifier)"
+      justification: "Break is acceptable because class is exposed outside of its\
+        \ visibility scope"
+    org.apache.iceberg:iceberg-parquet:
+    - code: "java.class.visibilityReduced"
+      old: "class org.apache.iceberg.data.parquet.BaseParquetReaders<T extends java.lang.Object>"
+      new: "class org.apache.iceberg.data.parquet.BaseParquetReaders<T extends java.lang.Object>"
+      justification: "Changing deprecated code"
+    - code: "java.class.visibilityReduced"
+      old: "class org.apache.iceberg.data.parquet.BaseParquetWriter<T extends java.lang.Object>"
+      new: "class org.apache.iceberg.data.parquet.BaseParquetWriter<T extends java.lang.Object>"
+      justification: "Changing deprecated code"
+    - code: "java.element.noLongerDeprecated"
+      old: "class org.apache.iceberg.data.parquet.BaseParquetReaders<T extends java.lang.Object>"
+      new: "class org.apache.iceberg.data.parquet.BaseParquetReaders<T extends java.lang.Object>"
+      justification: "Changing deprecated code"
+    - code: "java.element.noLongerDeprecated"
+      old: "class org.apache.iceberg.data.parquet.BaseParquetWriter<T extends java.lang.Object>"
+      new: "class org.apache.iceberg.data.parquet.BaseParquetWriter<T extends java.lang.Object>"
+      justification: "Changing deprecated code"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.parquet.ParquetValueReader<T>::setPageSource(org.apache.parquet.column.page.PageReadStore,\
+        \ long)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.parquet.ParquetValueReaders.StructReader<T,\
+        \ I>::<init>(java.util.List<org.apache.parquet.schema.Type>, java.util.List<org.apache.iceberg.parquet.ParquetValueReader<?>>)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.parquet.VectorizedReader<T>::setRowGroupInfo(org.apache.parquet.column.page.PageReadStore,\
+        \ java.util.Map<org.apache.parquet.hadoop.metadata.ColumnPath, org.apache.parquet.hadoop.metadata.ColumnChunkMetaData>,\
+        \ long)"
+      justification: "Removing deprecated code"
+    - code: "java.method.visibilityReduced"
+      old: "method void org.apache.iceberg.data.parquet.BaseParquetWriter<T>::<init>()"
+      new: "method void org.apache.iceberg.data.parquet.BaseParquetWriter<T>::<init>()"
+      justification: "Changing deprecated code"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

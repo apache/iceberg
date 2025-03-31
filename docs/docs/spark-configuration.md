@@ -78,6 +78,7 @@ Both catalogs are configured using properties nested under the catalog name. Com
 | spark.sql.catalog._catalog-name_.table-default._propertyKey_  |                               | Default Iceberg table property value for property key _propertyKey_, which will be set on tables created by this catalog if not overridden                                                                                               |
 | spark.sql.catalog._catalog-name_.table-override._propertyKey_ |                               | Enforced Iceberg table property value for property key _propertyKey_, which cannot be overridden on table creation by user                                                                                                               |
 | spark.sql.catalog._catalog-name_.view-default._propertyKey_  |                               | Default Iceberg view property value for property key _propertyKey_, which will be set on views created by this catalog if not overridden                                                                                               |
+| spark.sql.catalog._catalog-name_.view-override._propertyKey_ |                               | Enforced Iceberg view property value for property key _propertyKey_, which cannot be overridden on view creation by user                                                                                                               |
 | spark.sql.catalog._catalog-name_.use-nullable-query-schema | `true` or `false` | Whether to preserve fields' nullability when creating the table using CTAS and RTAS. If set to `true`, all fields will be marked as nullable. If set to `false`, fields' nullability will be preserved. The default value is `true`. Available in Spark 3.5 and above.   |
 
 Additional properties can be found in common [catalog configuration](configuration.md#catalog-properties).
@@ -165,6 +166,14 @@ spark.read
 | vectorization-enabled  | As per table property | Overrides this table's read.parquet.vectorization.enabled                                          |
 | batch-size  | As per table property | Overrides this table's read.parquet.vectorization.batch-size                                          |
 | stream-from-timestamp | (none) | A timestamp in milliseconds to stream from; if before the oldest known ancestor snapshot, the oldest will be used |
+| streaming-max-files-per-micro-batch | INT_MAX | Maximum number of files per microbatch |
+| streaming-max-rows-per-micro-batch  | INT_MAX | Maximum number of rows per microbatch |
+
+!!! warning
+    streaming-max-rows-per-micro-batch should always be greater than the number of records in any data file in the table.
+    The smallest unit that will be streamed is a single file, so if a data file contains more records than this limit, the stream will get stuck at this file.
+
+
 
 ### Write options
 

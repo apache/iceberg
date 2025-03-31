@@ -27,7 +27,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTask;
@@ -57,15 +56,6 @@ public class Util {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to get file system for path: %s", path);
     }
-  }
-
-  /**
-   * @deprecated since 1.8.0, will be removed in 1.9.0; use {@link
-   *     Util#blockLocations(ScanTaskGroup, Configuration)} instead.
-   */
-  @Deprecated
-  public static String[] blockLocations(CombinedScanTask task, Configuration conf) {
-    return blockLocations((ScanTaskGroup<FileScanTask>) task, conf);
   }
 
   public static String[] blockLocations(ScanTaskGroup<FileScanTask> taskGroup, Configuration conf) {

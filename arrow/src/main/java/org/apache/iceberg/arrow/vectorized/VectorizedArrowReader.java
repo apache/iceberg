@@ -50,7 +50,7 @@ import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
-import org.apache.parquet.schema.OriginalType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
 
 /**
@@ -226,7 +226,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     PrimitiveType primitive = desc.getPrimitiveType();
     PrimitiveType.PrimitiveTypeName typeName = primitive.getPrimitiveTypeName();
     Types.NestedField physicalType = logicalType;
-    if (OriginalType.DECIMAL.equals(primitive.getOriginalType())) {
+    if (primitive.getLogicalTypeAnnotation()
+        instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
       org.apache.iceberg.types.Type type;
       if (PrimitiveType.PrimitiveTypeName.INT64.equals(typeName)) {
         // Use BigIntVector for long backed decimal
@@ -428,12 +429,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   @Override
-  public void setRowGroupInfo(
-      PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {
-    setRowGroupInfo(source, metadata);
-  }
-
-  @Override
   public void setRowGroupInfo(PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
     ColumnChunkMetaData chunkMetaData = metadata.get(ColumnPath.get(columnDescriptor.getPath()));
     this.dictionary =
@@ -473,10 +468,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
       return VectorHolder.dummyHolder(numValsToRead);
     }
-
-    @Override
-    public void setRowGroupInfo(
-        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
 
     @Override
     public void setRowGroupInfo(
@@ -547,12 +538,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setRowGroupInfo(
-        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {
-      setRowGroupInfo(source, metadata);
-    }
-
-    @Override
-    public void setRowGroupInfo(
         PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
       this.rowStart =
           source
@@ -603,10 +588,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setRowGroupInfo(
-        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
-
-    @Override
-    public void setRowGroupInfo(
         PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {}
 
     @Override
@@ -631,10 +612,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
       return VectorHolder.deletedVectorHolder(numValsToRead);
     }
-
-    @Override
-    public void setRowGroupInfo(
-        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
 
     @Override
     public void setRowGroupInfo(
