@@ -86,7 +86,7 @@ public class CommitterImpl implements Committer {
         return true;
       }
     }
-    LOG.info(
+    LOG.debug(
         "Consumer group {} is in {} state - waiting for group to stabilize",
         config.connectGroupId(),
         groupDesc.state());
