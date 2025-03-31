@@ -227,6 +227,6 @@ public class IcebergTableSource
 
   @Override
   public String asSummaryString() {
-    return "Iceberg table source";
+    return "Iceberg table source.";
   }
 }
