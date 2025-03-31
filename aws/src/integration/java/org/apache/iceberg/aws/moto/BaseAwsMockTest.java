@@ -40,6 +40,12 @@ public class BaseAwsMockTest {
   @AfterAll
   public static void afterAll() {
     MOTO_CONTAINER.stop();
+
+    // Unset dummy AWS environment variables
+    System.clearProperty("aws.accessKeyId");
+    System.clearProperty("aws.secretAccessKey");
+    System.clearProperty("aws.sessionToken");
+    System.clearProperty("aws.region");
   }
 
   public static String genRandomName() {

@@ -313,6 +313,18 @@ Here are the configurations that users can tune related to this feature:
 | s3.multipart.threshold            | 1.5                                                | the threshold expressed as a factor times the multipart size at which to switch from uploading using a single put object request to uploading using multipart upload  |
 | s3.staging-dir                    | `java.io.tmpdir` property value                    | the directory to hold temporary files  |
 
+### S3 Chunked Encoding
+
+`S3FileIO` supports [chunked transfer encoding](https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-streaming.html), which allows data to be streamed to S3 without knowing the full content length in advance.
+
+When enabled, data is broken into smaller pieces ("chunks") and each is uploaded immediately as it is generated, rather than buffering the entire content in memory or disk.
+
+This behavior is controlled by the following property:
+
+| Property                    | Default | Description                                                              |
+|-----------------------------|---------|--------------------------------------------------------------------------|
+| s3.chunked-encoding.enabled | true    | Enables chunked encoding for S3 PUT and multipart upload requests.       |
+
 ### S3 Server Side Encryption
 
 `S3FileIO` supports all 3 S3 server side encryption modes:

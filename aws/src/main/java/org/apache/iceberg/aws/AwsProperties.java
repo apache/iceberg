@@ -107,6 +107,7 @@ public class AwsProperties implements Serializable {
 
   public static final String DYNAMODB_TABLE_NAME_DEFAULT = "iceberg";
 
+  /** Configure an alternative endpoint of the KMS service to access. */
   public static final String KMS_ENDPOINT = "kms.endpoint";
 
   /**

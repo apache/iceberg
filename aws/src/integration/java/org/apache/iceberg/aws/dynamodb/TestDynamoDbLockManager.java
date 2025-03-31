@@ -136,7 +136,7 @@ public class TestDynamoDbLockManager extends BaseAwsMockTest {
                         .collect(Collectors.toList()))
             .get();
     assertThat(results)
-        .as("should have only 1 process succeeded in acquisition")
+        .as("should have only 1 process succeeded in 16 parallel acquisitions")
         .hasSize(16)
         .containsOnlyOnce(true);
   }
@@ -249,7 +249,7 @@ public class TestDynamoDbLockManager extends BaseAwsMockTest {
                         .collect(Collectors.toList()))
             .get();
     assertThat(results)
-        .as("only 1 thread should have acquired the lock")
+        .as("should have only 1 process succeeded in 16 parallel acquisitions")
         .hasSize(16)
         .containsOnlyOnce(true);
   }

@@ -290,6 +290,12 @@ public class S3FileIOProperties implements Serializable {
 
   public static final boolean CHECKSUM_ENABLED_DEFAULT = false;
 
+  /**
+   * Enable or disable chunked transfer encoding for S3 requests. Chunked encoding allows streaming
+   * data without knowing the total content length in advance
+   *
+   * <p>For more details: https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-streaming.html
+   */
   public static final String CHUNK_ENCODING_ENABLED = "s3.chunked-encoding.enabled";
 
   public static final boolean CHUNK_ENCODING_ENABLED_DEFAULT = true;
