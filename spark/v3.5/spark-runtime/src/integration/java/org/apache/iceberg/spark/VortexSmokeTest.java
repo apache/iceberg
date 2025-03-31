@@ -179,7 +179,6 @@ public class VortexSmokeTest {
   // Run some Spark SQL queries against the warehouse (using partition pruning!)
   @ParameterizedTest
   @ValueSource(strings = {"vortex", "parquet"})
-  @Test
   public void scanWarehouse(String format) {
     try (SparkSession spark = newSparkSession("scanWarehouse")) {
       spark.sql(String.format("select count(*) from %s.trips", format)).show();
