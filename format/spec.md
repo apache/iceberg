@@ -412,7 +412,7 @@ When an existing row is moved to a different data file for any reason, writers s
 2. If the write has modified the row, the `_last_updated_sequence_number` field must be set to `null` (so that the modification's sequence number replaces the current value)
 3. If the write has not modified the row, the existing non-null `_last_updated_sequence_number` value must be copied to the new data file
 
-Engines may model operations as deleting rows and inserting rows or as modifications to rows that preserve row ids.
+Engines may model operations as deleting/inserting rows or as modifications to rows that preserve row ids.
 
 ##### Row lineage example
 
@@ -457,13 +457,13 @@ The snapshot then populates the total number of `added-rows` based on the sum of
 When the new snapshot is committed, the table's `next-row-id` must also be updated (even if the new snapshot is not in the main branch). Because 225 rows were added (`added1`: 100 + `added2`: 0 + `added3`: 125), the new value is 1,000 + 225 = 1,225:
 
 
-##### Row Lineage for Non-empty, Upgraded Tables 
+##### Row Lineage for Upgraded Tables 
 
 Any snapshot without the field `first-row-id` does not have any lineage information and values for `_row_id` and `_last_updated_sequence_number` cannot be assigned accurately.  
 
-All files that were added before upgrading to v3 should propagate null for all of the `row-lineage` related
-fields. The values for `_row_id` and `_last_updated_sequence_number` should always return null and when these rows are copied, 
-null should be explicitly written. After this point, rows are treated as if they were just created 
+All files that were added before upgrading to v3 must propagate null for all row-lineage related
+fields. The values for `_row_id` and `_last_updated_sequence_number` must always return null and when these rows are copied, 
+null must be explicitly written. After this point, rows are treated as if they were just created 
 and assigned `row_id` and `_last_updated_sequence_number` as if they were new rows.
 
 
