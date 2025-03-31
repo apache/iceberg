@@ -266,7 +266,6 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     integrationImplementation libs.hadoop3.aws
     integrationImplementation libs.hadoop3.common
     integrationRuntimeOnly libs.arrow.memory.netty
-    integrationImplementation project(':iceberg-parquet')
     // ADUFFY ADDED
 
     integrationImplementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}"
