@@ -522,12 +522,6 @@ Project URL: https://github.com/aws/aws-s3-accessgrants-plugin-java-v2
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
-
-Group: software.amazon.awssdk.crt  Name: aws-crt  Version: 0.29.10
-Project URL: https://github.com/awslabs/aws-crt-java
-License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
-
---------------------------------------------------------------------------------
 Group: software.amazon.s3.analyticsaccelerator  Name: analyticsaccelerator-s3  Version: 1.0.0
 Project URL: https://github.com/awslabs/analytics-accelerator-s3
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0

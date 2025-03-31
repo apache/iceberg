@@ -26,7 +26,6 @@ project(":iceberg-aws-bundle") {
   dependencies {
     implementation platform(libs.awssdk.bom)
     implementation libs.awssdk.s3accessgrants
-    implementation libs.awssdk.crt
     implementation "software.amazon.awssdk:apache-client"
     implementation "software.amazon.awssdk:auth"
     implementation "software.amazon.awssdk:crt-core"

@@ -45,7 +45,6 @@ NOTICE for Group: software.amazon.awssdk  Name: sso  Version: 2.29.52
 NOTICE for Group: software.amazon.awssdk  Name: sts  Version: 2.29.52
 NOTICE for Group: software.amazon.awssdk  Name: utils  Version: 2.29.52
 NOTICE for Group: software.amazon.s3.accessgrants  Name: aws-s3-accessgrants-java-plugin  Version: 2.3.0
-NOTICE for Group: software.amazon.awssdk.crt  Name: aws-crt  Version: 0.29.10
 NOTICE for Group: software.amazon.s3.analyticsaccelerator  Name: analyticsaccelerator-s3  Version: 1.0.0
 
 AWS SDK for Java 2.0
