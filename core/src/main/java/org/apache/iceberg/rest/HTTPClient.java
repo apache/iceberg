@@ -330,41 +330,6 @@ public class HTTPClient extends BaseHTTPClient {
     }
   }
 
-  @VisibleForTesting
-  static HttpRequestInterceptor loadInterceptorDynamically(
-      String impl, Map<String, String> properties) {
-    HttpRequestInterceptor instance;
-
-    DynConstructors.Ctor<HttpRequestInterceptor> ctor;
-    try {
-      ctor =
-          DynConstructors.builder(HttpRequestInterceptor.class)
-              .loader(HTTPClient.class.getClassLoader())
-              .impl(impl)
-              .buildChecked();
-    } catch (NoSuchMethodException e) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Cannot initialize RequestInterceptor, missing no-arg constructor: %s", impl),
-          e);
-    }
-
-    try {
-      instance = ctor.newInstance();
-    } catch (ClassCastException e) {
-      throw new IllegalArgumentException(
-          String.format("Cannot initialize, %s does not implement RequestInterceptor", impl), e);
-    }
-
-    DynMethods.builder("initialize")
-        .hiddenImpl(impl, Map.class)
-        .orNoop()
-        .build(instance)
-        .invoke(properties);
-
-    return instance;
-  }
-
   static HttpClientConnectionManager configureConnectionManager(
       Map<String, String> properties, TlsSocketStrategy tlsSocketStrategy) {
     PoolingHttpClientConnectionManagerBuilder connectionManagerBuilder =
