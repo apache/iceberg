@@ -153,7 +153,7 @@ public class AwsClientPropertiesTest {
                 AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
                 "http://localhost:1234/v1/credentials",
                 CatalogProperties.URI,
-                "http://localhost:1234/v1/catalog", // Ensure CatalogProperties.URI is set for the vended credentials
+                "http://localhost:1234/v1/catalog",
                 OAuth2Properties.TOKEN,
                 "oauth-token"));
 
@@ -170,7 +170,7 @@ public class AwsClientPropertiesTest {
                 "credentials.uri",
                 "http://localhost:1234/v1/credentials",
                 CatalogProperties.URI,
-                "http://localhost:1234/v1/catalog", // Ensure CatalogProperties.URI is included in the vended credentials
+                "http://localhost:1234/v1/catalog",
                 OAuth2Properties.TOKEN,
                 "oauth-token"));
   }
@@ -228,9 +228,9 @@ public class AwsClientPropertiesTest {
         .isEqualTo(
             ImmutableMap.of(
                     CatalogProperties.URI,
-                "http://localhost:1234/v1", // Ensure CatalogProperties.URI is used as the base URI
+                "http://localhost:1234/v1",
                 "credentials.uri",
-                "http://localhost:1234/v1/relative/credentials/endpoint", // Ensure the relative path is resolved correctly
+                "http://localhost:1234/v1/relative/credentials/endpoint",
                 AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
                 "/relative/credentials/endpoint",
                 OAuth2Properties.TOKEN,
