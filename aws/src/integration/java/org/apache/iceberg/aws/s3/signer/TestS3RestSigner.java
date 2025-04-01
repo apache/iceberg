@@ -73,7 +73,7 @@ import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 
-@Tag("verification")
+@Tag("aws_mock")
 @Testcontainers
 public class TestS3RestSigner {
 
