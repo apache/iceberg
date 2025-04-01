@@ -1809,7 +1809,7 @@ public class TestTableMetadata {
 
     try (ManifestListWriter writer =
         ManifestLists.write(
-            1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0, 0)) {
+            1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0, 0L)) {
       writer.addAll(
           ImmutableList.of(
               new GenericManifestFile(localInput(manifestFile), SPEC_5.specId(), snapshotId)));
