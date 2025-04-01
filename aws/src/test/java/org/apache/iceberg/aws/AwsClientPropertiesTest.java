@@ -219,8 +219,12 @@ public class AwsClientPropertiesTest {
         .extracting("properties")
         .isEqualTo(
             ImmutableMap.of(
+                    CatalogProperties.URI,
+                "http://localhost:1234/v1", // Ensure CatalogProperties.URI is used as the base URI
                 "credentials.uri",
-                "http://localhost:1234/v1/relative/credentials/endpoint",
+                "http://localhost:1234/v1/relative/credentials/endpoint", // Ensure the relative path is resolved correctly
+                AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
+                "/relative/credentials/endpoint",
                 OAuth2Properties.TOKEN,
                 "oauth-token"));
   }
