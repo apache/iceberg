@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.aws;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.s3.VendedCredentialsProvider;
@@ -36,6 +34,8 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class AwsClientPropertiesTest {
 
@@ -150,6 +150,8 @@ public class AwsClientPropertiesTest {
             ImmutableMap.of(
                 AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
                 "http://localhost:1234/v1/credentials",
+                CatalogProperties.URI,
+                "http://localhost:1234/v1/catalog", // Ensure CatalogProperties.URI is set for the vended credentials
                 OAuth2Properties.TOKEN,
                 "oauth-token"));
 
@@ -161,8 +163,12 @@ public class AwsClientPropertiesTest {
         .extracting("properties")
         .isEqualTo(
             ImmutableMap.of(
+                    AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
+                "http://localhost:1234/v1/credentials",
                 "credentials.uri",
                 "http://localhost:1234/v1/credentials",
+                CatalogProperties.URI,
+                "http://localhost:1234/v1/catalog", // Ensure CatalogProperties.URI is included in the vended credentials
                 OAuth2Properties.TOKEN,
                 "oauth-token"));
   }
