@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.aws;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.s3.VendedCredentialsProvider;
@@ -34,8 +36,6 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 public class AwsClientPropertiesTest {
 
@@ -122,7 +122,7 @@ public class AwsClientPropertiesTest {
     AwsClientProperties awsClientProperties =
         new AwsClientProperties(
             ImmutableMap.of(
-                    CatalogProperties.URI,
+                CatalogProperties.URI,
                 "http://localhost:1234/v1",
                 AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
                 "http://localhost:1234/v1/credentials"));
@@ -165,7 +165,7 @@ public class AwsClientPropertiesTest {
         .extracting("properties")
         .isEqualTo(
             ImmutableMap.of(
-                    AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
+                AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
                 "http://localhost:1234/v1/credentials",
                 "credentials.uri",
                 "http://localhost:1234/v1/credentials",
@@ -177,34 +177,29 @@ public class AwsClientPropertiesTest {
 
   @Test
   public void refreshCredentialsEndpointWithOverridingOAuthToken() {
-    AwsClientProperties awsClientProperties =
-        new AwsClientProperties(
-            ImmutableMap.of(
-                    CatalogProperties.URI,
-                "http://localhost:1234/v1",
-                AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
-                "http://localhost:1234/v1/credentials",
-                OAuth2Properties.TOKEN,
-                "oauth-token",
-                "client.credentials-provider.token",
-                "specific-token"));
+    Map<String, String> properties =
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "http://localhost:1234/v1",
+            AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
+            "http://localhost:1234/v1/credentials",
+            OAuth2Properties.TOKEN,
+            "oauth-token",
+            "client.credentials-provider.token",
+            "specific-token");
+    AwsClientProperties awsClientProperties = new AwsClientProperties(properties);
+
+    Map<String, String> expectedProperties =
+        ImmutableMap.<String, String>builder()
+            .putAll(properties)
+            .put("credentials.uri", "http://localhost:1234/v1/credentials")
+            .build();
 
     AwsCredentialsProvider provider =
         awsClientProperties.credentialsProvider("key", "secret", "token");
     assertThat(provider).isInstanceOf(VendedCredentialsProvider.class);
     VendedCredentialsProvider vendedCredentialsProvider = (VendedCredentialsProvider) provider;
-    assertThat(vendedCredentialsProvider)
-        .extracting("properties")
-        .isEqualTo(
-            ImmutableMap.of(
-                    CatalogProperties.URI,
-                "http://localhost:1234/v1",
-                    AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
-                    "http://localhost:1234/v1/credentials",
-                "credentials.uri",
-                "http://localhost:1234/v1/credentials",
-                OAuth2Properties.TOKEN,
-                "specific-token"));
+    assertThat(vendedCredentialsProvider).extracting("properties").isEqualTo(expectedProperties);
   }
 
   @Test
@@ -227,7 +222,7 @@ public class AwsClientPropertiesTest {
         .extracting("properties")
         .isEqualTo(
             ImmutableMap.of(
-                    CatalogProperties.URI,
+                CatalogProperties.URI,
                 "http://localhost:1234/v1",
                 "credentials.uri",
                 "http://localhost:1234/v1/relative/credentials/endpoint",
