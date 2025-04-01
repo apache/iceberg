@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.junit.jupiter.api.TestTemplate;
@@ -763,5 +764,35 @@ public class TestSnapshotManager extends TestBase {
     assertThatThrownBy(() -> new SnapshotManager(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid input transaction: null");
+  }
+
+  @TestTemplate
+  public void testMetricsReportOfSnapshotManager() {
+    String tableName = "table-with-specify-reporter";
+    AtomicInteger reportCount = new AtomicInteger(0);
+    Table table =
+        TestTables.create(
+            tableDir,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            report -> {
+              reportCount.getAndIncrement();
+            });
+    ManageSnapshots manageSnapshots = table.manageSnapshots();
+    manageSnapshots.createBranch("branch").commit();
+    assertThat(reportCount).hasValue(1);
+
+    table.newAppend().toBranch("branch").commit();
+    assertThat(reportCount).hasValue(2);
+
+    table.refresh();
+    Snapshot branchSnapshot = table.snapshot("branch");
+    assertThat(branchSnapshot).isNotNull();
+
+    table.manageSnapshots().cherrypick(branchSnapshot.snapshotId()).commit();
+    assertThat(reportCount).hasValue(3);
   }
 }
