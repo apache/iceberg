@@ -122,6 +122,8 @@ public class AwsClientPropertiesTest {
     AwsClientProperties awsClientProperties =
         new AwsClientProperties(
             ImmutableMap.of(
+                    CatalogProperties.URI,
+                "http://localhost:1234/v1",
                 AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
                 "http://localhost:1234/v1/credentials"));
 
@@ -178,6 +180,8 @@ public class AwsClientPropertiesTest {
     AwsClientProperties awsClientProperties =
         new AwsClientProperties(
             ImmutableMap.of(
+                    CatalogProperties.URI,
+                "http://localhost:1234/v1",
                 AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
                 "http://localhost:1234/v1/credentials",
                 OAuth2Properties.TOKEN,
@@ -193,6 +197,10 @@ public class AwsClientPropertiesTest {
         .extracting("properties")
         .isEqualTo(
             ImmutableMap.of(
+                    CatalogProperties.URI,
+                "http://localhost:1234/v1",
+                    AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
+                    "http://localhost:1234/v1/credentials",
                 "credentials.uri",
                 "http://localhost:1234/v1/credentials",
                 OAuth2Properties.TOKEN,
