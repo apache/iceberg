@@ -760,9 +760,9 @@ public class TestSnapshotManager extends TestBase {
   }
 
   @TestTemplate
-  public void testMetricsReportOfSnapshotManager() {
-    String tableName = "table-with-specify-reporter";
-    AtomicInteger reportCount = new AtomicInteger(0);
+  public void testMetricsReportingInSnapshotManager() {
+    String tableName = "table-with-custom-reporter";
+    AtomicInteger reportCounter = new AtomicInteger(0);
     Table table =
         TestTables.create(
             tableDir,
@@ -772,20 +772,20 @@ public class TestSnapshotManager extends TestBase {
             SortOrder.unsorted(),
             formatVersion,
             report -> {
-              reportCount.getAndIncrement();
+              reportCounter.getAndIncrement();
             });
     ManageSnapshots manageSnapshots = table.manageSnapshots();
     manageSnapshots.createBranch("branch").commit();
-    assertThat(reportCount).hasValue(1);
+    assertThat(reportCounter).hasValue(1);
 
     table.newAppend().toBranch("branch").commit();
-    assertThat(reportCount).hasValue(2);
+    assertThat(reportCounter).hasValue(2);
 
     table.refresh();
     Snapshot branchSnapshot = table.snapshot("branch");
     assertThat(branchSnapshot).isNotNull();
 
     table.manageSnapshots().cherrypick(branchSnapshot.snapshotId()).commit();
-    assertThat(reportCount).hasValue(3);
+    assertThat(reportCounter).hasValue(3);
   }
 }
