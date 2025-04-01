@@ -458,7 +458,7 @@ License (from POM): The Apache Software License, Version 2.0 - http://www.apache
 
 --------------------------------------------------------------------------------
 
-Group: com.google.guava  Name: guava  Version: 33.4.0-jre
+Group: com.google.guava  Name: guava  Version: 33.4.6-jre
 Project URL (from manifest): https://github.com/google/guava/
 Project URL (from POM): https://github.com/google/guava
 License (from POM): Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
