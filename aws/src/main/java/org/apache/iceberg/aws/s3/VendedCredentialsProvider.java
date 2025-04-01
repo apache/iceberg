@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.rest.ErrorHandlers;
@@ -47,17 +48,23 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
   private volatile HTTPClient client;
   private final Map<String, String> properties;
   private final CachedSupplier<AwsCredentials> credentialCache;
+  private final String catalogEndpoint;
+  private final String credentialsEndpoint;
   private AuthManager authManager;
   private AuthSession authSession;
 
   private VendedCredentialsProvider(Map<String, String> properties) {
     Preconditions.checkArgument(null != properties, "Invalid properties: null");
-    Preconditions.checkArgument(null != properties.get(URI), "Invalid URI: null");
+    Preconditions.checkArgument(null != properties.get(URI), "Invalid credentials endpoint: null");
+    Preconditions.checkArgument(
+        null != properties.get(CatalogProperties.URI), "Invalid catalog endpoint: null");
     this.properties = properties;
     this.credentialCache =
         CachedSupplier.builder(() -> credentialFromProperties().orElseGet(this::refreshCredential))
             .cachedValueName(VendedCredentialsProvider.class.getName())
             .build();
+    this.catalogEndpoint = properties.get(CatalogProperties.URI);
+    this.credentialsEndpoint = properties.get(URI);
   }
 
   @Override
@@ -82,7 +89,7 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
       synchronized (this) {
         if (null == client) {
           authManager = AuthManagers.loadAuthManager("s3-credentials-refresh", properties);
-          HTTPClient httpClient = HTTPClient.builder(properties).uri(properties.get(URI)).build();
+          HTTPClient httpClient = HTTPClient.builder(properties).uri(catalogEndpoint).build();
           authSession = authManager.catalogSession(httpClient, properties);
           client = httpClient.withAuthSession(authSession);
         }
@@ -95,7 +102,7 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
   private LoadCredentialsResponse fetchCredentials() {
     return httpClient()
         .get(
-            properties.get(URI),
+            credentialsEndpoint,
             null,
             LoadCredentialsResponse.class,
             Map.of(),

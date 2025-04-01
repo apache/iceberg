@@ -25,6 +25,8 @@ import static org.mockserver.integration.ClientAndServer.startClientAndServer;
 import com.google.auth.oauth2.AccessToken;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Map;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.gcp.GCPProperties;
@@ -45,7 +47,15 @@ import org.mockserver.verify.VerificationTimes;
 
 public class OAuth2RefreshCredentialsHandlerTest {
   private static final int PORT = 3333;
-  private static final String URI = String.format("http://127.0.0.1:%d/v1/credentials", PORT);
+  private static final String CREDENTIALS_URI =
+      String.format("http://127.0.0.1:%d/v1/credentials", PORT);
+  private static final String CATALOG_URI = String.format("http://127.0.0.1:%d/v1/", PORT);
+  private static final Map<String, String> PROPERTIES =
+      ImmutableMap.of(
+          GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT,
+          CREDENTIALS_URI,
+          CatalogProperties.URI,
+          CATALOG_URI);
   private static ClientAndServer mockServer;
 
   @BeforeAll
@@ -65,18 +75,33 @@ public class OAuth2RefreshCredentialsHandlerTest {
 
   @Test
   public void invalidOrMissingUri() {
-    assertThatThrownBy(() -> OAuth2RefreshCredentialsHandler.create(ImmutableMap.of()))
+    assertThatThrownBy(
+            () ->
+                OAuth2RefreshCredentialsHandler.create(
+                    ImmutableMap.of(CatalogProperties.URI, CATALOG_URI)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid credentials endpoint: null");
 
     assertThatThrownBy(
             () ->
                 OAuth2RefreshCredentialsHandler.create(
+                    ImmutableMap.of(
+                        GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT, CREDENTIALS_URI)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid catalog endpoint: null");
+
+    assertThatThrownBy(
+            () ->
+                OAuth2RefreshCredentialsHandler.create(
                         ImmutableMap.of(
-                            GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT, "invalid uri"))
+                            GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT,
+                            "invalid uri",
+                            CatalogProperties.URI,
+                            CATALOG_URI))
                     .refreshAccessToken())
         .isInstanceOf(RESTException.class)
-        .hasMessageStartingWith("Failed to create request URI from base invalid uri");
+        .hasMessageStartingWith(
+            "Failed to create request URI from base %sinvalid uri", CATALOG_URI);
   }
 
   @Test
@@ -87,9 +112,7 @@ public class OAuth2RefreshCredentialsHandlerTest {
     HttpResponse mockResponse = HttpResponse.response().withStatusCode(400);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    OAuth2RefreshCredentialsHandler handler =
-        OAuth2RefreshCredentialsHandler.create(
-            ImmutableMap.of(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT, URI));
+    OAuth2RefreshCredentialsHandler handler = OAuth2RefreshCredentialsHandler.create(PROPERTIES);
 
     assertThatThrownBy(handler::refreshAccessToken)
         .isInstanceOf(BadRequestException.class)
@@ -108,9 +131,7 @@ public class OAuth2RefreshCredentialsHandlerTest {
             .withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    OAuth2RefreshCredentialsHandler handler =
-        OAuth2RefreshCredentialsHandler.create(
-            ImmutableMap.of(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT, URI));
+    OAuth2RefreshCredentialsHandler handler = OAuth2RefreshCredentialsHandler.create(PROPERTIES);
 
     assertThatThrownBy(handler::refreshAccessToken)
         .isInstanceOf(IllegalStateException.class)
@@ -134,9 +155,7 @@ public class OAuth2RefreshCredentialsHandlerTest {
             .withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    OAuth2RefreshCredentialsHandler handler =
-        OAuth2RefreshCredentialsHandler.create(
-            ImmutableMap.of(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT, URI));
+    OAuth2RefreshCredentialsHandler handler = OAuth2RefreshCredentialsHandler.create(PROPERTIES);
 
     assertThatThrownBy(handler::refreshAccessToken)
         .isInstanceOf(IllegalStateException.class)
@@ -160,9 +179,7 @@ public class OAuth2RefreshCredentialsHandlerTest {
             .withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    OAuth2RefreshCredentialsHandler handler =
-        OAuth2RefreshCredentialsHandler.create(
-            ImmutableMap.of(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT, URI));
+    OAuth2RefreshCredentialsHandler handler = OAuth2RefreshCredentialsHandler.create(PROPERTIES);
 
     assertThatThrownBy(handler::refreshAccessToken)
         .isInstanceOf(IllegalStateException.class)
@@ -191,9 +208,7 @@ public class OAuth2RefreshCredentialsHandlerTest {
             .withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    OAuth2RefreshCredentialsHandler handler =
-        OAuth2RefreshCredentialsHandler.create(
-            ImmutableMap.of(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT, URI));
+    OAuth2RefreshCredentialsHandler handler = OAuth2RefreshCredentialsHandler.create(PROPERTIES);
 
     AccessToken accessToken = handler.refreshAccessToken();
     assertThat(accessToken.getTokenValue())
@@ -253,9 +268,7 @@ public class OAuth2RefreshCredentialsHandlerTest {
             .withStatusCode(200);
     mockServer.when(mockRequest).respond(mockResponse);
 
-    OAuth2RefreshCredentialsHandler handler =
-        OAuth2RefreshCredentialsHandler.create(
-            ImmutableMap.of(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT, URI));
+    OAuth2RefreshCredentialsHandler handler = OAuth2RefreshCredentialsHandler.create(PROPERTIES);
 
     assertThatThrownBy(handler::refreshAccessToken)
         .isInstanceOf(IllegalStateException.class)

@@ -1038,8 +1038,8 @@ It will produce a new set of metadata in the default staging location under the 
 ```sql
 CALL catalog_name.system.rewrite_table_path(
     table => 'db.my_table', 
-    source_prefix => "hdfs://nn:8020/path/to/source_table",
-    target_prefix => "s3a://bucket/prefix/db.db/my_table"
+    source_prefix => 'hdfs://nn:8020/path/to/source_table',
+    target_prefix => 's3a://bucket/prefix/db.db/my_table'
 );
 ```
 
@@ -1049,11 +1049,11 @@ with new metadata files written to an explicit staging location.
 ```sql
 CALL catalog_name.system.rewrite_table_path(
     table => 'db.my_table', 
-    source_prefix => "s3a://bucketOne/prefix/db.db/my_table",
-    target_prefix => "s3a://bucketTwo/prefix/db.db/my_table",
-    start_version => "v2.metadata.json",
-    end_version => "v20.metadata.json",
-    staging_location => "s3a://bucketStaging/my_table"  
+    source_prefix => 's3a://bucketOne/prefix/db.db/my_table',
+    target_prefix => 's3a://bucketTwo/prefix/db.db/my_table',
+    start_version => 'v2.metadata.json',
+    end_version => 'v20.metadata.json',
+    staging_location => 's3a://bucketStaging/my_table'  
 );
 ```
 
