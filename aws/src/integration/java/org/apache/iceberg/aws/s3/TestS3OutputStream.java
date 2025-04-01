@@ -72,7 +72,7 @@ import software.amazon.awssdk.services.s3.model.Tag;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.utils.BinaryUtils;
 
-@org.junit.jupiter.api.Tag("verification")
+@org.junit.jupiter.api.Tag("aws_mock")
 @Testcontainers
 public class TestS3OutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(TestS3OutputStream.class);

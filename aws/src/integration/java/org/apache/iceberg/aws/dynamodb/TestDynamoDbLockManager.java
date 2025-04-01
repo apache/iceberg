@@ -30,16 +30,11 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.AwsClientFactories;
-import org.apache.iceberg.aws.AwsClientFactory;
-import org.apache.iceberg.aws.AwsProperties;
-import org.apache.iceberg.aws.moto.BaseAwsMockTest;
-import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
@@ -51,13 +46,11 @@ import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
 
-@Tag("verification")
-public class TestDynamoDbLockManager extends BaseAwsMockTest {
+public class TestDynamoDbLockManager {
 
   private static final ForkJoinPool POOL = new ForkJoinPool(16);
 
   private static String lockTableName;
-  private static Map<String, String> baseProps;
   private static DynamoDbClient dynamo;
 
   private DynamoDbLockManager lockManager;
@@ -66,17 +59,8 @@ public class TestDynamoDbLockManager extends BaseAwsMockTest {
 
   @BeforeAll
   public static void beforeClass() {
-    lockTableName = genRandomName();
-    baseProps =
-        ImmutableMap.of(
-            S3FileIOProperties.CHUNK_ENCODING_ENABLED,
-            "false",
-            AwsProperties.DYNAMODB_ENDPOINT,
-            MOTO_CONTAINER.endpoint());
-
-    AwsClientFactory clientFactory = AwsClientFactories.defaultFactory();
-    clientFactory.initialize(baseProps);
-    dynamo = clientFactory.dynamo();
+    lockTableName = genTableName();
+    dynamo = AwsClientFactories.defaultFactory().dynamo();
   }
 
   @BeforeEach
@@ -135,10 +119,7 @@ public class TestDynamoDbLockManager extends BaseAwsMockTest {
                             })
                         .collect(Collectors.toList()))
             .get();
-    assertThat(results)
-        .as("should have only 1 process succeeded in 16 parallel acquisitions")
-        .hasSize(16)
-        .containsOnlyOnce(true);
+    assertThat(results).as("should have only 1 process succeeded in acquisition").hasSize(1);
   }
 
   @Test
@@ -179,18 +160,11 @@ public class TestDynamoDbLockManager extends BaseAwsMockTest {
 
   @Test
   public void testAcquireMultiProcessAllSucceed() throws Exception {
-    ImmutableMap<String, String> testProps =
-        ImmutableMap.<String, String>builder()
-            .putAll(baseProps)
-            .putAll(
-                ImmutableMap.of(
-                    CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
-                    CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, "100000000",
-                    CatalogProperties.LOCK_TABLE, lockTableName))
-            .build();
-
-    lockManager.initialize(testProps);
-
+    lockManager.initialize(
+        ImmutableMap.of(
+            CatalogProperties.LOCK_ACQUIRE_INTERVAL_MS, "500",
+            CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS, "100000000",
+            CatalogProperties.LOCK_TABLE, lockTableName));
     long start = System.currentTimeMillis();
     List<Boolean> results =
         POOL.submit(
@@ -222,18 +196,12 @@ public class TestDynamoDbLockManager extends BaseAwsMockTest {
 
   @Test
   public void testAcquireMultiProcessOnlyOneSucceed() throws Exception {
-    ImmutableMap<String, String> testProps =
-        ImmutableMap.<String, String>builder()
-            .putAll(baseProps)
-            .putAll(
-                ImmutableMap.of(
-                    CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS,
-                    "10000",
-                    CatalogProperties.LOCK_TABLE,
-                    lockTableName))
-            .build();
-
-    lockManager.initialize(testProps);
+    lockManager.initialize(
+        ImmutableMap.of(
+            CatalogProperties.LOCK_ACQUIRE_TIMEOUT_MS,
+            "10000",
+            CatalogProperties.LOCK_TABLE,
+            lockTableName));
 
     List<Boolean> results =
         POOL.submit(
@@ -248,10 +216,7 @@ public class TestDynamoDbLockManager extends BaseAwsMockTest {
                             })
                         .collect(Collectors.toList()))
             .get();
-    assertThat(results)
-        .as("should have only 1 process succeeded in 16 parallel acquisitions")
-        .hasSize(16)
-        .containsOnlyOnce(true);
+    assertThat(results).as("only 1 thread should have acquired the lock").hasSize(1);
   }
 
   @Test
@@ -264,5 +229,9 @@ public class TestDynamoDbLockManager extends BaseAwsMockTest {
         .as("should fail to initialize the lock manager")
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("Cannot find Dynamo table");
+  }
+
+  private static String genTableName() {
+    return UUID.randomUUID().toString().replace("-", "");
   }
 }

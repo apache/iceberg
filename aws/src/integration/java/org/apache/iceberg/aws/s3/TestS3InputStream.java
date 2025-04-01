@@ -40,7 +40,7 @@ import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
-@Tag("verification")
+@Tag("aws_mock")
 @Testcontainers
 public class TestS3InputStream {
   @Container private static final MinIOContainer MINIO = MinioUtil.createContainer();

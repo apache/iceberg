@@ -526,7 +526,7 @@ project(':iceberg-aws') {
 
   task verificationIntegrationTest(type: Test) {
     useJUnitPlatform {
-      includeTags 'verification'
+      includeTags 'aws_mock'
     }
 
     testClassesDirs = sourceSets.integration.output.classesDirs
