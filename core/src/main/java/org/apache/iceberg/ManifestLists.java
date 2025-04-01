@@ -53,7 +53,7 @@ class ManifestLists {
       long snapshotId,
       Long parentSnapshotId,
       long sequenceNumber,
-      long firstRowId) {
+      Long firstRowId) {
     switch (formatVersion) {
       case 1:
         Preconditions.checkArgument(

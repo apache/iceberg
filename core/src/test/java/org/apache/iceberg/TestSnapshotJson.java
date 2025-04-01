@@ -230,7 +230,7 @@ public class TestSnapshotJson {
 
     try (ManifestListWriter writer =
         ManifestLists.write(
-            1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0, 0)) {
+            1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0, 0L)) {
       writer.addAll(manifests);
     }
 
