@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.stats.ContentStats;
 
 /**
  * Superinterface of {@link DataFile} and {@link DeleteFile} that exposes common methods.
@@ -98,6 +99,11 @@ public interface ContentFile<F> {
 
   /** Returns if collected, map from column ID to value upper bounds, null otherwise. */
   Map<Integer, ByteBuffer> upperBounds();
+
+  default ContentStats contentStats() {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not support content stats");
+  }
 
   /**
    * Returns metadata about how this file is encrypted, or null if the file is stored in plain text.

@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -35,6 +34,9 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.stats.BaseContentStats;
+import org.apache.iceberg.stats.BaseFieldStats;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.jupiter.api.Test;
@@ -56,9 +58,28 @@ public class TestDeleteFiles extends TestBase {
                   ImmutableMap.of(1, 5L, 2, 5L), // value count
                   ImmutableMap.of(1, 0L, 2, 0L), // null count
                   null, // no nan value counts
-                  ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
-                  ImmutableMap.of(1, longToBuffer(2L)) // upper bounds
+                  ImmutableMap.of(1, intToBuffer(0)), // lower bounds
+                  ImmutableMap.of(1, intToBuffer(2)) // upper bounds
                   ))
+          .withContentStats(
+              BaseContentStats.builder()
+                  .withFieldStats(
+                      BaseFieldStats.builder()
+                          .fieldId(1)
+                          .type(Types.IntegerType.get())
+                          .valueCount(5L)
+                          .nullValueCount(0L)
+                          .lowerBound(0)
+                          .upperBound(2)
+                          .build())
+                  .withFieldStats(
+                      BaseFieldStats.builder()
+                          .fieldId(2)
+                          .type(Types.IntegerType.get())
+                          .valueCount(5L)
+                          .nullValueCount(0L)
+                          .build())
+                  .build())
           .build();
 
   private static final DataFile DATA_FILE_BUCKET_0_IDS_8_10 =
@@ -73,9 +94,28 @@ public class TestDeleteFiles extends TestBase {
                   ImmutableMap.of(1, 5L, 2, 5L), // value count
                   ImmutableMap.of(1, 0L, 2, 0L), // null count
                   null, // no nan value counts
-                  ImmutableMap.of(1, longToBuffer(8L)), // lower bounds
-                  ImmutableMap.of(1, longToBuffer(10L)) // upper bounds
+                  ImmutableMap.of(1, intToBuffer(8)), // lower bounds
+                  ImmutableMap.of(1, intToBuffer(10)) // upper bounds
                   ))
+          .withContentStats(
+              BaseContentStats.builder()
+                  .withFieldStats(
+                      BaseFieldStats.builder()
+                          .fieldId(1)
+                          .type(Types.IntegerType.get())
+                          .valueCount(5L)
+                          .nullValueCount(0L)
+                          .lowerBound(8)
+                          .upperBound(10)
+                          .build())
+                  .withFieldStats(
+                      BaseFieldStats.builder()
+                          .fieldId(2)
+                          .type(Types.IntegerType.get())
+                          .valueCount(5L)
+                          .nullValueCount(0L)
+                          .build())
+                  .build())
           .build();
 
   @Parameter(index = 1)
@@ -133,8 +173,8 @@ public class TestDeleteFiles extends TestBase {
                     ImmutableMap.of(1, 5L, 2, 5L), // value count
                     ImmutableMap.of(1, 0L, 2, 0L), // null count
                     null, // no nan value counts
-                    ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
-                    ImmutableMap.of(1, longToBuffer(10L)) // upper bounds
+                    ImmutableMap.of(1, intToBuffer(0)), // lower bounds
+                    ImmutableMap.of(1, intToBuffer(10)) // upper bounds
                     ))
             .build();
 
@@ -150,8 +190,8 @@ public class TestDeleteFiles extends TestBase {
                     ImmutableMap.of(1, 5L, 2, 5L), // value count
                     ImmutableMap.of(1, 0L, 2, 0L), // null count
                     null, // no nan value counts
-                    ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
-                    ImmutableMap.of(1, longToBuffer(4L)) // upper bounds
+                    ImmutableMap.of(1, intToBuffer(0)), // lower bounds
+                    ImmutableMap.of(1, intToBuffer(4)) // upper bounds
                     ))
             .build();
 
@@ -559,7 +599,7 @@ public class TestDeleteFiles extends TestBase {
         statuses(ManifestEntry.Status.DELETED, ManifestEntry.Status.EXISTING));
   }
 
-  private static ByteBuffer longToBuffer(long value) {
-    return ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(0, value);
+  private static ByteBuffer intToBuffer(int value) {
+    return Conversions.toByteBuffer(Types.IntegerType.get(), value);
   }
 }

@@ -99,8 +99,8 @@ public class TestAllManifestsTableTaskParser {
   private String taskJson() {
     return "{\"task-type\":\"all-manifests-table-task\","
         + "\"data-table-schema\":{\"type\":\"struct\",\"schema-id\":0,"
-        + "\"fields\":[{\"id\":3,\"name\":\"id\",\"required\":true,\"type\":\"int\"},"
-        + "{\"id\":4,\"name\":\"data\",\"required\":true,\"type\":\"string\"}]},"
+        + "\"fields\":[{\"id\":1,\"name\":\"id\",\"required\":true,\"type\":\"int\"},"
+        + "{\"id\":2,\"name\":\"data\",\"required\":true,\"type\":\"string\"}]},"
         + "\"file-io\":{\"io-impl\":\"org.apache.iceberg.hadoop.HadoopFileIO\","
         + "\"properties\":{\"k1\":\"v1\",\"k2\":\"v2\"}},"
         + "\"schema\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":[{"
@@ -123,7 +123,7 @@ public class TestAllManifestsTableTaskParser {
         + "{\"id\":13,\"name\":\"upper_bound\",\"required\":false,\"type\":\"string\"}]},\"element-required\":true}},"
         + "{\"id\":18,\"name\":\"reference_snapshot_id\",\"required\":true,\"type\":\"long\"}]},"
         + "\"partition-specs\":[{\"spec-id\":0,\"fields\":[{\"name\":\"data_bucket\","
-        + "\"transform\":\"bucket[16]\",\"source-id\":4,\"field-id\":1000}]}],"
+        + "\"transform\":\"bucket[16]\",\"source-id\":2,\"field-id\":1000}]}],"
         + "\"manifest-list-Location\":\"/path/manifest-list-file.avro\","
         + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1},"
         + "\"reference-snapshot-id\":1}";

@@ -20,6 +20,7 @@ package org.apache.iceberg.stats;
 
 import java.io.Serializable;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -28,15 +29,18 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 public class BaseContentStats implements ContentStats, StructLike, Serializable {
 
   private final List<FieldStats> fieldStats;
+  private final Map<Integer, FieldStats> fieldStatsById;
 
   public BaseContentStats(Types.StructType projection) {
     this.fieldStats = Lists.newArrayListWithCapacity(projection.fields().size());
+    this.fieldStatsById = Maps.newLinkedHashMapWithExpectedSize(projection.fields().size());
     for (int i = 0; i < projection.fields().size(); i++) {
       Types.NestedField field = projection.fields().get(i);
       Preconditions.checkArgument(
@@ -58,11 +62,23 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
 
   private BaseContentStats(List<FieldStats> fieldStats) {
     this.fieldStats = Lists.newArrayList(fieldStats);
+    this.fieldStatsById = Maps.newLinkedHashMapWithExpectedSize(fieldStats.size());
   }
 
   @Override
   public List<FieldStats> fieldStats() {
     return fieldStats;
+  }
+
+  @Override
+  public FieldStats statsFor(int columnId) {
+    if (fieldStatsById.isEmpty() && !fieldStats.isEmpty()) {
+      fieldStats.stream()
+          .filter(Objects::nonNull)
+          .forEach(stat -> fieldStatsById.put(stat.fieldId(), stat));
+    }
+
+    return fieldStatsById.get(columnId);
   }
 
   @Override
@@ -118,6 +134,7 @@ public class BaseContentStats implements ContentStats, StructLike, Serializable 
 
       BaseFieldStats newStat = builder.build();
       fieldStats.set(pos, newStat);
+      fieldStatsById.put(newStat.fieldId(), newStat);
     } else {
       fieldStats.set(pos, (FieldStats) value);
     }

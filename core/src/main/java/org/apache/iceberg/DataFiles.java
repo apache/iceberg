@@ -28,6 +28,8 @@ import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.stats.BaseContentStats;
+import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.ByteBuffers;
@@ -153,6 +155,7 @@ public class DataFiles {
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
     private Map<Integer, Type> originalTypes = null;
+    private ContentStats contentStats = null;
     private ByteBuffer keyMetadata = null;
     private List<Long> splitOffsets = null;
     private Integer sortOrderId = SortOrder.unsorted().orderId();
@@ -179,6 +182,7 @@ public class DataFiles {
       this.nanValueCounts = null;
       this.lowerBounds = null;
       this.upperBounds = null;
+      this.contentStats = null;
       this.splitOffsets = null;
       this.sortOrderId = SortOrder.unsorted().orderId();
       this.firstRowId = null;
@@ -200,6 +204,7 @@ public class DataFiles {
       this.nanValueCounts = toCopy.nanValueCounts();
       this.lowerBounds = toCopy.lowerBounds();
       this.upperBounds = toCopy.upperBounds();
+      this.contentStats = toCopy.contentStats();
       this.keyMetadata =
           toCopy.keyMetadata() == null ? null : ByteBuffers.copy(toCopy.keyMetadata());
       this.splitOffsets =
@@ -283,6 +288,15 @@ public class DataFiles {
       return this;
     }
 
+    public Builder withContentStats(ContentStats newColumnStats) {
+      this.contentStats = BaseContentStats.buildFrom(newColumnStats).build();
+      return this;
+    }
+
+    /**
+     * @deprecated since 1.10.0; use {@link Builder#withContentStats(ContentStats)} instead.
+     */
+    @Deprecated
     public Builder withMetrics(Metrics metrics) {
       // check for null to avoid NPE when unboxing
       this.recordCount = metrics.recordCount() == null ? -1 : metrics.recordCount();
@@ -350,6 +364,7 @@ public class DataFiles {
               lowerBounds,
               upperBounds,
               originalTypes),
+          contentStats,
           keyMetadata,
           splitOffsets,
           sortOrderId,

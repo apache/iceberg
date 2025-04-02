@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -40,6 +39,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.stats.BaseContentStats;
+import org.apache.iceberg.stats.BaseFieldStats;
+import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -52,7 +54,7 @@ public class TestManifestWriterVersions {
 
   private static final Schema SCHEMA =
       new Schema(
-          required(1, "id", Types.LongType.get()),
+          required(1, "id", Types.IntegerType.get()),
           required(2, "timestamp", Types.TimestampType.withZone()),
           required(3, "category", Types.StringType.get()),
           required(4, "data", Types.StringType.get()),
@@ -81,13 +83,70 @@ public class TestManifestWriterVersions {
           ImmutableMap.of(5, 10L), // nan value counts
           ImmutableMap.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)), // lower bounds
           ImmutableMap.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1))); // upper bounds
+  private static final ContentStats CONTENT_STATS =
+      BaseContentStats.builder()
+          .withFieldStats(
+              BaseFieldStats.builder()
+                  .fieldId(1)
+                  .type(Types.IntegerType.get())
+                  .columnSize(15L)
+                  .valueCount(100L)
+                  .nullValueCount(0L)
+                  .lowerBound(1)
+                  .upperBound(1)
+                  .build())
+          .withFieldStats(
+              BaseFieldStats.builder()
+                  .fieldId(2)
+                  .type(Types.TimestampType.withZone())
+                  .columnSize(122L)
+                  .valueCount(100L)
+                  .nullValueCount(0L)
+                  .build())
+          .withFieldStats(
+              BaseFieldStats.builder()
+                  .fieldId(3)
+                  .type(Types.StringType.get())
+                  .columnSize(4021L)
+                  .valueCount(100L)
+                  .nullValueCount(0L)
+                  .build())
+          .withFieldStats(
+              BaseFieldStats.builder()
+                  .fieldId(4)
+                  .type(Types.StringType.get())
+                  .columnSize(9411L)
+                  .valueCount(100L)
+                  .nullValueCount(0L)
+                  .build())
+          .withFieldStats(
+              BaseFieldStats.builder()
+                  .fieldId(5)
+                  .type(Types.DoubleType.get())
+                  .columnSize(15L)
+                  .valueCount(100L)
+                  .nullValueCount(0L)
+                  .nanValueCount(10L)
+                  .build())
+          .build();
+
   private static final List<Long> OFFSETS = ImmutableList.of(4L);
   private static final Integer SORT_ORDER_ID = 2;
   private static final long FIRST_ROW_ID = 100L;
 
   private static final DataFile DATA_FILE =
       new GenericDataFile(
-          0, PATH, FORMAT, PARTITION, 150972L, METRICS, null, OFFSETS, SORT_ORDER_ID, FIRST_ROW_ID);
+          0,
+          PATH,
+          FORMAT,
+          PARTITION,
+          150972L,
+          METRICS,
+          CONTENT_STATS,
+          null,
+          OFFSETS,
+          SORT_ORDER_ID,
+          FIRST_ROW_ID);
 
   private static final List<Integer> EQUALITY_IDS = ImmutableList.of(1);
   private static final int[] EQUALITY_ID_ARR = new int[] {1};
@@ -101,6 +160,7 @@ public class TestManifestWriterVersions {
           PARTITION,
           22905L,
           METRICS,
+          CONTENT_STATS,
           EQUALITY_ID_ARR,
           SORT_ORDER_ID,
           null,
@@ -161,10 +221,8 @@ public class TestManifestWriterVersions {
   }
 
   @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @FieldSource("org.apache.iceberg.TestHelpers#V2_AND_ABOVE")
   public void testV2PlusWriteDelete(int formatVersion) throws IOException {
-    assumeThat(formatVersion).isNotEqualTo(1);
-
     ManifestFile manifest = writeDeleteManifest(formatVersion);
     checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
     assertThat(manifest.content()).isEqualTo(ManifestContent.DELETES);
@@ -176,10 +234,8 @@ public class TestManifestWriterVersions {
   }
 
   @ParameterizedTest
-  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  @FieldSource("org.apache.iceberg.TestHelpers#V2_AND_ABOVE")
   public void testV2WriteDeleteWithInheritance(int formatVersion) throws IOException {
-    assumeThat(formatVersion).isNotEqualTo(1);
-
     ManifestFile manifest =
         writeAndReadManifestList(writeDeleteManifest(formatVersion), formatVersion);
     checkManifest(manifest, SEQUENCE_NUMBER);
@@ -309,6 +365,54 @@ public class TestManifestWriterVersions {
     checkRewrittenEntry(readManifest(manifest3), 0L, FileContent.DATA, FIRST_ROW_ID);
   }
 
+  @Test
+  public void testV4WriteWithMetricsAndColumnStats() throws IOException {
+    ManifestFile manifest = writeManifest(4);
+    ManifestEntry<DataFile> entry = readManifest(manifest);
+    checkEntry(
+        entry,
+        ManifestWriter.UNASSIGNED_SEQ,
+        ManifestWriter.UNASSIGNED_SEQ,
+        FileContent.DATA,
+        FIRST_ROW_ID,
+        METRICS);
+    assertThat(entry.file().contentStats()).isNotNull().isEqualTo(CONTENT_STATS);
+  }
+
+  @Test
+  public void testV4Write() throws IOException {
+    ManifestFile manifest =
+        writeManifest(
+            4,
+            new GenericDataFile(
+                0,
+                PATH,
+                FORMAT,
+                PARTITION,
+                150972L,
+                null,
+                CONTENT_STATS,
+                null,
+                OFFSETS,
+                SORT_ORDER_ID,
+                FIRST_ROW_ID));
+    ManifestEntry<DataFile> entry = readManifest(manifest);
+    checkEntry(
+        entry,
+        ManifestWriter.UNASSIGNED_SEQ,
+        ManifestWriter.UNASSIGNED_SEQ,
+        FileContent.DATA,
+        FIRST_ROW_ID,
+        null);
+    assertThat(entry.file().contentStats()).isNotNull().isEqualTo(CONTENT_STATS);
+    assertThat(entry.file().valueCounts()).isNull();
+    assertThat(entry.file().columnSizes()).isNull();
+    assertThat(entry.file().nullValueCounts()).isNull();
+    assertThat(entry.file().nanValueCounts()).isNull();
+    assertThat(entry.file().lowerBounds()).isNull();
+    assertThat(entry.file().upperBounds()).isNull();
+  }
+
   void checkEntry(
       ManifestEntry<?> entry,
       Long expectedDataSequenceNumber,
@@ -323,11 +427,27 @@ public class TestManifestWriterVersions {
       Long expectedFileSequenceNumber,
       FileContent content,
       Long expectedRowId) {
+    checkEntry(
+        entry,
+        expectedDataSequenceNumber,
+        expectedFileSequenceNumber,
+        content,
+        expectedRowId,
+        METRICS);
+  }
+
+  void checkEntry(
+      ManifestEntry<?> entry,
+      Long expectedDataSequenceNumber,
+      Long expectedFileSequenceNumber,
+      FileContent content,
+      Long expectedRowId,
+      Metrics expectedMetrics) {
     assertThat(entry.status()).isEqualTo(ManifestEntry.Status.ADDED);
     assertThat(entry.snapshotId()).isEqualTo(SNAPSHOT_ID);
     assertThat(entry.dataSequenceNumber()).isEqualTo(expectedDataSequenceNumber);
     assertThat(entry.fileSequenceNumber()).isEqualTo(expectedFileSequenceNumber);
-    checkDataFile(entry.file(), content, expectedRowId);
+    checkDataFile(entry.file(), content, expectedRowId, expectedMetrics);
   }
 
   void checkRewrittenEntry(
@@ -347,18 +467,33 @@ public class TestManifestWriterVersions {
   }
 
   void checkDataFile(ContentFile<?> dataFile, FileContent content, Long expectedRowId) {
+    checkDataFile(dataFile, content, expectedRowId, METRICS);
+  }
+
+  void checkDataFile(
+      ContentFile<?> dataFile, FileContent content, Long expectedRowId, Metrics expectedMetrics) {
     // DataFile is the superclass of DeleteFile, so this method can check both
     assertThat(dataFile.content()).isEqualTo(content);
     assertThat(dataFile.location()).isEqualTo(PATH);
     assertThat(dataFile.format()).isEqualTo(FORMAT);
     assertThat(dataFile.partition()).isEqualTo(PARTITION);
-    assertThat(dataFile.recordCount()).isEqualTo(METRICS.recordCount());
-    assertThat(dataFile.columnSizes()).isEqualTo(METRICS.columnSizes());
-    assertThat(dataFile.valueCounts()).isEqualTo(METRICS.valueCounts());
-    assertThat(dataFile.nullValueCounts()).isEqualTo(METRICS.nullValueCounts());
-    assertThat(dataFile.nanValueCounts()).isEqualTo(METRICS.nanValueCounts());
-    assertThat(dataFile.lowerBounds()).isEqualTo(METRICS.lowerBounds());
-    assertThat(dataFile.upperBounds()).isEqualTo(METRICS.upperBounds());
+    if (null == expectedMetrics) {
+      assertThat(dataFile.recordCount()).isEqualTo(-1L);
+      assertThat(dataFile.columnSizes()).isNull();
+      assertThat(dataFile.valueCounts()).isNull();
+      assertThat(dataFile.nullValueCounts()).isNull();
+      assertThat(dataFile.nanValueCounts()).isNull();
+      assertThat(dataFile.lowerBounds()).isNull();
+      assertThat(dataFile.upperBounds()).isNull();
+    } else {
+      assertThat(dataFile.recordCount()).isEqualTo(METRICS.recordCount());
+      assertThat(dataFile.columnSizes()).isEqualTo(METRICS.columnSizes());
+      assertThat(dataFile.valueCounts()).isEqualTo(METRICS.valueCounts());
+      assertThat(dataFile.nullValueCounts()).isEqualTo(METRICS.nullValueCounts());
+      assertThat(dataFile.nanValueCounts()).isEqualTo(METRICS.nanValueCounts());
+      assertThat(dataFile.lowerBounds()).isEqualTo(METRICS.lowerBounds());
+      assertThat(dataFile.upperBounds()).isEqualTo(METRICS.upperBounds());
+    }
     assertThat(dataFile.sortOrderId()).isEqualTo(SORT_ORDER_ID);
     switch (dataFile.content()) {
       case DATA:

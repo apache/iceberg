@@ -32,6 +32,8 @@ import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.stats.BaseContentStats;
+import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
@@ -76,6 +78,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   private Map<Integer, Long> nanValueCounts = null;
   private Map<Integer, ByteBuffer> lowerBounds = null;
   private Map<Integer, ByteBuffer> upperBounds = null;
+  private ContentStats stats = null;
   private long[] splitOffsets = null;
   private int[] equalityIds = null;
   private byte[] keyMetadata = null;
@@ -116,7 +119,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
           DataFile.REFERENCED_DATA_FILE,
           DataFile.CONTENT_OFFSET,
           DataFile.CONTENT_SIZE,
-          MetadataColumns.ROW_POSITION);
+          MetadataColumns.ROW_POSITION,
+          DataFile.CONTENT_STATS);
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   BaseFile(Schema avroSchema) {
@@ -161,7 +165,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       Long firstRowId,
       String referencedDataFile,
       Long contentOffset,
-      Long contentSizeInBytes) {
+      Long contentSizeInBytes,
+      ContentStats stats) {
     super(BASE_TYPE.fields().size());
     this.partitionSpecId = specId;
     this.content = content;
@@ -194,6 +199,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.referencedDataFile = referencedDataFile;
     this.contentOffset = contentOffset;
     this.contentSizeInBytes = contentSizeInBytes;
+    this.stats = stats;
   }
 
   /**
@@ -223,6 +229,10 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       this.nanValueCounts = copyMap(toCopy.nanValueCounts, requestedColumnIds);
       this.lowerBounds = copyByteBufferMap(toCopy.lowerBounds, requestedColumnIds);
       this.upperBounds = copyByteBufferMap(toCopy.upperBounds, requestedColumnIds);
+      this.stats =
+          null != toCopy.stats && !toCopy.stats.fieldStats().isEmpty()
+              ? BaseContentStats.buildFrom(toCopy.stats, requestedColumnIds).build()
+              : toCopy.stats;
     } else {
       this.columnSizes = null;
       this.valueCounts = null;
@@ -230,6 +240,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       this.nanValueCounts = null;
       this.lowerBounds = null;
       this.upperBounds = null;
+      this.stats = null;
     }
     this.keyMetadata =
         toCopy.keyMetadata == null
@@ -382,6 +393,9 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       case 21:
         this.fileOrdinal = (long) value;
         return;
+      case 22:
+        this.stats = (BaseContentStats) value;
+        return;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -438,6 +452,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         return contentSizeInBytes;
       case 21:
         return fileOrdinal;
+      case 22:
+        return stats;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + basePos);
     }
@@ -521,6 +537,11 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   @Override
   public Map<Integer, ByteBuffer> upperBounds() {
     return toReadableByteBufferMap(upperBounds);
+  }
+
+  @Override
+  public ContentStats contentStats() {
+    return stats;
   }
 
   @Override
@@ -630,6 +651,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         .add("referenced_data_file", referencedDataFile == null ? "null" : referencedDataFile)
         .add("content_offset", contentOffset == null ? "null" : contentOffset)
         .add("content_size_in_bytes", contentSizeInBytes == null ? "null" : contentSizeInBytes)
+        .add("content_stats", stats)
         .toString();
   }
 }

@@ -24,6 +24,7 @@ import java.util.Set;
 import org.apache.avro.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.types.Types;
 
 class GenericDataFile extends BaseFile<DataFile> implements DataFile {
@@ -44,6 +45,7 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
       PartitionData partition,
       long fileSizeInBytes,
       Metrics metrics,
+      ContentStats stats,
       ByteBuffer keyMetadata,
       List<Long> splitOffsets,
       Integer sortOrderId,
@@ -55,13 +57,13 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
         format,
         partition,
         fileSizeInBytes,
-        metrics.recordCount(),
-        metrics.columnSizes(),
-        metrics.valueCounts(),
-        metrics.nullValueCounts(),
-        metrics.nanValueCounts(),
-        metrics.lowerBounds(),
-        metrics.upperBounds(),
+        null != metrics ? metrics.recordCount() : -1L,
+        null != metrics ? metrics.columnSizes() : null,
+        null != metrics ? metrics.valueCounts() : null,
+        null != metrics ? metrics.nullValueCounts() : null,
+        null != metrics ? metrics.nanValueCounts() : null,
+        null != metrics ? metrics.lowerBounds() : null,
+        null != metrics ? metrics.upperBounds() : null,
         splitOffsets,
         null /* no equality field IDs */,
         sortOrderId,
@@ -69,7 +71,8 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
         firstRowId,
         null /* no referenced data file */,
         null /* no content offset */,
-        null /* no content size */);
+        null, /* no content size */
+        stats);
   }
 
   /**

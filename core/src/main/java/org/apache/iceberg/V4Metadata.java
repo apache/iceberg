@@ -23,6 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.stats.StatsUtil;
 import org.apache.iceberg.types.Types;
 
 class V4Metadata {
@@ -263,8 +264,8 @@ class V4Metadata {
     }
   }
 
-  static Schema entrySchema(Types.StructType partitionType) {
-    return wrapFileSchema(fileType(partitionType));
+  static Schema entrySchema(PartitionSpec spec) {
+    return wrapFileSchema(fileType(spec));
   }
 
   static Schema wrapFileSchema(Types.StructType fileSchema) {
@@ -277,13 +278,16 @@ class V4Metadata {
         required(ManifestEntry.DATA_FILE_ID, "data_file", fileSchema));
   }
 
-  static Types.StructType fileType(Types.StructType partitionType) {
+  static Types.StructType fileType(PartitionSpec spec) {
     return Types.StructType.of(
         DataFile.CONTENT.asRequired(),
         DataFile.FILE_PATH,
         DataFile.FILE_FORMAT,
         required(
-            DataFile.PARTITION_ID, DataFile.PARTITION_NAME, partitionType, DataFile.PARTITION_DOC),
+            DataFile.PARTITION_ID,
+            DataFile.PARTITION_NAME,
+            spec.partitionType(),
+            DataFile.PARTITION_DOC),
         DataFile.RECORD_COUNT,
         DataFile.FILE_SIZE,
         DataFile.COLUMN_SIZES,
@@ -299,7 +303,8 @@ class V4Metadata {
         DataFile.FIRST_ROW_ID,
         DataFile.REFERENCED_DATA_FILE,
         DataFile.CONTENT_OFFSET,
-        DataFile.CONTENT_SIZE);
+        DataFile.CONTENT_SIZE,
+        StatsUtil.contentStatsFor(spec.schema()));
   }
 
   static class ManifestEntryWrapper<F extends ContentFile<F>>
@@ -310,7 +315,7 @@ class V4Metadata {
     private ManifestEntry<F> wrapped = null;
 
     ManifestEntryWrapper(Long commitSnapshotId) {
-      this.size = entrySchema(Types.StructType.of()).columns().size();
+      this.size = entrySchema(PartitionSpec.unpartitioned()).columns().size();
       this.commitSnapshotId = commitSnapshotId;
       this.fileWrapper = new DataFileWrapper<>();
     }
@@ -427,7 +432,7 @@ class V4Metadata {
 
     DataFileWrapper() {
       super(null);
-      this.size = fileType(Types.StructType.of()).fields().size();
+      this.size = fileType(PartitionSpec.unpartitioned()).fields().size();
     }
 
     @SuppressWarnings("unchecked")
@@ -509,6 +514,8 @@ class V4Metadata {
           } else {
             return null;
           }
+        case 20:
+          return wrapped.contentStats();
       }
       throw new IllegalArgumentException("Unknown field ordinal: " + pos);
     }
