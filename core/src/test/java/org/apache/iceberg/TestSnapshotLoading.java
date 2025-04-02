@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -40,11 +39,6 @@ import org.mockito.Mockito;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSnapshotLoading extends TestBase {
-
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
 
   private Snapshot currentSnapshot;
   private List<Snapshot> allSnapshots;

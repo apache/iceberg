@@ -73,6 +73,10 @@ public class RESTSigV4AuthSession implements AuthSession {
     this.credentialsProvider = awsProperties.restCredentialsProvider();
   }
 
+  public AuthSession delegate() {
+    return delegate;
+  }
+
   @Override
   public HTTPRequest authenticate(HTTPRequest request) {
     return sign(delegate.authenticate(request));

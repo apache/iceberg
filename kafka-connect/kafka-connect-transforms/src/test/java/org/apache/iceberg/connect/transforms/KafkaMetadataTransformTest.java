@@ -83,8 +83,12 @@ public class KafkaMetadataTransformTest {
             TimestampType.CREATE_TIME);
     try (KafkaMetadataTransform smt = new KafkaMetadataTransform()) {
       smt.configure(ImmutableMap.of());
-      assertThatThrownBy(() -> smt.apply(recordNotMap)).isInstanceOf(RuntimeException.class);
-      assertThatThrownBy(() -> smt.apply(recordNotStruct)).isInstanceOf(RuntimeException.class);
+      assertThatThrownBy(() -> smt.apply(recordNotMap))
+          .isInstanceOf(RuntimeException.class)
+          .hasMessageContaining("Only Map objects supported in absence of schema");
+      assertThatThrownBy(() -> smt.apply(recordNotStruct))
+          .isInstanceOf(RuntimeException.class)
+          .hasMessageContaining("Only Struct objects supported");
     }
   }
 
@@ -186,7 +190,8 @@ public class KafkaMetadataTransformTest {
               () -> {
                 smt.configure(ImmutableMap.of("external_field", "external,*,,,value"));
               })
-          .isInstanceOf(RuntimeException.class);
+          .isInstanceOf(RuntimeException.class)
+          .hasMessageContaining("Could not parse external,*,,,value");
     }
   }
 

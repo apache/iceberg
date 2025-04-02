@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.variants;
 
+import java.util.Objects;
+
 /** An variant object value. */
 public interface VariantObject extends VariantValue {
   /** Returns the {@link VariantValue} for the field named {@code name} in this object. */
@@ -56,5 +58,38 @@ public interface VariantObject extends VariantValue {
     builder.append("})");
 
     return builder.toString();
+  }
+
+  static int hash(VariantObject self) {
+    int hash = 17;
+    for (String field : self.fieldNames()) {
+      hash = 59 * hash + field.hashCode();
+      hash = 59 * hash + self.get(field).hashCode();
+    }
+
+    return hash;
+  }
+
+  static boolean equals(VariantObject self, Object obj) {
+    if (self == obj) {
+      return true;
+    }
+
+    if (!(obj instanceof VariantObject)) {
+      return false;
+    }
+
+    VariantObject other = (VariantObject) obj;
+    if (self.numFields() != other.numFields()) {
+      return false;
+    }
+
+    for (String field : self.fieldNames()) {
+      if (!Objects.equals(self.get(field), other.get(field))) {
+        return false;
+      }
+    }
+
+    return true;
   }
 }

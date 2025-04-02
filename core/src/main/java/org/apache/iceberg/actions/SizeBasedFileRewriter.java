@@ -47,7 +47,11 @@ import org.slf4j.LoggerFactory;
  * {@link #TARGET_FILE_SIZE_BYTES}.
  *
  * <p>Note that implementations may add extra conditions for selecting files or filtering groups.
+ *
+ * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link SizeBasedFileRewritePlanner} and
+ *     {@link FileRewriteRunner}
  */
+@Deprecated
 public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F extends ContentFile<F>>
     implements FileRewriter<T, F> {
 

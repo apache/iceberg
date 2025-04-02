@@ -59,6 +59,7 @@ import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.expressions.Expressions;
@@ -389,6 +390,30 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThat(catalog.dropNamespace(NS))
         .as("Dropping a nonexistent namespace should return false")
         .isFalse();
+  }
+
+  @Test
+  public void testDropNonEmptyNamespace() {
+    C catalog = catalog();
+
+    assertThat(catalog.namespaceExists(NS)).as("Namespace should not exist").isFalse();
+
+    catalog.createNamespace(NS);
+    assertThat(catalog.namespaceExists(NS)).as("Namespace should exist").isTrue();
+    catalog.buildTable(TABLE, SCHEMA).create();
+    assertThat(catalog.tableExists(TABLE)).as("Table should exist").isTrue();
+
+    assertThatThrownBy(() -> catalog.dropNamespace(NS))
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessageContaining("is not empty");
+
+    catalog.dropTable(TABLE);
+    assertThat(catalog.tableExists(TABLE)).as("Table should not exist").isFalse();
+
+    assertThat(catalog.dropNamespace(NS))
+        .as("Dropping an existing namespace should return true")
+        .isTrue();
+    assertThat(catalog.namespaceExists(NS)).as("Namespace should not exist").isFalse();
   }
 
   @Test

@@ -27,7 +27,6 @@ import static org.assertj.core.api.Assertions.fail;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +43,7 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
@@ -56,8 +56,10 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.FileGroupRewriteResult;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.Result;
+import org.apache.iceberg.actions.SizeBasedDataRewriter;
 import org.apache.iceberg.actions.SizeBasedFileRewriter;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
@@ -84,8 +86,9 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
   private static final String TABLE_NAME = "test_table";
@@ -116,14 +119,13 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     };
   }
 
-  @TempDir private Path temp;
-
   @Parameter(index = 3)
   private FileFormat format;
 
   @AfterEach
   public void cleanup() {
     validationCatalog.dropTable(TableIdentifier.of("default", TABLE_NAME));
+    sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
   @TestTemplate
@@ -203,8 +205,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows", expectedRecords, actualRecords);
-    assertEquals("Position deletes", expectedDeletes, actualDeletes);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
   }
 
   @TestTemplate
@@ -239,8 +241,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows", expectedRecords, actualRecords);
-    assertEquals("Position deletes", expectedDeletes, actualDeletes);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
   }
 
   @TestTemplate
@@ -285,8 +287,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows", expectedRecords, actualRecords);
-    assertEquals("Position deletes", expectedDeletes, actualDeletes);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
 
     withSQLConf(
         ImmutableMap.of(SQLConf.CASE_SENSITIVE().key(), "true"),
@@ -335,8 +337,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows", expectedRecords, actualRecords);
-    assertEquals("Position deletes", expectedDeletes, actualDeletes);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
   }
 
   @TestTemplate
@@ -380,8 +382,97 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows", expectedRecords, actualRecords);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
     assertThat(actualDeletes).as("New position deletes").isEmpty();
+  }
+
+  @TestTemplate
+  public void testRemoveDanglingDVsAfterCompaction() {
+    sql(
+        "create table %s (s string, id string) PARTITIONED BY (bucket(8, id)) "
+            + "tblproperties ('format-version'='3',"
+            + "'write.update.mode'='merge-on-read',"
+            + "'write.delete.mode'='merge-on-read',"
+            + "'write.merge.mode'='merge-on-read')",
+        tableName);
+    sql("insert into %s select * from (values ('foo', '1'), ('bar', '1')) order by 1", tableName);
+    sql("insert into %s select * from (values ('foo', '1'), ('bat', '1')) order by 1", tableName);
+    sql("insert into %s select * from (values ('bar', '1'), ('bat', '1')) order by 1", tableName);
+
+    List<Object[]> objects = sql("select * from %s.files", tableName);
+    assertThat(objects).hasSize(3);
+
+    sql("delete from %s where s = 'foo'", tableName);
+    assertThat(sql("select * from %s.files", tableName)).hasSize(5);
+
+    sql("delete from %s where s = 'bar'", tableName);
+    assertThat(sql("select * from %s.files", tableName)).hasSize(6);
+
+    assertThat(sql("select * from %s.data_files", tableName)).hasSize(3);
+    assertThat(sql("select * from %s.delete_files", tableName)).hasSize(3);
+
+    Set<DeleteFile> deleteFilesBefore =
+        TestHelpers.deleteFiles(validationCatalog.loadTable(tableIdent));
+    assertThat(deleteFilesBefore).hasSize(3);
+
+    RewriteDataFiles.Result result =
+        SparkActions.get(spark)
+            .rewriteDataFiles(validationCatalog.loadTable(tableIdent))
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .option(RewriteDataFiles.REMOVE_DANGLING_DELETES, "true")
+            .execute();
+
+    Set<DeleteFile> deleteFilesAfter =
+        TestHelpers.deleteFiles(validationCatalog.loadTable(tableIdent));
+    assertThat(deleteFilesAfter).isEmpty();
+    assertThat(result.addedDataFilesCount()).isEqualTo(1);
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(3);
+    assertThat(sql("select * from %s.delete_files", tableName)).hasSameSizeAs(deleteFilesAfter);
+    assertThat(result.removedDeleteFilesCount()).isEqualTo(deleteFilesBefore.size());
+  }
+
+  @TestTemplate
+  public void testValidDVsAreNotRemovedDuringDanglingDeletesRemoval() {
+    sql(
+        "create table %s (s string, id string) PARTITIONED BY (bucket(8, id)) "
+            + "tblproperties ('format-version'='3',"
+            + "'write.update.mode'='merge-on-read',"
+            + "'write.delete.mode'='merge-on-read',"
+            + "'write.merge.mode'='merge-on-read')",
+        tableName);
+    sql("insert into %s select * from (values ('foo', '1'), ('bar', '1')) order by 1", tableName);
+    sql("insert into %s select * from (values ('foo', '1'), ('bat', '1')) order by 1", tableName);
+    sql("insert into %s select * from (values ('bar', '1'), ('bat', '1')) order by 1", tableName);
+
+    List<Object[]> objects = sql("select * from %s.files", tableName);
+    assertThat(objects).hasSize(3);
+
+    sql("delete from %s where s = 'foo'", tableName);
+    assertThat(sql("select * from %s.files", tableName)).hasSize(5);
+
+    assertThat(sql("select * from %s.data_files", tableName)).hasSize(3);
+    assertThat(sql("select * from %s.delete_files", tableName)).hasSize(2);
+
+    Set<DeleteFile> deleteFilesBefore =
+        TestHelpers.deleteFiles(validationCatalog.loadTable(tableIdent));
+    assertThat(deleteFilesBefore).hasSize(2);
+
+    // data files are not compacted and removing dangling deletes should not remove valid DVs
+    RewriteDataFiles.Result result =
+        SparkActions.get(spark)
+            .rewriteDataFiles(validationCatalog.loadTable(tableIdent))
+            .option(RewriteDataFiles.REMOVE_DANGLING_DELETES, "true")
+            .option(SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES, "0")
+            .option(SizeBasedDataRewriter.DELETE_RATIO_THRESHOLD, "1.0")
+            .execute();
+
+    Set<DeleteFile> deleteFilesAfter =
+        TestHelpers.deleteFiles(validationCatalog.loadTable(tableIdent));
+    assertThat(deleteFilesAfter).isEqualTo(deleteFilesBefore);
+    assertThat(result.addedDataFilesCount()).isEqualTo(0);
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(0);
+    assertThat(sql("select * from %s.delete_files", tableName)).hasSameSizeAs(deleteFilesAfter);
+    assertThat(result.removedDeleteFilesCount()).isEqualTo(0);
   }
 
   @TestTemplate
@@ -433,8 +524,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows", expectedRecords, actualRecords);
-    assertEquals("Position deletes", expectedDeletes, actualDeletes);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
   }
 
   @TestTemplate
@@ -481,8 +572,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     // Only non-compacted deletes remain
     List<Object[]> expectedDeletesFiltered =
         filterDeletes(expectedDeletes, ImmutableList.of(2), ImmutableList.of(3));
-    assertEquals("Rows", expectedRecords, actualRecords);
-    assertEquals("Position deletes", expectedDeletesFiltered, allDeletes);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletesFiltered, allDeletes);
   }
 
   @TestTemplate
@@ -533,8 +624,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows", expectedRecords, actualRecords);
-    assertEquals("Position deletes", expectedDeletes, actualDeletes);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
   }
 
   @TestTemplate
@@ -580,8 +671,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows", expectedRecords, actualRecords);
-    assertEquals("Position deletes", expectedDeletes, actualDeletes);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
   }
 
   @TestTemplate
@@ -630,7 +721,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
     checkSequenceNumbers(table, rewrittenDeleteFiles, newDeleteFiles);
 
     List<Object[]> actualRecords = records(table);
-    assertEquals("Rows", expectedRecords, actualRecords);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
   }
 
   @TestTemplate
@@ -725,8 +816,8 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
     List<Object[]> actualRecords = records(table);
     List<Object[]> actualDeletes = deleteRecords(table);
-    assertEquals("Rows", expectedRecords, actualRecords);
-    assertEquals("Position deletes", expectedDeletes, actualDeletes);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Position deletes must match", expectedDeletes, actualDeletes);
   }
 
   @TestTemplate
@@ -1025,7 +1116,6 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
 
   private String name(Table table) {
     String[] splits = table.name().split("\\.");
-
     assertThat(splits).hasSize(3);
     return String.format("%s.%s", splits[1], splits[2]);
   }

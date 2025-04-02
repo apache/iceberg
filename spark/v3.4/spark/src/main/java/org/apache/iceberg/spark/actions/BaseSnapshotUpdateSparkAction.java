@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.actions;
 
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.spark.sql.SparkSession;
 
@@ -38,5 +39,9 @@ abstract class BaseSnapshotUpdateSparkAction<ThisT> extends BaseSparkAction<This
   protected void commit(org.apache.iceberg.SnapshotUpdate<?> update) {
     summary.forEach(update::set);
     update.commit();
+  }
+
+  protected Map<String, String> commitSummary() {
+    return ImmutableMap.copyOf(summary);
   }
 }

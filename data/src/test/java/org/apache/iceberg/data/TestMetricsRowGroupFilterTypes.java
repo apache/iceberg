@@ -210,7 +210,7 @@ public class TestMetricsRowGroupFilterTypes {
     try (FileAppender<Record> appender =
         Parquet.write(outFile)
             .schema(FILE_SCHEMA)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .createWriterFunc(GenericParquetWriter::create)
             .build()) {
       appender.addAll(records);
     }

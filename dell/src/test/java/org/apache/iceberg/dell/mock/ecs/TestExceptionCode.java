@@ -68,6 +68,7 @@ public class TestExceptionCode {
         });
   }
 
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   public void assertS3Exception(String message, int httpCode, String errorCode, Runnable task) {
     assertThatThrownBy(task::run)
         .isInstanceOf(S3Exception.class)

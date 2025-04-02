@@ -26,6 +26,11 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.PropertyUtil;
 
+/**
+ * @deprecated since 1.9.0, will be removed in 1.10.0; use {@link
+ *     BinPackRewritePositionDeletePlanner} and {@link FileRewriteRunner}
+ */
+@Deprecated
 public abstract class SizeBasedPositionDeletesRewriter
     extends SizeBasedFileRewriter<PositionDeletesScanTask, DeleteFile> {
 

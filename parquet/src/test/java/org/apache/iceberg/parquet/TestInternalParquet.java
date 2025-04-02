@@ -80,7 +80,7 @@ public class TestInternalParquet extends DataTest {
     try (DataWriter<StructLike> dataWriter =
         Parquet.writeData(outputFile)
             .schema(writeSchema)
-            .createWriterFunc(fileSchema -> InternalWriter.create(writeSchema, fileSchema))
+            .createWriterFunc(InternalWriter::createWriter)
             .overwrite()
             .withSpec(PartitionSpec.unpartitioned())
             .build()) {

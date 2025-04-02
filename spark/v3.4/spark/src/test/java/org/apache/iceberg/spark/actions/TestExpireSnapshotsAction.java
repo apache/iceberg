@@ -38,6 +38,7 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileGenerationUtil;
 import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Parameter;
@@ -160,6 +161,10 @@ public class TestExpireSnapshotsAction extends TestBase {
       end = System.currentTimeMillis();
     }
     return end;
+  }
+
+  private DeleteFile fileADeletes() {
+    return formatVersion >= 3 ? FileGenerationUtil.generateDV(table, FILE_A) : FILE_A_POS_DELETES;
   }
 
   private void checkExpirationResults(
@@ -1046,7 +1051,7 @@ public class TestExpireSnapshotsAction extends TestBase {
 
   @TestTemplate
   public void testExpireOlderThanWithDeleteFile() {
-    assumeThat(formatVersion).as("DV is not supported in Spark 3.4").isEqualTo(2);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
     table.updateProperties().set(TableProperties.MANIFEST_MERGE_ENABLED, "false").commit();
 
     // Add Data File
@@ -1054,7 +1059,8 @@ public class TestExpireSnapshotsAction extends TestBase {
     Snapshot firstSnapshot = table.currentSnapshot();
 
     // Add POS Delete
-    table.newRowDelta().addDeletes(FILE_A_POS_DELETES).commit();
+    DeleteFile fileADeletes = fileADeletes();
+    table.newRowDelta().addDeletes(fileADeletes).commit();
     Snapshot secondSnapshot = table.currentSnapshot();
 
     // Add EQ Delete
@@ -1085,7 +1091,7 @@ public class TestExpireSnapshotsAction extends TestBase {
             thirdSnapshot.manifestListLocation(),
             fourthSnapshot.manifestListLocation(),
             FILE_A.location(),
-            FILE_A_POS_DELETES.location(),
+            fileADeletes.location(),
             FILE_A_EQ_DELETES.location());
 
     expectedDeletes.addAll(

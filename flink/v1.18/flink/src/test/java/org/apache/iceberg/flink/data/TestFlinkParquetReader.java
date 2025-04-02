@@ -222,7 +222,7 @@ public class TestFlinkParquetReader extends DataTest {
     try (FileAppender<Record> writer =
         Parquet.write(Files.localOutput(testFile))
             .schema(writeSchema)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .createWriterFunc(GenericParquetWriter::create)
             .build()) {
       writer.addAll(iterable);
     }

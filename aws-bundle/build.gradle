@@ -25,8 +25,10 @@ project(":iceberg-aws-bundle") {
 
   dependencies {
     implementation platform(libs.awssdk.bom)
+    implementation libs.awssdk.s3accessgrants
     implementation "software.amazon.awssdk:apache-client"
     implementation "software.amazon.awssdk:auth"
+    implementation "software.amazon.awssdk:crt-core"
     implementation "software.amazon.awssdk:http-auth-aws-crt"
     implementation "software.amazon.awssdk:iam"
     implementation "software.amazon.awssdk:sso"
@@ -36,6 +38,8 @@ project(":iceberg-aws-bundle") {
     implementation "software.amazon.awssdk:sts"
     implementation "software.amazon.awssdk:dynamodb"
     implementation "software.amazon.awssdk:lakeformation"
+
+    implementation libs.analyticsaccelerator.s3
   }
 
   shadowJar {

@@ -760,7 +760,11 @@ public class TestTypeUtil {
         Arguments.of(Types.UnknownType.get()),
         Arguments.of(Types.VariantType.get()),
         Arguments.of(Types.TimestampNanoType.withoutZone()),
-        Arguments.of(Types.TimestampNanoType.withZone()));
+        Arguments.of(Types.TimestampNanoType.withZone()),
+        Arguments.of(Types.GeometryType.crs84()),
+        Arguments.of(Types.GeometryType.of("srid:3857")),
+        Arguments.of(Types.GeographyType.crs84()),
+        Arguments.of(Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY)));
   }
 
   @ParameterizedTest

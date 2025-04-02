@@ -84,6 +84,11 @@ public class TestSparkBucketFunction extends SparkTestBaseWithCatalog {
         1210000089,
         new BucketFunction.BucketString().hash("iceberg"));
 
+    Assert.assertEquals(
+        "Verify that the hash string and hash raw bytes produce the same result",
+        new BucketFunction.BucketString().hash("iceberg"),
+        new BucketFunction.BucketString().hash("iceberg".getBytes(StandardCharsets.UTF_8)));
+
     ByteBuffer bytes = ByteBuffer.wrap(new byte[] {0, 1, 2, 3});
     Assert.assertEquals(
         "Spec example: hash([00 01 02 03]) = -188683207",

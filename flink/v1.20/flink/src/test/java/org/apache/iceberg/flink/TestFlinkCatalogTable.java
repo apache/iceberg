@@ -461,6 +461,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     // validation.
     assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (dt INTEGER)"))
         .isInstanceOf(TableException.class)
+        .hasMessageContaining("Could not execute AlterTable")
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Cannot change column type: dt: string -> int");
   }
@@ -591,6 +592,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     // because Iceberg's SchemaUpdate does not allow incompatible changes.
     assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (PRIMARY KEY (col1) NOT ENFORCED)"))
         .isInstanceOf(TableException.class)
+        .hasMessageContaining("Could not execute AlterTable")
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Cannot add field col1 as an identifier field: not a required field");
 
@@ -598,12 +600,14 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     // because Iceberg's SchemaUpdate does not allow incompatible changes.
     assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (PRIMARY KEY (id, col1) NOT ENFORCED)"))
         .isInstanceOf(TableException.class)
+        .hasMessageContaining("Could not execute AlterTable")
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Cannot add field col1 as an identifier field: not a required field");
 
     // Dropping constraints is not supported yet
     assertThatThrownBy(() -> sql("ALTER TABLE tl DROP PRIMARY KEY"))
         .isInstanceOf(TableException.class)
+        .hasMessageContaining("Could not execute AlterTable")
         .hasRootCauseInstanceOf(UnsupportedOperationException.class)
         .hasRootCauseMessage("Unsupported table change: DropConstraint.");
   }

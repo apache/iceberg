@@ -432,6 +432,34 @@ public class TestBucketing {
   }
 
   @Test
+  public void testGeometryUnsupported() {
+    assertThatThrownBy(() -> Transforms.bucket(Types.GeometryType.crs84(), 3))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot bucket by type: geometry");
+
+    Transform<Object, Integer> bucket = Transforms.bucket(3);
+    assertThatThrownBy(() -> bucket.bind(Types.GeometryType.crs84()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot bucket by type: geometry");
+
+    assertThat(bucket.canTransform(Types.GeometryType.crs84())).isFalse();
+  }
+
+  @Test
+  public void testGeographyUnsupported() {
+    assertThatThrownBy(() -> Transforms.bucket(Types.GeographyType.crs84(), 3))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot bucket by type: geography");
+
+    Transform<Object, Integer> bucket = Transforms.bucket(3);
+    assertThatThrownBy(() -> bucket.bind(Types.GeographyType.crs84()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot bucket by type: geography");
+
+    assertThat(bucket.canTransform(Types.GeographyType.crs84())).isFalse();
+  }
+
+  @Test
   public void testUnknownUnsupported() {
     assertThatThrownBy(() -> Transforms.bucket(Types.UnknownType.get(), 3))
         .isInstanceOf(IllegalArgumentException.class)

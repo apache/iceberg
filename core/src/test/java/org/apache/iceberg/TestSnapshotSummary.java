@@ -21,19 +21,12 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSnapshotSummary extends TestBase {
-
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
 
   @TestTemplate
   public void testFileSizeSummary() {
@@ -429,5 +422,30 @@ public class TestSnapshotSummary extends TestBase {
         .containsEntry(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "0")
         .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "0")
         .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "2");
+  }
+
+  @TestTemplate
+  public void rewriteManifestsWithDuplicateFiles() {
+    assertThat(listManifestFiles()).isEmpty();
+
+    table.newAppend().appendFile(FILE_A).commit();
+    table.newAppend().appendFile(FILE_B).commit();
+    table.newAppend().appendFile(FILE_C).commit();
+
+    table.rewriteManifests().clusterBy(file -> "file").rewriteIf(ignored -> true).commit();
+
+    assertThat(table.currentSnapshot().summary())
+        .hasSize(12)
+        .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "0")
+        .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "3")
+        .containsEntry(SnapshotSummary.TOTAL_DELETE_FILES_PROP, "0")
+        .containsEntry(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "0")
+        .containsEntry(SnapshotSummary.TOTAL_POS_DELETES_PROP, "0")
+        .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "30")
+        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "3")
+        .containsEntry(SnapshotSummary.PROCESSED_MANIFEST_ENTRY_COUNT, "3")
+        .containsEntry(SnapshotSummary.CREATED_MANIFESTS_COUNT, "1")
+        .containsEntry(SnapshotSummary.KEPT_MANIFESTS_COUNT, "0")
+        .containsEntry(SnapshotSummary.REPLACED_MANIFESTS_COUNT, "3");
   }
 }

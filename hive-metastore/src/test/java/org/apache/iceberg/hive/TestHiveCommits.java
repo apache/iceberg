@@ -442,7 +442,8 @@ public class TestHiveCommits extends HiveTableBaseTest {
     }
 
     assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
-        .isInstanceOf(OutOfMemoryError.class);
+        .isInstanceOf(OutOfMemoryError.class)
+        .hasMessage(null);
 
     ops.refresh();
 

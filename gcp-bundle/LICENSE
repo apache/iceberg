@@ -325,7 +325,7 @@ License: Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: com.google.errorprone  Name: error_prone_annotations  Version: 2.36.0
+Group: com.google.errorprone  Name: error_prone_annotations  Version: 2.37.0
 License: Apache 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
@@ -336,7 +336,7 @@ License: The Apache Software License, Version 2.0 - http://www.apache.org/licens
 
 --------------------------------------------------------------------------------
 
-Group: com.google.guava  Name: guava  Version: 33.4.0-jre
+Group: com.google.guava  Name: guava  Version: 33.4.6-jre
 Project URL: https://github.com/google/guava/
 License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 

@@ -66,6 +66,8 @@ public class TestPathParsing {
   @ParameterizedTest
   @FieldSource("INVALID_PATHS")
   public void testExtractBindingWithInvalidPath(String path) {
-    assertThatThrownBy(() -> PathUtil.parse(path)).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> PathUtil.parse(path))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageMatching("(Unsupported|Invalid) path.*");
   }
 }

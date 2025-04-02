@@ -26,6 +26,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -41,6 +42,9 @@ import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
 public class OAuth2RefreshCredentialsHandler
     implements OAuth2CredentialsWithRefresh.OAuth2RefreshHandler, AutoCloseable {
   private final Map<String, String> properties;
+  private final String credentialsEndpoint;
+  // will be used to refresh the OAuth2 token
+  private final String catalogEndpoint;
   private volatile HTTPClient client;
   private AuthManager authManager;
   private AuthSession authSession;
@@ -49,6 +53,11 @@ public class OAuth2RefreshCredentialsHandler
     Preconditions.checkArgument(
         null != properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT),
         "Invalid credentials endpoint: null");
+    Preconditions.checkArgument(
+        null != properties.get(CatalogProperties.URI), "Invalid catalog endpoint: null");
+    this.credentialsEndpoint =
+        properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT);
+    this.catalogEndpoint = properties.get(CatalogProperties.URI);
     this.properties = properties;
   }
 
@@ -58,7 +67,7 @@ public class OAuth2RefreshCredentialsHandler
     LoadCredentialsResponse response =
         httpClient()
             .get(
-                properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT),
+                credentialsEndpoint,
                 null,
                 LoadCredentialsResponse.class,
                 Map.of(),
@@ -99,10 +108,7 @@ public class OAuth2RefreshCredentialsHandler
       synchronized (this) {
         if (null == client) {
           authManager = AuthManagers.loadAuthManager("gcs-credentials-refresh", properties);
-          HTTPClient httpClient =
-              HTTPClient.builder(properties)
-                  .uri(properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT))
-                  .build();
+          HTTPClient httpClient = HTTPClient.builder(properties).uri(catalogEndpoint).build();
           authSession = authManager.catalogSession(httpClient, properties);
           client = httpClient.withAuthSession(authSession);
         }

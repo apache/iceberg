@@ -40,6 +40,10 @@ public class Metrics implements Serializable {
 
   public Metrics() {}
 
+  public Metrics(long rowCount) {
+    this.rowCount = rowCount;
+  }
+
   public Metrics(
       Long rowCount,
       Map<Integer, Long> columnSizes,

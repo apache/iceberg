@@ -124,7 +124,8 @@ class JsonToMapUtilsTest extends FileLoads {
   public void primitiveBasedOnSchemaThrows() {
     assertThatThrownBy(
             () -> JsonToMapUtils.extractValue(objNode.get("string"), Schema.Type.STRUCT, ""))
-        .isInstanceOf(RuntimeException.class);
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("Unexpected type STRUCT for field");
   }
 
   @Test
@@ -327,9 +328,17 @@ class JsonToMapUtilsTest extends FileLoads {
     assertThat(result.get("empty_string")).isEqualTo("");
 
     // assert empty fields don't show up on the struct
-    assertThatThrownBy(() -> result.get("null")).isInstanceOf(RuntimeException.class);
-    assertThatThrownBy(() -> result.get("empty_obj")).isInstanceOf(RuntimeException.class);
-    assertThatThrownBy(() -> result.get("empty_arr")).isInstanceOf(RuntimeException.class);
-    assertThatThrownBy(() -> result.get("empty_arr_arr")).isInstanceOf(RuntimeException.class);
+    assertThatThrownBy(() -> result.get("null"))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("not a valid field name");
+    assertThatThrownBy(() -> result.get("empty_obj"))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("not a valid field name");
+    assertThatThrownBy(() -> result.get("empty_arr"))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("not a valid field name");
+    assertThatThrownBy(() -> result.get("empty_arr_arr"))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("not a valid field name");
   }
 }

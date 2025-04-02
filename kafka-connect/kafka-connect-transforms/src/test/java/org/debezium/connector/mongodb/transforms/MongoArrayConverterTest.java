@@ -113,7 +113,8 @@ public class MongoArrayConverterTest {
                 converter.addFieldSchema(entry, builder);
               }
             })
-        .isInstanceOf(RuntimeException.class);
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("not a homogenous array");
   }
 
   @Test
@@ -127,7 +128,8 @@ public class MongoArrayConverterTest {
                 converter.addFieldSchema(entry, builder);
               }
             })
-        .isInstanceOf(RuntimeException.class);
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("not the same type for all documents in the array");
   }
 
   @Test

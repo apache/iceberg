@@ -192,7 +192,7 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   @Override
   public RewriteManifests rewriteManifests() {
-    return new BaseRewriteManifests(ops).reportWith(reporter);
+    return new BaseRewriteManifests(name, ops).reportWith(reporter);
   }
 
   @Override
@@ -232,7 +232,7 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
 
   @Override
   public ManageSnapshots manageSnapshots() {
-    return new SnapshotManager(name, ops);
+    return new SnapshotManager(name, ops, reporter);
   }
 
   @Override
