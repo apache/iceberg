@@ -295,13 +295,11 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
    * @return Commit Status of Success, Unknown
    */
   protected CommitStatus checkCommitStatus(String newMetadataLocation, TableMetadata config) {
-    return CommitStatus.valueOf(
-        checkCommitStatus(
-                tableName(),
-                newMetadataLocation,
-                config.properties(),
-                () -> checkCurrentMetadataLocation(newMetadataLocation))
-            .name());
+    return checkCommitStatus(
+        tableName(),
+        newMetadataLocation,
+        config.properties(),
+        () -> checkCurrentMetadataLocation(newMetadataLocation));
   }
 
   /**
@@ -317,13 +315,11 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
    * @return Commit Status of Success, Failure or Unknown
    */
   protected CommitStatus checkCommitStatusStrict(String newMetadataLocation, TableMetadata config) {
-    return CommitStatus.valueOf(
-        checkCommitStatusStrict(
-                tableName(),
-                newMetadataLocation,
-                config.properties(),
-                () -> checkCurrentMetadataLocation(newMetadataLocation))
-            .name());
+    return checkCommitStatusStrict(
+        tableName(),
+        newMetadataLocation,
+        config.properties(),
+        () -> checkCurrentMetadataLocation(newMetadataLocation));
   }
 
   /**

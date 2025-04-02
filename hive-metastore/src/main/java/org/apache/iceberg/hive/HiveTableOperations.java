@@ -299,9 +299,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
               database,
               tableName,
               e);
-          commitStatus =
-              BaseMetastoreOperations.CommitStatus.valueOf(
-                  checkCommitStatus(newMetadataLocation, metadata).name());
+          commitStatus = checkCommitStatus(newMetadataLocation, metadata);
         }
 
         switch (commitStatus) {
