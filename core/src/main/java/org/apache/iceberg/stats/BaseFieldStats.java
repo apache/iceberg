@@ -20,8 +20,8 @@ package org.apache.iceberg.stats;
 
 import java.io.Serializable;
 import java.util.Objects;
-import java.util.StringJoiner;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 
@@ -126,15 +126,15 @@ public class BaseFieldStats implements FieldStats, StructLike, Serializable {
 
   @Override
   public String toString() {
-    return new StringJoiner(", ", BaseFieldStats.class.getSimpleName() + "[", "]")
-        .add("fieldId=" + fieldId)
-        .add("type=" + type)
-        .add("columnSize=" + columnSize)
-        .add("valueCount=" + valueCount)
-        .add("nullValueCount=" + nullValueCount)
-        .add("nanValueCount=" + nanValueCount)
-        .add("lowerBound=" + lowerBound)
-        .add("upperBound=" + upperBound)
+    return MoreObjects.toStringHelper(this)
+        .add("fieldId", fieldId)
+        .add("type", type)
+        .add("columnSize", columnSize)
+        .add("valueCount", valueCount)
+        .add("nullValueCount", nullValueCount)
+        .add("nanValueCount", nanValueCount)
+        .add("lowerBound", lowerBound)
+        .add("upperBound", upperBound)
         .toString();
   }
 

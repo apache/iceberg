@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -146,8 +147,8 @@ public class StatsUtil {
     @Override
     public Types.NestedField schema(Schema schema, Types.NestedField structResult) {
       return optional(
-          146,
-          "content_stats",
+          DataFile.CONTENT_STATS.fieldId(),
+          DataFile.CONTENT_STATS.name(),
           Types.StructType.of(
               statsFields.stream()
                   .filter(Objects::nonNull)
