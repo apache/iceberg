@@ -35,6 +35,8 @@ project(":iceberg-aws-bundle") {
     implementation "software.amazon.awssdk:sts"
     implementation "software.amazon.awssdk:dynamodb"
     implementation "software.amazon.awssdk:lakeformation"
+    implementation 'io.netty:netty-common:4.1.118.Final'
+    implementation 'io.netty:netty-handler:4.1.118.Final'
   }
 
   shadowJar {
