@@ -23,9 +23,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class SketchUtil {
   static final int COORDINATOR_MIN_RESERVOIR_SIZE = 10_000;
