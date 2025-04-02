@@ -123,11 +123,19 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath()));
 
     HTTPHeaders catalogHeaders =
-        HTTPHeaders.of(Map.of("Authorization", "Bearer client-credentials-token:sub=catalog"));
+        HTTPHeaders.of(
+            Map.of(
+                "Authorization",
+                "Bearer client-credentials-token:sub=catalog",
+                "X-Iceberg-Access-Delegation",
+                "vended-credentials"));
     HTTPHeaders contextHeaders =
-        HTTPHeaders.of(Map.of("Authorization", "Bearer client-credentials-token:sub=user"));
-    HTTPHeaders generalTestHeaders =
-        HTTPHeaders.of(Map.of("Authorization", "Bearer client-credentials-token:sub=general"));
+        HTTPHeaders.of(
+            Map.of(
+                "Authorization",
+                "Bearer client-credentials-token:sub=user",
+                "X-Iceberg-Access-Delegation",
+                "vended-credentials"));
 
     RESTCatalogAdapter adaptor =
         new RESTCatalogAdapter(backendCatalog) {
@@ -141,13 +149,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             // different method calls
             if (!"v1/oauth/tokens".equals(request.path())) {
               if ("v1/config".equals(request.path())) {
-                assertThat(request.headers().entries())
-                    .containsAnyElementsOf(
-                        Sets.union(catalogHeaders.entries(), generalTestHeaders.entries()));
+                assertThat(request.headers().entries()).containsAll(catalogHeaders.entries());
               } else {
-                assertThat(request.headers().entries())
-                    .containsAnyElementsOf(
-                        Sets.union(contextHeaders.entries(), generalTestHeaders.entries()));
+                assertThat(request.headers().entries()).containsAll(contextHeaders.entries());
               }
             }
             Object body = roundTripSerialize(request.body(), "request");
@@ -206,7 +210,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key4",
             "catalog-override-key4",
             "credential",
-            "catalog:12345");
+            "catalog:12345",
+            "header.X-Iceberg-Access-Delegation",
+            "vended-credentials");
     catalog.initialize(
         catalogName,
         ImmutableMap.<String, String>builder()
