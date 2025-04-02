@@ -97,12 +97,13 @@ Hive 4.0.x comes with Iceberg 1.4.3 included.
 
 ### Hive 2.3.x, Hive 3.1.x
 
+Hive 2.3.x and Hive 3.1.x require Iceberg 1.7.2 or earlier versions. See the [Multi-Engine Support](../../multi-engine-support.md) page for more details.
 In order to use Hive 2.3.x or Hive 3.1.x, you must load the Iceberg-Hive runtime jar and enable Iceberg support, either globally or for an individual table using a table property.
 
 #### Loading runtime jar
 
-To enable Iceberg support in Hive, the `HiveIcebergStorageHandler` and supporting classes need to be made available on
-Hive's classpath. These are provided by the `iceberg-hive-runtime` jar file. For example, if using the Hive shell, this
+To enable Iceberg support in Hive, the `HiveIcebergStorageHandler` and supporting classes need to be made available on Hive's classpath.  
+For Hive 2.3.x and Hive 3.1.x, these are provided by the `iceberg-hive-runtime` jar file. For example, if using the Hive shell, this
 can be achieved by issuing a statement like so:
 
 ```
