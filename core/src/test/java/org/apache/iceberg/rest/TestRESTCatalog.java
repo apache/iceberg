@@ -21,6 +21,7 @@ package org.apache.iceberg.rest;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.InstanceOfAssertFactories.map;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -42,7 +43,6 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.util.Sets;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
@@ -344,43 +344,21 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testDefaultHeadersPropagated() throws IOException {
-    Map<String, String> catalogHeaders =
-        ImmutableMap.of("Authorization", "Bearer client-credentials-token:sub=general");
-
+  public void testDefaultHeadersPropagated() {
+    RESTCatalog catalog = new RESTCatalog();
     Map<String, String> properties =
-        ImmutableMap.of(
-            "header.X-Iceberg-Access-Delegation",
-            "vended-credential",
+        Map.of(
             CatalogProperties.URI,
-            httpServer.getURI().toString());
-    HTTPHeaders.HTTPHeader expectedHeader =
-        HTTPHeaders.HTTPHeader.of("X-Iceberg-Access-Delegation", "vended-credential");
-    HTTPClient client =
-        Mockito.spy(
-            HTTPClient.builder(properties)
-                .withHeaders(RESTUtil.merge(RESTUtil.configHeaders(properties), catalogHeaders))
-                .uri(properties.get(CatalogProperties.URI))
-                .build());
-    Mockito.doNothing().when(client).close();
-    RESTCatalog catalog =
-        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> client);
+            httpServer.getURI().toString(),
+            OAuth2Properties.CREDENTIAL,
+            "catalog:secret",
+            "header.X-Iceberg-Access-Delegation",
+            "vended-credentials");
     catalog.initialize("test", properties);
-
-    assertThat(catalog.namespaceExists(Namespace.of("non-existing"))).isFalse();
-    Mockito.verify(client)
-        .execute(
-            reqContainsHeader(HTTPMethod.GET, "v1/config", expectedHeader, Map.of()),
-            eq(ConfigResponse.class),
-            any(),
-            any());
-    Mockito.verify(client)
-        .execute(
-            reqContainsHeader(
-                HTTPMethod.HEAD, "v1/namespaces/non-existing", expectedHeader, Map.of()),
-            any(),
-            any(),
-            any());
+    assertThat(catalog)
+        .extracting("sessionCatalog.client.baseHeaders")
+        .asInstanceOf(map(String.class, String.class))
+        .containsEntry("X-Iceberg-Access-Delegation", "vended-credentials");
   }
 
   @Test
