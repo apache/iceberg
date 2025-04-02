@@ -33,6 +33,14 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+@EnableAwsTest(
+    required = {
+      AwsIntegTestUtil.AWS_ACCESS_KEY_ID,
+      AwsIntegTestUtil.AWS_SECRET_ACCESS_KEY,
+      AwsIntegTestUtil.AWS_SESSION_TOKEN,
+      AwsIntegTestUtil.AWS_REGION,
+      AwsIntegTestUtil.AWS_TEST_BUCKET
+    })
 @ExtendWith(EnableAwsTestCondition.class)
 public class TestDefaultAwsClientFactory {
 
@@ -64,7 +72,6 @@ public class TestDefaultAwsClientFactory {
   }
 
   @Test
-  @EnableAwsTest(required = {AwsIntegTestUtil.AWS_REGION, AwsIntegTestUtil.AWS_TEST_BUCKET})
   public void testS3FileIoCredentialsOverride() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(S3FileIOProperties.ACCESS_KEY_ID, "unknown");
