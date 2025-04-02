@@ -540,7 +540,7 @@ Notes:
 2. The width, `W`, used to truncate decimal values is applied using the scale of the decimal column to avoid additional (and potentially conflicting) parameters.
 3. Strings are truncated to a valid UTF-8 string with no more than `L` code points.
 4. In contrast to strings, binary values do not have an assumed encoding and are truncated to `L` bytes.
-5. For multi-argument bucketing, the hashes are `xor`'ed: `hash(col1) ⊕ hash(col2) ⊕ ... ⊕ hash(colN)) % W`.
+5. For multi-argument bucketing, the hashes for the not-null input values are `xor`'ed: `(hash(col1) ⊕ hash(col2) ⊕ ... ⊕ hash(colN)) % W`. The transform will return `null` when all input values are `null`.
 
 #### Partition Evolution
 
