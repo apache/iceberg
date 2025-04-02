@@ -107,6 +107,11 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     switch (path.getScheme()) {
       case "s3a":
         return Files.open(path, s3PropertiesFromHadoopConf(hadoopInputFile.getConf()));
+      case "wasb":
+      case "wasbs":
+      case "abfs":
+      case "abfss":
+        return Files.open(path, azurePropertiesFromHadoopConf(hadoopInputFile.getConf()));
       case "file":
         return Files.open(path, Map.of());
       default:
@@ -149,6 +154,27 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
           LOG.trace(
               "Ignoring unknown s3a connector property: {}={}", entry.getKey(), entry.getValue());
           break;
+      }
+    }
+
+    return properties.asProperties();
+  }
+
+  static final String ACCESS_KEY_PREFIX = "fs.azure.account.key.";
+  static final String FIXED_TOKEN_PREFIX = "fs.azure.sas.fixed.token.";
+
+  private static Map<String, String> azurePropertiesFromHadoopConf(Configuration hadoopConf) {
+    VortexAzureProperties properties = new VortexAzureProperties();
+
+    // TODO(aduffy): match on storage account name.
+    for (Map.Entry<String, String> entry : hadoopConf) {
+      String configKey = entry.getKey();
+      if (configKey.startsWith(ACCESS_KEY_PREFIX)) {
+        properties.setAccessKey(entry.getValue());
+      } else if (configKey.startsWith(FIXED_TOKEN_PREFIX)) {
+        properties.setSasKey(entry.getValue());
+      } else {
+        LOG.warn("Ignoring unknown azure connector property: {}={}", configKey, entry.getValue());
       }
     }
 
