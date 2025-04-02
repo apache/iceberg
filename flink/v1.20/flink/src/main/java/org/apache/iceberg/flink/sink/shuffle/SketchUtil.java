@@ -23,7 +23,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import org.apache.hadoop.util.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.StructLike;
 
