@@ -27,6 +27,7 @@ import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.stats.ContentStats;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructProjection;
@@ -57,6 +58,7 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
   private final int referencedDataFilePosition;
   private final int contentOffsetPosition;
   private final int contentSizePosition;
+  private final int contentStatsPosition;
   private final Type lowerBoundsType;
   private final Type upperBoundsType;
   private final Type keyMetadataType;
@@ -109,6 +111,7 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
     this.referencedDataFilePosition = positions.get(DataFile.REFERENCED_DATA_FILE.name());
     this.contentOffsetPosition = positions.get(DataFile.CONTENT_OFFSET.name());
     this.contentSizePosition = positions.get(DataFile.CONTENT_SIZE.name());
+    this.contentStatsPosition = positions.get(DataFile.CONTENT_STATS.name());
   }
 
   public F wrap(Row row) {
@@ -256,6 +259,14 @@ public abstract class SparkContentFile<F> implements ContentFile<F> {
       return null;
     }
     return wrapped.getLong(contentSizePosition);
+  }
+
+  @Override
+  public ContentStats contentStats() {
+    if (wrapped.isNullAt(contentStatsPosition)) {
+      return null;
+    }
+    return (ContentStats) wrapped.get(contentStatsPosition);
   }
 
   private int fieldPosition(String name, StructType sparkType) {

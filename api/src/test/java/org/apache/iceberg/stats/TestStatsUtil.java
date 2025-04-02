@@ -32,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -157,8 +158,8 @@ public class TestStatsUtil {
     Schema expectedStatsSchema =
         new Schema(
             optional(
-                146,
-                "content_stats",
+                DataFile.CONTENT_STATS.fieldId(),
+                DataFile.CONTENT_STATS.name(),
                 Types.StructType.of(
                     optional(10000, "0", FieldStatistic.fieldStatsFor(intField, 10000)),
                     optional(10400, "2", FieldStatistic.fieldStatsFor(floatField, 10400)),
@@ -199,8 +200,8 @@ public class TestStatsUtil {
     Schema expectedStatsSchema =
         new Schema(
             optional(
-                146,
-                "content_stats",
+                DataFile.CONTENT_STATS.fieldId(),
+                DataFile.CONTENT_STATS.name(),
                 Types.StructType.of(
                     optional(
                         10000,

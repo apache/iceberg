@@ -29,6 +29,8 @@ import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.stats.ContentStats;
+import org.apache.iceberg.stats.FieldStats;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
@@ -82,6 +84,7 @@ public class StrictMetricsEvaluator {
     private Map<Integer, Long> nanCounts = null;
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
+    private ContentStats stats = null;
 
     private boolean eval(ContentFile<?> file) {
       if (file.recordCount() <= 0) {
@@ -93,6 +96,10 @@ public class StrictMetricsEvaluator {
       this.nanCounts = file.nanValueCounts();
       this.lowerBounds = file.lowerBounds();
       this.upperBounds = file.upperBounds();
+
+      if (null != file.contentStats() && !file.contentStats().fieldStats().isEmpty()) {
+        this.stats = file.contentStats();
+      }
 
       return ExpressionVisitors.visitEvaluator(expr, this);
     }
@@ -160,7 +167,7 @@ public class StrictMetricsEvaluator {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
-      if (nullCounts != null && nullCounts.containsKey(id) && nullCounts.get(id) == 0) {
+      if (containsNoNulls(id)) {
         return ROWS_MUST_MATCH;
       }
 
@@ -182,7 +189,7 @@ public class StrictMetricsEvaluator {
     public <T> Boolean notNaN(BoundReference<T> ref) {
       int id = ref.fieldId();
 
-      if (nanCounts != null && nanCounts.containsKey(id) && nanCounts.get(id) == 0) {
+      if (containsNoNaNs(id)) {
         return ROWS_MUST_MATCH;
       }
 
@@ -205,9 +212,8 @@ public class StrictMetricsEvaluator {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
-      if (upperBounds != null && upperBounds.containsKey(id)) {
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
-
+      T upper = upperBound(ref);
+      if (null != upper) {
         int cmp = lit.comparator().compare(upper, lit.value());
         if (cmp < 0) {
           return ROWS_MUST_MATCH;
@@ -229,9 +235,8 @@ public class StrictMetricsEvaluator {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
-      if (upperBounds != null && upperBounds.containsKey(id)) {
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
-
+      T upper = upperBound(ref);
+      if (null != upper) {
         int cmp = lit.comparator().compare(upper, lit.value());
         if (cmp <= 0) {
           return ROWS_MUST_MATCH;
@@ -253,9 +258,8 @@ public class StrictMetricsEvaluator {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
-      if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
-
+      T lower = lowerBound(ref);
+      if (null != lower) {
         if (NaNUtil.isNaN(lower)) {
           // NaN indicates unreliable bounds. See the StrictMetricsEvaluator docs for more.
           return ROWS_MIGHT_NOT_MATCH;
@@ -282,9 +286,8 @@ public class StrictMetricsEvaluator {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
-      if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
-
+      T lower = lowerBound(ref);
+      if (null != lower) {
         if (NaNUtil.isNaN(lower)) {
           // NaN indicates unreliable bounds. See the StrictMetricsEvaluator docs for more.
           return ROWS_MIGHT_NOT_MATCH;
@@ -311,18 +314,13 @@ public class StrictMetricsEvaluator {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
-      if (lowerBounds != null
-          && lowerBounds.containsKey(id)
-          && upperBounds != null
-          && upperBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
-
+      T lower = lowerBound(ref);
+      T upper = upperBound(ref);
+      if (null != lower && null != upper) {
         int cmp = lit.comparator().compare(lower, lit.value());
         if (cmp != 0) {
           return ROWS_MIGHT_NOT_MATCH;
         }
-
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
 
         cmp = lit.comparator().compare(upper, lit.value());
         if (cmp != 0) {
@@ -347,9 +345,8 @@ public class StrictMetricsEvaluator {
         return ROWS_MUST_MATCH;
       }
 
-      if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
-
+      T lower = lowerBound(ref);
+      if (null != lower) {
         if (NaNUtil.isNaN(lower)) {
           // NaN indicates unreliable bounds. See the StrictMetricsEvaluator docs for more.
           return ROWS_MIGHT_NOT_MATCH;
@@ -361,9 +358,8 @@ public class StrictMetricsEvaluator {
         }
       }
 
-      if (upperBounds != null && upperBounds.containsKey(id)) {
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
-
+      T upper = upperBound(ref);
+      if (null != upper) {
         int cmp = lit.comparator().compare(upper, lit.value());
         if (cmp < 0) {
           return ROWS_MUST_MATCH;
@@ -384,18 +380,16 @@ public class StrictMetricsEvaluator {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
-      if (lowerBounds != null
-          && lowerBounds.containsKey(id)
-          && upperBounds != null
-          && upperBounds.containsKey(id)) {
+      T lower = lowerBound(ref);
+      T upper = upperBound(ref);
+
+      if (null != lower && null != upper) {
         // similar to the implementation in eq, first check if the lower bound is in the set
-        T lower = Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
         if (!literalSet.contains(lower)) {
           return ROWS_MIGHT_NOT_MATCH;
         }
 
         // check if the upper bound is in the set
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
         if (!literalSet.contains(upper)) {
           return ROWS_MIGHT_NOT_MATCH;
         }
@@ -426,9 +420,8 @@ public class StrictMetricsEvaluator {
 
       Collection<T> literals = literalSet;
 
-      if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
-
+      T lower = lowerBound(ref);
+      if (null != lower) {
         if (NaNUtil.isNaN(lower)) {
           // NaN indicates unreliable bounds. See the StrictMetricsEvaluator docs for more.
           return ROWS_MIGHT_NOT_MATCH;
@@ -444,8 +437,8 @@ public class StrictMetricsEvaluator {
         }
       }
 
-      if (upperBounds != null && upperBounds.containsKey(id)) {
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
+      T upper = upperBound(ref);
+      if (null != upper) {
         literals =
             literals.stream()
                 .filter(v -> ref.comparator().compare(upper, v) >= 0)
@@ -476,28 +469,100 @@ public class StrictMetricsEvaluator {
       return struct.field(id) == null;
     }
 
-    private boolean canContainNulls(Integer id) {
-      return nullCounts == null || (nullCounts.containsKey(id) && nullCounts.get(id) > 0);
+    private boolean canContainNulls(int id) {
+      if (null != stats) {
+        FieldStats<?> stat = stats.statsFor(id);
+        return null == stat || (null != stat.nullValueCount() && stat.nullValueCount() > 0);
+      } else {
+        return nullCounts == null || (nullCounts.containsKey(id) && nullCounts.get(id) > 0);
+      }
     }
 
-    private boolean canContainNaNs(Integer id) {
+    private boolean canContainNaNs(int id) {
       // nan counts might be null for early version writers when nan counters are not populated.
-      return nanCounts != null && nanCounts.containsKey(id) && nanCounts.get(id) > 0;
+      if (null != stats) {
+        FieldStats<?> stat = stats.statsFor(id);
+        return null != stat && null != stat.nanValueCount() && stat.nanValueCount() > 0;
+      } else {
+        return nanCounts != null && nanCounts.containsKey(id) && nanCounts.get(id) > 0;
+      }
     }
 
-    private boolean containsNullsOnly(Integer id) {
-      return valueCounts != null
-          && valueCounts.containsKey(id)
-          && nullCounts != null
-          && nullCounts.containsKey(id)
-          && valueCounts.get(id) - nullCounts.get(id) == 0;
+    private boolean containsNullsOnly(int id) {
+      if (null != stats) {
+        FieldStats<?> stat = stats.statsFor(id);
+        return null != stat
+            && null != stat.valueCount()
+            && null != stat.nullValueCount()
+            && stat.valueCount() - stat.nullValueCount() == 0;
+      } else {
+        return valueCounts != null
+            && valueCounts.containsKey(id)
+            && nullCounts != null
+            && nullCounts.containsKey(id)
+            && valueCounts.get(id) - nullCounts.get(id) == 0;
+      }
     }
 
-    private boolean containsNaNsOnly(Integer id) {
-      return nanCounts != null
-          && nanCounts.containsKey(id)
-          && valueCounts != null
-          && nanCounts.get(id).equals(valueCounts.get(id));
+    private boolean containsNaNsOnly(int id) {
+      if (null != stats) {
+        FieldStats<?> stat = stats.statsFor(id);
+        return null != stat
+            && null != stat.nanValueCount()
+            && null != stat.valueCount()
+            && stat.nanValueCount().equals(stat.valueCount());
+      } else {
+        return nanCounts != null
+            && nanCounts.containsKey(id)
+            && valueCounts != null
+            && nanCounts.get(id).equals(valueCounts.get(id));
+      }
+    }
+
+    private boolean containsNoNulls(int id) {
+      if (null != stats) {
+        FieldStats<?> stat = stats.statsFor(id);
+        return null != stat && null != stat.nullValueCount() && stat.nullValueCount() == 0;
+      } else {
+        return nullCounts != null && nullCounts.containsKey(id) && nullCounts.get(id) == 0;
+      }
+    }
+
+    private boolean containsNoNaNs(int id) {
+      if (null != stats) {
+        FieldStats<?> stat = stats.statsFor(id);
+        return null != stat && null != stat.nanValueCount() && stat.nanValueCount() == 0;
+      } else {
+        return nanCounts != null && nanCounts.containsKey(id) && nanCounts.get(id) == 0;
+      }
+    }
+
+    private <T> T lowerBound(BoundReference<T> ref) {
+      int id = ref.fieldId();
+      if (null != stats) {
+        FieldStats<T> stat = stats.statsFor(id);
+        if (null != stat && null != stat.lowerBound()) {
+          return stat.lowerBound();
+        }
+      } else if (lowerBounds != null && lowerBounds.containsKey(id)) {
+        return Conversions.fromByteBuffer(ref.ref().type(), lowerBounds.get(id));
+      }
+
+      return null;
+    }
+
+    private <T> T upperBound(BoundReference<T> ref) {
+      int id = ref.fieldId();
+      if (null != stats) {
+        FieldStats<T> stat = stats.statsFor(id);
+        if (null != stat && null != stat.upperBound()) {
+          return stat.upperBound();
+        }
+      } else if (upperBounds != null && upperBounds.containsKey(id)) {
+        return Conversions.fromByteBuffer(ref.ref().type(), upperBounds.get(id));
+      }
+
+      return null;
     }
   }
 }

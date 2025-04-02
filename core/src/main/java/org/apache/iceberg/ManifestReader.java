@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.stats.BaseContentStats;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PartitionSet;
 import org.slf4j.Logger;
@@ -67,6 +68,8 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
           "lower_bounds",
           "upper_bounds",
           "record_count");
+
+  private static final Set<String> CONTENT_STATS = ImmutableSet.of("content_stats");
 
   protected enum FileType {
     DATA_FILES(GenericDataFile.class),
@@ -137,7 +140,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       this.spec = readPartitionSpec(file);
     }
 
-    this.fileSchema = new Schema(DataFile.getType(spec.rawPartitionType()).fields());
+    this.fileSchema = new Schema(DataFile.getType(spec).fields());
   }
 
   private <T extends ContentFile<T>> PartitionSpec readPartitionSpec(InputFile inputFile) {
@@ -297,6 +300,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
             .setRootType(GenericManifestEntry.class)
             .setCustomType(ManifestEntry.DATA_FILE_ID, content.fileClass())
             .setCustomType(DataFile.PARTITION_ID, PartitionData.class)
+            .setCustomType(DataFile.CONTENT_STATS.fieldId(), BaseContentStats.class)
             .reuseContainers()
             .build();
 
@@ -325,7 +329,8 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
    */
   @Override
   public CloseableIterator<F> iterator() {
-    boolean dropStats = dropStats(columns);
+    boolean dropStats =
+        dropStats(projection(fileSchema, fileProjection, columns, caseSensitive), columns);
     return CloseableIterable.transform(liveEntries(), e -> e.file().copy(!dropStats)).iterator();
   }
 
@@ -378,8 +383,32 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     // is a primitive type.
     if (columns != null && !columns.containsAll(ManifestReader.ALL_COLUMNS)) {
       Set<String> intersection = Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS);
-      return intersection.isEmpty() || intersection.equals(Sets.newHashSet("record_count"));
+      Set<String> columnStatsIntersection =
+          Sets.intersection(Sets.newHashSet(columns), CONTENT_STATS);
+      return (intersection.isEmpty() && columnStatsIntersection.isEmpty())
+          || intersection.equals(Sets.newHashSet("record_count"));
     }
+    return false;
+  }
+
+  static boolean dropStats(Schema schema, Collection<String> columns) {
+    // Make sure we only drop all stats if we had projected all stats
+    // We do not drop stats even if we had partially added some stats columns, except for
+    // record_count column.
+    // Since we don't want to keep stats map which could be huge in size just because we select
+    // record_count, which is a primitive type
+    if (null != schema && null != columns && !columns.containsAll(ManifestReader.ALL_COLUMNS)) {
+      Set<String> union = Sets.newHashSet(Sets.union(STATS_COLUMNS, CONTENT_STATS));
+      union.remove("record_count");
+      for (String statsColumn : union) {
+        if (null != schema.findField(statsColumn)) {
+          return false;
+        }
+      }
+
+      return true;
+    }
+
     return false;
   }
 
@@ -389,6 +418,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     } else {
       List<String> projectColumns = Lists.newArrayList(columns);
       projectColumns.addAll(STATS_COLUMNS); // order doesn't matter
+      projectColumns.addAll(CONTENT_STATS);
       return projectColumns;
     }
   }
