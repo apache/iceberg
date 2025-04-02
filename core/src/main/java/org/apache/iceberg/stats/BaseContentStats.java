@@ -75,6 +75,7 @@ public class BaseContentStats implements ContentStats, Serializable {
     return fieldStats;
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public Types.StructType statsStruct() {
     return statsStruct;
@@ -172,6 +173,7 @@ public class BaseContentStats implements ContentStats, Serializable {
 
       BaseFieldStats<?> newStat = builder.build();
       fieldStats.set(pos, newStat);
+      fieldStatsById.put(newStat.fieldId(), newStat);
     }
   }
 

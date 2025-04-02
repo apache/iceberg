@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.stats.ContentStats;
 
 class Delegates {
   private Delegates() {}
@@ -147,6 +148,11 @@ class Delegates {
     @Override
     public DeleteFile copy(boolean withStats) {
       return wrap(wrappedAsDeleteFile.copy(withStats));
+    }
+
+    @Override
+    public ContentStats contentStats() {
+      return wrappedAsDeleteFile.contentStats();
     }
   }
 
@@ -290,6 +296,11 @@ class Delegates {
     @Override
     public F copyWithoutStats() {
       throw new IllegalArgumentException("Cannot copy wrapped DataFile");
+    }
+
+    @Override
+    public ContentStats contentStats() {
+      return wrapped.contentStats();
     }
   }
 }

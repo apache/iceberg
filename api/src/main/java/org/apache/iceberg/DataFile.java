@@ -22,6 +22,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.util.List;
+import org.apache.iceberg.stats.StatsUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.BinaryType;
 import org.apache.iceberg.types.Types.IntegerType;
@@ -120,11 +121,14 @@ public interface DataFile extends ContentFile<DataFile> {
           LongType.get(),
           "The length of referenced content stored in the file");
 
+  Types.NestedField CONTENT_STATS =
+      optional(146, "content_stats", StructType.of(), "Content statistics");
+
   int PARTITION_ID = 102;
   String PARTITION_NAME = "partition";
   String PARTITION_DOC = "Partition data tuple, schema based on the partition spec";
 
-  // NEXT ID TO ASSIGN: 146
+  // NEXT ID TO ASSIGN: 147
 
   static StructType getType(StructType partitionType) {
     // IDs start at 100 to leave room for changes to ManifestEntry
@@ -149,7 +153,35 @@ public interface DataFile extends ContentFile<DataFile> {
         FIRST_ROW_ID,
         REFERENCED_DATA_FILE,
         CONTENT_OFFSET,
-        CONTENT_SIZE);
+        CONTENT_SIZE,
+        CONTENT_STATS);
+  }
+
+  static StructType getType(PartitionSpec spec) {
+    // IDs start at 100 to leave room for changes to ManifestEntry
+    return StructType.of(
+        CONTENT,
+        FILE_PATH,
+        FILE_FORMAT,
+        SPEC_ID,
+        required(PARTITION_ID, PARTITION_NAME, spec.rawPartitionType(), PARTITION_DOC),
+        RECORD_COUNT,
+        FILE_SIZE,
+        COLUMN_SIZES,
+        VALUE_COUNTS,
+        NULL_VALUE_COUNTS,
+        NAN_VALUE_COUNTS,
+        LOWER_BOUNDS,
+        UPPER_BOUNDS,
+        KEY_METADATA,
+        SPLIT_OFFSETS,
+        EQUALITY_IDS,
+        SORT_ORDER_ID,
+        FIRST_ROW_ID,
+        REFERENCED_DATA_FILE,
+        CONTENT_OFFSET,
+        CONTENT_SIZE,
+        StatsUtil.contentStatsFor(spec.schema()));
   }
 
   /**

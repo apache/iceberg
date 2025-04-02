@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -594,6 +595,86 @@ public class TestTypeUtil {
     // Expected legacy behavior is to ignore selectNot on struct elements.
     Schema actualNoStruct = TypeUtil.selectNot(schema, Sets.newHashSet(2));
     assertThat(actualNoStruct.asStruct()).isEqualTo(schema.asStruct());
+  }
+
+  @Test
+  public void selectNotIncludesContentStatsStruct() {
+    // DataFile.CONTENT_STATS doesn't have any subfields
+    Schema schema =
+        new Schema(
+            Lists.newArrayList(
+                DataFile.CONTENT_SIZE,
+                DataFile.CONTENT_OFFSET,
+                DataFile.CONTENT_STATS,
+                required(
+                    2,
+                    "location",
+                    Types.StructType.of(
+                        required(3, "lat", Types.DoubleType.get()),
+                        required(4, "long", Types.DoubleType.get())))));
+
+    Schema withoutContentSize =
+        new Schema(
+            Lists.newArrayList(
+                DataFile.CONTENT_OFFSET,
+                DataFile.CONTENT_STATS,
+                required(
+                    2,
+                    "location",
+                    Types.StructType.of(
+                        required(3, "lat", Types.DoubleType.get()),
+                        required(4, "long", Types.DoubleType.get())))));
+
+    assertThat(
+            TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.CONTENT_SIZE.fieldId())).asStruct())
+        .isEqualTo(withoutContentSize.asStruct());
+
+    // Expected legacy behavior is to completely remove structs if their elements are removed
+    assertThat(TypeUtil.selectNot(schema, Sets.newHashSet(3, 4)).asStruct())
+        .isEqualTo(
+            new Schema(DataFile.CONTENT_SIZE, DataFile.CONTENT_OFFSET, DataFile.CONTENT_STATS)
+                .asStruct());
+
+    // Expected legacy behavior is to ignore selectNot on struct elements
+    assertThat(TypeUtil.selectNot(schema, Sets.newHashSet(2)).asStruct())
+        .isEqualTo(schema.asStruct());
+
+    // DataFile.CONTENT_STATS doesn't have any subfields and is therefore excluded
+    assertThat(
+            TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.CONTENT_STATS.fieldId(), 2))
+                .asStruct())
+        .isEqualTo(
+            new Schema(
+                    DataFile.CONTENT_SIZE,
+                    DataFile.CONTENT_OFFSET,
+                    required(
+                        2,
+                        "location",
+                        Types.StructType.of(
+                            required(3, "lat", Types.DoubleType.get()),
+                            required(4, "long", Types.DoubleType.get()))))
+                .asStruct());
+
+    // DataFile.CONTENT_STATS has subfields and is not excluded
+    Schema columnStatsWithSubFields =
+        new Schema(
+            DataFile.CONTENT_SIZE,
+            optional(
+                146,
+                "content_stats",
+                Types.StructType.of(optional(10200, "first", Types.LongType.get())),
+                "Content statistics"),
+            required(
+                2,
+                "location",
+                Types.StructType.of(
+                    required(3, "lat", Types.DoubleType.get()),
+                    required(4, "long", Types.DoubleType.get()))));
+    assertThat(
+            TypeUtil.selectNot(
+                    columnStatsWithSubFields, Sets.newHashSet(DataFile.CONTENT_STATS.fieldId(), 2))
+                .asStruct())
+        .isEqualTo(columnStatsWithSubFields.asStruct());
   }
 
   @Test
