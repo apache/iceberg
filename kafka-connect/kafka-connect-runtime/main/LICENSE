@@ -458,7 +458,7 @@ License (from POM): The Apache Software License, Version 2.0 - http://www.apache
 
 --------------------------------------------------------------------------------
 
-Group: com.google.guava  Name: guava  Version: 33.4.0-jre
+Group: com.google.guava  Name: guava  Version: 33.4.6-jre
 Project URL (from manifest): https://github.com/google/guava/
 Project URL (from POM): https://github.com/google/guava
 License (from POM): Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
@@ -1062,7 +1062,7 @@ License (from POM): Apache License, Version 2.0 - http://www.apache.org/licenses
 
 --------------------------------------------------------------------------------
 
-Group: org.apache.httpcomponents.client5  Name: httpclient5  Version: 5.4.2
+Group: org.apache.httpcomponents.client5  Name: httpclient5  Version: 5.4.3
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
@@ -1452,5 +1452,11 @@ License (from POM): Apache License, Version 2.0 - https://aws.amazon.com/apache2
 Group: org.mongodb Name: bson Version: 4.11
 Project URL (from POM): https://github.com/mongodb/mongo-java-driver
 License (from POM): The Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.s3.analyticsaccelerator  Name: analyticsaccelerator-s3  Version: 1.0.0
+Project URL: https://github.com/awslabs/analytics-accelerator-s3
+License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
