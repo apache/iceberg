@@ -514,3 +514,14 @@ License: The Apache Software License, Version 2.0 - http://www.apache.org/licens
 Group: software.amazon.eventstream  Name: eventstream  Version: 1.0.1
 Project URL: https://github.com/awslabs/aws-eventstream-java
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.s3.accessgrants  Name: aws-s3-accessgrants-java-plugin  Version: 2.3.0
+Project URL: https://github.com/aws/aws-s3-accessgrants-plugin-java-v2
+License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
+
+--------------------------------------------------------------------------------
+Group: software.amazon.s3.analyticsaccelerator  Name: analyticsaccelerator-s3  Version: 1.0.0
+Project URL: https://github.com/awslabs/analytics-accelerator-s3
+License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
