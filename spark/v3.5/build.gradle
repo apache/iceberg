@@ -264,6 +264,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
 
     // ADUFFY ADDED
     integrationImplementation libs.hadoop3.aws
+    integrationImplementation libs.hadoop3.azure
     integrationImplementation libs.hadoop3.common
     integrationRuntimeOnly libs.arrow.memory.netty
     // ADUFFY ADDED
