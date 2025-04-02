@@ -30,12 +30,16 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.AwsClientFactories;
+import org.apache.iceberg.aws.AwsIntegTestUtil;
+import org.apache.iceberg.aws.EnableAwsTest;
+import org.apache.iceberg.aws.EnableAwsTestCondition;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -46,6 +50,14 @@ import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
 
+@EnableAwsTest(
+    required = {
+      AwsIntegTestUtil.AWS_ACCESS_KEY_ID,
+      AwsIntegTestUtil.AWS_SECRET_ACCESS_KEY,
+      AwsIntegTestUtil.AWS_SESSION_TOKEN,
+      AwsIntegTestUtil.AWS_REGION
+    })
+@ExtendWith(EnableAwsTestCondition.class)
 public class TestDynamoDbLockManager {
 
   private static final ForkJoinPool POOL = new ForkJoinPool(16);

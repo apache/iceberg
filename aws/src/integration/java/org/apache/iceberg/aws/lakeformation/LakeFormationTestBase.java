@@ -32,6 +32,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.aws.AssumeRoleAwsClientFactory;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.aws.EnableAwsTest;
+import org.apache.iceberg.aws.EnableAwsTestCondition;
 import org.apache.iceberg.aws.HttpClientProperties;
 import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -42,6 +44,7 @@ import org.apache.iceberg.types.Types;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
@@ -85,6 +88,15 @@ import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
 @SuppressWarnings({"VisibilityModifier", "HideUtilityClassConstructor"})
+@EnableAwsTest(
+    required = {
+      AwsIntegTestUtil.AWS_ACCESS_KEY_ID,
+      AwsIntegTestUtil.AWS_SECRET_ACCESS_KEY,
+      AwsIntegTestUtil.AWS_SESSION_TOKEN,
+      AwsIntegTestUtil.AWS_REGION,
+      AwsIntegTestUtil.AWS_TEST_ACCOUNT_ID
+    })
+@ExtendWith(EnableAwsTestCondition.class)
 public class LakeFormationTestBase {
 
   static final Logger LOG = LoggerFactory.getLogger(LakeFormationTestBase.class);

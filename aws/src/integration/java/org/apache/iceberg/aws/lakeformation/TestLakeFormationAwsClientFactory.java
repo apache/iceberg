@@ -27,6 +27,8 @@ import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.aws.EnableAwsTest;
+import org.apache.iceberg.aws.EnableAwsTestCondition;
 import org.apache.iceberg.aws.HttpClientProperties;
 import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -35,6 +37,7 @@ import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
@@ -48,6 +51,14 @@ import software.amazon.awssdk.services.iam.model.DeleteRoleRequest;
 import software.amazon.awssdk.services.iam.model.GetRolePolicyRequest;
 import software.amazon.awssdk.services.iam.model.PutRolePolicyRequest;
 
+@EnableAwsTest(
+    required = {
+      AwsIntegTestUtil.AWS_ACCESS_KEY_ID,
+      AwsIntegTestUtil.AWS_SECRET_ACCESS_KEY,
+      AwsIntegTestUtil.AWS_SESSION_TOKEN,
+      AwsIntegTestUtil.AWS_TEST_ACCOUNT_ID
+    })
+@ExtendWith(EnableAwsTestCondition.class)
 public class TestLakeFormationAwsClientFactory {
 
   private static final Logger LOG =

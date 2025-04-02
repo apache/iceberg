@@ -37,6 +37,8 @@ import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
+import org.apache.iceberg.aws.EnableAwsTest;
+import org.apache.iceberg.aws.EnableAwsTestCondition;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -46,6 +48,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.PartitionMetadata;
 import software.amazon.awssdk.regions.Region;
@@ -70,6 +73,18 @@ import software.amazon.awssdk.utils.ImmutableMap;
 import software.amazon.awssdk.utils.IoUtils;
 import software.amazon.s3.analyticsaccelerator.util.PrefetchMode;
 
+@EnableAwsTest(
+    required = {
+      AwsIntegTestUtil.AWS_ACCESS_KEY_ID,
+      AwsIntegTestUtil.AWS_SECRET_ACCESS_KEY,
+      AwsIntegTestUtil.AWS_SESSION_TOKEN,
+      AwsIntegTestUtil.AWS_TEST_ACCOUNT_ID,
+      AwsIntegTestUtil.AWS_REGION,
+      AwsIntegTestUtil.AWS_CROSS_REGION,
+      AwsIntegTestUtil.AWS_TEST_BUCKET,
+      AwsIntegTestUtil.AWS_TEST_CROSS_REGION_BUCKET
+    })
+@ExtendWith(EnableAwsTestCondition.class)
 public class TestS3FileIOIntegration {
 
   private final Random random = new Random(1);
