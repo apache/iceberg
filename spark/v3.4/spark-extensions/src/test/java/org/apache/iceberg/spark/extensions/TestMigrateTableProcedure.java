@@ -238,4 +238,24 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
     Object result = scalarSql("CALL %s.system.migrate('%s')", catalogName, tableName);
     Assert.assertEquals(0L, result);
   }
+
+  @Test
+  public void testMigratePartitionedWithParallelism() throws IOException {
+    Assume.assumeTrue(catalogName.equals("spark_catalog"));
+
+    String location = temp.newFolder().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet PARTITIONED BY (id) LOCATION '%s'",
+        tableName, location);
+    sql("INSERT INTO TABLE %s (id, data) VALUES (1, 'a'), (2, 'b')", tableName);
+
+    assertEquals(
+        "Procedure output must match",
+        ImmutableList.of(row(2L)),
+        sql("CALL %s.system.migrate(table => '%s', parallelism => %d)", catalogName, tableName, 2));
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row("a", 1L), row("b", 2L)),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
 }
