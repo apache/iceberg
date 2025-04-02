@@ -252,6 +252,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.custom.remove_orphan_files('n', 't')", catalogName))
         .isInstanceOf(ParseException.class)
+        .hasMessageContaining("Syntax error")
         .satisfies(
             exception -> {
               ParseException parseException = (ParseException) exception;
@@ -481,10 +482,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
     }
 
     Transaction transaction = table.newTransaction();
-    transaction
-        .updateStatistics()
-        .setStatistics(statisticsFile.snapshotId(), statisticsFile)
-        .commit();
+    transaction.updateStatistics().setStatistics(statisticsFile).commit();
     transaction.commitTransaction();
 
     // wait to ensure files are old enough

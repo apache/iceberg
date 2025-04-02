@@ -931,6 +931,17 @@ public class TestMetadataUpdateParser {
   }
 
   @Test
+  public void testRemoveSchemas() {
+    String action = MetadataUpdateParser.REMOVE_SCHEMAS;
+    String json = "{\"action\":\"remove-schemas\",\"schema-ids\":[1,2,3]}";
+    MetadataUpdate expected = new MetadataUpdate.RemoveSchemas(ImmutableSet.of(1, 2, 3));
+    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
+    assertThat(MetadataUpdateParser.toJson(expected))
+        .as("Remove schemas should convert to the correct JSON value")
+        .isEqualTo(json);
+  }
+
+  @Test
   public void testEnableRowLineage() {
     String action = MetadataUpdateParser.ENABLE_ROW_LINEAGE;
     String json = "{\"action\":\"enable-row-lineage\"}";
@@ -1049,6 +1060,11 @@ public class TestMetadataUpdateParser {
         assertEqualsRemovePartitionSpecs(
             (MetadataUpdate.RemovePartitionSpecs) expectedUpdate,
             (MetadataUpdate.RemovePartitionSpecs) actualUpdate);
+        break;
+      case MetadataUpdateParser.REMOVE_SCHEMAS:
+        assertEqualsRemoveSchemas(
+            (MetadataUpdate.RemoveSchemas) expectedUpdate,
+            (MetadataUpdate.RemoveSchemas) actualUpdate);
         break;
       case MetadataUpdateParser.ENABLE_ROW_LINEAGE:
         assertThat(actualUpdate).isInstanceOf(MetadataUpdate.EnableRowLineage.class);
@@ -1277,6 +1293,11 @@ public class TestMetadataUpdateParser {
   private static void assertEqualsRemovePartitionSpecs(
       MetadataUpdate.RemovePartitionSpecs expected, MetadataUpdate.RemovePartitionSpecs actual) {
     assertThat(actual.specIds()).containsExactlyInAnyOrderElementsOf(expected.specIds());
+  }
+
+  private static void assertEqualsRemoveSchemas(
+      MetadataUpdate.RemoveSchemas expected, MetadataUpdate.RemoveSchemas actual) {
+    assertThat(actual.schemaIds()).containsExactlyInAnyOrderElementsOf(expected.schemaIds());
   }
 
   private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)

@@ -395,6 +395,10 @@ public class TypeUtil {
     return visit(schema, new FindTypeVisitor(predicate));
   }
 
+  public static Type find(Type type, Predicate<Type> predicate) {
+    return visit(type, new FindTypeVisitor(predicate));
+  }
+
   public static boolean isPromotionAllowed(Type from, Type.PrimitiveType to) {
     // Warning! Before changing this function, make sure that the type change doesn't introduce
     // compatibility problems in partitioning.
@@ -535,6 +539,12 @@ public class TypeUtil {
         return ((Types.FixedType) type).length();
       case BINARY:
       case VARIANT:
+        return 80;
+      case GEOMETRY:
+      case GEOGRAPHY:
+        // 80 bytes is an approximate size for a polygon or linestring with 4 to 5 coordinates.
+        // This is a reasonable estimate for the size of a geometry or geography object without
+        // additional details.
         return 80;
       case UNKNOWN:
         // Consider Unknown as null

@@ -66,7 +66,7 @@ The view version metadata file has the following fields:
 
 Notes:
 
-1. The number of versions to retain is controlled by the table property: `version.history.num-entries`.
+1. The number of versions to retain is controlled by the view property: `version.history.num-entries`.
 2. Properties are used for metadata such as `comment` and for settings that affect view maintenance. This is not intended to be used for arbitrary metadata.
 
 #### Versions

@@ -46,7 +46,8 @@ public class TestSerializableTypes {
           Types.StringType.get(),
           Types.UUIDType.get(),
           Types.BinaryType.get(),
-          Types.UnknownType.get()
+          Types.UnknownType.get(),
+          Types.VariantType.get()
         };
 
     for (Type type : identityPrimitives) {
@@ -63,7 +64,12 @@ public class TestSerializableTypes {
           Types.DecimalType.of(9, 3),
           Types.DecimalType.of(11, 0),
           Types.FixedType.ofLength(4),
-          Types.FixedType.ofLength(34)
+          Types.FixedType.ofLength(34),
+          Types.GeometryType.crs84(),
+          Types.GeometryType.of("srid:3857"),
+          Types.GeographyType.crs84(),
+          Types.GeographyType.of("srid:4269"),
+          Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY),
         };
 
     for (Type type : equalityPrimitives) {
@@ -126,15 +132,6 @@ public class TestSerializableTypes {
           .as("List serialization should preserve identity type")
           .isSameAs(Types.DoubleType.get());
     }
-  }
-
-  @Test
-  public void testVariant() throws Exception {
-    Types.VariantType variant = Types.VariantType.get();
-    Type copy = TestHelpers.roundTripSerialize(variant);
-    assertThat(copy)
-        .as("Variant serialization should be equal to starting type")
-        .isEqualTo(variant);
   }
 
   @Test

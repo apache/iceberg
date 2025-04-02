@@ -49,8 +49,8 @@ public class TestSparkSessionCatalog extends TestBase {
   @Test
   public void testValidateHmsUri() {
     // HMS uris match
-    assertThat(spark.sessionState().catalogManager().v2SessionCatalog().defaultNamespace()[0])
-        .isEqualTo("default");
+    assertThat(spark.sessionState().catalogManager().v2SessionCatalog().defaultNamespace())
+        .containsExactly("default");
 
     // HMS uris doesn't match
     spark.sessionState().catalogManager().reset();
@@ -69,15 +69,15 @@ public class TestSparkSessionCatalog extends TestBase {
     spark.sessionState().catalogManager().reset();
     spark.conf().set(catalogHmsUriKey, hmsUri);
     spark.conf().unset(envHmsUriKey);
-    assertThat(spark.sessionState().catalogManager().v2SessionCatalog().defaultNamespace()[0])
-        .isEqualTo("default");
+    assertThat(spark.sessionState().catalogManager().v2SessionCatalog().defaultNamespace())
+        .containsExactly("default");
 
     // no catalog HMS uri, only env HMS uri
     spark.sessionState().catalogManager().reset();
     spark.conf().set(envHmsUriKey, hmsUri);
     spark.conf().unset(catalogHmsUriKey);
-    assertThat(spark.sessionState().catalogManager().v2SessionCatalog().defaultNamespace()[0])
-        .isEqualTo("default");
+    assertThat(spark.sessionState().catalogManager().v2SessionCatalog().defaultNamespace())
+        .containsExactly("default");
   }
 
   @Test

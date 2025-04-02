@@ -400,7 +400,6 @@ public class TestRewriteManifestsAction extends TestBase {
     table.refresh();
 
     List<ManifestFile> newManifests = table.currentSnapshot().allManifests(table.io());
-
     assertThat(newManifests).as("Should have 2 manifests after rewrite").hasSize(2);
 
     assertThat(newManifests.get(0).existingFilesCount()).isEqualTo(4);

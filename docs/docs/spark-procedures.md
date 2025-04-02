@@ -943,7 +943,7 @@ as an `UPDATE_AFTER` image, resulting in the following pre/post update images:
 
 ### `compute_table_stats`
 
-This procedure calculates the [Number of Distinct Values (NDV) statistics](../../format/puffin-spec.md) for a specific table.
+This procedure calculates the [Number of Distinct Values (NDV) statistics](../../puffin-spec.md#apache-datasketches-theta-v1-blob-type) for a specific table.
 By default, statistics are computed for all columns using the table's current snapshot.
 The procedure can be optionally configured to compute statistics for a specific snapshot and/or a subset of columns.
 
@@ -1038,8 +1038,8 @@ It will produce a new set of metadata in the default staging location under the 
 ```sql
 CALL catalog_name.system.rewrite_table_path(
     table => 'db.my_table', 
-    source_prefix => "hdfs://nn:8020/path/to/source_table",
-    target_prefix => "s3a://bucket/prefix/db.db/my_table"
+    source_prefix => 'hdfs://nn:8020/path/to/source_table',
+    target_prefix => 's3a://bucket/prefix/db.db/my_table'
 );
 ```
 
@@ -1049,11 +1049,11 @@ with new metadata files written to an explicit staging location.
 ```sql
 CALL catalog_name.system.rewrite_table_path(
     table => 'db.my_table', 
-    source_prefix => "s3a://bucketOne/prefix/db.db/my_table",
-    target_prefix => "s3a://bucketTwo/prefix/db.db/my_table",
-    start_version => "v2.metadata.json",
-    end_version => "v20.metadata.json",
-    staging_location => "s3a://bucketStaging/my_table"  
+    source_prefix => 's3a://bucketOne/prefix/db.db/my_table',
+    target_prefix => 's3a://bucketTwo/prefix/db.db/my_table',
+    start_version => 'v2.metadata.json',
+    end_version => 'v20.metadata.json',
+    staging_location => 's3a://bucketStaging/my_table'  
 );
 ```
 

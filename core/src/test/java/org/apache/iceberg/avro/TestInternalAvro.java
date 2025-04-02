@@ -24,42 +24,91 @@ import org.apache.iceberg.InternalTestHelpers;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RandomInternalData;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.StructLike;
+import org.apache.iceberg.data.DataTest;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-public class TestInternalAvro extends AvroDataTest {
+public class TestInternalAvro extends DataTest {
+  @Override
+  protected boolean supportsDefaultValues() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsUnknown() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsTimestampNanos() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsVariant() {
+    return true;
+  }
+
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    List<StructLike> expected = RandomInternalData.generate(schema, 100, 42L);
+    List<Record> expected = RandomInternalData.generate(schema, 100, 42L);
+    writeAndValidate(schema, expected);
+  }
 
+  @Override
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
+    List<Record> expected = RandomInternalData.generate(writeSchema, 100, 42L);
+    writeAndValidate(writeSchema, expectedSchema, expected);
+  }
+
+  @Override
+  protected void writeAndValidate(Schema schema, List<Record> expected) throws IOException {
+    writeAndValidate(schema, schema, expected);
+  }
+
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema, List<Record> expected)
+      throws IOException {
     OutputFile outputFile = new InMemoryOutputFile();
 
-    try (DataWriter<StructLike> dataWriter =
+    try (DataWriter<Record> dataWriter =
         Avro.writeData(outputFile)
-            .schema(schema)
+            .schema(writeSchema)
             .createWriterFunc(InternalWriter::create)
             .overwrite()
             .withSpec(PartitionSpec.unpartitioned())
             .build()) {
-      for (StructLike rec : expected) {
+      for (Record rec : expected) {
         dataWriter.write(rec);
       }
     }
 
-    List<StructLike> rows;
-    try (AvroIterable<StructLike> reader =
+    List<Record> rows;
+    try (AvroIterable<Record> reader =
         Avro.read(outputFile.toInputFile())
-            .project(schema)
+            .project(expectedSchema)
             .createResolvingReader(InternalReader::create)
             .build()) {
       rows = Lists.newArrayList(reader);
     }
 
     for (int i = 0; i < expected.size(); i += 1) {
-      InternalTestHelpers.assertEquals(schema.asStruct(), expected.get(i), rows.get(i));
+      InternalTestHelpers.assertEquals(expectedSchema.asStruct(), expected.get(i), rows.get(i));
+    }
+
+    try (AvroIterable<Record> reader =
+        Avro.read(outputFile.toInputFile())
+            .project(expectedSchema)
+            .createResolvingReader(InternalReader::create)
+            .build()) {
+      int index = 0;
+      for (Record actualRecord : reader) {
+        InternalTestHelpers.assertEquals(
+            expectedSchema.asStruct(), expected.get(index), actualRecord);
+        index += 1;
+      }
     }
   }
 }

@@ -78,6 +78,9 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
             .put(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath())
             .put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key1", "catalog-default-key1")
             .put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key2", "catalog-default-key2")
+            .put(CatalogProperties.VIEW_DEFAULT_PREFIX + "key3", "catalog-default-key3")
+            .put(CatalogProperties.VIEW_OVERRIDE_PREFIX + "key3", "catalog-override-key3")
+            .put(CatalogProperties.VIEW_OVERRIDE_PREFIX + "key4", "catalog-override-key4")
             .build());
 
     RESTCatalogAdapter adaptor =
@@ -246,6 +249,15 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
 
   @Test
   public void viewExistsFallbackToGETRequest() {
+    // server indicates support of loading a view only via GET, which is
+    // what older REST servers would send back too
+    verifyViewExistsFallbackToGETRequest(
+        ConfigResponse.builder().withEndpoints(ImmutableList.of(Endpoint.V1_LOAD_VIEW)).build(),
+        ImmutableMap.of());
+  }
+
+  private void verifyViewExistsFallbackToGETRequest(
+      ConfigResponse configResponse, Map<String, String> catalogProperties) {
     RESTCatalogAdapter adapter =
         Mockito.spy(
             new RESTCatalogAdapter(backendCatalog) {
@@ -256,13 +268,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
                   Consumer<ErrorResponse> errorHandler,
                   Consumer<Map<String, String>> responseHeaders) {
                 if ("v1/config".equals(request.path())) {
-                  return castResponse(
-                      responseType,
-                      ConfigResponse.builder()
-                          // server indicates support of loading a view only via GET, which is
-                          // what older REST servers would send back too
-                          .withEndpoints(ImmutableList.of(Endpoint.V1_LOAD_VIEW))
-                          .build());
+                  return castResponse(responseType, configResponse);
                 }
 
                 return super.execute(request, responseType, errorHandler, responseHeaders);
@@ -271,8 +277,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
 
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
-    catalog.initialize("test", ImmutableMap.of());
-
+    catalog.initialize("test", catalogProperties);
     assertThat(catalog.viewExists(TableIdentifier.of("ns", "view"))).isFalse();
 
     Mockito.verify(adapter)
@@ -287,6 +292,15 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
             any(),
             any(),
             any());
+  }
+
+  @Test
+  public void viewExistsFallbackToGETRequestWithLegacyServer() {
+    // simulate a legacy server that doesn't send back supported endpoints, thus the
+    // client relies on the default endpoints
+    verifyViewExistsFallbackToGETRequest(
+        ConfigResponse.builder().build(),
+        ImmutableMap.of(RESTSessionCatalog.VIEW_ENDPOINTS_SUPPORTED, "true"));
   }
 
   @Override

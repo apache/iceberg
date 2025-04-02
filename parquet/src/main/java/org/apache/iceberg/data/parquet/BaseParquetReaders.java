@@ -53,11 +53,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
-/**
- * @deprecated since 1.8.0, will be made package-private in 1.9.0
- */
-@Deprecated
-public abstract class BaseParquetReaders<T> {
+abstract class BaseParquetReaders<T> {
   protected BaseParquetReaders() {}
 
   protected ParquetValueReader<T> createReader(Schema expectedSchema, MessageType fileSchema) {
@@ -83,54 +79,14 @@ public abstract class BaseParquetReaders<T> {
   protected abstract ParquetValueReader<T> createStructReader(
       List<Type> types, List<ParquetValueReader<?>> fieldReaders, Types.StructType structType);
 
-  protected ParquetValueReader<?> fixedReader(ColumnDescriptor desc) {
-    return new GenericParquetReaders.FixedReader(desc);
-  }
+  protected abstract ParquetValueReader<?> fixedReader(ColumnDescriptor desc);
 
-  protected ParquetValueReader<?> dateReader(ColumnDescriptor desc) {
-    return new GenericParquetReaders.DateReader(desc);
-  }
+  protected abstract ParquetValueReader<?> dateReader(ColumnDescriptor desc);
 
-  protected ParquetValueReader<?> timeReader(ColumnDescriptor desc) {
-    LogicalTypeAnnotation time = desc.getPrimitiveType().getLogicalTypeAnnotation();
-    Preconditions.checkArgument(
-        time instanceof TimeLogicalTypeAnnotation, "Invalid time logical type: " + time);
+  protected abstract ParquetValueReader<?> timeReader(ColumnDescriptor desc);
 
-    LogicalTypeAnnotation.TimeUnit unit = ((TimeLogicalTypeAnnotation) time).getUnit();
-    switch (unit) {
-      case MICROS:
-        return new GenericParquetReaders.TimeReader(desc);
-      case MILLIS:
-        return new GenericParquetReaders.TimeMillisReader(desc);
-      default:
-        throw new UnsupportedOperationException("Unsupported unit for time: " + unit);
-    }
-  }
-
-  protected ParquetValueReader<?> timestampReader(ColumnDescriptor desc, boolean isAdjustedToUTC) {
-    if (desc.getPrimitiveType().getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
-      return new GenericParquetReaders.TimestampInt96Reader(desc);
-    }
-
-    LogicalTypeAnnotation timestamp = desc.getPrimitiveType().getLogicalTypeAnnotation();
-    Preconditions.checkArgument(
-        timestamp instanceof TimestampLogicalTypeAnnotation,
-        "Invalid timestamp logical type: " + timestamp);
-
-    LogicalTypeAnnotation.TimeUnit unit = ((TimestampLogicalTypeAnnotation) timestamp).getUnit();
-    switch (unit) {
-      case MICROS:
-        return isAdjustedToUTC
-            ? new GenericParquetReaders.TimestamptzReader(desc)
-            : new GenericParquetReaders.TimestampReader(desc);
-      case MILLIS:
-        return isAdjustedToUTC
-            ? new GenericParquetReaders.TimestamptzMillisReader(desc)
-            : new GenericParquetReaders.TimestampMillisReader(desc);
-      default:
-        throw new UnsupportedOperationException("Unsupported unit for timestamp: " + unit);
-    }
-  }
+  protected abstract ParquetValueReader<?> timestampReader(
+      ColumnDescriptor desc, boolean isAdjustedToUTC);
 
   protected Object convertConstant(org.apache.iceberg.types.Type type, Object value) {
     return value;
@@ -210,8 +166,7 @@ public abstract class BaseParquetReaders<T> {
     @Override
     public Optional<ParquetValueReader<?>> visit(
         TimestampLogicalTypeAnnotation timestampLogicalType) {
-      return Optional.of(
-          timestampReader(desc, ((Types.TimestampType) expected).shouldAdjustToUTC()));
+      return Optional.of(timestampReader(desc, timestampLogicalType.isAdjustedToUTC()));
     }
 
     @Override
@@ -435,7 +390,8 @@ public abstract class BaseParquetReaders<T> {
     }
 
     @Override
-    public ParquetValueReader<?> variant(Types.VariantType iVariant, ParquetValueReader<?> reader) {
+    public ParquetValueReader<?> variant(
+        Types.VariantType iVariant, GroupType variant, ParquetValueReader<?> reader) {
       return reader;
     }
 

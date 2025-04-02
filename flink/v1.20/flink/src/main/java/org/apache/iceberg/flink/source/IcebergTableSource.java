@@ -35,12 +35,14 @@ import org.apache.flink.table.connector.source.ScanTableSource;
 import org.apache.flink.table.connector.source.abilities.SupportsFilterPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsLimitPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushDown;
+import org.apache.flink.table.connector.source.abilities.SupportsSourceWatermark;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.types.DataType;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkFilters;
+import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.assigner.SplitAssignerType;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -53,7 +55,8 @@ public class IcebergTableSource
     implements ScanTableSource,
         SupportsProjectionPushDown,
         SupportsFilterPushDown,
-        SupportsLimitPushDown {
+        SupportsLimitPushDown,
+        SupportsSourceWatermark {
 
   private int[] projectedFields;
   private Long limit;
@@ -173,6 +176,17 @@ public class IcebergTableSource
 
     this.filters = expressions;
     return Result.of(acceptedFilters, flinkFilters);
+  }
+
+  @Override
+  public void applySourceWatermark() {
+    Preconditions.checkArgument(
+        readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE),
+        "Source watermarks are supported only in flip-27 iceberg source implementation");
+
+    Preconditions.checkNotNull(
+        properties.get(FlinkReadOptions.WATERMARK_COLUMN),
+        "watermark-column needs to be configured to use source watermark.");
   }
 
   @Override
