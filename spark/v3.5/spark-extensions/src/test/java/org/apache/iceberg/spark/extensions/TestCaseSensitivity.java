@@ -19,13 +19,13 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
-public class TestReplaceWhere extends ExtensionsTestBase {
+public class TestCaseSensitivity extends ExtensionsTestBase {
 
   @AfterEach
   public void cleanup() {
@@ -33,33 +33,29 @@ public class TestReplaceWhere extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testCaseSensitivity() {
+  public void testReplaceWhereCaseSensitivity() {
 
     sql("CREATE TABLE %s (id INT, dep STRING) USING iceberg PARTITIONED BY (dep)", tableName);
     sql("INSERT INTO %s (id, dep) VALUES (1, 'hr')", tableName);
-    sql("INSERT INTO %s (id, dep) VALUES (2, 'support')", tableName);
+    sql("INSERT INTO %s (id, dep) VALUES (5, 'support')", tableName);
 
     sql("SET spark.sql.caseSensitive = false");
     sql("INSERT INTO %s REPLACE WHERE DEP = 'hr' VALUES (3, 'hr')", tableName);
-    ImmutableList<Object[]> expectedRows =
-        ImmutableList.of(
-            row(2, "support"), row(3, "hr") // insert
-            );
-    assertEquals(
-        "Should have expected rows", sql("SELECT * FROM %s ORDER BY id", tableName), expectedRows);
+    assertThat(sql("SELECT ID, DEP FROM %s ORDER BY ID", tableName))
+        .containsExactly(row(3, "hr"), row(5, "support"));
 
     sql("SET spark.sql.caseSensitive = true");
+    String errorMsg = "A column or function parameter with name `DEP` cannot be resolved";
     assertThatThrownBy(
             () -> sql("INSERT INTO %s REPLACE WHERE DEP = 'hr' VALUES (4, 'hr')", tableName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("A column or function parameter with name `DEP` cannot be resolved");
-    sql("INSERT INTO %s REPLACE WHERE dep = 'hr' VALUES (4, 'hr')", tableName);
+        .hasMessageContaining(errorMsg);
+    assertThatThrownBy(() -> sql("SELECT DEP FROM %s ORDER BY ID", tableName))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(errorMsg);
 
-    expectedRows =
-        ImmutableList.of(
-            row(2, "support"), row(4, "hr") // insert
-            );
-    assertEquals(
-        "Should have expected rows", sql("SELECT * FROM %s ORDER BY id", tableName), expectedRows);
+    sql("INSERT INTO %s REPLACE WHERE dep = 'hr' VALUES (4, 'hr')", tableName);
+    assertThat(sql("SELECT id, dep FROM %s ORDER BY id", tableName))
+        .containsExactly(row(4, "hr"), row(5, "support"));
   }
 }
