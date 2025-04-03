@@ -50,13 +50,19 @@ public class AwsProperties implements Serializable {
    *
    * <p>For more details, see
    * https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-catalog-databases.html
+   *
+   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link org.apache.iceberg.aws.glue.GlueProperties#GLUE_CATALOG_ID} instead.
    */
+  @Deprecated
   public static final String GLUE_CATALOG_ID = "glue.id";
 
   /**
    * The account ID used in a Glue resource ARN, e.g.
    * arn:aws:glue:us-east-1:1000000000000:table/db1/table1
+   *
+   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link org.apache.iceberg.aws.glue.GlueProperties#GLUE_ACCOUNT_ID} instead.
    */
+  @Deprecated
   public static final String GLUE_ACCOUNT_ID = "glue.account-id";
 
   /**
@@ -64,7 +70,10 @@ public class AwsProperties implements Serializable {
    * default Glue archives all old table versions after an UpdateTable call, but Glue has a default
    * max number of archived table versions (can be increased). So for streaming use case with lots
    * of commits, it is recommended to set this value to true.
+   *
+   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link org.apache.iceberg.aws.glue.GlueProperties#GLUE_CATALOG_SKIP_ARCHIVE} instead.
    */
+  @Deprecated
   public static final String GLUE_CATALOG_SKIP_ARCHIVE = "glue.skip-archive";
 
   public static final boolean GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT = true;
@@ -75,7 +84,10 @@ public class AwsProperties implements Serializable {
    * are Hive compatible. This is only added for users that have existing conventions using
    * non-standard characters. When database name and table name validation are skipped, there is no
    * guarantee that downstream systems would all support the names.
+   *
+   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link org.apache.iceberg.aws.glue.GlueProperties#GLUE_CATALOG_SKIP_NAME_VALIDATION} instead.
    */
+  @Deprecated
   public static final String GLUE_CATALOG_SKIP_NAME_VALIDATION = "glue.skip-name-validation";
 
   public static final boolean GLUE_CATALOG_SKIP_NAME_VALIDATION_DEFAULT = false;
@@ -85,7 +97,10 @@ public class AwsProperties implements Serializable {
    * details, see: https://docs.aws.amazon.com/lake-formation/latest/dg/api-overview.html. If
    * enabled, the {@link AwsClientFactory} implementation must be {@link
    * LakeFormationAwsClientFactory} or any class that extends it.
+   *
+   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link org.apache.iceberg.aws.glue.GlueProperties#GLUE_LAKEFORMATION_ENABLED} instead.
    */
+  @Deprecated
   public static final String GLUE_LAKEFORMATION_ENABLED = "glue.lakeformation-enabled";
 
   public static final boolean GLUE_LAKEFORMATION_ENABLED_DEFAULT = false;
@@ -95,15 +110,27 @@ public class AwsProperties implements Serializable {
    *
    * <p>This could be used to use GlueCatalog with any glue-compatible metastore service that has a
    * different endpoint
+   *
+   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link org.apache.iceberg.aws.glue.GlueProperties#GLUE_CATALOG_ENDPOINT} instead.
    */
+  @Deprecated
   public static final String GLUE_CATALOG_ENDPOINT = "glue.endpoint";
 
-  /** Configure an alternative endpoint of the DynamoDB service to access. */
+  /**
+   * Configure an alternative endpoint of the DynamoDB service to access.
+   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link org.apache.iceberg.aws.glue.GlueProperties#GLUE_CATALOG_ENDPOINT} instead.
+   */
+  @Deprecated
   public static final String DYNAMODB_ENDPOINT = "dynamodb.endpoint";
 
-  /** DynamoDB table name for {@link DynamoDbCatalog} */
+  /**
+   * DynamoDB table name for {@link DynamoDbCatalog}
+   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link org.apache.iceberg.aws.glue.GlueProperties#GLUE_CATALOG_ENDPOINT} instead.
+   */
+  @Deprecated
   public static final String DYNAMODB_TABLE_NAME = "dynamodb.table-name";
 
+  @Deprecated
   public static final String DYNAMODB_TABLE_NAME_DEFAULT = "iceberg";
 
   /**
