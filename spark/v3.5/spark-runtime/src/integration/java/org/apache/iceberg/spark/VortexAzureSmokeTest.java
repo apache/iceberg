@@ -22,7 +22,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -58,10 +57,10 @@ public class VortexAzureSmokeTest {
           Types.NestedField.required(2, "l_partkey", Types.LongType.get()),
           Types.NestedField.required(3, "l_suppkey", Types.LongType.get()),
           Types.NestedField.required(4, "l_linenumber", Types.LongType.get()),
-          Types.NestedField.required(5, "l_quantity", Types.LongType.get()),
-          Types.NestedField.required(6, "l_extendedprice", Types.LongType.get()),
-          Types.NestedField.required(7, "l_discount", Types.LongType.get()),
-          Types.NestedField.required(8, "l_tax", Types.LongType.get()),
+          Types.NestedField.required(5, "l_quantity", Types.DoubleType.get()),
+          Types.NestedField.required(6, "l_extendedprice", Types.DoubleType.get()),
+          Types.NestedField.required(7, "l_discount", Types.DoubleType.get()),
+          Types.NestedField.required(8, "l_tax", Types.DoubleType.get()),
           Types.NestedField.required(9, "l_returnflag", Types.StringType.get()),
           Types.NestedField.required(10, "l_linestatus", Types.StringType.get()),
           Types.NestedField.required(11, "l_shipdate", Types.DateType.get()),
@@ -76,7 +75,7 @@ public class VortexAzureSmokeTest {
           Types.NestedField.required(1, "o_orderkey", Types.LongType.get()),
           Types.NestedField.required(2, "o_custkey", Types.LongType.get()),
           Types.NestedField.required(3, "o_orderstatus", Types.StringType.get()),
-          Types.NestedField.required(4, "o_totalprice", Types.LongType.get()),
+          Types.NestedField.required(4, "o_totalprice", Types.DoubleType.get()),
           Types.NestedField.required(5, "o_orderdate", Types.DateType.get()),
           Types.NestedField.required(6, "o_orderpriority", Types.StringType.get()),
           Types.NestedField.required(7, "o_clerk", Types.StringType.get()),
@@ -116,7 +115,7 @@ public class VortexAzureSmokeTest {
           Types.NestedField.required(5, "p_type", Types.StringType.get()),
           Types.NestedField.required(6, "p_size", Types.IntegerType.get()),
           Types.NestedField.required(7, "p_container", Types.StringType.get()),
-          Types.NestedField.required(8, "p_retailprice", Types.LongType.get()),
+          Types.NestedField.required(8, "p_retailprice", Types.DoubleType.get()),
           Types.NestedField.required(9, "p_comment", Types.StringType.get()));
 
   private static final Schema SUPPLIER_SCHEMA =
@@ -126,7 +125,7 @@ public class VortexAzureSmokeTest {
           Types.NestedField.required(3, "s_address", Types.StringType.get()),
           Types.NestedField.required(4, "s_nationkey", Types.IntegerType.get()),
           Types.NestedField.required(5, "s_phone", Types.StringType.get()),
-          Types.NestedField.required(6, "s_acctbal", Types.LongType.get()),
+          Types.NestedField.required(6, "s_acctbal", Types.DoubleType.get()),
           Types.NestedField.required(7, "s_comment", Types.StringType.get()));
 
   private static final Schema PARTSUPP_SCHEMA =
@@ -134,7 +133,7 @@ public class VortexAzureSmokeTest {
           Types.NestedField.required(1, "ps_partkey", Types.LongType.get()),
           Types.NestedField.required(2, "ps_suppkey", Types.LongType.get()),
           Types.NestedField.required(3, "ps_availqty", Types.LongType.get()),
-          Types.NestedField.required(4, "ps_supplycost", Types.LongType.get()),
+          Types.NestedField.required(4, "ps_supplycost", Types.DoubleType.get()),
           Types.NestedField.required(5, "ps_comment", Types.StringType.get()));
 
   static {
@@ -239,9 +238,7 @@ public class VortexAzureSmokeTest {
 
   private static SparkSession newSparkSession(String name) {
     return SparkSession.builder()
-        .config(
-            "fs.azure.account.key.vortexicebergsummit25.dfs.core.windows.net",
-            AZURE_ACCESS_KEY)
+        .config("fs.azure.account.key.vortexicebergsummit25.dfs.core.windows.net", AZURE_ACCESS_KEY)
         // use Spark iceberg catalog
         .config("spark.sql.catalog.iceberg", "org.apache.iceberg.spark.SparkCatalog")
         // use hadoop type

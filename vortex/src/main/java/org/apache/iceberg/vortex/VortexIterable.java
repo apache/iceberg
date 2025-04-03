@@ -24,7 +24,6 @@ import dev.vortex.api.DType;
 import dev.vortex.api.File;
 import dev.vortex.api.Files;
 import dev.vortex.api.ScanOptions;
-import dev.vortex.jni.NativeLogging;
 import java.io.IOException;
 import java.net.URI;
 import java.util.List;
@@ -81,7 +80,6 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
               return ConvertFilterToVortex.convert(fileSchema, icebergExpression);
             });
 
-    System.err.println("building new scan for file " + inputFile.location());
     ArrayStream batchStream =
         vortexFile.newScan(
             ScanOptions.builder().addAllColumns(projection).predicate(scanPredicate).build());
