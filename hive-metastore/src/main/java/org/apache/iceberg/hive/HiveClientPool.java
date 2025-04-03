@@ -33,6 +33,7 @@ import org.apache.thrift.transport.TTransportException;
 
 public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException> {
 
+  private static final String HMS_CLIENT_NAME = "hive.metastore.client.class";
   private static final DynMethods.StaticMethod GET_CLIENT =
       DynMethods.builder("getProxy")
           .impl(
@@ -48,20 +49,21 @@ public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException>
           .buildStatic();
 
   private final HiveConf hiveConf;
+  private final String hmsClientName;
 
   public HiveClientPool(int poolSize, Configuration conf) {
     // Do not allow retry by default as we rely on RetryingHiveClient
     super(poolSize, TTransportException.class, false);
     this.hiveConf = new HiveConf(conf, HiveClientPool.class);
     this.hiveConf.addResource(conf);
+    this.hmsClientName = hiveConf.get(HMS_CLIENT_NAME, HiveMetaStoreClient.class.getName());
   }
 
   @Override
   protected IMetaStoreClient newClient() {
     try {
       try {
-        return GET_CLIENT.invoke(
-            hiveConf, (HiveMetaHookLoader) tbl -> null, HiveMetaStoreClient.class.getName());
+        return GET_CLIENT.invoke(hiveConf, (HiveMetaHookLoader) tbl -> null, hmsClientName);
       } catch (RuntimeException e) {
         // any MetaException would be wrapped into RuntimeException during reflection, so let's
         // double-check type here

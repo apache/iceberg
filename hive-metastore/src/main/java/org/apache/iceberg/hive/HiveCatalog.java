@@ -80,6 +80,8 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   public static final String HMS_DB_OWNER = "hive.metastore.database.owner";
   public static final String HMS_DB_OWNER_TYPE = "hive.metastore.database.owner-type";
 
+  private static final String HMS_CLIENT_CLASS = "hms-client-class";
+  private static final String HMS_CLIENT_NAME = "hive.metastore.client.class";
   // MetastoreConf is not available with current Hive version
   static final String HIVE_CONF_CATALOG = "metastore.catalog.default";
 
@@ -101,6 +103,10 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
     if (conf == null) {
       LOG.warn("No Hadoop Configuration was set, using the default environment Configuration");
       this.conf = new Configuration();
+    }
+
+    if (properties.containsKey(HMS_CLIENT_CLASS)) {
+      this.conf.set(HMS_CLIENT_NAME, properties.get(HMS_CLIENT_CLASS));
     }
 
     if (properties.containsKey(CatalogProperties.URI)) {
