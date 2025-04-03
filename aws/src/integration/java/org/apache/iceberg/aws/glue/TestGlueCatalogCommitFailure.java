@@ -451,7 +451,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     failCommitAndThrowException(spyOps, GlueException.builder().statusCode(500).build());
     assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
         .isInstanceOf(CommitFailedException.class)
-        .hasMessage(null);
+        .hasMessageMatching("Cannot commit .* due to unexpected exception");
 
     ops.refresh();
     assertThat(ops.current()).as("Current metadata should not have changed").isEqualTo(metadataV2);

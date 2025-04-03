@@ -119,7 +119,10 @@ public class TestDynamoDbLockManager {
                             })
                         .collect(Collectors.toList()))
             .get();
-    assertThat(results).as("should have only 1 process succeeded in acquisition").hasSize(1);
+    assertThat(results)
+        .as("should have only 1 process succeeded in 16 parallel acquisitions")
+        .hasSize(16)
+        .containsOnlyOnce(true);
   }
 
   @Test
@@ -216,7 +219,10 @@ public class TestDynamoDbLockManager {
                             })
                         .collect(Collectors.toList()))
             .get();
-    assertThat(results).as("only 1 thread should have acquired the lock").hasSize(1);
+    assertThat(results)
+        .as("should have only 1 process succeeded in 16 parallel acquisitions")
+        .hasSize(16)
+        .containsOnlyOnce(true);
   }
 
   @Test

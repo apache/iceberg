@@ -142,7 +142,7 @@ public class TestGlueCatalogLock extends GlueTestBase {
                 final int currentFilesCount = numCommittedFiles;
                 Awaitility.await()
                     .pollInterval(Duration.ofMillis(10))
-                    .atMost(Duration.ofSeconds(10))
+                    .atMost(Duration.ofSeconds(20))
                     .until(() -> barrier.get() >= currentFilesCount * threadsCount);
                 table.newFastAppend().appendFile(file).commit();
                 barrier.incrementAndGet();

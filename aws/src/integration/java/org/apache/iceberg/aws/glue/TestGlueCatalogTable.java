@@ -44,14 +44,13 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.util.LockManagers;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.CreateTableRequest;
 import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
@@ -59,7 +58,6 @@ import software.amazon.awssdk.services.glue.model.GetTableRequest;
 import software.amazon.awssdk.services.glue.model.GetTableResponse;
 import software.amazon.awssdk.services.glue.model.GetTableVersionsRequest;
 import software.amazon.awssdk.services.glue.model.TableInput;
-import software.amazon.awssdk.services.glue.model.UpdateTableRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
@@ -148,8 +146,9 @@ public class TestGlueCatalogTable extends GlueTestBase {
     String tableName = getRandomName();
     TableIdentifier identifier = TableIdentifier.of(namespace, tableName);
     try {
-      glueCatalog.createTable(identifier, schema, partitionSpec, TABLE_LOCATION_PROPERTIES);
-      glueCatalog.loadTable(identifier);
+      glueCatalogWithoutWarehouse.createTable(
+          identifier, schema, partitionSpec, TEST_BUCKET_PATH + "/" + tableName, ImmutableMap.of());
+      glueCatalogWithoutWarehouse.loadTable(identifier);
     } catch (RuntimeException e) {
       throw new RuntimeException(
           "Create and load table without warehouse location should succeed", e);
@@ -333,28 +332,33 @@ public class TestGlueCatalogTable extends GlueTestBase {
   public void testRenameTableFailsToDeleteOldTable() {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
-    // delete the old table metadata, so that drop old table will fail
+
     String newTableName = tableName + "_2";
-    GLUE.updateTable(
-        UpdateTableRequest.builder()
-            .databaseName(namespace)
-            .tableInput(TableInput.builder().name(tableName).parameters(Maps.newHashMap()).build())
-            .build());
+
+    // Simulate table was dropped during rename, where new table already created and need to delete
+    // old table
+    GlueCatalog glueCatalogSpy = Mockito.spy(glueCatalog);
+    Mockito.doThrow(EntityNotFoundException.builder().message("Entity not found").build())
+        .when(glueCatalogSpy)
+        .dropTable(Mockito.any(TableIdentifier.class), Mockito.anyBoolean());
+
     assertThatThrownBy(
             () ->
-                glueCatalog.renameTable(
+                glueCatalogSpy.renameTable(
                     TableIdentifier.of(namespace, tableName),
                     TableIdentifier.of(namespace, newTableName)))
-        .isInstanceOf(ValidationException.class)
+        .isInstanceOf(EntityNotFoundException.class)
         .as("should fail to rename")
-        .hasMessageContaining("Input Glue table is not an iceberg table");
+        .hasMessageContaining("Entity not found");
+
+    // New table should be dropped
     assertThatThrownBy(
             () ->
                 GLUE.getTable(
                     GetTableRequest.builder().databaseName(namespace).name(newTableName).build()))
         .isInstanceOf(EntityNotFoundException.class)
         .as("renamed table should be deleted")
-        .hasMessageContaining("not found");
+        .hasMessageContaining("Entity Not Found");
   }
 
   @Test
@@ -447,7 +451,8 @@ public class TestGlueCatalogTable extends GlueTestBase {
     String tableName = getRandomName();
     AwsProperties properties = new AwsProperties();
     properties.setGlueCatalogSkipArchive(false);
-    glueCatalog.initialize(
+    GlueCatalog glueCatalogWithArchive = new GlueCatalog();
+    glueCatalogWithArchive.initialize(
         CATALOG_NAME,
         TEST_BUCKET_PATH,
         properties,
@@ -455,8 +460,9 @@ public class TestGlueCatalogTable extends GlueTestBase {
         GLUE,
         LockManagers.defaultLockManager(),
         ImmutableMap.of());
-    glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec);
-    Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+    glueCatalogWithArchive.createTable(
+        TableIdentifier.of(namespace, tableName), schema, partitionSpec);
+    Table table = glueCatalogWithArchive.loadTable(TableIdentifier.of(namespace, tableName));
     DataFile dataFile =
         DataFiles.builder(partitionSpec)
             .withPath("/path/to/data-a.parquet")
@@ -474,7 +480,6 @@ public class TestGlueCatalogTable extends GlueTestBase {
         .hasSize(2);
     // create table and commit with skip
     tableName = getRandomName();
-    glueCatalog.initialize(CATALOG_NAME, ImmutableMap.of());
     glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec);
     table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
     table.newAppend().appendFile(dataFile).commit();

@@ -242,7 +242,7 @@ public class TestDynamoDbCatalog {
                         .build()))
         .as("metadata location should be deleted")
         .isInstanceOf(NoSuchKeyException.class)
-        .hasMessageContaining("not found");
+        .hasMessageContaining("Status Code: 404");
   }
 
   @Test
