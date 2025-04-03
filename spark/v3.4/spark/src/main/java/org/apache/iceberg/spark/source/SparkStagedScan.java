@@ -20,14 +20,17 @@ package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import java.util.Objects;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.spark.ParquetReaderType;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
 
@@ -51,8 +54,18 @@ class SparkStagedScan extends SparkScan {
   @Override
   protected List<ScanTaskGroup<ScanTask>> taskGroups() {
     if (taskGroups == null) {
+      boolean hasDeletes = false;
       ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
       List<ScanTask> tasks = taskSetManager.fetchTasks(table(), taskSetId);
+
+      for (ScanTask task : tasks) {
+        if (task instanceof FileScanTask) {
+          if (!((FileScanTask) task).deletes().isEmpty()) {
+            hasDeletes = true;
+          }
+        }
+      }
+
       ValidationException.check(
           tasks != null,
           "Task set manager has no tasks for table %s with task set ID %s",
@@ -60,6 +73,11 @@ class SparkStagedScan extends SparkScan {
           taskSetId);
 
       this.taskGroups = TableScanUtil.planTaskGroups(tasks, splitSize, splitLookback, openFileCost);
+      if (hasDeletes) {
+        this.sparkSession()
+            .conf()
+            .set(SparkSQLProperties.PARQUET_READER_TYPE, ParquetReaderType.ICEBERG.name());
+      }
     }
     return taskGroups;
   }

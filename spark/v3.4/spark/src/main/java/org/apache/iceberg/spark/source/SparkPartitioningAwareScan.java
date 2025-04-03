@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -41,8 +42,10 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.ParquetReaderType;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.StructLikeSet;
@@ -171,10 +174,17 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
   protected synchronized List<T> tasks() {
     if (tasks == null) {
+      boolean hasDeletes = false;
       try (CloseableIterable<? extends ScanTask> taskIterable = scan.planFiles()) {
         List<T> plannedTasks = Lists.newArrayList();
 
         for (ScanTask task : taskIterable) {
+          if (task instanceof FileScanTask) {
+            if (!((FileScanTask) task).deletes().isEmpty()) {
+              hasDeletes = true;
+            }
+          }
+
           ValidationException.check(
               taskJavaClass().isInstance(task),
               "Unsupported task type, expected a subtype of %s: %",
@@ -185,6 +195,11 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
         }
 
         this.tasks = plannedTasks;
+        if (hasDeletes) {
+          this.sparkSession()
+              .conf()
+              .set(SparkSQLProperties.PARQUET_READER_TYPE, ParquetReaderType.ICEBERG.name());
+        }
       } catch (IOException e) {
         throw new UncheckedIOException("Failed to close scan: " + scan, e);
       }
