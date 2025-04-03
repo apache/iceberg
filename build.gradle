@@ -529,10 +529,8 @@ project(':iceberg-aws') {
     inputSpec.set(s3SignerSpec)
     recommend.set(true)
   }
-  tasks.named('check') {
-    dependsOn integrationTest
-    dependsOn validateS3SignerSpec
-  }
+  check.dependsOn('validateS3SignerSpec')
+  check.dependsOn('integrationTest')
 }
 
 project(':iceberg-azure') {

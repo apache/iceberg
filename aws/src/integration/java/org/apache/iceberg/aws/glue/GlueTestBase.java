@@ -30,8 +30,6 @@ import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.aws.AwsProperties;
-import org.apache.iceberg.aws.EnableAwsTest;
-import org.apache.iceberg.aws.EnableAwsTestCondition;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -40,7 +38,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.extension.ExtendWith;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.GetTableRequest;
@@ -51,15 +48,6 @@ import software.amazon.awssdk.services.glue.model.UpdateTableRequest;
 import software.amazon.awssdk.services.s3.S3Client;
 
 @SuppressWarnings({"VisibilityModifier", "HideUtilityClassConstructor"})
-@EnableAwsTest(
-    required = {
-      AwsIntegTestUtil.AWS_ACCESS_KEY_ID,
-      AwsIntegTestUtil.AWS_SECRET_ACCESS_KEY,
-      AwsIntegTestUtil.AWS_SESSION_TOKEN,
-      AwsIntegTestUtil.AWS_REGION,
-      AwsIntegTestUtil.AWS_TEST_BUCKET
-    })
-@ExtendWith(EnableAwsTestCondition.class)
 public class GlueTestBase {
 
   // the integration test requires the following env variables

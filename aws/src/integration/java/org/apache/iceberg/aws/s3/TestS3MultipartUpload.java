@@ -27,27 +27,24 @@ import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
-import org.apache.iceberg.aws.EnableAwsTest;
-import org.apache.iceberg.aws.EnableAwsTestCondition;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
 import software.amazon.awssdk.services.s3.S3Client;
 
 /** Long-running tests to ensure multipart upload logic is resilient */
-@EnableAwsTest(
-    required = {
-      AwsIntegTestUtil.AWS_ACCESS_KEY_ID,
-      AwsIntegTestUtil.AWS_SECRET_ACCESS_KEY,
-      AwsIntegTestUtil.AWS_SESSION_TOKEN,
-      AwsIntegTestUtil.AWS_REGION,
-      AwsIntegTestUtil.AWS_TEST_BUCKET
-    })
-@ExtendWith(EnableAwsTestCondition.class)
+@EnabledIfEnvironmentVariables({
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_ACCESS_KEY_ID, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_SECRET_ACCESS_KEY, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_SESSION_TOKEN, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_REGION, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_TEST_BUCKET, matches = ".*")
+})
 public class TestS3MultipartUpload {
 
   private final Random random = new Random(1);
