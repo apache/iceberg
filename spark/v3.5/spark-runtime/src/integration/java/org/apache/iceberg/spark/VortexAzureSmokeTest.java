@@ -87,7 +87,7 @@ public class VortexAzureSmokeTest {
           Types.NestedField.required(1, "c_custkey", Types.LongType.get()),
           Types.NestedField.required(2, "c_name", Types.StringType.get()),
           Types.NestedField.required(3, "c_address", Types.StringType.get()),
-          Types.NestedField.required(4, "c_nationkey", Types.LongType.get()),
+          Types.NestedField.required(4, "c_nationkey", Types.IntegerType.get()),
           Types.NestedField.required(5, "c_phone", Types.StringType.get()),
           Types.NestedField.required(6, "c_acctbal", Types.LongType.get()),
           Types.NestedField.required(7, "c_mktsegment", Types.StringType.get()),
@@ -95,14 +95,14 @@ public class VortexAzureSmokeTest {
 
   private static final Schema NATION_SCHEMA =
       new Schema(
-          Types.NestedField.required(1, "n_nationkey", Types.LongType.get()),
+          Types.NestedField.required(1, "n_nationkey", Types.IntegerType.get()),
           Types.NestedField.required(2, "n_name", Types.StringType.get()),
-          Types.NestedField.required(3, "n_regionkey", Types.LongType.get()),
+          Types.NestedField.required(3, "n_regionkey", Types.IntegerType.get()),
           Types.NestedField.optional(4, "n_comment", Types.StringType.get()));
 
   private static final Schema REGION_SCHEMA =
       new Schema(
-          Types.NestedField.required(1, "r_regionkey", Types.LongType.get()),
+          Types.NestedField.required(1, "r_regionkey", Types.IntegerType.get()),
           Types.NestedField.required(2, "r_name", Types.StringType.get()),
           Types.NestedField.optional(3, "r_comment", Types.StringType.get()));
 
@@ -143,31 +143,32 @@ public class VortexAzureSmokeTest {
     RECORD_COUNTS = Maps.newHashMap();
 
     RECORD_COUNTS.put("customer_0", 15000000L);
-    RECORD_COUNTS.put("lineitem_0", 38510000L);
-    RECORD_COUNTS.put("lineitem_1", 38510000L);
-    RECORD_COUNTS.put("lineitem_2", 38510000L);
-    RECORD_COUNTS.put("lineitem_3", 38510000L);
-    RECORD_COUNTS.put("lineitem_4", 38510000L);
-    RECORD_COUNTS.put("lineitem_5", 38510000L);
-    RECORD_COUNTS.put("lineitem_6", 38510000L);
-    RECORD_COUNTS.put("lineitem_7", 38510000L);
-    RECORD_COUNTS.put("lineitem_8", 38510000L);
-    RECORD_COUNTS.put("lineitem_9", 38510000L);
-    RECORD_COUNTS.put("lineitem_10", 38510000L);
-    RECORD_COUNTS.put("lineitem_11", 38510000L);
-    RECORD_COUNTS.put("lineitem_12", 38510000L);
-    RECORD_COUNTS.put("lineitem_13", 38510000L);
-    RECORD_COUNTS.put("lineitem_14", 38510000L);
-    RECORD_COUNTS.put("lineitem_15", 22387902L);
+    RECORD_COUNTS.put("lineitem_0", 35300000L);
+    RECORD_COUNTS.put("lineitem_1", 35300000L);
+    RECORD_COUNTS.put("lineitem_2", 35300000L);
+    RECORD_COUNTS.put("lineitem_3", 35300000L);
+    RECORD_COUNTS.put("lineitem_4", 35300000L);
+    RECORD_COUNTS.put("lineitem_5", 35300000L);
+    RECORD_COUNTS.put("lineitem_6", 35300000L);
+    RECORD_COUNTS.put("lineitem_7", 35300000L);
+    RECORD_COUNTS.put("lineitem_8", 35300000L);
+    RECORD_COUNTS.put("lineitem_9", 35300000L);
+    RECORD_COUNTS.put("lineitem_10", 35300000L);
+    RECORD_COUNTS.put("lineitem_11", 35300000L);
+    RECORD_COUNTS.put("lineitem_12", 35300000L);
+    RECORD_COUNTS.put("lineitem_13", 35300000L);
+    RECORD_COUNTS.put("lineitem_14", 35300000L);
+    RECORD_COUNTS.put("lineitem_15", 35300000L);
+    RECORD_COUNTS.put("lineitem_16", 35237902L);
     RECORD_COUNTS.put("nation_0", 25L);
-    RECORD_COUNTS.put("orders_0", 39880000L);
-    RECORD_COUNTS.put("orders_1", 39880000L);
-    RECORD_COUNTS.put("orders_2", 39880000L);
-    RECORD_COUNTS.put("orders_3", 30360000L);
+    RECORD_COUNTS.put("orders_0", 38140000L);
+    RECORD_COUNTS.put("orders_1", 38140000L);
+    RECORD_COUNTS.put("orders_2", 38140000L);
+    RECORD_COUNTS.put("orders_3", 35580000L);
     RECORD_COUNTS.put("part_0", 20000000L);
-    RECORD_COUNTS.put("partsupp_0", 29490000L);
-    RECORD_COUNTS.put("partsupp_1", 29490000L);
-    RECORD_COUNTS.put("partsupp_2", 21020000L);
+    RECORD_COUNTS.put("partsupp_0", 28030000L);
+    RECORD_COUNTS.put("partsupp_1", 28030000L);
+    RECORD_COUNTS.put("partsupp_2", 23940000L);
     RECORD_COUNTS.put("region_0", 5L);
     RECORD_COUNTS.put("supplier_0", 1000000L);
   }
@@ -185,7 +186,7 @@ public class VortexAzureSmokeTest {
     // Create the table
     try (HadoopCatalog catalog = new HadoopCatalog(CONF, WAREHOUSE)) {
       createTable(catalog, rootUri, "customer", CUSTOMER_SCHEMA, 1, format);
-      createTable(catalog, rootUri, "lineitem", LINEITEM_SCHEMA, 16, format);
+      createTable(catalog, rootUri, "lineitem", LINEITEM_SCHEMA, 17, format);
       createTable(catalog, rootUri, "nation", NATION_SCHEMA, 1, format);
       createTable(catalog, rootUri, "orders", ORDERS_SCHEMA, 4, format);
       createTable(catalog, rootUri, "part", PART_SCHEMA, 1, format);

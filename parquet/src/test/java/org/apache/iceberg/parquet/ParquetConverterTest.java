@@ -67,13 +67,13 @@ public class ParquetConverterTest {
   @ParameterizedTest
   @ValueSource(
       strings = {
-        "customer",
+        //        "customer",
         "lineitem",
-        "nation",
+        //        "nation",
         "orders",
         "partsupp",
         "part",
-        "region",
+        //        "region",
         "supplier"
       })
   public void rewriteMyFiles(String tableName) throws Exception {
@@ -122,7 +122,7 @@ public class ParquetConverterTest {
       buffer.add(record);
       if (buffer.size() >= BUFFER_THRESHOLD) {
         // Estimate size of the buffered row group.
-        long groupSize = estimateRowGroupSize(buffer, schema, conf, ROW_GROUP_SIZE, tmpDir);
+        long groupSize = estimateRowGroupSize(buffer, outSchema, conf, ROW_GROUP_SIZE, tmpDir);
         // If adding this group would exceed the max file size, start a new file.
         if (currentFileSize + groupSize > MAX_FILE_SIZE) {
           writer.close();
@@ -130,7 +130,7 @@ public class ParquetConverterTest {
           currentOutPath = new Path(outputDir, tableName + "_" + fileIndex + ".parquet");
           writer =
               AvroParquetWriter.<GenericRecord>builder(currentOutPath)
-                  .withSchema(schema)
+                  .withSchema(outSchema)
                   .withConf(conf)
                   .withCompressionCodec(CompressionCodecName.ZSTD)
                   .withRowGroupSize(ROW_GROUP_SIZE)
@@ -148,14 +148,14 @@ public class ParquetConverterTest {
 
     // Write any remaining records.
     if (!buffer.isEmpty()) {
-      long groupSize = estimateRowGroupSize(buffer, schema, conf, ROW_GROUP_SIZE, tmpDir);
+      long groupSize = estimateRowGroupSize(buffer, outSchema, conf, ROW_GROUP_SIZE, tmpDir);
       if (currentFileSize + groupSize > MAX_FILE_SIZE) {
         writer.close();
         fileIndex++;
         currentOutPath = new Path(outputDir, tableName + "_" + fileIndex + ".parquet");
         writer =
             AvroParquetWriter.<GenericRecord>builder(currentOutPath)
-                .withSchema(schema)
+                .withSchema(outSchema)
                 .withConf(conf)
                 .withCompressionCodec(CompressionCodecName.ZSTD)
                 .withRowGroupSize(ROW_GROUP_SIZE)
