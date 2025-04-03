@@ -150,7 +150,7 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.SetPartitionStatistics.class, SET_PARTITION_STATISTICS)
           .put(MetadataUpdate.RemovePartitionStatistics.class, REMOVE_PARTITION_STATISTICS)
           .put(MetadataUpdate.AddSnapshot.class, ADD_SNAPSHOT)
-          .put(MetadataUpdate.RemoveSnapshot.class, REMOVE_SNAPSHOTS) // TODO: Deprecate
+          .put(MetadataUpdate.RemoveSnapshot.class, REMOVE_SNAPSHOTS)
           .put(MetadataUpdate.RemoveSnapshots.class, REMOVE_SNAPSHOTS)
           .put(MetadataUpdate.RemoveSnapshotRef.class, REMOVE_SNAPSHOT_REF)
           .put(MetadataUpdate.SetSnapshotRef.class, SET_SNAPSHOT_REF)
@@ -230,7 +230,6 @@ public class MetadataUpdateParser {
         writeAddSnapshot((MetadataUpdate.AddSnapshot) metadataUpdate, generator);
         break;
       case REMOVE_SNAPSHOTS:
-        // TODO: Remove condition once RemoveSnapshot is deprecated and removed
         MetadataUpdate.RemoveSnapshots removeSnapshots;
         if (metadataUpdate instanceof MetadataUpdate.RemoveSnapshot) {
           Long snapshotId = ((MetadataUpdate.RemoveSnapshot) metadataUpdate).snapshotId();
@@ -238,7 +237,7 @@ public class MetadataUpdateParser {
         } else {
           removeSnapshots = (MetadataUpdate.RemoveSnapshots) metadataUpdate;
         }
-        writeRemoveSnapshot(removeSnapshots, generator);
+        writeRemoveSnapshots(removeSnapshots, generator);
         break;
       case REMOVE_SNAPSHOT_REF:
         writeRemoveSnapshotRef((MetadataUpdate.RemoveSnapshotRef) metadataUpdate, generator);
@@ -426,7 +425,7 @@ public class MetadataUpdateParser {
     SnapshotParser.toJson(update.snapshot(), gen);
   }
 
-  private static void writeRemoveSnapshot(MetadataUpdate.RemoveSnapshots update, JsonGenerator gen)
+  private static void writeRemoveSnapshots(MetadataUpdate.RemoveSnapshots update, JsonGenerator gen)
       throws IOException {
     JsonUtil.writeLongArray(SNAPSHOT_IDS, update.snapshotIds(), gen);
   }
@@ -565,9 +564,8 @@ public class MetadataUpdateParser {
     Set<Long> snapshotIds = JsonUtil.getLongSetOrNull(SNAPSHOT_IDS, node);
     Preconditions.checkArgument(
         snapshotIds != null,
-        "Invalid set of snapshot ids to remove. Expected at least 1 value but received: %s",
+        "Invalid set of snapshot ids to remove: must be non-null",
         snapshotIds);
-    // TODO: Remove condition once RemoveSnapshot is deprecated and removed
     MetadataUpdate metadataUpdate;
     if (snapshotIds.size() == 1) {
       Long snapshotId = Iterables.getOnlyElement(snapshotIds);

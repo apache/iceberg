@@ -329,7 +329,7 @@ public interface MetadataUpdate extends Serializable {
   }
 
   /**
-   * @deprecated since 1.8.1, will be removed in 2.0.0; Use {@link MetadataUpdate.RemoveSnapshots}
+   * @deprecated since 1.10.0, will be removed in 2.0.0; Use {@link MetadataUpdate.RemoveSnapshots}
    *     instead.
    */
   @Deprecated

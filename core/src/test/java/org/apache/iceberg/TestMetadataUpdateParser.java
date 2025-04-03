@@ -1041,7 +1041,6 @@ public class TestMetadataUpdateParser {
             (MetadataUpdate.AddSnapshot) expectedUpdate, (MetadataUpdate.AddSnapshot) actualUpdate);
         break;
       case MetadataUpdateParser.REMOVE_SNAPSHOTS:
-        // TODO: Remove condition once RemoveSnapshot is deprecated and removed
         if (actualUpdate instanceof MetadataUpdate.RemoveSnapshot) {
           assertEqualsRemoveSnapshot(
               (MetadataUpdate.RemoveSnapshot) expectedUpdate,

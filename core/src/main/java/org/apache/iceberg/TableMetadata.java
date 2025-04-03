@@ -1436,14 +1436,14 @@ public class TableMetadata implements Serializable {
     private Builder rewriteSnapshotsInternal(Collection<Long> idsToRemove, boolean suppress) {
       List<Snapshot> retainedSnapshots =
           Lists.newArrayListWithExpectedSize(snapshots.size() - idsToRemove.size());
-      Set<Long> removedSnapshotIds = Sets.newHashSet();
+      Set<Long> snapshotIdsToRemove = Sets.newHashSet();
 
       for (Snapshot snapshot : snapshots) {
         long snapshotId = snapshot.snapshotId();
         if (idsToRemove.contains(snapshotId)) {
           snapshotsById.remove(snapshotId);
           if (!suppress) {
-            removedSnapshotIds.add(snapshotId);
+            snapshotIdsToRemove.add(snapshotId);
           }
           removeStatistics(snapshotId);
           removePartitionStatistics(snapshotId);
@@ -1452,8 +1452,8 @@ public class TableMetadata implements Serializable {
         }
       }
 
-      if (!removedSnapshotIds.isEmpty()) {
-        changes.add(new MetadataUpdate.RemoveSnapshots(removedSnapshotIds));
+      if (!snapshotIdsToRemove.isEmpty()) {
+        changes.add(new MetadataUpdate.RemoveSnapshots(snapshotIdsToRemove));
       }
 
       this.snapshots = retainedSnapshots;
@@ -1870,7 +1870,6 @@ public class TableMetadata implements Serializable {
         List<MetadataUpdate> changes) {
       Set<Long> intermediateSnapshotIds = intermediateSnapshotIdSet(changes, currentSnapshotId);
       boolean hasIntermediateSnapshots = !intermediateSnapshotIds.isEmpty();
-      // TODO: Remove extra condition once RemoveSnapshot is deprecated and removed
       boolean hasRemovedSnapshots =
           changes.stream()
               .anyMatch(
