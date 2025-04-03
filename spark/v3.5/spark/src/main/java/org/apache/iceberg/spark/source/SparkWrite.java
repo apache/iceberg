@@ -101,7 +101,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final boolean useFanoutWriter;
   private final SparkWriteRequirements writeRequirements;
   private final Map<String, String> writeProperties;
-  private boolean caseSensitive;
+  private final boolean caseSensitive;
 
   private boolean cleanupOnAbort = false;
 
