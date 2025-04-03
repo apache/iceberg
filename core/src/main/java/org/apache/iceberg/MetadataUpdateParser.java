@@ -97,7 +97,7 @@ public class MetadataUpdateParser {
   // AddSnapshot
   private static final String SNAPSHOT = "snapshot";
 
-  // RemoveSnapshot
+  // RemoveSnapshots
   private static final String SNAPSHOT_IDS = "snapshot-ids";
 
   // SetSnapshotRef
@@ -151,6 +151,7 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.RemovePartitionStatistics.class, REMOVE_PARTITION_STATISTICS)
           .put(MetadataUpdate.AddSnapshot.class, ADD_SNAPSHOT)
           .put(MetadataUpdate.RemoveSnapshot.class, REMOVE_SNAPSHOTS)
+          .put(MetadataUpdate.RemoveSnapshots.class, REMOVE_SNAPSHOTS)
           .put(MetadataUpdate.RemoveSnapshotRef.class, REMOVE_SNAPSHOT_REF)
           .put(MetadataUpdate.SetSnapshotRef.class, SET_SNAPSHOT_REF)
           .put(MetadataUpdate.SetProperties.class, SET_PROPERTIES)
@@ -229,7 +230,14 @@ public class MetadataUpdateParser {
         writeAddSnapshot((MetadataUpdate.AddSnapshot) metadataUpdate, generator);
         break;
       case REMOVE_SNAPSHOTS:
-        writeRemoveSnapshots((MetadataUpdate.RemoveSnapshot) metadataUpdate, generator);
+        MetadataUpdate.RemoveSnapshots removeSnapshots;
+        if (metadataUpdate instanceof MetadataUpdate.RemoveSnapshot) {
+          Long snapshotId = ((MetadataUpdate.RemoveSnapshot) metadataUpdate).snapshotId();
+          removeSnapshots = new MetadataUpdate.RemoveSnapshots(ImmutableSet.of(snapshotId));
+        } else {
+          removeSnapshots = (MetadataUpdate.RemoveSnapshots) metadataUpdate;
+        }
+        writeRemoveSnapshots(removeSnapshots, generator);
         break;
       case REMOVE_SNAPSHOT_REF:
         writeRemoveSnapshotRef((MetadataUpdate.RemoveSnapshotRef) metadataUpdate, generator);
@@ -417,11 +425,9 @@ public class MetadataUpdateParser {
     SnapshotParser.toJson(update.snapshot(), gen);
   }
 
-  // TODO - Reconcile the spec's set-based removal with the current class implementation that only
-  // handles one value.
-  private static void writeRemoveSnapshots(MetadataUpdate.RemoveSnapshot update, JsonGenerator gen)
+  private static void writeRemoveSnapshots(MetadataUpdate.RemoveSnapshots update, JsonGenerator gen)
       throws IOException {
-    JsonUtil.writeLongArray(SNAPSHOT_IDS, ImmutableSet.of(update.snapshotId()), gen);
+    JsonUtil.writeLongArray(SNAPSHOT_IDS, update.snapshotIds(), gen);
   }
 
   private static void writeSetSnapshotRef(MetadataUpdate.SetSnapshotRef update, JsonGenerator gen)
@@ -557,11 +563,17 @@ public class MetadataUpdateParser {
   private static MetadataUpdate readRemoveSnapshots(JsonNode node) {
     Set<Long> snapshotIds = JsonUtil.getLongSetOrNull(SNAPSHOT_IDS, node);
     Preconditions.checkArgument(
-        snapshotIds != null && snapshotIds.size() == 1,
-        "Invalid set of snapshot ids to remove. Expected one value but received: %s",
+        snapshotIds != null,
+        "Invalid set of snapshot ids to remove: must be non-null",
         snapshotIds);
-    Long snapshotId = Iterables.getOnlyElement(snapshotIds);
-    return new MetadataUpdate.RemoveSnapshot(snapshotId);
+    MetadataUpdate metadataUpdate;
+    if (snapshotIds.size() == 1) {
+      Long snapshotId = Iterables.getOnlyElement(snapshotIds);
+      metadataUpdate = new MetadataUpdate.RemoveSnapshot(snapshotId);
+    } else {
+      metadataUpdate = new MetadataUpdate.RemoveSnapshots(snapshotIds);
+    }
+    return metadataUpdate;
   }
 
   private static MetadataUpdate readSetSnapshotRef(JsonNode node) {

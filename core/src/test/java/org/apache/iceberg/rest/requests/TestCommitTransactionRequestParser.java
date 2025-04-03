@@ -26,6 +26,7 @@ import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.Test;
 
 public class TestCommitTransactionRequestParser {
@@ -137,6 +138,85 @@ public class TestCommitTransactionRequestParser {
             + "    \"updates\" : [ {\n"
             + "      \"action\" : \"remove-snapshots\",\n"
             + "      \"snapshot-ids\" : [ 101 ]\n"
+            + "    }, {\n"
+            + "      \"action\" : \"set-current-schema\",\n"
+            + "      \"schema-id\" : 25\n"
+            + "    } ]\n"
+            + "  } ]\n"
+            + "}";
+
+    String json = CommitTransactionRequestParser.toJson(request, true);
+    assertThat(json).isEqualTo(expectedJson);
+
+    // can't do an equality comparison on CommitTransactionRequest because updates/requirements
+    // don't implement equals/hashcode
+    assertThat(
+            CommitTransactionRequestParser.toJson(
+                CommitTransactionRequestParser.fromJson(json), true))
+        .isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void roundTripSerdeWithMultipleSnapshots() {
+    String uuid = "2cc52516-5e73-41f2-b139-545d41a4e151";
+    UpdateTableRequest commitTableRequestOne =
+        UpdateTableRequest.create(
+            TableIdentifier.of("ns1", "table1"),
+            ImmutableList.of(
+                new UpdateRequirement.AssertTableUUID(uuid),
+                new UpdateRequirement.AssertTableDoesNotExist()),
+            ImmutableList.of(
+                new MetadataUpdate.AssignUUID(uuid), new MetadataUpdate.SetCurrentSchema(23)));
+
+    UpdateTableRequest commitTableRequestTwo =
+        UpdateTableRequest.create(
+            TableIdentifier.of("ns1", "table2"),
+            ImmutableList.of(
+                new UpdateRequirement.AssertDefaultSpecID(4),
+                new UpdateRequirement.AssertCurrentSchemaID(24)),
+            ImmutableList.of(
+                new MetadataUpdate.RemoveSnapshots(Sets.newHashSet(101L, 102L)),
+                new MetadataUpdate.SetCurrentSchema(25)));
+
+    CommitTransactionRequest request =
+        new CommitTransactionRequest(
+            ImmutableList.of(commitTableRequestOne, commitTableRequestTwo));
+
+    String expectedJson =
+        "{\n"
+            + "  \"table-changes\" : [ {\n"
+            + "    \"identifier\" : {\n"
+            + "      \"namespace\" : [ \"ns1\" ],\n"
+            + "      \"name\" : \"table1\"\n"
+            + "    },\n"
+            + "    \"requirements\" : [ {\n"
+            + "      \"type\" : \"assert-table-uuid\",\n"
+            + "      \"uuid\" : \"2cc52516-5e73-41f2-b139-545d41a4e151\"\n"
+            + "    }, {\n"
+            + "      \"type\" : \"assert-create\"\n"
+            + "    } ],\n"
+            + "    \"updates\" : [ {\n"
+            + "      \"action\" : \"assign-uuid\",\n"
+            + "      \"uuid\" : \"2cc52516-5e73-41f2-b139-545d41a4e151\"\n"
+            + "    }, {\n"
+            + "      \"action\" : \"set-current-schema\",\n"
+            + "      \"schema-id\" : 23\n"
+            + "    } ]\n"
+            + "  }, {\n"
+            + "    \"identifier\" : {\n"
+            + "      \"namespace\" : [ \"ns1\" ],\n"
+            + "      \"name\" : \"table2\"\n"
+            + "    },\n"
+            + "    \"requirements\" : [ {\n"
+            + "      \"type\" : \"assert-default-spec-id\",\n"
+            + "      \"default-spec-id\" : 4\n"
+            + "    }, {\n"
+            + "      \"type\" : \"assert-current-schema-id\",\n"
+            + "      \"current-schema-id\" : 24\n"
+            + "    } ],\n"
+            + "    \"updates\" : [ {\n"
+            + "      \"action\" : \"remove-snapshots\",\n"
+            + "      \"snapshot-ids\" : [ 101, 102 ]\n"
             + "    }, {\n"
             + "      \"action\" : \"set-current-schema\",\n"
             + "      \"schema-id\" : 25\n"
