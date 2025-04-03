@@ -28,7 +28,8 @@ import java.util.function.ToLongFunction;
 public final class PrefetchingIterator<T> implements Iterator<T>, AutoCloseable {
   // Global condition variable shared between the prefetcher and consumer threads,
   // to coordinate wake ups for when the buffer may no longer be full.
-  private static final Object CONDITION = new Object();
+  private static final Object CONDITION_PUT = new Object();
+  private static final Object CONDITION_CHECK = new Object();
 
   private final BlockingQueue<T> fetched = new LinkedBlockingQueue<>();
   private final Thread producerThread;
@@ -51,14 +52,17 @@ public final class PrefetchingIterator<T> implements Iterator<T>, AutoCloseable 
     try {
       while (!closed.get() && delegate.hasNext()) {
         while (bufferBytes.get() > maxBufferSize) {
-          synchronized (CONDITION) {
-            CONDITION.wait();
+          synchronized (CONDITION_PUT) {
+            CONDITION_PUT.wait();
           }
         }
         T nextElem = delegate.next();
         long elemSize = sizeFunc.applyAsLong(nextElem);
         bufferBytes.addAndGet(elemSize);
         fetched.put(nextElem);
+        synchronized (CONDITION_CHECK) {
+          CONDITION_CHECK.notify();
+        }
       }
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
@@ -78,6 +82,14 @@ public final class PrefetchingIterator<T> implements Iterator<T>, AutoCloseable 
       if (!fetched.isEmpty()) {
         return true;
       }
+      // Wait for the prefetcher to tell us it's time to check again.
+      synchronized (CONDITION_CHECK) {
+        try {
+          CONDITION_CHECK.wait();
+        } catch (InterruptedException e) {
+          throw new RuntimeException("Interrupted waiting for signal to check hasNext", e);
+        }
+      }
     }
     // If the prefetcher is finished, then we can examine fetched and immediately return a result.
     return !fetched.isEmpty();
@@ -92,8 +104,8 @@ public final class PrefetchingIterator<T> implements Iterator<T>, AutoCloseable 
       long elemSize = sizeFunc.applyAsLong(nextElem);
       bufferBytes.addAndGet(-elemSize);
       // Notify the producer that it may now be able to add more items to the queue.
-      synchronized (CONDITION) {
-        CONDITION.notify();
+      synchronized (CONDITION_PUT) {
+        CONDITION_PUT.notify();
       }
       return nextElem;
     } catch (InterruptedException e) {
@@ -104,6 +116,12 @@ public final class PrefetchingIterator<T> implements Iterator<T>, AutoCloseable 
   @Override
   public void close() {
     closed.set(true);
-    producerThread.interrupt();
+    synchronized (CONDITION_CHECK) {
+      CONDITION_CHECK.notifyAll();
+    }
+
+    synchronized (CONDITION_PUT) {
+      CONDITION_PUT.notifyAll();
+    }
   }
 }
