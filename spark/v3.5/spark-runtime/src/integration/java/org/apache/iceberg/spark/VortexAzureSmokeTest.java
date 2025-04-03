@@ -144,39 +144,39 @@ public class VortexAzureSmokeTest {
     RECORD_COUNTS = Maps.newHashMap();
 
     RECORD_COUNTS.put("customer_0", 15000000L);
-    RECORD_COUNTS.put("lineitem_0", 36520000L);
-    RECORD_COUNTS.put("lineitem_1", 36520000L);
-    RECORD_COUNTS.put("lineitem_2", 36520000L);
-    RECORD_COUNTS.put("lineitem_3", 36520000L);
-    RECORD_COUNTS.put("lineitem_4", 36520000L);
-    RECORD_COUNTS.put("lineitem_5", 36520000L);
-    RECORD_COUNTS.put("lineitem_6", 36520000L);
-    RECORD_COUNTS.put("lineitem_7", 36520000L);
-    RECORD_COUNTS.put("lineitem_8", 36520000L);
-    RECORD_COUNTS.put("lineitem_9", 36520000L);
-    RECORD_COUNTS.put("lineitem_10", 36520000L);
-    RECORD_COUNTS.put("lineitem_11", 36520000L);
-    RECORD_COUNTS.put("lineitem_12", 36520000L);
-    RECORD_COUNTS.put("lineitem_13", 36520000L);
-    RECORD_COUNTS.put("lineitem_14", 36520000L);
-    RECORD_COUNTS.put("lineitem_15", 36520000L);
-    RECORD_COUNTS.put("lineitem_16", 15717902L);
+    RECORD_COUNTS.put("lineitem_0", 38510000L);
+    RECORD_COUNTS.put("lineitem_1", 38510000L);
+    RECORD_COUNTS.put("lineitem_2", 38510000L);
+    RECORD_COUNTS.put("lineitem_3", 38510000L);
+    RECORD_COUNTS.put("lineitem_4", 38510000L);
+    RECORD_COUNTS.put("lineitem_5", 38510000L);
+    RECORD_COUNTS.put("lineitem_6", 38510000L);
+    RECORD_COUNTS.put("lineitem_7", 38510000L);
+    RECORD_COUNTS.put("lineitem_8", 38510000L);
+    RECORD_COUNTS.put("lineitem_9", 38510000L);
+    RECORD_COUNTS.put("lineitem_10", 38510000L);
+    RECORD_COUNTS.put("lineitem_11", 38510000L);
+    RECORD_COUNTS.put("lineitem_12", 38510000L);
+    RECORD_COUNTS.put("lineitem_13", 38510000L);
+    RECORD_COUNTS.put("lineitem_14", 38510000L);
+    RECORD_COUNTS.put("lineitem_15", 22387902L);
     RECORD_COUNTS.put("nation_0", 25L);
-    RECORD_COUNTS.put("orders_0", 38870000L);
-    RECORD_COUNTS.put("orders_1", 38870000L);
-    RECORD_COUNTS.put("orders_2", 38870000L);
-    RECORD_COUNTS.put("orders_3", 33390000L);
+    RECORD_COUNTS.put("orders_0", 39880000L);
+    RECORD_COUNTS.put("orders_1", 39880000L);
+    RECORD_COUNTS.put("orders_2", 39880000L);
+    RECORD_COUNTS.put("orders_3", 30360000L);
     RECORD_COUNTS.put("part_0", 20000000L);
-    RECORD_COUNTS.put("partsupp_0", 28470000L);
-    RECORD_COUNTS.put("partsupp_1", 28470000L);
-    RECORD_COUNTS.put("partsupp_2", 23060000L);
+    RECORD_COUNTS.put("partsupp_0", 29490000L);
+    RECORD_COUNTS.put("partsupp_1", 29490000L);
+    RECORD_COUNTS.put("partsupp_2", 21020000L);
     RECORD_COUNTS.put("region_0", 5L);
     RECORD_COUNTS.put("supplier_0", 1000000L);
   }
 
-  // Step 1: create the warehouse, populate it with Citibike data.
+  // Step 1: create the warehouse, populate it with TPCH data.
   @Test
-  public void setupWarehouse() throws IOException, URISyntaxException {
+  public void setupWarehouse() throws IOException {
+    setupWarehouseFormat(FileFormat.PARQUET);
     setupWarehouseFormat(FileFormat.VORTEX);
   }
 
@@ -186,7 +186,7 @@ public class VortexAzureSmokeTest {
     // Create the table
     try (HadoopCatalog catalog = new HadoopCatalog(CONF, WAREHOUSE)) {
       createTable(catalog, rootUri, "customer", CUSTOMER_SCHEMA, 1, format);
-      createTable(catalog, rootUri, "lineitem", LINEITEM_SCHEMA, 17, format);
+      createTable(catalog, rootUri, "lineitem", LINEITEM_SCHEMA, 16, format);
       createTable(catalog, rootUri, "nation", NATION_SCHEMA, 1, format);
       createTable(catalog, rootUri, "orders", ORDERS_SCHEMA, 4, format);
       createTable(catalog, rootUri, "part", PART_SCHEMA, 1, format);

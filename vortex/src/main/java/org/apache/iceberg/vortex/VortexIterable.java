@@ -113,8 +113,6 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
       case "wasbs":
       case "abfs":
       case "abfss":
-        NativeLogging.initLogging(NativeLogging.TRACE);
-        System.err.println("BEGIN LOGGING NATIVE");
         return Files.open(path, azurePropertiesFromHadoopConf(hadoopInputFile.getConf()));
       case "file":
         return Files.open(path, Map.of());
