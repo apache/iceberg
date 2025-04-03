@@ -26,6 +26,8 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.view.ViewVersionParser;
 
@@ -148,6 +150,7 @@ public class MetadataUpdateParser {
           .put(MetadataUpdate.SetPartitionStatistics.class, SET_PARTITION_STATISTICS)
           .put(MetadataUpdate.RemovePartitionStatistics.class, REMOVE_PARTITION_STATISTICS)
           .put(MetadataUpdate.AddSnapshot.class, ADD_SNAPSHOT)
+          .put(MetadataUpdate.RemoveSnapshot.class, REMOVE_SNAPSHOTS) // TODO: Deprecate
           .put(MetadataUpdate.RemoveSnapshots.class, REMOVE_SNAPSHOTS)
           .put(MetadataUpdate.RemoveSnapshotRef.class, REMOVE_SNAPSHOT_REF)
           .put(MetadataUpdate.SetSnapshotRef.class, SET_SNAPSHOT_REF)
@@ -227,7 +230,15 @@ public class MetadataUpdateParser {
         writeAddSnapshot((MetadataUpdate.AddSnapshot) metadataUpdate, generator);
         break;
       case REMOVE_SNAPSHOTS:
-        writeRemoveSnapshots((MetadataUpdate.RemoveSnapshots) metadataUpdate, generator);
+        // TODO: Remove condition once RemoveSnapshot is deprecated and removed
+        MetadataUpdate.RemoveSnapshots removeSnapshots;
+        if (metadataUpdate instanceof MetadataUpdate.RemoveSnapshot) {
+          Long snapshotId = ((MetadataUpdate.RemoveSnapshot) metadataUpdate).snapshotId();
+          removeSnapshots = new MetadataUpdate.RemoveSnapshots(ImmutableSet.of(snapshotId));
+        } else {
+          removeSnapshots = (MetadataUpdate.RemoveSnapshots) metadataUpdate;
+        }
+        writeRemoveSnapshot(removeSnapshots, generator);
         break;
       case REMOVE_SNAPSHOT_REF:
         writeRemoveSnapshotRef((MetadataUpdate.RemoveSnapshotRef) metadataUpdate, generator);
@@ -415,9 +426,7 @@ public class MetadataUpdateParser {
     SnapshotParser.toJson(update.snapshot(), gen);
   }
 
-  // TODO - Reconcile the spec's set-based removal with the current class implementation that only
-  // handles one value.
-  private static void writeRemoveSnapshots(MetadataUpdate.RemoveSnapshots update, JsonGenerator gen)
+  private static void writeRemoveSnapshot(MetadataUpdate.RemoveSnapshots update, JsonGenerator gen)
       throws IOException {
     JsonUtil.writeLongArray(SNAPSHOT_IDS, update.snapshotIds(), gen);
   }
@@ -556,9 +565,17 @@ public class MetadataUpdateParser {
     Set<Long> snapshotIds = JsonUtil.getLongSetOrNull(SNAPSHOT_IDS, node);
     Preconditions.checkArgument(
         snapshotIds != null,
-        "Invalid set of snapshot ids to remove. Expected one value but received: %s",
+        "Invalid set of snapshot ids to remove. Expected at least 1 value but received: %s",
         snapshotIds);
-    return new MetadataUpdate.RemoveSnapshots(snapshotIds);
+    // TODO: Remove condition once RemoveSnapshot is deprecated and removed
+    MetadataUpdate metadataUpdate;
+    if (snapshotIds.size() == 1) {
+      Long snapshotId = Iterables.getOnlyElement(snapshotIds);
+      metadataUpdate = new MetadataUpdate.RemoveSnapshot(snapshotId);
+    } else {
+      metadataUpdate = new MetadataUpdate.RemoveSnapshots(snapshotIds);
+    }
+    return metadataUpdate;
   }
 
   private static MetadataUpdate readSetSnapshotRef(JsonNode node) {

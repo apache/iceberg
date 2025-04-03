@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.iceberg.view.ViewVersion;
 
@@ -324,6 +325,28 @@ public interface MetadataUpdate extends Serializable {
     @Override
     public void applyTo(TableMetadata.Builder metadataBuilder) {
       metadataBuilder.addSnapshot(snapshot);
+    }
+  }
+
+  /**
+   * @deprecated since 1.8.1, will be removed in 2.0.0; Use {@link MetadataUpdate.RemoveSnapshots}
+   *     instead.
+   */
+  @Deprecated
+  class RemoveSnapshot implements MetadataUpdate {
+    private final long snapshotId;
+
+    public RemoveSnapshot(long snapshotId) {
+      this.snapshotId = snapshotId;
+    }
+
+    public long snapshotId() {
+      return snapshotId;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.removeSnapshots(ImmutableSet.of(snapshotId));
     }
   }
 

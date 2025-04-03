@@ -691,6 +691,30 @@ public class TestUpdateRequirements {
   }
 
   @Test
+  public void addAndRemoveSnapshot() {
+    List<UpdateRequirement> requirements =
+        UpdateRequirements.forUpdateTable(
+            metadata, ImmutableList.of(new MetadataUpdate.AddSnapshot(mock(Snapshot.class))));
+    requirements.forEach(req -> req.validate(metadata));
+
+    assertThat(requirements)
+        .hasSize(1)
+        .hasOnlyElementsOfTypes(UpdateRequirement.AssertTableUUID.class);
+
+    assertTableUUID(requirements);
+
+    requirements =
+        UpdateRequirements.forUpdateTable(
+            metadata, ImmutableList.of(new MetadataUpdate.RemoveSnapshot(0L)));
+
+    assertThat(requirements)
+        .hasSize(1)
+        .hasOnlyElementsOfTypes(UpdateRequirement.AssertTableUUID.class);
+
+    assertTableUUID(requirements);
+  }
+
+  @Test
   public void addAndRemoveSnapshots() {
     List<UpdateRequirement> requirements =
         UpdateRequirements.forUpdateTable(
