@@ -494,7 +494,7 @@ Partition field IDs must be reused if an existing partition spec contains an equ
 | Transform name    | Description                                                  | Source types                                                                                              | Result type |
 |-------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|-------------|
 | **`identity`**    | Source value, unmodified                                     | Any except for `geometry`, `geography`, and `variant`                                                     | Source type |
-| **`bucket[N]`**   | Hash of value, mod `N` (see below)                           | Any combination of the following `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `uuid`, `fixed`, `binary` | `int`       |
+| **`bucket[N]`**   | Hash of value, mod `N` (see below)                           | `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `uuid`, `fixed`, `binary` | `int`       |
 | **`truncate[W]`** | Value truncated to width `W` (see below)                     | `int`, `long`, `decimal`, `string`, `binary`                                                              | Source type |
 | **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
 | **`month`**       | Extract a date or timestamp month, as months from 1970-01-01 | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
@@ -540,7 +540,6 @@ Notes:
 2. The width, `W`, used to truncate decimal values is applied using the scale of the decimal column to avoid additional (and potentially conflicting) parameters.
 3. Strings are truncated to a valid UTF-8 string with no more than `L` code points.
 4. In contrast to strings, binary values do not have an assumed encoding and are truncated to `L` bytes.
-5. For multi-argument bucketing, the hashes are `xor`'ed: `hash(col1) ⊕ hash(col2) ⊕ ... ⊕ hash(colN)) % W`.
 
 #### Partition Evolution
 
