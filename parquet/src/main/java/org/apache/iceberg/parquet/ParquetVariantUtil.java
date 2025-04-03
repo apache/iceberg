@@ -146,9 +146,7 @@ class ParquetVariantUtil {
       case STRING:
         return (T) ((Binary) value).toStringUsingUTF8();
       case UUID:
-        {
-          return (T) UUIDUtil.convert(((Binary) value).getBytes());
-        }
+        return (T) UUIDUtil.convert(((Binary) value).getBytes());
       default:
         throw new IllegalStateException("Invalid bound type: " + primitive);
     }

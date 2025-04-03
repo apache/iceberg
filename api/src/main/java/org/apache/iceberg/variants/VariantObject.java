@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg.variants;
 
+import java.util.Arrays;
 import java.util.Objects;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 /** An variant object value. */
 public interface VariantObject extends VariantValue {
@@ -44,9 +46,13 @@ public interface VariantObject extends VariantValue {
   static String asString(VariantObject object) {
     StringBuilder builder = new StringBuilder();
 
+    // Make the string deterministic
+    String[] sortedNames = Iterables.toArray(object.fieldNames(), String.class);
+    Arrays.sort(sortedNames);
+
     builder.append("VariantObject(fields={");
     boolean first = true;
-    for (String field : object.fieldNames()) {
+    for (String field : sortedNames) {
       if (first) {
         first = false;
       } else {

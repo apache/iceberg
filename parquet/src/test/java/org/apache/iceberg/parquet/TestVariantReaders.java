@@ -1038,6 +1038,18 @@ public class TestVariantReaders {
         return shreddedPrimitive(PrimitiveTypeName.BINARY);
       case STRING:
         return shreddedPrimitive(PrimitiveTypeName.BINARY, STRING);
+      case TIMENTZ:
+        return shreddedPrimitive(
+            PrimitiveTypeName.INT64, LogicalTypeAnnotation.timeType(false, TimeUnit.MICROS));
+      case TIMESTAMPTZNS:
+        return shreddedPrimitive(
+            PrimitiveTypeName.INT64, LogicalTypeAnnotation.timestampType(true, TimeUnit.NANOS));
+      case TIMESTAMPNTZNS:
+        return shreddedPrimitive(
+            PrimitiveTypeName.INT64, LogicalTypeAnnotation.timestampType(false, TimeUnit.NANOS));
+      case UUID:
+        return shreddedPrimitive(
+            PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY, LogicalTypeAnnotation.uuidType());
     }
 
     throw new UnsupportedOperationException("Unsupported shredding type: " + value.type());
