@@ -26,28 +26,18 @@ a [StorageHandler](https://cwiki.apache.org/confluence/display/Hive/StorageHandl
 ## Feature support
 The following features matrix illustrates the support for different features across Hive releases for Iceberg tables - 
 
-| Feature support                                                 | Hive 2 / 3 | Hive 4 |
-|-----------------------------------------------------------------|------------|--------|
-| [SQL create table](#create-table)                               | ✔️          | ✔️      |
-| [SQL create table as select (CTAS)](#create-table-as-select)    | ✔️          | ✔️      |
-| [SQL create table like table (CTLT)](#create-table-like-table)  | ✔️          | ✔️      |
-| [SQL drop table](#drop-table)                                   | ✔️          | ✔️      |
-| [SQL insert into](#insert-into)                                 | ✔️          | ✔️      |
-| [SQL insert overwrite](#insert-overwrite)                       | ✔️          | ✔️      |
-| [SQL delete from](#delete-from)                                 |            | ✔️      |
-| [SQL update](#update)                                           |            | ✔️      |
-| [SQL merge into](#merge-into)                                   |            | ✔️      |
-| [Branches and tags](#branches-and-tags)                         |            | ✔️      |
-
-Iceberg compatibility with Hive 2.x and Hive 3.1.2/3 supports the following features:
-
-* Creating a table
-* Dropping a table
-* Reading a table
-* Inserting into a table (INSERT INTO)
-
-!!! warning
-    DML operations work only with MapReduce execution engine.
+| Feature support                                                 | Hive 4 |
+|-----------------------------------------------------------------|--------|
+| [SQL create table](#create-table)                               | ✔️      |
+| [SQL create table as select (CTAS)](#create-table-as-select)    | ✔️      |
+| [SQL create table like table (CTLT)](#create-table-like-table)  | ✔️      |
+| [SQL drop table](#drop-table)                                   | ✔️      |
+| [SQL insert into](#insert-into)                                 | ✔️      |
+| [SQL insert overwrite](#insert-overwrite)                       | ✔️      |
+| [SQL delete from](#delete-from)                                 | ✔️      |
+| [SQL update](#update)                                           | ✔️      |
+| [SQL merge into](#merge-into)                                   | ✔️      |
+| [Branches and tags](#branches-and-tags)                         | ✔️      |
 
 Hive supports the following additional features with Hive version 4.0.0 and above:
 
@@ -128,10 +118,6 @@ Catalog catalog=...;
 
 The table level configuration overrides the global Hadoop configuration.
 
-##### Hive on Tez configuration
-
-To use the Tez engine, you will need to set the following property in the `tez-site.xml` configuration file: `tez.mrreader.config.update.properties=hive.io.file.readcolumn.names,hive.io.file.readcolumn.ids`.
-
 ## Catalog Management
 
 ### Global Hive catalog
@@ -194,9 +180,6 @@ SET iceberg.catalog.glue.lock.table=myGlueLockTable;
 ```
 
 ## DDL Commands
-
-Not all the features below are supported with Hive 3.1.x. Please refer to the
-[Feature support](#feature-support) paragraph for further details.
 
 One generally applicable difference is that Hive 4 provides the possibility to use
 `STORED BY ICEBERG` instead of the old `STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler'`
