@@ -89,29 +89,13 @@ Hive supports the following additional features with Hive version 4.0.0 and abov
 
 ## Enabling Iceberg support in Hive
 
-Hive 4 comes with `hive-iceberg` that ships Iceberg, so no additional downloads or jars are needed. For older versions of Hive a runtime jar has to be added.
+Starting from 1.8.0 Iceberg doesn't release Hive runtime connector. For Hive query engine integration (specifically
+with Hive 2.x and 3.x) use Hive runtime connector coming with Iceberg 1.7.2, or use Hive 4.0.0 or later
+which is released with embedded Iceberg integration.
 
 ### Hive 4.0.x
 
 Hive 4.0.x comes with Iceberg 1.4.3 included.
-
-### Hive 2.3.x, Hive 3.1.x
-
-Hive 2.3.x and Hive 3.1.x require Iceberg 1.7.2 or earlier versions. See the [Multi-Engine Support](../../multi-engine-support.md) page for more details.
-In order to use Hive 2.3.x or Hive 3.1.x, you must load the Iceberg-Hive runtime jar and enable Iceberg support, either globally or for an individual table using a table property.
-
-#### Loading runtime jar
-
-To enable Iceberg support in Hive, the `HiveIcebergStorageHandler` and supporting classes need to be made available on Hive's classpath.  
-For Hive 2.3.x and Hive 3.1.x, these are provided by the `iceberg-hive-runtime` jar file. For example, if using the Hive shell, this
-can be achieved by issuing a statement like so:
-
-```
-add jar /path/to/iceberg-hive-runtime.jar;
-```
-
-There are many others ways to achieve this including adding the jar file to Hive's auxiliary classpath so it is
-available by default. Please refer to Hive's documentation for more information.
 
 #### Enabling support
 
@@ -146,16 +130,13 @@ The table level configuration overrides the global Hadoop configuration.
 
 ##### Hive on Tez configuration
 
-To use the Tez engine on Hive `3.1.2` or later, Tez needs to be upgraded to >= `0.10.1` which contains a necessary fix [TEZ-4248](https://issues.apache.org/jira/browse/TEZ-4248).
-
-To use the Tez engine on Hive `2.3.x`, you will need to manually build Tez from the `branch-0.9` branch due to a
-backwards incompatibility issue with Tez `0.10.1`.
-
-In both cases, you will also need to set the following property in the `tez-site.xml` configuration file: `tez.mrreader.config.update.properties=hive.io.file.readcolumn.names,hive.io.file.readcolumn.ids`.
+To use the Tez engine, you will need to set the following property in the `tez-site.xml` configuration file: `tez.mrreader.config.update.properties=hive.io.file.readcolumn.names,hive.io.file.readcolumn.ids`.
 
 ## Catalog Management
 
 ### Global Hive catalog
+
+HiveCatalog integration supports Hive 3.1.3 or later.
 
 From the Hive engine's perspective, there is only one global data catalog that is defined in the Hadoop configuration in
 the runtime environment. In contrast, Iceberg supports multiple different data catalog types such as Hive, Hadoop, AWS
@@ -214,7 +195,7 @@ SET iceberg.catalog.glue.lock.table=myGlueLockTable;
 
 ## DDL Commands
 
-Not all the features below are supported with Hive 2.3.x and Hive 3.1.x. Please refer to the
+Not all the features below are supported with Hive 3.1.x. Please refer to the
 [Feature support](#feature-support) paragraph for further details.
 
 One generally applicable difference is that Hive 4 provides the possibility to use
@@ -603,7 +584,6 @@ Here are the features highlights for Iceberg Hive read support:
 1. **Predicate pushdown**: Pushdown of the Hive SQL `WHERE` clause has been implemented so that these filters are used at the Iceberg `TableScan` level as well as by the Parquet and ORC Readers.
 2. **Column projection**: Columns from the Hive SQL `SELECT` clause are projected down to the Iceberg readers to reduce the number of columns read.
 3. **Hive query engines**:
-   - With Hive 2.3.x, 3.1.x, both the MapReduce and Tez query execution engines are supported.
    - With Hive 4.x, the Tez query execution engine is supported.
 
 Some of the advanced / little used optimizations are not yet implemented for Iceberg tables, so you should check your individual queries.
