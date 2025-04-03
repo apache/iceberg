@@ -89,10 +89,8 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
       VortexRowReader<T> rowFunction = rowReaderFunc.apply(batchStream.getDataType());
       return new VortexRowIterator<>(batchStream, rowFunction);
     } else {
+      CloseableIterator<Array> batchIterator = new VortexBatchIterator(batchStream);
       VortexBatchReader<T> batchTransform = batchReaderFunction.apply(batchStream.getDataType());
-      PrefetchingIterator<Array> iter =
-          new PrefetchingIterator<>(batchStream, 16 * 1024 * 1024, Array::nbytes);
-      CloseableIterator<Array> batchIterator = new VortexBatchIterator(iter);
       return CloseableIterator.transform(batchIterator, batchTransform::read);
     }
   }
@@ -182,9 +180,9 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
   }
 
   static class VortexBatchIterator implements CloseableIterator<Array> {
-    private PrefetchingIterator<Array> stream;
+    private ArrayStream stream;
 
-    private VortexBatchIterator(PrefetchingIterator<Array> stream) {
+    private VortexBatchIterator(ArrayStream stream) {
       this.stream = stream;
     }
 
