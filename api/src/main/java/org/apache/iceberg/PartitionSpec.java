@@ -274,10 +274,12 @@ public class PartitionSpec implements Serializable {
       if (this.fields[i].sourceId() != that.fields[i].sourceId()) {
         return false;
       }
+
       if (!this.fields[i].transform().satisfiesOrderOf(that.fields[i].transform())) {
         return false;
       }
     }
+
     return true;
   }
 
