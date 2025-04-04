@@ -29,6 +29,7 @@ import static org.apache.iceberg.data.PartitionStatsHandler.POSITION_DELETE_FILE
 import static org.apache.iceberg.data.PartitionStatsHandler.POSITION_DELETE_RECORD_COUNT;
 import static org.apache.iceberg.data.PartitionStatsHandler.TOTAL_DATA_FILE_SIZE_IN_BYTES;
 import static org.apache.iceberg.data.PartitionStatsHandler.TOTAL_RECORD_COUNT;
+import static org.apache.iceberg.data.PartitionStatsHandler.latestStatsFile;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,6 +47,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -143,7 +145,7 @@ public class TestPartitionStatsHandler {
 
     assertThatThrownBy(() -> PartitionStatsHandler.computeAndWriteStatsFile(testTable))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("table must be partitioned");
+        .hasMessage("Table must be partitioned");
   }
 
   @Test
@@ -304,7 +306,6 @@ public class TestPartitionStatsHandler {
     }
   }
 
-  @SuppressWarnings("checkstyle:MethodLength")
   @TestTemplate // Tests for all the table formats (PARQUET, ORC, AVRO)
   public void testPartitionStats() throws Exception {
     Assumptions.assumeThat(format)
@@ -321,35 +322,29 @@ public class TestPartitionStatsHandler {
             ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()));
 
     List<Record> records = prepareRecords(testTable.schema());
-    DataFile dataFile1 =
-        FileHelpers.writeDataFile(
-            testTable, outputFile(), TestHelpers.Row.of("foo", "A"), records.subList(0, 3));
-    DataFile dataFile2 =
-        FileHelpers.writeDataFile(
-            testTable, outputFile(), TestHelpers.Row.of("foo", "B"), records.subList(3, 4));
-    DataFile dataFile3 =
-        FileHelpers.writeDataFile(
-            testTable, outputFile(), TestHelpers.Row.of("bar", "A"), records.subList(4, 5));
-    DataFile dataFile4 =
-        FileHelpers.writeDataFile(
-            testTable, outputFile(), TestHelpers.Row.of("bar", "B"), records.subList(5, 7));
+    List<DataFile> dataFiles = dataFiles(testTable, records);
 
+    Snapshot snapshot1 = appendMultipleAndValidate(testTable, dataFiles);
+
+    commitDeletesAndValidate(testTable, dataFiles, snapshot1);
+  }
+
+  private static Snapshot appendMultipleAndValidate(Table testTable, List<DataFile> dataFiles)
+      throws IOException {
     for (int i = 0; i < 3; i++) {
       // insert same set of seven records thrice to have a new manifest files
-      testTable
-          .newAppend()
-          .appendFile(dataFile1)
-          .appendFile(dataFile2)
-          .appendFile(dataFile3)
-          .appendFile(dataFile4)
-          .commit();
+      AppendFiles appendFiles = testTable.newAppend();
+      dataFiles.forEach(appendFiles::appendFile);
+      appendFiles.commit();
     }
 
-    Snapshot snapshot1 = testTable.currentSnapshot();
+    Snapshot snapshot = testTable.currentSnapshot();
+
     Schema recordSchema = PartitionStatsHandler.schema(Partitioning.partitionType(testTable));
     Types.StructType partitionType =
         recordSchema.findField(PARTITION_FIELD_ID).type().asStructType();
     computeAndValidatePartitionStats(
+        false, // incremental
         testTable,
         recordSchema,
         Tuple.tuple(
@@ -357,63 +352,70 @@ public class TestPartitionStatsHandler {
             0,
             9L,
             3,
-            3 * dataFile1.fileSizeInBytes(),
+            3 * dataFiles.get(0).fileSizeInBytes(),
             0L,
             0,
             0L,
             0,
             null,
-            snapshot1.timestampMillis(),
-            snapshot1.snapshotId()),
+            snapshot.timestampMillis(),
+            snapshot.snapshotId()),
         Tuple.tuple(
             partitionRecord(partitionType, "foo", "B"),
             0,
             3L,
             3,
-            3 * dataFile2.fileSizeInBytes(),
+            3 * dataFiles.get(1).fileSizeInBytes(),
             0L,
             0,
             0L,
             0,
             null,
-            snapshot1.timestampMillis(),
-            snapshot1.snapshotId()),
+            snapshot.timestampMillis(),
+            snapshot.snapshotId()),
         Tuple.tuple(
             partitionRecord(partitionType, "bar", "A"),
             0,
             3L,
             3,
-            3 * dataFile3.fileSizeInBytes(),
+            3 * dataFiles.get(2).fileSizeInBytes(),
             0L,
             0,
             0L,
             0,
             null,
-            snapshot1.timestampMillis(),
-            snapshot1.snapshotId()),
+            snapshot.timestampMillis(),
+            snapshot.snapshotId()),
         Tuple.tuple(
             partitionRecord(partitionType, "bar", "B"),
             0,
             6L,
             3,
-            3 * dataFile4.fileSizeInBytes(),
+            3 * dataFiles.get(3).fileSizeInBytes(),
             0L,
             0,
             0L,
             0,
             null,
-            snapshot1.timestampMillis(),
-            snapshot1.snapshotId()));
+            snapshot.timestampMillis(),
+            snapshot.snapshotId()));
 
-    DeleteFile posDeletes = commitPositionDeletes(testTable, dataFile1);
+    return snapshot;
+  }
+
+  private void commitDeletesAndValidate(
+      Table testTable, List<DataFile> dataFiles, Snapshot snapshot1) throws IOException {
+    DeleteFile posDeletes = commitPositionDeletes(testTable, dataFiles.get(0));
     Snapshot snapshot2 = testTable.currentSnapshot();
 
     DeleteFile eqDeletes = commitEqualityDeletes(testTable);
     Snapshot snapshot3 = testTable.currentSnapshot();
 
-    recordSchema = PartitionStatsHandler.schema(Partitioning.partitionType(testTable));
-    partitionType = recordSchema.findField(PARTITION_FIELD_ID).type().asStructType();
+    Schema recordSchema = PartitionStatsHandler.schema(Partitioning.partitionType(testTable));
+    Types.StructType partitionType =
+        recordSchema.findField(PARTITION_FIELD_ID).type().asStructType();
     computeAndValidatePartitionStats(
+        false, // incremental
         testTable,
         recordSchema,
         Tuple.tuple(
@@ -421,7 +423,7 @@ public class TestPartitionStatsHandler {
             0,
             9L,
             3,
-            3 * dataFile1.fileSizeInBytes(),
+            3 * dataFiles.get(0).fileSizeInBytes(),
             0L,
             0,
             eqDeletes.recordCount(),
@@ -434,7 +436,7 @@ public class TestPartitionStatsHandler {
             0,
             3L,
             3,
-            3 * dataFile2.fileSizeInBytes(),
+            3 * dataFiles.get(1).fileSizeInBytes(),
             0L,
             0,
             0L,
@@ -447,7 +449,7 @@ public class TestPartitionStatsHandler {
             0,
             3L,
             3,
-            3 * dataFile3.fileSizeInBytes(),
+            3 * dataFiles.get(2).fileSizeInBytes(),
             posDeletes.recordCount(),
             1,
             0L,
@@ -460,7 +462,7 @@ public class TestPartitionStatsHandler {
             0,
             6L,
             3,
-            3 * dataFile4.fileSizeInBytes(),
+            3 * dataFiles.get(3).fileSizeInBytes(),
             0L,
             0,
             0L,
@@ -470,15 +472,229 @@ public class TestPartitionStatsHandler {
             snapshot1.snapshotId()));
   }
 
+  @Test
+  @SuppressWarnings("MethodLength")
+  public void testPartitionStatsIncremental() throws Exception {
+    Table testTable =
+        TestTables.create(
+            tempDir("partition_stats_incremental"), "partition_stats_incremental", SCHEMA, SPEC, 2);
+
+    List<Record> records = prepareRecords(testTable.schema());
+    List<DataFile> dataFiles = dataFiles(testTable, records);
+
+    Snapshot snapshot1 = appendMultipleAndValidate(testTable, dataFiles);
+
+    commitDeletesAndValidate(testTable, dataFiles, snapshot1);
+
+    AppendFiles appendFiles = testTable.newAppend();
+    dataFiles.forEach(appendFiles::appendFile);
+    appendFiles.commit();
+
+    Snapshot snapshot = testTable.currentSnapshot();
+
+    Schema recordSchema = PartitionStatsHandler.schema(Partitioning.partitionType(testTable));
+    Types.StructType partitionType =
+        recordSchema.findField(PARTITION_FIELD_ID).type().asStructType();
+    computeAndValidatePartitionStats(
+        true, // incremental
+        testTable,
+        recordSchema,
+        Tuple.tuple(
+            partitionRecord(partitionType, "foo", "A"),
+            0,
+            12L,
+            4,
+            4 * dataFiles.get(0).fileSizeInBytes(),
+            0L,
+            0,
+            2L,
+            1,
+            null,
+            snapshot.timestampMillis(),
+            snapshot.snapshotId()),
+        Tuple.tuple(
+            partitionRecord(partitionType, "foo", "B"),
+            0,
+            4L,
+            4,
+            4 * dataFiles.get(1).fileSizeInBytes(),
+            0L,
+            0,
+            0L,
+            0,
+            null,
+            snapshot.timestampMillis(),
+            snapshot.snapshotId()),
+        Tuple.tuple(
+            partitionRecord(partitionType, "bar", "A"),
+            0,
+            4L,
+            4,
+            4 * dataFiles.get(2).fileSizeInBytes(),
+            2L,
+            1,
+            0L,
+            0,
+            null,
+            snapshot.timestampMillis(),
+            snapshot.snapshotId()),
+        Tuple.tuple(
+            partitionRecord(partitionType, "bar", "B"),
+            0,
+            8L,
+            4,
+            4 * dataFiles.get(3).fileSizeInBytes(),
+            0L,
+            0,
+            0L,
+            0,
+            null,
+            snapshot.timestampMillis(),
+            snapshot.snapshotId()));
+
+    // test schema evolution with incremental compute
+    testTable.updateSpec().addField("c1").commit();
+    Types.StructType newPartitionType = Partitioning.partitionType(testTable);
+    // append one record of "foo,A,0"
+    DataFile newFile =
+        FileHelpers.writeDataFile(
+            testTable, outputFile(), TestHelpers.Row.of("foo", "A", 0), records.subList(0, 1));
+    testTable.newAppend().appendFile(newFile).commit();
+    Snapshot latestSnapshot = testTable.currentSnapshot();
+    computeAndValidatePartitionStats(
+        true, // incremental
+        testTable,
+        PartitionStatsHandler.schema(newPartitionType),
+        Tuple.tuple(
+            partitionRecord(newPartitionType, "foo", "A", 0),
+            1, // new spec id
+            1L,
+            1,
+            newFile.fileSizeInBytes(),
+            0L,
+            0,
+            0L,
+            0,
+            null,
+            latestSnapshot.timestampMillis(),
+            latestSnapshot.snapshotId()),
+        Tuple.tuple(
+            partitionRecord(newPartitionType, "foo", "A", null),
+            0,
+            12L,
+            4,
+            4 * dataFiles.get(0).fileSizeInBytes(),
+            0L,
+            0,
+            2L,
+            1,
+            null,
+            snapshot.timestampMillis(),
+            snapshot.snapshotId()),
+        Tuple.tuple(
+            partitionRecord(newPartitionType, "foo", "B", null),
+            0,
+            4L,
+            4,
+            4 * dataFiles.get(1).fileSizeInBytes(),
+            0L,
+            0,
+            0L,
+            0,
+            null,
+            snapshot.timestampMillis(),
+            snapshot.snapshotId()),
+        Tuple.tuple(
+            partitionRecord(newPartitionType, "bar", "A", null),
+            0,
+            4L,
+            4,
+            4 * dataFiles.get(2).fileSizeInBytes(),
+            2L,
+            1,
+            0L,
+            0,
+            null,
+            snapshot.timestampMillis(),
+            snapshot.snapshotId()),
+        Tuple.tuple(
+            partitionRecord(newPartitionType, "bar", "B", null),
+            0,
+            8L,
+            4,
+            4 * dataFiles.get(3).fileSizeInBytes(),
+            0L,
+            0,
+            0L,
+            0,
+            null,
+            snapshot.timestampMillis(),
+            snapshot.snapshotId()));
+  }
+
+  @Test
+  public void testIncrementalComputeWithoutPreviousStats() throws Exception {
+    Table testTable =
+        TestTables.create(tempDir("incremental_error"), "incremental_error", SCHEMA, SPEC, 2);
+
+    List<DataFile> dataFiles = dataFiles(testTable, prepareRecords(testTable.schema()));
+    AppendFiles appendFiles = testTable.newAppend();
+    dataFiles.forEach(appendFiles::appendFile);
+    appendFiles.commit();
+
+    assertThatThrownBy(
+            () ->
+                PartitionStatsHandler.computeAndWriteStatsFileIncremental(
+                    testTable, testTable.currentSnapshot().snapshotId()))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage("Previous stats not found for incremental compute. Try full compute");
+  }
+
+  @Test
+  public void testLatestStatsFile() throws Exception {
+    Table testTable = TestTables.create(tempDir("stats_file"), "stats_file", SCHEMA, SPEC, 2);
+
+    List<DataFile> dataFiles = dataFiles(testTable, prepareRecords(testTable.schema()));
+    AppendFiles appendFiles = testTable.newAppend();
+    dataFiles.forEach(appendFiles::appendFile);
+    appendFiles.commit();
+
+    PartitionStatisticsFile statisticsFile =
+        PartitionStatsHandler.computeAndWriteStatsFile(
+            testTable, testTable.currentSnapshot().snapshotId());
+    testTable.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+
+    PartitionStatisticsFile latestStatsFile =
+        latestStatsFile(testTable, testTable.currentSnapshot().snapshotId());
+    assertThat(latestStatsFile).isEqualTo(statisticsFile);
+
+    // another commit but without stats file
+    appendFiles = testTable.newAppend();
+    dataFiles.forEach(appendFiles::appendFile);
+    appendFiles.commit();
+    // should point to last stats file
+    latestStatsFile = latestStatsFile(testTable, testTable.currentSnapshot().snapshotId());
+    assertThat(latestStatsFile).isEqualTo(statisticsFile);
+
+    // compute stats
+    statisticsFile =
+        PartitionStatsHandler.computeAndWriteStatsFile(
+            testTable, testTable.currentSnapshot().snapshotId());
+    testTable.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+    latestStatsFile = latestStatsFile(testTable, testTable.currentSnapshot().snapshotId());
+    assertThat(latestStatsFile).isEqualTo(statisticsFile);
+  }
+
   private OutputFile outputFile() throws IOException {
     return Files.localOutput(File.createTempFile("data", null, tempDir("stats")));
   }
 
-  private static StructLike partitionRecord(
-      Types.StructType partitionType, String val1, String val2) {
+  private static StructLike partitionRecord(Types.StructType partitionType, Object... fields) {
     GenericRecord record = GenericRecord.create(partitionType);
-    record.set(0, val1);
-    record.set(1, val2);
+    for (int i = 0; i < fields.length; i++) {
+      record.set(i, fields[i]);
+    }
+
     return record;
   }
 
@@ -500,11 +716,37 @@ public class TestPartitionStatsHandler {
     return records;
   }
 
+  private List<DataFile> dataFiles(Table testTable, List<Record> records) throws IOException {
+    List<DataFile> files = Lists.newArrayList();
+    files.add(
+        FileHelpers.writeDataFile(
+            testTable, outputFile(), TestHelpers.Row.of("foo", "A"), records.subList(0, 3)));
+    files.add(
+        FileHelpers.writeDataFile(
+            testTable, outputFile(), TestHelpers.Row.of("foo", "B"), records.subList(3, 4)));
+    files.add(
+        FileHelpers.writeDataFile(
+            testTable, outputFile(), TestHelpers.Row.of("bar", "A"), records.subList(4, 5)));
+    files.add(
+        FileHelpers.writeDataFile(
+            testTable, outputFile(), TestHelpers.Row.of("bar", "B"), records.subList(5, 7)));
+    return files;
+  }
+
   private static void computeAndValidatePartitionStats(
-      Table testTable, Schema recordSchema, Tuple... expectedValues) throws IOException {
+      boolean incremental, Table testTable, Schema recordSchema, Tuple... expectedValues)
+      throws IOException {
     // compute and commit partition stats file
     Snapshot currentSnapshot = testTable.currentSnapshot();
-    PartitionStatisticsFile result = PartitionStatsHandler.computeAndWriteStatsFile(testTable);
+    PartitionStatisticsFile result;
+    if (incremental) {
+      result =
+          PartitionStatsHandler.computeAndWriteStatsFileIncremental(
+              testTable, testTable.currentSnapshot().snapshotId());
+    } else {
+      result = PartitionStatsHandler.computeAndWriteStatsFile(testTable);
+    }
+
     testTable.updatePartitionStatistics().setPartitionStatistics(result).commit();
     assertThat(result.snapshotId()).isEqualTo(currentSnapshot.snapshotId());
 
