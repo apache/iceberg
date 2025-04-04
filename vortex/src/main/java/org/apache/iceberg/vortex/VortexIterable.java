@@ -85,12 +85,14 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
             ScanOptions.builder().addAllColumns(projection).predicate(scanPredicate).build());
     Preconditions.checkNotNull(batchStream, "batchStream");
 
+    DType dtype = batchStream.getDataType();
+    CloseableIterator<Array> batchIterator = CloseableIterator.withClose(batchStream);
+
     if (rowReaderFunc != null) {
-      VortexRowReader<T> rowFunction = rowReaderFunc.apply(batchStream.getDataType());
-      return new VortexRowIterator<>(batchStream, rowFunction);
+      VortexRowReader<T> rowFunction = rowReaderFunc.apply(dtype);
+      return new VortexRowIterator<>(batchIterator, rowFunction);
     } else {
-      CloseableIterator<Array> batchIterator = new VortexBatchIterator(batchStream);
-      VortexBatchReader<T> batchTransform = batchReaderFunction.apply(batchStream.getDataType());
+      VortexBatchReader<T> batchTransform = batchReaderFunction.apply(dtype);
       return CloseableIterator.transform(batchIterator, batchTransform::read);
     }
   }
@@ -172,49 +174,24 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
       } else if (configKey.startsWith(FIXED_TOKEN_PREFIX)) {
         properties.setSasKey(entry.getValue());
       } else {
-        LOG.warn("Ignoring unknown azure connector property: {}={}", configKey, entry.getValue());
+        LOG.trace("Ignoring unknown azure connector property: {}={}", configKey, entry.getValue());
       }
     }
 
     return properties.asProperties();
   }
 
-  static class VortexBatchIterator implements CloseableIterator<Array> {
-    private ArrayStream stream;
-
-    private VortexBatchIterator(ArrayStream stream) {
-      this.stream = stream;
-    }
-
-    @Override
-    public Array next() {
-      return stream.next();
-    }
-
-    @Override
-    public boolean hasNext() {
-      return stream.hasNext();
-    }
-
-    @Override
-    public void close() {
-      if (stream != null) {
-        stream.close();
-      }
-      stream = null;
-    }
-  }
-
-  static class VortexRowIterator<T> implements CloseableIterator<T> {
-    private final ArrayStream stream;
+  static class VortexRowIterator<T> extends CloseableGroup implements CloseableIterator<T> {
+    private final CloseableIterator<Array> stream;
     private final VortexRowReader<T> rowReader;
 
     private Array currentBatch = null;
     private int batchIndex = 0;
     private int batchLen = 0;
 
-    VortexRowIterator(ArrayStream stream, VortexRowReader<T> rowReader) {
+    VortexRowIterator(CloseableIterator<Array> stream, VortexRowReader<T> rowReader) {
       this.stream = stream;
+      addCloseable(stream);
       this.rowReader = rowReader;
       if (stream.hasNext()) {
         currentBatch = stream.next();

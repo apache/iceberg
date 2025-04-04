@@ -66,7 +66,7 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
 
   @Override
   public Expression alwaysTrue() {
-    return ALWAYS_FALSE;
+    return ALWAYS_TRUE;
   }
 
   @Override

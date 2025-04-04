@@ -133,8 +133,7 @@ public final class Vortex {
     }
 
     @Override
-    public ReadBuilder filter(Expression newFilter) {
-      // At least print the filter.
+    public ReadBuilder filter(Expression newFilter, boolean _filterCaseSensitive) {
       this.filterPredicate = Optional.of(newFilter);
       return this;
     }
