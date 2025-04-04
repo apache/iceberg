@@ -38,9 +38,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.metastore.HiveMetaStore;
 import org.apache.hadoop.hive.metastore.IHMSHandler;
-import org.apache.hadoop.hive.metastore.RetryingHMSHandler;
 import org.apache.hadoop.hive.metastore.TSetIpAddressProcessor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -60,18 +58,24 @@ public class TestHiveMetastore {
   private static final String DEFAULT_DATABASE_NAME = "default";
   private static final int DEFAULT_POOL_SIZE = 5;
 
-  // create the metastore handlers based on whether we're working with Hive2 or Hive3 dependencies
-  // we need to do this because there is a breaking API change between Hive2 and Hive3
-  private static final DynConstructors.Ctor<HiveMetaStore.HMSHandler> HMS_HANDLER_CTOR =
+  private static final String HMS_HANDLER_CLASS =
+      (HiveVersion.current() == HiveVersion.HIVE_4)
+          ? "org.apache.hadoop.hive.metastore.HMSHandler"
+          : "org.apache.hadoop.hive.metastore.HiveMetaStore$HMSHandler";
+  private static final DynConstructors.Ctor<IHMSHandler> HMS_HANDLER_CTOR =
       DynConstructors.builder()
-          .impl(HiveMetaStore.HMSHandler.class, String.class, Configuration.class)
-          .impl(HiveMetaStore.HMSHandler.class, String.class, HiveConf.class)
+          .impl(HMS_HANDLER_CLASS, String.class, Configuration.class)
+          .impl(HMS_HANDLER_CLASS, String.class, HiveConf.class)
           .build();
 
+  private static final String PROXY_METHOD_CLASS =
+      (HiveVersion.current() == HiveVersion.HIVE_4)
+          ? "org.apache.hadoop.hive.metastore.HMSHandlerProxyFactory"
+          : "org.apache.hadoop.hive.metastore.RetryingHMSHandler";
   private static final DynMethods.StaticMethod GET_BASE_HMS_HANDLER =
       DynMethods.builder("getProxy")
-          .impl(RetryingHMSHandler.class, Configuration.class, IHMSHandler.class, boolean.class)
-          .impl(RetryingHMSHandler.class, HiveConf.class, IHMSHandler.class, boolean.class)
+          .impl(PROXY_METHOD_CLASS, Configuration.class, IHMSHandler.class, boolean.class)
+          .impl(PROXY_METHOD_CLASS, HiveConf.class, IHMSHandler.class, boolean.class)
           .buildStatic();
 
   // Hive3 introduces background metastore tasks (MetastoreTaskThread) for performing various
@@ -126,7 +130,7 @@ public class TestHiveMetastore {
   private HiveConf hiveConf;
   private ExecutorService executorService;
   private TServer server;
-  private HiveMetaStore.HMSHandler baseHandler;
+  private IHMSHandler baseHandler;
   private HiveClientPool clientPool;
 
   /**
@@ -196,9 +200,9 @@ public class TestHiveMetastore {
     if (executorService != null) {
       executorService.shutdown();
     }
-    if (baseHandler != null) {
-      baseHandler.shutdown();
-    }
+    // if (baseHandler != null) {
+    //   baseHandler.shutdown();
+    // }
     METASTORE_THREADS_SHUTDOWN.invoke();
   }
 
@@ -283,10 +287,12 @@ public class TestHiveMetastore {
   private static void setupMetastoreDB(String dbURL) throws SQLException, IOException {
     try (Connection connection = DriverManager.getConnection(dbURL)) {
       ScriptRunner scriptRunner = new ScriptRunner(connection, true, true);
+      String resource =
+          (HiveVersion.current() == HiveVersion.HIVE_4)
+              ? "hive-schema-4.0.0.derby.sql"
+              : "hive-schema-3.1.0.derby.sql";
       try (InputStream inputStream =
-              TestHiveMetastore.class
-                  .getClassLoader()
-                  .getResourceAsStream("hive-schema-3.1.0.derby.sql");
+              TestHiveMetastore.class.getClassLoader().getResourceAsStream(resource);
           Reader reader =
               new InputStreamReader(
                   Preconditions.checkNotNull(inputStream, "Invalid input stream: null"))) {
