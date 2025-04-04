@@ -24,31 +24,20 @@ Iceberg supports reading and writing Iceberg tables through [Hive](https://hive.
 a [StorageHandler](https://cwiki.apache.org/confluence/display/Hive/StorageHandlers).
 
 ## Feature support
-The following features matrix illustrates the support for different features across Hive releases for Iceberg tables - 
 
-| Feature support                                                 | Hive 4 |
-|-----------------------------------------------------------------|--------|
-| [SQL create table](#create-table)                               | ✔️      |
-| [SQL create table as select (CTAS)](#create-table-as-select)    | ✔️      |
-| [SQL create table like table (CTLT)](#create-table-like-table)  | ✔️      |
-| [SQL drop table](#drop-table)                                   | ✔️      |
-| [SQL insert into](#insert-into)                                 | ✔️      |
-| [SQL insert overwrite](#insert-overwrite)                       | ✔️      |
-| [SQL delete from](#delete-from)                                 | ✔️      |
-| [SQL update](#update)                                           | ✔️      |
-| [SQL merge into](#merge-into)                                   | ✔️      |
-| [Branches and tags](#branches-and-tags)                         | ✔️      |
+Hive supports the following features with Hive version 4.0.0 and above:
 
-Hive supports the following additional features with Hive version 4.0.0 and above:
-
-* Creating an Iceberg identity-partitioned table
-* Creating an Iceberg table with any partition spec, including the various transforms supported by Iceberg
-* Creating a table from an existing table (CTAS table)
-* Altering a table while keeping Iceberg and Hive schemas in sync
-* Altering the partition schema (updating columns)
-* Altering the partition schema by specifying partition transforms
+* Creating an Iceberg table.
+* Creating an Iceberg identity-partitioned table.
+* Creating an Iceberg table with any partition spec, including the various transforms supported by Iceberg.
+* Creating a table from an existing table (CTAS table).
+* Dropping a table.
+* Altering a table while keeping Iceberg and Hive schemas in sync.
+* Altering the partition schema (updating columns).
+* Altering the partition schema by specifying partition transforms.
 * Truncating a table / partition, dropping a partition.
-* Migrating tables in Avro, Parquet, or ORC (Non-ACID) format to Iceberg
+* Migrating tables in Avro, Parquet, or ORC (Non-ACID) format to Iceberg.
+* Reading an Iceberg table.
 * Reading the schema of a table.
 * Querying Iceberg metadata tables.
 * Time travel applications.
@@ -56,11 +45,11 @@ Hive supports the following additional features with Hive version 4.0.0 and abov
 * Inserting data overwriting existing data (INSERT OVERWRITE) in a table / partition.
 * Copy-on-write support for delete, update and merge queries, CRUD support for Iceberg V1 tables.
 * Altering a table with expiring snapshots.
-* Create a table like an existing table (CTLT table)
-* Support adding parquet compression type via Table properties [Compression types](https://spark.apache.org/docs/2.4.3/sql-data-sources-parquet.html#configuration)
+* Create a table like an existing table (CTLT table).
+* Support adding parquet compression type via Table properties [Compression types](https://spark.apache.org/docs/2.4.3/sql-data-sources-parquet.html#configuration).
 * Altering a table metadata location.
 * Supporting table rollback.
-* Honors sort orders on existing tables when writing a table [Sort orders specification](../../spec.md#sort-orders)
+* Honors sort orders on existing tables when writing a table [Sort orders specification](../../spec.md#sort-orders).
 * Creating, writing to and dropping an Iceberg branch / tag.
 * Allowing expire snapshots by Snapshot ID, by time range, by retention of last N snapshots and using table properties.
 * Set current snapshot using snapshot ID for an Iceberg table.
@@ -100,9 +89,6 @@ enable Hive support: globally in Hadoop Configuration and per-table using a tabl
 To enable Hive support globally for an application, set `iceberg.engine.hive.enabled=true` in its Hadoop configuration.
 For example, setting this in the `hive-site.xml` loaded by Spark will enable the storage handler for all tables created
 by Spark.
-
-!!! danger
-    Starting with Apache Iceberg `0.11.0`, when using Hive with Tez you also have to disable vectorization (`hive.vectorized.execution.enabled=false`).
 
 ##### Table property configuration
 
@@ -180,9 +166,6 @@ SET iceberg.catalog.glue.lock.table=myGlueLockTable;
 ```
 
 ## DDL Commands
-
-One generally applicable difference is that Hive 4 provides the possibility to use
-`STORED BY ICEBERG` instead of the old `STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler'`
 
 ### CREATE TABLE
 
@@ -566,8 +549,7 @@ Here are the features highlights for Iceberg Hive read support:
 
 1. **Predicate pushdown**: Pushdown of the Hive SQL `WHERE` clause has been implemented so that these filters are used at the Iceberg `TableScan` level as well as by the Parquet and ORC Readers.
 2. **Column projection**: Columns from the Hive SQL `SELECT` clause are projected down to the Iceberg readers to reduce the number of columns read.
-3. **Hive query engines**:
-   - With Hive 4.x, the Tez query execution engine is supported.
+3. **Hive query engines**: With Hive 4.x, the Tez query execution engine is supported.
 
 Some of the advanced / little used optimizations are not yet implemented for Iceberg tables, so you should check your individual queries.
 Also currently the statistics stored in the MetaStore are used for query planning. This is something we are planning to improve in the future.
