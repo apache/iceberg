@@ -51,19 +51,19 @@ public class AwsProperties implements Serializable {
    * <p>For more details, see
    * https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-catalog-databases.html
    *
-   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link org.apache.iceberg.aws.glue.GlueProperties#GLUE_CATALOG_ID} instead.
+   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link
+   *     org.apache.iceberg.aws.glue.GlueProperties#GLUE_CATALOG_ID} instead.
    */
-  @Deprecated
-  public static final String GLUE_CATALOG_ID = "glue.id";
+  @Deprecated public static final String GLUE_CATALOG_ID = "glue.id";
 
   /**
    * The account ID used in a Glue resource ARN, e.g.
    * arn:aws:glue:us-east-1:1000000000000:table/db1/table1
    *
-   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link org.apache.iceberg.aws.glue.GlueProperties#GLUE_ACCOUNT_ID} instead.
+   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link
+   *     org.apache.iceberg.aws.glue.GlueProperties#GLUE_ACCOUNT_ID} instead.
    */
-  @Deprecated
-  public static final String GLUE_ACCOUNT_ID = "glue.account-id";
+  @Deprecated public static final String GLUE_ACCOUNT_ID = "glue.account-id";
 
   /**
    * If Glue should skip archiving an old table version when creating a new version in a commit. By
@@ -71,10 +71,10 @@ public class AwsProperties implements Serializable {
    * max number of archived table versions (can be increased). So for streaming use case with lots
    * of commits, it is recommended to set this value to true.
    *
-   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link org.apache.iceberg.aws.glue.GlueProperties#GLUE_CATALOG_SKIP_ARCHIVE} instead.
+   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link
+   *     org.apache.iceberg.aws.glue.GlueProperties#GLUE_CATALOG_SKIP_ARCHIVE} instead.
    */
-  @Deprecated
-  public static final String GLUE_CATALOG_SKIP_ARCHIVE = "glue.skip-archive";
+  @Deprecated public static final String GLUE_CATALOG_SKIP_ARCHIVE = "glue.skip-archive";
 
   public static final boolean GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT = true;
 
@@ -85,12 +85,13 @@ public class AwsProperties implements Serializable {
    * non-standard characters. When database name and table name validation are skipped, there is no
    * guarantee that downstream systems would all support the names.
    *
-   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link org.apache.iceberg.aws.glue.GlueProperties#GLUE_CATALOG_SKIP_NAME_VALIDATION} instead.
+   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link
+   *     org.apache.iceberg.aws.glue.GlueProperties#GLUE_CATALOG_SKIP_NAME_VALIDATION} instead.
    */
   @Deprecated
   public static final String GLUE_CATALOG_SKIP_NAME_VALIDATION = "glue.skip-name-validation";
 
-  public static final boolean GLUE_CATALOG_SKIP_NAME_VALIDATION_DEFAULT = false;
+  @Deprecated public static final boolean GLUE_CATALOG_SKIP_NAME_VALIDATION_DEFAULT = false;
 
   /**
    * If set, GlueCatalog will use Lake Formation for access control. For more credential vending
@@ -98,12 +99,12 @@ public class AwsProperties implements Serializable {
    * enabled, the {@link AwsClientFactory} implementation must be {@link
    * LakeFormationAwsClientFactory} or any class that extends it.
    *
-   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link org.apache.iceberg.aws.glue.GlueProperties#GLUE_LAKEFORMATION_ENABLED} instead.
+   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link
+   *     org.apache.iceberg.aws.glue.GlueProperties#GLUE_LAKEFORMATION_ENABLED} instead.
    */
-  @Deprecated
-  public static final String GLUE_LAKEFORMATION_ENABLED = "glue.lakeformation-enabled";
+  @Deprecated public static final String GLUE_LAKEFORMATION_ENABLED = "glue.lakeformation-enabled";
 
-  public static final boolean GLUE_LAKEFORMATION_ENABLED_DEFAULT = false;
+  @Deprecated public static final boolean GLUE_LAKEFORMATION_ENABLED_DEFAULT = false;
 
   /**
    * Configure an alternative endpoint of the Glue service for GlueCatalog to access.
@@ -111,27 +112,28 @@ public class AwsProperties implements Serializable {
    * <p>This could be used to use GlueCatalog with any glue-compatible metastore service that has a
    * different endpoint
    *
-   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link org.apache.iceberg.aws.glue.GlueProperties#GLUE_CATALOG_ENDPOINT} instead.
+   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link
+   *     org.apache.iceberg.aws.glue.GlueProperties#GLUE_CATALOG_ENDPOINT} instead.
    */
-  @Deprecated
-  public static final String GLUE_CATALOG_ENDPOINT = "glue.endpoint";
+  @Deprecated public static final String GLUE_CATALOG_ENDPOINT = "glue.endpoint";
 
   /**
    * Configure an alternative endpoint of the DynamoDB service to access.
-   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link org.apache.iceberg.aws.glue.GlueProperties#GLUE_CATALOG_ENDPOINT} instead.
+   *
+   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link
+   *     org.apache.iceberg.aws.dynamodb.DynamoDbProperties#DYNAMODB_ENDPOINT} instead.
    */
-  @Deprecated
-  public static final String DYNAMODB_ENDPOINT = "dynamodb.endpoint";
+  @Deprecated public static final String DYNAMODB_ENDPOINT = "dynamodb.endpoint";
 
   /**
    * DynamoDB table name for {@link DynamoDbCatalog}
-   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link org.apache.iceberg.aws.glue.GlueProperties#GLUE_CATALOG_ENDPOINT} instead.
+   *
+   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link
+   *     org.apache.iceberg.aws.dynamodb.DynamoDbProperties#DYNAMODB_TABLE_NAME} instead.
    */
-  @Deprecated
-  public static final String DYNAMODB_TABLE_NAME = "dynamodb.table-name";
+  @Deprecated public static final String DYNAMODB_TABLE_NAME = "dynamodb.table-name";
 
-  @Deprecated
-  public static final String DYNAMODB_TABLE_NAME_DEFAULT = "iceberg";
+  @Deprecated public static final String DYNAMODB_TABLE_NAME_DEFAULT = "iceberg";
 
   /**
    * The implementation class of {@link AwsClientFactory} to customize AWS client configurations. If
@@ -346,42 +348,92 @@ public class AwsProperties implements Serializable {
     return clientAssumeRoleSessionName;
   }
 
+  /**
+   * @deprecated will be removed in 2.0.0, use {@link org.apache.iceberg.aws.glue.GlueProperties}
+   *     instead
+   */
+  @Deprecated
   public String glueCatalogId() {
     return glueCatalogId;
   }
 
+  /**
+   * @deprecated will be removed in 2.0.0, use {@link org.apache.iceberg.aws.glue.GlueProperties}
+   *     instead
+   */
+  @Deprecated
   public void setGlueCatalogId(String id) {
     this.glueCatalogId = id;
   }
 
+  /**
+   * @deprecated will be removed in 2.0.0, use {@link org.apache.iceberg.aws.glue.GlueProperties}
+   *     instead
+   */
+  @Deprecated
   public boolean glueCatalogSkipArchive() {
     return glueCatalogSkipArchive;
   }
 
+  /**
+   * @deprecated will be removed in 2.0.0, use {@link org.apache.iceberg.aws.glue.GlueProperties}
+   *     instead
+   */
+  @Deprecated
   public void setGlueCatalogSkipArchive(boolean skipArchive) {
     this.glueCatalogSkipArchive = skipArchive;
   }
 
+  /**
+   * @deprecated will be removed in 2.0.0, use {@link org.apache.iceberg.aws.glue.GlueProperties}
+   *     instead
+   */
+  @Deprecated
   public boolean glueCatalogSkipNameValidation() {
     return glueCatalogSkipNameValidation;
   }
 
+  /**
+   * @deprecated will be removed in 2.0.0, use {@link org.apache.iceberg.aws.glue.GlueProperties}
+   *     instead
+   */
+  @Deprecated
   public void setGlueCatalogSkipNameValidation(boolean glueCatalogSkipNameValidation) {
     this.glueCatalogSkipNameValidation = glueCatalogSkipNameValidation;
   }
 
+  /**
+   * @deprecated will be removed in 2.0.0, use {@link org.apache.iceberg.aws.glue.GlueProperties}
+   *     instead
+   */
+  @Deprecated
   public boolean glueLakeFormationEnabled() {
     return glueLakeFormationEnabled;
   }
 
+  /**
+   * @deprecated will be removed in 2.0.0, use {@link org.apache.iceberg.aws.glue.GlueProperties}
+   *     instead
+   */
+  @Deprecated
   public void setGlueLakeFormationEnabled(boolean glueLakeFormationEnabled) {
     this.glueLakeFormationEnabled = glueLakeFormationEnabled;
   }
 
+  /**
+   * @deprecated will be removed in 2.0.0, use {@link
+   *     org.apache.iceberg.aws.dynamodb.DynamoDbProperties} instead
+   */
+  @Deprecated
   public String dynamoDbTableName() {
     return dynamoDbTableName;
   }
 
+  /**
+   * @deprecated will be removed in 2.0.0, use {@link
+   *     org.apache.iceberg.aws.dynamodb.DynamoDbProperties} instead
+   */
+  @Deprecated
   public void setDynamoDbTableName(String name) {
     this.dynamoDbTableName = name;
   }
@@ -394,7 +446,10 @@ public class AwsProperties implements Serializable {
    * <pre>
    *     GlueClient.builder().applyMutation(awsProperties::applyS3EndpointConfigurations)
    * </pre>
+   *
+   * @deprecated will be removed in 2.0.0, use {@link org.apache.iceberg.aws.glue.GlueProperties}
    */
+  @Deprecated
   public <T extends GlueClientBuilder> void applyGlueEndpointConfigurations(T builder) {
     configureEndpoint(builder, glueEndpoint);
   }
@@ -407,7 +462,11 @@ public class AwsProperties implements Serializable {
    * <pre>
    *     DynamoDbClient.builder().applyMutation(awsProperties::applyDynamoDbEndpointConfigurations)
    * </pre>
+   *
+   * @deprecated will be removed in 2.0.0, use {@link
+   *     org.apache.iceberg.aws.dynamodb.DynamoDbProperties}
    */
+  @Deprecated
   public <T extends DynamoDbClientBuilder> void applyDynamoDbEndpointConfigurations(T builder) {
     configureEndpoint(builder, dynamoDbEndpoint);
   }
