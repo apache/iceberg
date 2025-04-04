@@ -350,7 +350,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
         .as("should fail to rename")
         .hasMessageContaining("Entity not found");
 
-    // New table should be dropped
+    // New table created during rename should be dropped
     assertThatThrownBy(
             () ->
                 GLUE.getTable(
