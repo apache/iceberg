@@ -1414,15 +1414,15 @@ Each partition field in `fields` is stored as a JSON object with the following p
 
 | V1       | V2       | V3       | Field            | JSON representation | Example      |
 |----------|----------|----------|------------------|---------------------|--------------|
-| required | required | required¹ | **`source-id`**  | `JSON int`          | 1            |
-|          |          | required¹ | **`source-ids`** | `JSON list of ints` | `[1,2]`      |
+| required | required | optional | **`source-id`**  | `JSON int`          | 1            |
+|          |          | required | **`source-ids`** | `JSON list of ints` | `[1,2]`      |
 |          | required | required | **`field-id`**   | `JSON int`          | 1000         |
 | required | required | required | **`name`**       | `JSON string`       | `id_bucket`  |
 | required | required | required | **`transform`**  | `JSON string`       | `bucket[16]` |
 
 Notes:
 
-1. For partition fields with a transform with a single argument, the ID of the source field is set on `source-id`, and `source-ids` is omitted.
+1. For partition fields with a transform with a single argument, `source-id` can still be written.
 
 Supported partition transforms are listed below.
 
@@ -1611,7 +1611,7 @@ All readers are required to read tables with unknown partition transforms, ignor
 Writing v3 metadata:
 
 * Partition Field and Sort Field JSON:
-    * `source-ids` was added and is required in the case of multi-argument transforms.
+    * `source-ids` was added and should be written.
     * `source-id` should still be written in the case of single-argument transforms.
 
 Row-level delete changes:
