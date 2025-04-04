@@ -233,23 +233,64 @@ public class VortexAzureSmokeTest {
   @ValueSource(strings = {"vortex"})
   public void scanWarehouse(String format) {
     try (SparkSession spark = newSparkSession("scanWarehouse")) {
-      spark.read().format("iceberg").option("split-size", 1_000_000).load("vortex.customer").registerTempTable("customer");
-      spark.read().format("iceberg").option("split-size", 3_000_000).load("vortex.lineitem").registerTempTable("lineitem");
-      spark.read().format("iceberg").option("split-size", 25).load("vortex.nation").registerTempTable("nation");
-      spark.read().format("iceberg").option("split-size", 1_000_000).load("vortex.orders").registerTempTable("orders");
-      spark.read().format("iceberg").option("split-size", 1_000_000).load("vortex.partsupp").registerTempTable("partsupp");
-      spark.read().format("iceberg").option("split-size", 1_000_000).load("vortex.part").registerTempTable("part");
-      spark.read().format("iceberg").option("split-size", 1_000_000).load("vortex.region").registerTempTable("region");
-      spark.read().format("iceberg").option("split-size", 1_000_000).load("vortex.supplier").registerTempTable("supplier");
+      spark
+          .read()
+          .format("iceberg")
+          .option("split-size", 1_000_000)
+          .load("parquet.customer")
+          .registerTempTable("customer");
+      spark
+          .read()
+          .format("iceberg")
+          .option("split-size", 3_000_000)
+          .load("parquet.lineitem")
+          .registerTempTable("lineitem");
+      spark
+          .read()
+          .format("iceberg")
+          .option("split-size", 25)
+          .load("parquet.nation")
+          .registerTempTable("nation");
+      spark
+          .read()
+          .format("iceberg")
+          .option("split-size", 1_000_000)
+          .load("parquet.orders")
+          .registerTempTable("orders");
+      spark
+          .read()
+          .format("iceberg")
+          .option("split-size", 1_000_000)
+          .load("parquet.partsupp")
+          .registerTempTable("partsupp");
+      spark
+          .read()
+          .format("iceberg")
+          .option("split-size", 1_000_000)
+          .load("parquet.part")
+          .registerTempTable("part");
+      spark
+          .read()
+          .format("iceberg")
+          .option("split-size", 1_000_000)
+          .load("parquet.region")
+          .registerTempTable("region");
+      spark
+          .read()
+          .format("iceberg")
+          .option("split-size", 1_000_000)
+          .load("parquet.supplier")
+          .registerTempTable("supplier");
 
-//      spark.sql(Q5).collect();
-      spark.sql("select l_orderkey from lineitem where l_quantity > 0").count();
+      //      spark.sql(Q5).collect();
+      System.err.println("COUNT: " + spark.sql(Q16).count());
     }
   }
 
   private static SparkSession newSparkSession(String name) {
     return SparkSession.builder()
         .config("fs.azure.account.key.vortexicebergsummit25.dfs.core.windows.net", AZURE_ACCESS_KEY)
+        // use Spark iceberg catalog
         // use Spark iceberg catalog
         .config("spark.sql.catalog.iceberg", "org.apache.iceberg.spark.SparkCatalog")
         // use hadoop type
@@ -258,9 +299,41 @@ public class VortexAzureSmokeTest {
         .config("spark.sql.catalog.iceberg.warehouse", WAREHOUSE)
         .config("spark.sql.defaultCatalog", "iceberg")
         .appName(name)
-        .master("local[*]")
+        .master("local")
         .getOrCreate();
   }
+
+  static final String Q16 =
+      "select\n"
+          + "    p_brand,\n"
+          + "    p_type,\n"
+          + "    p_size,\n"
+          + "    count(distinct ps_suppkey) as supplier_cnt\n"
+          + "from\n"
+          + "    partsupp,\n"
+          + "    part\n"
+          + "where\n"
+          + "        p_partkey = ps_partkey\n"
+          + "  and p_brand <> 'Brand#45'\n"
+          + "  and p_type not like 'MEDIUM POLISHED%'\n"
+          + "  and p_size in (49, 14, 23, 45, 19, 3, 36, 9)\n"
+          + "  and ps_suppkey not in (\n"
+          + "    select\n"
+          + "        s_suppkey\n"
+          + "    from\n"
+          + "        supplier\n"
+          + "    where\n"
+          + "            s_comment like '%Customer%Complaints%'\n"
+          + ")\n"
+          + "group by\n"
+          + "    p_brand,\n"
+          + "    p_type,\n"
+          + "    p_size\n"
+          + "order by\n"
+          + "    supplier_cnt desc,\n"
+          + "    p_brand,\n"
+          + "    p_type,\n"
+          + "    p_size;";
 
   static final String Q5 =
       "select\n"

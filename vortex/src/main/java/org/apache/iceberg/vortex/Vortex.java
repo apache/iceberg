@@ -128,7 +128,6 @@ public final class Vortex {
 
     @Override
     public ReadBuilder split(long newStart, long newLength) {
-      System.err.println("RECEIVING SPLIT: " + newStart + " " + newLength);
       this.rowRange = new long[] {newStart, newStart + newLength};
       return this;
     }
