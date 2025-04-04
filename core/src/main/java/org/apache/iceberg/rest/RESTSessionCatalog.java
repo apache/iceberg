@@ -169,7 +169,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   public RESTSessionCatalog() {
-    this(config -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build(), null);
+    this(
+        config ->
+            HTTPClient.builder(config)
+                .uri(config.get(CatalogProperties.URI))
+                .withHeaders(RESTUtil.configHeaders(config))
+                .build(),
+        null);
   }
 
   public RESTSessionCatalog(
@@ -1016,7 +1022,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 ResourcePaths.config(),
                 queryParams.build(),
                 ConfigResponse.class,
-                configHeaders(properties),
+                RESTUtil.configHeaders(properties),
                 ErrorHandlers.defaultErrorHandler());
     configResponse.validate();
     return configResponse;
@@ -1038,10 +1044,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     if (namespace.isEmpty()) {
       throw new NoSuchNamespaceException("Invalid namespace: %s", namespace);
     }
-  }
-
-  private static Map<String, String> configHeaders(Map<String, String> properties) {
-    return RESTUtil.extractPrefixMap(properties, "header.");
   }
 
   public void commitTransaction(SessionContext context, List<TableCommit> commits) {
