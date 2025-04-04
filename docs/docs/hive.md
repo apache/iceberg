@@ -69,7 +69,7 @@ Hive supports the following features with Hive version 4.0.0 and above:
 ## Enabling Iceberg support in Hive
 
 Starting from 1.8.0 Iceberg doesn't release Hive runtime connector. For Hive query engine integration (specifically
-with Hive 2.x and 3.x) use Hive runtime connector coming with Iceberg 1.7.2, or use Hive 4.0.0 or later
+with Hive 2.x and 3.x) use Hive runtime connector coming with Iceberg 1.6.1, or use Hive 4.0.0 or later
 which is released with embedded Iceberg integration.
 
 ### Hive 4.0.x
