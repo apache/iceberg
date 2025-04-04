@@ -73,7 +73,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   public void cleanNamespaces() {
     sql("DROP TABLE IF EXISTS %s.tl", flinkDatabase);
     sql("DROP TABLE IF EXISTS %s.tl2", flinkDatabase);
-    sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
+    dropDatabase(flinkDatabase, true);
     super.clean();
   }
 
@@ -673,11 +673,11 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
   private void validateTableFiles(Table tbl, DataFile... expectedFiles) {
     tbl.refresh();
     Set<CharSequence> expectedFilePaths =
-        Arrays.stream(expectedFiles).map(DataFile::path).collect(Collectors.toSet());
+        Arrays.stream(expectedFiles).map(DataFile::location).collect(Collectors.toSet());
     Set<CharSequence> actualFilePaths =
         StreamSupport.stream(tbl.newScan().planFiles().spliterator(), false)
             .map(FileScanTask::file)
-            .map(ContentFile::path)
+            .map(ContentFile::location)
             .collect(Collectors.toSet());
     assertThat(actualFilePaths).as("Files should match").isEqualTo(expectedFilePaths);
   }
