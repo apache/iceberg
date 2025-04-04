@@ -638,7 +638,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
                         + "sort_order => 'c1 ASC NULLS FIRST')",
                     catalogName, tableIdent))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Must use only one rewriter type (bin-pack, sort, zorder)");
+        .hasMessage("Must use only one runner type (bin-pack, sort, zorder)");
 
     // Test for sort strategy without any (default/user defined) sort_order
     assertThatThrownBy(
