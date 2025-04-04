@@ -29,21 +29,31 @@ public enum FileFormat {
   PARQUET("parquet", true),
   AVRO("avro", true),
   // TODO(aduffy): Make Vortex splittable once I update FFI to allow providing split sizes.
-  VORTEX("vortex", false),
+  VORTEX("vortex", false, true),
   METADATA("metadata.json", false);
 
   private final String ext;
   private final boolean splittable;
+  private final boolean rowSplittable;
 
   private static final FileFormat[] VALUES = values();
 
   FileFormat(String ext, boolean splittable) {
+    this(ext, splittable, false);
+  }
+
+  FileFormat(String ext, boolean splittable, boolean rowSplittable) {
     this.ext = "." + ext;
     this.splittable = splittable;
+    this.rowSplittable = rowSplittable;
   }
 
   public boolean isSplittable() {
     return splittable;
+  }
+
+  public boolean isRowSplittable() {
+    return rowSplittable;
   }
 
   /**

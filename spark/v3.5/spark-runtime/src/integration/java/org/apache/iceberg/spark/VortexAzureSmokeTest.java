@@ -233,7 +233,17 @@ public class VortexAzureSmokeTest {
   @ValueSource(strings = {"vortex"})
   public void scanWarehouse(String format) {
     try (SparkSession spark = newSparkSession("scanWarehouse")) {
-      spark.sql(String.format("select * from %s.lineitem limit 10", format)).show();
+      spark.read().format("iceberg").option("split-size", 1_000_000).load("vortex.customer").registerTempTable("customer");
+      spark.read().format("iceberg").option("split-size", 3_000_000).load("vortex.lineitem").registerTempTable("lineitem");
+      spark.read().format("iceberg").option("split-size", 25).load("vortex.nation").registerTempTable("nation");
+      spark.read().format("iceberg").option("split-size", 1_000_000).load("vortex.orders").registerTempTable("orders");
+      spark.read().format("iceberg").option("split-size", 1_000_000).load("vortex.partsupp").registerTempTable("partsupp");
+      spark.read().format("iceberg").option("split-size", 1_000_000).load("vortex.part").registerTempTable("part");
+      spark.read().format("iceberg").option("split-size", 1_000_000).load("vortex.region").registerTempTable("region");
+      spark.read().format("iceberg").option("split-size", 1_000_000).load("vortex.supplier").registerTempTable("supplier");
+
+//      spark.sql(Q5).collect();
+      spark.sql("select l_orderkey from lineitem where l_quantity > 0").count();
     }
   }
 
@@ -248,7 +258,33 @@ public class VortexAzureSmokeTest {
         .config("spark.sql.catalog.iceberg.warehouse", WAREHOUSE)
         .config("spark.sql.defaultCatalog", "iceberg")
         .appName(name)
-        .master("local")
+        .master("local[*]")
         .getOrCreate();
   }
+
+  static final String Q5 =
+      "select\n"
+          + "    n_name,\n"
+          + "    sum(l_extendedprice * (1 - l_discount)) as revenue\n"
+          + "from\n"
+          + "    customer,\n"
+          + "    orders,\n"
+          + "    lineitem,\n"
+          + "    supplier,\n"
+          + "    nation,\n"
+          + "    region\n"
+          + "where\n"
+          + "        c_custkey = o_custkey\n"
+          + "  and l_orderkey = o_orderkey\n"
+          + "  and l_suppkey = s_suppkey\n"
+          + "  and c_nationkey = s_nationkey\n"
+          + "  and s_nationkey = n_nationkey\n"
+          + "  and n_regionkey = r_regionkey\n"
+          + "  and r_name = 'ASIA'\n"
+          + "  and o_orderdate >= date '1994-01-01'\n"
+          + "  and o_orderdate < date '1995-01-01'\n"
+          + "group by\n"
+          + "    n_name\n"
+          + "order by\n"
+          + "    revenue desc;";
 }

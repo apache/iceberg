@@ -108,6 +108,7 @@ public final class Vortex {
     private BatchReaderFunction<?> batchReaderFunction;
     private Map<Integer, ?> idToConstant;
     private Optional<Expression> filterPredicate = Optional.empty();
+    private long[] rowRange;
 
     ReadBuilder(InputFile inputFile) {
       this.inputFile = inputFile;
@@ -127,8 +128,8 @@ public final class Vortex {
 
     @Override
     public ReadBuilder split(long newStart, long newLength) {
-      // TODO(aduffy): support splitting? These are in terms of file bytes, which is pretty
-      //  annoying.
+      System.err.println("RECEIVING SPLIT: " + newStart + " " + newLength);
+      this.rowRange = new long[] {newStart, newStart + newLength};
       return this;
     }
 
@@ -196,7 +197,7 @@ public final class Vortex {
                   (VortexBatchReader<D>)
                       batchReaderFunction.batchRead(schema, fileSchema, idToConstant);
 
-      return new VortexIterable<>(inputFile, schema, filterPredicate, readerFunc, batchReaderFunc);
+      return new VortexIterable<>(inputFile, schema, filterPredicate, rowRange, readerFunc, batchReaderFunc);
     }
   }
 }

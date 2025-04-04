@@ -49,6 +49,7 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
 
   private final InputFile inputFile;
   private final Optional<Expression> filterPredicate;
+  private final long[] rowRange;
   private final Function<DType, VortexRowReader<T>> rowReaderFunc;
   private final Function<DType, VortexBatchReader<T>> batchReaderFunction;
   private final List<String> projection;
@@ -57,12 +58,14 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
       InputFile inputFile,
       Schema icebergSchema,
       Optional<Expression> filterPredicate,
+      long[] rowRange,
       Function<DType, VortexRowReader<T>> readerFunction,
       Function<DType, VortexBatchReader<T>> batchReaderFunction) {
     this.inputFile = inputFile;
     // We have the file schema, we need to assign Iceberg IDs to the entire file schema
     this.projection = Lists.transform(icebergSchema.columns(), Types.NestedField::name);
     this.filterPredicate = filterPredicate;
+    this.rowRange = rowRange;
     this.rowReaderFunc = readerFunction;
     this.batchReaderFunction = batchReaderFunction;
   }
@@ -80,9 +83,15 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
               return ConvertFilterToVortex.convert(fileSchema, icebergExpression);
             });
 
+    Optional<long[]> rowRange = Optional.ofNullable(this.rowRange);
+
     ArrayStream batchStream =
         vortexFile.newScan(
-            ScanOptions.builder().addAllColumns(projection).predicate(scanPredicate).build());
+            ScanOptions.builder()
+                .addAllColumns(projection)
+                .predicate(scanPredicate)
+                .rowRange(rowRange)
+                .build());
     Preconditions.checkNotNull(batchStream, "batchStream");
 
     DType dtype = batchStream.getDataType();
