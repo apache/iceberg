@@ -31,6 +31,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.FlinkSplitPlanner;
 import org.apache.iceberg.flink.source.ScanContext;
+import org.apache.iceberg.flink.source.SnapshotExpirationResetStrategy;
 import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -122,6 +123,53 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
       return new ContinuousEnumerationResult(Collections.emptyList(), lastPosition, lastPosition);
     } else {
       Long lastConsumedSnapshotId = lastPosition.snapshotId();
+      if (scanContext.snapshotExpirationResetStrategy() != SnapshotExpirationResetStrategy.DEFAULT
+          && lastConsumedSnapshotId != null
+          && !SnapshotUtil.isParentAncestorOf(
+              table, currentSnapshot.snapshotId(), lastConsumedSnapshotId)) {
+        switch (scanContext.snapshotExpirationResetStrategy()) {
+          case LATEST:
+            {
+              IcebergEnumeratorPosition newPosition =
+                  IcebergEnumeratorPosition.of(
+                      currentSnapshot.snapshotId(), currentSnapshot.timestampMillis());
+              LOG.info(
+                  "Snapshot expiration, last snapshot reset to latest : {}",
+                  currentSnapshot.snapshotId());
+              return new ContinuousEnumerationResult(
+                  Collections.emptyList(), lastPosition, newPosition);
+            }
+          case EARLIEST:
+          default:
+            {
+              Long oldestConsumedSnapshotId = SnapshotUtil.oldestAncestor(table).snapshotId();
+              Snapshot toSnapshotInclusive =
+                  toSnapshotInclusive(
+                      oldestConsumedSnapshotId,
+                      currentSnapshot,
+                      scanContext.maxPlanningSnapshotCount());
+
+              IcebergEnumeratorPosition newPosition =
+                  IcebergEnumeratorPosition.of(
+                      toSnapshotInclusive.snapshotId(), toSnapshotInclusive.timestampMillis());
+
+              ScanContext incrementalScan =
+                  scanContext.copyWithAppendsBetween(
+                      oldestConsumedSnapshotId, toSnapshotInclusive.snapshotId());
+              List<IcebergSourceSplit> splits =
+                  FlinkSplitPlanner.planIcebergSourceSplits(table, incrementalScan, workerPool);
+              LOG.info(
+                  "Snapshot expiration, last snapshot reset to earliest."
+                      + "Discovered {} splits from incremental scan: "
+                      + "from snapshot (exclusive) is {}, to snapshot (inclusive) is {}",
+                  splits.size(),
+                  oldestConsumedSnapshotId,
+                  newPosition);
+              return new ContinuousEnumerationResult(splits, lastPosition, newPosition);
+            }
+        }
+      }
+
       Snapshot toSnapshotInclusive =
           toSnapshotInclusive(
               lastConsumedSnapshotId, currentSnapshot, scanContext.maxPlanningSnapshotCount());
