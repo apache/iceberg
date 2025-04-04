@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
-import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.times;
@@ -1776,21 +1775,28 @@ public class TestRemoveSnapshots extends TestBase {
   }
 
   @TestTemplate
-  public void testCustomWorkerPool() {
-    ExecutorService executor = Executors.newSingleThreadExecutor();
-    // shutdown the executor, cleanExpiredSnapshots should fail
-    executor.shutdownNow();
-    RemoveSnapshots removeSnapshots = (RemoveSnapshots) removeSnapshots(table).planWith(executor);
+  public void testExpireSnapshotsWithExecutor() {
+    AtomicInteger scanThreadsIndex = new AtomicInteger(0);
+    RemoveSnapshots removeSnapshots = (RemoveSnapshots) removeSnapshots(table)
+      .planWith(
+        Executors.newFixedThreadPool(
+            1,
+            runnable -> {
+              Thread thread = new Thread(runnable);
+              thread.setName("scan-" + scanThreadsIndex.getAndIncrement());
+              thread.setDaemon(true);
+              return thread;
+            }));
 
     table.newAppend().appendFile(FILE_A).commit();
     table.newAppend().appendFile(FILE_A).commit();
 
     long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
-    assertThrows(
-        RejectedExecutionException.class,
-        () -> {
-          removeSnapshots.expireOlderThan(tAfterCommits).commit();
-        });
+    removeSnapshots.expireOlderThan(tAfterCommits).commit();
+
+    assertThat(scanThreadsIndex.get())
+        .as("Thread should be created in provided pool")
+        .isGreaterThan(0);
   }
 
   private Set<String> manifestPaths(Snapshot snapshot, FileIO io) {

@@ -157,6 +157,7 @@ class RemoveSnapshots implements ExpireSnapshots {
     if (planExecutorService == null) {
       this.planExecutorService = ThreadPools.getWorkerPool();
     }
+
     return planExecutorService;
   }
 

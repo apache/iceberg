@@ -200,6 +200,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     if (workerPool == null) {
       this.workerPool = ThreadPools.getWorkerPool();
     }
+
     return workerPool;
   }
 
