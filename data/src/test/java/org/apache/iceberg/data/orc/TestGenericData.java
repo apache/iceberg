@@ -68,6 +68,11 @@ public class TestGenericData extends DataTest {
     return true;
   }
 
+  @Override
+  protected boolean supportsDefaultValues() {
+    return true;
+  }
+
   /** Orc writers don't have notion of non-null / required fields. */
   @Override
   protected boolean allowsWritingNullValuesForRequiredFields() {
@@ -78,12 +83,17 @@ public class TestGenericData extends DataTest {
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomGenericData.generate(schema, 100, 0L);
 
-    writeAndValidateRecords(schema, expected);
+    writeAndValidate(schema, expected);
   }
 
   @Override
   protected void writeAndValidate(Schema schema, List<Record> expectedData) throws IOException {
-    writeAndValidateRecords(schema, expectedData);
+    writeAndValidate(schema, schema, expectedData);
+  }
+
+  @Override
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
+    writeAndValidate(writeSchema, expectedSchema, RandomGenericData.generate(writeSchema, 100, 0L));
   }
 
   @Test
@@ -95,7 +105,7 @@ public class TestGenericData extends DataTest {
     List<Record> expectedRepeating =
         Collections.nCopies(100, RandomGenericData.generate(structSchema, 1, 0L).get(0));
 
-    writeAndValidateRecords(structSchema, expectedRepeating);
+    writeAndValidate(structSchema, expectedRepeating);
   }
 
   @Test
@@ -235,13 +245,14 @@ public class TestGenericData extends DataTest {
             });
   }
 
-  private void writeAndValidateRecords(Schema schema, List<Record> expected) throws IOException {
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema, List<Record> expected)
+      throws IOException {
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).isTrue();
 
     try (FileAppender<Record> writer =
         ORC.write(Files.localOutput(testFile))
-            .schema(schema)
+            .schema(writeSchema)
             .createWriterFunc(GenericOrcWriter::buildWriter)
             .build()) {
       for (Record rec : expected) {
@@ -252,14 +263,15 @@ public class TestGenericData extends DataTest {
     List<Record> rows;
     try (CloseableIterable<Record> reader =
         ORC.read(Files.localInput(testFile))
-            .project(schema)
-            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
+            .project(expectedSchema)
+            .createReaderFunc(
+                fileSchema -> GenericOrcReader.buildReader(expectedSchema, fileSchema))
             .build()) {
       rows = Lists.newArrayList(reader);
     }
 
     for (int i = 0; i < expected.size(); i += 1) {
-      DataTestHelpers.assertEquals(schema.asStruct(), expected.get(i), rows.get(i));
+      DataTestHelpers.assertEquals(writeSchema.asStruct(), expected.get(i), rows.get(i));
     }
   }
 }

@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.IdentityPartitionConverters;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.orc.OrcValueReader;
 import org.apache.iceberg.orc.OrcValueReaders;
@@ -43,6 +44,7 @@ import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantValue;
+import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 import org.apache.orc.storage.ql.exec.vector.DecimalColumnVector;
@@ -56,9 +58,18 @@ public class GenericOrcReaders {
 
   private GenericOrcReaders() {}
 
+  @Deprecated
   public static OrcValueReader<Record> struct(
       List<OrcValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
-    return new StructReader(readers, struct, idToConstant);
+    return new StructReader(readers, null, struct, idToConstant);
+  }
+
+  public static OrcValueReader<Record> struct(
+      List<OrcValueReader<?>> readers,
+      TypeDescription record,
+      Types.StructType struct,
+      Map<Integer, ?> idToConstant) {
+    return new StructReader(readers, record, struct, idToConstant);
   }
 
   public static OrcValueReader<List<?>> array(OrcValueReader<?> elementReader) {
@@ -233,9 +244,11 @@ public class GenericOrcReaders {
 
     protected StructReader(
         List<OrcValueReader<?>> readers,
+        TypeDescription record,
         Types.StructType structType,
         Map<Integer, ?> idToConstant) {
-      super(readers, structType, idToConstant);
+      super(
+          readers, record, structType, idToConstant, IdentityPartitionConverters::convertConstant);
       this.template = GenericRecord.create(structType);
     }
 
