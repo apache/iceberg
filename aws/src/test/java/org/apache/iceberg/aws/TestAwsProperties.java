@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.aws;
 
-import static org.apache.iceberg.aws.AwsProperties.DYNAMODB_TABLE_NAME;
-import static org.apache.iceberg.aws.AwsProperties.GLUE_CATALOG_ID;
+import static org.apache.iceberg.aws.dynamodb.DynamoDbProperties.DYNAMODB_TABLE_NAME;
+import static org.apache.iceberg.aws.glue.GlueProperties.GLUE_CATALOG_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
