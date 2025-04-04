@@ -58,6 +58,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -94,12 +95,17 @@ public class TestSparkMetadataColumns extends TestBase {
       {FileFormat.PARQUET, true, 1},
       {FileFormat.PARQUET, false, 2},
       {FileFormat.PARQUET, true, 2},
+      {FileFormat.PARQUET, false, 3},
+      {FileFormat.PARQUET, true, 3},
       {FileFormat.AVRO, false, 1},
       {FileFormat.AVRO, false, 2},
+      {FileFormat.AVRO, false, 3},
       {FileFormat.ORC, false, 1},
       {FileFormat.ORC, true, 1},
       {FileFormat.ORC, false, 2},
       {FileFormat.ORC, true, 2},
+      {FileFormat.ORC, false, 3},
+      {FileFormat.ORC, true, 3},
     };
   }
 
@@ -309,6 +315,28 @@ public class TestSparkMetadataColumns extends TestBase {
         "Rows must match",
         ImmutableList.of(row(0, null, -1)),
         sql("SELECT _spec_id, _partition, _renamed_spec_id FROM %s", TABLE_NAME));
+  }
+
+  @TestTemplate
+  public void testRowLineageColumnsResolvedInV3OrHigher() {
+    if (formatVersion >= 3) {
+      // Test against an empty table to ensure column resolution in formats supporting row lineage
+      // and so that the test doesn't have to change with inheritance
+      assertEquals(
+          "Rows must match",
+          ImmutableList.of(),
+          sql("SELECT _row_id, _last_updated_sequence_number, id FROM %s", TABLE_NAME));
+    } else {
+      // Should fail to resolve row lineage metadata columns in V1/V2 tables
+      assertThatThrownBy(() -> sql("SELECT _row_id FROM %s", TABLE_NAME))
+          .isInstanceOf(AnalysisException.class)
+          .hasMessageContaining(
+              "A column or function parameter with name `_row_id` cannot be resolved");
+      assertThatThrownBy(() -> sql("SELECT _last_updated_sequence_number FROM %s", TABLE_NAME))
+          .isInstanceOf(AnalysisException.class)
+          .hasMessageContaining(
+              "A column or function parameter with name `_last_updated_sequence_number` cannot be resolved");
+    }
   }
 
   private void createAndInitTable() throws IOException {
