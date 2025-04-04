@@ -18,14 +18,12 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
-import java.util.stream.Stream;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.conversion.DataStructureConverter;
 import org.apache.flink.table.data.conversion.DataStructureConverters;
-import org.apache.flink.table.runtime.typeutils.ExternalTypeInfo;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.flink.types.Row;
@@ -45,7 +43,7 @@ public class RowConverter implements RowDataConverter<Row> {
     RowType rowType = FlinkSchemaUtil.convert(icebergSchema);
     TableSchema tableSchema = FlinkSchemaUtil.toSchema(icebergSchema);
     RowTypeInfo rowTypeInfo =
-            new RowTypeInfo(tableSchema.getFieldTypes(), tableSchema.getFieldNames());
+        new RowTypeInfo(tableSchema.getFieldTypes(), tableSchema.getFieldNames());
     return new RowConverter(rowType, rowTypeInfo);
   }
 
