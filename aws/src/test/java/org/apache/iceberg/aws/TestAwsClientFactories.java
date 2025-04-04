@@ -137,6 +137,35 @@ public class TestAwsClientFactories {
   }
 
   @Test
+  public void testStaticCredentialsProviderVerification() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(
+        AwsClientProperties.CLIENT_CREDENTIALS_PROVIDER,
+        "software.amazon.awssdk.auth.credentials.StaticCredentialsProvider");
+    properties.put(
+        AwsClientProperties.CLIENT_CREDENTIAL_PROVIDER_PREFIX + AwsClientProperties.ACCESS_KEY_ID,
+        "key");
+    properties.put(
+        AwsClientProperties.CLIENT_CREDENTIAL_PROVIDER_PREFIX + AwsClientProperties.SESSION_TOKEN,
+        "token");
+
+    assertThatThrownBy(() -> AwsClientFactories.from(properties).s3().listBuckets())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Both access key ID and secret access key must be provided.");
+
+    properties.remove(
+        AwsClientProperties.CLIENT_CREDENTIAL_PROVIDER_PREFIX + AwsClientProperties.ACCESS_KEY_ID);
+    properties.put(
+        AwsClientProperties.CLIENT_CREDENTIAL_PROVIDER_PREFIX
+            + AwsClientProperties.SECRET_ACCESS_KEY,
+        "secret");
+
+    assertThatThrownBy(() -> AwsClientFactories.from(properties).s3().listBuckets())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Both access key ID and secret access key must be provided.");
+  }
+
+  @Test
   public void testWithDummyValidCredentialsProvider() {
     AwsClientFactory defaultAwsClientFactory =
         getAwsClientFactoryByCredentialsProvider(DummyValidProvider.class.getName());
