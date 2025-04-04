@@ -59,6 +59,7 @@ import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -101,9 +102,11 @@ public class TestCopyOnWriteDelete extends TestDelete {
         executorService.submit(
             () -> {
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                int currentNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(10, TimeUnit.MILLISECONDS)
+                    .atMost(5, TimeUnit.SECONDS)
+                    .until(() -> barrier.get() >= currentNumOperations * 2);
 
                 sql("DELETE FROM %s WHERE id IN (SELECT * FROM deleted_id)", commitTarget());
 
@@ -120,9 +123,11 @@ public class TestCopyOnWriteDelete extends TestDelete {
               record.set(1, "hr"); // dep
 
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                int currentNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(10, TimeUnit.MILLISECONDS)
+                    .atMost(5, TimeUnit.SECONDS)
+                    .until(() -> !shouldAppend.get() || barrier.get() >= currentNumOperations * 2);
 
                 if (!shouldAppend.get()) {
                   return;
@@ -136,7 +141,6 @@ public class TestCopyOnWriteDelete extends TestDelete {
                   }
 
                   appendFiles.commit();
-                  sleep(10);
                 }
 
                 barrier.incrementAndGet();
