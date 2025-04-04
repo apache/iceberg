@@ -278,10 +278,11 @@ public class BinPackRewriteFilePlanner
 
     for (FileScanTask task : tasks) {
       // If a task uses an incompatible partition spec the data inside could contain values
-      // which belong to multiple partitions in the current spec. Treating all such files as
-      // un-partitioned and grouping them together helps to minimize new files made.
+      // which belong to multiple partitions in the current spec.
       StructLike taskPartition =
-          task.file().specId() == table.spec().specId() ? task.file().partition() : emptyStruct;
+          table.spec().equalOrFinerThan(table.specs().get(task.file().specId()))
+              ? task.file().partition()
+              : emptyStruct;
 
       filesByPartition.computeIfAbsent(taskPartition, unused -> Lists.newArrayList()).add(task);
     }
