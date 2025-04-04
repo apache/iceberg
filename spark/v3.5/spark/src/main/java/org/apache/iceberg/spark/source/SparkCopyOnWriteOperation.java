@@ -19,11 +19,13 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DELETE;
+import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.MERGE;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPDATE;
 
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.NamedReference;
@@ -97,6 +99,16 @@ class SparkCopyOnWriteOperation implements RowLevelOperation {
   public NamedReference[] requiredMetadataAttributes() {
     NamedReference file = Expressions.column(MetadataColumns.FILE_PATH.name());
     NamedReference pos = Expressions.column(MetadataColumns.ROW_POSITION.name());
+    if (TableUtil.formatVersion(table) >= 3) {
+      NamedReference rowId = Expressions.column(MetadataColumns.ROW_ID.name());
+      NamedReference lastUpdatedSequenceNumber =
+          Expressions.column(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name());
+      if (command == DELETE || command == UPDATE || command == MERGE) {
+        return new NamedReference[] {file, pos, rowId, lastUpdatedSequenceNumber};
+      } else {
+        return new NamedReference[] {file};
+      }
+    }
 
     if (command == DELETE || command == UPDATE) {
       return new NamedReference[] {file, pos};

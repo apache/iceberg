@@ -19,8 +19,10 @@
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.IsolationLevel;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -117,7 +119,10 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   @Override
   public Write build() {
     // Validate
-    Schema writeSchema = validateOrMergeWriteSchema(table, dsSchema, writeConf);
+    Schema writeSchema =
+        validateOrMergeWriteSchema(
+            table, dsSchema, writeConf, TableUtil.formatVersion(table) >= 3 && overwriteFiles);
+
     SparkUtil.validatePartitionTransforms(table.spec());
 
     // Get application id
@@ -170,7 +175,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   }
 
   private static Schema validateOrMergeWriteSchema(
-      Table table, StructType dsSchema, SparkWriteConf writeConf) {
+      Table table, StructType dsSchema, SparkWriteConf writeConf, boolean writeIncludesRowLineage) {
     Schema writeSchema;
     boolean caseSensitive = writeConf.caseSensitive();
     if (writeConf.mergeSchema()) {
@@ -182,6 +187,9 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
       UpdateSchema update =
           table.updateSchema().caseSensitive(caseSensitive).unionByNameWith(newSchema);
       Schema mergedSchema = update.apply();
+      if (writeIncludesRowLineage) {
+        mergedSchema = TypeUtil.join(mergedSchema, rowLineageSchema(table));
+      }
 
       // reconvert the dsSchema without assignment to use the ids assigned by UpdateSchema
       writeSchema = SparkSchemaUtil.convert(mergedSchema, dsSchema, caseSensitive);
@@ -192,11 +200,23 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
       // if the validation passed, update the table schema
       update.commit();
     } else {
-      writeSchema = SparkSchemaUtil.convert(table.schema(), dsSchema, caseSensitive);
+      Schema schema = table.schema();
+      if (writeIncludesRowLineage) {
+        schema = TypeUtil.join(schema, rowLineageSchema(table));
+      }
+
+      writeSchema = SparkSchemaUtil.convert(schema, dsSchema, caseSensitive);
       TypeUtil.validateWriteSchema(
           table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
     }
 
     return writeSchema;
+  }
+
+  private static Schema rowLineageSchema(Table table) {
+    return new Schema(
+        MetadataColumns.metadataColumn(table, MetadataColumns.ROW_ID.name()).asOptional(),
+        MetadataColumns.metadataColumn(table, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())
+            .asOptional());
   }
 }
