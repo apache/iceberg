@@ -44,11 +44,8 @@ public class RowConverter implements RowDataConverter<Row> {
   public static RowConverter fromIcebergSchema(org.apache.iceberg.Schema icebergSchema) {
     RowType rowType = FlinkSchemaUtil.convert(icebergSchema);
     TableSchema tableSchema = FlinkSchemaUtil.toSchema(icebergSchema);
-    TypeInformation[] typeInformations =
-        Stream.of(tableSchema.getFieldDataTypes())
-            .map(ExternalTypeInfo::of)
-            .toArray(TypeInformation[]::new);
-    RowTypeInfo rowTypeInfo = new RowTypeInfo(typeInformations, tableSchema.getFieldNames());
+    RowTypeInfo rowTypeInfo =
+            new RowTypeInfo(tableSchema.getFieldTypes(), tableSchema.getFieldNames());
     return new RowConverter(rowType, rowTypeInfo);
   }
 
