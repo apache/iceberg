@@ -333,8 +333,6 @@ public class TestGlueCatalogTable extends GlueTestBase {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
 
-    String newTableName = tableName + "_2";
-
     // Simulate table was dropped during rename, where new table already created and need to delete
     // old table
     GlueCatalog glueCatalogSpy = Mockito.spy(glueCatalog);
@@ -342,6 +340,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
         .when(glueCatalogSpy)
         .dropTable(Mockito.any(TableIdentifier.class), Mockito.anyBoolean());
 
+    String newTableName = tableName + "_2";
     assertThatThrownBy(
             () ->
                 glueCatalogSpy.renameTable(
