@@ -284,10 +284,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     }
 
     Long addedRows = null;
-    Long lastRowId = null;
-    if (base.rowLineageEnabled()) {
+    Long firstRowId = null;
+    if (base.formatVersion() >= 3) {
       addedRows = calculateAddedRows(manifests);
-      lastRowId = base.nextRowId();
+      firstRowId = base.nextRowId();
     }
 
     return new BaseSnapshot(
@@ -299,7 +299,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         summary(base),
         base.currentSchemaId(),
         manifestList.location(),
-        lastRowId,
+        firstRowId,
         addedRows);
   }
 
@@ -309,6 +309,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             manifest ->
                 manifest.snapshotId() == null
                     || Objects.equals(manifest.snapshotId(), this.snapshotId))
+        .filter(manifest -> manifest.content() == ManifestContent.DATA)
         .mapToLong(
             manifest -> {
               Preconditions.checkArgument(
