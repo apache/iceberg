@@ -237,53 +237,53 @@ public class VortexAzureSmokeTest {
           .read()
           .format("iceberg")
           .option("split-size", 1_000_000)
-          .load("parquet.customer")
+          .load("vortex.customer")
           .registerTempTable("customer");
       spark
           .read()
           .format("iceberg")
           .option("split-size", 3_000_000)
-          .load("parquet.lineitem")
+          .load("vortex.lineitem")
           .registerTempTable("lineitem");
       spark
           .read()
           .format("iceberg")
           .option("split-size", 25)
-          .load("parquet.nation")
+          .load("vortex.nation")
           .registerTempTable("nation");
       spark
           .read()
           .format("iceberg")
           .option("split-size", 1_000_000)
-          .load("parquet.orders")
+          .load("vortex.orders")
           .registerTempTable("orders");
       spark
           .read()
           .format("iceberg")
           .option("split-size", 1_000_000)
-          .load("parquet.partsupp")
+          .load("vortex.partsupp")
           .registerTempTable("partsupp");
       spark
           .read()
           .format("iceberg")
           .option("split-size", 1_000_000)
-          .load("parquet.part")
+          .load("vortex.part")
           .registerTempTable("part");
       spark
           .read()
           .format("iceberg")
           .option("split-size", 1_000_000)
-          .load("parquet.region")
+          .load("vortex.region")
           .registerTempTable("region");
       spark
           .read()
           .format("iceberg")
           .option("split-size", 1_000_000)
-          .load("parquet.supplier")
+          .load("vortex.supplier")
           .registerTempTable("supplier");
 
       //      spark.sql(Q5).collect();
-      System.err.println("COUNT: " + spark.sql(Q16).count());
+      System.err.println("COUNT: " + spark.sql(Q10).count());
     }
   }
 
@@ -358,6 +358,39 @@ public class VortexAzureSmokeTest {
           + "  and o_orderdate < date '1995-01-01'\n"
           + "group by\n"
           + "    n_name\n"
+          + "order by\n"
+          + "    revenue desc;";
+
+  static final String Q10 =
+      "select\n"
+          + "    c_custkey,\n"
+          + "    c_name,\n"
+          + "    sum(l_extendedprice * (1 - l_discount)) as revenue,\n"
+          + "    c_acctbal,\n"
+          + "    n_name,\n"
+          + "    c_address,\n"
+          + "    c_phone,\n"
+          + "    c_comment\n"
+          + "from\n"
+          + "    customer,\n"
+          + "    orders,\n"
+          + "    lineitem,\n"
+          + "    nation\n"
+          + "where\n"
+          + "        c_custkey = o_custkey\n"
+          + "  and l_orderkey = o_orderkey\n"
+          + "  and o_orderdate >= date '1993-10-01'\n"
+          + "  and o_orderdate < date '1994-01-01'\n"
+          + "  and l_returnflag = 'R'\n"
+          + "  and c_nationkey = n_nationkey\n"
+          + "group by\n"
+          + "    c_custkey,\n"
+          + "    c_name,\n"
+          + "    c_acctbal,\n"
+          + "    c_phone,\n"
+          + "    n_name,\n"
+          + "    c_address,\n"
+          + "    c_comment\n"
           + "order by\n"
           + "    revenue desc;";
 }
