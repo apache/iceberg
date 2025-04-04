@@ -105,7 +105,8 @@ public class ManifestWriteBenchmark {
             org.apache.iceberg.Files.localOutput(manifestListFile),
             0,
             1L,
-            0)) {
+            0,
+            0L)) {
       for (int i = 0; i < NUM_FILES; i++) {
         OutputFile manifestFile =
             org.apache.iceberg.Files.localOutput(
