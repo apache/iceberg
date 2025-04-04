@@ -327,6 +327,7 @@ public class S3FileIO
         DeleteObjectsRequest.builder()
             .bucket(bucket)
             .delete(Delete.builder().objects(objectIds).build())
+            .overrideConfiguration(S3RequestUtil.disableStrongIntegrityChecksums())
             .build();
     List<String> failures = Lists.newArrayList();
     try {
