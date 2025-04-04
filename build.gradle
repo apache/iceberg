@@ -530,6 +530,7 @@ project(':iceberg-aws') {
     recommend.set(true)
   }
   check.dependsOn('validateS3SignerSpec')
+  check.dependsOn integrationTest
 }
 
 project(':iceberg-azure') {
