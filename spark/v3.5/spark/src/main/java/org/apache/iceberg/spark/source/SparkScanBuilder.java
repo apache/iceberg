@@ -327,7 +327,11 @@ public class SparkScanBuilder
     StructType requestedProjection =
         new StructType(
             Stream.of(requestedSchema.fields())
-                .filter(field -> MetadataColumns.nonMetadataColumn(field.name()))
+                .filter(
+                    field ->
+                        MetadataColumns.nonMetadataColumn(field.name())
+                            || field.name().equals("_row_id")
+                            || field.name().equals("_last_updated_sequence_number"))
                 .toArray(StructField[]::new));
 
     // the projection should include all columns that will be returned, including those only used in
