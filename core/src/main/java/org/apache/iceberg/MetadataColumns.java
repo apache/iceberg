@@ -93,13 +93,27 @@ public class MetadataColumns {
           "_commit_snapshot_id",
           Types.LongType.get(),
           "Commit snapshot ID");
+  public static final NestedField ROW_ID =
+      NestedField.optional(
+          Integer.MAX_VALUE - 107,
+          "_row_id",
+          Types.LongType.get(),
+          "Implicit row ID that is automatically assigned");
+  public static final NestedField LAST_UPDATED_SEQUENCE_NUMBER =
+      NestedField.optional(
+          Integer.MAX_VALUE - 108,
+          "_last_updated_sequence_number",
+          Types.LongType.get(),
+          "Sequence number when the row was last updated");
 
   private static final Map<String, NestedField> META_COLUMNS =
       ImmutableMap.of(
           FILE_PATH.name(), FILE_PATH,
           ROW_POSITION.name(), ROW_POSITION,
           IS_DELETED.name(), IS_DELETED,
-          SPEC_ID.name(), SPEC_ID);
+          SPEC_ID.name(), SPEC_ID,
+          ROW_ID.name(), ROW_ID,
+          LAST_UPDATED_SEQUENCE_NUMBER.name(), LAST_UPDATED_SEQUENCE_NUMBER);
 
   private static final Set<Integer> META_IDS =
       ImmutableSet.of(
@@ -107,7 +121,9 @@ public class MetadataColumns {
           ROW_POSITION.fieldId(),
           IS_DELETED.fieldId(),
           SPEC_ID.fieldId(),
-          PARTITION_COLUMN_ID);
+          PARTITION_COLUMN_ID,
+          ROW_ID.fieldId(),
+          LAST_UPDATED_SEQUENCE_NUMBER.fieldId());
 
   public static Set<Integer> metadataFieldIds() {
     return META_IDS;
