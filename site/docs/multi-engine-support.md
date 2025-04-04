@@ -103,10 +103,10 @@ Users should continuously upgrade their Flink version to stay up-to-date.
 
 <!-- markdown-link-check-disable -->
 
-| Version        | Recommended minor version | Lifecycle Stage   | Initial Iceberg Support | Latest Iceberg Support | Latest Runtime Jar |
-| -------------- | ------------------------- | ----------------- | ----------------------- | ---------------------- | ------------------ |
-| 2              | 2.3.8                     | Deprecated        | 0.8.0-incubating        | 1.7.2                  | [iceberg-hive-runtime](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime/1.7.2/iceberg-hive-runtime-1.7.2.jar) |
-| 3              | 3.1.2                     | Deprecated        | 0.10.0                  | 1.7.2                  | [iceberg-hive-runtime](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime/1.7.2/iceberg-hive-runtime-1.7.2.jar) |
+| Version        | Recommended minor version | Lifecycle Stage   | Initial Iceberg Support | Latest Iceberg Support | Latest Runtime Jar                                                                                                                                   |
+| -------------- | ------------------------- | ----------------- | ----------------------- |------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 2              | 2.3.8                     | Deprecated        | 0.8.0-incubating        | 1.6.1                  | [iceberg-hive-runtime](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime/1.6.1/iceberg-hive-runtime-1.6.1.jar) |
+| 3              | 3.1.2                     | Deprecated        | 0.10.0                  | 1.6.1                  | [iceberg-hive-runtime](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime/1.6.1/iceberg-hive-runtime-1.6.1.jar) |
 
 <!-- markdown-link-check-enable -->
 
