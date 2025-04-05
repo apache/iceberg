@@ -24,6 +24,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -39,19 +40,21 @@ public class CommitterImplTest {
 
   @Test
   public void testIsLeader() {
-    CommitterImpl committer = new CommitterImpl();
+    IcebergSinkConfig icebergSinkConfig = Mockito.mock(IcebergSinkConfig.class);
+    CommitterImpl committer = new CommitterImpl(icebergSinkConfig);
+    when(icebergSinkConfig.sourceTopics()).thenReturn(Set.of("topic1", "topic2"));
 
     MemberAssignment assignment1 =
         new MemberAssignment(
             ImmutableSet.of(new TopicPartition("topic1", 0), new TopicPartition("topic2", 1)));
     MemberDescription member1 =
-        new MemberDescription(null, Optional.empty(), null, null, assignment1);
+        new MemberDescription(null, Optional.empty(), "connector1-consumer-0", null, assignment1);
 
     MemberAssignment assignment2 =
         new MemberAssignment(
             ImmutableSet.of(new TopicPartition("topic2", 0), new TopicPartition("topic1", 1)));
     MemberDescription member2 =
-        new MemberDescription(null, Optional.empty(), null, null, assignment2);
+        new MemberDescription(null, Optional.empty(), "connector1-consumer-1", null, assignment2);
 
     List<MemberDescription> members = ImmutableList.of(member1, member2);
 
@@ -65,7 +68,8 @@ public class CommitterImplTest {
   }
 
   @Test
-  public void testCoordinatorElectionWhenTwoJobsHaveSameConsumerGroupButSubscribedToMutuallyExclusiveTopics() {
+  public void
+      testCoordinatorElectionWhenTwoJobsHaveSameConsumerGroupButSubscribedToMutuallyExclusiveTopics() {
 
     IcebergSinkConfig icebergSinkConfig = Mockito.mock(IcebergSinkConfig.class);
 
@@ -73,54 +77,60 @@ public class CommitterImplTest {
     when(icebergSinkConfig.sourceTopics()).thenReturn(Sets.newHashSet("topic1"));
 
     MemberAssignment assignment1 =
-            new MemberAssignment(
-                    ImmutableSet.of(new TopicPartition("topic1", 0)));
+        new MemberAssignment(ImmutableSet.of(new TopicPartition("topic1", 0)));
     MemberDescription member1 =
-            new MemberDescription("connector1-consumer-0", Optional.empty(), "connector1-consumer-0", null, assignment1);
+        new MemberDescription(
+            "connector1-consumer-0", Optional.empty(), "connector1-consumer-0", null, assignment1);
 
     MemberAssignment assignment2 =
-            new MemberAssignment(
-                    ImmutableSet.of(new TopicPartition("topic2", 0)));
+        new MemberAssignment(ImmutableSet.of(new TopicPartition("topic2", 0)));
     MemberDescription member2 =
-            new MemberDescription("connector2-consumer-0", Optional.empty(), "connector1-consumer-0", null, assignment2);
+        new MemberDescription(
+            "connector2-consumer-0", Optional.empty(), "connector1-consumer-0", null, assignment2);
 
     List<MemberDescription> members = ImmutableList.of(member1, member2);
 
-    List<TopicPartition> assignments =
-            ImmutableList.of(new TopicPartition("topic1", 0));
+    List<TopicPartition> assignments = ImmutableList.of(new TopicPartition("topic1", 0));
     assertThat(committer.containsFirstPartition(members, assignments)).isTrue();
     List<TopicPartition> assignmentsNotContaining0thPartition =
-            ImmutableList.of(new TopicPartition("topic1", 1));
-    assertThat(committer.containsFirstPartition(members, assignments)).isFalse();
+        ImmutableList.of(new TopicPartition("topic1", 1));
+    assertThat(committer.containsFirstPartition(members, assignmentsNotContaining0thPartition))
+        .isFalse();
   }
 
   @Test
-  public void testCoordinatorElectionWhenTwoJobsHaveSameConsumerGroupButSubscribedToMutuallyInclusiveTopics() {
+  public void
+      testCoordinatorElectionWhenTwoJobsHaveSameConsumerGroupButSubscribedToMutuallyInclusiveTopics() {
     IcebergSinkConfig icebergSinkConfig = Mockito.mock(IcebergSinkConfig.class);
     when(icebergSinkConfig.sourceTopics()).thenReturn(Sets.newHashSet("topic1"));
 
     CommitterImpl committer = new CommitterImpl(icebergSinkConfig);
 
     MemberAssignment assignment1 =
-            new MemberAssignment(
-                    ImmutableSet.of(new TopicPartition("topic1", 0), new TopicPartition("topic3", 0)));
+        new MemberAssignment(
+            ImmutableSet.of(new TopicPartition("topic1", 0), new TopicPartition("topic3", 0)));
     MemberDescription member1 =
-            new MemberDescription("connector1-consumer-0", Optional.empty(), "connector1-consumer-0", null, assignment1);
+        new MemberDescription(
+            "connector1-consumer-0", Optional.empty(), "connector1-consumer-0", null, assignment1);
 
     MemberAssignment assignment2 =
-            new MemberAssignment(
-                    ImmutableSet.of(new TopicPartition("topic2", 0), new TopicPartition("topic1", 1)));
+        new MemberAssignment(
+            ImmutableSet.of(new TopicPartition("topic2", 0), new TopicPartition("topic1", 1)));
     MemberDescription member2 =
-            new MemberDescription("connector2-consumer-0", Optional.empty(), "connector1-consumer-0", null, assignment2); // same client ID
+        new MemberDescription(
+            "connector2-consumer-0",
+            Optional.empty(),
+            "connector1-consumer-0",
+            null,
+            assignment2); // same client ID
 
     List<MemberDescription> members = ImmutableList.of(member1, member2);
 
     List<TopicPartition> assignments =
-            ImmutableList.of(new TopicPartition("topic1", 0), new TopicPartition("topic3", 0));
+        ImmutableList.of(new TopicPartition("topic1", 0), new TopicPartition("topic3", 0));
 
     assertThatThrownBy(() -> committer.containsFirstPartition(members, assignments))
-            .isInstanceOf(ConnectException.class)
-            .hasMessageContaining("Possibly more than one jobs are sharing the same consumer group.");
+        .isInstanceOf(ConnectException.class)
+        .hasMessageContaining("Possibly more than one jobs are sharing the same consumer group.");
   }
-
 }

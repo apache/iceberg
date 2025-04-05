@@ -56,8 +56,7 @@ public class CommitterImpl implements Committer {
   private Collection<MemberDescription> membersWhenWorkerIsCoordinator;
   private final AtomicBoolean isInitialized = new AtomicBoolean(false);
 
-  public CommitterImpl() {
-  }
+  public CommitterImpl() {}
 
   @VisibleForTesting
   CommitterImpl(IcebergSinkConfig config) {
@@ -114,7 +113,6 @@ public class CommitterImpl implements Committer {
             .filter(this::hasSourceTopicPartition)
             .filter(member -> isUniqueClientSuffix(member, clientSuffixes))
             .flatMap(member -> member.assignment().topicPartitions().stream())
-            .filter(tp -> config.sourceTopics().contains(tp.topic()))
             .min(new TopicPartitionComparator())
             .orElseThrow(
                 () -> new ConnectException("No partitions assigned, cannot determine leader"));
@@ -126,16 +124,15 @@ public class CommitterImpl implements Committer {
     if (!config.sourceTopics().isEmpty()) {
       // Exact match using topic names
       return member.assignment().topicPartitions().stream()
-              .map(TopicPartition::topic)
-              .anyMatch(config.sourceTopics()::contains);
+          .map(TopicPartition::topic)
+          .anyMatch(config.sourceTopics()::contains);
     } else {
       // Pattern match using topics.regex
       return member.assignment().topicPartitions().stream()
-              .map(TopicPartition::topic)
-              .anyMatch(topic -> Pattern.compile(config.sourceTopicRegex()).matcher(topic).matches());
+          .map(TopicPartition::topic)
+          .anyMatch(topic -> Pattern.compile(config.sourceTopicRegex()).matcher(topic).matches());
     }
   }
-
 
   private boolean isUniqueClientSuffix(MemberDescription member, Set<Integer> seenSuffixes) {
     String clientId = member.clientId();

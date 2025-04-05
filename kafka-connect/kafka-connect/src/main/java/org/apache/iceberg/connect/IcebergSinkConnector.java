@@ -54,7 +54,8 @@ public class IcebergSinkConnector extends SinkConnector {
     String txnSuffix = "-txn-" + UUID.randomUUID() + "-";
 
     return IntStream.range(0, maxTasks)
-            .mapToObj(i -> {
+        .mapToObj(
+            i -> {
               Map<String, String> taskProps = Maps.newHashMap(props);
               taskProps.put(IcebergSinkConfig.INTERNAL_TRANSACTIONAL_SUFFIX_PROP, txnSuffix + i);
 
@@ -64,7 +65,7 @@ public class IcebergSinkConnector extends SinkConnector {
 
               return taskProps;
             })
-            .collect(Collectors.toList());
+        .collect(Collectors.toList());
   }
 
   @Override
