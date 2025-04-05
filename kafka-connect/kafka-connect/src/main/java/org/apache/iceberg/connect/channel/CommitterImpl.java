@@ -18,14 +18,19 @@
  */
 package org.apache.iceberg.connect.channel;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.Committer;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.data.SinkWriter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.MemberDescription;
@@ -49,6 +54,13 @@ public class CommitterImpl implements Committer {
   private KafkaClientFactory clientFactory;
   private Collection<MemberDescription> membersWhenWorkerIsCoordinator;
   private final AtomicBoolean isInitialized = new AtomicBoolean(false);
+
+  public CommitterImpl() {}
+
+  @VisibleForTesting
+  CommitterImpl(IcebergSinkConfig config) {
+    this.config = config;
+  }
 
   private void initialize(
       Catalog icebergCatalog,
@@ -92,16 +104,49 @@ public class CommitterImpl implements Committer {
   @VisibleForTesting
   boolean containsFirstPartition(
       Collection<MemberDescription> members, Collection<TopicPartition> partitions) {
-    // there should only be one task assigned partition 0 of the first topic,
-    // so elect that one the leader
+    Set<Integer> clientSuffixes = Sets.newHashSet();
+
+    // Filter members that are assigned partitions from source topics
     TopicPartition firstTopicPartition =
         members.stream()
+            .filter(member -> isUniqueClientSuffix(member, clientSuffixes))
             .flatMap(member -> member.assignment().topicPartitions().stream())
             .min(new TopicPartitionComparator())
             .orElseThrow(
                 () -> new ConnectException("No partitions assigned, cannot determine leader"));
 
     return partitions.contains(firstTopicPartition);
+  }
+
+  private boolean isUniqueClientSuffix(MemberDescription member, Set<Integer> seenSuffixes) {
+    String clientId = member.clientId();
+    List<String> parts =
+        Arrays.stream(clientId.split("-"))
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .collect(Collectors.toList());
+
+    if (parts.isEmpty()) {
+      throw new ConnectException("Invalid client ID: " + clientId);
+    }
+
+    String suffixStr = parts.get(parts.size() - 1);
+
+    int suffix;
+    try {
+      suffix = Integer.parseInt(suffixStr);
+    } catch (NumberFormatException e) {
+      throw new ConnectException("Client ID should end with Task ID: " + clientId);
+    }
+
+    if (!seenSuffixes.add(suffix)) {
+      throw new ConnectException(
+          "Duplicate client ID suffix '"
+              + suffix
+              + "' found in group. Possibly more than one jobs are sharing the same consumer group.");
+    }
+
+    return true;
   }
 
   @Override
