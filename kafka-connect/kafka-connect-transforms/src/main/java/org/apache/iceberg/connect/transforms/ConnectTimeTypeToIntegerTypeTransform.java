@@ -49,7 +49,8 @@ public abstract class ConnectTimeTypeToIntegerTypeTransform<R extends ConnectRec
   }
 
   private R applyWithSchema(R record) {
-    final Struct value = Requirements.requireStructOrNull(operatingValue(record), "Handling Iceberg Time Type");
+    final Struct value =
+        Requirements.requireStructOrNull(operatingValue(record), "Handling Iceberg Time Type");
 
     Schema schema = operatingSchema(record);
     Schema updatedSchema = schemaUpdateCache.get(schema);
