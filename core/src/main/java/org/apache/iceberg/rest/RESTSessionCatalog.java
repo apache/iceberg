@@ -324,11 +324,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   @Override
-  public void renameTable(SessionContext context, TableIdentifier from, TableIdentifier to) {
+  public void renameTable(SessionContext context, TableIdentifier from, TableIdentifier toIdent) {
     Endpoint.check(endpoints, Endpoint.V1_RENAME_TABLE);
     checkIdentifierIsValid(from);
-    checkIdentifierIsValid(to);
+    checkIdentifierIsValid(toIdent);
 
+    TableIdentifier to = CatalogUtil.removeCatalogName(name(), toIdent);
     RenameTableRequest request =
         RenameTableRequest.builder().withSource(from).withDestination(to).build();
 
@@ -1175,11 +1176,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   @Override
-  public void renameView(SessionContext context, TableIdentifier from, TableIdentifier to) {
+  public void renameView(SessionContext context, TableIdentifier from, TableIdentifier toIdent) {
     Endpoint.check(endpoints, Endpoint.V1_RENAME_VIEW);
     checkViewIdentifierIsValid(from);
-    checkViewIdentifierIsValid(to);
+    checkViewIdentifierIsValid(toIdent);
 
+    TableIdentifier to = CatalogUtil.removeCatalogName(name(), toIdent);
     RenameTableRequest request =
         RenameTableRequest.builder().withSource(from).withDestination(to).build();
 

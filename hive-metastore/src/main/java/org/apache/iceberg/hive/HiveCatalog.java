@@ -669,13 +669,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
       return to;
     }
 
-    // check if the identifier includes the catalog name and remove it
-    if (to.namespace().levels().length == 2 && name().equalsIgnoreCase(to.namespace().level(0))) {
-      return TableIdentifier.of(Namespace.of(to.namespace().level(1)), to.name());
-    }
-
-    // return the original unmodified
-    return to;
+    return CatalogUtil.removeCatalogName(name(), to);
   }
 
   private boolean isValidateNamespace(Namespace namespace) {
