@@ -406,7 +406,7 @@ public class SparkTable
 
   @Override
   public String toString() {
-    return icebergTable.toString();
+    return "iceberg[" + icebergTable.toString() + "]";
   }
 
   @Override
