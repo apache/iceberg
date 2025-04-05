@@ -56,6 +56,14 @@ public class CommitterImpl implements Committer {
   private Collection<MemberDescription> membersWhenWorkerIsCoordinator;
   private final AtomicBoolean isInitialized = new AtomicBoolean(false);
 
+  public CommitterImpl() {
+  }
+
+  @VisibleForTesting
+  CommitterImpl(IcebergSinkConfig config) {
+    this.config = config;
+  }
+
   private void initialize(
       Catalog icebergCatalog,
       IcebergSinkConfig icebergSinkConfig,
