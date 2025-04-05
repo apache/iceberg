@@ -41,6 +41,7 @@ import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
+import org.apache.iceberg.rest.auth.AuthScopes;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
@@ -156,7 +157,8 @@ public abstract class S3V4RestSignerClient
     if (null == authSession) {
       synchronized (S3V4RestSignerClient.class) {
         if (null == authSession) {
-          authManager = AuthManagers.loadAuthManager("s3-signer", properties());
+          authManager =
+              AuthManagers.loadAuthManager("s3-signer", properties()).withClient(httpClient());
           ImmutableMap.Builder<String, String> properties =
               ImmutableMap.<String, String>builder()
                   .putAll(properties())
@@ -173,7 +175,8 @@ public abstract class S3V4RestSignerClient
             properties.put(OAuth2Properties.CREDENTIAL, credential());
           }
 
-          authSession = authManager.tableSession(httpClient(), properties.buildKeepingLast());
+          authSession =
+              authManager.authSession(AuthScopes.Standalone.of(properties.buildKeepingLast()));
         }
       }
     }
