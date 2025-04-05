@@ -41,7 +41,12 @@ public class TableSinkConfig {
   }
 
   public TableSinkConfig(
-          Pattern routeRegex, List<String> idColumns, List<String> partitionBy, List<String> removePartitionBy, List<String> addPartitionBy, String commitBranch) {
+      Pattern routeRegex,
+      List<String> idColumns,
+      List<String> partitionBy,
+      List<String> removePartitionBy,
+      List<String> addPartitionBy,
+      String commitBranch) {
     this.routeRegex = routeRegex;
     this.idColumns = idColumns;
     this.partitionBy = partitionBy;

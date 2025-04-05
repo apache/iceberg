@@ -232,11 +232,7 @@ public class IcebergSinkConfig extends AbstractConfig {
         Importance.MEDIUM,
         "If specified, Hadoop config files in this directory will be loaded");
     configDef.define(
-        TABLE_ADD_PARTITION_BY,
-        ConfigDef.Type.STRING,
-        "",
-        Importance.LOW,
-        "partition to add");
+        TABLE_ADD_PARTITION_BY, ConfigDef.Type.STRING, "", Importance.LOW, "partition to add");
     configDef.define(
         TABLE_REMOVE_PARTITION_BY,
         ConfigDef.Type.STRING,
@@ -393,14 +389,23 @@ public class IcebergSinkConfig extends AbstractConfig {
           String commitBranch =
               tableConfig.getOrDefault(COMMIT_BRANCH, tablesDefaultCommitBranch());
 
-          if(isPartitionEvolutionSupported()) {
-            String removePartitionByStr = tableConfig.getOrDefault(REMOVE_PARTITION_BY, tablesRemovePartitionBy());
-            List<String> removePartitionBy = stringToList(removePartitionByStr, COMMA_NO_PARENS_REGEX);
+          if (isPartitionEvolutionSupported()) {
+            String removePartitionByStr =
+                tableConfig.getOrDefault(REMOVE_PARTITION_BY, tablesRemovePartitionBy());
+            List<String> removePartitionBy =
+                stringToList(removePartitionByStr, COMMA_NO_PARENS_REGEX);
 
-            String addPartitionByStr = tableConfig.getOrDefault(ADD_PARTITION_BY, tablesAddPartitionBy());
+            String addPartitionByStr =
+                tableConfig.getOrDefault(ADD_PARTITION_BY, tablesAddPartitionBy());
             List<String> addPartitionBy = stringToList(addPartitionByStr, COMMA_NO_PARENS_REGEX);
 
-            return new TableSinkConfig(routeRegex, idColumns, partitionBy, removePartitionBy, addPartitionBy, commitBranch);
+            return new TableSinkConfig(
+                routeRegex,
+                idColumns,
+                partitionBy,
+                removePartitionBy,
+                addPartitionBy,
+                commitBranch);
           }
 
           return new TableSinkConfig(routeRegex, idColumns, partitionBy, commitBranch);

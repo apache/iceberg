@@ -16,9 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.connect.data;
 
+import java.util.List;
+import java.util.Set;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.UpdatePartitionSpec;
@@ -26,71 +27,79 @@ import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.data.evolution.AddPartitionUpdater;
 import org.apache.iceberg.connect.data.evolution.PartitionUpdater;
 import org.apache.iceberg.connect.data.evolution.RemovePartitionUpdater;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transform;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
 public class PartitionEvolutionUtils {
 
-    private static final Logger LOG = LoggerFactory.getLogger(PartitionEvolutionUtils.class);
+  private static final Logger LOG = LoggerFactory.getLogger(PartitionEvolutionUtils.class);
 
-    public static void checkAndEvolvePartition(Table table, IcebergSinkConfig config) {
-        List<String> removePartitionFields = config.tableConfig(table.name()).removePartitionBy();
-        List<String> addPartitionFields = config.tableConfig(table.name()).addPartitionBy();
+  private PartitionEvolutionUtils() {}
 
-        removeCommonElements(removePartitionFields, addPartitionFields);
+  public static void checkAndEvolvePartition(Table table, IcebergSinkConfig config) {
+    List<String> removePartitionFields = config.tableConfig(table.name()).removePartitionBy();
+    List<String> addPartitionFields = config.tableConfig(table.name()).addPartitionBy();
 
-        if (addPartitionFields.isEmpty() && removePartitionFields.isEmpty()) {
-            LOG.info("Nothing to add or remove for job = {}", config.connectorName());
-            return;
-        }
+    removeCommonElements(removePartitionFields, addPartitionFields);
 
-        UpdatePartitionSpec updateSpec = table.updateSpec();
-        boolean hasUpdates = false;
-
-        if (!removePartitionFields.isEmpty()) {
-            hasUpdates |= processPartitionUpdate(new RemovePartitionUpdater(table, updateSpec), removePartitionFields, table);
-        }
-
-        if (!addPartitionFields.isEmpty()) {
-            hasUpdates |= processPartitionUpdate(new AddPartitionUpdater(table, updateSpec), addPartitionFields, table);
-        }
-
-        if (hasUpdates) {
-            commitPartitionUpdate(updateSpec, config);
-        }
+    if (addPartitionFields.isEmpty() && removePartitionFields.isEmpty()) {
+      LOG.info("Nothing to add or remove for job = {}", config.connectorName());
+      return;
     }
 
-    private static boolean processPartitionUpdate(PartitionUpdater updater, List<String> partitionFields, Table table) {
-        try {
-            PartitionSpec spec = SchemaUtils.createPartitionSpec(table.schema(), partitionFields);
-            return updater.update(spec);
-        } catch (Exception ex) {
-            LOG.warn("Failed to build partition spec for fields: {}", partitionFields, ex);
-            return false;
-        }
+    UpdatePartitionSpec updateSpec = table.updateSpec();
+    boolean hasUpdates = false;
+
+    if (!removePartitionFields.isEmpty()) {
+      hasUpdates |=
+          processPartitionUpdate(
+              new RemovePartitionUpdater(table, updateSpec), removePartitionFields, table);
     }
 
-    private static void commitPartitionUpdate(UpdatePartitionSpec updateSpec, IcebergSinkConfig config) {
-        try {
-            updateSpec.commit();
-        } catch (Exception ex) {
-            LOG.warn("Exception while committing partition update for job = {}. Continuing...", config.connectorName(), ex);
-        }
+    if (!addPartitionFields.isEmpty()) {
+      hasUpdates |=
+          processPartitionUpdate(
+              new AddPartitionUpdater(table, updateSpec), addPartitionFields, table);
     }
 
-    private static <T> void removeCommonElements(List<T> list1, List<T> list2) {
-        Set<T> commonElements = new HashSet<>(list1);
-        commonElements.retainAll(list2);
-        list1.removeAll(commonElements);
-        list2.removeAll(commonElements);
+    if (hasUpdates) {
+      commitPartitionUpdate(updateSpec, config);
     }
+  }
 
-    public static boolean isIdentityTransform(Transform<?, ?> transform) {
-        return transform.isIdentity();
+  private static boolean processPartitionUpdate(
+      PartitionUpdater updater, List<String> partitionFields, Table table) {
+    try {
+      PartitionSpec spec = SchemaUtils.createPartitionSpec(table.schema(), partitionFields);
+      return updater.update(spec);
+    } catch (Exception ex) {
+      LOG.warn("Failed to build partition spec for fields: {}", partitionFields, ex);
+      return false;
     }
+  }
+
+  private static void commitPartitionUpdate(
+      UpdatePartitionSpec updateSpec, IcebergSinkConfig config) {
+    try {
+      updateSpec.commit();
+    } catch (Exception ex) {
+      LOG.warn(
+          "Exception while committing partition update for job = {}. Continuing...",
+          config.connectorName(),
+          ex);
+    }
+  }
+
+  private static <T> void removeCommonElements(List<T> list1, List<T> list2) {
+    Set<T> commonElements = Sets.newHashSet(list1);
+    commonElements.retainAll(list2);
+    list1.removeAll(commonElements);
+    list2.removeAll(commonElements);
+  }
+
+  public static boolean isIdentityTransform(Transform<?, ?> transform) {
+    return transform.isIdentity();
+  }
 }

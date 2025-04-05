@@ -16,9 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.apache.iceberg.connect;
 
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -30,12 +34,6 @@ import org.apache.kafka.connect.connector.Task;
 import org.apache.kafka.connect.sink.SinkConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class IcebergSinkConnector extends SinkConnector {
 
@@ -66,8 +64,8 @@ public class IcebergSinkConnector extends SinkConnector {
     }
     String txnSuffix = generateTransactionSuffix();
     return IntStream.range(0, maxTasks)
-            .mapToObj(i -> createTaskConfig(txnSuffix, i))
-            .collect(Collectors.toList());
+        .mapToObj(i -> createTaskConfig(txnSuffix, i))
+        .collect(Collectors.toList());
   }
 
   private String generateTransactionSuffix() {
@@ -84,17 +82,20 @@ public class IcebergSinkConnector extends SinkConnector {
     Catalog catalog = null;
     try {
       catalog = CatalogUtils.loadCatalog(config);
-      for(String tableName : config.tables()) {
+      for (String tableName : config.tables()) {
         Table table = catalog.loadTable(TableIdentifier.parse(tableName));
         Tasks.range(1)
-                .retry(IcebergSinkConfig.SCHEMA_UPDATE_RETRIES)
-                .run(notUsed -> PartitionEvolutionUtils.checkAndEvolvePartition(table, config));
+            .retry(IcebergSinkConfig.SCHEMA_UPDATE_RETRIES)
+            .run(notUsed -> PartitionEvolutionUtils.checkAndEvolvePartition(table, config));
       }
     } catch (Exception ex) {
-      LOG.error("An error occurred while checking for the partition evolution for the job = {}", config.connectorName(), ex);
+      LOG.error(
+          "An error occurred while checking for the partition evolution for the job = {}",
+          config.connectorName(),
+          ex);
     } finally {
-      if(null != catalog) {
-        if(catalog instanceof AutoCloseable) {
+      if (null != catalog) {
+        if (catalog instanceof AutoCloseable) {
           try {
             ((AutoCloseable) catalog).close();
           } catch (Exception e) {
