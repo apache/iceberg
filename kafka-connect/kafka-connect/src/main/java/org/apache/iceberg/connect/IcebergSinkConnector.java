@@ -32,6 +32,8 @@ public class IcebergSinkConnector extends SinkConnector {
 
   private Map<String, String> props;
 
+  private static final String OVERRIDE_CLIENT_ID = "consumer.override.client.id";
+
   @Override
   public String version() {
     return IcebergSinkConfig.version();
@@ -50,14 +52,19 @@ public class IcebergSinkConnector extends SinkConnector {
   @Override
   public List<Map<String, String>> taskConfigs(int maxTasks) {
     String txnSuffix = "-txn-" + UUID.randomUUID() + "-";
+
     return IntStream.range(0, maxTasks)
-        .mapToObj(
-            i -> {
-              Map<String, String> map = Maps.newHashMap(props);
-              map.put(IcebergSinkConfig.INTERNAL_TRANSACTIONAL_SUFFIX_PROP, txnSuffix + i);
-              return map;
+            .mapToObj(i -> {
+              Map<String, String> taskProps = Maps.newHashMap(props);
+              taskProps.put(IcebergSinkConfig.INTERNAL_TRANSACTIONAL_SUFFIX_PROP, txnSuffix + i);
+
+              if (props.containsKey(OVERRIDE_CLIENT_ID)) {
+                taskProps.put(OVERRIDE_CLIENT_ID, props.get(OVERRIDE_CLIENT_ID) + "-" + i);
+              }
+
+              return taskProps;
             })
-        .collect(Collectors.toList());
+            .collect(Collectors.toList());
   }
 
   @Override

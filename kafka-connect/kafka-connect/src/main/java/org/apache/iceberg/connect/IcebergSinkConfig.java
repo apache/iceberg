@@ -238,6 +238,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private final Map<String, TableSinkConfig> tableConfigMap = Maps.newHashMap();
   private final JsonConverter jsonConverter;
   private final Set<String> sourceTopics;
+  private final String sourceTopicRegex;
 
   public IcebergSinkConfig(Map<String, String> originalProps) {
     super(CONFIG_DEF, originalProps);
@@ -248,6 +249,7 @@ public class IcebergSinkConfig extends AbstractConfig {
             .map(String::trim)
             .filter(s -> !s.isEmpty())
             .collect(Collectors.toSet());
+    this.sourceTopicRegex = originalProps.getOrDefault("topics.regex", "");
 
     this.catalogProps = PropertyUtil.propertiesWithPrefix(originalProps, CATALOG_PROP_PREFIX);
     this.hadoopProps = PropertyUtil.propertiesWithPrefix(originalProps, HADOOP_PROP_PREFIX);
@@ -299,6 +301,10 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public Set<String> sourceTopics() {
     return sourceTopics;
+  }
+
+  public String sourceTopicRegex() {
+    return sourceTopicRegex;
   }
 
   public Map<String, String> catalogProps() {

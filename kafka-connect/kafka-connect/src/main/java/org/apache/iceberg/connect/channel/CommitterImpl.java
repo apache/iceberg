@@ -24,6 +24,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.Committer;
@@ -114,10 +115,19 @@ public class CommitterImpl implements Committer {
   }
 
   private boolean hasSourceTopicPartition(MemberDescription member) {
-    return member.assignment().topicPartitions().stream()
-        .map(TopicPartition::topic)
-        .anyMatch(config.sourceTopics()::contains);
+    if (!config.sourceTopics().isEmpty()) {
+      // Exact match using topic names
+      return member.assignment().topicPartitions().stream()
+              .map(TopicPartition::topic)
+              .anyMatch(config.sourceTopics()::contains);
+    } else {
+      // Pattern match using topics.regex
+      return member.assignment().topicPartitions().stream()
+              .map(TopicPartition::topic)
+              .anyMatch(topic -> Pattern.compile(config.sourceTopicRegex()).matcher(topic).matches());
+    }
   }
+
 
   private boolean isUniqueClientSuffix(MemberDescription member, Set<Integer> seenSuffixes) {
     String clientId = member.clientId();
