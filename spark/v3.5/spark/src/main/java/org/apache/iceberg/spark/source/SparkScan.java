@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BlobMetadata;
@@ -195,28 +196,36 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     if (readConf.reportColumnStats() && cboEnabled) {
       colStatsMap = Maps.newHashMap();
       List<StatisticsFile> files = table.statisticsFiles();
-      if (!files.isEmpty()) {
-        List<BlobMetadata> metadataList = (files.get(0)).blobMetadata();
+      Optional<StatisticsFile> file =
+          files.stream().filter(f -> f.snapshotId() == snapshot.snapshotId()).findFirst();
+      if (file.isPresent()) {
+        List<BlobMetadata> metadataList = file.get().blobMetadata();
 
-        for (BlobMetadata blobMetadata : metadataList) {
-          int id = blobMetadata.fields().get(0);
-          String colName = table.schema().findColumnName(id);
+        Map<Integer, List<BlobMetadata>> groupedByField =
+            metadataList.stream()
+                .collect(
+                    Collectors.groupingBy(
+                        metadata -> metadata.fields().get(0), Collectors.toList()));
+
+        for (Map.Entry<Integer, List<BlobMetadata>> entry : groupedByField.entrySet()) {
+          String colName = table.schema().findColumnName(entry.getKey());
           NamedReference ref = FieldReference.column(colName);
-
           Long ndv = null;
-          if (blobMetadata
-              .type()
-              .equals(org.apache.iceberg.puffin.StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1)) {
-            String ndvStr = blobMetadata.properties().get(NDV_KEY);
-            if (!Strings.isNullOrEmpty(ndvStr)) {
-              ndv = Long.parseLong(ndvStr);
-            } else {
-              LOG.debug("ndv is not set in BlobMetadata for column {}", colName);
-            }
-          } else {
-            LOG.debug("DataSketch blob is not available for column {}", colName);
-          }
 
+          for (BlobMetadata blobMetadata : entry.getValue()) {
+            if (blobMetadata
+                .type()
+                .equals(org.apache.iceberg.puffin.StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1)) {
+              String ndvStr = blobMetadata.properties().get(NDV_KEY);
+              if (!Strings.isNullOrEmpty(ndvStr)) {
+                ndv = Long.parseLong(ndvStr);
+              } else {
+                LOG.debug("{} is not set in BlobMetadata for column {}", NDV_KEY, colName);
+              }
+            } else {
+              LOG.debug("Blob type {} is not supported yet", blobMetadata.type());
+            }
+          }
           ColumnStatistics colStats =
               new SparkColumnStatistics(ndv, null, null, null, null, null, null);
 

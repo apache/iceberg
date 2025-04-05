@@ -323,9 +323,9 @@ public class Comparators {
      * represented using two Java characters (using UTF-16 surrogate pairs). Character by character
      * comparison may yield incorrect results while comparing a 4 byte UTF-8 character to a java
      * char. Character by character comparison works as expected if both characters are <= 3 byte
-     * UTF-8 character or both characters are 4 byte UTF-8 characters.
-     * isCharInUTF16HighSurrogateRange method detects a 4-byte character and considers that
-     * character to be lexicographically greater than any 3 byte or lower UTF-8 character.
+     * UTF-8 character or both characters are 4 byte UTF-8 characters. isCharHighSurrogate method
+     * detects a high surrogate (4-byte character) and considers that character to be
+     * lexicographically greater than any 3 byte or lower UTF-8 character.
      */
     @Override
     public int compare(CharSequence s1, CharSequence s2) {

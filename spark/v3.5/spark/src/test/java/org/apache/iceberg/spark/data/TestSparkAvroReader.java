@@ -36,13 +36,18 @@ import org.apache.spark.sql.catalyst.InternalRow;
 public class TestSparkAvroReader extends AvroDataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    List<Record> expected = RandomData.generateList(schema, 100, 0L);
+    writeAndValidate(schema, schema);
+  }
+
+  @Override
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
+    List<Record> expected = RandomData.generateList(writeSchema, 100, 0L);
 
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<Record> writer =
-        Avro.write(Files.localOutput(testFile)).schema(schema).named("test").build()) {
+        Avro.write(Files.localOutput(testFile)).schema(writeSchema).named("test").build()) {
       for (Record rec : expected) {
         writer.add(rec);
       }
@@ -51,14 +56,19 @@ public class TestSparkAvroReader extends AvroDataTest {
     List<InternalRow> rows;
     try (AvroIterable<InternalRow> reader =
         Avro.read(Files.localInput(testFile))
-            .createReaderFunc(SparkAvroReader::new)
-            .project(schema)
+            .createResolvingReader(SparkPlannedAvroReader::create)
+            .project(expectedSchema)
             .build()) {
       rows = Lists.newArrayList(reader);
     }
 
     for (int i = 0; i < expected.size(); i += 1) {
-      assertEqualsUnsafe(schema.asStruct(), expected.get(i), rows.get(i));
+      assertEqualsUnsafe(expectedSchema.asStruct(), expected.get(i), rows.get(i));
     }
+  }
+
+  @Override
+  protected boolean supportsDefaultValues() {
+    return true;
   }
 }

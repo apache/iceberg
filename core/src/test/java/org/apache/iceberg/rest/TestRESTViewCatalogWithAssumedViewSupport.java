@@ -90,6 +90,16 @@ public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatal
             "catalog:12345",
             // assume that the server supports view endpoints
             RESTSessionCatalog.VIEW_ENDPOINTS_SUPPORTED,
-            "true"));
+            "true",
+            CatalogProperties.VIEW_DEFAULT_PREFIX + "key1",
+            "catalog-default-key1",
+            CatalogProperties.VIEW_DEFAULT_PREFIX + "key2",
+            "catalog-default-key2",
+            CatalogProperties.VIEW_DEFAULT_PREFIX + "key3",
+            "catalog-default-key3",
+            CatalogProperties.VIEW_OVERRIDE_PREFIX + "key3",
+            "catalog-override-key3",
+            CatalogProperties.VIEW_OVERRIDE_PREFIX + "key4",
+            "catalog-override-key4"));
   }
 }

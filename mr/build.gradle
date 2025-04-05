@@ -37,28 +37,26 @@ project(':iceberg-mr') {
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
 
-    compileOnly(libs.hadoop2.client) {
+    compileOnly(libs.hadoop3.client) {
       exclude group: 'org.apache.avro', module: 'avro'
     }
-
-    compileOnly("${libs.hive2.exec.get().module}:${libs.hive2.exec.get().getVersion()}:core") {
-      exclude group: 'com.google.code.findbugs', module: 'jsr305'
-      exclude group: 'com.google.guava'
-      exclude group: 'com.google.protobuf', module: 'protobuf-java'
-      exclude group: 'org.apache.avro', module: 'avro'
-      exclude group: 'org.apache.calcite.avatica'
-      exclude group: 'org.apache.hive', module: 'hive-llap-tez'
-      exclude group: 'org.apache.logging.log4j'
-      exclude group: 'org.pentaho' // missing dependency
-      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-    }
-    compileOnly libs.hive2.metastore
-    compileOnly libs.hive2.serde
 
     implementation libs.caffeine
+    implementation libs.parquet.column
+    implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
+      exclude group: 'org.apache.hadoop'
+      exclude group: 'commons-lang'
+      // These artifacts are shaded and included in the orc-core fat jar
+      exclude group: 'com.google.protobuf', module: 'protobuf-java'
+      exclude group: 'org.apache.hive', module: 'hive-storage-api'
+    }
 
-    testImplementation libs.calcite.core
-    testImplementation libs.calcite.druid
+    testImplementation(libs.calcite.core) {
+      exclude group: 'org.apache.calcite.avatica', module: 'avatica'
+    }
+    testImplementation(libs.calcite.druid) {
+      exclude group: 'org.apache.calcite.avatica', module: 'avatica'
+    }
 
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
@@ -66,7 +64,6 @@ project(':iceberg-mr') {
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
 
     testImplementation libs.avro.avro
-    testImplementation libs.calcite.core
     testImplementation libs.kryo.shaded
     testImplementation platform(libs.jackson.bom)
     testImplementation libs.jackson.annotations

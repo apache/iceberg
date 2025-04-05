@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_REST;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.util.List;
@@ -27,6 +30,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -67,6 +71,9 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
   @Test
   public void testDefaultNamespace() {
     Assume.assumeFalse("Hadoop has no default namespace configured", isHadoopCatalog);
+    assumeThat(catalogConfig.get(ICEBERG_CATALOG_TYPE))
+        .as("REST has no default namespace configured")
+        .isNotEqualTo(ICEBERG_CATALOG_TYPE_REST);
 
     sql("USE %s", catalogName);
 
@@ -105,8 +112,8 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
         "Table should exist", validationCatalog.tableExists(TableIdentifier.of(NS, "table")));
 
     assertThatThrownBy(() -> sql("DROP NAMESPACE %s", fullNamespace))
-        .isInstanceOf(NamespaceNotEmptyException.class)
-        .hasMessageStartingWith("Namespace db is not empty.");
+        .isInstanceOfAny(NamespaceNotEmptyException.class, BadRequestException.class)
+        .hasMessageContaining("Namespace db is not empty.");
 
     sql("DROP TABLE %s.table", fullNamespace);
   }
@@ -141,7 +148,8 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
 
     List<Object[]> namespaces = sql("SHOW NAMESPACES IN %s", catalogName);
 
-    if (isHadoopCatalog) {
+    if (isHadoopCatalog
+        || catalogConfig.get(ICEBERG_CATALOG_TYPE).equals(ICEBERG_CATALOG_TYPE_REST)) {
       Assert.assertEquals("Should have 1 namespace", 1, namespaces.size());
       Set<String> namespaceNames =
           namespaces.stream().map(arr -> arr[0].toString()).collect(Collectors.toSet());

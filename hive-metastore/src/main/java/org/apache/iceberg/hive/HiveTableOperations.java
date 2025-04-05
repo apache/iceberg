@@ -269,16 +269,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
 
       } catch (Throwable e) {
         if (e.getMessage() != null
-            && e.getMessage()
-                .contains(
-                    "The table has been modified. The parameter value for key '"
-                        + HiveTableOperations.METADATA_LOCATION_PROP
-                        + "' is")) {
-          throw new CommitFailedException(
-              e, "The table %s.%s has been modified concurrently", database, tableName);
-        }
-
-        if (e.getMessage() != null
             && e.getMessage().contains("Table/View 'HIVE_LOCKS' does not exist")) {
           throw new RuntimeException(
               "Failed to acquire locks from metastore because the underlying metastore "
@@ -287,14 +277,31 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
               e);
         }
 
-        LOG.error(
-            "Cannot tell if commit to {}.{} succeeded, attempting to reconnect and check.",
-            database,
-            tableName,
-            e);
-        commitStatus =
-            BaseMetastoreOperations.CommitStatus.valueOf(
-                checkCommitStatus(newMetadataLocation, metadata).name());
+        commitStatus = BaseMetastoreOperations.CommitStatus.UNKNOWN;
+        if (e.getMessage() != null
+            && e.getMessage()
+                .contains(
+                    "The table has been modified. The parameter value for key '"
+                        + HiveTableOperations.METADATA_LOCATION_PROP
+                        + "' is")) {
+          // It's possible the HMS client incorrectly retries a successful operation, due to network
+          // issue for example, and triggers this exception. So we need double-check to make sure
+          // this is really a concurrent modification. Hitting this exception means no pending
+          // requests, if any, can succeed later, so it's safe to check status in strict mode
+          commitStatus = checkCommitStatusStrict(newMetadataLocation, metadata);
+          if (commitStatus == BaseMetastoreOperations.CommitStatus.FAILURE) {
+            throw new CommitFailedException(
+                e, "The table %s.%s has been modified concurrently", database, tableName);
+          }
+        } else {
+          LOG.error(
+              "Cannot tell if commit to {}.{} succeeded, attempting to reconnect and check.",
+              database,
+              tableName,
+              e);
+          commitStatus = checkCommitStatus(newMetadataLocation, metadata);
+        }
+
         switch (commitStatus) {
           case SUCCESS:
             break;

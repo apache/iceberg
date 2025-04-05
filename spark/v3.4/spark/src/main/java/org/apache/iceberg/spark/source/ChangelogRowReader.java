@@ -110,21 +110,22 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
   }
 
   CloseableIterable<InternalRow> openAddedRowsScanTask(AddedRowsScanTask task) {
-    String filePath = task.file().path().toString();
-    SparkDeleteFilter deletes = new SparkDeleteFilter(filePath, task.deletes(), counter());
+    String filePath = task.file().location();
+    SparkDeleteFilter deletes = new SparkDeleteFilter(filePath, task.deletes(), counter(), true);
     return deletes.filter(rows(task, deletes.requiredSchema()));
   }
 
   private CloseableIterable<InternalRow> openDeletedDataFileScanTask(DeletedDataFileScanTask task) {
-    String filePath = task.file().path().toString();
-    SparkDeleteFilter deletes = new SparkDeleteFilter(filePath, task.existingDeletes(), counter());
+    String filePath = task.file().location();
+    SparkDeleteFilter deletes =
+        new SparkDeleteFilter(filePath, task.existingDeletes(), counter(), true);
     return deletes.filter(rows(task, deletes.requiredSchema()));
   }
 
   private CloseableIterable<InternalRow> rows(ContentScanTask<DataFile> task, Schema readSchema) {
     Map<Integer, ?> idToConstant = constantsMap(task, readSchema);
 
-    String filePath = task.file().path().toString();
+    String filePath = task.file().location();
 
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(filePath, task.start(), task.length());

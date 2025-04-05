@@ -27,6 +27,8 @@ import org.apache.iceberg.types.Types;
 
 /** Represents a manifest file that can be scanned to find files in a table. */
 public interface ManifestFile {
+  int PARTITION_SUMMARIES_ELEMENT_ID = 508;
+
   Types.NestedField PATH =
       required(500, "manifest_path", Types.StringType.get(), "Location URI with FS scheme");
   Types.NestedField LENGTH =
@@ -49,7 +51,7 @@ public interface ManifestFile {
           Types.LongType.get(),
           "Lowest sequence number in the manifest");
   Types.NestedField SNAPSHOT_ID =
-      optional(
+      required(
           503, "added_snapshot_id", Types.LongType.get(), "Snapshot ID that added the manifest");
   Types.NestedField ADDED_FILES_COUNT =
       optional(504, "added_files_count", Types.IntegerType.get(), "Added entry count");
@@ -83,7 +85,7 @@ public interface ManifestFile {
       optional(
           507,
           "partitions",
-          Types.ListType.ofRequired(508, PARTITION_SUMMARY_TYPE),
+          Types.ListType.ofRequired(PARTITION_SUMMARIES_ELEMENT_ID, PARTITION_SUMMARY_TYPE),
           "Summary for each partition");
   Types.NestedField KEY_METADATA =
       optional(519, "key_metadata", Types.BinaryType.get(), "Encryption key metadata blob");

@@ -35,11 +35,14 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
@@ -175,7 +178,7 @@ public class CatalogUtil {
                 for (ManifestEntry<?> entry : reader.entries()) {
                   // intern the file path because the weak key map uses identity (==) instead of
                   // equals
-                  String path = entry.file().path().toString().intern();
+                  String path = entry.file().location().intern();
                   Boolean alreadyDeleted = deletedFiles.putIfAbsent(path, true);
                   if (alreadyDeleted == null || !alreadyDeleted) {
                     pathsToDelete.add(path);
@@ -343,6 +346,33 @@ public class CatalogUtil {
    *     loaded class cannot be cast to the given interface type
    */
   public static FileIO loadFileIO(String impl, Map<String, String> properties, Object hadoopConf) {
+    return loadFileIO(impl, properties, hadoopConf, ImmutableList.of());
+  }
+
+  /**
+   * Load a custom {@link FileIO} implementation.
+   *
+   * <p>The implementation must have a no-arg constructor. If the class implements Configurable, a
+   * Hadoop config will be passed using Configurable.setConf. If the class implements {@link
+   * SupportsStorageCredentials}, the storage credentials will be passed using {@link
+   * SupportsStorageCredentials#setCredentials(List)}. {@link FileIO#initialize(Map properties)} is
+   * called to complete the initialization.
+   *
+   * @param impl full class name of a custom FileIO implementation
+   * @param properties used to initialize the FileIO implementation
+   * @param hadoopConf a hadoop Configuration
+   * @param storageCredentials the storage credentials to configure if the FileIO implementation
+   *     implements {@link SupportsStorageCredentials}
+   * @return FileIO class
+   * @throws IllegalArgumentException if class path not found or right constructor not found or the
+   *     loaded class cannot be cast to the given interface type
+   */
+  @SuppressWarnings("unchecked")
+  public static FileIO loadFileIO(
+      String impl,
+      Map<String, String> properties,
+      Object hadoopConf,
+      List<StorageCredential> storageCredentials) {
     LOG.info("Loading custom FileIO implementation: {}", impl);
     DynConstructors.Ctor<FileIO> ctor;
     try {
@@ -365,6 +395,9 @@ public class CatalogUtil {
     }
 
     configureHadoopConf(fileIO, hadoopConf);
+    if (fileIO instanceof SupportsStorageCredentials) {
+      ((SupportsStorageCredentials) fileIO).setCredentials(storageCredentials);
+    }
 
     fileIO.initialize(properties);
     return fileIO;
@@ -514,5 +547,50 @@ public class CatalogUtil {
     sb.append(identifier.name());
 
     return sb.toString();
+  }
+
+  /**
+   * Deletes the oldest metadata files if {@link
+   * TableProperties#METADATA_DELETE_AFTER_COMMIT_ENABLED} is true.
+   *
+   * @param io FileIO instance to use for deletes
+   * @param base table metadata on which previous versions were based
+   * @param metadata new table metadata with updated previous versions
+   */
+  public static void deleteRemovedMetadataFiles(
+      FileIO io, TableMetadata base, TableMetadata metadata) {
+    if (base == null) {
+      return;
+    }
+
+    boolean deleteAfterCommit =
+        metadata.propertyAsBoolean(
+            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
+            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
+
+    if (deleteAfterCommit) {
+      Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles =
+          Sets.newHashSet(base.previousFiles());
+      // TableMetadata#addPreviousFile builds up the metadata log and uses
+      // TableProperties.METADATA_PREVIOUS_VERSIONS_MAX to determine how many files should stay in
+      // the log, thus we don't include metadata.previousFiles() for deletion - everything else can
+      // be removed
+      removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
+      if (io instanceof SupportsBulkOperations) {
+        ((SupportsBulkOperations) io)
+            .deleteFiles(
+                Iterables.transform(
+                    removedPreviousMetadataFiles, TableMetadata.MetadataLogEntry::file));
+      } else {
+        Tasks.foreach(removedPreviousMetadataFiles)
+            .noRetry()
+            .suppressFailureWhenFinished()
+            .onFailure(
+                (previousMetadataFile, exc) ->
+                    LOG.warn(
+                        "Delete failed for previous metadata file: {}", previousMetadataFile, exc))
+            .run(previousMetadataFile -> io.deleteFile(previousMetadataFile.file()));
+      }
+    }
   }
 }

@@ -21,13 +21,16 @@ package org.apache.iceberg.spark.extensions;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.spark.sql.types.StructField;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -93,6 +96,47 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testNonStandardColumnNames() {
+    sql("CREATE TABLE %s (`the id` INT, `the.data` STRING) USING iceberg", tableName);
+    sql("ALTER TABLE %s ADD PARTITION FIELD `the.data`", tableName);
+
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Snapshot snap1 = table.currentSnapshot();
+
+    sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
+
+    table.refresh();
+
+    Snapshot snap2 = table.currentSnapshot();
+
+    sql(
+        "CALL %s.system.create_changelog_view("
+            + "table => '%s',"
+            + "options => map('%s','%s','%s','%s'),"
+            + "changelog_view => '%s')",
+        catalogName,
+        tableName,
+        SparkReadOptions.START_SNAPSHOT_ID,
+        snap1.snapshotId(),
+        SparkReadOptions.END_SNAPSHOT_ID,
+        snap2.snapshotId(),
+        "cdc_view");
+
+    var df = spark.sql("select * from cdc_view");
+    var fieldNames =
+        Arrays.stream(df.schema().fields()).map(StructField::name).collect(Collectors.toList());
+    assertThat(fieldNames)
+        .containsExactly(
+            "the id", "the.data", "_change_type", "_change_ordinal", "_commit_snapshot_id");
+
+    assertThat(df.collectAsList()).hasSize(2);
+  }
+
+  @TestTemplate
   public void testNoSnapshotIdInput() {
     createTableWithTwoColumns();
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
@@ -121,6 +165,60 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
             row(-2, "b", INSERT, 2, snap2.snapshotId()),
             row(2, "b", DELETE, 2, snap2.snapshotId())),
         sql("select * from %s order by _change_ordinal, id", viewName));
+  }
+
+  @TestTemplate
+  public void testOnlyStartSnapshotIdInput() {
+    createTableWithTwoColumns();
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap0 = table.currentSnapshot();
+
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    Snapshot snap1 = table.currentSnapshot();
+
+    sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s'," + "options => map('%s', '%s'))",
+            catalogName, tableName, SparkReadOptions.START_SNAPSHOT_ID, snap0.snapshotId());
+
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(2, "b", INSERT, 0, snap1.snapshotId()),
+            row(-2, "b", INSERT, 1, snap2.snapshotId()),
+            row(2, "b", DELETE, 1, snap2.snapshotId())),
+        sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
+  }
+
+  @TestTemplate
+  public void testOnlyEndTimestampIdInput() {
+    createTableWithTwoColumns();
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap0 = table.currentSnapshot();
+
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    Snapshot snap1 = table.currentSnapshot();
+
+    sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
+
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s'," + "options => map('%s', '%s'))",
+            catalogName, tableName, SparkReadOptions.END_SNAPSHOT_ID, snap1.snapshotId());
+
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(1, "a", INSERT, 0, snap0.snapshotId()), row(2, "b", INSERT, 1, snap1.snapshotId())),
+        sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
   }
 
   @TestTemplate
@@ -180,6 +278,149 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
             row(2, "b", INSERT, 0, snap1.snapshotId()),
             row(-2, "b", INSERT, 1, snap2.snapshotId()),
             row(2, "b", DELETE, 1, snap2.snapshotId())),
+        sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
+  }
+
+  @TestTemplate
+  public void testOnlyStartTimestampInput() {
+    createTableWithTwoColumns();
+    long beginning = System.currentTimeMillis();
+
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap0 = table.currentSnapshot();
+    long afterFirstInsert = waitUntilAfter(snap0.timestampMillis());
+
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    Snapshot snap1 = table.currentSnapshot();
+
+    sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', " + "options => map('%s', '%s'))",
+            catalogName, tableName, SparkReadOptions.START_TIMESTAMP, beginning);
+
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(1, "a", INSERT, 0, snap0.snapshotId()),
+            row(2, "b", INSERT, 1, snap1.snapshotId()),
+            row(-2, "b", INSERT, 2, snap2.snapshotId()),
+            row(2, "b", DELETE, 2, snap2.snapshotId())),
+        sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
+
+    returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', " + "options => map('%s', '%s'))",
+            catalogName, tableName, SparkReadOptions.START_TIMESTAMP, afterFirstInsert);
+
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(2, "b", INSERT, 0, snap1.snapshotId()),
+            row(-2, "b", INSERT, 1, snap2.snapshotId()),
+            row(2, "b", DELETE, 1, snap2.snapshotId())),
+        sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
+  }
+
+  @TestTemplate
+  public void testOnlyEndTimestampInput() {
+    createTableWithTwoColumns();
+
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap0 = table.currentSnapshot();
+
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    Snapshot snap1 = table.currentSnapshot();
+    long afterSecondInsert = waitUntilAfter(snap1.timestampMillis());
+
+    sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
+
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', " + "options => map('%s', '%s'))",
+            catalogName, tableName, SparkReadOptions.END_TIMESTAMP, afterSecondInsert);
+
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(1, "a", INSERT, 0, snap0.snapshotId()), row(2, "b", INSERT, 1, snap1.snapshotId())),
+        sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
+  }
+
+  @TestTemplate
+  public void testStartTimeStampEndSnapshotId() {
+    createTableWithTwoColumns();
+
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap0 = table.currentSnapshot();
+    long afterFirstInsert = waitUntilAfter(snap0.timestampMillis());
+
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    Snapshot snap1 = table.currentSnapshot();
+
+    sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', "
+                + "options => map('%s', '%s', '%s', '%s'))",
+            catalogName,
+            tableName,
+            SparkReadOptions.START_TIMESTAMP,
+            afterFirstInsert,
+            SparkReadOptions.END_SNAPSHOT_ID,
+            snap2.snapshotId());
+
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(2, "b", INSERT, 0, snap1.snapshotId()),
+            row(-2, "b", INSERT, 1, snap2.snapshotId()),
+            row(2, "b", DELETE, 1, snap2.snapshotId())),
+        sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
+  }
+
+  @TestTemplate
+  public void testStartSnapshotIdEndTimestamp() {
+    createTableWithTwoColumns();
+
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap0 = table.currentSnapshot();
+
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    Snapshot snap1 = table.currentSnapshot();
+    long afterSecondInsert = waitUntilAfter(snap1.timestampMillis());
+
+    sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
+    table.refresh();
+
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', "
+                + "options => map('%s', '%s', '%s', '%s'))",
+            catalogName,
+            tableName,
+            SparkReadOptions.START_SNAPSHOT_ID,
+            snap0.snapshotId(),
+            SparkReadOptions.END_TIMESTAMP,
+            afterSecondInsert);
+
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(row(2, "b", INSERT, 0, snap1.snapshotId())),
         sql("select * from %s order by _change_ordinal, id", returns.get(0)[0]));
   }
 

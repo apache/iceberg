@@ -24,6 +24,8 @@ import java.io.IOException;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.rest.credentials.Credential;
+import org.apache.iceberg.rest.credentials.CredentialParser;
 import org.apache.iceberg.util.JsonUtil;
 
 public class LoadTableResponseParser {
@@ -31,6 +33,7 @@ public class LoadTableResponseParser {
   private static final String METADATA_LOCATION = "metadata-location";
   private static final String METADATA = "metadata";
   private static final String CONFIG = "config";
+  private static final String STORAGE_CREDENTIALS = "storage-credentials";
 
   private LoadTableResponseParser() {}
 
@@ -58,6 +61,15 @@ public class LoadTableResponseParser {
       JsonUtil.writeStringMap(CONFIG, response.config(), gen);
     }
 
+    if (!response.credentials().isEmpty()) {
+      gen.writeArrayFieldStart(STORAGE_CREDENTIALS);
+      for (Credential credential : response.credentials()) {
+        CredentialParser.toJson(credential, gen);
+      }
+
+      gen.writeEndArray();
+    }
+
     gen.writeEndObject();
   }
 
@@ -83,6 +95,10 @@ public class LoadTableResponseParser {
 
     if (json.hasNonNull(CONFIG)) {
       builder.addAllConfig(JsonUtil.getStringMap(CONFIG, json));
+    }
+
+    if (json.hasNonNull(STORAGE_CREDENTIALS)) {
+      builder.addAllCredentials(LoadCredentialsResponseParser.fromJson(json).credentials());
     }
 
     return builder.build();

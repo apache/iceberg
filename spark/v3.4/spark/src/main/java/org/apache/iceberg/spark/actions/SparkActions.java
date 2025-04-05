@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ActionsProvider;
 import org.apache.iceberg.actions.ComputeTableStats;
+import org.apache.iceberg.actions.RemoveDanglingDeleteFiles;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.spark.sql.SparkSession;
@@ -101,5 +102,15 @@ public class SparkActions implements ActionsProvider {
   @Override
   public ComputeTableStats computeTableStats(Table table) {
     return new ComputeTableStatsSparkAction(spark, table);
+  }
+
+  @Override
+  public RemoveDanglingDeleteFiles removeDanglingDeleteFiles(Table table) {
+    return new RemoveDanglingDeletesSparkAction(spark, table);
+  }
+
+  @Override
+  public RewriteTablePathSparkAction rewriteTablePath(Table table) {
+    return new RewriteTablePathSparkAction(spark, table);
   }
 }

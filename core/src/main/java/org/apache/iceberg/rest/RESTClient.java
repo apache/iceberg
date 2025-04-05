@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 
 /** Interface for a basic HTTP Client for interfacing with the REST catalog. */
@@ -158,4 +159,20 @@ public interface RESTClient extends Closeable {
       Class<T> responseType,
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler);
+
+  /**
+   * Returns a REST client that authenticates requests using the given session.
+   *
+   * <p>Implementation requirements:
+   *
+   * <ul>
+   *   <li>Closing the returned client SHOULD NOT affect this client: if they share common
+   *       resources, the resources SHOULD NOT be closed until the parent client is closed.
+   *   <li>Closing the returned client SHOULD NOT close the given AuthSession: this is the
+   *       responsibility of this method's caller.
+   * </ul>
+   */
+  default RESTClient withAuthSession(AuthSession session) {
+    return this;
+  }
 }

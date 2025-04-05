@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -256,7 +257,8 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
             });
 
     Set<String> filesToDelete =
-        findFilesToDelete(manifestsToScan, manifestsToRevert, validIds, afterExpiration);
+        findFilesToDelete(
+            manifestsToScan, manifestsToRevert, validIds, beforeExpiration.specsById());
 
     deleteFiles(filesToDelete, "data");
     deleteFiles(manifestsToDelete, "manifest");
@@ -273,7 +275,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
       Set<ManifestFile> manifestsToScan,
       Set<ManifestFile> manifestsToRevert,
       Set<Long> validIds,
-      TableMetadata current) {
+      Map<Integer, PartitionSpec> specsById) {
     Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
     Tasks.foreach(manifestsToScan)
         .retry(3)
@@ -285,15 +287,14 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
         .run(
             manifest -> {
               // the manifest has deletes, scan it to find files to delete
-              try (ManifestReader<?> reader =
-                  ManifestFiles.open(manifest, fileIO, current.specsById())) {
+              try (ManifestReader<?> reader = ManifestFiles.open(manifest, fileIO, specsById)) {
                 for (ManifestEntry<?> entry : reader.entries()) {
                   // if the snapshot ID of the DELETE entry is no longer valid, the data can be
                   // deleted
                   if (entry.status() == ManifestEntry.Status.DELETED
                       && !validIds.contains(entry.snapshotId())) {
                     // use toString to ensure the path will not change (Utf8 is reused)
-                    filesToDelete.add(entry.file().path().toString());
+                    filesToDelete.add(entry.file().location());
                   }
                 }
               } catch (IOException e) {
@@ -311,13 +312,12 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
         .run(
             manifest -> {
               // the manifest has deletes, scan it to find files to delete
-              try (ManifestReader<?> reader =
-                  ManifestFiles.open(manifest, fileIO, current.specsById())) {
+              try (ManifestReader<?> reader = ManifestFiles.open(manifest, fileIO, specsById)) {
                 for (ManifestEntry<?> entry : reader.entries()) {
                   // delete any ADDED file from manifests that were reverted
                   if (entry.status() == ManifestEntry.Status.ADDED) {
                     // use toString to ensure the path will not change (Utf8 is reused)
-                    filesToDelete.add(entry.file().path().toString());
+                    filesToDelete.add(entry.file().location());
                   }
                 }
               } catch (IOException e) {

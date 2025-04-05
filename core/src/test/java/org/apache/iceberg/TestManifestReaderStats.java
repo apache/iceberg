@@ -23,8 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -37,11 +35,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestManifestReaderStats extends TestBase {
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
-
   private static final Map<Integer, Long> VALUE_COUNT = ImmutableMap.of(3, 3L);
   private static final Map<Integer, Long> NULL_VALUE_COUNTS = ImmutableMap.of(3, 0L);
   private static final Map<Integer, Long> NAN_VALUE_COUNTS = ImmutableMap.of(3, 1L);
@@ -154,7 +147,7 @@ public class TestManifestReaderStats extends TestBase {
             .project(new Schema(ImmutableList.of(DataFile.FILE_PATH, DataFile.VALUE_COUNTS)))) {
       DataFile entry = reader.iterator().next();
 
-      assertThat(entry.path()).isEqualTo(FILE_PATH);
+      assertThat(entry.location()).isEqualTo(FILE_PATH);
       assertThat(entry.valueCounts()).isEqualTo(VALUE_COUNT);
       assertThat(entry.columnSizes()).isNull();
       assertThat(entry.nullValueCounts()).isNull();
@@ -175,7 +168,7 @@ public class TestManifestReaderStats extends TestBase {
       DataFile dataFile = entry.file();
 
       // selected field is populated
-      assertThat(dataFile.path()).isEqualTo(FILE_PATH);
+      assertThat(dataFile.location()).isEqualTo(FILE_PATH);
 
       // not selected fields are all null and not projected
       assertThat(dataFile.columnSizes()).isNull();
@@ -197,7 +190,7 @@ public class TestManifestReaderStats extends TestBase {
       DataFile dataFile = reader.iterator().next();
 
       // selected fields are populated
-      assertThat(dataFile.path()).isEqualTo(FILE_PATH);
+      assertThat(dataFile.location()).isEqualTo(FILE_PATH);
       assertThat(dataFile.valueCounts()).isEqualTo(VALUE_COUNT);
 
       // not selected fields are all null and not projected
@@ -221,35 +214,42 @@ public class TestManifestReaderStats extends TestBase {
 
     if (dataFile.valueCounts() != null) {
       assertThatThrownBy(() -> dataFile.valueCounts().clear(), "Should not be modifiable")
-          .isInstanceOf(UnsupportedOperationException.class);
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessage(null);
     }
 
     if (dataFile.nullValueCounts() != null) {
       assertThatThrownBy(() -> dataFile.nullValueCounts().clear(), "Should not be modifiable")
-          .isInstanceOf(UnsupportedOperationException.class);
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessage(null);
     }
 
     if (dataFile.nanValueCounts() != null) {
       assertThatThrownBy(() -> dataFile.nanValueCounts().clear(), "Should not be modifiable")
-          .isInstanceOf(UnsupportedOperationException.class);
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessage(null);
     }
 
     if (dataFile.upperBounds() != null) {
       assertThatThrownBy(() -> dataFile.upperBounds().clear(), "Should not be modifiable")
-          .isInstanceOf(UnsupportedOperationException.class);
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessage(null);
     }
 
     if (dataFile.lowerBounds() != null) {
       assertThatThrownBy(() -> dataFile.lowerBounds().clear(), "Should not be modifiable")
-          .isInstanceOf(UnsupportedOperationException.class);
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessage(null);
     }
 
     if (dataFile.columnSizes() != null) {
       assertThatThrownBy(() -> dataFile.columnSizes().clear(), "Should not be modifiable")
-          .isInstanceOf(UnsupportedOperationException.class);
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessage(null);
     }
 
-    assertThat(dataFile.path()).isEqualTo(FILE_PATH); // always select file path in all test cases
+    assertThat(dataFile.location())
+        .isEqualTo(FILE_PATH); // always select file path in all test cases
   }
 
   private void assertStatsDropped(DataFile dataFile) {
@@ -262,11 +262,14 @@ public class TestManifestReaderStats extends TestBase {
     assertThat(dataFile.lowerBounds()).isNull();
     assertThat(dataFile.upperBounds()).isNull();
 
-    assertThat(dataFile.path()).isEqualTo(FILE_PATH); // always select file path in all test cases
+    assertThat(dataFile.location())
+        .isEqualTo(FILE_PATH); // always select file path in all test cases
   }
 
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   private void assertNullRecordCount(DataFile dataFile) {
     // record count is a primitive type, accessing null record count will throw NPE
+    // no check on the underlying error msg as it might be missing based on the JDK version
     assertThatThrownBy(dataFile::recordCount).isInstanceOf(NullPointerException.class);
   }
 }

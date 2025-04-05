@@ -34,7 +34,6 @@ import org.apache.iceberg.actions.SizeBasedFileRewriter;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types.IntegerType;
@@ -69,6 +68,7 @@ public class TestSparkFileRewriter extends TestBase {
     checkDataFileGroupWithEnoughFiles(rewriter);
     checkDataFileGroupWithEnoughData(rewriter);
     checkDataFileGroupWithTooMuchData(rewriter);
+    checkDataFilesWithHighFileScopedDeleteRatio(rewriter);
   }
 
   @Test
@@ -81,6 +81,7 @@ public class TestSparkFileRewriter extends TestBase {
     checkDataFileGroupWithEnoughFiles(rewriter);
     checkDataFileGroupWithEnoughData(rewriter);
     checkDataFileGroupWithTooMuchData(rewriter);
+    checkDataFilesWithHighFileScopedDeleteRatio(rewriter);
   }
 
   @Test
@@ -94,6 +95,7 @@ public class TestSparkFileRewriter extends TestBase {
     checkDataFileGroupWithEnoughFiles(rewriter);
     checkDataFileGroupWithEnoughData(rewriter);
     checkDataFileGroupWithTooMuchData(rewriter);
+    checkDataFilesWithHighFileScopedDeleteRatio(rewriter);
   }
 
   private void checkDataFileSizeFiltering(SizeBasedDataRewriter rewriter) {
@@ -196,6 +198,25 @@ public class TestSparkFileRewriter extends TestBase {
     assertThat(group).as("Must rewrite big file").hasSize(1);
   }
 
+  private void checkDataFilesWithHighFileScopedDeleteRatio(SizeBasedDataRewriter rewriter) {
+    FileScanTask tooManyDeletesTask =
+        MockFileScanTask.mockTaskWithFileScopedDeleteRecords(1000L, 100, 1, 30);
+    FileScanTask optimalTask =
+        MockFileScanTask.mockTaskWithFileScopedDeleteRecords(1000L, 100, 1, 29);
+    List<FileScanTask> tasks = ImmutableList.of(tooManyDeletesTask, optimalTask);
+
+    Map<String, String> options =
+        ImmutableMap.of(
+            SizeBasedDataRewriter.MIN_FILE_SIZE_BYTES, "0",
+            SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, "10");
+    rewriter.init(options);
+
+    Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
+    assertThat(groups).as("Must have 1 group").hasSize(1);
+    List<FileScanTask> group = Iterables.getOnlyElement(groups);
+    assertThat(group).as("Must rewrite 1 file").hasSize(1);
+  }
+
   @Test
   public void testInvalidConstructorUsagesSortData() {
     Table table = catalog.createTable(TABLE_IDENT, SCHEMA);
@@ -239,15 +260,15 @@ public class TestSparkFileRewriter extends TestBase {
 
     assertThat(rewriter.validOptions())
         .as("Rewriter must report all supported options")
-        .isEqualTo(
-            ImmutableSet.of(
-                SparkBinPackDataRewriter.TARGET_FILE_SIZE_BYTES,
-                SparkBinPackDataRewriter.MIN_FILE_SIZE_BYTES,
-                SparkBinPackDataRewriter.MAX_FILE_SIZE_BYTES,
-                SparkBinPackDataRewriter.MIN_INPUT_FILES,
-                SparkBinPackDataRewriter.REWRITE_ALL,
-                SparkBinPackDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
-                SparkBinPackDataRewriter.DELETE_FILE_THRESHOLD));
+        .containsExactlyInAnyOrder(
+            SparkBinPackDataRewriter.TARGET_FILE_SIZE_BYTES,
+            SparkBinPackDataRewriter.MIN_FILE_SIZE_BYTES,
+            SparkBinPackDataRewriter.MAX_FILE_SIZE_BYTES,
+            SparkBinPackDataRewriter.MIN_INPUT_FILES,
+            SparkBinPackDataRewriter.REWRITE_ALL,
+            SparkBinPackDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
+            SparkBinPackDataRewriter.DELETE_FILE_THRESHOLD,
+            SparkBinPackDataRewriter.DELETE_RATIO_THRESHOLD);
   }
 
   @Test
@@ -257,17 +278,17 @@ public class TestSparkFileRewriter extends TestBase {
 
     assertThat(rewriter.validOptions())
         .as("Rewriter must report all supported options")
-        .isEqualTo(
-            ImmutableSet.of(
-                SparkSortDataRewriter.SHUFFLE_PARTITIONS_PER_FILE,
-                SparkSortDataRewriter.TARGET_FILE_SIZE_BYTES,
-                SparkSortDataRewriter.MIN_FILE_SIZE_BYTES,
-                SparkSortDataRewriter.MAX_FILE_SIZE_BYTES,
-                SparkSortDataRewriter.MIN_INPUT_FILES,
-                SparkSortDataRewriter.REWRITE_ALL,
-                SparkSortDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
-                SparkSortDataRewriter.DELETE_FILE_THRESHOLD,
-                SparkSortDataRewriter.COMPRESSION_FACTOR));
+        .containsExactlyInAnyOrder(
+            SparkSortDataRewriter.SHUFFLE_PARTITIONS_PER_FILE,
+            SparkSortDataRewriter.TARGET_FILE_SIZE_BYTES,
+            SparkSortDataRewriter.MIN_FILE_SIZE_BYTES,
+            SparkSortDataRewriter.MAX_FILE_SIZE_BYTES,
+            SparkSortDataRewriter.MIN_INPUT_FILES,
+            SparkSortDataRewriter.REWRITE_ALL,
+            SparkSortDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
+            SparkSortDataRewriter.DELETE_FILE_THRESHOLD,
+            SparkSortDataRewriter.DELETE_RATIO_THRESHOLD,
+            SparkSortDataRewriter.COMPRESSION_FACTOR);
   }
 
   @Test
@@ -278,19 +299,19 @@ public class TestSparkFileRewriter extends TestBase {
 
     assertThat(rewriter.validOptions())
         .as("Rewriter must report all supported options")
-        .isEqualTo(
-            ImmutableSet.of(
-                SparkZOrderDataRewriter.SHUFFLE_PARTITIONS_PER_FILE,
-                SparkZOrderDataRewriter.TARGET_FILE_SIZE_BYTES,
-                SparkZOrderDataRewriter.MIN_FILE_SIZE_BYTES,
-                SparkZOrderDataRewriter.MAX_FILE_SIZE_BYTES,
-                SparkZOrderDataRewriter.MIN_INPUT_FILES,
-                SparkZOrderDataRewriter.REWRITE_ALL,
-                SparkZOrderDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
-                SparkZOrderDataRewriter.DELETE_FILE_THRESHOLD,
-                SparkZOrderDataRewriter.COMPRESSION_FACTOR,
-                SparkZOrderDataRewriter.MAX_OUTPUT_SIZE,
-                SparkZOrderDataRewriter.VAR_LENGTH_CONTRIBUTION));
+        .containsExactlyInAnyOrder(
+            SparkZOrderDataRewriter.SHUFFLE_PARTITIONS_PER_FILE,
+            SparkZOrderDataRewriter.TARGET_FILE_SIZE_BYTES,
+            SparkZOrderDataRewriter.MIN_FILE_SIZE_BYTES,
+            SparkZOrderDataRewriter.MAX_FILE_SIZE_BYTES,
+            SparkZOrderDataRewriter.MIN_INPUT_FILES,
+            SparkZOrderDataRewriter.REWRITE_ALL,
+            SparkZOrderDataRewriter.MAX_FILE_GROUP_SIZE_BYTES,
+            SparkZOrderDataRewriter.DELETE_FILE_THRESHOLD,
+            SparkZOrderDataRewriter.DELETE_RATIO_THRESHOLD,
+            SparkZOrderDataRewriter.COMPRESSION_FACTOR,
+            SparkZOrderDataRewriter.MAX_OUTPUT_SIZE,
+            SparkZOrderDataRewriter.VAR_LENGTH_CONTRIBUTION);
   }
 
   @Test
@@ -303,7 +324,21 @@ public class TestSparkFileRewriter extends TestBase {
     Map<String, String> invalidDeleteThresholdOptions =
         ImmutableMap.of(SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, "-1");
     assertThatThrownBy(() -> rewriter.init(invalidDeleteThresholdOptions))
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("'delete-file-threshold' is set to -1 but must be >= 0");
+
+    Map<String, String> negativeDeleteRatioThresholdOptions =
+        ImmutableMap.of(SizeBasedDataRewriter.DELETE_RATIO_THRESHOLD, "-1");
+    assertThatThrownBy(() -> rewriter.init(negativeDeleteRatioThresholdOptions))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("'delete-ratio-threshold' is set to -1.0 but must be > 0");
+
+    Map<String, String> invalidDeleteRatioThresholdOptions =
+        ImmutableMap.of(SizeBasedDataRewriter.DELETE_RATIO_THRESHOLD, "127");
+
+    assertThatThrownBy(() -> rewriter.init(invalidDeleteRatioThresholdOptions))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("'delete-ratio-threshold' is set to 127.0 but must be <= 1");
   }
 
   @Test
@@ -316,12 +351,27 @@ public class TestSparkFileRewriter extends TestBase {
     Map<String, String> invalidDeleteThresholdOptions =
         ImmutableMap.of(SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, "-1");
     assertThatThrownBy(() -> rewriter.init(invalidDeleteThresholdOptions))
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("'delete-file-threshold' is set to -1 but must be >= 0");
 
     Map<String, String> invalidCompressionFactorOptions =
         ImmutableMap.of(SparkShufflingDataRewriter.COMPRESSION_FACTOR, "0");
     assertThatThrownBy(() -> rewriter.init(invalidCompressionFactorOptions))
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("'compression-factor' is set to 0.0 but must be > 0");
+
+    Map<String, String> negativeDeleteRatioThresholdOptions =
+        ImmutableMap.of(SparkShufflingDataRewriter.DELETE_RATIO_THRESHOLD, "-1");
+    assertThatThrownBy(() -> rewriter.init(negativeDeleteRatioThresholdOptions))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("'delete-ratio-threshold' is set to -1.0 but must be > 0");
+
+    Map<String, String> invalidDeleteRatioThresholdOptions =
+        ImmutableMap.of(SparkShufflingDataRewriter.DELETE_RATIO_THRESHOLD, "127");
+
+    assertThatThrownBy(() -> rewriter.init(invalidDeleteRatioThresholdOptions))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("'delete-ratio-threshold' is set to 127.0 but must be <= 1");
   }
 
   @Test
@@ -335,24 +385,41 @@ public class TestSparkFileRewriter extends TestBase {
     Map<String, String> invalidDeleteThresholdOptions =
         ImmutableMap.of(SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, "-1");
     assertThatThrownBy(() -> rewriter.init(invalidDeleteThresholdOptions))
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("'delete-file-threshold' is set to -1 but must be >= 0");
 
     Map<String, String> invalidCompressionFactorOptions =
         ImmutableMap.of(SparkShufflingDataRewriter.COMPRESSION_FACTOR, "0");
     assertThatThrownBy(() -> rewriter.init(invalidCompressionFactorOptions))
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("'compression-factor' is set to 0.0 but must be > 0");
 
     Map<String, String> invalidMaxOutputOptions =
         ImmutableMap.of(SparkZOrderDataRewriter.MAX_OUTPUT_SIZE, "0");
     assertThatThrownBy(() -> rewriter.init(invalidMaxOutputOptions))
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot have the interleaved ZOrder value use less than 1 byte")
         .hasMessageContaining("'max-output-size' was set to 0");
 
     Map<String, String> invalidVarLengthContributionOptions =
         ImmutableMap.of(SparkZOrderDataRewriter.VAR_LENGTH_CONTRIBUTION, "0");
     assertThatThrownBy(() -> rewriter.init(invalidVarLengthContributionOptions))
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot use less than 1 byte for variable length types with ZOrder")
         .hasMessageContaining("'var-length-contribution' was set to 0");
+
+    Map<String, String> negativeDeleteRatioThresholdOptions =
+        ImmutableMap.of(SparkZOrderDataRewriter.DELETE_RATIO_THRESHOLD, "-1");
+    assertThatThrownBy(() -> rewriter.init(negativeDeleteRatioThresholdOptions))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("'delete-ratio-threshold' is set to -1.0 but must be > 0");
+
+    Map<String, String> invalidDeleteRatioThresholdOptions =
+        ImmutableMap.of(SparkZOrderDataRewriter.DELETE_RATIO_THRESHOLD, "127");
+
+    assertThatThrownBy(() -> rewriter.init(invalidDeleteRatioThresholdOptions))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("'delete-ratio-threshold' is set to 127.0 but must be <= 1");
   }
 
   private void validateSizeBasedRewriterOptions(SizeBasedFileRewriter<?, ?> rewriter) {

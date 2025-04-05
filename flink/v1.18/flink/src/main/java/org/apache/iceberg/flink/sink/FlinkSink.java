@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
@@ -65,6 +66,7 @@ import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.sink.shuffle.DataStatisticsOperatorFactory;
 import org.apache.iceberg.flink.sink.shuffle.RangePartitioner;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsOrRecord;
+import org.apache.iceberg.flink.sink.shuffle.StatisticsOrRecordTypeInformation;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsType;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -633,12 +635,14 @@ public class FlinkSink {
           }
 
           LOG.info("Range distribute rows by sort order: {}", sortOrder);
+          StatisticsOrRecordTypeInformation statisticsOrRecordTypeInformation =
+              new StatisticsOrRecordTypeInformation(flinkRowType, iSchema, sortOrder);
           StatisticsType statisticsType = flinkWriteConf.rangeDistributionStatisticsType();
           SingleOutputStreamOperator<StatisticsOrRecord> shuffleStream =
               input
                   .transform(
                       operatorName("range-shuffle"),
-                      TypeInformation.of(StatisticsOrRecord.class),
+                      statisticsOrRecordTypeInformation,
                       new DataStatisticsOperatorFactory(
                           iSchema,
                           sortOrder,
@@ -653,8 +657,17 @@ public class FlinkSink {
 
           return shuffleStream
               .partitionCustom(new RangePartitioner(iSchema, sortOrder), r -> r)
-              .filter(StatisticsOrRecord::hasRecord)
-              .map(StatisticsOrRecord::record);
+              .flatMap(
+                  (FlatMapFunction<StatisticsOrRecord, RowData>)
+                      (statisticsOrRecord, out) -> {
+                        if (statisticsOrRecord.hasRecord()) {
+                          out.collect(statisticsOrRecord.record());
+                        }
+                      })
+              // Set the parallelism same as writerParallelism to
+              // promote operator chaining with the downstream writer operator
+              .setParallelism(writerParallelism)
+              .returns(RowData.class);
 
         default:
           throw new RuntimeException("Unrecognized " + WRITE_DISTRIBUTION_MODE + ": " + writeMode);

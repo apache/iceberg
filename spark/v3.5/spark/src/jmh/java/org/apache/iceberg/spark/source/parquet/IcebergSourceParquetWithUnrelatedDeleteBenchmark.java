@@ -48,7 +48,7 @@ public class IcebergSourceParquetWithUnrelatedDeleteBenchmark extends IcebergSou
       table().refresh();
       for (DataFile file : table().currentSnapshot().addedDataFiles(table().io())) {
         writePosDeletesWithNoise(
-            file.path(),
+            file.location(),
             NUM_ROWS,
             PERCENT_DELETE_ROW,
             (int) (percentUnrelatedDeletes / PERCENT_DELETE_ROW),

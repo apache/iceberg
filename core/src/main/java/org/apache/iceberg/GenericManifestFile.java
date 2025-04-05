@@ -33,6 +33,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class GenericManifestFile extends SupportsIndexProjection
@@ -67,7 +68,13 @@ public class GenericManifestFile extends SupportsIndexProjection
     this.avroSchema = avroSchema;
   }
 
-  GenericManifestFile(InputFile file, int specId) {
+  /** Used by Avro reflection to instantiate this class when reading manifest files. */
+  GenericManifestFile(Types.StructType projectedSchema) {
+    super(ManifestFile.schema().asStruct(), projectedSchema);
+    this.avroSchema = AVRO_SCHEMA;
+  }
+
+  GenericManifestFile(InputFile file, int specId, long snapshotId) {
     super(ManifestFile.schema().columns().size());
     this.avroSchema = AVRO_SCHEMA;
     this.file = file;
@@ -76,7 +83,7 @@ public class GenericManifestFile extends SupportsIndexProjection
     this.specId = specId;
     this.sequenceNumber = 0;
     this.minSequenceNumber = 0;
-    this.snapshotId = null;
+    this.snapshotId = snapshotId;
     this.addedFilesCount = null;
     this.addedRowsCount = null;
     this.existingFilesCount = null;
@@ -167,7 +174,13 @@ public class GenericManifestFile extends SupportsIndexProjection
     super(toCopy);
     this.avroSchema = toCopy.avroSchema;
     this.manifestPath = toCopy.manifestPath;
-    this.length = toCopy.length;
+    try {
+      this.length = toCopy.length();
+    } catch (UnsupportedOperationException e) {
+      // Can be removed when embedded manifests are dropped
+      // DummyFileIO does not support .length()
+      this.length = null;
+    }
     this.specId = toCopy.specId;
     this.content = toCopy.content;
     this.sequenceNumber = toCopy.sequenceNumber;

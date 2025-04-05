@@ -74,12 +74,11 @@ Iceberg also has modules for adding Iceberg support to processing engines:
 * `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg with submodules for each spark versions (use runtime jars for a shaded version)
 * `iceberg-flink` contains classes for integrating with Apache Flink (use iceberg-flink-runtime for a shaded version)
 * `iceberg-mr` contains an InputFormat and other classes for integrating with Apache Hive
-* `iceberg-pig` is an implementation of Pig's LoadFunc API for Iceberg
 
 ---
 **NOTE**
 
-The tests require Docker to execute. On MacOS (with Docker Desktop), you might need to create a symbolic name to the docker socket in order to be detected by the tests:
+The tests require Docker to execute. On macOS (with Docker Desktop), you might need to create a symbolic name to the docker socket in order to be detected by the tests:
 
 ```
 sudo ln -s $HOME/.docker/run/docker.sock /var/run/docker.sock
@@ -98,3 +97,4 @@ This repository contains the Java implementation of Iceberg. Other implementatio
 * **Go**: [iceberg-go](https://github.com/apache/iceberg-go)
 * **PyIceberg** (Python): [iceberg-python](https://github.com/apache/iceberg-python)
 * **Rust**: [iceberg-rust](https://github.com/apache/iceberg-rust)
+* **C++**: [iceberg-cpp](https://github.com/apache/iceberg-cpp)

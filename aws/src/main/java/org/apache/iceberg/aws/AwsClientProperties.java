@@ -20,18 +20,25 @@ package org.apache.iceberg.aws;
 
 import java.io.Serializable;
 import java.util.Map;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.aws.s3.VendedCredentialsProvider;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
+import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SerializableMap;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3CrtAsyncClientBuilder;
 
 public class AwsClientProperties implements Serializable {
   /**
@@ -66,21 +73,42 @@ public class AwsClientProperties implements Serializable {
    */
   public static final String CLIENT_REGION = "client.region";
 
+  /**
+   * When set, the {@link VendedCredentialsProvider} will be used to fetch and refresh vended
+   * credentials from this endpoint.
+   */
+  public static final String REFRESH_CREDENTIALS_ENDPOINT = "client.refresh-credentials-endpoint";
+
+  /** Controls whether vended credentials should be refreshed or not. Defaults to true. */
+  public static final String REFRESH_CREDENTIALS_ENABLED = "client.refresh-credentials-enabled";
+
   private String clientRegion;
   private final String clientCredentialsProvider;
   private final Map<String, String> clientCredentialsProviderProperties;
+  private final String refreshCredentialsEndpoint;
+  private final boolean refreshCredentialsEnabled;
+  private final Map<String, String> allProperties;
 
   public AwsClientProperties() {
     this.clientRegion = null;
     this.clientCredentialsProvider = null;
     this.clientCredentialsProviderProperties = null;
+    this.refreshCredentialsEndpoint = null;
+    this.refreshCredentialsEnabled = true;
+    this.allProperties = null;
   }
 
   public AwsClientProperties(Map<String, String> properties) {
+    this.allProperties = SerializableMap.copyOf(properties);
     this.clientRegion = properties.get(CLIENT_REGION);
     this.clientCredentialsProvider = properties.get(CLIENT_CREDENTIALS_PROVIDER);
     this.clientCredentialsProviderProperties =
         PropertyUtil.propertiesWithPrefix(properties, CLIENT_CREDENTIAL_PROVIDER_PREFIX);
+    this.refreshCredentialsEndpoint =
+        RESTUtil.resolveEndpoint(
+            properties.get(CatalogProperties.URI), properties.get(REFRESH_CREDENTIALS_ENDPOINT));
+    this.refreshCredentialsEnabled =
+        PropertyUtil.propertyAsBoolean(properties, REFRESH_CREDENTIALS_ENABLED, true);
   }
 
   public String clientRegion() {
@@ -107,6 +135,21 @@ public class AwsClientProperties implements Serializable {
   }
 
   /**
+   * Configure an S3 CRT client region.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3AsyncClient.crtBuilder().applyMutation(awsClientProperties::applyClientRegionConfiguration)
+   * </pre>
+   */
+  public <T extends S3CrtAsyncClientBuilder> void applyClientRegionConfiguration(T builder) {
+    if (clientRegion != null) {
+      builder.region(Region.of(clientRegion));
+    }
+  }
+
+  /**
    * Configure the credential provider for AWS clients.
    *
    * <p>Sample usage:
@@ -122,11 +165,27 @@ public class AwsClientProperties implements Serializable {
   }
 
   /**
-   * Returns a credentials provider instance. If params were set, we return a new credentials
-   * instance. If none of the params are set, we try to dynamically load the provided credentials
-   * provider class. Upon loading the class, we try to invoke {@code create(Map<String, String>)}
-   * static method. If that fails, we fall back to {@code create()}. If credential provider class
-   * wasn't set, we fall back to default credentials provider.
+   * Configure the credential provider for S3 CRT clients.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3AsyncClient.crtBuilder().applyMutation(awsClientProperties::applyClientCredentialConfigurations)
+   * </pre>
+   */
+  public <T extends S3CrtAsyncClientBuilder> void applyClientCredentialConfigurations(T builder) {
+    if (!Strings.isNullOrEmpty(this.clientCredentialsProvider)) {
+      builder.credentialsProvider(credentialsProvider(this.clientCredentialsProvider));
+    }
+  }
+
+  /**
+   * Returns a credentials provider instance. If {@link #refreshCredentialsEndpoint} is set, an
+   * instance of {@link VendedCredentialsProvider} is returned. If params were set, we return a new
+   * credentials instance. If none of the params are set, we try to dynamically load the provided
+   * credentials provider class. Upon loading the class, we try to invoke {@code create(Map<String,
+   * String>)} static method. If that fails, we fall back to {@code create()}. If credential
+   * provider class wasn't set, we fall back to default credentials provider.
    *
    * @param accessKeyId the AWS access key ID
    * @param secretAccessKey the AWS secret access key
@@ -136,6 +195,13 @@ public class AwsClientProperties implements Serializable {
   @SuppressWarnings("checkstyle:HiddenField")
   public AwsCredentialsProvider credentialsProvider(
       String accessKeyId, String secretAccessKey, String sessionToken) {
+    if (refreshCredentialsEnabled && !Strings.isNullOrEmpty(refreshCredentialsEndpoint)) {
+      clientCredentialsProviderProperties.putAll(allProperties);
+      clientCredentialsProviderProperties.put(
+          VendedCredentialsProvider.URI, refreshCredentialsEndpoint);
+      return credentialsProvider(VendedCredentialsProvider.class.getName());
+    }
+
     if (!Strings.isNullOrEmpty(accessKeyId) && !Strings.isNullOrEmpty(secretAccessKey)) {
       if (Strings.isNullOrEmpty(sessionToken)) {
         return StaticCredentialsProvider.create(
@@ -152,6 +218,26 @@ public class AwsClientProperties implements Serializable {
 
     // Create a new credential provider for each client
     return DefaultCredentialsProvider.builder().build();
+  }
+
+  /**
+   * Configure <a
+   * href="https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/core/retry/RetryMode.html">RetryMode</a>
+   * to ADAPTIVE_V2 for AWS clients
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *   KmsClient.builder().applyMutation(awsClientProperties::applyRetryConfigurations)
+   * </pre>
+   */
+  public <T extends AwsClientBuilder> void applyRetryConfigurations(T builder) {
+    ClientOverrideConfiguration.Builder configBuilder =
+        null != builder.overrideConfiguration()
+            ? builder.overrideConfiguration().toBuilder()
+            : ClientOverrideConfiguration.builder();
+
+    builder.overrideConfiguration(configBuilder.retryStrategy(RetryMode.ADAPTIVE_V2).build());
   }
 
   private AwsCredentialsProvider credentialsProvider(String credentialsProviderClass) {

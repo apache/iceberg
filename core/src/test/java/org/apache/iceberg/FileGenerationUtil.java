@@ -101,20 +101,55 @@ public class FileGenerationUtil {
         .build();
   }
 
+  public static DeleteFile generateDV(Table table, DataFile dataFile) {
+    PartitionSpec spec = table.specs().get(dataFile.specId());
+    long fileSize = generateFileSize();
+    long cardinality = generateRowCount();
+    long offset = generateContentOffset();
+    long length = generateContentLength();
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofPositionDeletes()
+        .withPath("/path/to/delete-" + UUID.randomUUID() + ".puffin")
+        .withFileSizeInBytes(fileSize)
+        .withPartition(dataFile.partition())
+        .withRecordCount(cardinality)
+        .withReferencedDataFile(dataFile.location())
+        .withContentOffset(offset)
+        .withContentSizeInBytes(length)
+        .build();
+  }
+
   public static DeleteFile generatePositionDeleteFile(Table table, DataFile dataFile) {
-    PartitionSpec spec = table.spec();
+    PartitionSpec spec = table.specs().get(dataFile.specId());
     StructLike partition = dataFile.partition();
     LocationProvider locations = table.locationProvider();
     String path = locations.newDataLocation(spec, partition, generateFileName());
     long fileSize = generateFileSize();
     Metrics metrics = generatePositionDeleteMetrics(dataFile);
-    return FileMetadata.deleteFileBuilder(table.spec())
+    return FileMetadata.deleteFileBuilder(spec)
         .ofPositionDeletes()
         .withPath(path)
         .withPartition(partition)
         .withFileSizeInBytes(fileSize)
         .withFormat(FileFormat.PARQUET)
         .withMetrics(metrics)
+        .build();
+  }
+
+  public static DeleteFile generatePositionDeleteFileWithRef(Table table, DataFile dataFile) {
+    PartitionSpec spec = table.specs().get(dataFile.specId());
+    StructLike partition = dataFile.partition();
+    LocationProvider locations = table.locationProvider();
+    String path = locations.newDataLocation(spec, partition, generateFileName());
+    long fileSize = generateFileSize();
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofPositionDeletes()
+        .withPath(path)
+        .withPartition(partition)
+        .withFileSizeInBytes(fileSize)
+        .withFormat(FileFormat.PARQUET)
+        .withReferencedDataFile(dataFile.location())
+        .withRecordCount(3)
         .build();
   }
 
@@ -178,7 +213,7 @@ public class FileGenerationUtil {
       int fieldId = column.fieldId();
       columnSizes.put(fieldId, generateColumnSize());
       if (fieldId == MetadataColumns.DELETE_FILE_PATH.fieldId()) {
-        ByteBuffer bound = Conversions.toByteBuffer(Types.StringType.get(), dataFile.path());
+        ByteBuffer bound = Conversions.toByteBuffer(Types.StringType.get(), dataFile.location());
         lowerBounds.put(fieldId, bound);
         upperBounds.put(fieldId, bound);
       }
@@ -227,6 +262,14 @@ public class FileGenerationUtil {
 
   private static long generateFileSize() {
     return random().nextInt(50_000);
+  }
+
+  private static long generateContentOffset() {
+    return random().nextInt(1_000_000);
+  }
+
+  private static long generateContentLength() {
+    return random().nextInt(10_000);
   }
 
   private static Pair<ByteBuffer, ByteBuffer> generateBounds(PrimitiveType type, MetricsMode mode) {

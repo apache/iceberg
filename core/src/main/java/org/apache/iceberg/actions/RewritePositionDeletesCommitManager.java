@@ -21,6 +21,7 @@ package org.apache.iceberg.actions;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
@@ -89,7 +90,7 @@ public class RewritePositionDeletesCommitManager {
         fileGroup.addedDeleteFiles() != null, "Cannot abort a fileGroup that was not rewritten");
 
     Iterable<String> filePaths =
-        Iterables.transform(fileGroup.addedDeleteFiles(), f -> f.path().toString());
+        Iterables.transform(fileGroup.addedDeleteFiles(), ContentFile::location);
     CatalogUtil.deleteFiles(table.io(), filePaths, "position delete", true);
   }
 

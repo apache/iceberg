@@ -73,6 +73,12 @@ public interface ScanMetricsResult {
   @Nullable
   CounterResult positionalDeleteFiles();
 
+  @Nullable
+  @Value.Default
+  default CounterResult dvs() {
+    return null;
+  }
+
   static ScanMetricsResult fromScanMetrics(ScanMetrics scanMetrics) {
     Preconditions.checkArgument(null != scanMetrics, "Invalid scan metrics: null");
     return ImmutableScanMetricsResult.builder()
@@ -93,6 +99,7 @@ public interface ScanMetricsResult {
         .indexedDeleteFiles(CounterResult.fromCounter(scanMetrics.indexedDeleteFiles()))
         .equalityDeleteFiles(CounterResult.fromCounter(scanMetrics.equalityDeleteFiles()))
         .positionalDeleteFiles(CounterResult.fromCounter(scanMetrics.positionalDeleteFiles()))
+        .dvs(CounterResult.fromCounter(scanMetrics.dvs()))
         .build();
   }
 }

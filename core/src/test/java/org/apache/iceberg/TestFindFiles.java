@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -34,10 +33,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestFindFiles extends TestBase {
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
 
   @TestTemplate
   public void testBasicBehavior() {
@@ -211,11 +206,10 @@ public class TestFindFiles extends TestBase {
   }
 
   private Set<String> pathSet(DataFile... files) {
-    return Sets.newHashSet(
-        Iterables.transform(Arrays.asList(files), file -> file.path().toString()));
+    return Sets.newHashSet(Iterables.transform(Arrays.asList(files), ContentFile::location));
   }
 
   private Set<String> pathSet(Iterable<DataFile> files) {
-    return Sets.newHashSet(Iterables.transform(files, file -> file.path().toString()));
+    return Sets.newHashSet(Iterables.transform(files, ContentFile::location));
   }
 }

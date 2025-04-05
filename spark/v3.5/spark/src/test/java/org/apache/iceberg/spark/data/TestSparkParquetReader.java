@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.data;
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
@@ -63,35 +64,45 @@ import org.junit.jupiter.api.Test;
 public class TestSparkParquetReader extends AvroDataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
+    writeAndValidate(schema, schema);
+  }
+
+  @Override
+  protected void writeAndValidate(Schema writeSchema, Schema expectedSchema) throws IOException {
     assumeThat(
             TypeUtil.find(
-                schema,
+                writeSchema,
                 type -> type.isMapType() && type.asMapType().keyType() != Types.StringType.get()))
         .as("Parquet Avro cannot write non-string map keys")
         .isNull();
 
-    List<GenericData.Record> expected = RandomData.generateList(schema, 100, 0L);
+    List<GenericData.Record> expected = RandomData.generateList(writeSchema, 100, 0L);
 
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<GenericData.Record> writer =
-        Parquet.write(Files.localOutput(testFile)).schema(schema).named("test").build()) {
+        Parquet.write(Files.localOutput(testFile)).schema(writeSchema).named("test").build()) {
       writer.addAll(expected);
     }
 
     try (CloseableIterable<InternalRow> reader =
         Parquet.read(Files.localInput(testFile))
-            .project(schema)
-            .createReaderFunc(type -> SparkParquetReaders.buildReader(schema, type))
+            .project(expectedSchema)
+            .createReaderFunc(type -> SparkParquetReaders.buildReader(expectedSchema, type))
             .build()) {
       Iterator<InternalRow> rows = reader.iterator();
       for (GenericData.Record record : expected) {
         assertThat(rows).as("Should have expected number of rows").hasNext();
-        assertEqualsUnsafe(schema.asStruct(), record, rows.next());
+        assertEqualsUnsafe(expectedSchema.asStruct(), record, rows.next());
       }
       assertThat(rows).as("Should not have extra rows").isExhausted();
     }
+  }
+
+  @Override
+  protected boolean supportsDefaultValues() {
+    return true;
   }
 
   protected List<InternalRow> rowsFromFile(InputFile inputFile, Schema schema) throws IOException {
@@ -201,5 +212,23 @@ public class TestSparkParquetReader extends AvroDataTest {
 
       return new org.apache.spark.sql.execution.datasources.parquet.ParquetWriteSupport();
     }
+  }
+
+  @Test
+  public void testMissingRequiredWithoutDefault() {
+    Schema writeSchema = new Schema(required(1, "id", Types.LongType.get()));
+
+    Schema expectedSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            Types.NestedField.required("missing_str")
+                .withId(6)
+                .ofType(Types.StringType.get())
+                .withDoc("Missing required field with no default")
+                .build());
+
+    assertThatThrownBy(() -> writeAndValidate(writeSchema, expectedSchema))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing required field: missing_str");
   }
 }

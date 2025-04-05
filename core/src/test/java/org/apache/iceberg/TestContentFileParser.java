@@ -198,6 +198,7 @@ public class TestContentFileParser {
 
   private static Stream<Arguments> provideSpecAndDeleteFile() {
     return Stream.of(
+        Arguments.of(TestBase.SPEC, dv(TestBase.SPEC), dvJson()),
         Arguments.of(
             PartitionSpec.unpartitioned(),
             deleteFileWithRequiredOnly(PartitionSpec.unpartitioned()),
@@ -213,7 +214,61 @@ public class TestContentFileParser {
         Arguments.of(
             TestBase.SPEC,
             deleteFileWithAllOptional(TestBase.SPEC),
-            deleteFileJsonWithAllOptional(TestBase.SPEC)));
+            deleteFileJsonWithAllOptional(TestBase.SPEC)),
+        Arguments.of(
+            TestBase.SPEC, deleteFileWithDataRef(TestBase.SPEC), deleteFileWithDataRefJson()));
+  }
+
+  private static DeleteFile deleteFileWithDataRef(PartitionSpec spec) {
+    PartitionData partitionData = new PartitionData(spec.partitionType());
+    partitionData.set(0, 4);
+    return new GenericDeleteFile(
+        spec.specId(),
+        FileContent.POSITION_DELETES,
+        "/path/to/delete.parquet",
+        FileFormat.PARQUET,
+        partitionData,
+        1234,
+        new Metrics(10L, null, null, null, null),
+        null,
+        null,
+        null,
+        null,
+        "/path/to/data/file.parquet",
+        null,
+        null);
+  }
+
+  private static String deleteFileWithDataRefJson() {
+    return "{\"spec-id\":0,\"content\":\"POSITION_DELETES\",\"file-path\":\"/path/to/delete.parquet\","
+        + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":4},\"file-size-in-bytes\":1234,"
+        + "\"record-count\":10,\"referenced-data-file\":\"/path/to/data/file.parquet\"}";
+  }
+
+  private static DeleteFile dv(PartitionSpec spec) {
+    PartitionData partitionData = new PartitionData(spec.partitionType());
+    partitionData.set(0, 4);
+    return new GenericDeleteFile(
+        spec.specId(),
+        FileContent.POSITION_DELETES,
+        "/path/to/delete.puffin",
+        FileFormat.PUFFIN,
+        partitionData,
+        1234,
+        new Metrics(10L, null, null, null, null),
+        null,
+        null,
+        null,
+        null,
+        "/path/to/data/file.parquet",
+        4L,
+        40L);
+  }
+
+  private static String dvJson() {
+    return "{\"spec-id\":0,\"content\":\"POSITION_DELETES\",\"file-path\":\"/path/to/delete.puffin\","
+        + "\"file-format\":\"PUFFIN\",\"partition\":{\"1000\":4},\"file-size-in-bytes\":1234,\"record-count\":10,"
+        + "\"referenced-data-file\":\"/path/to/data/file.parquet\",\"content-offset\":4,\"content-size-in-bytes\":40}";
   }
 
   private static DeleteFile deleteFileWithRequiredOnly(PartitionSpec spec) {
@@ -231,6 +286,9 @@ public class TestContentFileParser {
         partitionData,
         1234,
         new Metrics(9L, null, null, null, null),
+        null,
+        null,
+        null,
         null,
         null,
         null,
@@ -273,7 +331,10 @@ public class TestContentFileParser {
         new int[] {3},
         1,
         Collections.singletonList(128L),
-        ByteBuffer.wrap(new byte[16]));
+        ByteBuffer.wrap(new byte[16]),
+        null,
+        null,
+        null);
   }
 
   private static String deleteFileJsonWithRequiredOnly(PartitionSpec spec) {
@@ -317,7 +378,7 @@ public class TestContentFileParser {
     assertThat(actual.getClass()).isEqualTo(expected.getClass());
     assertThat(actual.specId()).isEqualTo(expected.specId());
     assertThat(actual.content()).isEqualTo(expected.content());
-    assertThat(actual.path()).isEqualTo(expected.path());
+    assertThat(actual.location()).isEqualTo(expected.location());
     assertThat(actual.format()).isEqualTo(expected.format());
     assertThat(actual.partition())
         .usingComparator(Comparators.forType(spec.partitionType()))

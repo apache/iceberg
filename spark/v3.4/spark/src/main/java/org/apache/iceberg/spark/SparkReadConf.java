@@ -351,4 +351,20 @@ public class SparkReadConf {
         .defaultValue(SparkSQLProperties.EXECUTOR_CACHE_LOCALITY_ENABLED_DEFAULT)
         .parse();
   }
+
+  public boolean reportColumnStats() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.REPORT_COLUMN_STATS)
+        .defaultValue(SparkSQLProperties.REPORT_COLUMN_STATS_DEFAULT)
+        .parse();
+  }
+
+  public ParquetReaderType parquetReaderType() {
+    return confParser
+        .enumConf(ParquetReaderType::fromString)
+        .sessionConf(SparkSQLProperties.PARQUET_READER_TYPE)
+        .defaultValue(SparkSQLProperties.PARQUET_READER_TYPE_DEFAULT)
+        .parse();
+  }
 }

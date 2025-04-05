@@ -52,12 +52,12 @@ import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.RollingDataWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteRequirements;
+import org.apache.iceberg.util.DataFileSet;
 import org.apache.spark.TaskContext;
 import org.apache.spark.TaskContext$;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -135,7 +135,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   @Override
   public Distribution requiredDistribution() {
     Distribution distribution = writeRequirements.distribution();
-    LOG.info("Requesting {} as write distribution for table {}", distribution, table.name());
+    LOG.debug("Requesting {} as write distribution for table {}", distribution, table.name());
     return distribution;
   }
 
@@ -147,14 +147,14 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   @Override
   public SortOrder[] requiredOrdering() {
     SortOrder[] ordering = writeRequirements.ordering();
-    LOG.info("Requesting {} as write ordering for table {}", ordering, table.name());
+    LOG.debug("Requesting {} as write ordering for table {}", ordering, table.name());
     return ordering;
   }
 
   @Override
   public long advisoryPartitionSizeInBytes() {
     long size = writeRequirements.advisoryPartitionSize();
-    LOG.info("Requesting {} bytes advisory partition size for table {}", size, table.name());
+    LOG.debug("Requesting {} bytes advisory partition size for table {}", size, table.name());
     return size;
   }
 
@@ -491,7 +491,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     @Override
     public void commit(WriterCommitMessage[] messages) {
       FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
-      coordinator.stageRewrite(table, fileSetID, ImmutableSet.copyOf(files(messages)));
+      coordinator.stageRewrite(table, fileSetID, DataFileSet.of(files(messages)));
     }
   }
 

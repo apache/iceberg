@@ -53,12 +53,37 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 import org.junit.jupiter.api.Test;
 
 public class TestGenericData extends DataTest {
+  @Override
+  protected boolean supportsVariant() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsTimestampNanos() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsUnknown() {
+    return true;
+  }
+
+  /** Orc writers don't have notion of non-null / required fields. */
+  @Override
+  protected boolean allowsWritingNullValuesForRequiredFields() {
+    return true;
+  }
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomGenericData.generate(schema, 100, 0L);
 
     writeAndValidateRecords(schema, expected);
+  }
+
+  @Override
+  protected void writeAndValidate(Schema schema, List<Record> expectedData) throws IOException {
+    writeAndValidateRecords(schema, expectedData);
   }
 
   @Test

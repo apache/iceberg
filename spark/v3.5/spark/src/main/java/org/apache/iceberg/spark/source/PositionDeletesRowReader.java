@@ -33,6 +33,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -72,15 +73,16 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
     return Stream.of(task.file());
   }
 
+  @SuppressWarnings("resource") // handled by BaseReader
   @Override
   protected CloseableIterator<InternalRow> open(PositionDeletesScanTask task) {
-    String filePath = task.file().path().toString();
+    String filePath = task.file().location();
     LOG.debug("Opening position delete file {}", filePath);
 
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(filePath, task.start(), task.length());
 
-    InputFile inputFile = getInputFile(task.file().path().toString());
+    InputFile inputFile = getInputFile(task.file().location());
     Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with %s", task);
 
     // select out constant fields when pushing down filter to row reader
@@ -89,6 +91,10 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
     Expression residualWithoutConstants =
         ExpressionUtil.extractByIdInclusive(
             task.residual(), expectedSchema(), caseSensitive(), Ints.toArray(nonConstantFieldIds));
+
+    if (ContentFileUtil.isDV(task.file())) {
+      return new DVIterator(inputFile, task.file(), expectedSchema(), idToConstant);
+    }
 
     return newIterable(
             inputFile,

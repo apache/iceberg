@@ -26,7 +26,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +41,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -95,9 +94,6 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
   @Override
   @BeforeEach
   public void setupTable() throws Exception {
-    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue(); // created during table creation
-
     this.metadataDir = new File(tableDir, "metadata");
 
     if (partitioned) {
@@ -148,7 +144,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     List<Record> expectedDeletes =
         ImmutableList.of(
             deleteRecord.copy("id", 1), deleteRecord.copy("id", 3), deleteRecord.copy("id", 5));
-    InputFile inputDeleteFile = table.io().newInputFile(deleteFile.path().toString());
+    InputFile inputDeleteFile = table.io().newInputFile(deleteFile.location());
     List<Record> actualDeletes = readFile(equalityDeleteRowSchema, inputDeleteFile);
     assertThat(actualDeletes).isEqualTo(expectedDeletes);
 
@@ -226,9 +222,9 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     // write a position delete file
     List<PositionDelete<T>> deletes =
         ImmutableList.of(
-            positionDelete(dataFile.path(), 0L, null),
-            positionDelete(dataFile.path(), 2L, null),
-            positionDelete(dataFile.path(), 4L, null));
+            positionDelete(dataFile.location(), 0L, null),
+            positionDelete(dataFile.location(), 2L, null),
+            positionDelete(dataFile.location(), 4L, null));
     Pair<DeleteFile, CharSequenceSet> result =
         writePositionDeletes(writerFactory, deletes, table.spec(), partition);
     DeleteFile deleteFile = result.first();
@@ -253,11 +249,13 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     GenericRecord deleteRecord = GenericRecord.create(DeleteSchemaUtil.pathPosSchema());
     List<Record> expectedDeletes =
         ImmutableList.of(
-            deleteRecord.copy(DELETE_FILE_PATH.name(), dataFile.path(), DELETE_FILE_POS.name(), 0L),
-            deleteRecord.copy(DELETE_FILE_PATH.name(), dataFile.path(), DELETE_FILE_POS.name(), 2L),
             deleteRecord.copy(
-                DELETE_FILE_PATH.name(), dataFile.path(), DELETE_FILE_POS.name(), 4L));
-    InputFile inputDeleteFile = table.io().newInputFile(deleteFile.path().toString());
+                DELETE_FILE_PATH.name(), dataFile.location(), DELETE_FILE_POS.name(), 0L),
+            deleteRecord.copy(
+                DELETE_FILE_PATH.name(), dataFile.location(), DELETE_FILE_POS.name(), 2L),
+            deleteRecord.copy(
+                DELETE_FILE_PATH.name(), dataFile.location(), DELETE_FILE_POS.name(), 4L));
+    InputFile inputDeleteFile = table.io().newInputFile(deleteFile.location());
     List<Record> actualDeletes = readFile(DeleteSchemaUtil.pathPosSchema(), inputDeleteFile);
     assertThat(actualDeletes).isEqualTo(expectedDeletes);
 
@@ -284,7 +282,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
     // write a position delete file and persist the deleted row
     List<PositionDelete<T>> deletes =
-        ImmutableList.of(positionDelete(dataFile.path(), 0, dataRows.get(0)));
+        ImmutableList.of(positionDelete(dataFile.location(), 0, dataRows.get(0)));
     Pair<DeleteFile, CharSequenceSet> result =
         writePositionDeletes(writerFactory, deletes, table.spec(), partition);
     DeleteFile deleteFile = result.first();
@@ -327,13 +325,13 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     Map<String, Object> deleteRecordColumns =
         ImmutableMap.of(
             DELETE_FILE_PATH.name(),
-            dataFile.path(),
+            dataFile.location(),
             DELETE_FILE_POS.name(),
             0L,
             DELETE_FILE_ROW_FIELD_NAME,
             deletedRow.copy("id", 1, "data", "aaa"));
     List<Record> expectedDeletes = ImmutableList.of(deleteRecord.copy(deleteRecordColumns));
-    InputFile inputDeleteFile = table.io().newInputFile(deleteFile.path().toString());
+    InputFile inputDeleteFile = table.io().newInputFile(deleteFile.location());
     List<Record> actualDeletes = readFile(positionDeleteSchema, inputDeleteFile);
     assertThat(actualDeletes).isEqualTo(expectedDeletes);
 
@@ -363,9 +361,9 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
     // write a position delete file referencing both
     List<PositionDelete<T>> deletes =
         ImmutableList.of(
-            positionDelete(dataFile1.path(), 0L, null),
-            positionDelete(dataFile1.path(), 2L, null),
-            positionDelete(dataFile2.path(), 4L, null));
+            positionDelete(dataFile1.location(), 0L, null),
+            positionDelete(dataFile1.location(), 2L, null),
+            positionDelete(dataFile2.location(), 4L, null));
     Pair<DeleteFile, CharSequenceSet> result =
         writePositionDeletes(writerFactory, deletes, table.spec(), partition);
     DeleteFile deleteFile = result.first();
@@ -478,7 +476,10 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
       case AVRO:
         try (CloseableIterable<Record> records =
-            Avro.read(inputFile).project(schema).createReaderFunc(DataReader::create).build()) {
+            Avro.read(inputFile)
+                .project(schema)
+                .createResolvingReader(PlannedDataReader::create)
+                .build()) {
 
           return ImmutableList.copyOf(records);
         }

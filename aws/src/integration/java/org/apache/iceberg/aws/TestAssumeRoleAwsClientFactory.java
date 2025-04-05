@@ -34,6 +34,8 @@ import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
 import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
@@ -47,6 +49,14 @@ import software.amazon.awssdk.services.iam.model.GetRolePolicyRequest;
 import software.amazon.awssdk.services.iam.model.PutRolePolicyRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+@EnabledIfEnvironmentVariables({
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_ACCESS_KEY_ID, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_SECRET_ACCESS_KEY, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_SESSION_TOKEN, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_TEST_ACCOUNT_ID, matches = "\\d{12}"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_REGION, matches = ".*"),
+  @EnabledIfEnvironmentVariable(named = AwsIntegTestUtil.AWS_TEST_BUCKET, matches = ".*")
+})
 public class TestAssumeRoleAwsClientFactory {
 
   private IamClient iam;
@@ -135,7 +145,8 @@ public class TestAssumeRoleAwsClientFactory {
             () ->
                 glueCatalog.createNamespace(
                     Namespace.of("denied_" + UUID.randomUUID().toString().replace("-", ""))))
-        .isInstanceOf(AccessDeniedException.class);
+        .isInstanceOf(AccessDeniedException.class)
+        .hasMessageContaining("not authorized to perform: glue:CreateDatabase");
 
     Namespace namespace = Namespace.of("allowed_" + UUID.randomUUID().toString().replace("-", ""));
     try {
@@ -180,6 +191,7 @@ public class TestAssumeRoleAwsClientFactory {
                     .newInputFile("s3://" + AwsIntegTestUtil.testBucketName() + "/denied/file")
                     .exists())
         .isInstanceOf(S3Exception.class)
+        .hasMessageContaining("Forbidden")
         .asInstanceOf(InstanceOfAssertFactories.type(S3Exception.class))
         .extracting(SdkServiceException::statusCode)
         .isEqualTo(403);

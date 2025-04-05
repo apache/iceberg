@@ -21,10 +21,13 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestPartitionSpecValidation {
   private static final Schema SCHEMA =
@@ -34,7 +37,11 @@ public class TestPartitionSpecValidation {
           NestedField.required(3, "another_ts", Types.TimestampType.withZone()),
           NestedField.required(4, "d", Types.TimestampType.withZone()),
           NestedField.required(5, "another_d", Types.TimestampType.withZone()),
-          NestedField.required(6, "s", Types.StringType.get()));
+          NestedField.required(6, "s", Types.StringType.get()),
+          NestedField.required(7, "v", Types.VariantType.get()),
+          NestedField.required(8, "geom", Types.GeometryType.crs84()),
+          NestedField.required(9, "geog", Types.GeographyType.crs84()),
+          NestedField.optional(10, "u", Types.UnknownType.get()));
 
   @Test
   public void testMultipleTimestampPartitions() {
@@ -311,5 +318,26 @@ public class TestPartitionSpecValidation {
     assertThat(spec.fields().get(1).fieldId()).isEqualTo(1005);
     assertThat(spec.fields().get(2).fieldId()).isEqualTo(1006);
     assertThat(spec.lastAssignedFieldId()).isEqualTo(1006);
+  }
+
+  @ParameterizedTest
+  @MethodSource("unsupportedFieldsProvider")
+  public void testUnsupported(int fieldId, String partitionName, String expectedErrorMessage) {
+    assertThatThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA)
+                    .add(fieldId, 1005, partitionName, Transforms.bucket(5))
+                    .build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(expectedErrorMessage);
+  }
+
+  private static Object[][] unsupportedFieldsProvider() {
+    return new Object[][] {
+      {7, "variant_partition1", "Cannot partition by non-primitive source field: variant"},
+      {8, "geom_partition1", "Invalid source type geometry for transform: bucket[5]"},
+      {9, "geog_partition1", "Invalid source type geography for transform: bucket[5]"},
+      {10, "unknown_partition1", "Invalid source type unknown for transform: bucket[5]"}
+    };
   }
 }

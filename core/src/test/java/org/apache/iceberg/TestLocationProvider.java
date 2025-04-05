@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.io.LocationProvider;
@@ -32,10 +31,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestLocationProvider extends TestBase {
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
 
   // publicly visible for testing to be dynamically loaded
   public static class TwoArgDynamicallyLoadedLocationProvider implements LocationProvider {
@@ -240,7 +235,6 @@ public class TestLocationProvider extends TestBase {
 
     String dataPath = "s3://random/data/location";
     table.updateProperties().set(TableProperties.WRITE_DATA_LOCATION, dataPath).commit();
-
     assertThat(table.locationProvider().newDataLocation("file"))
         .as("write data path should be used when set")
         .contains(dataPath);
@@ -279,12 +273,12 @@ public class TestLocationProvider extends TestBase {
     String fileLocation = table.locationProvider().newDataLocation("test.parquet");
     String relativeLocation = fileLocation.replaceFirst(table.location(), "");
     List<String> parts = Splitter.on("/").splitToList(relativeLocation);
-
-    assertThat(parts).hasSize(4);
+    assertThat(parts).hasSize(7);
     assertThat(parts).first().asString().isEmpty();
     assertThat(parts).element(1).asString().isEqualTo("data");
-    assertThat(parts).element(2).asString().isNotEmpty();
-    assertThat(parts).element(3).asString().isEqualTo("test.parquet");
+    // entropy dirs in the middle
+    assertThat(parts).elements(2, 3, 4, 5).asString().isNotEmpty();
+    assertThat(parts).element(6).asString().isEqualTo("test.parquet");
   }
 
   @TestTemplate
@@ -303,5 +297,36 @@ public class TestLocationProvider extends TestBase {
     String partitionString = parts.get(parts.size() - 2);
 
     assertThat(partitionString).isEqualTo("data%231=val%231");
+  }
+
+  @TestTemplate
+  public void testExcludePartitionInPath() {
+    // Update the table to use a string field for partitioning with special characters in the name
+    table.updateProperties().set(TableProperties.OBJECT_STORE_ENABLED, "true").commit();
+    table
+        .updateProperties()
+        .set(TableProperties.WRITE_OBJECT_STORE_PARTITIONED_PATHS, "false")
+        .commit();
+
+    // Use a partition value that has a special character
+    StructLike partitionData = TestHelpers.CustomRow.of(0, "val");
+    String fileLocation =
+        table.locationProvider().newDataLocation(table.spec(), partitionData, "test.parquet");
+
+    // no partition values included in the path and last part of entropy is seperated with "-"
+    assertThat(fileLocation).endsWith("/data/0110/1010/0011/11101000-test.parquet");
+  }
+
+  @TestTemplate
+  public void testHashInjection() {
+    table.updateProperties().set(TableProperties.OBJECT_STORE_ENABLED, "true").commit();
+    assertThat(table.locationProvider().newDataLocation("a"))
+        .endsWith("/data/0101/0110/1001/10110010/a");
+    assertThat(table.locationProvider().newDataLocation("b"))
+        .endsWith("/data/1110/0111/1110/00000011/b");
+    assertThat(table.locationProvider().newDataLocation("c"))
+        .endsWith("/data/0010/1101/0110/01011111/c");
+    assertThat(table.locationProvider().newDataLocation("d"))
+        .endsWith("/data/1001/0001/0100/01110011/d");
   }
 }

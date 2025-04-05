@@ -25,7 +25,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Evaluator;
@@ -65,16 +64,16 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
           "record_count");
 
   protected enum FileType {
-    DATA_FILES(GenericDataFile.class.getName()),
-    DELETE_FILES(GenericDeleteFile.class.getName());
+    DATA_FILES(GenericDataFile.class),
+    DELETE_FILES(GenericDeleteFile.class);
 
-    private final String fileClass;
+    private final Class<? extends StructLike> fileClass;
 
-    FileType(String fileClass) {
+    FileType(Class<? extends StructLike> fileClass) {
       this.fileClass = fileClass;
     }
 
-    private String fileClass() {
+    private Class<? extends StructLike> fileClass() {
       return fileClass;
     }
   }
@@ -133,12 +132,17 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private static <T extends ContentFile<T>> Map<String, String> readMetadata(InputFile inputFile) {
     Map<String, String> metadata;
     try {
-      try (AvroIterable<ManifestEntry<T>> headerReader =
-          Avro.read(inputFile)
+      try (CloseableIterable<ManifestEntry<T>> headerReader =
+          InternalData.read(FileFormat.AVRO, inputFile)
               .project(ManifestEntry.getSchema(Types.StructType.of()).select("status"))
-              .classLoader(GenericManifestEntry.class.getClassLoader())
               .build()) {
-        metadata = headerReader.getMetadata();
+
+        if (headerReader instanceof AvroIterable) {
+          metadata = ((AvroIterable<ManifestEntry<T>>) headerReader).getMetadata();
+        } else {
+          throw new RuntimeException(
+              "Reader does not support metadata reading: " + headerReader.getClass().getName());
+        }
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e);
@@ -256,27 +260,18 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     fields.addAll(projection.asStruct().fields());
     fields.add(MetadataColumns.ROW_POSITION);
 
-    switch (format) {
-      case AVRO:
-        AvroIterable<ManifestEntry<F>> reader =
-            Avro.read(file)
-                .project(ManifestEntry.wrapFileSchema(Types.StructType.of(fields)))
-                .rename("manifest_entry", GenericManifestEntry.class.getName())
-                .rename("partition", PartitionData.class.getName())
-                .rename("r102", PartitionData.class.getName())
-                .rename("data_file", content.fileClass())
-                .rename("r2", content.fileClass())
-                .classLoader(GenericManifestEntry.class.getClassLoader())
-                .reuseContainers()
-                .build();
+    CloseableIterable<ManifestEntry<F>> reader =
+        InternalData.read(format, file)
+            .project(ManifestEntry.wrapFileSchema(Types.StructType.of(fields)))
+            .setRootType(GenericManifestEntry.class)
+            .setCustomType(ManifestEntry.DATA_FILE_ID, content.fileClass())
+            .setCustomType(DataFile.PARTITION_ID, PartitionData.class)
+            .reuseContainers()
+            .build();
 
-        addCloseable(reader);
+    addCloseable(reader);
 
-        return CloseableIterable.transform(reader, inheritableMetadata::apply);
-
-      default:
-        throw new UnsupportedOperationException("Invalid format for manifest file: " + format);
-    }
+    return CloseableIterable.transform(reader, inheritableMetadata::apply);
   }
 
   CloseableIterable<ManifestEntry<F>> liveEntries() {

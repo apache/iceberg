@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,12 +33,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -45,6 +46,9 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -64,10 +68,8 @@ import org.apache.iceberg.puffin.Puffin;
 import org.apache.iceberg.puffin.PuffinWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.actions.DeleteOrphanFilesSparkAction.StringToFileURI;
@@ -81,9 +83,11 @@ import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
@@ -95,20 +99,25 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
   protected static final PartitionSpec SPEC =
       PartitionSpec.builderFor(SCHEMA).truncate("c2", 2).identity("c3").build();
 
-  @TempDir private java.nio.file.Path temp;
-  private File tableDir = null;
+  @TempDir private File tableDir = null;
   protected String tableLocation = null;
+  protected Map<String, String> properties;
+  @Parameter private int formatVersion;
+
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(2, 3);
+  }
 
   @BeforeEach
   public void setupTableLocation() throws Exception {
-    this.tableDir = temp.resolve("junit").toFile();
     this.tableLocation = tableDir.toURI().toString();
+    properties = ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
   }
 
-  @Test
-  public void testDryRun() throws IOException, InterruptedException {
-    Table table =
-        TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
+  @TestTemplate
+  public void testDryRun() throws IOException {
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
 
     List<ThreeColumnRecord> records =
         Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
@@ -186,9 +195,9 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(actualRecords).isEqualTo(expectedRecords);
   }
 
-  @Test
-  public void testAllValidFilesAreKept() throws IOException, InterruptedException {
-    Table table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
+  @TestTemplate
+  public void testAllValidFilesAreKept() throws IOException {
+    Table table = TABLES.create(SCHEMA, SPEC, properties, tableLocation);
 
     List<ThreeColumnRecord> records1 =
         Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
@@ -248,9 +257,9 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     }
   }
 
-  @Test
-  public void orphanedFileRemovedWithParallelTasks() throws InterruptedException, IOException {
-    Table table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
+  @TestTemplate
+  public void orphanedFileRemovedWithParallelTasks() {
+    Table table = TABLES.create(SCHEMA, SPEC, properties, tableLocation);
 
     List<ThreeColumnRecord> records1 =
         Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
@@ -305,17 +314,17 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     // Verifies that the delete methods ran in the threads created by the provided ExecutorService
     // ThreadFactory
     assertThat(deleteThreads)
-        .isEqualTo(
-            Sets.newHashSet(
-                "remove-orphan-0", "remove-orphan-1", "remove-orphan-2", "remove-orphan-3"));
-
+        .containsExactlyInAnyOrder(
+            "remove-orphan-0", "remove-orphan-1", "remove-orphan-2", "remove-orphan-3");
     assertThat(deletedFiles).hasSize(4);
   }
 
-  @Test
-  public void testWapFilesAreKept() throws InterruptedException {
+  @TestTemplate
+  public void testWapFilesAreKept() {
+    assumeThat(formatVersion).as("currently fails with DVs").isEqualTo(2);
     Map<String, String> props = Maps.newHashMap();
     props.put(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, "true");
+    props.putAll(properties);
     Table table = TABLES.create(SCHEMA, SPEC, props, tableLocation);
 
     List<ThreeColumnRecord> records =
@@ -333,6 +342,8 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
     List<ThreeColumnRecord> actualRecords =
         resultDF.as(Encoders.bean(ThreeColumnRecord.class)).collectAsList();
+
+    // TODO: currently fails because DVs delete stuff from WAP branch
     assertThat(actualRecords)
         .as("Should not return data from the staged snapshot")
         .isEqualTo(records);
@@ -347,11 +358,12 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(result.orphanFileLocations()).as("Should not delete any files").isEmpty();
   }
 
-  @Test
-  public void testMetadataFolderIsIntact() throws InterruptedException {
+  @TestTemplate
+  public void testMetadataFolderIsIntact() {
     // write data directly to the table location
     Map<String, String> props = Maps.newHashMap();
     props.put(TableProperties.WRITE_DATA_LOCATION, tableLocation);
+    props.putAll(properties);
     Table table = TABLES.create(SCHEMA, SPEC, props, tableLocation);
 
     List<ThreeColumnRecord> records =
@@ -377,9 +389,9 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(actualRecords).as("Rows must match").isEqualTo(records);
   }
 
-  @Test
-  public void testOlderThanTimestamp() throws InterruptedException {
-    Table table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
+  @TestTemplate
+  public void testOlderThanTimestamp() {
+    Table table = TABLES.create(SCHEMA, SPEC, properties, tableLocation);
 
     List<ThreeColumnRecord> records =
         Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
@@ -406,11 +418,12 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(result.orphanFileLocations()).as("Should delete only 2 files").hasSize(2);
   }
 
-  @Test
-  public void testRemoveUnreachableMetadataVersionFiles() throws InterruptedException {
+  @TestTemplate
+  public void testRemoveUnreachableMetadataVersionFiles() {
     Map<String, String> props = Maps.newHashMap();
     props.put(TableProperties.WRITE_DATA_LOCATION, tableLocation);
     props.put(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "1");
+    props.putAll(properties);
     Table table = TABLES.create(SCHEMA, SPEC, props, tableLocation);
 
     List<ThreeColumnRecord> records =
@@ -428,10 +441,8 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     DeleteOrphanFiles.Result result =
         actions.deleteOrphanFiles(table).olderThan(System.currentTimeMillis()).execute();
 
-    assertThat(result.orphanFileLocations()).as("Should delete 1 file").hasSize(1);
-    assertThat(StreamSupport.stream(result.orphanFileLocations().spliterator(), false))
-        .as("Should remove v1 file")
-        .anyMatch(file -> file.contains("v1.metadata.json"));
+    assertThat(result.orphanFileLocations())
+        .containsExactly(tableLocation + "metadata/v1.metadata.json");
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
     expectedRecords.addAll(records);
@@ -443,9 +454,9 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(actualRecords).as("Rows must match").isEqualTo(expectedRecords);
   }
 
-  @Test
-  public void testManyTopLevelPartitions() throws InterruptedException {
-    Table table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
+  @TestTemplate
+  public void testManyTopLevelPartitions() {
+    Table table = TABLES.create(SCHEMA, SPEC, properties, tableLocation);
 
     List<ThreeColumnRecord> records = Lists.newArrayList();
     for (int i = 0; i < 100; i++) {
@@ -469,9 +480,9 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(resultDF.count()).as("Rows count must match").isEqualTo(records.size());
   }
 
-  @Test
-  public void testManyLeafPartitions() throws InterruptedException {
-    Table table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
+  @TestTemplate
+  public void testManyLeafPartitions() {
+    Table table = TABLES.create(SCHEMA, SPEC, properties, tableLocation);
 
     List<ThreeColumnRecord> records = Lists.newArrayList();
     for (int i = 0; i < 100; i++) {
@@ -495,15 +506,15 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(resultDF.count()).as("Row count must match").isEqualTo(records.size());
   }
 
-  @Test
-  public void testHiddenPartitionPaths() throws InterruptedException {
+  @TestTemplate
+  public void testHiddenPartitionPaths() {
     Schema schema =
         new Schema(
             optional(1, "c1", Types.IntegerType.get()),
             optional(2, "_c2", Types.StringType.get()),
             optional(3, "c3", Types.StringType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("_c2", 2).identity("c3").build();
-    Table table = TABLES.create(schema, spec, Maps.newHashMap(), tableLocation);
+    Table table = TABLES.create(schema, spec, properties, tableLocation);
 
     StructType structType =
         new StructType()
@@ -528,15 +539,15 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(result.orphanFileLocations()).as("Should delete 2 files").hasSize(2);
   }
 
-  @Test
-  public void testHiddenPartitionPathsWithPartitionEvolution() throws InterruptedException {
+  @TestTemplate
+  public void testHiddenPartitionPathsWithPartitionEvolution() {
     Schema schema =
         new Schema(
             optional(1, "_c1", Types.IntegerType.get()),
             optional(2, "_c2", Types.StringType.get()),
             optional(3, "c3", Types.StringType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("_c2", 2).build();
-    Table table = TABLES.create(schema, spec, Maps.newHashMap(), tableLocation);
+    Table table = TABLES.create(schema, spec, properties, tableLocation);
 
     StructType structType =
         new StructType()
@@ -564,16 +575,15 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(result.orphanFileLocations()).as("Should delete 2 files").hasSize(2);
   }
 
-  @Test
-  public void testHiddenPathsStartingWithPartitionNamesAreIgnored()
-      throws InterruptedException, IOException {
+  @TestTemplate
+  public void testHiddenPathsStartingWithPartitionNamesAreIgnored() throws IOException {
     Schema schema =
         new Schema(
             optional(1, "c1", Types.IntegerType.get()),
             optional(2, "_c2", Types.StringType.get()),
             optional(3, "c3", Types.StringType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("_c2", 2).identity("c3").build();
-    Table table = TABLES.create(schema, spec, Maps.newHashMap(), tableLocation);
+    Table table = TABLES.create(schema, spec, properties, tableLocation);
 
     StructType structType =
         new StructType()
@@ -612,11 +622,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         .collectAsList();
   }
 
-  @Test
-  public void testRemoveOrphanFilesWithRelativeFilePath() throws IOException, InterruptedException {
+  @TestTemplate
+  public void testRemoveOrphanFilesWithRelativeFilePath() throws IOException {
     Table table =
         TABLES.create(
-            SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableDir.getAbsolutePath());
+            SCHEMA, PartitionSpec.unpartitioned(), properties, tableDir.getAbsolutePath());
 
     List<ThreeColumnRecord> records =
         Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
@@ -672,7 +682,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         .isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testRemoveOrphanFilesWithHadoopCatalog() throws InterruptedException {
     HadoopCatalog catalog = new HadoopCatalog(new Configuration(), tableLocation);
     String namespaceName = "testDb";
@@ -707,15 +717,10 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(actualRecords).as("Rows must match").isEqualTo(records);
   }
 
-  @Test
+  @TestTemplate
   public void testHiveCatalogTable() throws IOException {
-    Table table =
-        catalog.createTable(
-            TableIdentifier.of("default", "hivetestorphan"),
-            SCHEMA,
-            SPEC,
-            tableLocation,
-            Maps.newHashMap());
+    TableIdentifier identifier = TableIdentifier.of("default", randomName("hivetestorphan"));
+    Table table = catalog.createTable(identifier, SCHEMA, SPEC, tableLocation, properties);
 
     List<ThreeColumnRecord> records =
         Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
@@ -726,7 +731,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         .write()
         .format("iceberg")
         .mode("append")
-        .save("default.hivetestorphan");
+        .save(identifier.toString());
 
     String location = table.location().replaceFirst("file:", "");
     new File(location + "/data/trashfile").createNewFile();
@@ -736,15 +741,14 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .deleteOrphanFiles(table)
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
-    assertThat(StreamSupport.stream(result.orphanFileLocations().spliterator(), false))
+    assertThat(result.orphanFileLocations())
         .as("trash file should be removed")
-        .anyMatch(file -> file.contains("file:" + location + "/data/trashfile"));
+        .contains("file:" + location + "/data/trashfile");
   }
 
-  @Test
+  @TestTemplate
   public void testGarbageCollectionDisabled() {
-    Table table =
-        TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
 
     List<ThreeColumnRecord> records =
         Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
@@ -761,10 +765,9 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             "Cannot delete orphan files: GC is disabled (deleting files may corrupt other tables)");
   }
 
-  @Test
-  public void testCompareToFileList() throws IOException, InterruptedException {
-    Table table =
-        TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
+  @TestTemplate
+  public void testCompareToFileList() throws IOException {
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
 
     List<ThreeColumnRecord> records =
         Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
@@ -892,14 +895,10 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     return current;
   }
 
-  @Test
+  @TestTemplate
   public void testRemoveOrphanFilesWithStatisticFiles() throws Exception {
-    Table table =
-        TABLES.create(
-            SCHEMA,
-            PartitionSpec.unpartitioned(),
-            ImmutableMap.of(TableProperties.FORMAT_VERSION, "2"),
-            tableLocation);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
 
     List<ThreeColumnRecord> records =
         Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
@@ -938,7 +937,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     }
 
     Transaction transaction = table.newTransaction();
-    transaction.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    transaction.updateStatistics().setStatistics(statisticsFile).commit();
     transaction.commitTransaction();
 
     SparkActions.get()
@@ -961,35 +960,32 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
     Iterable<String> orphanFileLocations = result.orphanFileLocations();
-    assertThat(orphanFileLocations).as("Should be orphan file").hasSize(1);
-    assertThat(Iterables.getOnlyElement(orphanFileLocations))
-        .as("Deleted file")
-        .isEqualTo(statsLocation.toURI().toString());
-    assertThat(statsLocation.exists()).as("stats file should be deleted").isFalse();
+    assertThat(orphanFileLocations).hasSize(1).containsExactly(statsLocation.toURI().toString());
+    assertThat(statsLocation).as("stats file should be deleted").doesNotExist();
   }
 
-  @Test
+  @TestTemplate
   public void testPathsWithExtraSlashes() {
     List<String> validFiles = Lists.newArrayList("file:///dir1/dir2/file1");
     List<String> actualFiles = Lists.newArrayList("file:///dir1/////dir2///file1");
     executeTest(validFiles, actualFiles, Lists.newArrayList());
   }
 
-  @Test
+  @TestTemplate
   public void testPathsWithValidFileHavingNoAuthority() {
     List<String> validFiles = Lists.newArrayList("hdfs:///dir1/dir2/file1");
     List<String> actualFiles = Lists.newArrayList("hdfs://servicename/dir1/dir2/file1");
     executeTest(validFiles, actualFiles, Lists.newArrayList());
   }
 
-  @Test
+  @TestTemplate
   public void testPathsWithActualFileHavingNoAuthority() {
     List<String> validFiles = Lists.newArrayList("hdfs://servicename/dir1/dir2/file1");
     List<String> actualFiles = Lists.newArrayList("hdfs:///dir1/dir2/file1");
     executeTest(validFiles, actualFiles, Lists.newArrayList());
   }
 
-  @Test
+  @TestTemplate
   public void testPathsWithEqualSchemes() {
     List<String> validFiles = Lists.newArrayList("scheme1://bucket1/dir1/dir2/file1");
     List<String> actualFiles = Lists.newArrayList("scheme2://bucket1/dir1/dir2/file1");
@@ -1018,7 +1014,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         DeleteOrphanFiles.PrefixMismatchMode.ERROR);
   }
 
-  @Test
+  @TestTemplate
   public void testPathsWithEqualAuthorities() {
     List<String> validFiles = Lists.newArrayList("hdfs://servicename1/dir1/dir2/file1");
     List<String> actualFiles = Lists.newArrayList("hdfs://servicename2/dir1/dir2/file1");
@@ -1047,7 +1043,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         DeleteOrphanFiles.PrefixMismatchMode.ERROR);
   }
 
-  @Test
+  @TestTemplate
   public void testRemoveOrphanFileActionWithDeleteMode() {
     List<String> validFiles = Lists.newArrayList("hdfs://servicename1/dir1/dir2/file1");
     List<String> actualFiles = Lists.newArrayList("hdfs://servicename2/dir1/dir2/file1");
@@ -1059,6 +1055,10 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         ImmutableMap.of(),
         ImmutableMap.of(),
         DeleteOrphanFiles.PrefixMismatchMode.DELETE);
+  }
+
+  protected String randomName(String prefix) {
+    return prefix + UUID.randomUUID().toString().replace("-", "");
   }
 
   private void executeTest(

@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.DataOperations.OVERWRITE;
 import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
+import static org.apache.iceberg.RowLevelOperationMode.MERGE_ON_READ;
 import static org.apache.iceberg.SnapshotSummary.ADDED_FILES_PROP;
 import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_COUNT_PROP;
 import static org.apache.iceberg.SnapshotSummary.DELETED_FILES_PROP;
@@ -57,6 +58,7 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -130,12 +132,15 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
 
     // set the open file cost large enough to produce a separate scan task per file
     // use range distribution to trigger a shuffle
+    // set partitioned scoped deletes so that 1 delete file is written as part of the output task
     Map<String, String> tableProps =
         ImmutableMap.of(
             SPLIT_OPEN_FILE_COST,
             String.valueOf(Integer.MAX_VALUE),
             UPDATE_DISTRIBUTION_MODE,
-            DistributionMode.RANGE.modeName());
+            DistributionMode.RANGE.modeName(),
+            TableProperties.DELETE_GRANULARITY,
+            DeleteGranularity.PARTITION.toString());
     sql("ALTER TABLE %s SET TBLPROPERTIES (%s)", tableName, tablePropsAsString(tableProps));
 
     createBranchIfNeeded();
@@ -170,6 +175,9 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
       // AQE detects that all shuffle blocks are small and processes them in 1 task
       // otherwise, there would be 200 tasks writing to the table
       validateProperty(snapshot, SnapshotSummary.ADDED_FILES_PROP, "1");
+    } else if (mode(table) == MERGE_ON_READ && formatVersion >= 3) {
+      validateProperty(snapshot, SnapshotSummary.ADDED_DELETE_FILES_PROP, "4");
+      validateProperty(snapshot, SnapshotSummary.ADDED_DVS_PROP, "4");
     } else {
       // MoR UPDATE requests the deleted records to be range distributed by partition and `_file`
       // each task contains only 1 file and therefore writes only 1 shuffle block
@@ -437,7 +445,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
       validateProperty(currentSnapshot, DELETED_FILES_PROP, "3");
       validateProperty(currentSnapshot, ADDED_FILES_PROP, ImmutableSet.of("2", "3"));
     } else {
-      validateMergeOnRead(currentSnapshot, "2", "2", "2");
+      validateMergeOnRead(currentSnapshot, "2", "3", "2");
     }
 
     assertEquals(
@@ -1299,7 +1307,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
 
     // remove the data file from the 'hr' partition to ensure it is not scanned
     DataFile dataFile = Iterables.getOnlyElement(snapshot.addedDataFiles(table.io()));
-    table.io().deleteFile(dataFile.path().toString());
+    table.io().deleteFile(dataFile.location());
 
     // disable dynamic pruning and rely only on static predicate pushdown
     withSQLConf(

@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -351,7 +352,7 @@ public class TestDeleteFiles extends TestBase {
 
   @TestTemplate
   public void testDeleteWithCollision() {
-    Schema schema = new Schema(Types.NestedField.of(0, false, "x", Types.StringType.get()));
+    Schema schema = new Schema(Types.NestedField.required(0, "x", Types.StringType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).identity("x").build();
     Table collisionTable =
         TestTables.create(tableDir, "hashcollision", schema, spec, formatVersion);
@@ -412,7 +413,20 @@ public class TestDeleteFiles extends TestBase {
 
     assertThatThrownBy(
             () -> commit(table, table.newDelete().deleteFile(FILE_B).validateFilesExist(), branch))
-        .isInstanceOf(ValidationException.class);
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Missing required files to delete: /path/to/data-b.parquet");
+
+    assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newDelete()
+                        .deleteFile("/path/to/non-existing.parquet")
+                        .validateFilesExist(),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Missing required files to delete: /path/to/non-existing.parquet");
   }
 
   @TestTemplate
@@ -428,6 +442,31 @@ public class TestDeleteFiles extends TestBase {
     Snapshot delete2 = commit(table, table.newDelete().deleteFile(FILE_B), branch);
     assertThat(delete2.allManifests(FILE_IO)).isEmpty();
     assertThat(delete2.removedDataFiles(FILE_IO)).isEmpty();
+  }
+
+  @Test
+  public void testRequiredFieldsForDV() {
+    FileMetadata.Builder builder =
+        FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
+            .ofPositionDeletes()
+            .withFormat(FileFormat.PUFFIN)
+            .withPath("/path/to/data-d-deletes.puffin")
+            .withFileSizeInBytes(4)
+            .withRecordCount(4);
+
+    assertThatThrownBy(builder::build)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Content offset is required for DV");
+
+    builder.withContentOffset(1);
+    assertThatThrownBy(builder::build)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Content size is required for DV");
+
+    builder.withContentSizeInBytes(10);
+    assertThatThrownBy(builder::build)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Referenced data file is required for DV");
   }
 
   private static ByteBuffer longToBuffer(long value) {

@@ -82,12 +82,15 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String TABLES_SCHEMA_CASE_INSENSITIVE_PROP =
       "iceberg.tables.schema-case-insensitive";
   private static final String CONTROL_TOPIC_PROP = "iceberg.control.topic";
+  private static final String CONTROL_GROUP_ID_PREFIX_PROP = "iceberg.control.group-id-prefix";
   private static final String COMMIT_INTERVAL_MS_PROP = "iceberg.control.commit.interval-ms";
   private static final int COMMIT_INTERVAL_MS_DEFAULT = 300_000;
   private static final String COMMIT_TIMEOUT_MS_PROP = "iceberg.control.commit.timeout-ms";
   private static final int COMMIT_TIMEOUT_MS_DEFAULT = 30_000;
   private static final String COMMIT_THREADS_PROP = "iceberg.control.commit.threads";
   private static final String CONNECT_GROUP_ID_PROP = "iceberg.connect.group-id";
+  private static final String TRANSACTIONAL_PREFIX_PROP =
+      "iceberg.coordinator.transactional.prefix";
   private static final String HADOOP_CONF_DIR_PROP = "iceberg.hadoop-conf-dir";
 
   private static final String NAME_PROP = "name";
@@ -187,6 +190,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         Importance.MEDIUM,
         "Name of the control topic");
     configDef.define(
+        CONTROL_GROUP_ID_PREFIX_PROP,
+        ConfigDef.Type.STRING,
+        DEFAULT_CONTROL_GROUP_PREFIX,
+        Importance.LOW,
+        "Prefix of the control consumer group");
+    configDef.define(
         CONNECT_GROUP_ID_PROP,
         ConfigDef.Type.STRING,
         null,
@@ -210,6 +219,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         Runtime.getRuntime().availableProcessors() * 2,
         Importance.MEDIUM,
         "Coordinator threads to use for table commits, default is (cores * 2)");
+    configDef.define(
+        TRANSACTIONAL_PREFIX_PROP,
+        ConfigDef.Type.STRING,
+        null,
+        Importance.LOW,
+        "Optional prefix of the transactional id for the coordinator");
     configDef.define(
         HADOOP_CONF_DIR_PROP,
         ConfigDef.Type.STRING,
@@ -405,6 +420,10 @@ public class IcebergSinkConfig extends AbstractConfig {
     return getString(CONTROL_TOPIC_PROP);
   }
 
+  public String controlGroupIdPrefix() {
+    return getString(CONTROL_GROUP_ID_PREFIX_PROP);
+  }
+
   public String connectGroupId() {
     String result = getString(CONNECT_GROUP_ID_PROP);
     if (result != null) {
@@ -426,6 +445,15 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public int commitThreads() {
     return getInt(COMMIT_THREADS_PROP);
+  }
+
+  public String transactionalPrefix() {
+    String result = getString(TRANSACTIONAL_PREFIX_PROP);
+    if (result != null) {
+      return result;
+    }
+
+    return "";
   }
 
   public String hadoopConfDir() {
@@ -452,6 +480,12 @@ public class IcebergSinkConfig extends AbstractConfig {
     return jsonConverter;
   }
 
+  @VisibleForTesting
+  static boolean checkClassName(String className) {
+    return (className.matches(".*\\.ConnectDistributed.*")
+        || className.matches(".*\\.ConnectStandalone.*"));
+  }
+
   /**
    * This method attempts to load the Kafka Connect worker properties, which are not exposed to
    * connectors. It does this by parsing the Java command used to launch the worker, extracting the
@@ -468,9 +502,7 @@ public class IcebergSinkConfig extends AbstractConfig {
     String javaCmd = System.getProperty("sun.java.command");
     if (javaCmd != null && !javaCmd.isEmpty()) {
       List<String> args = Splitter.on(' ').splitToList(javaCmd);
-      if (args.size() > 1
-          && (args.get(0).endsWith(".ConnectDistributed")
-              || args.get(0).endsWith(".ConnectStandalone"))) {
+      if (args.size() > 1 && checkClassName(args.get(0))) {
         Properties result = new Properties();
         try (InputStream in = Files.newInputStream(Paths.get(args.get(1)))) {
           result.load(in);

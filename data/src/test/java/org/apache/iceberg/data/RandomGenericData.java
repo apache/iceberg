@@ -19,6 +19,7 @@
 package org.apache.iceberg.data;
 
 import static java.time.temporal.ChronoUnit.MICROS;
+import static java.time.temporal.ChronoUnit.NANOS;
 
 import java.nio.ByteBuffer;
 import java.time.Instant;
@@ -34,6 +35,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
+import org.apache.iceberg.RandomVariants;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -230,6 +232,11 @@ public class RandomGenericData {
     }
 
     @Override
+    public Object variant(Types.VariantType variant) {
+      return RandomVariants.randomVariant(random);
+    }
+
+    @Override
     public Object primitive(Type.PrimitiveType primitive) {
       Object result = randomValue(primitive, random);
       switch (primitive.typeId()) {
@@ -242,11 +249,18 @@ public class RandomGenericData {
         case TIME:
           return LocalTime.ofNanoOfDay((long) result * 1000);
         case TIMESTAMP:
-          Types.TimestampType ts = (Types.TimestampType) primitive;
-          if (ts.shouldAdjustToUTC()) {
+          Types.TimestampType ts6 = (Types.TimestampType) primitive;
+          if (ts6.shouldAdjustToUTC()) {
             return EPOCH.plus((long) result, MICROS);
           } else {
             return EPOCH.plus((long) result, MICROS).toLocalDateTime();
+          }
+        case TIMESTAMP_NANO:
+          Types.TimestampNanoType ts9 = (Types.TimestampNanoType) primitive;
+          if (ts9.shouldAdjustToUTC()) {
+            return EPOCH.plus((long) result, NANOS);
+          } else {
+            return EPOCH.plus((long) result, NANOS).toLocalDateTime();
           }
         default:
           return result;

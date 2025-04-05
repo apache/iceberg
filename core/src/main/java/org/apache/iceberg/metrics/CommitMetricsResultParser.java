@@ -35,7 +35,7 @@ class CommitMetricsResultParser {
     return JsonUtil.generate(gen -> toJson(metrics, gen), pretty);
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  @SuppressWarnings({"checkstyle:CyclomaticComplexity", "MethodLength"})
   static void toJson(CommitMetricsResult metrics, JsonGenerator gen) throws IOException {
     Preconditions.checkArgument(null != metrics, "Invalid commit metrics: null");
 
@@ -81,6 +81,11 @@ class CommitMetricsResultParser {
       CounterResultParser.toJson(metrics.addedPositionalDeleteFiles(), gen);
     }
 
+    if (null != metrics.addedDVs()) {
+      gen.writeFieldName(CommitMetricsResult.ADDED_DVS);
+      CounterResultParser.toJson(metrics.addedDVs(), gen);
+    }
+
     if (null != metrics.removedDeleteFiles()) {
       gen.writeFieldName(CommitMetricsResult.REMOVED_DELETE_FILES);
       CounterResultParser.toJson(metrics.removedDeleteFiles(), gen);
@@ -89,6 +94,11 @@ class CommitMetricsResultParser {
     if (null != metrics.removedPositionalDeleteFiles()) {
       gen.writeFieldName(CommitMetricsResult.REMOVED_POS_DELETE_FILES);
       CounterResultParser.toJson(metrics.removedPositionalDeleteFiles(), gen);
+    }
+
+    if (null != metrics.removedDVs()) {
+      gen.writeFieldName(CommitMetricsResult.REMOVED_DVS);
+      CounterResultParser.toJson(metrics.removedDVs(), gen);
     }
 
     if (null != metrics.removedEqualityDeleteFiles()) {
@@ -161,6 +171,26 @@ class CommitMetricsResultParser {
       CounterResultParser.toJson(metrics.totalEqualityDeletes(), gen);
     }
 
+    if (null != metrics.manifestsCreated()) {
+      gen.writeFieldName(CommitMetricsResult.CREATED_MANIFESTS_COUNT);
+      CounterResultParser.toJson(metrics.manifestsCreated(), gen);
+    }
+
+    if (null != metrics.manifestsReplaced()) {
+      gen.writeFieldName(CommitMetricsResult.REPLACED_MANIFESTS_COUNT);
+      CounterResultParser.toJson(metrics.manifestsReplaced(), gen);
+    }
+
+    if (null != metrics.manifestsKept()) {
+      gen.writeFieldName(CommitMetricsResult.KEPT_MANIFESTS_COUNT);
+      CounterResultParser.toJson(metrics.manifestsKept(), gen);
+    }
+
+    if (null != metrics.manifestEntriesProcessed()) {
+      gen.writeFieldName(CommitMetricsResult.PROCESSED_MANIFEST_ENTRY_COUNT);
+      CounterResultParser.toJson(metrics.manifestEntriesProcessed(), gen);
+    }
+
     gen.writeEndObject();
   }
 
@@ -186,10 +216,12 @@ class CommitMetricsResultParser {
             CounterResultParser.fromJson(CommitMetricsResult.ADDED_EQ_DELETE_FILES, json))
         .addedPositionalDeleteFiles(
             CounterResultParser.fromJson(CommitMetricsResult.ADDED_POS_DELETE_FILES, json))
+        .addedDVs(CounterResultParser.fromJson(CommitMetricsResult.ADDED_DVS, json))
         .removedEqualityDeleteFiles(
             CounterResultParser.fromJson(CommitMetricsResult.REMOVED_EQ_DELETE_FILES, json))
         .removedPositionalDeleteFiles(
             CounterResultParser.fromJson(CommitMetricsResult.REMOVED_POS_DELETE_FILES, json))
+        .removedDVs(CounterResultParser.fromJson(CommitMetricsResult.REMOVED_DVS, json))
         .removedDeleteFiles(
             CounterResultParser.fromJson(CommitMetricsResult.REMOVED_DELETE_FILES, json))
         .totalDeleteFiles(
@@ -215,6 +247,13 @@ class CommitMetricsResultParser {
             CounterResultParser.fromJson(CommitMetricsResult.REMOVED_EQ_DELETES, json))
         .totalEqualityDeletes(
             CounterResultParser.fromJson(CommitMetricsResult.TOTAL_EQ_DELETES, json))
+        .manifestsCreated(
+            CounterResultParser.fromJson(CommitMetricsResult.CREATED_MANIFESTS_COUNT, json))
+        .manifestsReplaced(
+            CounterResultParser.fromJson(CommitMetricsResult.REPLACED_MANIFESTS_COUNT, json))
+        .manifestsKept(CounterResultParser.fromJson(CommitMetricsResult.KEPT_MANIFESTS_COUNT, json))
+        .manifestEntriesProcessed(
+            CounterResultParser.fromJson(CommitMetricsResult.PROCESSED_MANIFEST_ENTRY_COUNT, json))
         .build();
   }
 }

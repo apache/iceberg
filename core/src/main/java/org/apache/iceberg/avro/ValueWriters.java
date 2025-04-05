@@ -32,10 +32,16 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.iceberg.variants.Serialized;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.VariantValue;
 
 public class ValueWriters {
   private ValueWriters() {}
@@ -92,6 +98,10 @@ public class ValueWriters {
     return new GenericFixedWriter(length);
   }
 
+  public static ValueWriter<ByteBuffer> fixedBuffers(int length) {
+    return new FixedByteBufferWriter(length);
+  }
+
   public static ValueWriter<byte[]> bytes() {
     return BytesWriter.INSTANCE;
   }
@@ -102,6 +112,10 @@ public class ValueWriters {
 
   public static ValueWriter<BigDecimal> decimal(int precision, int scale) {
     return new DecimalWriter(precision, scale);
+  }
+
+  public static ValueWriter<Variant> variants() {
+    return VariantWriter.INSTANCE;
   }
 
   public static <T> ValueWriter<T> option(int nullIndex, ValueWriter<T> writer) {
@@ -124,6 +138,10 @@ public class ValueWriters {
 
   public static ValueWriter<IndexedRecord> record(List<ValueWriter<?>> writers) {
     return new RecordWriter(writers);
+  }
+
+  public static ValueWriter<StructLike> struct(List<ValueWriter<?>> writers) {
+    return new StructLikeWriter(writers);
   }
 
   private static class NullWriter implements ValueWriter<Void> {
@@ -327,6 +345,24 @@ public class ValueWriters {
     }
   }
 
+  private static class FixedByteBufferWriter implements ValueWriter<ByteBuffer> {
+    private final int length;
+
+    private FixedByteBufferWriter(int length) {
+      this.length = length;
+    }
+
+    @Override
+    public void write(ByteBuffer bytes, Encoder encoder) throws IOException {
+      Preconditions.checkArgument(
+          bytes.remaining() == length,
+          "Cannot write byte buffer of length %s as fixed[%s]",
+          bytes.remaining(),
+          length);
+      encoder.writeBytes(bytes);
+    }
+  }
+
   private static class DecimalWriter implements ValueWriter<BigDecimal> {
     private final int precision;
     private final int scale;
@@ -343,6 +379,82 @@ public class ValueWriters {
     public void write(BigDecimal decimal, Encoder encoder) throws IOException {
       encoder.writeFixed(
           DecimalUtil.toReusedFixLengthBytes(precision, scale, decimal, bytes.get()));
+    }
+  }
+
+  private abstract static class VariantBinaryWriter<T> implements ValueWriter<T> {
+    private ByteBuffer reusedBuffer = ByteBuffer.allocate(2048).order(ByteOrder.LITTLE_ENDIAN);
+
+    protected abstract int sizeInBytes(T value);
+
+    protected abstract int writeTo(ByteBuffer buffer, int offset, T value);
+
+    @Override
+    public void write(T datum, Encoder encoder) throws IOException {
+      if (datum instanceof Serialized) {
+        encoder.writeBytes(((Serialized) datum).buffer());
+      } else {
+        encoder.writeBytes(serialize(datum));
+      }
+    }
+
+    private void ensureCapacity(int requiredSize) {
+      if (reusedBuffer.capacity() < requiredSize) {
+        int newCapacity = IOUtil.capacityFor(requiredSize);
+        this.reusedBuffer = ByteBuffer.allocate(newCapacity).order(ByteOrder.LITTLE_ENDIAN);
+      } else {
+        reusedBuffer.limit(requiredSize);
+      }
+    }
+
+    private ByteBuffer serialize(T value) {
+      ensureCapacity(sizeInBytes(value));
+      int size = writeTo(reusedBuffer, 0, value);
+      reusedBuffer.position(0);
+      reusedBuffer.limit(size);
+      return reusedBuffer;
+    }
+  }
+
+  private static class VariantMetadataWriter extends VariantBinaryWriter<VariantMetadata> {
+    @Override
+    protected int sizeInBytes(VariantMetadata metadata) {
+      return metadata.sizeInBytes();
+    }
+
+    @Override
+    protected int writeTo(ByteBuffer buffer, int offset, VariantMetadata metadata) {
+      return metadata.writeTo(buffer, offset);
+    }
+  }
+
+  private static class VariantValueWriter extends VariantBinaryWriter<VariantValue> {
+    @Override
+    protected int sizeInBytes(VariantValue value) {
+      return value.sizeInBytes();
+    }
+
+    @Override
+    protected int writeTo(ByteBuffer buffer, int offset, VariantValue value) {
+      return value.writeTo(buffer, offset);
+    }
+  }
+
+  private static class VariantWriter implements ValueWriter<Variant> {
+    private static final VariantWriter INSTANCE = new VariantWriter();
+
+    private final VariantMetadataWriter metadataWriter;
+    private final VariantValueWriter valueWriter;
+
+    private VariantWriter() {
+      this.metadataWriter = new VariantMetadataWriter();
+      this.valueWriter = new VariantValueWriter();
+    }
+
+    @Override
+    public void write(Variant variant, Encoder encoder) throws IOException {
+      metadataWriter.write(variant.metadata(), encoder);
+      valueWriter.write(variant.value(), encoder);
     }
   }
 
@@ -482,6 +594,17 @@ public class ValueWriters {
     @Override
     protected Object get(IndexedRecord struct, int pos) {
       return struct.get(pos);
+    }
+  }
+
+  private static class StructLikeWriter extends StructWriter<StructLike> {
+    private StructLikeWriter(List<ValueWriter<?>> writers) {
+      super(writers);
+    }
+
+    @Override
+    protected Object get(StructLike struct, int pos) {
+      return struct.get(pos, Object.class);
     }
   }
 }

@@ -24,15 +24,16 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
@@ -40,10 +41,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestTransaction extends TestBase {
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
 
   @TestTemplate
   public void testEmptyTransaction() {
@@ -702,16 +699,155 @@ public class TestTransaction extends TestBase {
 
     Set<String> paths =
         Sets.newHashSet(
-            Iterables.transform(
-                table.newScan().planFiles(), task -> task.file().path().toString()));
+            Iterables.transform(table.newScan().planFiles(), task -> task.file().location()));
     Set<String> expectedPaths =
-        Sets.newHashSet(
-            FILE_A.path().toString(),
-            FILE_B.path().toString(),
-            FILE_C.path().toString(),
-            FILE_D.path().toString());
+        Sets.newHashSet(FILE_A.location(), FILE_B.location(), FILE_C.location(), FILE_D.location());
 
     assertThat(paths).isEqualTo(expectedPaths);
     assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(2);
+  }
+
+  @TestTemplate
+  public void testCommitProperties() {
+    table
+        .updateProperties()
+        .set(TableProperties.COMMIT_MAX_RETRY_WAIT_MS, "foo")
+        .set(TableProperties.COMMIT_NUM_RETRIES, "bar")
+        .set(TableProperties.COMMIT_TOTAL_RETRY_TIME_MS, Integer.toString(60 * 60 * 1000))
+        .commit();
+    table.updateProperties().remove(TableProperties.COMMIT_MAX_RETRY_WAIT_MS).commit();
+    table.updateProperties().remove(TableProperties.COMMIT_NUM_RETRIES).commit();
+
+    assertThat(table.properties())
+        .doesNotContainKey(TableProperties.COMMIT_NUM_RETRIES)
+        .doesNotContainKey(TableProperties.COMMIT_MAX_RETRY_WAIT_MS)
+        .containsEntry(
+            TableProperties.COMMIT_TOTAL_RETRY_TIME_MS, Integer.toString(60 * 60 * 1000));
+  }
+
+  @TestTemplate
+  public void testRowDeltaWithConcurrentManifestRewrite() throws IOException {
+    assumeThat(formatVersion).isEqualTo(2);
+    String branch = "main";
+    RowDelta rowDelta = table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES);
+    Snapshot first = commit(table, rowDelta, branch);
+
+    Snapshot secondRowDelta =
+        commit(table, table.newRowDelta().addRows(FILE_B).addDeletes(FILE_B_DELETES), branch);
+    List<ManifestFile> secondRowDeltaDeleteManifests = secondRowDelta.deleteManifests(table.io());
+    assertThat(secondRowDeltaDeleteManifests).hasSize(2);
+
+    // Read the manifest entries before the manifest rewrite is committed so that referenced
+    // manifests are populated
+    List<ManifestEntry<DeleteFile>> readEntries = Lists.newArrayList();
+    for (ManifestFile manifest : secondRowDeltaDeleteManifests) {
+      try (ManifestReader<DeleteFile> deleteManifestReader =
+          ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
+        deleteManifestReader.entries().forEach(readEntries::add);
+      }
+    }
+
+    Transaction transaction = table.newTransaction();
+    RowDelta removeDeletes =
+        transaction
+            .newRowDelta()
+            .removeDeletes(readEntries.get(0).file())
+            .removeDeletes(readEntries.get(1).file())
+            .validateFromSnapshot(secondRowDelta.snapshotId());
+    removeDeletes.commit();
+
+    // cause the row delta transaction commit to fail and retry
+    RewriteManifests rewriteManifests =
+        table
+            .rewriteManifests()
+            .addManifest(
+                writeManifest(
+                    "new_delete_manifest.avro",
+                    // Specify data sequence number so that the delete files don't get aged out
+                    // first
+                    manifestEntry(
+                        ManifestEntry.Status.EXISTING, first.snapshotId(), 3L, 0L, FILE_A_DELETES),
+                    manifestEntry(
+                        ManifestEntry.Status.EXISTING,
+                        secondRowDelta.snapshotId(),
+                        3L,
+                        0L,
+                        FILE_B_DELETES)))
+            .deleteManifest(secondRowDeltaDeleteManifests.get(0))
+            .deleteManifest(secondRowDeltaDeleteManifests.get(1));
+    commit(table, rewriteManifests, branch);
+
+    transaction.commitTransaction();
+    Snapshot removedDeletes = table.currentSnapshot();
+    List<ManifestFile> deleteManifests = removedDeletes.deleteManifests(table.io());
+    validateDeleteManifest(
+        deleteManifests.get(0),
+        dataSeqs(3L, 3L),
+        fileSeqs(0L, 0L),
+        ids(removedDeletes.snapshotId(), removedDeletes.snapshotId()),
+        files(FILE_A_DELETES, FILE_B_DELETES),
+        statuses(Status.DELETED, Status.DELETED));
+  }
+
+  @TestTemplate
+  public void testOverwriteWithConcurrentManifestRewrite() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    String branch = "main";
+    OverwriteFiles overwrite = table.newOverwrite().addFile(FILE_A).addFile(FILE_A2);
+    Snapshot first = commit(table, overwrite, branch);
+
+    overwrite = table.newOverwrite().addFile(FILE_B);
+    Snapshot second = commit(table, overwrite, branch);
+    List<ManifestFile> secondOverwriteManifests = second.dataManifests(table.io());
+    assertThat(secondOverwriteManifests).hasSize(2);
+
+    // Read the manifest entries before the manifest rewrite is committed so that referenced
+    // manifests are populated
+    List<ManifestEntry<DataFile>> entries = Lists.newArrayList();
+    for (ManifestFile manifest : secondOverwriteManifests) {
+      try (ManifestReader<DataFile> manifestReader =
+          ManifestFiles.read(manifest, table.io(), table.specs())) {
+        manifestReader.entries().forEach(entries::add);
+      }
+    }
+
+    ManifestEntry<DataFile> removedDataFileEntry =
+        entries.stream()
+            .filter(entry -> entry.file().location().equals(FILE_A2.location()))
+            .collect(Collectors.toList())
+            .get(0);
+
+    Transaction overwriteTransaction = table.newTransaction();
+    OverwriteFiles overwriteFiles =
+        overwriteTransaction
+            .newOverwrite()
+            .deleteFile(removedDataFileEntry.file())
+            .validateFromSnapshot(second.snapshotId());
+    overwriteFiles.commit();
+
+    // cause the overwrite transaction commit to fail and retry
+    RewriteManifests rewriteManifests =
+        table
+            .rewriteManifests()
+            .addManifest(
+                writeManifest(
+                    "new_manifest.avro",
+                    manifestEntry(Status.EXISTING, first.snapshotId(), FILE_A),
+                    manifestEntry(Status.EXISTING, first.snapshotId(), FILE_A2),
+                    manifestEntry(Status.EXISTING, second.snapshotId(), FILE_B)))
+            .deleteManifest(secondOverwriteManifests.get(0))
+            .deleteManifest(secondOverwriteManifests.get(1));
+    commit(table, rewriteManifests, branch);
+
+    overwriteTransaction.commitTransaction();
+    Snapshot latestOverwrite = table.currentSnapshot();
+    List<ManifestFile> manifests = latestOverwrite.dataManifests(table.io());
+    validateManifest(
+        manifests.get(0),
+        dataSeqs(0L, 0L, 0L),
+        fileSeqs(0L, 0L, 0L),
+        ids(first.snapshotId(), latestOverwrite.snapshotId(), second.snapshotId()),
+        files(FILE_A, FILE_A2, FILE_B),
+        statuses(Status.EXISTING, Status.DELETED, Status.EXISTING));
   }
 }

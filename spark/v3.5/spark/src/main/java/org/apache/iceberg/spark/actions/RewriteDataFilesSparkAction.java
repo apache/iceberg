@@ -40,6 +40,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.FileRewriter;
 import org.apache.iceberg.actions.ImmutableRewriteDataFiles;
+import org.apache.iceberg.actions.ImmutableRewriteDataFiles.Result.Builder;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
@@ -53,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
@@ -60,6 +62,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.StructLikeMap;
@@ -83,7 +86,8 @@ public class RewriteDataFilesSparkAction
           TARGET_FILE_SIZE_BYTES,
           USE_STARTING_SEQUENCE_NUMBER,
           REWRITE_JOB_ORDER,
-          OUTPUT_SPEC_ID);
+          OUTPUT_SPEC_ID,
+          REMOVE_DANGLING_DELETES);
 
   private static final RewriteDataFilesSparkAction.Result EMPTY_RESULT =
       ImmutableRewriteDataFiles.Result.builder().rewriteResults(ImmutableList.of()).build();
@@ -95,14 +99,17 @@ public class RewriteDataFilesSparkAction
   private int maxCommits;
   private int maxFailedCommits;
   private boolean partialProgressEnabled;
+  private boolean removeDanglingDeletes;
   private boolean useStartingSequenceNumber;
   private RewriteJobOrder rewriteJobOrder;
   private FileRewriter<FileScanTask, DataFile> rewriter = null;
+  private boolean caseSensitive;
 
   RewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark.cloneSession());
     // Disable Adaptive Query Execution as this may change the output partitioning of our write
     spark().conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
+    this.caseSensitive = SparkUtil.caseSensitive(spark);
     this.table = table;
   }
 
@@ -175,11 +182,18 @@ public class RewriteDataFilesSparkAction
 
     Stream<RewriteFileGroup> groupStream = toGroupStream(ctx, fileGroupsByPartition);
 
-    if (partialProgressEnabled) {
-      return doExecuteWithPartialProgress(ctx, groupStream, commitManager(startingSnapshotId));
-    } else {
-      return doExecute(ctx, groupStream, commitManager(startingSnapshotId));
+    Builder resultBuilder =
+        partialProgressEnabled
+            ? doExecuteWithPartialProgress(ctx, groupStream, commitManager(startingSnapshotId))
+            : doExecute(ctx, groupStream, commitManager(startingSnapshotId));
+
+    if (removeDanglingDeletes) {
+      RemoveDanglingDeletesSparkAction action =
+          new RemoveDanglingDeletesSparkAction(spark(), table);
+      int removedCount = Iterables.size(action.execute().removedDeleteFiles());
+      resultBuilder.removedDeleteFilesCount(removedCount);
     }
+    return resultBuilder.build();
   }
 
   StructLikeMap<List<List<FileScanTask>>> planFileGroups(long startingSnapshotId) {
@@ -187,6 +201,7 @@ public class RewriteDataFilesSparkAction
         table
             .newScan()
             .useSnapshot(startingSnapshotId)
+            .caseSensitive(caseSensitive)
             .filter(filter)
             .ignoreResiduals()
             .planFiles();
@@ -264,7 +279,7 @@ public class RewriteDataFilesSparkAction
         table, startingSnapshotId, useStartingSequenceNumber, commitSummary());
   }
 
-  private Result doExecute(
+  private Builder doExecute(
       RewriteExecutionContext ctx,
       Stream<RewriteFileGroup> groupStream,
       RewriteDataFilesCommitManager commitManager) {
@@ -326,10 +341,10 @@ public class RewriteDataFilesSparkAction
 
     List<FileGroupRewriteResult> rewriteResults =
         rewrittenGroups.stream().map(RewriteFileGroup::asResult).collect(Collectors.toList());
-    return ImmutableRewriteDataFiles.Result.builder().rewriteResults(rewriteResults).build();
+    return ImmutableRewriteDataFiles.Result.builder().rewriteResults(rewriteResults);
   }
 
-  private Result doExecuteWithPartialProgress(
+  private Builder doExecuteWithPartialProgress(
       RewriteExecutionContext ctx,
       Stream<RewriteFileGroup> groupStream,
       RewriteDataFilesCommitManager commitManager) {
@@ -362,7 +377,8 @@ public class RewriteDataFilesSparkAction
     // stop commit service
     commitService.close();
 
-    int failedCommits = maxCommits - commitService.succeededCommits();
+    int totalCommits = Math.min(ctx.totalGroupCount(), maxCommits);
+    int failedCommits = totalCommits - commitService.succeededCommits();
     if (failedCommits > 0 && failedCommits <= maxFailedCommits) {
       LOG.warn(
           "{} is true but {} rewrite commits failed. Check the logs to determine why the individual "
@@ -386,8 +402,7 @@ public class RewriteDataFilesSparkAction
 
     return ImmutableRewriteDataFiles.Result.builder()
         .rewriteResults(toRewriteResults(commitService.results()))
-        .rewriteFailures(rewriteFailures)
-        .build();
+        .rewriteFailures(rewriteFailures);
   }
 
   Stream<RewriteFileGroup> toGroupStream(
@@ -455,6 +470,10 @@ public class RewriteDataFilesSparkAction
     useStartingSequenceNumber =
         PropertyUtil.propertyAsBoolean(
             options(), USE_STARTING_SEQUENCE_NUMBER, USE_STARTING_SEQUENCE_NUMBER_DEFAULT);
+
+    removeDanglingDeletes =
+        PropertyUtil.propertyAsBoolean(
+            options(), REMOVE_DANGLING_DELETES, REMOVE_DANGLING_DELETES_DEFAULT);
 
     rewriteJobOrder =
         RewriteJobOrder.fromName(

@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -46,6 +47,7 @@ import org.apache.iceberg.Parameter;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.RewriteDataFilesActionResult;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -77,6 +79,9 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
   @Parameter(index = 2)
   private FileFormat format;
 
+  @Parameter(index = 3)
+  private int formatVersion;
+
   private Table icebergTableUnPartitioned;
   private Table icebergTablePartitioned;
   private Table icebergTableWithPk;
@@ -87,15 +92,17 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
     return super.getTableEnv();
   }
 
-  @Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}")
+  @Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}, formatVersion={3}")
   public static List<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     for (FileFormat format :
         new FileFormat[] {FileFormat.AVRO, FileFormat.ORC, FileFormat.PARQUET}) {
       for (Object[] catalogParams : CatalogTestBase.parameters()) {
-        String catalogName = (String) catalogParams[0];
-        Namespace baseNamespace = (Namespace) catalogParams[1];
-        parameters.add(new Object[] {catalogName, baseNamespace, format});
+        for (int version : Arrays.asList(2, 3)) {
+          String catalogName = (String) catalogParams[0];
+          Namespace baseNamespace = (Namespace) catalogParams[1];
+          parameters.add(new Object[] {catalogName, baseNamespace, format, version});
+        }
       }
     }
     return parameters;
@@ -111,21 +118,21 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
     sql(
-        "CREATE TABLE %s (id int, data varchar) with ('write.format.default'='%s')",
-        TABLE_NAME_UNPARTITIONED, format.name());
+        "CREATE TABLE %s (id int, data varchar) with ('write.format.default'='%s', '%s'='%s')",
+        TABLE_NAME_UNPARTITIONED, format.name(), TableProperties.FORMAT_VERSION, formatVersion);
     icebergTableUnPartitioned =
         validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME_UNPARTITIONED));
 
     sql(
         "CREATE TABLE %s (id int, data varchar,spec varchar) "
-            + " PARTITIONED BY (data,spec) with ('write.format.default'='%s')",
-        TABLE_NAME_PARTITIONED, format.name());
+            + " PARTITIONED BY (data,spec) with ('write.format.default'='%s', '%s'='%s')",
+        TABLE_NAME_PARTITIONED, format.name(), TableProperties.FORMAT_VERSION, formatVersion);
     icebergTablePartitioned =
         validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME_PARTITIONED));
 
     sql(
-        "CREATE TABLE %s (id int, data varchar, PRIMARY KEY(`id`) NOT ENFORCED) with ('write.format.default'='%s', 'format-version'='2')",
-        TABLE_NAME_WITH_PK, format.name());
+        "CREATE TABLE %s (id int, data varchar, PRIMARY KEY(`id`) NOT ENFORCED) with ('write.format.default'='%s', '%s'='%s')",
+        TABLE_NAME_WITH_PK, format.name(), TableProperties.FORMAT_VERSION, formatVersion);
     icebergTableWithPk =
         validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME_WITH_PK));
   }
@@ -383,7 +390,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
     assertThat(dataFilesRewrote).hasSize(2);
     // the biggest file do not be rewrote
     List rewroteDataFileNames =
-        dataFilesRewrote.stream().map(ContentFile::path).collect(Collectors.toList());
+        dataFilesRewrote.stream().map(ContentFile::location).collect(Collectors.toList());
     assertThat(rewroteDataFileNames).contains(file.getAbsolutePath());
 
     // Assert the table records as expected.
@@ -434,7 +441,8 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
                     .useStartingSequenceNumber(false)
                     .execute(),
             "Rewrite using new sequence number should fail")
-        .isInstanceOf(ValidationException.class);
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot commit, found new delete for replaced data file");
 
     // Rewrite using the starting sequence number should succeed
     RewriteDataFilesActionResult result =

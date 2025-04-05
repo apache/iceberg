@@ -40,7 +40,7 @@ import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -137,7 +137,7 @@ public class TestGenericSortedPosDeleteWriter extends TestBase {
         new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, null, 100);
     try (SortedPosDeleteWriter<Record> closeableWriter = writer) {
       for (int index = rowSet.size() - 1; index >= 0; index -= 2) {
-        closeableWriter.delete(dataFile.path(), index);
+        closeableWriter.delete(dataFile.location(), index);
       }
     }
 
@@ -150,10 +150,10 @@ public class TestGenericSortedPosDeleteWriter extends TestBase {
     Record record = GenericRecord.create(pathPosSchema);
     List<Record> expectedDeletes =
         Lists.newArrayList(
-            record.copy("file_path", dataFile.path(), "pos", 0L),
-            record.copy("file_path", dataFile.path(), "pos", 2L),
-            record.copy("file_path", dataFile.path(), "pos", 4L));
-    assertThat(readRecordsAsList(pathPosSchema, deleteFile.path())).isEqualTo(expectedDeletes);
+            record.copy("file_path", dataFile.location(), "pos", 0L),
+            record.copy("file_path", dataFile.location(), "pos", 2L),
+            record.copy("file_path", dataFile.location(), "pos", 4L));
+    assertThat(readRecordsAsList(pathPosSchema, deleteFile.location())).isEqualTo(expectedDeletes);
 
     table
         .newRowDelta()
@@ -168,6 +168,7 @@ public class TestGenericSortedPosDeleteWriter extends TestBase {
   }
 
   @TestTemplate
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   public void testSortedPosDeleteWithSchemaAndNullRow() throws IOException {
     List<Record> rowSet =
         Lists.newArrayList(createRow(0, "aaa"), createRow(1, "bbb"), createRow(2, "ccc"));
@@ -181,7 +182,7 @@ public class TestGenericSortedPosDeleteWriter extends TestBase {
     assertThatThrownBy(
             () ->
                 new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, null, 1)
-                    .delete(dataFile.path(), 0L))
+                    .delete(dataFile.location(), 0L))
         .isInstanceOf(Exception.class);
   }
 
@@ -204,7 +205,7 @@ public class TestGenericSortedPosDeleteWriter extends TestBase {
     try (SortedPosDeleteWriter<Record> closeableWriter = writer) {
       for (int index = rowSet.size() - 1; index >= 0; index -= 2) {
         closeableWriter.delete(
-            dataFile.path(), index, rowSet.get(index)); // Write deletes with row.
+            dataFile.location(), index, rowSet.get(index)); // Write deletes with row.
       }
     }
 
@@ -217,10 +218,10 @@ public class TestGenericSortedPosDeleteWriter extends TestBase {
     Record record = GenericRecord.create(pathPosSchema);
     List<Record> expectedDeletes =
         Lists.newArrayList(
-            record.copy("file_path", dataFile.path(), "pos", 0L, "row", createRow(0, "aaa")),
-            record.copy("file_path", dataFile.path(), "pos", 2L, "row", createRow(2, "ccc")),
-            record.copy("file_path", dataFile.path(), "pos", 4L, "row", createRow(4, "eee")));
-    assertThat(readRecordsAsList(pathPosSchema, deleteFile.path())).isEqualTo(expectedDeletes);
+            record.copy("file_path", dataFile.location(), "pos", 0L, "row", createRow(0, "aaa")),
+            record.copy("file_path", dataFile.location(), "pos", 2L, "row", createRow(2, "ccc")),
+            record.copy("file_path", dataFile.location(), "pos", 4L, "row", createRow(4, "eee")));
+    assertThat(readRecordsAsList(pathPosSchema, deleteFile.location())).isEqualTo(expectedDeletes);
 
     table
         .newRowDelta()
@@ -267,7 +268,7 @@ public class TestGenericSortedPosDeleteWriter extends TestBase {
     try (SortedPosDeleteWriter<Record> closeableWriter = writer) {
       for (int pos = 0; pos < 100; pos++) {
         for (int fileIndex = 4; fileIndex >= 0; fileIndex--) {
-          closeableWriter.delete(dataFiles.get(fileIndex).path(), pos);
+          closeableWriter.delete(dataFiles.get(fileIndex).location(), pos);
         }
       }
     }
@@ -282,12 +283,13 @@ public class TestGenericSortedPosDeleteWriter extends TestBase {
       for (int dataFileIndex = 0; dataFileIndex < 5; dataFileIndex++) {
         DataFile dataFile = dataFiles.get(dataFileIndex);
         for (long pos = deleteFileIndex * 10; pos < deleteFileIndex * 10 + 10; pos++) {
-          expectedDeletes.add(record.copy("file_path", dataFile.path(), "pos", pos));
+          expectedDeletes.add(record.copy("file_path", dataFile.location(), "pos", pos));
         }
       }
 
       DeleteFile deleteFile = deleteFiles.get(deleteFileIndex);
-      assertThat(readRecordsAsList(pathPosSchema, deleteFile.path())).isEqualTo(expectedDeletes);
+      assertThat(readRecordsAsList(pathPosSchema, deleteFile.location()))
+          .isEqualTo(expectedDeletes);
     }
 
     rowDelta = table.newRowDelta();
@@ -313,7 +315,10 @@ public class TestGenericSortedPosDeleteWriter extends TestBase {
 
       case AVRO:
         iterable =
-            Avro.read(inputFile).project(schema).createReaderFunc(DataReader::create).build();
+            Avro.read(inputFile)
+                .project(schema)
+                .createResolvingReader(PlannedDataReader::create)
+                .build();
         break;
 
       case ORC:

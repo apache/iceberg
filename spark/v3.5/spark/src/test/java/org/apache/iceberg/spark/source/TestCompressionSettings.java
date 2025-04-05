@@ -35,7 +35,6 @@ import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.spark.SparkSQLProperties.COMPRESSION_CODEC;
 import static org.apache.iceberg.spark.SparkSQLProperties.COMPRESSION_LEVEL;
 import static org.apache.iceberg.spark.SparkSQLProperties.COMPRESSION_STRATEGY;
-import static org.apache.parquet.format.converter.ParquetMetadataConverter.NO_FILTER;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
@@ -72,12 +71,14 @@ import org.apache.orc.OrcFile;
 import org.apache.orc.Reader;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
+import org.apache.parquet.hadoop.util.HadoopInputFile;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -146,6 +147,13 @@ public class TestCompressionSettings extends CatalogTestBase {
     TestCompressionSettings.spark = SparkSession.builder().master("local[2]").getOrCreate();
   }
 
+  @BeforeEach
+  public void resetSpecificConfigurations() {
+    spark.conf().unset(COMPRESSION_CODEC);
+    spark.conf().unset(COMPRESSION_LEVEL);
+    spark.conf().unset(COMPRESSION_STRATEGY);
+  }
+
   @AfterEach
   public void afterEach() {
     spark.sql(String.format("DROP TABLE IF EXISTS %s", TABLE_NAME));
@@ -191,6 +199,8 @@ public class TestCompressionSettings extends CatalogTestBase {
       spark.conf().set(entry.getKey(), entry.getValue());
     }
 
+    assertSparkConf();
+
     df.select("id", "data")
         .writeTo(TABLE_NAME)
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
@@ -199,7 +209,7 @@ public class TestCompressionSettings extends CatalogTestBase {
     List<ManifestFile> manifestFiles = table.currentSnapshot().dataManifests(table.io());
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifestFiles.get(0), table.io())) {
       DataFile file = reader.iterator().next();
-      InputFile inputFile = table.io().newInputFile(file.path().toString());
+      InputFile inputFile = table.io().newInputFile(file.location());
       assertThat(getCompressionType(inputFile))
           .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }
@@ -213,7 +223,7 @@ public class TestCompressionSettings extends CatalogTestBase {
     try (ManifestReader<DeleteFile> reader =
         ManifestFiles.readDeleteManifest(deleteManifestFiles.get(0), table.io(), specMap)) {
       DeleteFile file = reader.iterator().next();
-      InputFile inputFile = table.io().newInputFile(file.path().toString());
+      InputFile inputFile = table.io().newInputFile(file.location());
       assertThat(getCompressionType(inputFile))
           .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }
@@ -227,7 +237,7 @@ public class TestCompressionSettings extends CatalogTestBase {
     try (ManifestReader<DeleteFile> reader =
         ManifestFiles.readDeleteManifest(deleteManifestFiles.get(0), table.io(), specMap)) {
       DeleteFile file = reader.iterator().next();
-      InputFile inputFile = table.io().newInputFile(file.path().toString());
+      InputFile inputFile = table.io().newInputFile(file.location());
       assertThat(getCompressionType(inputFile))
           .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }
@@ -241,7 +251,8 @@ public class TestCompressionSettings extends CatalogTestBase {
         return orcReader.getCompressionKind().name();
       case PARQUET:
         ParquetMetadata footer =
-            ParquetFileReader.readFooter(CONF, new Path(inputFile.location()), NO_FILTER);
+            ParquetFileReader.open(HadoopInputFile.fromPath(new Path(inputFile.location()), CONF))
+                .getFooter();
         return footer.getBlocks().get(0).getColumns().get(0).getCodec().name();
       default:
         FileContext fc = FileContext.getFileContext(CONF);
@@ -251,6 +262,15 @@ public class TestCompressionSettings extends CatalogTestBase {
                 DataFileReader.openReader(
                     new AvroFSInput(fc, new Path(inputFile.location())), reader);
         return fileReader.getMetaString(DataFileConstants.CODEC);
+    }
+  }
+
+  private void assertSparkConf() {
+    String[] propertiesToCheck = {COMPRESSION_CODEC, COMPRESSION_LEVEL, COMPRESSION_STRATEGY};
+    for (String prop : propertiesToCheck) {
+      String expected = properties.getOrDefault(prop, null);
+      String actual = spark.conf().get(prop, null);
+      assertThat(actual).isEqualToIgnoringCase(expected);
     }
   }
 }

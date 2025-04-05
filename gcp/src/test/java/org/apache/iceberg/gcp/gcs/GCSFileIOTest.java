@@ -19,11 +19,19 @@
 package org.apache.iceberg.gcp.gcs;
 
 import static java.lang.String.format;
+import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED;
+import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT;
+import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN;
+import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
+import com.google.auth.oauth2.AccessToken;
+import com.google.auth.oauth2.OAuth2Credentials;
+import com.google.auth.oauth2.OAuth2CredentialsWithRefresh;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
@@ -32,21 +40,29 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.IOUtil;
+import org.apache.iceberg.io.ImmutableStorageCredential;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.ResolvingFileIO;
+import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -98,7 +114,7 @@ public class GCSFileIOTest {
       IOUtil.readFully(is, actual, 0, actual.length);
     }
 
-    assertThat(expected).isEqualTo(actual);
+    assertThat(actual).isEqualTo(expected);
 
     io.deleteFile(in);
 
@@ -222,5 +238,207 @@ public class GCSFileIOTest {
             .build(resolvingFileIO)
             .invoke("gs://foo/bar");
     assertThat(result).isInstanceOf(GCSFileIO.class);
+  }
+
+  @Test
+  public void refreshCredentialsEndpointSet() {
+    Storage client;
+    try (GCSFileIO fileIO = new GCSFileIO()) {
+      fileIO.initialize(
+          ImmutableMap.of(
+              CatalogProperties.URI,
+              "http://catalog-endpoint",
+              GCS_OAUTH2_TOKEN,
+              "gcsToken",
+              GCS_OAUTH2_TOKEN_EXPIRES_AT,
+              Long.toString(Instant.now().plus(5, ChronoUnit.MINUTES).toEpochMilli()),
+              GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT,
+              "/v1/credentials"));
+      client = fileIO.client();
+    }
+
+    assertThat(client.getOptions().getCredentials())
+        .isInstanceOf(OAuth2CredentialsWithRefresh.class);
+  }
+
+  @Test
+  public void refreshCredentialsEndpointSetButRefreshDisabled() {
+    Storage client;
+    try (GCSFileIO fileIO = new GCSFileIO()) {
+      fileIO.initialize(
+          ImmutableMap.of(
+              GCS_OAUTH2_TOKEN,
+              "gcsTokenWithoutRefresh",
+              GCS_OAUTH2_TOKEN_EXPIRES_AT,
+              Long.toString(Instant.now().plus(5, ChronoUnit.MINUTES).toEpochMilli()),
+              GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT,
+              "/v1/credentials",
+              GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED,
+              "false"));
+      client = fileIO.client();
+    }
+
+    assertThat(client.getOptions().getCredentials()).isInstanceOf(OAuth2Credentials.class);
+  }
+
+  @Test
+  public void noStorageCredentialConfigured() {
+    AccessToken expectedToken = new AccessToken("gcsTokenFromProperties", new Date(1000L));
+
+    Storage client;
+    try (GCSFileIO fileIO = new GCSFileIO()) {
+      fileIO.setCredentials(ImmutableList.of());
+      fileIO.initialize(
+          ImmutableMap.of(
+              GCS_OAUTH2_TOKEN, "gcsTokenFromProperties", GCS_OAUTH2_TOKEN_EXPIRES_AT, "1000"));
+      client = fileIO.client();
+    }
+
+    assertThat(client.getOptions().getCredentials())
+        .isInstanceOf(OAuth2Credentials.class)
+        .extracting("value")
+        .extracting("temporaryAccess")
+        .isEqualTo(expectedToken);
+  }
+
+  @Test
+  public void singleStorageCredentialConfigured() {
+    StorageCredential gcsCredential =
+        ImmutableStorageCredential.builder()
+            .prefix("gs://custom-uri")
+            .config(
+                ImmutableMap.of(
+                    "gcs.oauth2.token",
+                    "gcsTokenFromCredential",
+                    "gcs.oauth2.token-expires-at",
+                    "2000"))
+            .build();
+
+    AccessToken expectedToken = new AccessToken("gcsTokenFromCredential", new Date(2000L));
+
+    Storage client;
+    try (GCSFileIO fileIO = new GCSFileIO()) {
+      fileIO.setCredentials(ImmutableList.of(gcsCredential));
+      fileIO.initialize(
+          ImmutableMap.of(
+              GCS_OAUTH2_TOKEN, "gcsTokenFromProperties", GCS_OAUTH2_TOKEN_EXPIRES_AT, "1000"));
+      client = fileIO.client();
+    }
+
+    assertThat(client.getOptions().getCredentials())
+        .isInstanceOf(OAuth2Credentials.class)
+        .extracting("value")
+        .extracting("temporaryAccess")
+        .isEqualTo(expectedToken);
+  }
+
+  @Test
+  public void multipleStorageCredentialsConfigured() {
+    StorageCredential gcsCredential1 =
+        ImmutableStorageCredential.builder()
+            .prefix("gs://custom-uri/1")
+            .config(
+                ImmutableMap.of(
+                    "gcs.oauth2.token",
+                    "gcsTokenFromCredential1",
+                    "gcs.oauth2.token-expires-at",
+                    "2000"))
+            .build();
+
+    StorageCredential gcsCredential2 =
+        ImmutableStorageCredential.builder()
+            .prefix("gs://custom-uri/2")
+            .config(
+                ImmutableMap.of(
+                    "gcs.oauth2.token",
+                    "gcsTokenFromCredential2",
+                    "gcs.oauth2.token-expires-at",
+                    "2000"))
+            .build();
+
+    GCSFileIO fileIO = new GCSFileIO();
+    fileIO.setCredentials(ImmutableList.of(gcsCredential1, gcsCredential2));
+    assertThatThrownBy(
+            () ->
+                fileIO.initialize(
+                    ImmutableMap.of(
+                        GCS_OAUTH2_TOKEN,
+                        "gcsTokenFromProperties",
+                        GCS_OAUTH2_TOKEN_EXPIRES_AT,
+                        "1000")))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Invalid GCS Credentials: only one GCS credential should exist");
+  }
+
+  @Test
+  public void fileIOWithStorageCredentialsKryoSerialization() throws IOException {
+    GCSFileIO fileIO = new GCSFileIO();
+    fileIO.setCredentials(
+        ImmutableList.of(StorageCredential.create("prefix", Map.of("key1", "val1"))));
+    fileIO.initialize(Map.of());
+
+    assertThat(TestHelpers.KryoHelpers.roundTripSerialize(fileIO).credentials())
+        .isEqualTo(fileIO.credentials());
+  }
+
+  @Test
+  public void fileIOWithStorageCredentialsJavaSerialization()
+      throws IOException, ClassNotFoundException {
+    GCSFileIO fileIO = new GCSFileIO();
+    fileIO.setCredentials(
+        ImmutableList.of(StorageCredential.create("prefix", Map.of("key1", "val1"))));
+    fileIO.initialize(Map.of());
+
+    assertThat(TestHelpers.roundTripSerialize(fileIO).credentials())
+        .isEqualTo(fileIO.credentials());
+  }
+
+  @Test
+  public void resolvingFileIOLoadWithStorageCredentials()
+      throws IOException, ClassNotFoundException {
+    StorageCredential credential = StorageCredential.create("prefix", Map.of("key1", "val1"));
+    List<StorageCredential> storageCredentials = ImmutableList.of(credential);
+    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
+    resolvingFileIO.setCredentials(storageCredentials);
+    resolvingFileIO.initialize(ImmutableMap.of());
+
+    FileIO result =
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(resolvingFileIO)
+            .invoke("gs://foo/bar");
+    assertThat(result)
+        .isInstanceOf(GCSFileIO.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(GCSFileIO.class))
+        .extracting(GCSFileIO::credentials)
+        .isEqualTo(storageCredentials);
+
+    // make sure credentials are still present after kryo serde
+    ResolvingFileIO fileIO = TestHelpers.KryoHelpers.roundTripSerialize(resolvingFileIO);
+    assertThat(fileIO.credentials()).isEqualTo(storageCredentials);
+    result =
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(fileIO)
+            .invoke("gs://foo/bar");
+    assertThat(result)
+        .isInstanceOf(GCSFileIO.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(GCSFileIO.class))
+        .extracting(GCSFileIO::credentials)
+        .isEqualTo(storageCredentials);
+
+    // make sure credentials are still present after java serde
+    fileIO = TestHelpers.roundTripSerialize(resolvingFileIO);
+    assertThat(fileIO.credentials()).isEqualTo(storageCredentials);
+    result =
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(fileIO)
+            .invoke("gs://foo/bar");
+    assertThat(result)
+        .isInstanceOf(GCSFileIO.class)
+        .asInstanceOf(InstanceOfAssertFactories.type(GCSFileIO.class))
+        .extracting(GCSFileIO::credentials)
+        .isEqualTo(storageCredentials);
   }
 }

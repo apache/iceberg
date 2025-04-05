@@ -24,6 +24,7 @@ import org.apache.iceberg.types.Comparators;
 
 /** Enum of supported file formats. */
 public enum FileFormat {
+  PUFFIN("puffin", false),
   ORC("orc", true),
   PARQUET("parquet", true),
   AVRO("avro", true),
@@ -57,11 +58,16 @@ public enum FileFormat {
   }
 
   public static FileFormat fromFileName(CharSequence filename) {
+    if (filename == null) {
+      return null;
+    }
+
     for (FileFormat format : VALUES) {
       int extStart = filename.length() - format.ext.length();
-      if (Comparators.charSequences()
-              .compare(format.ext, filename.subSequence(extStart, filename.length()))
-          == 0) {
+      if (extStart > 0
+          && Comparators.charSequences()
+                  .compare(format.ext, filename.subSequence(extStart, filename.length()))
+              == 0) {
         return format;
       }
     }

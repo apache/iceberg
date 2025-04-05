@@ -70,6 +70,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -104,6 +105,13 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
   @BeforeClass
   public static void startSpark() {
     TestCompressionSettings.spark = SparkSession.builder().master("local[2]").getOrCreate();
+  }
+
+  @Before
+  public void resetSpecificConfigurations() {
+    spark.conf().unset(COMPRESSION_CODEC);
+    spark.conf().unset(COMPRESSION_LEVEL);
+    spark.conf().unset(COMPRESSION_STRATEGY);
   }
 
   @Parameterized.AfterParam
@@ -168,7 +176,7 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
     List<ManifestFile> manifestFiles = table.currentSnapshot().dataManifests(table.io());
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifestFiles.get(0), table.io())) {
       DataFile file = reader.iterator().next();
-      InputFile inputFile = table.io().newInputFile(file.path().toString());
+      InputFile inputFile = table.io().newInputFile(file.location());
       assertThat(getCompressionType(inputFile))
           .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }
@@ -182,7 +190,7 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
     try (ManifestReader<DeleteFile> reader =
         ManifestFiles.readDeleteManifest(deleteManifestFiles.get(0), table.io(), specMap)) {
       DeleteFile file = reader.iterator().next();
-      InputFile inputFile = table.io().newInputFile(file.path().toString());
+      InputFile inputFile = table.io().newInputFile(file.location());
       assertThat(getCompressionType(inputFile))
           .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }
@@ -196,7 +204,7 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
     try (ManifestReader<DeleteFile> reader =
         ManifestFiles.readDeleteManifest(deleteManifestFiles.get(0), table.io(), specMap)) {
       DeleteFile file = reader.iterator().next();
-      InputFile inputFile = table.io().newInputFile(file.path().toString());
+      InputFile inputFile = table.io().newInputFile(file.location());
       assertThat(getCompressionType(inputFile))
           .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }

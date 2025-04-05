@@ -213,7 +213,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     table.newAppend().appendFile(file1).appendFile(file2).commit();
 
     // delete file2
-    table.newDelete().deleteFile(file2.path()).commit();
+    table.newDelete().deleteFile(file2).commit();
 
     String manifestListLocation =
         table.currentSnapshot().manifestListLocation().replace("file:", "");
@@ -388,6 +388,55 @@ public class HiveTableTest extends HiveTableBaseTest {
     HIVE_METASTORE_EXTENSION.metastoreClient().dropTable(DB_NAME, hiveTableName);
   }
 
+  @Test
+  public void testTableExists() throws TException, IOException {
+    String testTableName = "test_table_exists";
+    TableIdentifier identifier = TableIdentifier.of(DB_NAME, testTableName);
+    TableIdentifier metadataIdentifier = TableIdentifier.of(DB_NAME, testTableName, "partitions");
+    TableIdentifier invalidIdentifier = TableIdentifier.of(DB_NAME, "invalid", testTableName);
+
+    assertThat(catalog.tableExists(invalidIdentifier))
+        .as("Should return false on invalid identifier")
+        .isFalse();
+    assertThat(catalog.tableExists(identifier))
+        .as("Table should not exist before create")
+        .isFalse();
+    catalog.buildTable(identifier, SCHEMA).create();
+
+    assertThat(catalog.tableExists(identifier)).as("Table should exist after create").isTrue();
+    assertThat(catalog.tableExists(metadataIdentifier))
+        .as("Metadata table should also exist")
+        .isTrue();
+
+    assertThat(catalog.dropTable(identifier)).as("Should drop a table that does exist").isTrue();
+    assertThat(catalog.tableExists(identifier)).as("Table should not exist after drop").isFalse();
+    assertThat(catalog.tableExists(metadataIdentifier))
+        .as("Metadata table should not exist after drop")
+        .isFalse();
+
+    HIVE_METASTORE_EXTENSION
+        .metastoreClient()
+        .createTable(createHiveTable(testTableName, TableType.EXTERNAL_TABLE));
+    assertThat(catalog.tableExists(identifier))
+        .as("Should return false when a hive table with the same name exists")
+        .isFalse();
+    assertThat(catalog.tableExists(metadataIdentifier))
+        .as("Metadata table should not exist")
+        .isFalse();
+    HIVE_METASTORE_EXTENSION.metastoreClient().dropTable(DB_NAME, testTableName);
+
+    catalog
+        .buildView(identifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(identifier.namespace())
+        .withQuery("spark", "select * from ns.tbl")
+        .create();
+    assertThat(catalog.tableExists(identifier))
+        .as("Should return false if identifier refers to a view")
+        .isFalse();
+    catalog.dropView(identifier);
+  }
+
   private org.apache.hadoop.hive.metastore.api.Table createHiveTable(
       String hiveTableName, TableType type) throws IOException {
     Map<String, String> parameters = Maps.newHashMap();
@@ -497,7 +546,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     String file1Location = appendData(table, "file1");
     List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles());
     assertThat(tasks).as("Should scan 1 file").hasSize(1);
-    assertThat(file1Location).isEqualTo(tasks.get(0).file().path());
+    assertThat(file1Location).isEqualTo(tasks.get(0).file().location());
 
     // collect metadata file
     List<String> metadataFiles =
@@ -528,7 +577,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     tasks = Lists.newArrayList(table.newScan().planFiles());
     assertThat(tasks).as("Should scan 2 files").hasSize(2);
     Set<String> files =
-        tasks.stream().map(task -> task.file().path().toString()).collect(Collectors.toSet());
+        tasks.stream().map(task -> task.file().location()).collect(Collectors.toSet());
     assertThat(files).contains(file1Location, file2Location);
   }
 

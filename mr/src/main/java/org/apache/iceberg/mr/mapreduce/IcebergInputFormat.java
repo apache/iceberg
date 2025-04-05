@@ -19,12 +19,12 @@
 package org.apache.iceberg.mr.mapreduce;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BiFunction;
@@ -50,12 +50,11 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.GenericDeleteFilter;
 import org.apache.iceberg.data.IdentityPartitionConverters;
 import org.apache.iceberg.data.InternalRecordWrapper;
-import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.avro.PlannedDataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.encryption.EncryptedFiles;
@@ -63,7 +62,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.hive.HiveVersion;
+import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
@@ -71,7 +70,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
-import org.apache.iceberg.mr.hive.HiveIcebergStorageHandler;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -103,10 +101,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   @Override
   public List<InputSplit> getSplits(JobContext context) {
     Configuration conf = context.getConfiguration();
-    Table table =
-        Optional.ofNullable(
-                HiveIcebergStorageHandler.table(conf, conf.get(InputFormatConfig.TABLE_IDENTIFIER)))
-            .orElseGet(() -> Catalogs.loadTable(conf));
+    Table table = Catalogs.loadTable(conf);
     final ExecutorService workerPool =
         ThreadPools.newFixedThreadPool(
             "iceberg-plan-worker-pool",
@@ -157,22 +152,11 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     List<InputSplit> splits = Lists.newArrayList();
-    boolean applyResidual = !conf.getBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, false);
-    InputFormatConfig.InMemoryDataModel model =
-        conf.getEnum(
-            InputFormatConfig.IN_MEMORY_DATA_MODEL, InputFormatConfig.InMemoryDataModel.GENERIC);
     scan = scan.planWith(workerPool);
     try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
       Table serializableTable = SerializableTable.copyOf(table);
       tasksIterable.forEach(
           task -> {
-            if (applyResidual
-                && (model == InputFormatConfig.InMemoryDataModel.HIVE
-                    || model == InputFormatConfig.InMemoryDataModel.PIG)) {
-              // TODO: We do not support residual evaluation for HIVE and PIG in memory data model
-              // yet
-              checkResiduals(task);
-            }
             splits.add(new IcebergSplit(serializableTable, conf, task));
           });
     } catch (IOException e) {
@@ -185,25 +169,49 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     // wouldn't be able to inject the config into these tasks on the deserializer-side, unlike for
     // standard queries
     if (scan instanceof DataTableScan) {
-      HiveIcebergStorageHandler.checkAndSkipIoConfigSerialization(conf, table);
+      checkAndSkipIoConfigSerialization(conf, table);
     }
 
     return splits;
   }
 
-  private static void checkResiduals(CombinedScanTask task) {
-    task.files()
-        .forEach(
-            fileScanTask -> {
-              Expression residual = fileScanTask.residual();
-              if (residual != null && !residual.equals(Expressions.alwaysTrue())) {
-                throw new UnsupportedOperationException(
-                    String.format(
-                        "Filter expression %s is not completely satisfied. Additional rows "
-                            + "can be returned not satisfied by the filter expression",
-                        residual));
-              }
-            });
+  /**
+   * If enabled, it ensures that the FileIO's hadoop configuration will not be serialized. This
+   * might be desirable for decreasing the overall size of serialized table objects.
+   *
+   * <p>Note: Skipping FileIO config serialization in this fashion might in turn necessitate calling
+   * {@link #checkAndSetIoConfig(Configuration, Table)} on the deserializer-side to enable
+   * subsequent use of the FileIO.
+   *
+   * @param config Configuration to set for FileIO in a transient manner, if enabled
+   * @param table The Iceberg table object
+   */
+  private void checkAndSkipIoConfigSerialization(Configuration config, Table table) {
+    if (table != null
+        && config.getBoolean(
+            InputFormatConfig.CONFIG_SERIALIZATION_DISABLED,
+            InputFormatConfig.CONFIG_SERIALIZATION_DISABLED_DEFAULT)
+        && table.io() instanceof HadoopConfigurable) {
+      ((HadoopConfigurable) table.io())
+          .serializeConfWith(conf -> new NonSerializingConfig(config)::get);
+    }
+  }
+
+  /**
+   * If enabled, it populates the FileIO's hadoop configuration with the input config object. This
+   * might be necessary when the table object was serialized without the FileIO config.
+   *
+   * @param config Configuration to set for FileIO, if enabled
+   * @param table The Iceberg table object
+   */
+  private static void checkAndSetIoConfig(Configuration config, Table table) {
+    if (table != null
+        && config.getBoolean(
+            InputFormatConfig.CONFIG_SERIALIZATION_DISABLED,
+            InputFormatConfig.CONFIG_SERIALIZATION_DISABLED_DEFAULT)
+        && table.io() instanceof HadoopConfigurable) {
+      ((HadoopConfigurable) table.io()).setConf(config);
+    }
   }
 
   @Override
@@ -211,27 +219,25 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     return new IcebergRecordReader<>();
   }
 
-  private static final class IcebergRecordReader<T> extends RecordReader<Void, T> {
+  private static class NonSerializingConfig implements Serializable {
 
-    private static final String HIVE_VECTORIZED_READER_CLASS =
-        "org.apache.iceberg.mr.hive.vector.HiveVectorizedReader";
-    private static final DynMethods.StaticMethod HIVE_VECTORIZED_READER_BUILDER;
+    private final transient Configuration conf;
 
-    static {
-      if (HiveVersion.min(HiveVersion.HIVE_3)) {
-        HIVE_VECTORIZED_READER_BUILDER =
-            DynMethods.builder("reader")
-                .impl(
-                    HIVE_VECTORIZED_READER_CLASS,
-                    InputFile.class,
-                    FileScanTask.class,
-                    Map.class,
-                    TaskAttemptContext.class)
-                .buildStatic();
-      } else {
-        HIVE_VECTORIZED_READER_BUILDER = null;
-      }
+    NonSerializingConfig(Configuration conf) {
+      this.conf = conf;
     }
+
+    public Configuration get() {
+      if (conf == null) {
+        throw new IllegalStateException(
+            "Configuration was not serialized on purpose but was not set manually either");
+      }
+
+      return conf;
+    }
+  }
+
+  private static final class IcebergRecordReader<T> extends RecordReader<Void, T> {
 
     private TaskAttemptContext context;
     private Schema tableSchema;
@@ -239,7 +245,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private String nameMapping;
     private boolean reuseContainers;
     private boolean caseSensitive;
-    private InputFormatConfig.InMemoryDataModel inMemoryDataModel;
     private Iterator<FileScanTask> tasks;
     private T current;
     private CloseableIterator<T> currentIterator;
@@ -254,7 +259,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       CombinedScanTask task = ((IcebergSplit) split).task();
       this.context = newContext;
       Table table = ((IcebergSplit) split).table();
-      HiveIcebergStorageHandler.checkAndSetIoConfig(conf, table);
+      checkAndSetIoConfig(conf, table);
       this.io = table.io();
       this.encryptionManager = table.encryption();
       this.tasks = task.files().iterator();
@@ -265,9 +270,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
               InputFormatConfig.CASE_SENSITIVE, InputFormatConfig.CASE_SENSITIVE_DEFAULT);
       this.expectedSchema = readSchema(conf, tableSchema, caseSensitive);
       this.reuseContainers = conf.getBoolean(InputFormatConfig.REUSE_CONTAINERS, false);
-      this.inMemoryDataModel =
-          conf.getEnum(
-              InputFormatConfig.IN_MEMORY_DATA_MODEL, InputFormatConfig.InMemoryDataModel.GENERIC);
       this.currentIterator = open(tasks.next(), expectedSchema).iterator();
     }
 
@@ -322,8 +324,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       DataFile file = currentTask.file();
       InputFile inputFile =
           encryptionManager.decrypt(
-              EncryptedFiles.encryptedInput(
-                  io.newInputFile(file.path().toString()), file.keyMetadata()));
+              EncryptedFiles.encryptedInput(io.newInputFile(file.location()), file.keyMetadata()));
 
       CloseableIterable<T> iterable;
       switch (file.format()) {
@@ -338,7 +339,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           break;
         default:
           throw new UnsupportedOperationException(
-              String.format("Cannot read %s file: %s", file.format().name(), file.path()));
+              String.format("Cannot read %s file: %s", file.format().name(), file.location()));
       }
 
       return iterable;
@@ -346,19 +347,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     @SuppressWarnings("unchecked")
     private CloseableIterable<T> open(FileScanTask currentTask, Schema readSchema) {
-      switch (inMemoryDataModel) {
-        case PIG:
-          // TODO: Support Pig and Hive object models for IcebergInputFormat
-          throw new UnsupportedOperationException("Pig and Hive object models are not supported.");
-        case HIVE:
-          return openTask(currentTask, readSchema);
-        case GENERIC:
-          DeleteFilter deletes = new GenericDeleteFilter(io, currentTask, tableSchema, readSchema);
-          Schema requiredSchema = deletes.requiredSchema();
-          return deletes.filter(openTask(currentTask, requiredSchema));
-        default:
-          throw new UnsupportedOperationException("Unsupported memory model");
-      }
+      DeleteFilter deletes = new GenericDeleteFilter(io, currentTask, tableSchema, readSchema);
+      Schema requiredSchema = deletes.requiredSchema();
+      return deletes.filter(openTask(currentTask, requiredSchema));
     }
 
     private CloseableIterable<T> applyResidualFiltering(
@@ -389,62 +380,34 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
         avroReadBuilder.withNameMapping(NameMappingParser.fromJson(nameMapping));
       }
 
-      switch (inMemoryDataModel) {
-        case PIG:
-        case HIVE:
-          // TODO implement value readers for Pig and Hive
-          throw new UnsupportedOperationException(
-              "Avro support not yet supported for Pig and Hive");
-        case GENERIC:
-          avroReadBuilder.createReaderFunc(
-              (expIcebergSchema, expAvroSchema) ->
-                  DataReader.create(
-                      expIcebergSchema,
-                      expAvroSchema,
-                      constantsMap(task, IdentityPartitionConverters::convertConstant)));
-      }
+      avroReadBuilder.createResolvingReader(
+          schema ->
+              PlannedDataReader.create(
+                  schema, constantsMap(task, IdentityPartitionConverters::convertConstant)));
       return applyResidualFiltering(avroReadBuilder.build(), task.residual(), readSchema);
     }
 
     private CloseableIterable<T> newParquetIterable(
         InputFile inputFile, FileScanTask task, Schema readSchema) {
-      Map<Integer, ?> idToConstant =
-          constantsMap(task, IdentityPartitionConverters::convertConstant);
-      CloseableIterable<T> parquetIterator = null;
-
-      switch (inMemoryDataModel) {
-        case PIG:
-          throw new UnsupportedOperationException("Parquet support not yet supported for Pig");
-        case HIVE:
-          if (HiveVersion.min(HiveVersion.HIVE_3)) {
-            parquetIterator =
-                HIVE_VECTORIZED_READER_BUILDER.invoke(inputFile, task, idToConstant, context);
-          } else {
-            throw new UnsupportedOperationException(
-                "Vectorized read is unsupported for Hive 2 integration.");
-          }
-          break;
-        case GENERIC:
-          Parquet.ReadBuilder parquetReadBuilder =
-              Parquet.read(inputFile)
-                  .project(readSchema)
-                  .filter(task.residual())
-                  .caseSensitive(caseSensitive)
-                  .split(task.start(), task.length());
-          if (reuseContainers) {
-            parquetReadBuilder.reuseContainers();
-          }
-          if (nameMapping != null) {
-            parquetReadBuilder.withNameMapping(NameMappingParser.fromJson(nameMapping));
-          }
-          parquetReadBuilder.createReaderFunc(
-              fileSchema ->
-                  GenericParquetReaders.buildReader(
-                      readSchema,
-                      fileSchema,
-                      constantsMap(task, IdentityPartitionConverters::convertConstant)));
-          parquetIterator = parquetReadBuilder.build();
+      Parquet.ReadBuilder parquetReadBuilder =
+          Parquet.read(inputFile)
+              .project(readSchema)
+              .filter(task.residual())
+              .caseSensitive(caseSensitive)
+              .split(task.start(), task.length());
+      if (reuseContainers) {
+        parquetReadBuilder.reuseContainers();
       }
+      if (nameMapping != null) {
+        parquetReadBuilder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+      }
+      parquetReadBuilder.createReaderFunc(
+          fileSchema ->
+              GenericParquetReaders.buildReader(
+                  readSchema,
+                  fileSchema,
+                  constantsMap(task, IdentityPartitionConverters::convertConstant)));
+      CloseableIterable<T> parquetIterator = parquetReadBuilder.build();
       return applyResidualFiltering(parquetIterator, task.residual(), readSchema);
     }
 
@@ -456,37 +419,20 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           TypeUtil.selectNot(
               readSchema, Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
 
-      CloseableIterable<T> orcIterator = null;
       // ORC does not support reuse containers yet
-      switch (inMemoryDataModel) {
-        case PIG:
-          // TODO: implement value readers for Pig
-          throw new UnsupportedOperationException("ORC support not yet supported for Pig");
-        case HIVE:
-          if (HiveVersion.min(HiveVersion.HIVE_3)) {
-            orcIterator =
-                HIVE_VECTORIZED_READER_BUILDER.invoke(inputFile, task, idToConstant, context);
-          } else {
-            throw new UnsupportedOperationException(
-                "Vectorized read is unsupported for Hive 2 integration.");
-          }
-          break;
-        case GENERIC:
-          ORC.ReadBuilder orcReadBuilder =
-              ORC.read(inputFile)
-                  .project(readSchemaWithoutConstantAndMetadataFields)
-                  .filter(task.residual())
-                  .caseSensitive(caseSensitive)
-                  .split(task.start(), task.length());
-          orcReadBuilder.createReaderFunc(
-              fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema, idToConstant));
+      ORC.ReadBuilder orcReadBuilder =
+          ORC.read(inputFile)
+              .project(readSchemaWithoutConstantAndMetadataFields)
+              .filter(task.residual())
+              .caseSensitive(caseSensitive)
+              .split(task.start(), task.length());
+      orcReadBuilder.createReaderFunc(
+          fileSchema -> GenericOrcReader.buildReader(readSchema, fileSchema, idToConstant));
 
-          if (nameMapping != null) {
-            orcReadBuilder.withNameMapping(NameMappingParser.fromJson(nameMapping));
-          }
-          orcIterator = orcReadBuilder.build();
+      if (nameMapping != null) {
+        orcReadBuilder.withNameMapping(NameMappingParser.fromJson(nameMapping));
       }
-
+      CloseableIterable<T> orcIterator = orcReadBuilder.build();
       return applyResidualFiltering(orcIterator, task.residual(), readSchema);
     }
 

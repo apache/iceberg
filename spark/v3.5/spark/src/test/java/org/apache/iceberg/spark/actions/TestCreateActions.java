@@ -77,6 +77,7 @@ import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.io.TempDir;
 import scala.Option;
 import scala.Some;
 import scala.collection.JavaConverters;
@@ -142,7 +143,7 @@ public class TestCreateActions extends CatalogTestBase {
   }
 
   private final String baseTableName = "baseTable";
-  private File tableDir;
+  @TempDir private File tableDir;
   private String tableLocation;
 
   @Parameter(index = 3)
@@ -154,11 +155,6 @@ public class TestCreateActions extends CatalogTestBase {
   @Override
   public void before() {
     super.before();
-    try {
-      this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
     this.tableLocation = tableDir.toURI().toString();
     this.catalog = (TableCatalog) spark.sessionState().catalogManager().catalog(catalogName);
 

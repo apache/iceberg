@@ -35,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
@@ -112,23 +113,9 @@ public class TestMetadataUpdateParser {
   public void testAddSchemaFromJson() {
     String action = MetadataUpdateParser.ADD_SCHEMA;
     Schema schema = ID_DATA_SCHEMA;
-    int lastColumnId = schema.highestFieldId();
-    String json =
-        String.format(
-            "{\"action\":\"add-schema\",\"schema\":%s,\"last-column-id\":%d}",
-            SchemaParser.toJson(schema), lastColumnId);
-    MetadataUpdate actualUpdate = new MetadataUpdate.AddSchema(schema, lastColumnId);
-    assertEquals(action, actualUpdate, MetadataUpdateParser.fromJson(json));
-  }
-
-  @Test
-  public void testAddSchemaFromJsonWithoutLastColumnId() {
-    String action = MetadataUpdateParser.ADD_SCHEMA;
-    Schema schema = ID_DATA_SCHEMA;
-    int lastColumnId = schema.highestFieldId();
     String json =
         String.format("{\"action\":\"add-schema\",\"schema\":%s}", SchemaParser.toJson(schema));
-    MetadataUpdate actualUpdate = new MetadataUpdate.AddSchema(schema, lastColumnId);
+    MetadataUpdate actualUpdate = new MetadataUpdate.AddSchema(schema);
     assertEquals(action, actualUpdate, MetadataUpdateParser.fromJson(json));
   }
 
@@ -140,7 +127,7 @@ public class TestMetadataUpdateParser {
         String.format(
             "{\"action\":\"add-schema\",\"schema\":%s,\"last-column-id\":%d}",
             SchemaParser.toJson(schema), lastColumnId);
-    MetadataUpdate update = new MetadataUpdate.AddSchema(schema, lastColumnId);
+    MetadataUpdate update = new MetadataUpdate.AddSchema(schema);
     String actual = MetadataUpdateParser.toJson(update);
     assertThat(actual)
         .as("Add schema should convert to the correct JSON value")
@@ -374,6 +361,8 @@ public class TestMetadataUpdateParser {
     long parentId = 1;
     long snapshotId = 2;
     int schemaId = 3;
+    Long firstRowId = 4L;
+    Long addedRows = 10L;
 
     String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
 
@@ -386,7 +375,9 @@ public class TestMetadataUpdateParser {
             DataOperations.REPLACE,
             ImmutableMap.of("files-added", "4", "files-deleted", "100"),
             schemaId,
-            manifestList);
+            manifestList,
+            firstRowId,
+            addedRows);
     String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
     String expected = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate update = new MetadataUpdate.AddSnapshot(snapshot);
@@ -402,6 +393,8 @@ public class TestMetadataUpdateParser {
     long parentId = 1;
     long snapshotId = 2;
     int schemaId = 3;
+    Long lastRowId = 4L;
+    Long addedRows = 5L;
     Map<String, String> summary = ImmutableMap.of("files-added", "4", "files-deleted", "100");
 
     String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
@@ -414,16 +407,18 @@ public class TestMetadataUpdateParser {
             DataOperations.REPLACE,
             summary,
             schemaId,
-            manifestList);
+            manifestList,
+            lastRowId,
+            addedRows);
     String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
     String json = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate expected = new MetadataUpdate.AddSnapshot(snapshot);
     assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
   }
 
-  /** RemoveSnapshots * */
+  /** RemoveSnapshot * */
   @Test
-  public void testRemoveSnapshotsFromJson() {
+  public void testRemoveSnapshotFromJson() {
     String action = MetadataUpdateParser.REMOVE_SNAPSHOTS;
     long snapshotId = 2L;
     String json = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2]}", action);
@@ -432,11 +427,33 @@ public class TestMetadataUpdateParser {
   }
 
   @Test
-  public void testRemoveSnapshotsToJson() {
+  public void testRemoveSnapshotToJson() {
     String action = MetadataUpdateParser.REMOVE_SNAPSHOTS;
     long snapshotId = 2L;
     String expected = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2]}", action);
     MetadataUpdate update = new MetadataUpdate.RemoveSnapshot(snapshotId);
+    String actual = MetadataUpdateParser.toJson(update);
+    assertThat(actual)
+        .as("Remove snapshots should serialize to the correct JSON value")
+        .isEqualTo(expected);
+  }
+
+  /** RemoveSnapshots * */
+  @Test
+  public void testRemoveSnapshotsFromJson() {
+    String action = MetadataUpdateParser.REMOVE_SNAPSHOTS;
+    Set<Long> snapshotIds = Sets.newHashSet(2L, 3L);
+    String json = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2,3]}", action);
+    MetadataUpdate expected = new MetadataUpdate.RemoveSnapshots(snapshotIds);
+    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
+  }
+
+  @Test
+  public void testRemoveSnapshotsToJson() {
+    String action = MetadataUpdateParser.REMOVE_SNAPSHOTS;
+    Set<Long> snapshotIds = Sets.newHashSet(2L, 3L);
+    String expected = String.format("{\"action\":\"%s\",\"snapshot-ids\":[2,3]}", action);
+    MetadataUpdate update = new MetadataUpdate.RemoveSnapshots(snapshotIds);
     String actual = MetadataUpdateParser.toJson(update);
     assertThat(actual)
         .as("Remove snapshots should serialize to the correct JSON value")
@@ -797,7 +814,6 @@ public class TestMetadataUpdateParser {
     long snapshotId = 1940541653261589030L;
     MetadataUpdate expected =
         new MetadataUpdate.SetStatistics(
-            snapshotId,
             new GenericStatisticsFile(
                 snapshotId,
                 "s3://bucket/warehouse/stats.puffin",
@@ -926,6 +942,39 @@ public class TestMetadataUpdateParser {
         .isEqualTo(json);
   }
 
+  @Test
+  public void testRemovePartitionSpec() {
+    String action = MetadataUpdateParser.REMOVE_PARTITION_SPECS;
+    String json = "{\"action\":\"remove-partition-specs\",\"spec-ids\":[1,2,3]}";
+    MetadataUpdate expected = new MetadataUpdate.RemovePartitionSpecs(ImmutableSet.of(1, 2, 3));
+    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
+    assertThat(MetadataUpdateParser.toJson(expected))
+        .as("Remove partition specs should convert to the correct JSON value")
+        .isEqualTo(json);
+  }
+
+  @Test
+  public void testRemoveSchemas() {
+    String action = MetadataUpdateParser.REMOVE_SCHEMAS;
+    String json = "{\"action\":\"remove-schemas\",\"schema-ids\":[1,2,3]}";
+    MetadataUpdate expected = new MetadataUpdate.RemoveSchemas(ImmutableSet.of(1, 2, 3));
+    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
+    assertThat(MetadataUpdateParser.toJson(expected))
+        .as("Remove schemas should convert to the correct JSON value")
+        .isEqualTo(json);
+  }
+
+  @Test
+  public void testEnableRowLineage() {
+    String action = MetadataUpdateParser.ENABLE_ROW_LINEAGE;
+    String json = "{\"action\":\"enable-row-lineage\"}";
+    MetadataUpdate expected = new MetadataUpdate.EnableRowLineage();
+    assertEquals(action, expected, MetadataUpdateParser.fromJson(json));
+    assertThat(MetadataUpdateParser.toJson(expected))
+        .as("Enable row lineage should convert to the correct JSON value")
+        .isEqualTo(json);
+  }
+
   public void assertEquals(
       String action, MetadataUpdate expectedUpdate, MetadataUpdate actualUpdate) {
     switch (action) {
@@ -992,9 +1041,15 @@ public class TestMetadataUpdateParser {
             (MetadataUpdate.AddSnapshot) expectedUpdate, (MetadataUpdate.AddSnapshot) actualUpdate);
         break;
       case MetadataUpdateParser.REMOVE_SNAPSHOTS:
-        assertEqualsRemoveSnapshots(
-            (MetadataUpdate.RemoveSnapshot) expectedUpdate,
-            (MetadataUpdate.RemoveSnapshot) actualUpdate);
+        if (actualUpdate instanceof MetadataUpdate.RemoveSnapshot) {
+          assertEqualsRemoveSnapshot(
+              (MetadataUpdate.RemoveSnapshot) expectedUpdate,
+              (MetadataUpdate.RemoveSnapshot) actualUpdate);
+        } else {
+          assertEqualsRemoveSnapshots(
+              (MetadataUpdate.RemoveSnapshots) expectedUpdate,
+              (MetadataUpdate.RemoveSnapshots) actualUpdate);
+        }
         break;
       case MetadataUpdateParser.REMOVE_SNAPSHOT_REF:
         assertEqualsRemoveSnapshotRef(
@@ -1029,6 +1084,19 @@ public class TestMetadataUpdateParser {
         assertEqualsSetCurrentViewVersion(
             (MetadataUpdate.SetCurrentViewVersion) expectedUpdate,
             (MetadataUpdate.SetCurrentViewVersion) actualUpdate);
+        break;
+      case MetadataUpdateParser.REMOVE_PARTITION_SPECS:
+        assertEqualsRemovePartitionSpecs(
+            (MetadataUpdate.RemovePartitionSpecs) expectedUpdate,
+            (MetadataUpdate.RemovePartitionSpecs) actualUpdate);
+        break;
+      case MetadataUpdateParser.REMOVE_SCHEMAS:
+        assertEqualsRemoveSchemas(
+            (MetadataUpdate.RemoveSchemas) expectedUpdate,
+            (MetadataUpdate.RemoveSchemas) actualUpdate);
+        break;
+      case MetadataUpdateParser.ENABLE_ROW_LINEAGE:
+        assertThat(actualUpdate).isInstanceOf(MetadataUpdate.EnableRowLineage.class);
         break;
       default:
         fail("Unrecognized metadata update action: " + action);
@@ -1185,11 +1253,18 @@ public class TestMetadataUpdateParser {
     assertThat(actual.snapshot().schemaId()).isEqualTo(expected.snapshot().schemaId());
   }
 
-  private static void assertEqualsRemoveSnapshots(
+  private static void assertEqualsRemoveSnapshot(
       MetadataUpdate.RemoveSnapshot expected, MetadataUpdate.RemoveSnapshot actual) {
     assertThat(actual.snapshotId())
-        .as("Snapshots to remove should be the same")
+        .as("Snapshot to remove should be the same")
         .isEqualTo(expected.snapshotId());
+  }
+
+  private static void assertEqualsRemoveSnapshots(
+      MetadataUpdate.RemoveSnapshots expected, MetadataUpdate.RemoveSnapshots actual) {
+    assertThat(actual.snapshotIds())
+        .as("Snapshots to remove should be the same")
+        .isEqualTo(expected.snapshotIds());
   }
 
   private static void assertEqualsSetSnapshotRef(
@@ -1251,6 +1326,16 @@ public class TestMetadataUpdateParser {
     assertThat(actual.versionId()).isEqualTo(expected.versionId());
   }
 
+  private static void assertEqualsRemovePartitionSpecs(
+      MetadataUpdate.RemovePartitionSpecs expected, MetadataUpdate.RemovePartitionSpecs actual) {
+    assertThat(actual.specIds()).containsExactlyInAnyOrderElementsOf(expected.specIds());
+  }
+
+  private static void assertEqualsRemoveSchemas(
+      MetadataUpdate.RemoveSchemas expected, MetadataUpdate.RemoveSchemas actual) {
+    assertThat(actual.schemaIds()).containsExactlyInAnyOrderElementsOf(expected.schemaIds());
+  }
+
   private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)
       throws IOException {
     File manifestList = File.createTempFile("manifests", null, temp.toFile());
@@ -1258,8 +1343,8 @@ public class TestMetadataUpdateParser {
 
     List<ManifestFile> manifests =
         ImmutableList.of(
-            new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0),
-            new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0));
+            new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0, snapshotId),
+            new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0, snapshotId));
 
     try (ManifestListWriter writer =
         ManifestLists.write(1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0)) {

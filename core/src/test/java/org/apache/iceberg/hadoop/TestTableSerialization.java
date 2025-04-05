@@ -19,6 +19,7 @@
 package org.apache.iceberg.hadoop;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -28,6 +29,7 @@ import java.io.ObjectOutputStream;
 import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
@@ -39,6 +41,7 @@ import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.io.CloseableIterable;
@@ -47,6 +50,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestTableSerialization extends HadoopTableTestBase {
@@ -66,6 +70,9 @@ public class TestTableSerialization extends HadoopTableTestBase {
     assertThat(serializableTable).isInstanceOf(HasTableOperations.class);
     assertThat(((HasTableOperations) serializableTable).operations())
         .isInstanceOf(StaticTableOperations.class);
+    assertThat(TableUtil.formatVersion(serializableTable)).isEqualTo(2);
+    assertThat(TableUtil.metadataFileLocation(serializableTable))
+        .isEqualTo(TableUtil.metadataFileLocation(table));
   }
 
   @Test
@@ -93,16 +100,23 @@ public class TestTableSerialization extends HadoopTableTestBase {
     TestHelpers.assertSerializedMetadata(txn.table(), TestHelpers.roundTripSerialize(txn.table()));
   }
 
-  @Test
-  public void testSerializableMetadataTable() throws IOException, ClassNotFoundException {
-    for (MetadataTableType type : MetadataTableType.values()) {
-      Table metadataTable = getMetaDataTable(table, type);
-      TestHelpers.assertSerializedAndLoadedMetadata(
-          metadataTable, TestHelpers.roundTripSerialize(metadataTable));
-      Table serializableTable = SerializableTable.copyOf(metadataTable);
-      TestHelpers.assertSerializedAndLoadedMetadata(
-          serializableTable, TestHelpers.KryoHelpers.roundTripSerialize(serializableTable));
-    }
+  @ParameterizedTest
+  @EnumSource(MetadataTableType.class)
+  public void testSerializableMetadataTable(MetadataTableType type)
+      throws IOException, ClassNotFoundException {
+    Table metadataTable = getMetaDataTable(table, type);
+    TestHelpers.assertSerializedAndLoadedMetadata(
+        metadataTable, TestHelpers.roundTripSerialize(metadataTable));
+    Table serializableTable = SerializableTable.copyOf(metadataTable);
+    TestHelpers.assertSerializedAndLoadedMetadata(
+        serializableTable, TestHelpers.KryoHelpers.roundTripSerialize(serializableTable));
+    assertThatThrownBy(() -> ((HasTableOperations) serializableTable).operations())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageEndingWith("does not support operations()");
+    assertThat(TableUtil.metadataFileLocation(serializableTable))
+        .isEqualTo(TableUtil.metadataFileLocation(table));
+    assertThat(TableUtil.formatVersion(serializableTable))
+        .isEqualTo(((BaseTable) table).operations().current().formatVersion());
   }
 
   @Test
@@ -194,13 +208,13 @@ public class TestTableSerialization extends HadoopTableTestBase {
                 .equals(MetadataTableType.POSITION_DELETES))) {
       try (CloseableIterable<ScanTask> tasks = table.newBatchScan().planFiles()) {
         for (ScanTask task : tasks) {
-          files.add(((PositionDeletesScanTask) task).file().path());
+          files.add(((PositionDeletesScanTask) task).file().location());
         }
       }
     } else {
       try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
         for (FileScanTask task : tasks) {
-          files.add(task.file().path());
+          files.add(task.file().location());
         }
       }
     }

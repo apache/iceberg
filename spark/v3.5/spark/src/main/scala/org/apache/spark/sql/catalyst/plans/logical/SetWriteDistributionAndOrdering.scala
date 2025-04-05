@@ -28,7 +28,7 @@ import org.apache.spark.sql.connector.catalog.CatalogV2Implicits
 
 case class SetWriteDistributionAndOrdering(
     table: Seq[String],
-    distributionMode: DistributionMode,
+    distributionMode: Option[DistributionMode],
     sortOrder: Seq[(Term, SortDirection, NullOrder)]) extends LeafCommand {
 
   import CatalogV2Implicits._

@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
@@ -41,7 +42,7 @@ import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
-import org.apache.flink.streaming.api.functions.sink.DiscardingSink;
+import org.apache.flink.streaming.api.functions.sink.v2.DiscardingSink;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
@@ -65,6 +66,7 @@ import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.sink.shuffle.DataStatisticsOperatorFactory;
 import org.apache.iceberg.flink.sink.shuffle.RangePartitioner;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsOrRecord;
+import org.apache.iceberg.flink.sink.shuffle.StatisticsOrRecordTypeInformation;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsType;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -381,7 +383,7 @@ public class FlinkSink {
       return this;
     }
 
-    private <T> DataStreamSink<T> chainIcebergOperators() {
+    private DataStreamSink<Void> chainIcebergOperators() {
       Preconditions.checkArgument(
           inputCreator != null,
           "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
@@ -472,12 +474,10 @@ public class FlinkSink {
       return equalityFieldIds;
     }
 
-    @SuppressWarnings("unchecked")
-    private <T> DataStreamSink<T> appendDummySink(
-        SingleOutputStreamOperator<Void> committerStream) {
-      DataStreamSink<T> resultStream =
+    private DataStreamSink<Void> appendDummySink(SingleOutputStreamOperator<Void> committerStream) {
+      DataStreamSink<Void> resultStream =
           committerStream
-              .addSink(new DiscardingSink())
+              .sinkTo(new DiscardingSink<>())
               .name(operatorName(String.format("IcebergSink %s", this.table.name())))
               .setParallelism(1);
       if (uidPrefix != null) {
@@ -634,12 +634,14 @@ public class FlinkSink {
           }
 
           LOG.info("Range distribute rows by sort order: {}", sortOrder);
+          StatisticsOrRecordTypeInformation statisticsOrRecordTypeInformation =
+              new StatisticsOrRecordTypeInformation(flinkRowType, iSchema, sortOrder);
           StatisticsType statisticsType = flinkWriteConf.rangeDistributionStatisticsType();
           SingleOutputStreamOperator<StatisticsOrRecord> shuffleStream =
               input
                   .transform(
                       operatorName("range-shuffle"),
-                      TypeInformation.of(StatisticsOrRecord.class),
+                      statisticsOrRecordTypeInformation,
                       new DataStatisticsOperatorFactory(
                           iSchema,
                           sortOrder,
@@ -654,8 +656,17 @@ public class FlinkSink {
 
           return shuffleStream
               .partitionCustom(new RangePartitioner(iSchema, sortOrder), r -> r)
-              .filter(StatisticsOrRecord::hasRecord)
-              .map(StatisticsOrRecord::record);
+              .flatMap(
+                  (FlatMapFunction<StatisticsOrRecord, RowData>)
+                      (statisticsOrRecord, out) -> {
+                        if (statisticsOrRecord.hasRecord()) {
+                          out.collect(statisticsOrRecord.record());
+                        }
+                      })
+              // Set the parallelism same as writerParallelism to
+              // promote operator chaining with the downstream writer operator
+              .setParallelism(writerParallelism)
+              .returns(RowData.class);
 
         default:
           throw new RuntimeException("Unrecognized " + WRITE_DISTRIBUTION_MODE + ": " + writeMode);

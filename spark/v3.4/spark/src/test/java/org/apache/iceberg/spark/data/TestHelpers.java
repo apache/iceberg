@@ -42,6 +42,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.DataFile;
@@ -50,15 +51,17 @@ import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.orc.storage.serde2.io.DateWritable;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
@@ -76,6 +79,8 @@ import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.TimestampNTZType;
+import org.apache.spark.sql.types.TimestampType$;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.Assert;
@@ -92,11 +97,20 @@ public class TestHelpers {
 
   public static void assertEqualsSafe(Types.StructType struct, Record rec, Row row) {
     List<Types.NestedField> fields = struct.fields();
-    for (int i = 0; i < fields.size(); i += 1) {
-      Type fieldType = fields.get(i).type();
+    for (int readPos = 0; readPos < fields.size(); readPos += 1) {
+      Types.NestedField field = fields.get(readPos);
+      Field writeField = rec.getSchema().getField(field.name());
 
-      Object expectedValue = rec.get(i);
-      Object actualValue = row.get(i);
+      Type fieldType = field.type();
+      Object actualValue = row.get(readPos);
+
+      Object expectedValue;
+      if (writeField != null) {
+        int writePos = writeField.pos();
+        expectedValue = rec.get(writePos);
+      } else {
+        expectedValue = field.initialDefault();
+      }
 
       assertEqualsSafe(fieldType, expectedValue, actualValue);
     }
@@ -105,13 +119,25 @@ public class TestHelpers {
   public static void assertEqualsBatch(
       Types.StructType struct, Iterator<Record> expected, ColumnarBatch batch) {
     for (int rowId = 0; rowId < batch.numRows(); rowId++) {
-      List<Types.NestedField> fields = struct.fields();
       InternalRow row = batch.getRow(rowId);
       Record rec = expected.next();
-      for (int i = 0; i < fields.size(); i += 1) {
-        Type fieldType = fields.get(i).type();
-        Object expectedValue = rec.get(i);
-        Object actualValue = row.isNullAt(i) ? null : row.get(i, convert(fieldType));
+
+      List<Types.NestedField> fields = struct.fields();
+      for (int readPos = 0; readPos < fields.size(); readPos += 1) {
+        Types.NestedField field = fields.get(readPos);
+        Field writeField = rec.getSchema().getField(field.name());
+
+        Type fieldType = field.type();
+        Object actualValue = row.isNullAt(readPos) ? null : row.get(readPos, convert(fieldType));
+
+        Object expectedValue;
+        if (writeField != null) {
+          int writePos = writeField.pos();
+          expectedValue = rec.get(writePos);
+        } else {
+          expectedValue = field.initialDefault();
+        }
+
         assertEqualsUnsafe(fieldType, expectedValue, actualValue);
       }
     }
@@ -203,10 +229,21 @@ public class TestHelpers {
         Assert.assertEquals("UUID string representation should match", expected.toString(), actual);
         break;
       case FIXED:
-        assertThat(expected).as("Should expect a Fixed").isInstanceOf(GenericData.Fixed.class);
+        // generated data is written using Avro or Parquet/Avro so generated rows use
+        // GenericData.Fixed, but default values are converted from Iceberg's internal
+        // representation so the expected value may be either class.
+        byte[] expectedBytes;
+        if (expected instanceof ByteBuffer) {
+          expectedBytes = ByteBuffers.toByteArray((ByteBuffer) expected);
+        } else if (expected instanceof GenericData.Fixed) {
+          expectedBytes = ((GenericData.Fixed) expected).bytes();
+        } else {
+          throw new IllegalStateException(
+              "Invalid expected value, not byte[] or Fixed: " + expected);
+        }
+
         assertThat(actual).as("Should be a byte[]").isInstanceOf(byte[].class);
-        Assert.assertArrayEquals(
-            "Bytes should match", ((GenericData.Fixed) expected).bytes(), (byte[]) actual);
+        assertThat(actual).as("Bytes should match").isEqualTo(expectedBytes);
         break;
       case BINARY:
         assertThat(expected).as("Should expect a ByteBuffer").isInstanceOf(ByteBuffer.class);
@@ -228,7 +265,7 @@ public class TestHelpers {
         assertThat(expected).as("Should expect a Collection").isInstanceOf(Collection.class);
         assertThat(actual).as("Should be a Seq").isInstanceOf(Seq.class);
         List<?> asList = seqAsJavaListConverter((Seq<?>) actual).asJava();
-        assertEqualsSafe(type.asNestedType().asListType(), (Collection) expected, asList);
+        assertEqualsSafe(type.asNestedType().asListType(), (Collection<?>) expected, asList);
         break;
       case MAP:
         assertThat(expected).as("Should expect a Collection").isInstanceOf(Map.class);
@@ -245,11 +282,20 @@ public class TestHelpers {
 
   public static void assertEqualsUnsafe(Types.StructType struct, Record rec, InternalRow row) {
     List<Types.NestedField> fields = struct.fields();
-    for (int i = 0; i < fields.size(); i += 1) {
-      Type fieldType = fields.get(i).type();
+    for (int readPos = 0; readPos < fields.size(); readPos += 1) {
+      Types.NestedField field = fields.get(readPos);
+      Field writeField = rec.getSchema().getField(field.name());
 
-      Object expectedValue = rec.get(i);
-      Object actualValue = row.isNullAt(i) ? null : row.get(i, convert(fieldType));
+      Type fieldType = field.type();
+      Object actualValue = row.isNullAt(readPos) ? null : row.get(readPos, convert(fieldType));
+
+      Object expectedValue;
+      if (writeField != null) {
+        int writePos = writeField.pos();
+        expectedValue = rec.get(writePos);
+      } else {
+        expectedValue = field.initialDefault();
+      }
 
       assertEqualsUnsafe(fieldType, expectedValue, actualValue);
     }
@@ -328,10 +374,21 @@ public class TestHelpers {
             "UUID string representation should match", expected.toString(), actual.toString());
         break;
       case FIXED:
-        assertThat(expected).as("Should expect a Fixed").isInstanceOf(GenericData.Fixed.class);
+        // generated data is written using Avro or Parquet/Avro so generated rows use
+        // GenericData.Fixed, but default values are converted from Iceberg's internal
+        // representation so the expected value may be either class.
+        byte[] expectedBytes;
+        if (expected instanceof ByteBuffer) {
+          expectedBytes = ByteBuffers.toByteArray((ByteBuffer) expected);
+        } else if (expected instanceof GenericData.Fixed) {
+          expectedBytes = ((GenericData.Fixed) expected).bytes();
+        } else {
+          throw new IllegalStateException(
+              "Invalid expected value, not byte[] or Fixed: " + expected);
+        }
+
         assertThat(actual).as("Should be a byte[]").isInstanceOf(byte[].class);
-        Assert.assertArrayEquals(
-            "Bytes should match", ((GenericData.Fixed) expected).bytes(), (byte[]) actual);
+        assertThat(actual).as("Bytes should match").isEqualTo(expectedBytes);
         break;
       case BINARY:
         assertThat(expected).as("Should expect a ByteBuffer").isInstanceOf(ByteBuffer.class);
@@ -355,12 +412,12 @@ public class TestHelpers {
         assertThat(expected).as("Should expect a Collection").isInstanceOf(Collection.class);
         assertThat(actual).as("Should be an ArrayData").isInstanceOf(ArrayData.class);
         assertEqualsUnsafe(
-            type.asNestedType().asListType(), (Collection) expected, (ArrayData) actual);
+            type.asNestedType().asListType(), (Collection<?>) expected, (ArrayData) actual);
         break;
       case MAP:
         assertThat(expected).as("Should expect a Map").isInstanceOf(Map.class);
         assertThat(actual).as("Should be an ArrayBasedMapData").isInstanceOf(MapData.class);
-        assertEqualsUnsafe(type.asNestedType().asMapType(), (Map) expected, (MapData) actual);
+        assertEqualsUnsafe(type.asNestedType().asMapType(), (Map<?, ?>) expected, (MapData) actual);
         break;
       case TIME:
       default:
@@ -717,6 +774,12 @@ public class TestHelpers {
     for (int i = 0; i < actual.numFields(); i += 1) {
       StructField field = struct.fields()[i];
       DataType type = field.dataType();
+      // ColumnarRow.get doesn't support TimestampNTZType, causing tests to fail. the representation
+      // is identical to TimestampType so this uses that type to validate.
+      if (type instanceof TimestampNTZType) {
+        type = TimestampType$.MODULE$;
+      }
+
       assertEquals(
           context + "." + field.name(),
           type,
@@ -788,9 +851,19 @@ public class TestHelpers {
   }
 
   public static Set<DeleteFile> deleteFiles(Table table) {
-    Set<DeleteFile> deleteFiles = Sets.newHashSet();
+    DeleteFileSet deleteFiles = DeleteFileSet.create();
 
     for (FileScanTask task : table.newScan().planFiles()) {
+      deleteFiles.addAll(task.deletes());
+    }
+
+    return deleteFiles;
+  }
+
+  public static Set<DeleteFile> deleteFiles(Table table, Snapshot snapshot) {
+    DeleteFileSet deleteFiles = DeleteFileSet.create();
+
+    for (FileScanTask task : table.newScan().useSnapshot(snapshot.snapshotId()).planFiles()) {
       deleteFiles.addAll(task.deletes());
     }
 

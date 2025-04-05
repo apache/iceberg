@@ -20,7 +20,12 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.DataOperations.DELETE;
 import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
+import static org.apache.iceberg.RowLevelOperationMode.MERGE_ON_READ;
+import static org.apache.iceberg.SnapshotSummary.ADDED_DVS_PROP;
 import static org.apache.iceberg.SnapshotSummary.ADD_POS_DELETE_FILES_PROP;
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.TableProperties.DELETE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.DELETE_MODE;
@@ -59,6 +64,7 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -147,12 +153,15 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     // set the open file cost large enough to produce a separate scan task per file
     // use range distribution to trigger a shuffle
+    // set partitioned scoped deletes so that 1 delete file is written as part of the output task
     Map<String, String> tableProps =
         ImmutableMap.of(
             SPLIT_OPEN_FILE_COST,
             String.valueOf(Integer.MAX_VALUE),
             DELETE_DISTRIBUTION_MODE,
-            DistributionMode.RANGE.modeName());
+            DistributionMode.RANGE.modeName(),
+            TableProperties.DELETE_GRANULARITY,
+            DeleteGranularity.PARTITION.toString());
     sql("ALTER TABLE %s SET TBLPROPERTIES (%s)", tableName, tablePropsAsString(tableProps));
 
     createBranchIfNeeded();
@@ -187,6 +196,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
       // AQE detects that all shuffle blocks are small and processes them in 1 task
       // otherwise, there would be 200 tasks writing to the table
       validateProperty(snapshot, SnapshotSummary.ADDED_FILES_PROP, "1");
+    } else if (mode(table) == MERGE_ON_READ && formatVersion >= 3) {
+      validateProperty(snapshot, SnapshotSummary.ADDED_DELETE_FILES_PROP, "4");
+      validateProperty(snapshot, SnapshotSummary.ADDED_DVS_PROP, "4");
     } else {
       // MoR DELETE requests the deleted records to be range distributed by partition and `_file`
       // each task contains only 1 file and therefore writes only 1 shuffle block
@@ -521,7 +533,8 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     } else {
       // this is a RowDelta that produces a "delete" instead of "overwrite"
       validateMergeOnRead(currentSnapshot, "1", "1", null);
-      validateProperty(currentSnapshot, ADD_POS_DELETE_FILES_PROP, "1");
+      String property = formatVersion >= 3 ? ADDED_DVS_PROP : ADD_POS_DELETE_FILES_PROP;
+      validateProperty(currentSnapshot, property, "1");
     }
 
     assertThat(sql("SELECT * FROM %s", tableName))
@@ -1142,8 +1155,16 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createOrReplaceView("deleted_id", Collections.singletonList(1), Encoders.INT());
 
     sql(
-        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
-        tableName, DELETE_ISOLATION_LEVEL, "snapshot");
+        "ALTER TABLE %s SET TBLPROPERTIES('%s'='%s', '%s'='%s', '%s'='%s', '%s'='%s')",
+        tableName,
+        DELETE_ISOLATION_LEVEL,
+        "snapshot",
+        COMMIT_MIN_RETRY_WAIT_MS,
+        "10",
+        COMMIT_MAX_RETRY_WAIT_MS,
+        "1000",
+        COMMIT_NUM_RETRIES,
+        "7");
 
     sql("INSERT INTO TABLE %s VALUES (1, 'hr')", tableName);
     createBranchIfNeeded();
@@ -1293,7 +1314,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     if (mode(table) == COPY_ON_WRITE) {
       validateCopyOnWrite(currentSnapshot, "3", "4", "1");
     } else {
-      validateMergeOnRead(currentSnapshot, "3", "3", null);
+      validateMergeOnRead(currentSnapshot, "3", "4", null);
     }
 
     assertEquals(
@@ -1399,6 +1420,28 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
               .as("Should not modify main branch")
               .isEqualTo(3L);
         });
+  }
+
+  @TestTemplate
+  public void testDeleteWithFilterOnNestedColumn() {
+    createAndInitNestedColumnsTable();
+
+    sql("INSERT INTO TABLE %s VALUES (1, named_struct(\"c1\", 3, \"c2\", \"v1\"))", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, named_struct(\"c1\", 2, \"c2\", \"v2\"))", tableName);
+
+    sql("DELETE FROM %s WHERE complex.c1 > 3", tableName);
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1), row(2)),
+        sql("SELECT id FROM %s order by id", tableName));
+
+    sql("DELETE FROM %s WHERE complex.c1 = 3", tableName);
+    assertEquals(
+        "Should have expected rows", ImmutableList.of(row(2)), sql("SELECT id FROM %s", tableName));
+
+    sql("DELETE FROM %s t WHERE t.complex.c1 = 2", tableName);
+    assertEquals(
+        "Should have expected rows", ImmutableList.of(), sql("SELECT id FROM %s", tableName));
   }
 
   // TODO: multiple stripes for ORC

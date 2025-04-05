@@ -21,8 +21,6 @@ package org.apache.iceberg.flink.data;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -89,6 +87,7 @@ public class FlinkParquetReaders {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public ParquetValueReader<RowData> struct(
         Types.StructType expected, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
       // match the expected struct's order
@@ -115,37 +114,37 @@ public class FlinkParquetReaders {
           expected != null ? expected.fields() : ImmutableList.of();
       List<ParquetValueReader<?>> reorderedFields =
           Lists.newArrayListWithExpectedSize(expectedFields.size());
-      List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
       // Defaulting to parent max definition level
       int defaultMaxDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
+        ParquetValueReader<?> reader = readersById.get(id);
         if (idToConstant.containsKey(id)) {
           // containsKey is used because the constant may be null
           int fieldMaxDefinitionLevel =
               maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel);
           reorderedFields.add(
               ParquetValueReaders.constant(idToConstant.get(id), fieldMaxDefinitionLevel));
-          types.add(null);
         } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
           reorderedFields.add(ParquetValueReaders.position());
-          types.add(null);
         } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
           reorderedFields.add(ParquetValueReaders.constant(false));
-          types.add(null);
+        } else if (reader != null) {
+          reorderedFields.add(reader);
+        } else if (field.initialDefault() != null) {
+          reorderedFields.add(
+              ParquetValueReaders.constant(
+                  RowDataUtil.convertConstant(field.type(), field.initialDefault()),
+                  maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel)));
+        } else if (field.isOptional()) {
+          reorderedFields.add(ParquetValueReaders.nulls());
         } else {
-          ParquetValueReader<?> reader = readersById.get(id);
-          if (reader != null) {
-            reorderedFields.add(reader);
-            types.add(typesById.get(id));
-          } else {
-            reorderedFields.add(ParquetValueReaders.nulls());
-            types.add(null);
-          }
+          throw new IllegalArgumentException(
+              String.format("Missing required field: %s", field.name()));
         }
       }
 
-      return new RowDataReader(types, reorderedFields);
+      return new RowDataReader(reorderedFields);
     }
 
     @Override
@@ -273,17 +272,11 @@ public class FlinkParquetReaders {
       public Optional<ParquetValueReader<?>> visit(
           LogicalTypeAnnotation.TimestampLogicalTypeAnnotation timestampLogicalType) {
         if (timestampLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MILLIS) {
-          if (timestampLogicalType.isAdjustedToUTC()) {
-            return Optional.of(new MillisToTimestampTzReader(desc));
-          } else {
-            return Optional.of(new MillisToTimestampReader(desc));
-          }
+          return Optional.of(new MillisToTimestampReader(desc));
         } else if (timestampLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS) {
-          if (timestampLogicalType.isAdjustedToUTC()) {
-            return Optional.of(new MicrosToTimestampTzReader(desc));
-          } else {
-            return Optional.of(new MicrosToTimestampReader(desc));
-          }
+          return Optional.of(new MicrosToTimestampReader(desc));
+        } else if (timestampLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.NANOS) {
+          return Optional.of(new NanosToTimestampReader(desc));
         }
 
         return LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(timestampLogicalType);
@@ -411,25 +404,17 @@ public class FlinkParquetReaders {
     }
   }
 
-  private static class MicrosToTimestampTzReader
+  private static class NanosToTimestampReader
       extends ParquetValueReaders.UnboxedReader<TimestampData> {
-    MicrosToTimestampTzReader(ColumnDescriptor desc) {
+    NanosToTimestampReader(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
     public TimestampData read(TimestampData ignored) {
       long value = readLong();
-      return TimestampData.fromLocalDateTime(
-          Instant.ofEpochSecond(
-                  Math.floorDiv(value, 1000_000L), Math.floorMod(value, 1000_000L) * 1000L)
-              .atOffset(ZoneOffset.UTC)
-              .toLocalDateTime());
-    }
-
-    @Override
-    public long readLong() {
-      return column.nextLong();
+      return TimestampData.fromEpochMillis(
+          Math.floorDiv(value, 1_000_000L), Math.floorMod(value, 1_000_000));
     }
   }
 
@@ -441,15 +426,9 @@ public class FlinkParquetReaders {
 
     @Override
     public TimestampData read(TimestampData ignored) {
-      long value = readLong();
-      return TimestampData.fromInstant(
-          Instant.ofEpochSecond(
-              Math.floorDiv(value, 1000_000L), Math.floorMod(value, 1000_000L) * 1000L));
-    }
-
-    @Override
-    public long readLong() {
-      return column.nextLong();
+      long micros = readLong();
+      return TimestampData.fromEpochMillis(
+          Math.floorDiv(micros, 1000L), Math.floorMod(micros, 1000) * 1000);
     }
   }
 
@@ -463,30 +442,6 @@ public class FlinkParquetReaders {
     public TimestampData read(TimestampData ignored) {
       long millis = readLong();
       return TimestampData.fromEpochMillis(millis);
-    }
-
-    @Override
-    public long readLong() {
-      return column.nextLong();
-    }
-  }
-
-  private static class MillisToTimestampTzReader
-      extends ParquetValueReaders.UnboxedReader<TimestampData> {
-    MillisToTimestampTzReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public TimestampData read(TimestampData ignored) {
-      long millis = readLong();
-      return TimestampData.fromLocalDateTime(
-          Instant.ofEpochMilli(millis).atOffset(ZoneOffset.UTC).toLocalDateTime());
-    }
-
-    @Override
-    public long readLong() {
-      return column.nextLong();
     }
   }
 
@@ -654,8 +609,8 @@ public class FlinkParquetReaders {
       extends ParquetValueReaders.StructReader<RowData, GenericRowData> {
     private final int numFields;
 
-    RowDataReader(List<Type> types, List<ParquetValueReader<?>> readers) {
-      super(types, readers);
+    RowDataReader(List<ParquetValueReader<?>> readers) {
+      super(readers);
       this.numFields = readers.size();
     }
 

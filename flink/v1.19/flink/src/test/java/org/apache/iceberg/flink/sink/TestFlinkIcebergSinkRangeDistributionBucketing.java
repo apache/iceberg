@@ -60,6 +60,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -77,6 +78,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
  * </ul>
  */
 @Timeout(value = 30)
+@Disabled // https://github.com/apache/iceberg/pull/11305#issuecomment-2415207097
 public class TestFlinkIcebergSinkRangeDistributionBucketing {
   private static final Configuration DISABLE_CLASSLOADER_CHECK_CONFIG =
       new Configuration()

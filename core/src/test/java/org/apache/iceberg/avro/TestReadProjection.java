@@ -63,6 +63,28 @@ public abstract class TestReadProjection {
   }
 
   @Test
+  public void testReadOptionalAsRequired() throws Exception {
+    Schema writeSchema =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.optional(1, "data", Types.StringType.get()));
+
+    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
+    record.put("id", 34L);
+    record.put("data", "test");
+
+    Schema readSchema =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.required(1, "data", Types.StringType.get()));
+
+    Record projected = writeAndRead("read_optional_as_required", writeSchema, readSchema, record);
+
+    int cmp = Comparators.charSequences().compare("test", (CharSequence) projected.get("data"));
+    assertThat(cmp).as("Should contain the correct data/renamed value").isEqualTo(0);
+  }
+
+  @Test
   public void testReorderedFullProjection() throws Exception {
     Schema schema =
         new Schema(
@@ -111,6 +133,7 @@ public abstract class TestReadProjection {
   }
 
   @Test
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   public void testEmptyProjection() throws Exception {
     Schema schema =
         new Schema(
@@ -125,6 +148,7 @@ public abstract class TestReadProjection {
 
     assertThat(projected).as("Should read a non-null record").isNotNull();
     // this is expected because there are no values
+    // no check on the underlying error msg as it might be missing based on the JDK version
     assertThatThrownBy(() -> projected.get(0)).isInstanceOf(ArrayIndexOutOfBoundsException.class);
   }
 

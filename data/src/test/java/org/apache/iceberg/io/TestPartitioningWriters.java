@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -80,9 +79,6 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
   @Override
   @BeforeEach
   public void setupTable() throws Exception {
-    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue(); // created during table creation
-
     this.metadataDir = new File(tableDir, "metadata");
     this.table = create(SCHEMA, PartitionSpec.unpartitioned());
     this.fileFactory = OutputFileFactory.builderFor(table, 1, 1).format(fileFormat).build();
@@ -366,14 +362,18 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     PartitionSpec bucketSpec = table.specs().get(1);
     PartitionSpec identitySpec = table.specs().get(2);
 
-    writer.write(positionDelete(dataFile1.path(), 0L, null), unpartitionedSpec, null);
-    writer.write(positionDelete(dataFile1.path(), 1L, null), unpartitionedSpec, null);
+    writer.write(positionDelete(dataFile1.location(), 0L, null), unpartitionedSpec, null);
+    writer.write(positionDelete(dataFile1.location(), 1L, null), unpartitionedSpec, null);
     writer.write(
-        positionDelete(dataFile2.path(), 0L, null), bucketSpec, partitionKey(bucketSpec, "bbb"));
+        positionDelete(dataFile2.location(), 0L, null),
+        bucketSpec,
+        partitionKey(bucketSpec, "bbb"));
     writer.write(
-        positionDelete(dataFile2.path(), 1L, null), bucketSpec, partitionKey(bucketSpec, "bbb"));
+        positionDelete(dataFile2.location(), 1L, null),
+        bucketSpec,
+        partitionKey(bucketSpec, "bbb"));
     writer.write(
-        positionDelete(dataFile3.path(), 0L, null),
+        positionDelete(dataFile3.location(), 0L, null),
         identitySpec,
         partitionKey(identitySpec, "ccc"));
 
@@ -492,10 +492,10 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     PartitionSpec spec = table.spec();
 
     // write deletes for both data files
-    writer.write(positionDelete(dataFile1.path(), 0L, null), spec, null);
-    writer.write(positionDelete(dataFile1.path(), 1L, null), spec, null);
-    writer.write(positionDelete(dataFile2.path(), 0L, null), spec, null);
-    writer.write(positionDelete(dataFile2.path(), 1L, null), spec, null);
+    writer.write(positionDelete(dataFile1.location(), 0L, null), spec, null);
+    writer.write(positionDelete(dataFile1.location(), 1L, null), spec, null);
+    writer.write(positionDelete(dataFile2.location(), 0L, null), spec, null);
+    writer.write(positionDelete(dataFile2.location(), 1L, null), spec, null);
     writer.close();
 
     // verify the writer result
@@ -640,25 +640,29 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     PartitionSpec bucketSpec = table.specs().get(1);
     PartitionSpec identitySpec = table.specs().get(2);
 
-    writer.write(positionDelete(dataFile1.path(), 1L, null), unpartitionedSpec, null);
+    writer.write(positionDelete(dataFile1.location(), 1L, null), unpartitionedSpec, null);
     writer.write(
-        positionDelete(dataFile2.path(), 1L, null), bucketSpec, partitionKey(bucketSpec, "bbb"));
+        positionDelete(dataFile2.location(), 1L, null),
+        bucketSpec,
+        partitionKey(bucketSpec, "bbb"));
     writer.write(
-        positionDelete(dataFile2.path(), 0L, null), bucketSpec, partitionKey(bucketSpec, "bbb"));
+        positionDelete(dataFile2.location(), 0L, null),
+        bucketSpec,
+        partitionKey(bucketSpec, "bbb"));
     writer.write(
-        positionDelete(dataFile3.path(), 1L, null),
+        positionDelete(dataFile3.location(), 1L, null),
         identitySpec,
         partitionKey(identitySpec, "ccc"));
     writer.write(
-        positionDelete(dataFile3.path(), 2L, null),
+        positionDelete(dataFile3.location(), 2L, null),
         identitySpec,
         partitionKey(identitySpec, "ccc"));
-    writer.write(positionDelete(dataFile1.path(), 0L, null), unpartitionedSpec, null);
+    writer.write(positionDelete(dataFile1.location(), 0L, null), unpartitionedSpec, null);
     writer.write(
-        positionDelete(dataFile3.path(), 0L, null),
+        positionDelete(dataFile3.location(), 0L, null),
         identitySpec,
         partitionKey(identitySpec, "ccc"));
-    writer.write(positionDelete(dataFile1.path(), 2L, null), unpartitionedSpec, null);
+    writer.write(positionDelete(dataFile1.location(), 2L, null), unpartitionedSpec, null);
 
     writer.close();
 
@@ -707,10 +711,10 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     PartitionSpec spec = table.spec();
 
     // write deletes for both data files (the order of records is mixed)
-    writer.write(positionDelete(dataFile1.path(), 1L, null), spec, null);
-    writer.write(positionDelete(dataFile2.path(), 0L, null), spec, null);
-    writer.write(positionDelete(dataFile1.path(), 0L, null), spec, null);
-    writer.write(positionDelete(dataFile2.path(), 1L, null), spec, null);
+    writer.write(positionDelete(dataFile1.location(), 1L, null), spec, null);
+    writer.write(positionDelete(dataFile2.location(), 0L, null), spec, null);
+    writer.write(positionDelete(dataFile1.location(), 0L, null), spec, null);
+    writer.write(positionDelete(dataFile2.location(), 1L, null), spec, null);
     writer.close();
 
     // verify the writer result
@@ -754,8 +758,8 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
             writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE, DeleteGranularity.FILE);
 
     // write initial deletes for both data files
-    writer1.write(positionDelete(dataFile1.path(), 1L), spec, null);
-    writer1.write(positionDelete(dataFile2.path(), 1L), spec, null);
+    writer1.write(positionDelete(dataFile1.location(), 1L), spec, null);
+    writer1.write(positionDelete(dataFile2.location(), 1L), spec, null);
     writer1.close();
 
     // verify the writer result
@@ -793,8 +797,8 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
             new PreviousDeleteLoader(table, previousDeletes));
 
     // write more deletes for both data files
-    writer2.write(positionDelete(dataFile1.path(), 0L), spec, null);
-    writer2.write(positionDelete(dataFile2.path(), 0L), spec, null);
+    writer2.write(positionDelete(dataFile1.location(), 0L), spec, null);
+    writer2.write(positionDelete(dataFile2.location(), 0L), spec, null);
     writer2.close();
 
     // verify the writer result

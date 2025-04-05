@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -42,6 +41,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestMetricsModes {
+  @TempDir private File tableDir;
 
   @Parameter private int formatVersion;
 
@@ -108,9 +108,6 @@ public class TestMetricsModes {
 
   @TestTemplate
   public void testMetricsConfigSortedColsDefault() throws Exception {
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue();
-
     Schema schema =
         new Schema(
             required(1, "col1", Types.IntegerType.get()),
@@ -145,9 +142,6 @@ public class TestMetricsModes {
 
   @TestTemplate
   public void testMetricsConfigSortedColsDefaultByInvalid() throws Exception {
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue();
-
     Schema schema =
         new Schema(
             required(1, "col1", Types.IntegerType.get()),
@@ -180,9 +174,6 @@ public class TestMetricsModes {
             required(1, "col1", Types.IntegerType.get()),
             required(2, "col2", Types.IntegerType.get()),
             required(3, "col3", Types.IntegerType.get()));
-
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue();
 
     Table table =
         TestTables.create(

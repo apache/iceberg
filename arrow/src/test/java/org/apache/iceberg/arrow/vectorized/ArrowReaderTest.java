@@ -583,7 +583,7 @@ public class ArrowReaderTest {
         columnSet,
         "uuid",
         (records, i) -> records.get(i).getField("uuid"),
-        ColumnVector::getBinary);
+        (array, i) -> UUIDUtil.convert(array.getBinary(i)));
 
     checkColumnarArrayValues(
         expectedNumRows,
@@ -593,7 +593,7 @@ public class ArrowReaderTest {
         columnSet,
         "uuid_nullable",
         (records, i) -> records.get(i).getField("uuid_nullable"),
-        ColumnVector::getBinary);
+        (array, i) -> UUIDUtil.convert(array.getBinary(i)));
 
     checkColumnarArrayValues(
         expectedNumRows,
@@ -820,8 +820,7 @@ public class ArrowReaderTest {
       rec.setField("int_promotion", i);
       rec.setField("time", LocalTime.of(11, i));
       rec.setField("time_nullable", LocalTime.of(11, i));
-      ByteBuffer bb = UUIDUtil.convertToByteBuffer(UUID.randomUUID());
-      byte[] uuid = bb.array();
+      UUID uuid = UUID.randomUUID();
       rec.setField("uuid", uuid);
       rec.setField("uuid_nullable", uuid);
       rec.setField("decimal", new BigDecimal("14.0" + i % 10));
@@ -858,9 +857,7 @@ public class ArrowReaderTest {
       rec.setField("int_promotion", 1);
       rec.setField("time", LocalTime.of(11, 30));
       rec.setField("time_nullable", LocalTime.of(11, 30));
-      ByteBuffer bb =
-          UUIDUtil.convertToByteBuffer(UUID.fromString("abcd91cf-08d0-4223-b145-f64030b3077f"));
-      byte[] uuid = bb.array();
+      UUID uuid = UUID.fromString("abcd91cf-08d0-4223-b145-f64030b3077f");
       rec.setField("uuid", uuid);
       rec.setField("uuid_nullable", uuid);
       rec.setField("decimal", new BigDecimal("14.20"));
@@ -877,7 +874,7 @@ public class ArrowReaderTest {
     FileAppender<GenericRecord> appender =
         Parquet.write(Files.localOutput(parquetFile))
             .schema(table.schema())
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .createWriterFunc(GenericParquetWriter::create)
             .build();
     try {
       appender.addAll(records);
@@ -1140,7 +1137,7 @@ public class ArrowReaderTest {
         columnSet,
         "uuid",
         (records, i) -> records.get(i).getField("uuid"),
-        (vector, i) -> ((FixedSizeBinaryVector) vector).get(i));
+        (vector, i) -> UUIDUtil.convert(((FixedSizeBinaryVector) vector).get(i)));
 
     checkVectorValues(
         expectedNumRows,
@@ -1149,7 +1146,7 @@ public class ArrowReaderTest {
         columnSet,
         "uuid_nullable",
         (records, i) -> records.get(i).getField("uuid_nullable"),
-        (vector, i) -> ((FixedSizeBinaryVector) vector).get(i));
+        (vector, i) -> UUIDUtil.convert(((FixedSizeBinaryVector) vector).get(i)));
 
     checkVectorValues(
         expectedNumRows,

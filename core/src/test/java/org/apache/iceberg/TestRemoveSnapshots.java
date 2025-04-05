@@ -21,6 +21,9 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.times;
 
 import java.io.File;
 import java.io.IOException;
@@ -37,8 +40,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.puffin.Blob;
 import org.apache.iceberg.puffin.Puffin;
 import org.apache.iceberg.puffin.PuffinWriter;
@@ -47,8 +53,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestRemoveSnapshots extends TestBase {
@@ -141,7 +149,7 @@ public class TestRemoveSnapshots extends TestBase {
                     .allManifests(table.io())
                     .get(0)
                     .path(), // manifest contained only deletes, was dropped
-                FILE_A.path() // deleted
+                FILE_A.location() // deleted
                 ));
   }
 
@@ -196,7 +204,7 @@ public class TestRemoveSnapshots extends TestBase {
                     .get(0)
                     .path(), // manifest was rewritten for delete
                 secondSnapshot.manifestListLocation(), // snapshot expired
-                FILE_A.path() // deleted
+                FILE_A.location() // deleted
                 ));
   }
 
@@ -292,42 +300,32 @@ public class TestRemoveSnapshots extends TestBase {
                     .findFirst()
                     .get()
                     .path(), // manifest is no longer referenced
-                FILE_B.path()) // added, but rolled back
+                FILE_B.location()) // added, but rolled back
             );
   }
 
   @TestTemplate
   public void testRetainLastWithExpireOlderThan() {
-    long t0 = System.currentTimeMillis();
     table
         .newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .commit();
     long firstSnapshotId = table.currentSnapshot().snapshotId();
-    long t1 = System.currentTimeMillis();
-    while (t1 <= table.currentSnapshot().timestampMillis()) {
-      t1 = System.currentTimeMillis();
-    }
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     table
         .newAppend()
         .appendFile(FILE_B) // data_bucket=1
         .commit();
 
-    long t2 = System.currentTimeMillis();
-    while (t2 <= table.currentSnapshot().timestampMillis()) {
-      t2 = System.currentTimeMillis();
-    }
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     table
         .newAppend()
         .appendFile(FILE_C) // data_bucket=2
         .commit();
 
-    long t3 = System.currentTimeMillis();
-    while (t3 <= table.currentSnapshot().timestampMillis()) {
-      t3 = System.currentTimeMillis();
-    }
+    long t3 = waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     // Retain last 2 snapshots
     removeSnapshots(table).expireOlderThan(t3).retainLast(2).commit();
@@ -338,36 +336,26 @@ public class TestRemoveSnapshots extends TestBase {
 
   @TestTemplate
   public void testRetainLastWithExpireById() {
-    long t0 = System.currentTimeMillis();
     table
         .newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .commit();
     long firstSnapshotId = table.currentSnapshot().snapshotId();
-    long t1 = System.currentTimeMillis();
-    while (t1 <= table.currentSnapshot().timestampMillis()) {
-      t1 = System.currentTimeMillis();
-    }
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     table
         .newAppend()
         .appendFile(FILE_B) // data_bucket=1
         .commit();
 
-    long t2 = System.currentTimeMillis();
-    while (t2 <= table.currentSnapshot().timestampMillis()) {
-      t2 = System.currentTimeMillis();
-    }
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     table
         .newAppend()
         .appendFile(FILE_C) // data_bucket=2
         .commit();
 
-    long t3 = System.currentTimeMillis();
-    while (t3 <= table.currentSnapshot().timestampMillis()) {
-      t3 = System.currentTimeMillis();
-    }
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     // Retain last 3 snapshots, but explicitly remove the first snapshot
     table.expireSnapshots().expireSnapshotId(firstSnapshotId).retainLast(3).commit();
@@ -378,36 +366,26 @@ public class TestRemoveSnapshots extends TestBase {
 
   @TestTemplate
   public void testRetainNAvailableSnapshotsWithTransaction() {
-    long t0 = System.currentTimeMillis();
     table
         .newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .commit();
     long firstSnapshotId = table.currentSnapshot().snapshotId();
-    long t1 = System.currentTimeMillis();
-    while (t1 <= table.currentSnapshot().timestampMillis()) {
-      t1 = System.currentTimeMillis();
-    }
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     table
         .newAppend()
         .appendFile(FILE_B) // data_bucket=1
         .commit();
 
-    long t2 = System.currentTimeMillis();
-    while (t2 <= table.currentSnapshot().timestampMillis()) {
-      t2 = System.currentTimeMillis();
-    }
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     table
         .newAppend()
         .appendFile(FILE_C) // data_bucket=2
         .commit();
 
-    long t3 = System.currentTimeMillis();
-    while (t3 <= table.currentSnapshot().timestampMillis()) {
-      t3 = System.currentTimeMillis();
-    }
+    long t3 = waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     assertThat(listManifestFiles(new File(table.location()))).hasSize(3);
 
@@ -423,7 +401,6 @@ public class TestRemoveSnapshots extends TestBase {
 
   @TestTemplate
   public void testRetainLastWithTooFewSnapshots() {
-    long t0 = System.currentTimeMillis();
     table
         .newAppend()
         .appendFile(FILE_A) // data_bucket=0
@@ -431,20 +408,14 @@ public class TestRemoveSnapshots extends TestBase {
         .commit();
     long firstSnapshotId = table.currentSnapshot().snapshotId();
 
-    long t1 = System.currentTimeMillis();
-    while (t1 <= table.currentSnapshot().timestampMillis()) {
-      t1 = System.currentTimeMillis();
-    }
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     table
         .newAppend()
         .appendFile(FILE_C) // data_bucket=2
         .commit();
 
-    long t2 = System.currentTimeMillis();
-    while (t2 <= table.currentSnapshot().timestampMillis()) {
-      t2 = System.currentTimeMillis();
-    }
+    long t2 = waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     // Retain last 3 snapshots
     removeSnapshots(table).expireOlderThan(t2).retainLast(3).commit();
@@ -460,31 +431,21 @@ public class TestRemoveSnapshots extends TestBase {
         .newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .commit();
-    long firstSnapshotId = table.currentSnapshot().snapshotId();
-    long t1 = System.currentTimeMillis();
-    while (t1 <= table.currentSnapshot().timestampMillis()) {
-      t1 = System.currentTimeMillis();
-    }
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     table
         .newAppend()
         .appendFile(FILE_B) // data_bucket=1
         .commit();
 
-    long t2 = System.currentTimeMillis();
-    while (t2 <= table.currentSnapshot().timestampMillis()) {
-      t2 = System.currentTimeMillis();
-    }
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     table
         .newAppend()
         .appendFile(FILE_C) // data_bucket=2
         .commit();
 
-    long t3 = System.currentTimeMillis();
-    while (t3 <= table.currentSnapshot().timestampMillis()) {
-      t3 = System.currentTimeMillis();
-    }
+    long t3 = waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     // Retain last 4 snapshots
     Transaction tx = table.newTransaction();
@@ -496,15 +457,11 @@ public class TestRemoveSnapshots extends TestBase {
 
   @TestTemplate
   public void testRetainLastKeepsExpiringSnapshot() {
-    long t0 = System.currentTimeMillis();
     table
         .newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .commit();
-    long t1 = System.currentTimeMillis();
-    while (t1 <= table.currentSnapshot().timestampMillis()) {
-      t1 = System.currentTimeMillis();
-    }
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     table
         .newAppend()
@@ -512,30 +469,21 @@ public class TestRemoveSnapshots extends TestBase {
         .commit();
 
     Snapshot secondSnapshot = table.currentSnapshot();
-    long t2 = System.currentTimeMillis();
-    while (t2 <= table.currentSnapshot().timestampMillis()) {
-      t2 = System.currentTimeMillis();
-    }
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     table
         .newAppend()
         .appendFile(FILE_C) // data_bucket=2
         .commit();
 
-    long t3 = System.currentTimeMillis();
-    while (t3 <= table.currentSnapshot().timestampMillis()) {
-      t3 = System.currentTimeMillis();
-    }
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     table
         .newAppend()
         .appendFile(FILE_D) // data_bucket=3
         .commit();
 
-    long t4 = System.currentTimeMillis();
-    while (t4 <= table.currentSnapshot().timestampMillis()) {
-      t4 = System.currentTimeMillis();
-    }
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     // Retain last 2 snapshots and expire older than t3
     removeSnapshots(table).expireOlderThan(secondSnapshot.timestampMillis()).retainLast(2).commit();
@@ -546,15 +494,11 @@ public class TestRemoveSnapshots extends TestBase {
 
   @TestTemplate
   public void testExpireOlderThanMultipleCalls() {
-    long t0 = System.currentTimeMillis();
     table
         .newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .commit();
-    long t1 = System.currentTimeMillis();
-    while (t1 <= table.currentSnapshot().timestampMillis()) {
-      t1 = System.currentTimeMillis();
-    }
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     table
         .newAppend()
@@ -562,10 +506,7 @@ public class TestRemoveSnapshots extends TestBase {
         .commit();
 
     Snapshot secondSnapshot = table.currentSnapshot();
-    long t2 = System.currentTimeMillis();
-    while (t2 <= table.currentSnapshot().timestampMillis()) {
-      t2 = System.currentTimeMillis();
-    }
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     table
         .newAppend()
@@ -573,10 +514,7 @@ public class TestRemoveSnapshots extends TestBase {
         .commit();
 
     Snapshot thirdSnapshot = table.currentSnapshot();
-    long t3 = System.currentTimeMillis();
-    while (t3 <= table.currentSnapshot().timestampMillis()) {
-      t3 = System.currentTimeMillis();
-    }
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     // Retain last 2 snapshots and expire older than t3
     removeSnapshots(table)
@@ -590,15 +528,11 @@ public class TestRemoveSnapshots extends TestBase {
 
   @TestTemplate
   public void testRetainLastMultipleCalls() {
-    long t0 = System.currentTimeMillis();
     table
         .newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .commit();
-    long t1 = System.currentTimeMillis();
-    while (t1 <= table.currentSnapshot().timestampMillis()) {
-      t1 = System.currentTimeMillis();
-    }
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     table
         .newAppend()
@@ -606,20 +540,14 @@ public class TestRemoveSnapshots extends TestBase {
         .commit();
 
     Snapshot secondSnapshot = table.currentSnapshot();
-    long t2 = System.currentTimeMillis();
-    while (t2 <= table.currentSnapshot().timestampMillis()) {
-      t2 = System.currentTimeMillis();
-    }
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     table
         .newAppend()
         .appendFile(FILE_C) // data_bucket=2
         .commit();
 
-    long t3 = System.currentTimeMillis();
-    while (t3 <= table.currentSnapshot().timestampMillis()) {
-      t3 = System.currentTimeMillis();
-    }
+    long t3 = waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     // Retain last 2 snapshots and expire older than t3
     removeSnapshots(table).expireOlderThan(t3).retainLast(2).retainLast(1).commit();
@@ -643,16 +571,13 @@ public class TestRemoveSnapshots extends TestBase {
 
     table.newAppend().appendFile(FILE_D).commit();
 
-    long t3 = System.currentTimeMillis();
-    while (t3 <= table.currentSnapshot().timestampMillis()) {
-      t3 = System.currentTimeMillis();
-    }
+    long t3 = waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     Set<String> deletedFiles = Sets.newHashSet();
 
     removeSnapshots(table).expireOlderThan(t3).deleteWith(deletedFiles::add).commit();
 
-    assertThat(deletedFiles).contains(FILE_A.path().toString());
+    assertThat(deletedFiles).contains(FILE_A.location());
   }
 
   @TestTemplate
@@ -669,16 +594,13 @@ public class TestRemoveSnapshots extends TestBase {
 
     table.newFastAppend().appendFile(FILE_D).commit();
 
-    long t3 = System.currentTimeMillis();
-    while (t3 <= table.currentSnapshot().timestampMillis()) {
-      t3 = System.currentTimeMillis();
-    }
+    long t3 = waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     Set<String> deletedFiles = Sets.newHashSet();
 
     removeSnapshots(table).expireOlderThan(t3).deleteWith(deletedFiles::add).commit();
 
-    assertThat(deletedFiles).contains(FILE_A.path().toString());
+    assertThat(deletedFiles).contains(FILE_A.location());
   }
 
   @TestTemplate
@@ -693,10 +615,7 @@ public class TestRemoveSnapshots extends TestBase {
     table.newRewrite().rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_C)).commit();
     long fourthSnapshotId = table.currentSnapshot().snapshotId();
 
-    long t4 = System.currentTimeMillis();
-    while (t4 <= table.currentSnapshot().timestampMillis()) {
-      t4 = System.currentTimeMillis();
-    }
+    long t4 = waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     List<ManifestFile> manifests = table.currentSnapshot().dataManifests(table.io());
 
@@ -715,8 +634,8 @@ public class TestRemoveSnapshots extends TestBase {
 
     removeSnapshots(table).expireOlderThan(t4).deleteWith(deletedFiles::add).commit();
 
-    assertThat(deletedFiles).contains(FILE_A.path().toString());
-    assertThat(deletedFiles).contains(FILE_B.path().toString());
+    assertThat(deletedFiles).contains(FILE_A.location().toString());
+    assertThat(deletedFiles).contains(FILE_B.location().toString());
   }
 
   @TestTemplate
@@ -731,10 +650,7 @@ public class TestRemoveSnapshots extends TestBase {
     table.newRewrite().rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_C)).commit();
     long fourthSnapshotId = table.currentSnapshot().snapshotId();
 
-    long t4 = System.currentTimeMillis();
-    while (t4 <= table.currentSnapshot().timestampMillis()) {
-      t4 = System.currentTimeMillis();
-    }
+    long t4 = waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     List<ManifestFile> manifests = table.currentSnapshot().dataManifests(table.io());
 
@@ -789,8 +705,8 @@ public class TestRemoveSnapshots extends TestBase {
         .containsExactly(
             "remove-snapshot-3", "remove-snapshot-2", "remove-snapshot-1", "remove-snapshot-0");
 
-    assertThat(deletedFiles).contains(FILE_A.path().toString());
-    assertThat(deletedFiles).contains(FILE_B.path().toString());
+    assertThat(deletedFiles).contains(FILE_A.location());
+    assertThat(deletedFiles).contains(FILE_B.location());
     assertThat(planThreadsIndex.get())
         .as("Thread should be created in provided pool")
         .isGreaterThan(0);
@@ -806,10 +722,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     table.newRewrite().rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_C)).commit();
 
-    long t4 = System.currentTimeMillis();
-    while (t4 <= table.currentSnapshot().timestampMillis()) {
-      t4 = System.currentTimeMillis();
-    }
+    long t4 = waitUntilAfter(table.currentSnapshot().timestampMillis());
 
     Set<String> deletedFiles = Sets.newHashSet();
 
@@ -857,7 +770,7 @@ public class TestRemoveSnapshots extends TestBase {
         .addedDataFiles(table.io())
         .forEach(
             i -> {
-              expectedDeletes.add(i.path().toString());
+              expectedDeletes.add(i.location());
             });
 
     // ManifestList should be deleted too
@@ -923,7 +836,7 @@ public class TestRemoveSnapshots extends TestBase {
               i.addedDataFiles(table.io())
                   .forEach(
                       item -> {
-                        assertThat(deletedFiles).doesNotContain(item.path().toString());
+                        assertThat(deletedFiles).doesNotContain(item.location());
                       });
             });
   }
@@ -969,7 +882,7 @@ public class TestRemoveSnapshots extends TestBase {
               i.addedDataFiles(table.io())
                   .forEach(
                       item -> {
-                        assertThat(deletedFiles).doesNotContain(item.path().toString());
+                        assertThat(deletedFiles).doesNotContain(item.location());
                       });
             });
 
@@ -986,7 +899,7 @@ public class TestRemoveSnapshots extends TestBase {
               i.addedDataFiles(table.io())
                   .forEach(
                       item -> {
-                        assertThat(deletedFiles).doesNotContain(item.path().toString());
+                        assertThat(deletedFiles).doesNotContain(item.location());
                       });
             });
   }
@@ -1105,8 +1018,8 @@ public class TestRemoveSnapshots extends TestBase {
         .as("Should remove old delete files and delete file manifests")
         .isEqualTo(
             ImmutableSet.builder()
-                .add(FILE_A.path())
-                .add(FILE_A_DELETES.path())
+                .add(FILE_A.location())
+                .add(FILE_A_DELETES.location())
                 .add(firstSnapshot.manifestListLocation())
                 .add(secondSnapshot.manifestListLocation())
                 .add(thirdSnapshot.manifestListLocation())
@@ -1614,10 +1527,249 @@ public class TestRemoveSnapshots extends TestBase {
     expectedDeletes.addAll(manifestPaths(appendA, table.io()));
     expectedDeletes.add(branchDelete.manifestListLocation());
     expectedDeletes.addAll(manifestPaths(branchDelete, table.io()));
-    expectedDeletes.add(FILE_A.path().toString());
+    expectedDeletes.add(FILE_A.location());
 
     assertThat(table.snapshots()).hasSize(2);
     assertThat(deletedFiles).isEqualTo(expectedDeletes);
+  }
+
+  @TestTemplate
+  public void testRemoveFromTableWithBulkIO() {
+    TestBulkLocalFileIO spyFileIO = Mockito.spy(new TestBulkLocalFileIO());
+
+    Mockito.doNothing().when(spyFileIO).deleteFiles(any());
+
+    runBulkDeleteTest(spyFileIO);
+  }
+
+  @TestTemplate
+  public void testBulkDeletionWithBulkDeletionFailureException() {
+    TestBulkLocalFileIO spyFileIO = Mockito.spy(new TestBulkLocalFileIO());
+
+    Mockito.doThrow(new BulkDeletionFailureException(2))
+        .doNothing()
+        .when(spyFileIO)
+        .deleteFiles(any());
+
+    runBulkDeleteTest(spyFileIO);
+  }
+
+  @TestTemplate
+  public void testBulkDeletionWithRuntimeException() {
+    TestBulkLocalFileIO spyFileIO = Mockito.spy(new TestBulkLocalFileIO());
+
+    Mockito.doThrow(new RuntimeException("Exception when bulk deleting"))
+        .doNothing()
+        .when(spyFileIO)
+        .deleteFiles(any());
+
+    runBulkDeleteTest(spyFileIO);
+  }
+
+  private void runBulkDeleteTest(TestBulkLocalFileIO spyFileIO) {
+    String tableName = "tableWithBulkIO";
+    Table tableWithBulkIO =
+        TestTables.create(
+            tableDir,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(tableName, tableDir, spyFileIO));
+
+    tableWithBulkIO.newAppend().appendFile(FILE_A).commit();
+
+    Set<String> deletedManifestLists =
+        Sets.newHashSet(tableWithBulkIO.currentSnapshot().manifestListLocation());
+    Set<String> deletedManifests =
+        tableWithBulkIO.currentSnapshot().allManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+
+    tableWithBulkIO.newDelete().deleteFile(FILE_A).commit();
+
+    deletedManifestLists.add(tableWithBulkIO.currentSnapshot().manifestListLocation());
+    deletedManifests.addAll(
+        tableWithBulkIO.currentSnapshot().allManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet()));
+
+    tableWithBulkIO.newAppend().appendFile(FILE_B).commit();
+
+    long lastSnapshotId = tableWithBulkIO.currentSnapshot().snapshotId();
+
+    removeSnapshots(tableWithBulkIO).expireOlderThan(System.currentTimeMillis()).commit();
+
+    assertThat(tableWithBulkIO.currentSnapshot().snapshotId()).isEqualTo(lastSnapshotId);
+    assertThat(tableWithBulkIO.snapshots()).containsOnly(tableWithBulkIO.currentSnapshot());
+
+    Mockito.verify(spyFileIO, times(3)).deleteFiles(any());
+    Mockito.verify(spyFileIO).deleteFiles(Set.of(FILE_A.location()));
+    Mockito.verify(spyFileIO).deleteFiles(deletedManifestLists);
+    Mockito.verify(spyFileIO).deleteFiles(deletedManifests);
+  }
+
+  @TestTemplate
+  public void testRemoveSpecDuringExpiration() {
+    DataFile file =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data-0.parquet")
+            .withPartitionPath("data_bucket=0")
+            .withFileSizeInBytes(10)
+            .withRecordCount(100)
+            .build();
+    table.newAppend().appendFile(file).commit();
+    Snapshot append = table.currentSnapshot();
+    String appendManifest =
+        Iterables.getOnlyElement(
+            table.currentSnapshot().allManifests(table.io()).stream()
+                .map(ManifestFile::path)
+                .collect(Collectors.toList()));
+    table.newDelete().deleteFile(file).commit();
+    Snapshot delete = table.currentSnapshot();
+    String deleteManifest =
+        Iterables.getOnlyElement(
+            table.currentSnapshot().allManifests(table.io()).stream()
+                .map(ManifestFile::path)
+                .collect(Collectors.toList()));
+
+    table.updateSpec().addField("id_bucket", Expressions.bucket("id", 16)).commit();
+    PartitionSpec idAndDataBucketSpec = table.spec();
+    DataFile bucketFile =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data-0-id-0.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(100)
+            .withPartitionPath("data_bucket=0/id_bucket=0")
+            .build();
+    table.newAppend().appendFile(bucketFile).commit();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    // Expiring snapshots should remove the data_bucket partition
+    removeSnapshots(table)
+        .expireOlderThan(System.currentTimeMillis())
+        .cleanExpiredMetadata(true)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles)
+        .containsExactlyInAnyOrder(
+            appendManifest,
+            deleteManifest,
+            file.location(),
+            append.manifestListLocation(),
+            delete.manifestListLocation());
+    assertThat(table.specs().keySet())
+        .as("Only id_bucket + data_bucket transform should exist")
+        .containsExactly(idAndDataBucketSpec.specId());
+  }
+
+  @TestTemplate
+  public void testRemoveSpecsDoesntRemoveDefaultSpec() throws IOException {
+    // The default spec for table is bucketed on data, but write using unpartitioned
+    PartitionSpec dataBucketSpec = table.spec();
+    DataFile file =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath("/path/to/data-0.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(100)
+            .build();
+
+    table.newAppend().appendFile(file).commit();
+    Snapshot append = table.currentSnapshot();
+    table.newDelete().deleteFile(file).commit();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    // Expiring snapshots should remove only the unpartitioned spec
+    removeSnapshots(table)
+        .expireOlderThan(System.currentTimeMillis())
+        .cleanExpiredMetadata(true)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles).containsExactlyInAnyOrder(append.manifestListLocation());
+    assertThat(table.specs().keySet())
+        .as("Only data_bucket transform should exist")
+        .containsExactly(dataBucketSpec.specId());
+  }
+
+  @TestTemplate
+  public void testRemoveSchemas() {
+    table.newAppend().appendFile(FILE_A).commit();
+
+    Set<String> expectedDeletedFiles = Sets.newHashSet();
+    expectedDeletedFiles.add(table.currentSnapshot().manifestListLocation());
+
+    table.updateSchema().addColumn("extra_col1", Types.StringType.get()).commit();
+
+    table.newAppend().appendFile(FILE_B).commit();
+    expectedDeletedFiles.add(table.currentSnapshot().manifestListLocation());
+
+    table.updateSchema().addColumn("extra_col2", Types.LongType.get()).deleteColumn("id").commit();
+
+    table.newAppend().appendFile(FILE_A2).commit();
+
+    assertThat(table.schemas()).hasSize(3);
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    // Expire all snapshots and schemas except the current ones.
+    removeSnapshots(table)
+        .expireOlderThan(System.currentTimeMillis())
+        .cleanExpiredMetadata(true)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles).containsExactlyInAnyOrderElementsOf(expectedDeletedFiles);
+    assertThat(table.schemas().values()).containsExactly(table.schema());
+  }
+
+  @TestTemplate
+  public void testNoSchemasOrSpecsToRemove() {
+    String tableName = "test_no_schemas_or_specs_to_remove";
+    TestTables.TestTableOperations ops =
+        Mockito.spy(new TestTables.TestTableOperations(tableName, tableDir));
+    TestTables.TestTable table =
+        TestTables.create(
+            tableDir,
+            tableName,
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            formatVersion,
+            ops);
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    Set<String> expectedDeletedFiles = Sets.newHashSet();
+    expectedDeletedFiles.add(table.currentSnapshot().manifestListLocation());
+
+    table.newAppend().appendFile(FILE_B).commit();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    // Expire all snapshots except the current one. No unused schemas or specs to be removed.
+    removeSnapshots(table)
+        .expireOlderThan(System.currentTimeMillis())
+        .cleanExpiredMetadata(true)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(deletedFiles).containsExactlyInAnyOrderElementsOf(expectedDeletedFiles);
+    assertThat(table.schemas().values()).containsExactly(table.schema());
+    Mockito.verify(ops, Mockito.never())
+        .commit(
+            any(),
+            argThat(
+                meta ->
+                    meta.changes().stream()
+                        .anyMatch(u -> u instanceof MetadataUpdate.RemovePartitionSpecs)));
+    Mockito.verify(ops, Mockito.never())
+        .commit(
+            any(),
+            argThat(
+                meta ->
+                    meta.changes().stream()
+                        .anyMatch(u -> u instanceof MetadataUpdate.RemoveSchemas)));
   }
 
   private Set<String> manifestPaths(Snapshot snapshot, FileIO io) {
@@ -1663,7 +1815,7 @@ public class TestRemoveSnapshots extends TestBase {
   }
 
   private void commitStats(Table table, StatisticsFile statisticsFile) {
-    table.updateStatistics().setStatistics(statisticsFile.snapshotId(), statisticsFile).commit();
+    table.updateStatistics().setStatistics(statisticsFile).commit();
   }
 
   private String statsFileLocation(String tableLocation) {
@@ -1699,5 +1851,19 @@ public class TestRemoveSnapshots extends TestBase {
 
   private static void commitPartitionStats(Table table, PartitionStatisticsFile statisticsFile) {
     table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+  }
+
+  private static class TestBulkLocalFileIO extends TestTables.LocalFileIO
+      implements SupportsBulkOperations {
+
+    @Override
+    public void deleteFile(String path) {
+      throw new RuntimeException("Expected to call the bulk delete interface.");
+    }
+
+    @Override
+    public void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException {
+      throw new RuntimeException("Expected to mock this function");
+    }
   }
 }

@@ -55,12 +55,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.InternalData;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -95,6 +98,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.PropertyUtil;
@@ -104,6 +108,7 @@ import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.avro.AvroWriteSupport;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
+import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.crypto.FileDecryptionProperties;
 import org.apache.parquet.crypto.FileEncryptionProperties;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -115,8 +120,12 @@ import org.apache.parquet.hadoop.api.ReadSupport;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Parquet {
+  private static final Logger LOG = LoggerFactory.getLogger(Parquet.class);
+
   private Parquet() {}
 
   private static final Collection<String> READ_PROPERTIES_TO_REMOVE =
@@ -127,6 +136,10 @@ public class Parquet {
           "parquet.crypto.factory.class");
 
   public static WriteBuilder write(OutputFile file) {
+    if (file instanceof EncryptedOutputFile) {
+      return write((EncryptedOutputFile) file);
+    }
+
     return new WriteBuilder(file);
   }
 
@@ -141,15 +154,16 @@ public class Parquet {
     }
   }
 
-  public static class WriteBuilder {
+  public static class WriteBuilder implements InternalData.WriteBuilder {
     private final OutputFile file;
     private final Configuration conf;
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
     private final Map<String, String> config = Maps.newLinkedHashMap();
     private Schema schema = null;
+    private VariantShreddingFunction variantShreddingFunc = null;
     private String name = "table";
     private WriteSupport<?> writeSupport = null;
-    private Function<MessageType, ParquetValueWriter<?>> createWriterFunc = null;
+    private BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc = null;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
     private WriterVersion writerVersion = WriterVersion.PARQUET_1_0;
@@ -173,11 +187,26 @@ public class Parquet {
       return this;
     }
 
+    @Override
     public WriteBuilder schema(Schema newSchema) {
       this.schema = newSchema;
       return this;
     }
 
+    /**
+     * Set a {@link VariantShreddingFunction} that is called with each variant field's name and
+     * field ID to produce the shredding type as a {@code typed_value} field. This field is added to
+     * the result variant struct alongside the {@code metadata} and {@code value} fields.
+     *
+     * @param func {@link VariantShreddingFunction} that produces a shredded {@code typed_value}
+     * @return this for method chaining
+     */
+    public WriteBuilder variantShreddingFunc(VariantShreddingFunction func) {
+      this.variantShreddingFunc = func;
+      return this;
+    }
+
+    @Override
     public WriteBuilder named(String newName) {
       this.name = newName;
       return this;
@@ -188,6 +217,7 @@ public class Parquet {
       return this;
     }
 
+    @Override
     public WriteBuilder set(String property, String value) {
       config.put(property, value);
       return this;
@@ -198,6 +228,7 @@ public class Parquet {
       return this;
     }
 
+    @Override
     public WriteBuilder meta(String property, String value) {
       metadata.put(property, value);
       return this;
@@ -205,6 +236,14 @@ public class Parquet {
 
     public WriteBuilder createWriterFunc(
         Function<MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
+      if (newCreateWriterFunc != null) {
+        this.createWriterFunc = (icebergSchema, type) -> newCreateWriterFunc.apply(type);
+      }
+      return this;
+    }
+
+    public WriteBuilder createWriterFunc(
+        BiFunction<Schema, MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
       this.createWriterFunc = newCreateWriterFunc;
       return this;
     }
@@ -214,6 +253,7 @@ public class Parquet {
       return this;
     }
 
+    @Override
     public WriteBuilder overwrite() {
       return overwrite(true);
     }
@@ -266,6 +306,45 @@ public class Parquet {
       return this;
     }
 
+    private void setBloomFilterConfig(
+        Context context,
+        MessageType parquetSchema,
+        BiConsumer<String, Boolean> withBloomFilterEnabled,
+        BiConsumer<String, Double> withBloomFilterFPP) {
+
+      Map<Integer, String> fieldIdToParquetPath =
+          parquetSchema.getColumns().stream()
+              .filter(col -> col.getPrimitiveType().getId() != null)
+              .collect(
+                  Collectors.toMap(
+                      col -> col.getPrimitiveType().getId().intValue(),
+                      col -> String.join(".", col.getPath())));
+
+      context
+          .columnBloomFilterEnabled()
+          .forEach(
+              (colPath, isEnabled) -> {
+                Types.NestedField fieldId = schema.findField(colPath);
+                if (fieldId == null) {
+                  LOG.warn("Skipping bloom filter config for missing field: {}", colPath);
+                  return;
+                }
+
+                String parquetColumnPath = fieldIdToParquetPath.get(fieldId.fieldId());
+                if (parquetColumnPath == null) {
+                  LOG.warn("Skipping bloom filter config for missing field: {}", fieldId);
+                  return;
+                }
+
+                withBloomFilterEnabled.accept(parquetColumnPath, Boolean.valueOf(isEnabled));
+                String fpp = context.columnBloomFilterFpp().get(colPath);
+                if (fpp != null) {
+                  withBloomFilterFPP.accept(parquetColumnPath, Double.parseDouble(fpp));
+                }
+              });
+    }
+
+    @Override
     public <D> FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
@@ -285,8 +364,6 @@ public class Parquet {
       int rowGroupCheckMinRecordCount = context.rowGroupCheckMinRecordCount();
       int rowGroupCheckMaxRecordCount = context.rowGroupCheckMaxRecordCount();
       int bloomFilterMaxBytes = context.bloomFilterMaxBytes();
-      Map<String, String> columnBloomFilterFpp = context.columnBloomFilterFpp();
-      Map<String, String> columnBloomFilterEnabled = context.columnBloomFilterEnabled();
       boolean dictionaryEnabled = context.dictionaryEnabled();
 
       if (compressionLevel != null) {
@@ -308,7 +385,7 @@ public class Parquet {
       }
 
       set("parquet.avro.write-old-list-structure", "false");
-      MessageType type = ParquetSchemaUtil.convert(schema, name);
+      MessageType type = ParquetSchemaUtil.convert(schema, name, variantShreddingFunc);
 
       FileEncryptionProperties fileEncryptionProperties = null;
       if (fileEncryptionKey != null) {
@@ -343,17 +420,8 @@ public class Parquet {
                 .withMaxRowCountForPageSizeCheck(rowGroupCheckMaxRecordCount)
                 .withMaxBloomFilterBytes(bloomFilterMaxBytes);
 
-        for (Map.Entry<String, String> entry : columnBloomFilterEnabled.entrySet()) {
-          String colPath = entry.getKey();
-          String bloomEnabled = entry.getValue();
-          propsBuilder.withBloomFilterEnabled(colPath, Boolean.parseBoolean(bloomEnabled));
-        }
-
-        for (Map.Entry<String, String> entry : columnBloomFilterFpp.entrySet()) {
-          String colPath = entry.getKey();
-          String fpp = entry.getValue();
-          propsBuilder.withBloomFilterFPP(colPath, Double.parseDouble(fpp));
-        }
+        setBloomFilterConfig(
+            context, type, propsBuilder::withBloomFilterEnabled, propsBuilder::withBloomFilterFPP);
 
         ParquetProperties parquetProperties = propsBuilder.build();
 
@@ -361,6 +429,7 @@ public class Parquet {
             conf,
             file,
             schema,
+            type,
             rowGroupSize,
             metadata,
             createWriterFunc,
@@ -386,17 +455,11 @@ public class Parquet {
                 .withDictionaryPageSize(dictionaryPageSize)
                 .withEncryption(fileEncryptionProperties);
 
-        for (Map.Entry<String, String> entry : columnBloomFilterEnabled.entrySet()) {
-          String colPath = entry.getKey();
-          String bloomEnabled = entry.getValue();
-          parquetWriteBuilder.withBloomFilterEnabled(colPath, Boolean.parseBoolean(bloomEnabled));
-        }
-
-        for (Map.Entry<String, String> entry : columnBloomFilterFpp.entrySet()) {
-          String colPath = entry.getKey();
-          String fpp = entry.getValue();
-          parquetWriteBuilder.withBloomFilterFPP(colPath, Double.parseDouble(fpp));
-        }
+        setBloomFilterConfig(
+            context,
+            type,
+            parquetWriteBuilder::withBloomFilterEnabled,
+            parquetWriteBuilder::withBloomFilterFPP);
 
         return new ParquetWriteAdapter<>(parquetWriteBuilder.build(), metricsConfig);
       }
@@ -721,6 +784,12 @@ public class Parquet {
       return this;
     }
 
+    public DataWriteBuilder createWriterFunc(
+        BiFunction<Schema, MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
+      appenderBuilder.createWriterFunc(newCreateWriterFunc);
+      return this;
+    }
+
     public DataWriteBuilder withSpec(PartitionSpec newSpec) {
       this.spec = newSpec;
       return this;
@@ -781,7 +850,7 @@ public class Parquet {
   public static class DeleteWriteBuilder {
     private final WriteBuilder appenderBuilder;
     private final String location;
-    private Function<MessageType, ParquetValueWriter<?>> createWriterFunc = null;
+    private BiFunction<Schema, MessageType, ParquetValueWriter<?>> createWriterFunc = null;
     private Schema rowSchema = null;
     private PartitionSpec spec = null;
     private StructLike partition = null;
@@ -834,6 +903,12 @@ public class Parquet {
 
     public DeleteWriteBuilder createWriterFunc(
         Function<MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
+      this.createWriterFunc = (ignored, fileSchema) -> newCreateWriterFunc.apply(fileSchema);
+      return this;
+    }
+
+    public DeleteWriteBuilder createWriterFunc(
+        BiFunction<Schema, MessageType, ParquetValueWriter<?>> newCreateWriterFunc) {
       this.createWriterFunc = newCreateWriterFunc;
       return this;
     }
@@ -944,8 +1019,8 @@ public class Parquet {
         appenderBuilder.schema(DeleteSchemaUtil.posDeleteSchema(rowSchema));
 
         appenderBuilder.createWriterFunc(
-            parquetSchema -> {
-              ParquetValueWriter<?> writer = createWriterFunc.apply(parquetSchema);
+            (schema, parquetSchema) -> {
+              ParquetValueWriter<?> writer = createWriterFunc.apply(schema, parquetSchema);
               if (writer instanceof StructWriter) {
                 return new PositionDeleteStructWriter<T>(
                     (StructWriter<?>) writer, pathTransformFunc);
@@ -961,9 +1036,9 @@ public class Parquet {
         // We ignore the 'createWriterFunc' and 'rowSchema' even if is provided, since we do not
         // write row data itself
         appenderBuilder.createWriterFunc(
-            parquetSchema ->
+            (schema, parquetSchema) ->
                 new PositionDeleteStructWriter<T>(
-                    (StructWriter<?>) GenericParquetWriter.buildWriter(parquetSchema),
+                    (StructWriter<?>) GenericParquetWriter.create(schema, parquetSchema),
                     Function.identity()));
       }
 
@@ -1030,7 +1105,7 @@ public class Parquet {
     }
   }
 
-  public static class ReadBuilder {
+  public static class ReadBuilder implements InternalData.ReadBuilder {
     private final InputFile file;
     private final Map<String, String> properties = Maps.newHashMap();
     private Long start = null;
@@ -1040,6 +1115,7 @@ public class Parquet {
     private ReadSupport<?> readSupport = null;
     private Function<MessageType, VectorizedReader<?>> batchedReaderFunc = null;
     private Function<MessageType, ParquetValueReader<?>> readerFunc = null;
+    private BiFunction<Schema, MessageType, ParquetValueReader<?>> readerFuncWithSchema = null;
     private boolean filterRecords = true;
     private boolean caseSensitive = true;
     private boolean callInit = false;
@@ -1060,12 +1136,14 @@ public class Parquet {
      * @param newLength the length of the range this read should scan
      * @return this builder for method chaining
      */
+    @Override
     public ReadBuilder split(long newStart, long newLength) {
       this.start = newStart;
       this.length = newLength;
       return this;
     }
 
+    @Override
     public ReadBuilder project(Schema newSchema) {
       this.schema = newSchema;
       return this;
@@ -1103,15 +1181,33 @@ public class Parquet {
         Function<MessageType, ParquetValueReader<?>> newReaderFunction) {
       Preconditions.checkArgument(
           this.batchedReaderFunc == null,
-          "Reader function cannot be set since the batched version is already set");
+          "Cannot set reader function: batched reader function already set");
+      Preconditions.checkArgument(
+          this.readerFuncWithSchema == null,
+          "Cannot set reader function: 2-argument reader function already set");
       this.readerFunc = newReaderFunction;
+      return this;
+    }
+
+    public ReadBuilder createReaderFunc(
+        BiFunction<Schema, MessageType, ParquetValueReader<?>> newReaderFunction) {
+      Preconditions.checkArgument(
+          this.readerFunc == null,
+          "Cannot set 2-argument reader function: reader function already set");
+      Preconditions.checkArgument(
+          this.batchedReaderFunc == null,
+          "Cannot set 2-argument reader function: batched reader function already set");
+      this.readerFuncWithSchema = newReaderFunction;
       return this;
     }
 
     public ReadBuilder createBatchedReaderFunc(Function<MessageType, VectorizedReader<?>> func) {
       Preconditions.checkArgument(
           this.readerFunc == null,
-          "Batched reader function cannot be set since the non-batched version is already set");
+          "Cannot set batched reader function: reader function already set");
+      Preconditions.checkArgument(
+          this.readerFuncWithSchema == null,
+          "Cannot set batched reader function: 2-argument reader function already set");
       this.batchedReaderFunc = func;
       return this;
     }
@@ -1130,6 +1226,7 @@ public class Parquet {
       return this;
     }
 
+    @Override
     public ReadBuilder reuseContainers() {
       this.reuseContainers = true;
       return this;
@@ -1145,6 +1242,16 @@ public class Parquet {
       return this;
     }
 
+    @Override
+    public ReadBuilder setRootType(Class<? extends StructLike> rootClass) {
+      throw new UnsupportedOperationException("Custom types are not yet supported");
+    }
+
+    @Override
+    public ReadBuilder setCustomType(int fieldId, Class<? extends StructLike> structClass) {
+      throw new UnsupportedOperationException("Custom types are not yet supported");
+    }
+
     public ReadBuilder withFileEncryptionKey(ByteBuffer encryptionKey) {
       this.fileEncryptionKey = encryptionKey;
       return this;
@@ -1155,6 +1262,7 @@ public class Parquet {
       return this;
     }
 
+    @Override
     @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
     public <D> CloseableIterable<D> build() {
       FileDecryptionProperties fileDecryptionProperties = null;
@@ -1170,7 +1278,7 @@ public class Parquet {
         Preconditions.checkState(fileAADPrefix == null, "AAD prefix set with null encryption key");
       }
 
-      if (readerFunc != null || batchedReaderFunc != null) {
+      if (readerFunc != null || readerFuncWithSchema != null || batchedReaderFunc != null) {
         ParquetReadOptions.Builder optionsBuilder;
         if (file instanceof HadoopInputFile) {
           // remove read properties already set that may conflict with this read
@@ -1180,7 +1288,7 @@ public class Parquet {
           }
           optionsBuilder = HadoopReadOptions.builder(conf);
         } else {
-          optionsBuilder = ParquetReadOptions.builder();
+          optionsBuilder = ParquetReadOptions.builder(new PlainParquetConfiguration());
         }
 
         for (Map.Entry<String, String> entry : properties.entrySet()) {
@@ -1218,8 +1326,12 @@ public class Parquet {
               caseSensitive,
               maxRecordsPerBatch);
         } else {
+          Function<MessageType, ParquetValueReader<?>> readBuilder =
+              readerFuncWithSchema != null
+                  ? fileType -> readerFuncWithSchema.apply(schema, fileType)
+                  : readerFunc;
           return new org.apache.iceberg.parquet.ParquetReader<>(
-              file, schema, options, readerFunc, mapping, filter, reuseContainers, caseSensitive);
+              file, schema, options, readBuilder, mapping, filter, reuseContainers, caseSensitive);
         }
       }
 
@@ -1249,7 +1361,9 @@ public class Parquet {
         // TODO: should not need to get the schema to push down before opening the file.
         // Parquet should allow setting a filter inside its read support
         ParquetReadOptions decryptOptions =
-            ParquetReadOptions.builder().withDecryption(fileDecryptionProperties).build();
+            ParquetReadOptions.builder(new PlainParquetConfiguration())
+                .withDecryption(fileDecryptionProperties)
+                .build();
         MessageType type;
         try (ParquetFileReader schemaReader =
             ParquetFileReader.open(ParquetIO.file(file), decryptOptions)) {

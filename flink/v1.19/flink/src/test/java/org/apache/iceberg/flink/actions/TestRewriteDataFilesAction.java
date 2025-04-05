@@ -383,7 +383,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
     assertThat(dataFilesRewrote).hasSize(2);
     // the biggest file do not be rewrote
     List rewroteDataFileNames =
-        dataFilesRewrote.stream().map(ContentFile::path).collect(Collectors.toList());
+        dataFilesRewrote.stream().map(ContentFile::location).collect(Collectors.toList());
     assertThat(rewroteDataFileNames).contains(file.getAbsolutePath());
 
     // Assert the table records as expected.
@@ -434,7 +434,8 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
                     .useStartingSequenceNumber(false)
                     .execute(),
             "Rewrite using new sequence number should fail")
-        .isInstanceOf(ValidationException.class);
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot commit, found new delete for replaced data file");
 
     // Rewrite using the starting sequence number should succeed
     RewriteDataFilesActionResult result =

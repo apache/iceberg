@@ -26,6 +26,7 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
+import org.apache.spark.sql.connector.catalog.ViewCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureCatalog;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -35,7 +36,9 @@ abstract class BaseCatalog
         ProcedureCatalog,
         SupportsNamespaces,
         HasIcebergCatalog,
-        SupportsFunctions {
+        SupportsFunctions,
+        ViewCatalog,
+        SupportsReplaceView {
   private static final String USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS = "use-nullable-query-schema";
   private static final boolean USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT = true;
 
