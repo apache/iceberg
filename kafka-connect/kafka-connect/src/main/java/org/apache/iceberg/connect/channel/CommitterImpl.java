@@ -24,7 +24,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.Committer;
@@ -110,7 +109,6 @@ public class CommitterImpl implements Committer {
     // Filter members that are assigned partitions from source topics
     TopicPartition firstTopicPartition =
         members.stream()
-            .filter(this::hasSourceTopicPartition)
             .filter(member -> isUniqueClientSuffix(member, clientSuffixes))
             .flatMap(member -> member.assignment().topicPartitions().stream())
             .min(new TopicPartitionComparator())
@@ -118,20 +116,6 @@ public class CommitterImpl implements Committer {
                 () -> new ConnectException("No partitions assigned, cannot determine leader"));
 
     return partitions.contains(firstTopicPartition);
-  }
-
-  private boolean hasSourceTopicPartition(MemberDescription member) {
-    if (!config.sourceTopics().isEmpty()) {
-      // Exact match using topic names
-      return member.assignment().topicPartitions().stream()
-          .map(TopicPartition::topic)
-          .anyMatch(config.sourceTopics()::contains);
-    } else {
-      // Pattern match using topics.regex
-      return member.assignment().topicPartitions().stream()
-          .map(TopicPartition::topic)
-          .anyMatch(topic -> Pattern.compile(config.sourceTopicRegex()).matcher(topic).matches());
-    }
   }
 
   private boolean isUniqueClientSuffix(MemberDescription member, Set<Integer> seenSuffixes) {
@@ -152,7 +136,7 @@ public class CommitterImpl implements Committer {
     try {
       suffix = Integer.parseInt(suffixStr);
     } catch (NumberFormatException e) {
-      throw new ConnectException("Client ID suffix is not an integer: " + clientId);
+      throw new ConnectException("Client ID should end with Task ID: " + clientId);
     }
 
     if (!seenSuffixes.add(suffix)) {
