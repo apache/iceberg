@@ -55,13 +55,6 @@ public class CommitterImpl implements Committer {
   private Collection<MemberDescription> membersWhenWorkerIsCoordinator;
   private final AtomicBoolean isInitialized = new AtomicBoolean(false);
 
-  public CommitterImpl() {}
-
-  @VisibleForTesting
-  CommitterImpl(IcebergSinkConfig config) {
-    this.config = config;
-  }
-
   private void initialize(
       Catalog icebergCatalog,
       IcebergSinkConfig icebergSinkConfig,
@@ -105,7 +98,6 @@ public class CommitterImpl implements Committer {
   boolean containsFirstPartition(
       Collection<MemberDescription> members, Collection<TopicPartition> partitions) {
     Set<Integer> clientSuffixes = Sets.newHashSet();
-
     // Filter members that are assigned partitions from source topics
     TopicPartition firstTopicPartition =
         members.stream()

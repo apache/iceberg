@@ -25,7 +25,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.IcebergBuild;
@@ -237,19 +236,10 @@ public class IcebergSinkConfig extends AbstractConfig {
   private final Map<String, String> writeProps;
   private final Map<String, TableSinkConfig> tableConfigMap = Maps.newHashMap();
   private final JsonConverter jsonConverter;
-  private final Set<String> sourceTopics;
-  private final String sourceTopicRegex;
 
   public IcebergSinkConfig(Map<String, String> originalProps) {
     super(CONFIG_DEF, originalProps);
     this.originalProps = originalProps;
-
-    this.sourceTopics =
-        Arrays.stream(originalProps.get("topics").split(","))
-            .map(String::trim)
-            .filter(s -> !s.isEmpty())
-            .collect(Collectors.toSet());
-    this.sourceTopicRegex = originalProps.getOrDefault("topics.regex", "");
 
     this.catalogProps = PropertyUtil.propertiesWithPrefix(originalProps, CATALOG_PROP_PREFIX);
     this.hadoopProps = PropertyUtil.propertiesWithPrefix(originalProps, HADOOP_PROP_PREFIX);
@@ -297,14 +287,6 @@ public class IcebergSinkConfig extends AbstractConfig {
   public String transactionalSuffix() {
     // this is for internal use and is not part of the config definition...
     return originalProps.get(INTERNAL_TRANSACTIONAL_SUFFIX_PROP);
-  }
-
-  public Set<String> sourceTopics() {
-    return sourceTopics;
-  }
-
-  public String sourceTopicRegex() {
-    return sourceTopicRegex;
   }
 
   public Map<String, String> catalogProps() {

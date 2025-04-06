@@ -20,29 +20,22 @@ package org.apache.iceberg.connect.channel;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
-import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.kafka.clients.admin.MemberAssignment;
 import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 public class CommitterImplTest {
 
   @Test
   public void testIsLeader() {
-    IcebergSinkConfig icebergSinkConfig = Mockito.mock(IcebergSinkConfig.class);
-    CommitterImpl committer = new CommitterImpl(icebergSinkConfig);
-    when(icebergSinkConfig.sourceTopics()).thenReturn(Set.of("topic1", "topic2"));
+    CommitterImpl committer = new CommitterImpl();
 
     MemberAssignment assignment1 =
         new MemberAssignment(
@@ -69,11 +62,7 @@ public class CommitterImplTest {
 
   @Test
   public void testCoordinatorElectionShouldFailWhenMultipleJobsShareConsumerGroupId() {
-
-    IcebergSinkConfig icebergSinkConfig = Mockito.mock(IcebergSinkConfig.class);
-
-    CommitterImpl committer = new CommitterImpl(icebergSinkConfig);
-    when(icebergSinkConfig.sourceTopics()).thenReturn(Sets.newHashSet("topic1"));
+    CommitterImpl committer = new CommitterImpl();
 
     MemberAssignment assignment1 =
         new MemberAssignment(ImmutableSet.of(new TopicPartition("topic1", 0)));
@@ -85,7 +74,7 @@ public class CommitterImplTest {
         new MemberAssignment(ImmutableSet.of(new TopicPartition("topic2", 0)));
     MemberDescription member2 =
         new MemberDescription(
-            "connector2-consumer-0", Optional.empty(), "connector1-consumer-0", null, assignment2);
+            "connector2-consumer-0", Optional.empty(), "connector2-consumer-0", null, assignment2);
 
     List<MemberDescription> members = ImmutableList.of(member1, member2);
 
