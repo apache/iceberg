@@ -98,7 +98,10 @@ public class CommitterImpl implements Committer {
   boolean containsFirstPartition(
       Collection<MemberDescription> members, Collection<TopicPartition> partitions) {
     Set<Integer> clientSuffixes = Sets.newHashSet();
-    // Filter members that are assigned partitions from source topics
+    // there should only be one task assigned partition 0 of the first topic,
+    // so elect that one the leader
+    // Also it might be possible that mistakenly two jobs have shared the same consumer group id, we
+    // need to fail the job in that scenario rather than simply not electing the coordinator.
     TopicPartition firstTopicPartition =
         members.stream()
             .filter(member -> isUniqueClientSuffix(member, clientSuffixes))
