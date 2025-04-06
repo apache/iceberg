@@ -76,12 +76,11 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
   public static final String LIST_ALL_TABLES = "list-all-tables";
   public static final String LIST_ALL_TABLES_DEFAULT = "false";
 
+  private static final String HMS_CONF_PREFIX = "hive.metastore.";
   public static final String HMS_TABLE_OWNER = "hive.metastore.table.owner";
   public static final String HMS_DB_OWNER = "hive.metastore.database.owner";
   public static final String HMS_DB_OWNER_TYPE = "hive.metastore.database.owner-type";
 
-  private static final String HMS_CLIENT_CLASS = "hms-client-class";
-  private static final String HMS_CLIENT_NAME = "hive.metastore.client.class";
   // MetastoreConf is not available with current Hive version
   static final String HIVE_CONF_CATALOG = "metastore.catalog.default";
 
@@ -105,9 +104,12 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
       this.conf = new Configuration();
     }
 
-    if (properties.containsKey(HMS_CLIENT_CLASS)) {
-      this.conf.set(HMS_CLIENT_NAME, properties.get(HMS_CLIENT_CLASS));
-    }
+    properties.forEach(
+        (key, value) -> {
+          if (key.startsWith(HMS_CONF_PREFIX)) {
+            this.conf.set(key, value);
+          }
+        });
 
     if (properties.containsKey(CatalogProperties.URI)) {
       this.conf.set(HiveConf.ConfVars.METASTOREURIS.varname, properties.get(CatalogProperties.URI));

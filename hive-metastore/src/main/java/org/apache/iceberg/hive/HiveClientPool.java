@@ -33,7 +33,7 @@ import org.apache.thrift.transport.TTransportException;
 
 public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException> {
 
-  private static final String HMS_CLIENT_NAME = "hive.metastore.client.class";
+  private static final String HMS_CLIENT_CLASS = "hive.metastore.client.class";
   private static final DynMethods.StaticMethod GET_CLIENT =
       DynMethods.builder("getProxy")
           .impl(
@@ -56,7 +56,7 @@ public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException>
     super(poolSize, TTransportException.class, false);
     this.hiveConf = new HiveConf(conf, HiveClientPool.class);
     this.hiveConf.addResource(conf);
-    this.hmsClientName = hiveConf.get(HMS_CLIENT_NAME, HiveMetaStoreClient.class.getName());
+    this.hmsClientName = hiveConf.get(HMS_CLIENT_CLASS, HiveMetaStoreClient.class.getName());
   }
 
   @Override
