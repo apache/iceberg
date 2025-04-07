@@ -107,8 +107,6 @@ CREATE TABLE flink_table (
 );
 ```
 
-
-
 ## Table managed in custom catalog
 
 The following SQL will create a Flink table in current Flink catalog, which maps to the iceberg table `default_database.flink_table` managed in
