@@ -81,23 +81,26 @@ public abstract class ConnectTimeTypeToIntegerTypeTransform<R extends ConnectRec
       SchemaBuilder fieldBuilder;
 
       switch (fieldSchema.type()) {
-        case INT32:
-          // Check if field has logical type "Time" and remove logical type
-          if (Time.LOGICAL_NAME.equals(fieldSchema.name())) {
-            fieldBuilder = SchemaBuilder.int32().defaultValue(fieldDefaultValue);
-          } else {
-            fieldBuilder = SchemaBuilder.type(fieldSchema.type()).defaultValue(fieldDefaultValue);
-          }
-          break;
         case INT8:
         case INT16:
+        case INT32:
         case INT64:
         case FLOAT32:
         case FLOAT64:
         case BOOLEAN:
         case STRING:
         case BYTES:
-          fieldBuilder = SchemaBuilder.type(fieldSchema.type()).defaultValue(fieldDefaultValue);
+          if (Time.LOGICAL_NAME.equals(fieldSchema.name())) {
+            fieldBuilder = SchemaBuilder.int32();
+          } else {
+            fieldBuilder = SchemaBuilder.type(fieldSchema.type());
+          }
+          if (null != fieldDefaultValue) {
+            fieldBuilder.defaultValue(fieldDefaultValue);
+          }
+          if (fieldIsOptional) {
+            fieldBuilder.optional();
+          }
           break;
         case ARRAY:
           // Recursively transform array elements
