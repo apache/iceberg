@@ -35,9 +35,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
@@ -1777,16 +1775,18 @@ public class TestRemoveSnapshots extends TestBase {
   @TestTemplate
   public void testExpireSnapshotsWithExecutor() {
     AtomicInteger scanThreadsIndex = new AtomicInteger(0);
-    RemoveSnapshots removeSnapshots = (RemoveSnapshots) removeSnapshots(table)
-      .planWith(
-        Executors.newFixedThreadPool(
-            1,
-            runnable -> {
-              Thread thread = new Thread(runnable);
-              thread.setName("scan-" + scanThreadsIndex.getAndIncrement());
-              thread.setDaemon(true);
-              return thread;
-            }));
+    RemoveSnapshots removeSnapshots =
+        (RemoveSnapshots)
+            removeSnapshots(table)
+                .planWith(
+                    Executors.newFixedThreadPool(
+                        1,
+                        runnable -> {
+                          Thread thread = new Thread(runnable);
+                          thread.setName("scan-" + scanThreadsIndex.getAndIncrement());
+                          thread.setDaemon(true);
+                          return thread;
+                        }));
 
     table.newAppend().appendFile(FILE_A).commit();
     table.newAppend().appendFile(FILE_A).commit();
