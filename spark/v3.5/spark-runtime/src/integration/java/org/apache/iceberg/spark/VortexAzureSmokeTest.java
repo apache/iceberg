@@ -282,7 +282,6 @@ public class VortexAzureSmokeTest {
           .load("vortex.supplier")
           .registerTempTable("supplier");
 
-      //      spark.sql(Q5).collect();
       System.err.println("COUNT: " + spark.sql(Q10).count());
     }
   }

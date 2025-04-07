@@ -144,7 +144,6 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
       return ALWAYS_FALSE;
     }
     return UnconvertibleExpr.INSTANCE;
-    //    throw new UnsupportedOperationException("Cannot convert to Vortex filter: " + pred);
   }
 
   private org.apache.iceberg.expressions.Expression bind(UnboundPredicate<?> pred) {
@@ -243,9 +242,6 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
         return Binary.and(left, right);
       case OR:
         return Binary.or(left, right);
-
-      // These filters cannot be translated into Vortex operations, so we do not use them for
-      // pruning and instead return full results to the query engine for post-filtering.
       default:
         return UnconvertibleExpr.INSTANCE;
     }
