@@ -82,7 +82,7 @@ public abstract class ClientPoolImpl<C, E extends Exception>
               retryAttempts++;
               Thread.sleep(CONNECTION_RETRY_WAIT_PERIOD_MS);
             } else {
-              throw reconnectExc.cast(exc);
+              throw (E) exc;
             }
           }
         }
