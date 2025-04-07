@@ -119,7 +119,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private boolean stageOnly = false;
   private Consumer<String> deleteFunc = defaultDelete;
 
-  private ExecutorService workerPool = ThreadPools.getWorkerPool();
+  private ExecutorService workerPool;
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
   private CommitMetrics commitMetrics;
 
@@ -197,7 +197,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   protected ExecutorService workerPool() {
-    return this.workerPool;
+    if (workerPool == null) {
+      this.workerPool = ThreadPools.getWorkerPool();
+    }
+
+    return workerPool;
   }
 
   @Override
@@ -275,7 +279,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       Tasks.range(manifestFiles.length)
           .stopOnFailure()
           .throwFailureWhenFinished()
-          .executeWith(workerPool)
+          .executeWith(workerPool())
           .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
 
       writer.addAll(Arrays.asList(manifestFiles));
