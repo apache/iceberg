@@ -53,8 +53,10 @@ public class ConnectTimeTypeToIntegerTypeTransformTest {
   @Test
   public void topLevelStructRequired() {
     xformValue.configure(Collections.emptyMap());
-      assertThatThrownBy(
-        () -> xformValue.apply(new SourceRecord(null, null, "topic", 0, Schema.INT32_SCHEMA, 42))).isExactlyInstanceOf(DataException.class);
+    assertThatThrownBy(
+            () ->
+                xformValue.apply(new SourceRecord(null, null, "topic", 0, Schema.INT32_SCHEMA, 42)))
+        .isExactlyInstanceOf(DataException.class);
   }
 
   @Test
