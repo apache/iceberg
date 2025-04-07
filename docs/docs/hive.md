@@ -108,7 +108,7 @@ The table level configuration overrides the global Hadoop configuration.
 
 ### Global Hive catalog
 
-HiveCatalog integration supports Hive 3.1.3 or later.
+HiveCatalog integration supports Hive 2.3.10 or 3.1.3 or later.
 
 From the Hive engine's perspective, there is only one global data catalog that is defined in the Hadoop configuration in
 the runtime environment. In contrast, Iceberg supports multiple different data catalog types such as Hive, Hadoop, AWS
