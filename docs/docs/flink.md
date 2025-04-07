@@ -215,14 +215,6 @@ CREATE CATALOG hive_catalog WITH (
 );
 ```
 
-The following properties can be set if using the Hive catalog:
-
-* `uri`: The Hive metastore's thrift URI. (Required)
-* `clients`: The Hive metastore client pool size, default value is 2. (Optional)
-* `warehouse`: The Hive warehouse location, users should specify this path if neither set the `hive-conf-dir` to specify a location containing a `hive-site.xml` configuration file nor add a correct `hive-site.xml` to classpath.
-* `hive-conf-dir`: Path to a directory containing a `hive-site.xml` configuration file which will be used to provide custom Hive configuration values. The value of `hive.metastore.warehouse.dir` from `<hive-conf-dir>/hive-site.xml` (or hive configure file from classpath) will be overwritten with the `warehouse` value if setting both `hive-conf-dir` and `warehouse` when creating iceberg catalog.
-* `hadoop-conf-dir`: Path to a directory containing `core-site.xml` and `hdfs-site.xml` configuration files which will be used to provide custom Hadoop configuration values.
-
 ### REST catalog
 
 This creates an iceberg catalog named `rest_catalog` that can be configured using `'catalog-type'='rest'`, which loads tables from a REST catalog:
@@ -234,13 +226,6 @@ CREATE CATALOG rest_catalog WITH (
   'uri'='https://localhost/'
 );
 ```
-
-The following properties can be set if using the REST catalog:
-
-* `uri`: The URL to the REST Catalog (Required)
-* `credential`: A credential to exchange for a token in the OAuth2 client credentials flow (Optional)
-* `token`: A token which will be used to interact with the server (Optional)
-
 
 ##  Creating a table
 

@@ -89,7 +89,7 @@ CREATE TABLE flink_table (
 
 ## Table managed in REST catalog
 
-The following SQL will create a Flink table in current Flink catalog, which maps to the iceberg table `default_database.flink_table` managed in rest catalog
+The following SQL will create a Flink table in current Flink catalog, which maps to the iceberg table `default_database.flink_table` managed in REST catalog
 
 ```sql
 CREATE TABLE flink_table (
@@ -106,6 +106,7 @@ CREATE TABLE flink_table (
      ...
 );
 ```
+
 
 
 ## Table managed in custom catalog
