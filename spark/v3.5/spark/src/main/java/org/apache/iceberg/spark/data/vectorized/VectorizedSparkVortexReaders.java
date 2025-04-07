@@ -27,6 +27,7 @@ import dev.vortex.spark.read.VortexColumnarBatch;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.vortex.VortexBatchReader;
 import org.apache.spark.sql.vectorized.ColumnVector;
@@ -35,7 +36,6 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 public class VectorizedSparkVortexReaders {
   private VectorizedSparkVortexReaders() {}
 
-  // TODO(aduffy): patch in idToConstant all over the place.
   public static VortexBatchReader<ColumnarBatch> buildReader(
       Schema icebergSchema, DType vortexSchema, Map<Integer, ?> idToConstant) {
     // TODO(aduffy): schema compat, idToConstant handling.
@@ -43,36 +43,49 @@ public class VectorizedSparkVortexReaders {
   }
 
   static final class SchemaCachingBatchReader implements VortexBatchReader<ColumnarBatch> {
-    private final Schema icebergSchema;
+    private final Schema readerSchema;
     private final Map<Integer, ?> idToConstant;
     private final List<Integer> schemaMapping;
+
     // Reusable vector schema root.
     private VectorSchemaRoot root;
 
     SchemaCachingBatchReader(
-        Schema icebergSchema, DType vortexSchema, Map<Integer, ?> idToConstant) {
-      this.icebergSchema = icebergSchema;
+        Schema readerSchema, DType vortexSchema, Map<Integer, ?> idToConstant) {
+      this.readerSchema = readerSchema;
       this.idToConstant = idToConstant;
-      this.schemaMapping = vortexSchemaMapping(icebergSchema, vortexSchema);
+      this.schemaMapping = vortexSchemaMapping(readerSchema, vortexSchema);
     }
 
     @Override
     public ColumnarBatch read(Array batch) {
       this.root = batch.exportToArrow(ArrowAllocation.rootAllocator(), this.root);
       int rowCount = this.root.getRowCount();
-      ColumnVector[] vectors = new ColumnVector[icebergSchema.columns().size()];
+      int highestPartitionField =
+          idToConstant.keySet().stream()
+              .filter(fieldId -> !MetadataColumns.isMetadataColumn(fieldId))
+              .mapToInt(fieldId -> fieldId)
+              .max()
+              .orElse(1);
+      int maxFieldId = Math.max(readerSchema.highestFieldId(), highestPartitionField);
+      ColumnVector[] vectors = new ColumnVector[maxFieldId];
 
       for (Map.Entry<Integer, ?> entry : idToConstant.entrySet()) {
         Integer fieldId = entry.getKey();
         Object constant = entry.getValue();
-        vectors[fieldId] =
+        if (MetadataColumns.isMetadataColumn(fieldId)) {
+          continue;
+        }
+
+        // Field IDs are 1-indexed in Iceberg.
+        vectors[fieldId - 1] =
             new ConstantColumnVector(
-                icebergSchema.findType(fieldId), (int) batch.getLen(), idToConstant.get(fieldId));
+                readerSchema.findType(fieldId), (int) batch.getLen(), constant);
       }
 
       for (int i = 0; i < root.getFieldVectors().size(); i++) {
         int fieldId = schemaMapping.get(i);
-        vectors[fieldId] = new VortexArrowColumnVector(root.getVector(i));
+        vectors[fieldId - 1] = new VortexArrowColumnVector(root.getVector(i));
       }
 
       return new VortexColumnarBatch(batch, vectors, rowCount);
