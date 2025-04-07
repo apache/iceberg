@@ -50,11 +50,19 @@ public class HMSTablePropertyHelper {
   private static final String HIVE_ICEBERG_STORAGE_HANDLER =
       "org.apache.iceberg.mr.hive.HiveIcebergStorageHandler";
 
+  /**
+   * Provides key translation where necessary between Iceberg and HMS props. This translation is
+   * needed because some properties control the same behaviour but are named differently in Iceberg
+   * and Hive. Therefore changes to these property pairs should be synchronized.
+   *
+   * <p>Example: Deleting data files upon DROP TABLE is enabled using gc.enabled=true in Iceberg and
+   * external.table.purge=true in Hive. Hive and Iceberg users are unaware of each other's control
+   * flags, therefore inconsistent behaviour can occur from e.g. a Hive user's point of view if
+   * external.table.purge=true is set on the HMS table but gc.enabled=false is set on the Iceberg
+   * table, resulting in no data file deletion.
+   */
   private static final Map<String, String> ICEBERG_TO_HMS_TRANSLATION =
-      ImmutableMap.of(
-          // gc.enabled in Iceberg and external.table.purge in Hive are meant to do the same things
-          // but with different names
-          GC_ENABLED, "external.table.purge");
+      ImmutableMap.of(GC_ENABLED, "external.table.purge");
 
   private HMSTablePropertyHelper() {}
 
