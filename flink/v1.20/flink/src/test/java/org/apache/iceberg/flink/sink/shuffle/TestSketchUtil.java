@@ -135,7 +135,7 @@ public class TestSketchUtil {
   }
 
   @Test
-  public void testRangeBoundsNumPartitionsBigThanSortKeyCount() {
+  public void testRangeBoundsNumPartitionsBiggerThanSortKeyCount() {
     assertThat(
             SketchUtil.rangeBounds(
                 5,
