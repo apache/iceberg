@@ -82,9 +82,7 @@ public class RewriteDataFilesSparkAction
 
   private static final RewriteDataFilesSparkAction.Result EMPTY_RESULT =
       ImmutableRewriteDataFiles.Result.builder().rewriteResults(ImmutableList.of()).build();
-
   private final Table table;
-
   private Expression filter = Expressions.alwaysTrue();
   private int maxConcurrentFileGroupRewrites;
   private int maxCommits;
