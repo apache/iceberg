@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TestHelpers.ALL_VERSIONS;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -32,6 +33,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.FileIO;
@@ -199,7 +201,7 @@ public class TestBase {
 
   @Parameters(name = "formatVersion = {0}")
   protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
+    return Arrays.stream(ALL_VERSIONS).boxed().collect(Collectors.toUnmodifiableList());
   }
 
   @Parameter protected int formatVersion;
