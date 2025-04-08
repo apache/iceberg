@@ -23,7 +23,7 @@ import static java.nio.file.attribute.PosixFilePermissions.asFileAttribute;
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.facebook.fb303.FacebookBase;
+import com.facebook.fb303.FacebookService;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -131,7 +131,7 @@ public class TestHiveMetastore {
   private HiveConf hiveConf;
   private ExecutorService executorService;
   private TServer server;
-  private FacebookBase base;
+  private FacebookService.Iface baseHandler;
   private HiveClientPool clientPool;
 
   /**
@@ -201,8 +201,8 @@ public class TestHiveMetastore {
     if (executorService != null) {
       executorService.shutdown();
     }
-    if (base != null) {
-      base.shutdown();
+    if (baseHandler != null) {
+      baseHandler.shutdown();
     }
     METASTORE_THREADS_SHUTDOWN.invoke();
   }
@@ -260,10 +260,7 @@ public class TestHiveMetastore {
       throws Exception {
     HiveConf serverConf = new HiveConf(conf);
     serverConf.set("javax.jdo.option.ConnectionURL", "jdbc:derby:" + DERBY_PATH + ";create=true");
-    IHMSHandler baseHandler = HMS_HANDLER_CTOR.newInstance("new db based metaserver", serverConf);
-    if (baseHandler instanceof FacebookBase) {
-      base = (FacebookBase) baseHandler;
-    }
+    baseHandler = HMS_HANDLER_CTOR.newInstance("new db based metaserver", serverConf);
     IHMSHandler handler = GET_BASE_HMS_HANDLER.invoke(serverConf, baseHandler, false);
 
     TThreadPoolServer.Args args =
