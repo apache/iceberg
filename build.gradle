@@ -726,13 +726,6 @@ project(':iceberg-gcp') {
 }
 
 project(':iceberg-hive-metastore') {
-
-  sourceSets {
-    test {
-      java.srcDirs = ['../hive2-metastore/src/test/java', 'src/test/java']
-    }
-  }
-
   test {
     useJUnitPlatform()
   }
@@ -815,7 +808,7 @@ project(':iceberg-hive3-metastore') {
       java.srcDirs = ['../hive-metastore/src/main/java']
     }
     test {
-      java.srcDirs = ['../hive-metastore/src/test/java', 'src/test/java']
+      java.srcDirs = ['../hive-metastore/src/test/java']
       resources.srcDirs = ['../hive-metastore/src/test/resources']
     }
   }
@@ -902,7 +895,7 @@ project(':iceberg-hive4-metastore') {
       java.srcDirs = ['../hive-metastore/src/main/java']
     }
     test {
-      java.srcDirs = ['../hive-metastore/src/test/java', 'src/test/java']
+      java.srcDirs = ['../hive-metastore/src/test/java']
       resources.srcDirs = ['../hive-metastore/src/test/resources']
     }
   }
