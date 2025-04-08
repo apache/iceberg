@@ -21,7 +21,11 @@ package org.apache.iceberg.aws.glue;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -53,9 +57,12 @@ import org.apache.iceberg.util.LockManagers;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariables;
-import org.mockito.Mockito;
+import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
+import software.amazon.awssdk.core.exception.ApiCallTimeoutException;
+import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.CreateTableRequest;
+import software.amazon.awssdk.services.glue.model.DeleteTableRequest;
 import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
 import software.amazon.awssdk.services.glue.model.GetTableRequest;
 import software.amazon.awssdk.services.glue.model.GetTableResponse;
@@ -343,31 +350,71 @@ public class TestGlueCatalogTable extends GlueTestBase {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
 
-    // Simulate table was dropped during rename, where new table already created and need to delete
-    // old table
-    GlueCatalog glueCatalogSpy = Mockito.spy(glueCatalog);
-    Mockito.doThrow(EntityNotFoundException.builder().message("Entity not found").build())
-        .when(glueCatalogSpy)
-        .dropTable(Mockito.any(TableIdentifier.class), Mockito.anyBoolean());
+    // Create a spy on the Glue client
+    // Spy will simulate a time-out when trying to drop the old table during rename after new table
+    // already created
+    GlueClient glueClientSpy = spy(GLUE);
+    doAnswer(
+            invocation -> {
+              DeleteTableRequest originalRequest = invocation.getArgument(0);
+              if (originalRequest.name().equals(tableName)) {
+                DeleteTableRequest requestWithTimeout =
+                    originalRequest.toBuilder()
+                        // Inject short timeout threshold to the original request
+                        .overrideConfiguration(
+                            AwsRequestOverrideConfiguration.builder()
+                                .apiCallTimeout(Duration.ofMillis(1))
+                                .build())
+                        .build();
+                return GLUE.deleteTable(requestWithTimeout);
+              }
+              return invocation.callRealMethod();
+            })
+        .when(glueClientSpy)
+        .deleteTable(any(DeleteTableRequest.class));
+
+    final GlueCatalog glueCatalogWithCustomClient = new GlueCatalog();
+
+    glueCatalogWithCustomClient.initialize(
+        CATALOG_NAME,
+        TEST_BUCKET_PATH,
+        new AwsProperties(),
+        new S3FileIOProperties(),
+        glueClientSpy,
+        null,
+        ImmutableMap.of());
 
     String newTableName = tableName + "_2";
+
+    // Test the rename operation. Expected sequence:
+    // 1. New table is created successfully
+    // 2. Attempt to delete old table times out
+    // 3. Rollback is triggered, which deletes the new table
+    // 4. Rename operation throws timeout exception
     assertThatThrownBy(
             () ->
-                glueCatalogSpy.renameTable(
+                glueCatalogWithCustomClient.renameTable(
                     TableIdentifier.of(namespace, tableName),
                     TableIdentifier.of(namespace, newTableName)))
-        .isInstanceOf(EntityNotFoundException.class)
+        .isInstanceOf(ApiCallTimeoutException.class)
         .as("should fail to rename")
-        .hasMessageContaining("Entity not found");
+        .hasMessageContaining(
+            "Client execution did not complete before the specified timeout configuration");
 
-    // New table created during rename should be dropped
+    // New table created during rename should be dropped in rollback
     assertThatThrownBy(
             () ->
                 GLUE.getTable(
                     GetTableRequest.builder().databaseName(namespace).name(newTableName).build()))
         .isInstanceOf(EntityNotFoundException.class)
-        .as("renamed table should be deleted")
+        .as("renamed table should be deleted during rollback")
         .hasMessageContaining("Entity Not Found");
+
+    // Old table should not be dropped in rollback
+    GetTableResponse response =
+        GLUE.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+    assertThat(response.table().databaseName()).isEqualTo(namespace);
+    assertThat(response.table().name()).isEqualTo(tableName);
   }
 
   @Test
