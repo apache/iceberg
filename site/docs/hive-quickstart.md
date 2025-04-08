@@ -39,7 +39,7 @@ Set the version variable.
 export HIVE_VERSION=4.0.0
 ```
 
-Start the container, using the option `--platform linux/amd64` for a Mac with an M-Series chip:
+Start the container, using the option `--platform linux/arm64` for a Mac with an M-Series chip:
 ```sh
 docker run -d --platform linux/amd64 -p 10000:10000 -p 10002:10002 --env SERVICE_NAME=hiveserver2 --name hive4 apache/hive:${HIVE_VERSION}
 ```
