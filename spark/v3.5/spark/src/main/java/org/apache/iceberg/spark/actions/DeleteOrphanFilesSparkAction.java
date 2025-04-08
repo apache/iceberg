@@ -354,6 +354,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     if (!dir.endsWith("/")) {
       listPath = dir + "/";
     }
+
     Iterable<org.apache.iceberg.io.FileInfo> files = io.listPrefix(listPath);
     for (org.apache.iceberg.io.FileInfo file : files) {
       Path path = new Path(file.location());
@@ -371,8 +372,10 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
         isHiddenPath = true;
         break;
       }
+
       currentPath = currentPath.getParent();
     }
+
     return isHiddenPath;
   }
 
