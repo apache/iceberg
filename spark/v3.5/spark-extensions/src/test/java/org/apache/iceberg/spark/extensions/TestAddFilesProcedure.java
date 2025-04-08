@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -66,7 +65,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestAddFilesProcedure extends ExtensionsTestBase {
@@ -100,8 +98,6 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
 
   private final String sourceTableName = "source_table";
   private File fileTableDir;
-
-  @TempDir private Path temp;
 
   @BeforeEach
   public void setupTempDirs() {
@@ -743,7 +739,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
                 "SELECT id, `naMe`, dept, subdept from %s WHERE `naMe` = 'John Doe' ORDER BY id",
                 sourceTableName))
         .as("If this assert breaks it means that Spark has fixed the pushdown issue")
-        .hasSize(0);
+        .isEmpty();
 
     // Pushdown works for iceberg
     assertThat(
