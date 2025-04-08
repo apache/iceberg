@@ -52,6 +52,7 @@ public class TestExceptionUtil {
                     },
                     CustomCheckedException.class))
         .isInstanceOf(CustomCheckedException.class)
+        .hasMessage(exc.getMessage())
         .isEqualTo(exc)
         .extracting(e -> Arrays.asList(e.getSuppressed()))
         .asInstanceOf(InstanceOfAssertFactories.LIST)
@@ -81,6 +82,7 @@ public class TestExceptionUtil {
                     CustomCheckedException.class,
                     IOException.class))
         .isInstanceOf(CustomCheckedException.class)
+        .hasMessage(exc.getMessage())
         .isEqualTo(exc)
         .extracting(e -> Arrays.asList(e.getSuppressed()))
         .asInstanceOf(InstanceOfAssertFactories.LIST)
@@ -111,6 +113,7 @@ public class TestExceptionUtil {
                     IOException.class,
                     ClassNotFoundException.class))
         .isInstanceOf(CustomCheckedException.class)
+        .hasMessage(exc.getMessage())
         .isEqualTo(exc)
         .extracting(e -> Arrays.asList(e.getSuppressed()))
         .asInstanceOf(InstanceOfAssertFactories.LIST)
@@ -136,6 +139,7 @@ public class TestExceptionUtil {
                       throw suppressedTwo;
                     }))
         .isInstanceOf(RuntimeException.class)
+        .hasMessage(exc.getMessage())
         .isEqualTo(exc)
         .extracting(e -> Arrays.asList(e.getSuppressed()))
         .asInstanceOf(InstanceOfAssertFactories.LIST)

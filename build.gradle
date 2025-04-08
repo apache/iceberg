@@ -35,7 +35,7 @@ buildscript {
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
     classpath 'org.revapi:gradle-revapi:1.8.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.5.0'
-    classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.1.0'
+    classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.2.0'
     classpath 'org.openapitools:openapi-generator-gradle-plugin:7.12.0'
   }
 }
@@ -321,6 +321,9 @@ project(':iceberg-api') {
 }
 
 project(':iceberg-common') {
+  test {
+    useJUnitPlatform()
+  }
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
   }
@@ -527,6 +530,7 @@ project(':iceberg-aws') {
     recommend.set(true)
   }
   check.dependsOn('validateS3SignerSpec')
+  check.dependsOn integrationTest
 }
 
 project(':iceberg-azure') {
@@ -547,6 +551,8 @@ project(':iceberg-azure') {
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.testcontainers
+    testImplementation libs.mockserver.netty
+    testImplementation libs.mockserver.client.java
   }
 
   sourceSets {

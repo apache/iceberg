@@ -29,6 +29,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -364,7 +365,11 @@ public class TestSchemaUpdate {
             Types.FixedType.ofLength(4),
             Types.DecimalType.of(9, 2),
             Types.DecimalType.of(9, 3),
-            Types.DecimalType.of(18, 2));
+            Types.DecimalType.of(18, 2),
+            Types.GeometryType.crs84(),
+            Types.GeometryType.of("srid:3857"),
+            Types.GeographyType.crs84(),
+            Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY));
 
     for (Type.PrimitiveType fromType : primitives) {
       for (Type.PrimitiveType toType : primitives) {

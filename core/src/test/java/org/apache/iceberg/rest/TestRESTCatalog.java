@@ -2324,7 +2324,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .when(adapter)
         .execute(reqMatcher(HTTPMethod.POST), any(), any(), any());
     assertThatThrownBy(() -> catalog.loadTable(TABLE).newFastAppend().appendFile(file).commit())
-        .isInstanceOf(NotAuthorizedException.class);
+        .isInstanceOf(NotAuthorizedException.class)
+        .hasMessage("not authorized");
 
     // Extract the UpdateTableRequest to determine the path of the manifest list that should be
     // cleaned up
@@ -2339,7 +2340,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                   (MetadataUpdate.AddSnapshot) body.updates().get(0);
               assertThatThrownBy(
                       () -> table.io().newInputFile(addSnapshot.snapshot().manifestListLocation()))
-                  .isInstanceOf(NotFoundException.class);
+                  .isInstanceOf(NotFoundException.class)
+                  .hasMessageContaining("No in-memory file found");
             });
   }
 
@@ -2359,7 +2361,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .when(adapter)
         .execute(reqMatcher(HTTPMethod.POST), any(), any(), any());
     assertThatThrownBy(() -> catalog.loadTable(TABLE).newFastAppend().appendFile(FILE_A).commit())
-        .isInstanceOf(ServiceFailureException.class);
+        .isInstanceOf(ServiceFailureException.class)
+        .hasMessage("some service failure");
 
     // Extract the UpdateTableRequest to determine the path of the manifest list that should still
     // exist even though the commit failed
@@ -2395,7 +2398,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Transaction createTableTransaction = catalog.newCreateTableTransaction(newTable, SCHEMA);
     createTableTransaction.newAppend().appendFile(FILE_A).commit();
     assertThatThrownBy(createTableTransaction::commitTransaction)
-        .isInstanceOf(NotAuthorizedException.class);
+        .isInstanceOf(NotAuthorizedException.class)
+        .hasMessage("not authorized");
 
     assertThat(allRequests(adapter))
         .anySatisfy(
@@ -2418,7 +2422,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                               .loadTable(TABLE)
                               .io()
                               .newInputFile(addSnapshot.snapshot().manifestListLocation()))
-                  .isInstanceOf(NotFoundException.class);
+                  .isInstanceOf(NotFoundException.class)
+                  .hasMessageContaining("No in-memory file found");
             });
   }
 
@@ -2440,7 +2445,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Transaction createTableTransaction = catalog.newCreateTableTransaction(newTable, SCHEMA);
     createTableTransaction.newAppend().appendFile(FILE_A).commit();
     assertThatThrownBy(createTableTransaction::commitTransaction)
-        .isInstanceOf(ServiceFailureException.class);
+        .isInstanceOf(ServiceFailureException.class)
+        .hasMessage("some service failure");
 
     assertThat(allRequests(adapter))
         .anySatisfy(
@@ -2480,7 +2486,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Transaction replaceTableTransaction = catalog.newReplaceTableTransaction(TABLE, SCHEMA, false);
     replaceTableTransaction.newAppend().appendFile(FILE_A).commit();
     assertThatThrownBy(replaceTableTransaction::commitTransaction)
-        .isInstanceOf(NotAuthorizedException.class);
+        .isInstanceOf(NotAuthorizedException.class)
+        .hasMessage("not authorized");
 
     assertThat(allRequests(adapter))
         .anySatisfy(
@@ -2500,7 +2507,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               String manifestListLocation = addSnapshot.snapshot().manifestListLocation();
               assertThatThrownBy(
                       () -> catalog.loadTable(TABLE).io().newInputFile(manifestListLocation))
-                  .isInstanceOf(NotFoundException.class);
+                  .isInstanceOf(NotFoundException.class)
+                  .hasMessageContaining("No in-memory file found");
             });
   }
 
@@ -2521,7 +2529,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Transaction replaceTableTransaction = catalog.newReplaceTableTransaction(TABLE, SCHEMA, false);
     replaceTableTransaction.newAppend().appendFile(FILE_A).commit();
     assertThatThrownBy(replaceTableTransaction::commitTransaction)
-        .isInstanceOf(ServiceFailureException.class);
+        .isInstanceOf(ServiceFailureException.class)
+        .hasMessage("some service failure");
 
     assertThat(allRequests(adapter))
         .anySatisfy(

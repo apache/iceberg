@@ -36,6 +36,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StatisticsFile;
@@ -55,7 +56,9 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
 
   @AfterEach
@@ -170,6 +173,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.custom.expire_snapshots('n', 't')", catalogName))
         .isInstanceOf(ParseException.class)
+        .hasMessageContaining("Syntax error")
         .satisfies(
             exception -> {
               ParseException parseException = (ParseException) exception;
@@ -302,8 +306,8 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
     sql("INSERT INTO TABLE %s VALUES (6, 'f')", tableName); // this txn removes the file reference
     table.refresh();
 
-    assertThat(TestHelpers.deleteManifests(table)).as("Should have no delete manifests").hasSize(0);
-    assertThat(TestHelpers.deleteFiles(table)).as("Should have no delete files").hasSize(0);
+    assertThat(TestHelpers.deleteManifests(table)).as("Should have no delete manifests").isEmpty();
+    assertThat(TestHelpers.deleteFiles(table)).as("Should have no delete files").isEmpty();
 
     FileSystem localFs = FileSystem.getLocal(new Configuration());
     assertThat(localFs.exists(deleteManifestPath))
@@ -372,11 +376,11 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
 
     // There should only be one single snapshot left.
     table.refresh();
-    assertThat(table.snapshots()).as("Should be 1 snapshots").hasSize(1);
     assertThat(table.snapshots())
+        .hasSize(1)
         .as("Snapshot ID should not be present")
         .filteredOn(snapshot -> snapshot.snapshotId() == firstSnapshotId)
-        .hasSize(0);
+        .isEmpty();
   }
 
   @TestTemplate

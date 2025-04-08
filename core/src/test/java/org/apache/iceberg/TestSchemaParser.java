@@ -56,6 +56,11 @@ public class TestSchemaParser extends DataTest {
   }
 
   @Override
+  protected boolean supportsGeospatial() {
+    return true;
+  }
+
+  @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     Schema serialized = SchemaParser.fromJson(SchemaParser.toJson(schema));
     assertThat(serialized.asStruct()).isEqualTo(schema.asStruct());

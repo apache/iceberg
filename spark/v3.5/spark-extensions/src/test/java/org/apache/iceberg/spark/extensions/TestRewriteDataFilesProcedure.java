@@ -721,6 +721,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.custom.rewrite_data_files('n', 't')", catalogName))
         .isInstanceOf(ParseException.class)
+        .hasMessageContaining("Syntax error")
         .satisfies(
             exception -> {
               ParseException parseException = (ParseException) exception;
@@ -774,7 +775,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     List<Object[]> actualRecords = currentData(tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
-    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isEqualTo(0);
+    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isZero();
   }
 
   @TestTemplate
@@ -814,7 +815,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     List<Object[]> actualRecords = currentData(tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
-    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isEqualTo(0);
+    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isZero();
   }
 
   @TestTemplate
@@ -854,7 +855,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     List<Object[]> actualRecords = currentData(tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
-    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isEqualTo(0);
+    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isZero();
   }
 
   @TestTemplate

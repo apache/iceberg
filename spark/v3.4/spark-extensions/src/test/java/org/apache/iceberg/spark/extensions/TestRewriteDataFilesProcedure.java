@@ -20,11 +20,15 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.EnvironmentContext;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -43,34 +47,29 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.internal.SQLConf;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
 
   private static final String QUOTED_SPECIAL_CHARS_TABLE_NAME = "`table:with.special:chars`";
 
-  public TestRewriteDataFilesProcedure(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @BeforeClass
+  @BeforeAll
   public static void setupSpark() {
     // disable AQE as tests assume that writes generate a particular number of files
     spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false");
   }
 
-  @After
+  @AfterEach
   public void removeTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS %s", tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
   }
 
-  @Test
+  @TestTemplate
   public void testFilterCaseSensitivity() {
     createTable();
     insertData(10);
@@ -93,24 +92,25 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testZOrderSortExpression() {
     List<ExtendedParser.RawOrderField> order =
         ExtendedParser.parseSortOrder(spark, "c1, zorder(c2, c3)");
-    Assert.assertEquals("Should parse 2 order fields", 2, order.size());
-    Assert.assertEquals(
-        "First field should be a ref", "c1", ((NamedReference<?>) order.get(0).term()).name());
-    Assert.assertTrue("Second field should be zorder", order.get(1).term() instanceof Zorder);
+    assertThat(order).as("Should parse 2 order fields").hasSize(2);
+    assertThat(((NamedReference<?>) order.get(0).term()).name())
+        .as("First field should be a ref")
+        .isEqualTo("c1");
+    assertThat(order.get(1).term()).as("Second field should be zorder").isInstanceOf(Zorder.class);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesInEmptyTable() {
     createTable();
     List<Object[]> output = sql("CALL %s.system.rewrite_data_files('%s')", catalogName, tableIdent);
     assertEquals("Procedure output must match", ImmutableList.of(row(0, 0, 0L, 0)), output);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesOnPartitionTable() {
     createPartitionTable();
     // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
@@ -134,7 +134,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesOnNonPartitionTable() {
     createTable();
     // create 10 files under non-partitioned table
@@ -158,7 +158,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesWithOptions() {
     createTable();
     // create 10 files under non-partitioned table
@@ -180,7 +180,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Data should not change", expectedRecords, actualRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesWithSortStrategy() {
     createTable();
     // create 10 files under non-partitioned table
@@ -208,7 +208,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesWithSortStrategyAndMultipleShufflePartitionsPerFile() {
     createTable();
     insertData(10 /* file count */);
@@ -243,7 +243,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesWithZOrder() {
     createTable();
     // create 10 files under non-partitioned table
@@ -284,7 +284,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesWithZOrderNullBinaryColumn() {
     sql("CREATE TABLE %s (c1 int, c2 string, c3 binary) USING iceberg", tableName);
 
@@ -319,7 +319,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
             row(1, "foo", null));
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesWithZOrderAndMultipleShufflePartitionsPerFile() {
     createTable();
     insertData(10 /* file count */);
@@ -355,7 +355,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Should have expected rows", expectedRows, sql("SELECT * FROM %s", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesWithFilter() {
     createTable();
     // create 10 files under non-partitioned table
@@ -383,7 +383,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesWithDeterministicTrueFilter() {
     createTable();
     // create 10 files under non-partitioned table
@@ -407,7 +407,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesWithDeterministicFalseFilter() {
     createTable();
     // create 10 files under non-partitioned table
@@ -426,7 +426,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesWithFilterOnPartitionTable() {
     createPartitionTable();
     // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
@@ -454,11 +454,11 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesWithFilterOnOnBucketExpression() {
     // currently spark session catalog only resolve to v1 functions instead of desired v2 functions
     // https://github.com/apache/spark/blob/branch-3.4/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/Analyzer.scala#L2070-L2083
-    Assume.assumeFalse(catalogName.equals(SparkCatalogConfig.SPARK.catalogName()));
+    assumeThat(catalogName).isNotEqualTo(SparkCatalogConfig.SPARK.catalogName());
     createBucketPartitionTable();
     // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
     insertData(10);
@@ -486,7 +486,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesWithInFilterOnPartitionTable() {
     createPartitionTable();
     // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
@@ -514,7 +514,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesWithAllPossibleFilters() {
     createPartitionTable();
     // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
@@ -581,11 +581,11 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     //     " where => 'c2 like \"%s\"')", catalogName, tableIdent, "%car%");
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesWithPossibleV2Filters() {
     // currently spark session catalog only resolve to v1 functions instead of desired v2 functions
     // https://github.com/apache/spark/blob/branch-3.4/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/analysis/Analyzer.scala#L2070-L2083
-    Assume.assumeFalse(catalogName.equals(SparkCatalogConfig.SPARK.catalogName()));
+    assumeThat(catalogName).isNotEqualTo(SparkCatalogConfig.SPARK.catalogName());
 
     SystemFunctionPushDownHelper.createPartitionedTable(spark, tableName, "id");
     sql(
@@ -614,7 +614,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         catalogName, tableIdent, catalogName);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataFilesWithInvalidInputs() {
     createTable();
     // create 2 files under non-partitioned table
@@ -712,7 +712,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
             "Cannot mix identity sort columns and a Zorder sort expression:" + " c1,zorder(c2,c3)");
   }
 
-  @Test
+  @TestTemplate
   public void testInvalidCasesForRewriteDataFiles() {
     assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_data_files('n', table => 't')", catalogName))
@@ -720,12 +720,13 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         .hasMessage("Named and positional arguments cannot be mixed");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.rewrite_data_files('n', 't')", catalogName))
+        .hasMessageContaining("Syntax error")
         .isInstanceOf(ParseException.class)
         .satisfies(
             exception -> {
               ParseException parseException = (ParseException) exception;
-              Assert.assertEquals("PARSE_SYNTAX_ERROR", parseException.getErrorClass());
-              Assert.assertEquals("'CALL'", parseException.getMessageParameters().get("error"));
+              assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
+              assertThat(parseException.getMessageParameters().get("error")).isEqualTo("'CALL'");
             });
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files()", catalogName))
@@ -742,9 +743,9 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         .hasMessage("Cannot handle an empty identifier for parameter 'table'");
   }
 
-  @Test
+  @TestTemplate
   public void testBinPackTableWithSpecialChars() {
-    Assume.assumeTrue(catalogName.equals(SparkCatalogConfig.HADOOP.catalogName()));
+    assumeThat(catalogName).isEqualTo(SparkCatalogConfig.HADOOP.catalogName());
 
     TableIdentifier identifier =
         TableIdentifier.of("default", QUOTED_SPECIAL_CHARS_TABLE_NAME.replaceAll("`", ""));
@@ -774,12 +775,12 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     List<Object[]> actualRecords = currentData(tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
-    Assert.assertEquals("Table cache must be empty", 0, SparkTableCache.get().size());
+    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isZero();
   }
 
-  @Test
+  @TestTemplate
   public void testSortTableWithSpecialChars() {
-    Assume.assumeTrue(catalogName.equals(SparkCatalogConfig.HADOOP.catalogName()));
+    assumeThat(catalogName).isEqualTo(SparkCatalogConfig.HADOOP.catalogName());
 
     TableIdentifier identifier =
         TableIdentifier.of("default", QUOTED_SPECIAL_CHARS_TABLE_NAME.replaceAll("`", ""));
@@ -814,12 +815,12 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     List<Object[]> actualRecords = currentData(tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
-    Assert.assertEquals("Table cache must be empty", 0, SparkTableCache.get().size());
+    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isZero();
   }
 
-  @Test
+  @TestTemplate
   public void testZOrderTableWithSpecialChars() {
-    Assume.assumeTrue(catalogName.equals(SparkCatalogConfig.HADOOP.catalogName()));
+    assumeThat(catalogName).isEqualTo(SparkCatalogConfig.HADOOP.catalogName());
 
     TableIdentifier identifier =
         TableIdentifier.of("default", QUOTED_SPECIAL_CHARS_TABLE_NAME.replaceAll("`", ""));
@@ -854,10 +855,10 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     List<Object[]> actualRecords = currentData(tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
 
-    Assert.assertEquals("Table cache must be empty", 0, SparkTableCache.get().size());
+    assertThat(SparkTableCache.get().size()).as("Table cache must be empty").isZero();
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultSortOrder() {
     createTable();
     // add a default sort order for a table
@@ -890,7 +891,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Data after compaction should not change", expectedRecords, actualRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteWithUntranslatedOrUnconvertedFilter() {
     createTable();
     assertThatThrownBy(
@@ -908,6 +909,21 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
                     catalogName, tableIdent))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot convert Spark filter");
+  }
+
+  @TestTemplate
+  public void testRewriteDataFilesSummary() {
+    createTable();
+    // create 10 files under non-partitioned table
+    insertData(10);
+    sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
+
+    Map<String, String> summary = snapshotSummary();
+    assertThat(summary)
+        .containsKey(CatalogProperties.APP_ID)
+        .containsEntry(EnvironmentContext.ENGINE_NAME, "spark")
+        .hasEntrySatisfying(
+            EnvironmentContext.ENGINE_VERSION, v -> assertThat(v).startsWith("3.4"));
   }
 
   private void createTable() {

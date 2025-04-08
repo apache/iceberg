@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -54,6 +55,7 @@ import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOTracker;
+import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -65,6 +67,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
 import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
@@ -442,7 +445,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             tableClient,
             paths.table(finalIdentifier),
             Map::of,
-            tableFileIO(context, response.config()),
+            tableFileIO(context, tableConf, response.credentials()),
             tableMetadata,
             endpoints);
 
@@ -521,7 +524,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             tableClient,
             paths.table(ident),
             Map::of,
-            tableFileIO(context, response.config()),
+            tableFileIO(context, tableConf, response.credentials()),
             response.tableMetadata(),
             endpoints);
 
@@ -632,7 +635,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
       client
           .withAuthSession(contextualSession)
-          .delete(paths.namespace(ns), null, Map.of(), ErrorHandlers.namespaceErrorHandler());
+          .delete(paths.namespace(ns), null, Map.of(), ErrorHandlers.dropNamespaceErrorHandler());
       return true;
     } catch (NoSuchNamespaceException e) {
       return false;
@@ -780,7 +783,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               tableClient,
               paths.table(ident),
               Map::of,
-              tableFileIO(context, response.config()),
+              tableFileIO(context, tableConf, response.credentials()),
               response.tableMetadata(),
               endpoints);
 
@@ -807,7 +810,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               tableClient,
               paths.table(ident),
               Map::of,
-              tableFileIO(context, response.config()),
+              tableFileIO(context, tableConf, response.credentials()),
               RESTTableOperations.UpdateType.CREATE,
               createChanges(meta),
               meta,
@@ -870,7 +873,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               tableClient,
               paths.table(ident),
               Map::of,
-              tableFileIO(context, response.config()),
+              tableFileIO(context, tableConf, response.credentials()),
               RESTTableOperations.UpdateType.REPLACE,
               changes.build(),
               base,
@@ -968,22 +971,34 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   private FileIO newFileIO(SessionContext context, Map<String, String> properties) {
+    return newFileIO(context, properties, ImmutableList.of());
+  }
+
+  private FileIO newFileIO(
+      SessionContext context, Map<String, String> properties, List<Credential> storageCredentials) {
     if (null != ioBuilder) {
       return ioBuilder.apply(context, properties);
     } else {
       String ioImpl = properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL);
-      return CatalogUtil.loadFileIO(ioImpl, properties, conf);
+      return CatalogUtil.loadFileIO(
+          ioImpl,
+          properties,
+          conf,
+          storageCredentials.stream()
+              .map(c -> StorageCredential.create(c.prefix(), c.config()))
+              .collect(Collectors.toList()));
     }
   }
 
-  private FileIO tableFileIO(SessionContext context, Map<String, String> config) {
-    if (config.isEmpty() && ioBuilder == null) {
-      return io; // reuse client and io since config is the same
+  private FileIO tableFileIO(
+      SessionContext context, Map<String, String> config, List<Credential> storageCredentials) {
+    if (config.isEmpty() && ioBuilder == null && storageCredentials.isEmpty()) {
+      return io; // reuse client and io since config/credentials are the same
     }
 
     Map<String, String> fullConf = RESTUtil.merge(properties(), config);
 
-    return newFileIO(context, fullConf);
+    return newFileIO(context, fullConf, storageCredentials);
   }
 
   private static ConfigResponse fetchConfig(

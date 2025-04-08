@@ -328,6 +328,11 @@ public interface MetadataUpdate extends Serializable {
     }
   }
 
+  /**
+   * @deprecated since 1.9.0, will be removed in 1.10.0; Use {@link MetadataUpdate.RemoveSnapshots}
+   *     instead.
+   */
+  @Deprecated
   class RemoveSnapshot implements MetadataUpdate {
     private final long snapshotId;
 
@@ -342,6 +347,23 @@ public interface MetadataUpdate extends Serializable {
     @Override
     public void applyTo(TableMetadata.Builder metadataBuilder) {
       metadataBuilder.removeSnapshots(ImmutableSet.of(snapshotId));
+    }
+  }
+
+  class RemoveSnapshots implements MetadataUpdate {
+    private final Set<Long> snapshotIds;
+
+    public RemoveSnapshots(Set<Long> snapshotIds) {
+      this.snapshotIds = snapshotIds;
+    }
+
+    public Set<Long> snapshotIds() {
+      return snapshotIds;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.removeSnapshots(snapshotIds);
     }
   }
 
@@ -521,6 +543,12 @@ public interface MetadataUpdate extends Serializable {
     }
   }
 
+  /**
+   * Update to enable row lineage.
+   *
+   * @deprecated will be removed in 1.10.0; row lineage is required for all v3+ tables.
+   */
+  @Deprecated
   class EnableRowLineage implements MetadataUpdate {
     @Override
     public void applyTo(TableMetadata.Builder metadataBuilder) {

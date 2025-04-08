@@ -68,6 +68,7 @@ public class TestSparkFileRewriter extends TestBase {
     checkDataFileGroupWithEnoughFiles(rewriter);
     checkDataFileGroupWithEnoughData(rewriter);
     checkDataFileGroupWithTooMuchData(rewriter);
+    checkDataFilesWithHighFileScopedDeleteRatio(rewriter);
   }
 
   @Test
@@ -80,6 +81,7 @@ public class TestSparkFileRewriter extends TestBase {
     checkDataFileGroupWithEnoughFiles(rewriter);
     checkDataFileGroupWithEnoughData(rewriter);
     checkDataFileGroupWithTooMuchData(rewriter);
+    checkDataFilesWithHighFileScopedDeleteRatio(rewriter);
   }
 
   @Test
@@ -93,6 +95,7 @@ public class TestSparkFileRewriter extends TestBase {
     checkDataFileGroupWithEnoughFiles(rewriter);
     checkDataFileGroupWithEnoughData(rewriter);
     checkDataFileGroupWithTooMuchData(rewriter);
+    checkDataFilesWithHighFileScopedDeleteRatio(rewriter);
   }
 
   private void checkDataFileSizeFiltering(SizeBasedDataRewriter rewriter) {
@@ -193,6 +196,25 @@ public class TestSparkFileRewriter extends TestBase {
     assertThat(groups).as("Must have 1 group").hasSize(1);
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
     assertThat(group).as("Must rewrite big file").hasSize(1);
+  }
+
+  private void checkDataFilesWithHighFileScopedDeleteRatio(SizeBasedDataRewriter rewriter) {
+    FileScanTask tooManyDeletesTask =
+        MockFileScanTask.mockTaskWithFileScopedDeleteRecords(1000L, 100, 1, 30);
+    FileScanTask optimalTask =
+        MockFileScanTask.mockTaskWithFileScopedDeleteRecords(1000L, 100, 1, 29);
+    List<FileScanTask> tasks = ImmutableList.of(tooManyDeletesTask, optimalTask);
+
+    Map<String, String> options =
+        ImmutableMap.of(
+            SizeBasedDataRewriter.MIN_FILE_SIZE_BYTES, "0",
+            SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, "10");
+    rewriter.init(options);
+
+    Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
+    assertThat(groups).as("Must have 1 group").hasSize(1);
+    List<FileScanTask> group = Iterables.getOnlyElement(groups);
+    assertThat(group).as("Must rewrite 1 file").hasSize(1);
   }
 
   @Test

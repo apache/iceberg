@@ -83,6 +83,7 @@ public class HTTPClient extends BaseHTTPClient {
   private final Map<String, String> baseHeaders;
   private final ObjectMapper mapper;
   private final AuthSession authSession;
+  private final boolean isRootClient;
 
   private HTTPClient(
       URI baseUri,
@@ -114,6 +115,7 @@ public class HTTPClient extends BaseHTTPClient {
     }
 
     this.httpClient = clientBuilder.build();
+    this.isRootClient = true;
   }
 
   /**
@@ -127,6 +129,7 @@ public class HTTPClient extends BaseHTTPClient {
     this.mapper = parent.mapper;
     this.baseHeaders = parent.baseHeaders;
     this.authSession = authSession;
+    this.isRootClient = false;
   }
 
   @Override
@@ -319,11 +322,9 @@ public class HTTPClient extends BaseHTTPClient {
 
   @Override
   public void close() throws IOException {
-    try {
-      if (authSession != null) {
-        authSession.close();
-      }
-    } finally {
+    // Do not close the AuthSession as it's managed by the owner of this HTTPClient.
+    // Only close the underlying Apache HTTP client if this is a root HTTPClient.
+    if (isRootClient) {
       httpClient.close(CloseMode.GRACEFUL);
     }
   }
