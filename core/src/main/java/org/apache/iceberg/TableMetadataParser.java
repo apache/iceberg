@@ -131,7 +131,7 @@ public class TableMetadataParser {
       toJson(metadata, generator);
       generator.flush();
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write json to file: %s", outputFile);
+      throw new RuntimeIOException(e, "Failed to write json to file: %s", outputFile.location());
     }
   }
 

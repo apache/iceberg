@@ -134,7 +134,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
             .build();
 
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to create snapshot list writer for path: %s", file);
+        throw new RuntimeIOException(e, "Failed to create snapshot list writer for path: %s", file.location());
       }
     }
   }
@@ -170,7 +170,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
             .build();
 
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to create snapshot list writer for path: %s", file);
+        throw new RuntimeIOException(e, "Failed to create snapshot list writer for path: %s", file.location());
       }
     }
   }

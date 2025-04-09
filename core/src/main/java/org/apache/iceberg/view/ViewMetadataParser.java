@@ -191,7 +191,7 @@ public class ViewMetadataParser {
       generator.flush();
     } catch (IOException e) {
       throw new UncheckedIOException(
-          String.format("Failed to write json to file: %s", outputFile), e);
+          String.format("Failed to write json to file: %s", outputFile.location()), e);
     }
   }
 }
