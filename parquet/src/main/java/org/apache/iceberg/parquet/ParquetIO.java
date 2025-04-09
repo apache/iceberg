@@ -50,7 +50,7 @@ class ParquetIO {
         return org.apache.parquet.hadoop.util.HadoopInputFile.fromStatus(
             hfile.getStat(), hfile.getConf());
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to create Parquet input file for %s", file);
+        throw new RuntimeIOException(e, "Failed to create Parquet input file for %s", file.location());
       }
     }
     return new ParquetInputFile(file);

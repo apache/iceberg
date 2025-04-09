@@ -246,7 +246,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .overwrite()
             .build();
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to create manifest writer for path: %s", file);
+        throw new RuntimeIOException(e, "Failed to create manifest writer for path: %s", file.location());
       }
     }
   }
@@ -280,7 +280,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .overwrite()
             .build();
       } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to create manifest writer for path: %s", file);
+        throw new RuntimeIOException(e, "Failed to create manifest writer for path: %s", file.location());
       }
     }
 
