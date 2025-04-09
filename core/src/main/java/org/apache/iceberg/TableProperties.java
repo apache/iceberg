@@ -389,5 +389,10 @@ public class TableProperties {
 
   public static final int ENCRYPTION_AAD_LENGTH_DEFAULT = 16;
 
-  public static final String ROW_LINEAGE = "row-lineage";
+  /**
+   * Property to enable row lineage.
+   *
+   * @deprecated will be removed in 1.10.0; row lineage is required for all v3+ tables.
+   */
+  @Deprecated public static final String ROW_LINEAGE = "row-lineage";
 }
