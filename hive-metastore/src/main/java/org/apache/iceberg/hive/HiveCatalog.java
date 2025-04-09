@@ -104,6 +104,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
       this.conf = new Configuration();
     }
 
+    // Set HMS configs from the catalog properties
     properties.forEach(
         (key, value) -> {
           if (key.startsWith(HMS_CONF_PREFIX)) {
