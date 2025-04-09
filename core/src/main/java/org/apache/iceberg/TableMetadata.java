@@ -1012,7 +1012,7 @@ public class TableMetadata implements Serializable {
       }
 
       // otherwise this is a no-op
-      return null;
+      return this;
     }
 
     public Builder withMetadataLocation(String newMetadataLocation) {
