@@ -18,10 +18,10 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.TestHelpers.MAX_FORMAT_VERSION;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -45,7 +45,7 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.FieldSource;
 
 public class TestManifestWriterVersions {
   private final FileIO io = EncryptingFileIO.combine(new InMemoryFileIO(), encryptionManager());
@@ -161,8 +161,10 @@ public class TestManifestWriterVersions {
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {2, MAX_FORMAT_VERSION})
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testV2PlusWriteDelete(int formatVersion) throws IOException {
+    assumeThat(formatVersion).isNotEqualTo(1);
+
     ManifestFile manifest = writeDeleteManifest(formatVersion);
     checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
     assertThat(manifest.content()).isEqualTo(ManifestContent.DELETES);
@@ -174,8 +176,10 @@ public class TestManifestWriterVersions {
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {2, MAX_FORMAT_VERSION})
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testV2WriteDeleteWithInheritance(int formatVersion) throws IOException {
+    assumeThat(formatVersion).isNotEqualTo(1);
+
     ManifestFile manifest =
         writeAndReadManifestList(writeDeleteManifest(formatVersion), formatVersion);
     checkManifest(manifest, SEQUENCE_NUMBER);
