@@ -175,7 +175,7 @@ public class ViewMetadataParser {
         codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
       return fromJson(file.location(), JsonUtil.mapper().readValue(is, JsonNode.class));
     } catch (IOException e) {
-      throw new UncheckedIOException(String.format("Failed to read json file: %s", file), e);
+      throw new UncheckedIOException(String.format("Failed to read json file: %s", file.location()), e);
     }
   }
 

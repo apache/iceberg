@@ -290,7 +290,7 @@ public class TableMetadataParser {
         codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
       return fromJson(file, JsonUtil.mapper().readValue(is, JsonNode.class));
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to read file: %s", file);
+      throw new RuntimeIOException(e, "Failed to read file: %s", file.location());
     }
   }
 
