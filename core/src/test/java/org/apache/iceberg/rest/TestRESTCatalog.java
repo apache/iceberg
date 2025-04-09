@@ -2735,19 +2735,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 && req.queryParameters().equals(parameters));
   }
 
-  static HTTPRequest reqContainsHeader(
-      HTTPMethod method,
-      String path,
-      HTTPHeaders.HTTPHeader header,
-      Map<String, String> parameters) {
-    return argThat(
-        req ->
-            req.method() == method
-                && req.path().equals(path)
-                && req.headers().entries().contains(header)
-                && req.queryParameters().equals(parameters));
-  }
-
   static HTTPRequest reqMatcher(
       HTTPMethod method,
       String path,
