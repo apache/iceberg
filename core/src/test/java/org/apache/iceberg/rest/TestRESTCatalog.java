@@ -126,15 +126,15 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             Map.of(
                 "Authorization",
                 "Bearer client-credentials-token:sub=catalog",
-                "X-Iceberg-Access-Delegation",
-                "vended-credentials"));
+                "test-header",
+                "test-value"));
     HTTPHeaders contextHeaders =
         HTTPHeaders.of(
             Map.of(
                 "Authorization",
                 "Bearer client-credentials-token:sub=user",
-                "X-Iceberg-Access-Delegation",
-                "vended-credentials"));
+                "test-header",
+                "test-value"));
 
     RESTCatalogAdapter adaptor =
         new RESTCatalogAdapter(backendCatalog) {
@@ -210,8 +210,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             "catalog-override-key4",
             "credential",
             "catalog:12345",
-            "header.X-Iceberg-Access-Delegation",
-            "vended-credentials");
+            "header.test-header",
+            "test-value");
     catalog.initialize(
         catalogName,
         ImmutableMap.<String, String>builder()
@@ -358,13 +358,15 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             httpServer.getURI().toString(),
             OAuth2Properties.CREDENTIAL,
             "catalog:secret",
-            "header.X-Iceberg-Access-Delegation",
-            "vended-credentials");
+            "header.test-header",
+            "test-value",
+            "header.test-header2",
+            "test-value2");
     catalog.initialize("test", properties);
     assertThat(catalog)
         .extracting("sessionCatalog.client.baseHeaders")
         .asInstanceOf(map(String.class, String.class))
-        .containsEntry("X-Iceberg-Access-Delegation", "vended-credentials");
+        .containsEntry("test-header2", "test-value2");
   }
 
   @Test
