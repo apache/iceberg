@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.TestHelpers.MAX_FORMAT_VERSION;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -47,9 +46,11 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.FieldSource;
 
 public class TestManifestListVersions {
+  private static final int ROW_LINEAGE_FORMAT_VERSION = 3;
+
   private static final String PATH = "s3://bucket/table/m1.avro";
   private static final long LENGTH = 1024L;
   private static final int SPEC_ID = 1;
@@ -273,7 +274,7 @@ public class TestManifestListVersions {
     }
 
     assertThat(manifests.get(0).firstRowId()).isEqualTo(WRITER_FIRST_ROW_ID);
-    assertThat(manifests.get(1).firstRowId()).isEqualTo(FIRST_ROW_ID);
+    assertThat(manifests.get(1).firstRowId()).isEqualTo(TEST_MANIFEST.firstRowId());
     assertThat(manifests.get(2).firstRowId()).isEqualTo(WRITER_FIRST_ROW_ID + ADDED_ROWS);
   }
 
@@ -381,7 +382,7 @@ public class TestManifestListVersions {
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {1, 2, MAX_FORMAT_VERSION})
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testManifestsPartitionSummary(int formatVersion) throws IOException {
     ByteBuffer firstSummaryLowerBound = Conversions.toByteBuffer(Types.IntegerType.get(), 10);
     ByteBuffer firstSummaryUpperBound = Conversions.toByteBuffer(Types.IntegerType.get(), 100);
@@ -454,7 +455,7 @@ public class TestManifestListVersions {
       }
     }
 
-    if (formatVersion >= 3) {
+    if (formatVersion >= ROW_LINEAGE_FORMAT_VERSION) {
       assertThat(writer.nextRowId()).isEqualTo(nextRowId);
     } else {
       assertThat(writer.nextRowId()).isNull();
