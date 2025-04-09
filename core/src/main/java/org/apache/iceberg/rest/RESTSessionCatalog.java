@@ -145,6 +145,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   private final Function<Map<String, String>, RESTClient> clientBuilder;
   private final BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder;
+  private final BiFunction<String, Map<String, String>, AuthManager> authManagerBuilder;
   private FileIOTracker fileIOTracker = null;
   private AuthSession catalogAuth = null;
   private AuthManager authManager;
@@ -175,9 +176,18 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   public RESTSessionCatalog(
       Function<Map<String, String>, RESTClient> clientBuilder,
       BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder) {
+    this(clientBuilder, ioBuilder, AuthManagers::loadAuthManager);
+  }
+
+  public RESTSessionCatalog(
+      Function<Map<String, String>, RESTClient> clientBuilder,
+      BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder,
+      BiFunction<String, Map<String, String>, AuthManager> authManagerBuilder) {
     Preconditions.checkNotNull(clientBuilder, "Invalid client builder: null");
+    Preconditions.checkNotNull(authManagerBuilder, "Invalid auth manager builder: null");
     this.clientBuilder = clientBuilder;
     this.ioBuilder = ioBuilder;
+    this.authManagerBuilder = authManagerBuilder;
   }
 
   @Override
@@ -188,7 +198,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     // catalog service
     Map<String, String> props = EnvironmentUtil.resolveAll(unresolved);
 
-    this.authManager = AuthManagers.loadAuthManager(name, props);
+    this.authManager = authManagerBuilder.apply(name, props);
 
     ConfigResponse config;
     try (RESTClient initClient = clientBuilder.apply(props);
