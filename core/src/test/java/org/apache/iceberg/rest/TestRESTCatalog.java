@@ -21,6 +21,7 @@ package org.apache.iceberg.rest;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.InstanceOfAssertFactories.map;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -121,9 +122,19 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath()));
 
     HTTPHeaders catalogHeaders =
-        HTTPHeaders.of(Map.of("Authorization", "Bearer client-credentials-token:sub=catalog"));
+        HTTPHeaders.of(
+            Map.of(
+                "Authorization",
+                "Bearer client-credentials-token:sub=catalog",
+                "test-header",
+                "test-value"));
     HTTPHeaders contextHeaders =
-        HTTPHeaders.of(Map.of("Authorization", "Bearer client-credentials-token:sub=user"));
+        HTTPHeaders.of(
+            Map.of(
+                "Authorization",
+                "Bearer client-credentials-token:sub=user",
+                "test-header",
+                "test-value"));
 
     RESTCatalogAdapter adaptor =
         new RESTCatalogAdapter(backendCatalog) {
@@ -175,7 +186,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     RESTCatalog catalog =
         new RESTCatalog(
             context,
-            (config) -> HTTPClient.builder(config).uri(config.get(CatalogProperties.URI)).build());
+            (config) ->
+                HTTPClient.builder(config)
+                    .uri(config.get(CatalogProperties.URI))
+                    .withHeaders(RESTUtil.configHeaders(config))
+                    .build());
     catalog.setConf(conf);
     Map<String, String> properties =
         ImmutableMap.of(
@@ -194,7 +209,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             CatalogProperties.TABLE_OVERRIDE_PREFIX + "override-key4",
             "catalog-override-key4",
             "credential",
-            "catalog:12345");
+            "catalog:12345",
+            "header.test-header",
+            "test-value");
     catalog.initialize(
         catalogName,
         ImmutableMap.<String, String>builder()
@@ -330,6 +347,26 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .hasMessage("Invalid uri for http client: null");
 
     restCat.close();
+  }
+
+  @Test
+  public void testDefaultHeadersPropagated() {
+    RESTCatalog catalog = new RESTCatalog();
+    Map<String, String> properties =
+        Map.of(
+            CatalogProperties.URI,
+            httpServer.getURI().toString(),
+            OAuth2Properties.CREDENTIAL,
+            "catalog:secret",
+            "header.test-header",
+            "test-value",
+            "header.test-header2",
+            "test-value2");
+    catalog.initialize("test", properties);
+    assertThat(catalog)
+        .extracting("sessionCatalog.client.baseHeaders")
+        .asInstanceOf(map(String.class, String.class))
+        .containsEntry("test-header2", "test-value2");
   }
 
   @Test
