@@ -102,7 +102,9 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
       } else {
         // assign first-row-id and update the next to assign
         wrapper.wrap(manifest, nextRowId);
-        this.nextRowId += manifest.addedRowsCount();
+        // leave space for existing and added rows, in case any of the existing data files do not
+        // have an assigned first-row-id (this is the case with manifests from pre-v3 snapshots)
+        this.nextRowId += manifest.existingRowsCount() + manifest.addedRowsCount();
         return wrapper;
       }
     }
