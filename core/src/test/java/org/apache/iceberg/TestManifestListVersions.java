@@ -67,7 +67,7 @@ public class TestManifestListVersions {
       ImmutableList.of();
   private static final ByteBuffer KEY_METADATA = null;
   private static final long FIRST_ROW_ID = 100L;
-  private static final long WRITER_FIRST_ROW_ID = 130L;
+  private static final long SNAPSHOT_FIRST_ROW_ID = 130L;
 
   private static final ManifestFile TEST_MANIFEST =
       new GenericManifestFile(
@@ -206,8 +206,11 @@ public class TestManifestListVersions {
             DELETED_ROWS,
             null);
 
-    // write uses firstRowId=WRITER_FIRST_ROW_ID and ADDED_ROWS are assigned
-    long nextRowId = WRITER_FIRST_ROW_ID + ADDED_ROWS;
+    // write uses firstRowId=SNAPSHOT_FIRST_ROW_ID and ADDED_ROWS are assigned
+    long nextRowId =
+        SNAPSHOT_FIRST_ROW_ID
+            + missingFirstRowId.addedRowsCount()
+            + missingFirstRowId.existingRowsCount();
     ManifestFile manifest =
         Iterables.getOnlyElement(
             ManifestLists.read(writeManifestList(3, nextRowId, missingFirstRowId)));
@@ -226,7 +229,7 @@ public class TestManifestListVersions {
     assertThat(manifest.existingRowsCount()).isEqualTo(EXISTING_ROWS);
     assertThat(manifest.deletedFilesCount()).isEqualTo(DELETED_FILES);
     assertThat(manifest.deletedRowsCount()).isEqualTo(DELETED_ROWS);
-    assertThat(manifest.firstRowId()).isEqualTo(WRITER_FIRST_ROW_ID);
+    assertThat(manifest.firstRowId()).isEqualTo(SNAPSHOT_FIRST_ROW_ID);
   }
 
   @Test
@@ -250,8 +253,10 @@ public class TestManifestListVersions {
             DELETED_ROWS,
             null);
 
-    // write uses firstRowId=WRITER_FIRST_ROW_ID and ADDED_ROWS are assigned twice
-    long nextRowId = WRITER_FIRST_ROW_ID + ADDED_ROWS + ADDED_ROWS;
+    // write uses firstRowId=SNAPSHOT_FIRST_ROW_ID and ADDED_ROWS are assigned twice
+    long nextRowId =
+        SNAPSHOT_FIRST_ROW_ID
+            + 2 * (missingFirstRowId.addedRowsCount() + missingFirstRowId.existingRowsCount());
     List<ManifestFile> manifests =
         ManifestLists.read(
             writeManifestList(3, nextRowId, missingFirstRowId, TEST_MANIFEST, missingFirstRowId));
@@ -273,9 +278,13 @@ public class TestManifestListVersions {
       assertThat(manifest.deletedRowsCount()).isEqualTo(DELETED_ROWS);
     }
 
-    assertThat(manifests.get(0).firstRowId()).isEqualTo(WRITER_FIRST_ROW_ID);
+    assertThat(manifests.get(0).firstRowId()).isEqualTo(SNAPSHOT_FIRST_ROW_ID);
     assertThat(manifests.get(1).firstRowId()).isEqualTo(TEST_MANIFEST.firstRowId());
-    assertThat(manifests.get(2).firstRowId()).isEqualTo(WRITER_FIRST_ROW_ID + ADDED_ROWS);
+    assertThat(manifests.get(2).firstRowId())
+        .isEqualTo(
+            SNAPSHOT_FIRST_ROW_ID
+                + missingFirstRowId.existingRowsCount()
+                + missingFirstRowId.addedRowsCount());
   }
 
   @Test
@@ -414,7 +423,10 @@ public class TestManifestListVersions {
             null);
 
     InputFile manifestList =
-        writeManifestList(formatVersion, WRITER_FIRST_ROW_ID + ADDED_ROWS, manifest);
+        writeManifestList(
+            formatVersion,
+            SNAPSHOT_FIRST_ROW_ID + manifest.addedRowsCount() + manifest.existingRowsCount(),
+            manifest);
 
     List<ManifestFile> files = ManifestLists.read(manifestList);
     ManifestFile returnedManifest = Iterables.getOnlyElement(files);
@@ -434,10 +446,10 @@ public class TestManifestListVersions {
   }
 
   private InputFile writeManifestList(ManifestFile manifest, int formatVersion) throws IOException {
-    return writeManifestList(formatVersion, WRITER_FIRST_ROW_ID, manifest);
+    return writeManifestList(formatVersion, SNAPSHOT_FIRST_ROW_ID, manifest);
   }
 
-  private InputFile writeManifestList(int formatVersion, long nextRowId, ManifestFile... manifests)
+  private InputFile writeManifestList(int formatVersion, long expectedNextRowId, ManifestFile... manifests)
       throws IOException {
     OutputFile outputFile = new InMemoryOutputFile();
     ManifestListWriter writer =
@@ -447,7 +459,7 @@ public class TestManifestListVersions {
             SNAPSHOT_ID,
             SNAPSHOT_ID - 1,
             formatVersion > 1 ? SEQ_NUM : 0,
-            WRITER_FIRST_ROW_ID);
+            SNAPSHOT_FIRST_ROW_ID);
 
     try (writer) {
       for (ManifestFile manifest : manifests) {
@@ -456,7 +468,7 @@ public class TestManifestListVersions {
     }
 
     if (formatVersion >= ROW_LINEAGE_FORMAT_VERSION) {
-      assertThat(writer.nextRowId()).isEqualTo(nextRowId);
+      assertThat(writer.nextRowId()).isEqualTo(expectedNextRowId);
     } else {
       assertThat(writer.nextRowId()).isNull();
     }
