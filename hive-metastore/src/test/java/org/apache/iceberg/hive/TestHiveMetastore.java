@@ -291,7 +291,7 @@ public class TestHiveMetastore {
       String resource =
           (HiveVersion.current() == HiveVersion.HIVE_4)
               ? "hive-schema-4.0.0.derby.sql"
-              : "hive-schema-3.1.0.derby.sql";
+              : "hive-schema-3.1.0.derby.sql"; // this can be used for both Hive 2 and 3
       try (InputStream inputStream =
               TestHiveMetastore.class.getClassLoader().getResourceAsStream(resource);
           Reader reader =
