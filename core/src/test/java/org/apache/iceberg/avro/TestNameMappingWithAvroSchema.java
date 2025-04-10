@@ -99,38 +99,38 @@ public class TestNameMappingWithAvroSchema {
     org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(schema);
     MappedFields expected =
         MappedFields.of(
-            MappedField.of(0, "id"),
-            MappedField.of(1, "data"),
+            MappedField.of(1, "id"),
+            MappedField.of(2, "data"),
             MappedField.of(
-                2,
+                3,
                 "location",
-                MappedFields.of(MappedField.of(6, "lat"), MappedField.of(7, "long"))),
-            MappedField.of(3, "friends", MappedFields.of(MappedField.of(8, "element"))),
-            MappedField.of(4, "simpleUnion"),
+                MappedFields.of(MappedField.of(7, "lat"), MappedField.of(8, "long"))),
+            MappedField.of(4, "friends", MappedFields.of(MappedField.of(9, "element"))),
+            MappedField.of(5, "simpleUnion"),
             MappedField.of(
-                5,
+                6,
                 "complexUnion",
                 MappedFields.of(
-                    MappedField.of(17, "string"),
-                    MappedField.of(
-                        18,
-                        "innerRecord1",
-                        MappedFields.of(MappedField.of(9, "lat"), MappedField.of(10, "long"))),
+                    MappedField.of(18, "string"),
                     MappedField.of(
                         19,
-                        "innerRecord2",
-                        MappedFields.of(MappedField.of(11, "lat"), MappedField.of(12, "long"))),
+                        "innerRecord1",
+                        MappedFields.of(MappedField.of(10, "lat"), MappedField.of(11, "long"))),
                     MappedField.of(
                         20,
+                        "innerRecord2",
+                        MappedFields.of(MappedField.of(12, "lat"), MappedField.of(13, "long"))),
+                    MappedField.of(
+                        21,
                         "innerRecord3",
                         MappedFields.of(
                             MappedField.of(
-                                16,
+                                17,
                                 "innerUnion",
                                 MappedFields.of(
-                                    MappedField.of(13, "string"), MappedField.of(14, "int"))))),
-                    MappedField.of(21, "timezone"),
-                    MappedField.of(22, "bitmap"))));
+                                    MappedField.of(14, "string"), MappedField.of(15, "int"))))),
+                    MappedField.of(22, "timezone"),
+                    MappedField.of(23, "bitmap"))));
     assertThat(
             AvroWithPartnerByStructureVisitor.visit(
                 icebergSchema.asStruct(), schema, nameMappingWithAvroSchema))

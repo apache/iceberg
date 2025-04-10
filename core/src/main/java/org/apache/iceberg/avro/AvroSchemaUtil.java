@@ -82,7 +82,7 @@ public class AvroSchemaUtil {
   }
 
   public static Type convert(Schema schema) {
-    return AvroSchemaVisitor.visit(schema, new SchemaToType());
+    return AvroSchemaVisitor.visit(schema, new SchemaToType(schema));
   }
 
   public static org.apache.iceberg.Schema toIceberg(Schema schema) {

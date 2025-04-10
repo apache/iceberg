@@ -19,6 +19,7 @@
 package org.apache.iceberg.avro;
 
 import java.util.List;
+import java.util.Objects;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -28,10 +29,15 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 class SchemaToType extends AvroSchemaVisitor<Type> {
+  private final Schema root;
   private int nextId;
 
-  SchemaToType() {
+  SchemaToType(Schema root) {
+    this.root = root;
     this.nextId = 1;
+    if (root.getType() == Schema.Type.RECORD) {
+      this.nextId = root.getFields().size() + 1;
+    }
   }
 
   private int getElementId(Schema schema) {
@@ -76,6 +82,10 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
   public Type record(Schema record, List<String> names, List<Type> fieldTypes) {
     List<Schema.Field> fields = record.getFields();
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(fields.size());
+
+    if (Objects.equals(root, record)) {
+      this.nextId = 1;
+    }
 
     for (int i = 0; i < fields.size(); i += 1) {
       Schema.Field field = fields.get(i);
