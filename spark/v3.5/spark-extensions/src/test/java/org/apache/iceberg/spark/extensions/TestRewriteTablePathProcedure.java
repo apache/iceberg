@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.file.Path;
 import java.util.List;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RewriteTablePathUtil;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
@@ -31,8 +32,10 @@ import org.apache.spark.sql.AnalysisException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestRewriteTablePathProcedure extends ExtensionsTestBase {
   @TempDir private Path staging;
   @TempDir private Path targetTableDir;
