@@ -317,8 +317,12 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
                   file.format(), GenericObjectModels.GENERIC_OBJECT_MODEL, inputFile)
               .project(readSchema)
               .split(currentTask.start(), currentTask.length())
-              .reuseContainers(reuseContainers)
               .filter(currentTask.residual(), caseSensitive);
+
+      if (reuseContainers) {
+        readBuilder = readBuilder.reuseContainers();
+      }
+
       if (nameMapping != null) {
         readBuilder = readBuilder.withNameMapping(NameMappingParser.fromJson(nameMapping));
       }

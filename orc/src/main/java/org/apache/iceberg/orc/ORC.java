@@ -300,15 +300,16 @@ public class ORC {
       return (B) this;
     }
 
-    /**
-     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #overwrite(boolean)} instead.
-     */
-    @Deprecated
+    @Override
     public B overwrite() {
       return overwrite(true);
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #overwrite()} instead.
+     */
     @Override
+    @Deprecated
     public B overwrite(boolean enabled) {
       this.overwrite = enabled;
       return (B) this;
@@ -1010,12 +1011,6 @@ public class ORC {
       OrcConf.IS_SCHEMA_EVOLUTION_CASE_SENSITIVE.setBoolean(this.conf, newFilterCaseSensitive);
       this.filterCaseSensitive = newFilterCaseSensitive;
       this.filter = newFilter;
-      return this;
-    }
-
-    @Override
-    public ReadBuilder reuseContainers(boolean newReuseContainers) {
-      // ORC always reuses the containers so ignore this
       return this;
     }
 

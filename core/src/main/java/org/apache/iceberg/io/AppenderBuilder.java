@@ -53,10 +53,7 @@ public interface AppenderBuilder<B extends AppenderBuilder<B, E>, E> {
   B schema(Schema newSchema);
 
   /**
-   * Set a writer configuration property.
-   *
-   * <p>Write configuration affects writer behavior. To add file metadata properties, use {@link
-   * #meta(String, String)}.
+   * Set a writer configuration property which affects the writer behavior.
    *
    * @param property a writer config property name
    * @param value config value
@@ -65,10 +62,7 @@ public interface AppenderBuilder<B extends AppenderBuilder<B, E>, E> {
   B set(String property, String value);
 
   /**
-   * Set a file metadata property.
-   *
-   * <p>Metadata properties are written into file metadata. To alter a writer configuration
-   * property, use {@link #set(String, String)}.
+   * Set a file metadata property in the created file.
    *
    * @param property a file metadata property name
    * @param value config value
@@ -79,7 +73,16 @@ public interface AppenderBuilder<B extends AppenderBuilder<B, E>, E> {
   /** Sets the metrics configuration used for collecting column metrics for the created file. */
   B metricsConfig(MetricsConfig newMetricsConfig);
 
-  /** Overwrite the file if it already exists. The default value is <code>false</code>. */
+  /** Overwrite the file if it already exists. By default, overwrite is disabled. */
+  B overwrite();
+
+  /**
+   * Overwrite the file if it already exists. The default value is <code>false</code>.
+   *
+   * @deprecated Since 1.10.0, will be removed in 1.11.0. Only provided for backward compatibility.
+   *     Use {@link #overwrite()} instead.
+   */
+  @Deprecated
   B overwrite(boolean enabled);
 
   /**

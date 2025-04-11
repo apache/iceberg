@@ -83,16 +83,11 @@ public interface ReadBuilder<B extends ReadBuilder<B>> {
     return (B) this;
   }
 
-  /** Enables reusing the containers returned by the reader. Decreases pressure on GC. */
-  default B reuseContainers() {
-    return reuseContainers(true);
-  }
-
   /**
-   * Reusing the containers returned by the reader decreases pressure on GC. Readers could decide to
-   * ignore the user provided setting if is not supported by them.
+   * Enables reusing the containers returned by the reader. Decreases pressure on GC. Readers could
+   * decide to ignore the user provided setting if is not supported by them.
    */
-  default B reuseContainers(boolean newReuseContainers) {
+  default B reuseContainers() {
     // Skip container reuse configuration if not applicable
     return (B) this;
   }

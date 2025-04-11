@@ -278,7 +278,11 @@ public class Avro {
       return overwrite(true);
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #overwrite()} instead.
+     */
     @Override
+    @Deprecated
     public B overwrite(boolean enabled) {
       this.overwrite = enabled;
       return (B) this;
@@ -926,7 +930,10 @@ public class Avro {
       return this;
     }
 
-    @Override
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #reuseContainers()} instead.
+     */
+    @Deprecated
     public ReadBuilder reuseContainers(boolean shouldReuse) {
       this.reuseContainers = shouldReuse;
       return this;

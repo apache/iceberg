@@ -53,10 +53,7 @@ interface WriterBuilderBase<B extends WriterBuilderBase<B, E>, E> {
   B engineSchema(E engineSchema);
 
   /**
-   * Set a writer configuration property.
-   *
-   * <p>Write configuration affects writer behavior. To add file metadata properties, use {@link
-   * #meta(String, String)} or {@link #meta(Map)}.
+   * Set a writer configuration property which affects the writer behavior.
    *
    * @param property a writer config property name
    * @param value config value
@@ -67,19 +64,13 @@ interface WriterBuilderBase<B extends WriterBuilderBase<B, E>, E> {
   /**
    * Adds the new properties to the writer configuration.
    *
-   * <p>Write configuration affects writer behavior. To add file metadata properties, use {@link
-   * #meta(String, String)} or {@link #meta(Map)}.
-   *
    * @param properties a map of writer config properties
    * @return this for method chaining
    */
   B set(Map<String, String> properties);
 
   /**
-   * Set a file metadata property.
-   *
-   * <p>Metadata properties are written into file metadata. To alter a writer configuration
-   * property, use {@link #set(String, String)} or {@link #set(Map)}.
+   * Set a file metadata property in the created file.
    *
    * @param property a file metadata property name
    * @param value config value
@@ -88,10 +79,7 @@ interface WriterBuilderBase<B extends WriterBuilderBase<B, E>, E> {
   B meta(String property, String value);
 
   /**
-   * Add the new properties to file metadata.
-   *
-   * <p>Metadata properties are written into file metadata. To alter a writer configuration
-   * property, use {@link #set(String, String)}.
+   * Add the new properties to file metadata for the created file.
    *
    * @param properties a map of file metadata properties
    * @return this for method chaining
@@ -101,11 +89,8 @@ interface WriterBuilderBase<B extends WriterBuilderBase<B, E>, E> {
   /** Sets the metrics configuration used for collecting column metrics for the created file. */
   B metricsConfig(MetricsConfig newMetricsConfig);
 
-  /** Overwrite the file if it already exists. */
+  /** Overwrite the file if it already exists. By default, overwrite is disabled. */
   B overwrite();
-
-  /** Sets the overwrite flag. The default value is <code>false</code>. */
-  B overwrite(boolean enabled);
 
   /**
    * Sets the encryption key used for writing the file. If encryption is not supported by the writer

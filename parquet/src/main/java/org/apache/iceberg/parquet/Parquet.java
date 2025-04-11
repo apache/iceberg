@@ -382,7 +382,11 @@ public class Parquet {
       return overwrite(true);
     }
 
+    /**
+     * @deprecated Since 1.10.0, will be removed in 1.11.0. Use {@link #overwrite()} instead.
+     */
     @Override
+    @Deprecated
     public B overwrite(boolean enabled) {
       this.writeMode = enabled ? ParquetFileWriter.Mode.OVERWRITE : ParquetFileWriter.Mode.CREATE;
       return (B) this;
@@ -1534,12 +1538,7 @@ public class Parquet {
 
     @Override
     public B reuseContainers() {
-      return reuseContainers(true);
-    }
-
-    @Override
-    public B reuseContainers(boolean newReuseContainers) {
-      this.reuseContainers = newReuseContainers;
+      this.reuseContainers = true;
       return (B) this;
     }
 

@@ -126,12 +126,7 @@ class WriteBuilder<B extends WriteBuilder<B, A, E>, A extends AppenderBuilder<A,
 
   @Override
   public B overwrite() {
-    return overwrite(true);
-  }
-
-  @Override
-  public B overwrite(boolean enabled) {
-    appenderBuilder.overwrite(enabled);
+    appenderBuilder.overwrite();
     return (B) this;
   }
 
