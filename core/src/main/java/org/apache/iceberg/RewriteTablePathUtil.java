@@ -292,6 +292,7 @@ public class RewriteTablePathUtil {
    * @param specsById map of partition specs by id
    * @param sourcePrefix source prefix that will be replaced
    * @param targetPrefix target prefix that will replace it
+   * @param hiveMetaMigrate hive meta migrate
    * @return a copy plan of content files in the manifest that was rewritten
    */
   public static RewriteResult<DataFile> rewriteDataManifest(
@@ -301,7 +302,8 @@ public class RewriteTablePathUtil {
       int format,
       Map<Integer, PartitionSpec> specsById,
       String sourcePrefix,
-      String targetPrefix)
+      String targetPrefix,
+      boolean hiveMetaMigrate)
       throws IOException {
     PartitionSpec spec = specsById.get(manifestFile.partitionSpecId());
     try (ManifestWriter<DataFile> writer =
@@ -309,7 +311,10 @@ public class RewriteTablePathUtil {
         ManifestReader<DataFile> reader =
             ManifestFiles.read(manifestFile, io, specsById).select(Arrays.asList("*"))) {
       return StreamSupport.stream(reader.entries().spliterator(), false)
-          .map(entry -> writeDataFileEntry(entry, spec, sourcePrefix, targetPrefix, writer))
+          .map(
+              entry ->
+                  writeDataFileEntry(
+                      entry, spec, sourcePrefix, targetPrefix, writer, hiveMetaMigrate))
           .reduce(new RewriteResult<>(), RewriteResult::append);
     }
   }
@@ -358,21 +363,28 @@ public class RewriteTablePathUtil {
       PartitionSpec spec,
       String sourcePrefix,
       String targetPrefix,
-      ManifestWriter<DataFile> writer) {
+      ManifestWriter<DataFile> writer,
+      boolean hiveMetaMigrate) {
     RewriteResult<DataFile> result = new RewriteResult<>();
     DataFile dataFile = entry.file();
     String sourceDataFilePath = dataFile.location();
-    Preconditions.checkArgument(
-        sourceDataFilePath.startsWith(sourcePrefix),
-        "Encountered data file %s not under the source prefix %s",
-        sourceDataFilePath,
-        sourcePrefix);
-    String targetDataFilePath = newPath(sourceDataFilePath, sourcePrefix, targetPrefix);
-    DataFile newDataFile =
-        DataFiles.builder(spec).copy(entry.file()).withPath(targetDataFilePath).build();
-    appendEntryWithFile(entry, writer, newDataFile);
+    DataFile newDataFile;
+    if (hiveMetaMigrate) {
+      newDataFile = DataFiles.builder(spec).copy(entry.file()).build();
+      appendEntryWithFile(entry, writer, newDataFile);
+    } else {
+      Preconditions.checkArgument(
+          sourceDataFilePath.startsWith(sourcePrefix),
+          "Encountered data file %s not under the source prefix %s",
+          sourceDataFilePath,
+          sourcePrefix);
+      String targetDataFilePath = newPath(sourceDataFilePath, sourcePrefix, targetPrefix);
+      newDataFile = DataFiles.builder(spec).copy(entry.file()).withPath(targetDataFilePath).build();
+      appendEntryWithFile(entry, writer, newDataFile);
+    }
+
     // keep deleted data file entries but exclude them from copyPlan
-    if (entry.isLive()) {
+    if (entry.isLive() && newDataFile != null) {
       result.copyPlan().add(Pair.of(sourceDataFilePath, newDataFile.location()));
     }
     return result;

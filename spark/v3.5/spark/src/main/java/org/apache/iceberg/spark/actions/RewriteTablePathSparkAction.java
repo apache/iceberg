@@ -95,6 +95,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   private String startVersionName;
   private String endVersionName;
   private String stagingDir;
+  private boolean hiveMetaMigrate;
 
   private final Table table;
   private Broadcast<Table> tableBroadcast = null;
@@ -145,6 +146,12 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
         "Staging location('%s') cannot be empty.",
         stagingLocation);
     this.stagingDir = stagingLocation;
+    return this;
+  }
+
+  @Override
+  public RewriteTablePath hiveMetaMigrate(boolean pMetaMigrate) {
+    this.hiveMetaMigrate = pMetaMigrate;
     return this;
   }
 
@@ -506,7 +513,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
                 stagingDir,
                 tableMetadata.formatVersion(),
                 sourcePrefix,
-                targetPrefix),
+                targetPrefix,
+                hiveMetaMigrate),
             Encoders.bean(RewriteContentFileResult.class))
         // duplicates are expected here as the same data file can have different statuses
         // (e.g. added and deleted)
@@ -518,7 +526,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       String stagingLocation,
       int format,
       String sourcePrefix,
-      String targetPrefix) {
+      String targetPrefix,
+      boolean hiveMetaMigrate) {
 
     return manifestFile -> {
       RewriteContentFileResult result = new RewriteContentFileResult();
@@ -526,7 +535,13 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
         case DATA:
           result.appendDataFile(
               writeDataManifest(
-                  manifestFile, table, stagingLocation, format, sourcePrefix, targetPrefix));
+                  manifestFile,
+                  table,
+                  stagingLocation,
+                  format,
+                  sourcePrefix,
+                  targetPrefix,
+                  hiveMetaMigrate));
           break;
         case DELETES:
           result.appendDeleteFile(
@@ -547,14 +562,22 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       String stagingLocation,
       int format,
       String sourcePrefix,
-      String targetPrefix) {
+      String targetPrefix,
+      boolean hiveMetaMigrate) {
     try {
       String stagingPath = RewriteTablePathUtil.stagingPath(manifestFile.path(), stagingLocation);
       FileIO io = table.getValue().io();
       OutputFile outputFile = io.newOutputFile(stagingPath);
       Map<Integer, PartitionSpec> specsById = table.getValue().specs();
       return RewriteTablePathUtil.rewriteDataManifest(
-          manifestFile, outputFile, io, format, specsById, sourcePrefix, targetPrefix);
+          manifestFile,
+          outputFile,
+          io,
+          format,
+          specsById,
+          sourcePrefix,
+          targetPrefix,
+          hiveMetaMigrate);
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
