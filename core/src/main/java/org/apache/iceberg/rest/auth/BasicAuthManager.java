@@ -21,7 +21,6 @@ package org.apache.iceberg.rest.auth;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.HTTPHeaders;
-import org.apache.iceberg.rest.RESTClient;
 
 /** An auth manager that adds static BASIC authentication data to outgoing HTTP requests. */
 public final class BasicAuthManager implements AuthManager {
@@ -31,7 +30,8 @@ public final class BasicAuthManager implements AuthManager {
   }
 
   @Override
-  public AuthSession catalogSession(RESTClient sharedClient, Map<String, String> properties) {
+  public AuthSession authSession(AuthScope scope) {
+    Map<String, String> properties = scope.properties();
     Preconditions.checkArgument(
         properties.containsKey(AuthProperties.BASIC_USERNAME),
         "Invalid username: missing required property %s",
