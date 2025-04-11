@@ -280,6 +280,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     return true;
   }
 
+  @Override
+  protected boolean validateToIdentifier() {
+    return true;
+  }
+
   /* RESTCatalog specific tests */
 
   @Test

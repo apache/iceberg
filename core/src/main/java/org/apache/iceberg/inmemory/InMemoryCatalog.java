@@ -153,11 +153,12 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   }
 
   @Override
-  public void renameTable(TableIdentifier from, TableIdentifier to) {
-    if (from.equals(to)) {
+  public void renameTable(TableIdentifier from, TableIdentifier toIdent) {
+    if (from.equals(toIdent)) {
       return;
     }
 
+    TableIdentifier to = CatalogUtil.removeCatalogName(name(), toIdent);
     synchronized (this) {
       if (!namespaceExists(to.namespace())) {
         throw new NoSuchNamespaceException(
@@ -343,11 +344,12 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   }
 
   @Override
-  public void renameView(TableIdentifier from, TableIdentifier to) {
-    if (from.equals(to)) {
+  public void renameView(TableIdentifier from, TableIdentifier toIdent) {
+    if (from.equals(toIdent)) {
       return;
     }
 
+    TableIdentifier to = CatalogUtil.removeCatalogName(name(), toIdent);
     synchronized (this) {
       if (!namespaceExists(to.namespace())) {
         throw new NoSuchNamespaceException(
