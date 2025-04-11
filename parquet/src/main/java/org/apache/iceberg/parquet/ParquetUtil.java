@@ -64,7 +64,7 @@ public class ParquetUtil {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
       return footerMetrics(reader.getFooter(), Stream.empty(), metricsConfig, nameMapping);
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to read footer of file: %s", file);
+      throw new RuntimeIOException(e, "Failed to read footer of file: %s", file.location());
     }
   }
 
