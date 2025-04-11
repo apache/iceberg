@@ -815,6 +815,10 @@ project(':iceberg-hive3-metastore') {
     useJUnitPlatform()
   }
 
+  tasks.withType(Jar) {
+    enabled = false
+  }
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     implementation project(':iceberg-core')
@@ -900,6 +904,10 @@ project(':iceberg-hive4-metastore') {
 
   test {
     useJUnitPlatform()
+  }
+
+  tasks.withType(Jar) {
+    enabled = false
   }
 
   dependencies {
