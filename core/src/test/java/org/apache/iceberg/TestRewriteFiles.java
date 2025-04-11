@@ -50,7 +50,9 @@ public class TestRewriteFiles extends TestBase {
         new Object[] {1, "main"},
         new Object[] {1, "testBranch"},
         new Object[] {2, "main"},
-        new Object[] {2, "testBranch"});
+        new Object[] {2, "testBranch"},
+        new Object[] {3, "main"},
+        new Object[] {3, "testBranch"});
   }
 
   @TestTemplate
@@ -78,12 +80,13 @@ public class TestRewriteFiles extends TestBase {
                         .newRewrite()
                         .rewriteFiles(
                             ImmutableSet.of(),
-                            ImmutableSet.of(FILE_A_DELETES),
+                            ImmutableSet.of(fileADeletes()),
                             ImmutableSet.of(),
-                            ImmutableSet.of(FILE_B_DELETES)),
+                            ImmutableSet.of(fileBDeletes())),
                     branch))
         .isInstanceOf(ValidationException.class)
-        .hasMessage("Missing required files to delete: /path/to/data-a-deletes.parquet");
+        .hasMessage(
+            String.format("Missing required files to delete: %s", fileADeletes().location()));
   }
 
   @TestTemplate
@@ -108,7 +111,7 @@ public class TestRewriteFiles extends TestBase {
                             ImmutableSet.of(FILE_A),
                             ImmutableSet.of(),
                             ImmutableSet.of(),
-                            ImmutableSet.of(FILE_A_DELETES)),
+                            ImmutableSet.of(fileADeletes())),
                     branch))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
@@ -123,7 +126,7 @@ public class TestRewriteFiles extends TestBase {
                             ImmutableSet.of(FILE_A),
                             ImmutableSet.of(),
                             ImmutableSet.of(FILE_B),
-                            ImmutableSet.of(FILE_B_DELETES)),
+                            ImmutableSet.of(fileBDeletes())),
                     branch))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
@@ -152,7 +155,7 @@ public class TestRewriteFiles extends TestBase {
                             ImmutableSet.of(),
                             ImmutableSet.of(),
                             ImmutableSet.of(),
-                            ImmutableSet.of(FILE_A_DELETES)),
+                            ImmutableSet.of(fileADeletes())),
                     branch))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Files to delete cannot be empty");
@@ -166,7 +169,7 @@ public class TestRewriteFiles extends TestBase {
                             ImmutableSet.of(),
                             ImmutableSet.of(),
                             ImmutableSet.of(FILE_A),
-                            ImmutableSet.of(FILE_A_DELETES)),
+                            ImmutableSet.of(fileADeletes())),
                     branch))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Files to delete cannot be empty");
@@ -251,8 +254,8 @@ public class TestRewriteFiles extends TestBase {
             .addRows(FILE_A)
             .addRows(FILE_B)
             .addRows(FILE_C)
-            .addDeletes(FILE_A_DELETES)
-            .addDeletes(FILE_B_DELETES),
+            .addDeletes(fileADeletes())
+            .addDeletes(fileBDeletes()),
         branch);
 
     TableMetadata base = readMetadata();
@@ -271,7 +274,7 @@ public class TestRewriteFiles extends TestBase {
         dataSeqs(1L, 1L),
         fileSeqs(1L, 1L),
         ids(baseSnapshotId, baseSnapshotId),
-        files(FILE_A_DELETES, FILE_B_DELETES),
+        files(fileADeletes(), fileBDeletes()),
         statuses(ADDED, ADDED));
 
     // Rewrite the files.
@@ -282,7 +285,7 @@ public class TestRewriteFiles extends TestBase {
                 .validateFromSnapshot(latestSnapshot(table, branch).snapshotId())
                 .rewriteFiles(
                     ImmutableSet.of(FILE_A),
-                    ImmutableSet.of(FILE_A_DELETES),
+                    ImmutableSet.of(fileADeletes()),
                     ImmutableSet.of(FILE_D),
                     ImmutableSet.of()),
             branch);
@@ -305,7 +308,7 @@ public class TestRewriteFiles extends TestBase {
         dataSeqs(1L, 1L),
         fileSeqs(1L, 1L),
         ids(pendingId, baseSnapshotId),
-        files(FILE_A_DELETES, FILE_B_DELETES),
+        files(fileADeletes(), fileBDeletes()),
         statuses(DELETED, EXISTING));
 
     // We should only get the 5 manifests that this test is expected to add.
@@ -326,8 +329,8 @@ public class TestRewriteFiles extends TestBase {
             .addRows(FILE_A)
             .addRows(FILE_B)
             .addRows(FILE_C)
-            .addDeletes(FILE_A_DELETES)
-            .addDeletes(FILE_B_DELETES),
+            .addDeletes(fileADeletes())
+            .addDeletes(fileBDeletes()),
         branch);
 
     TableMetadata base = readMetadata();
@@ -346,7 +349,7 @@ public class TestRewriteFiles extends TestBase {
         dataSeqs(1L, 1L),
         fileSeqs(1L, 1L),
         ids(baseSnapshotId, baseSnapshotId),
-        files(FILE_A_DELETES, FILE_B_DELETES),
+        files(fileADeletes(), fileBDeletes()),
         statuses(ADDED, ADDED));
 
     // Rewrite the files.
@@ -380,7 +383,7 @@ public class TestRewriteFiles extends TestBase {
         dataSeqs(1L, 1L),
         fileSeqs(1L, 1L),
         ids(baseSnapshotId, baseSnapshotId),
-        files(FILE_A_DELETES, FILE_B_DELETES),
+        files(fileADeletes(), fileBDeletes()),
         statuses(ADDED, ADDED));
 
     // We should only get the 4 manifests that this test is expected to add.
@@ -428,8 +431,8 @@ public class TestRewriteFiles extends TestBase {
             .addRows(FILE_A)
             .addRows(FILE_B)
             .addRows(FILE_C)
-            .addDeletes(FILE_A_DELETES)
-            .addDeletes(FILE_B_DELETES),
+            .addDeletes(fileADeletes())
+            .addDeletes(fileBDeletes()),
         branch);
 
     long baseSnapshotId = latestSnapshot(readMetadata(), branch).snapshotId();
@@ -441,7 +444,7 @@ public class TestRewriteFiles extends TestBase {
             .validateFromSnapshot(latestSnapshot(table, branch).snapshotId())
             .rewriteFiles(
                 ImmutableSet.of(FILE_A),
-                ImmutableSet.of(FILE_A_DELETES, FILE_B_DELETES),
+                ImmutableSet.of(fileADeletes(), fileBDeletes()),
                 ImmutableSet.of(FILE_D),
                 ImmutableSet.of());
     Snapshot pending = apply(rewrite, branch);
@@ -468,7 +471,7 @@ public class TestRewriteFiles extends TestBase {
         dataSeqs(1L, 1L),
         fileSeqs(1L, 1L),
         ids(pending.snapshotId(), pending.snapshotId()),
-        files(FILE_A_DELETES, FILE_B_DELETES),
+        files(fileADeletes(), fileBDeletes()),
         statuses(DELETED, DELETED));
 
     assertThatThrownBy(rewrite::commit)
@@ -525,8 +528,8 @@ public class TestRewriteFiles extends TestBase {
             .addRows(FILE_A)
             .addRows(FILE_B)
             .addRows(FILE_C)
-            .addDeletes(FILE_A_DELETES)
-            .addDeletes(FILE_B_DELETES),
+            .addDeletes(fileADeletes())
+            .addDeletes(fileBDeletes()),
         branch);
 
     long baseSnapshotId = latestSnapshot(readMetadata(), branch).snapshotId();
@@ -538,7 +541,7 @@ public class TestRewriteFiles extends TestBase {
             .validateFromSnapshot(latestSnapshot(table, branch).snapshotId())
             .rewriteFiles(
                 ImmutableSet.of(FILE_A),
-                ImmutableSet.of(FILE_A_DELETES, FILE_B_DELETES),
+                ImmutableSet.of(fileADeletes(), fileBDeletes()),
                 ImmutableSet.of(FILE_D),
                 ImmutableSet.of());
     Snapshot pending = apply(rewrite, branch);
@@ -561,7 +564,7 @@ public class TestRewriteFiles extends TestBase {
         dataSeqs(1L, 1L),
         fileSeqs(1L, 1L),
         ids(pending.snapshotId(), pending.snapshotId()),
-        files(FILE_A_DELETES, FILE_B_DELETES),
+        files(fileADeletes(), fileBDeletes()),
         statuses(DELETED, DELETED));
 
     commit(table, rewrite, branch);
@@ -596,7 +599,7 @@ public class TestRewriteFiles extends TestBase {
             .newRewrite()
             .rewriteFiles(
                 ImmutableSet.of(), ImmutableSet.of(FILE_A2_DELETES),
-                ImmutableSet.of(), ImmutableSet.of(FILE_B_DELETES));
+                ImmutableSet.of(), ImmutableSet.of(fileBDeletes()));
     Snapshot pending = apply(rewrite, branch);
 
     assertThat(pending.allManifests(table.io())).hasSize(3);
@@ -611,7 +614,7 @@ public class TestRewriteFiles extends TestBase {
         dataSeqs(2L),
         fileSeqs(2L),
         ids(pending.snapshotId()),
-        files(FILE_B_DELETES),
+        files(fileBDeletes()),
         statuses(ADDED));
 
     validateDeleteManifest(
@@ -643,7 +646,7 @@ public class TestRewriteFiles extends TestBase {
         .as("Rewriting delete files is only supported in iceberg format v2 or later")
         .isGreaterThan(1);
 
-    commit(table, table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES), branch);
+    commit(table, table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()), branch);
 
     // Apply and commit the rewrite transaction.
     RewriteFiles rewrite =
@@ -651,7 +654,7 @@ public class TestRewriteFiles extends TestBase {
             .newRewrite()
             .validateFromSnapshot(latestSnapshot(table, branch).snapshotId())
             .rewriteFiles(
-                ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_A_DELETES),
+                ImmutableSet.of(FILE_A), ImmutableSet.of(fileADeletes()),
                 ImmutableSet.of(), ImmutableSet.of());
     Snapshot pending = apply(rewrite, branch);
 
@@ -666,7 +669,7 @@ public class TestRewriteFiles extends TestBase {
         dataSeqs(1L),
         fileSeqs(1L),
         ids(pending.snapshotId()),
-        files(FILE_A_DELETES),
+        files(fileADeletes()),
         statuses(DELETED));
 
     commit(table, rewrite, branch);
@@ -754,7 +757,7 @@ public class TestRewriteFiles extends TestBase {
 
     long snapshotBeforeDeletes = latestSnapshot(table, branch).snapshotId();
 
-    commit(table, table.newRowDelta().addDeletes(FILE_A_DELETES), branch);
+    commit(table, table.newRowDelta().addDeletes(fileADeletes()), branch);
 
     long snapshotAfterDeletes = latestSnapshot(table, branch).snapshotId();
 
