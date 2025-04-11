@@ -71,7 +71,8 @@ public class ManifestReadBenchmark {
     Random random = new Random(System.currentTimeMillis());
 
     try (ManifestListWriter listWriter =
-        ManifestLists.write(1, org.apache.iceberg.Files.localOutput(manifestListFile), 0, 1L, 0)) {
+        ManifestLists.write(
+            1, org.apache.iceberg.Files.localOutput(manifestListFile), 0, 1L, 0, 0L)) {
       for (int i = 0; i < NUM_FILES; i++) {
         OutputFile manifestFile =
             org.apache.iceberg.Files.localOutput(
