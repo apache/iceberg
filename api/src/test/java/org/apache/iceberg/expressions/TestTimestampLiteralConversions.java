@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
@@ -108,6 +109,33 @@ public class TestTimestampLiteralConversions {
   }
 
   @Test
+  public void testTimestampNanoWithLongLiteral() {
+    // verify round-trip between timestamp_ns and long
+    Literal<Long> timestampNano =
+        Literal.of("2017-11-16T14:31:08.000000001").to(Types.TimestampNanoType.withoutZone());
+    assertThat(timestampNano.value()).isEqualTo(1510842668000000001L);
+
+    Literal<Long> longLiteral =
+        Literal.of(1510842668000000001L).to(Types.TimestampNanoType.withoutZone());
+    assertThat(longLiteral).isEqualTo(timestampNano);
+
+    // cast long literal to temporal types
+    assertThat(longLiteral.to(Types.DateType.get()).value())
+        .isEqualTo((int) LocalDate.of(2017, 11, 16).toEpochDay());
+
+    assertThat(longLiteral.to(Types.TimestampType.withoutZone()).value())
+        .isEqualTo(1510842668000000L);
+
+    assertThat(longLiteral.to(Types.TimestampType.withZone()).value()).isEqualTo(1510842668000000L);
+
+    assertThat(longLiteral.to(Types.TimestampNanoType.withoutZone()).value())
+        .isEqualTo(1510842668000000001L);
+
+    assertThat(longLiteral.to(Types.TimestampNanoType.withZone()).value())
+        .isEqualTo(1510842668000000001L);
+  }
+
+  @Test
   public void testTimestampNanoToTimestampConversion() {
     Literal<Long> timestamp =
         Literal.of("2017-11-16T14:31:08.000000001").to(Types.TimestampNanoType.withoutZone());
@@ -156,6 +184,33 @@ public class TestTimestampLiteralConversions {
     ts = Literal.of("1969-12-31T23:59:59.999999000").to(Types.TimestampNanoType.withoutZone());
     dateOrdinal = (Integer) ts.to(Types.DateType.get()).value();
     assertThat(dateOrdinal).isEqualTo(-1);
+  }
+
+  @Test
+  public void testTimestampNanoWithZoneWithLongLiteral() {
+    // verify round-trip between timestamptz_ns and long
+    Literal<Long> timestampNanoWithZone =
+        Literal.of("2017-11-16T14:31:08.000000001+01:00").to(Types.TimestampNanoType.withZone());
+    assertThat(timestampNanoWithZone.value()).isEqualTo(1510839068000000001L);
+
+    Literal<Long> longLiteral =
+        Literal.of(1510839068000000001L).to(Types.TimestampNanoType.withZone());
+    assertThat(longLiteral).isEqualTo(timestampNanoWithZone);
+
+    // cast long literal to temporal types
+    assertThat(longLiteral.to(Types.DateType.get()).value())
+        .isEqualTo((int) LocalDate.of(2017, 11, 16).toEpochDay());
+
+    assertThat(longLiteral.to(Types.TimestampType.withoutZone()).value())
+        .isEqualTo(1510839068000000L);
+
+    assertThat(longLiteral.to(Types.TimestampType.withZone()).value()).isEqualTo(1510839068000000L);
+
+    assertThat(longLiteral.to(Types.TimestampNanoType.withoutZone()).value())
+        .isEqualTo(1510839068000000001L);
+
+    assertThat(longLiteral.to(Types.TimestampNanoType.withoutZone()).value())
+        .isEqualTo(1510839068000000001L);
   }
 
   @Test
