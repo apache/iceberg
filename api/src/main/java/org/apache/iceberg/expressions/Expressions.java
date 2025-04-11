@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.nio.ByteBuffer;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression.Operation;
+import org.apache.iceberg.geospatial.GeospatialBoundingBox;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
@@ -202,6 +204,45 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.NOT_STARTS_WITH, expr, value);
   }
 
+  public static UnboundPredicate<ByteBuffer> stIntersects(
+      String name, GeospatialBoundingBox value) {
+    return geospatialPredicate(Operation.ST_INTERSECTS, name, value);
+  }
+
+  public static UnboundPredicate<ByteBuffer> stIntersects(
+      String name, ByteBuffer min, ByteBuffer max) {
+    return geospatialPredicate(Operation.ST_INTERSECTS, name, min, max);
+  }
+
+  public static UnboundPredicate<ByteBuffer> stIntersects(
+      UnboundTerm<ByteBuffer> expr, GeospatialBoundingBox value) {
+    return geospatialPredicate(Operation.ST_INTERSECTS, expr, value);
+  }
+
+  public static UnboundPredicate<ByteBuffer> stIntersects(
+      UnboundTerm<ByteBuffer> expr, ByteBuffer min, ByteBuffer max) {
+    return geospatialPredicate(Operation.ST_INTERSECTS, expr, min, max);
+  }
+
+  public static UnboundPredicate<ByteBuffer> stDisjoint(String name, GeospatialBoundingBox value) {
+    return geospatialPredicate(Operation.ST_DISJOINT, name, value);
+  }
+
+  public static UnboundPredicate<ByteBuffer> stDisjoint(
+      String name, ByteBuffer min, ByteBuffer max) {
+    return geospatialPredicate(Operation.ST_DISJOINT, name, min, max);
+  }
+
+  public static UnboundPredicate<ByteBuffer> stDisjoint(
+      UnboundTerm<ByteBuffer> expr, GeospatialBoundingBox value) {
+    return geospatialPredicate(Operation.ST_DISJOINT, expr, value);
+  }
+
+  public static UnboundPredicate<ByteBuffer> stDisjoint(
+      UnboundTerm<ByteBuffer> expr, ByteBuffer min, ByteBuffer max) {
+    return geospatialPredicate(Operation.ST_DISJOINT, expr, min, max);
+  }
+
   public static <T> UnboundPredicate<T> in(String name, T... values) {
     return predicate(Operation.IN, name, Lists.newArrayList(values));
   }
@@ -278,6 +319,27 @@ public class Expressions {
 
   public static <T> UnboundPredicate<T> predicate(Operation op, UnboundTerm<T> expr) {
     return new UnboundPredicate<>(op, expr);
+  }
+
+  public static UnboundPredicate<ByteBuffer> geospatialPredicate(
+      Operation op, String name, GeospatialBoundingBox value) {
+    return geospatialPredicate(
+        op, ref(name), value.min().toByteBuffer(), value.max().toByteBuffer());
+  }
+
+  public static UnboundPredicate<ByteBuffer> geospatialPredicate(
+      Operation op, UnboundTerm<ByteBuffer> expr, GeospatialBoundingBox value) {
+    return geospatialPredicate(op, expr, value.min().toByteBuffer(), value.max().toByteBuffer());
+  }
+
+  public static UnboundPredicate<ByteBuffer> geospatialPredicate(
+      Operation op, String name, ByteBuffer min, ByteBuffer max) {
+    return geospatialPredicate(op, ref(name), min, max);
+  }
+
+  public static UnboundPredicate<ByteBuffer> geospatialPredicate(
+      Operation op, UnboundTerm<ByteBuffer> expr, ByteBuffer min, ByteBuffer max) {
+    return new UnboundPredicate<>(op, expr, Lists.newArrayList(min, max));
   }
 
   public static True alwaysTrue() {
