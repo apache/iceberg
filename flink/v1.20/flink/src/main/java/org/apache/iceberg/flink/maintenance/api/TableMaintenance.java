@@ -152,7 +152,9 @@ public class TableMaintenance {
      * @param newRateLimit firing frequency
      */
     public Builder rateLimit(Duration newRateLimit) {
-      Preconditions.checkNotNull(rateLimit.toMillis() > 0, "Rate limit should be greater than 0");
+      Preconditions.checkNotNull(newRateLimit, "Rate limit should not be null");
+      Preconditions.checkArgument(
+          newRateLimit.toMillis() > 0, "Rate limit should be greater than 0");
       this.rateLimit = newRateLimit;
       return this;
     }
