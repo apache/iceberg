@@ -1753,15 +1753,15 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThatThrownBy(() -> actions().rewriteDataFiles(table).binPack().sort())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Must use only one rewriter type (bin-pack, sort, zorder)");
+        .hasMessageStartingWith("Rewriter type already set to ");
 
     assertThatThrownBy(() -> actions().rewriteDataFiles(table).sort(sortOrder).binPack())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Must use only one rewriter type (bin-pack, sort, zorder)");
+        .hasMessageStartingWith("Rewriter type already set to ");
 
     assertThatThrownBy(() -> actions().rewriteDataFiles(table).sort(sortOrder).binPack())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Must use only one rewriter type (bin-pack, sort, zorder)");
+        .hasMessageStartingWith("Rewriter type already set to ");
   }
 
   @TestTemplate

@@ -95,7 +95,6 @@ public class RewriteDataFilesSparkAction
   private boolean caseSensitive;
   private BinPackRewriteFilePlanner planner = null;
   private FileRewriteRunner<FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup> runner = null;
-  private boolean shufflingPlanner = false;
 
   RewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark.cloneSession());
@@ -112,38 +111,37 @@ public class RewriteDataFilesSparkAction
 
   @Override
   public RewriteDataFilesSparkAction binPack() {
-    Preconditions.checkArgument(
-        runner == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
+    checkRunnerIsUnset();
     this.runner = new SparkBinPackFileRewriteRunner(spark(), table);
-    this.shufflingPlanner = false;
     return this;
   }
 
   @Override
   public RewriteDataFilesSparkAction sort(SortOrder sortOrder) {
-    Preconditions.checkArgument(
-        runner == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
+    checkRunnerIsUnset();
     this.runner = new SparkSortFileRewriteRunner(spark(), table, sortOrder);
-    this.shufflingPlanner = true;
     return this;
   }
 
   @Override
   public RewriteDataFilesSparkAction sort() {
-    Preconditions.checkArgument(
-        runner == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
+    checkRunnerIsUnset();
     this.runner = new SparkSortFileRewriteRunner(spark(), table);
-    this.shufflingPlanner = true;
     return this;
   }
 
   @Override
   public RewriteDataFilesSparkAction zOrder(String... columnNames) {
-    Preconditions.checkArgument(
-        runner == null, "Must use only one rewriter type (bin-pack, sort, zorder)");
+    checkRunnerIsUnset();
     this.runner = new SparkZOrderFileRewriteRunner(spark(), table, Arrays.asList(columnNames));
-    this.shufflingPlanner = true;
     return this;
+  }
+
+  private void checkRunnerIsUnset() {
+    Preconditions.checkArgument(
+        runner == null,
+        "Rewriter type already set to %s",
+        runner == null ? null : runner.description());
   }
 
   @Override
@@ -184,9 +182,8 @@ public class RewriteDataFilesSparkAction
   }
 
   private void init(long startingSnapshotId) {
-
     this.planner =
-        shufflingPlanner
+        runner instanceof SparkShufflingFileRewriteRunner
             ? new SparkShufflingDataRewritePlanner(table, filter, startingSnapshotId, caseSensitive)
             : new BinPackRewriteFilePlanner(table, filter, startingSnapshotId, caseSensitive);
 
