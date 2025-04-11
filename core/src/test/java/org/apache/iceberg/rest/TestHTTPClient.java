@@ -65,7 +65,7 @@ import org.mockserver.verify.VerificationTimes;
 
 /**
  * * Exercises the RESTClient interface, specifically over a mocked-server using the actual
- * HttpRESTClient code.
+ * HTTPClient code.
  */
 public class TestHTTPClient {
 
@@ -438,7 +438,8 @@ public class TestHTTPClient {
       case POST:
         return restClient.post(path, body, Item.class, headers, onError, responseHeaders);
       case GET:
-        return restClient.get(path, Item.class, headers, onError);
+        return restClient.get(
+            path, ImmutableMap.of(), Item.class, headers, onError, responseHeaders);
       case HEAD:
         restClient.head(path, headers, onError);
         return null;
