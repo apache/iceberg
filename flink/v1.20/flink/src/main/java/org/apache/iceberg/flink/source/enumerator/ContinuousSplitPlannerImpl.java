@@ -140,7 +140,6 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
                   Collections.emptyList(), lastPosition, newPosition);
             }
           case EARLIEST:
-          default:
             {
               Long oldestConsumedSnapshotId = SnapshotUtil.oldestAncestor(table).snapshotId();
               Snapshot toSnapshotInclusive =
