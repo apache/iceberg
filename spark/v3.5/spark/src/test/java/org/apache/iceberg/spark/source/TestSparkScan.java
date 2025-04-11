@@ -252,17 +252,6 @@ public class TestSparkScan extends TestBaseWithCatalog {
     Table table = validationCatalog.loadTable(tableIdent);
     long snapshotId = table.currentSnapshot().snapshotId();
 
-    SparkScanBuilder scanBuilder =
-        new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
-    SparkScan scan = (SparkScan) scanBuilder.build();
-
-    Map<String, String> reportColStatsDisabled =
-        ImmutableMap.of(
-            SQLConf.CBO_ENABLED().key(), "true", SparkSQLProperties.REPORT_COLUMN_STATS, "false");
-
-    Map<String, String> reportColStatsEnabled =
-        ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
-
     GenericStatisticsFile statisticsFile =
         new GenericStatisticsFile(
             snapshotId,
@@ -279,12 +268,50 @@ public class TestSparkScan extends TestBaseWithCatalog {
 
     table.updateStatistics().setStatistics(statisticsFile).commit();
 
-    checkColStatisticsNotReported(scan, 4L);
-    withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
+    List<SimpleRecord> newRecords =
+        Lists.newArrayList(new SimpleRecord(5, "a"), new SimpleRecord(6, "b"));
+    spark
+        .createDataset(newRecords, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
 
-    Map<String, Long> expectedOneNDV = Maps.newHashMap();
-    expectedOneNDV.put("id", 4L);
-    withSQLConf(reportColStatsEnabled, () -> checkColStatisticsReported(scan, 4L, expectedOneNDV));
+    table.refresh();
+    long snapshotId2 = table.currentSnapshot().snapshotId();
+
+    GenericStatisticsFile statisticsFile2 =
+        new GenericStatisticsFile(
+            snapshotId2,
+            "/test/statistics/file2.puffin",
+            100,
+            42,
+            ImmutableList.of(
+                new GenericBlobMetadata(
+                    APACHE_DATASKETCHES_THETA_V1,
+                    snapshotId2,
+                    2,
+                    ImmutableList.of(1),
+                    ImmutableMap.of("ndv", "6"))));
+
+    table.updateStatistics().setStatistics(statisticsFile2).commit();
+
+    SparkScanBuilder scanBuilder =
+        new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
+    SparkScan scan = (SparkScan) scanBuilder.build();
+
+    Map<String, String> reportColStatsDisabled =
+        ImmutableMap.of(
+            SQLConf.CBO_ENABLED().key(), "true", SparkSQLProperties.REPORT_COLUMN_STATS, "false");
+
+    checkColStatisticsNotReported(scan, 6L);
+    withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 6L));
+
+    Map<String, String> reportColStatsEnabled =
+        ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
+
+    Map<String, Long> expectedNDV = Maps.newHashMap();
+    expectedNDV.put("id", 6L);
+    withSQLConf(reportColStatsEnabled, () -> checkColStatisticsReported(scan, 6L, expectedNDV));
   }
 
   @TestTemplate
