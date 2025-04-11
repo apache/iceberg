@@ -27,9 +27,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.CredentialsProvider;
+import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
@@ -50,6 +53,7 @@ import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -72,6 +76,10 @@ public class HTTPClient extends BaseHTTPClient {
   static final int REST_MAX_CONNECTIONS_DEFAULT = 100;
   static final String REST_MAX_CONNECTIONS_PER_ROUTE = "rest.client.connections-per-route";
   static final int REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT = 100;
+  static final String REST_PROXY_HOSTNAME = "rest.client.proxy.hostname";
+  static final String REST_PROXY_PORT = "rest.client.proxy.port";
+  static final String REST_PROXY_USERNAME = "rest.client.proxy.username";
+  static final String REST_PROXY_PASSWORD = "rest.client.proxy.password";
 
   @VisibleForTesting
   static final String REST_CONNECTION_TIMEOUT_MS = "rest.client.connection-timeout-ms";
@@ -442,6 +450,32 @@ public class HTTPClient extends BaseHTTPClient {
     public HTTPClient build() {
       withHeader(CLIENT_VERSION_HEADER, IcebergBuild.fullVersion());
       withHeader(CLIENT_GIT_COMMIT_SHORT_HEADER, IcebergBuild.gitCommitShortId());
+
+      String proxyHostname =
+          PropertyUtil.propertyAsString(properties, HTTPClient.REST_PROXY_HOSTNAME, null);
+
+      Integer proxyPort =
+          PropertyUtil.propertyAsNullableInt(properties, HTTPClient.REST_PROXY_PORT);
+
+      if (!Strings.isNullOrEmpty(proxyHostname) && proxyPort != null) {
+        withProxy(proxyHostname, proxyPort);
+
+        String proxyUsername =
+            PropertyUtil.propertyAsString(properties, HTTPClient.REST_PROXY_USERNAME, null);
+
+        String proxyPassword =
+            PropertyUtil.propertyAsString(properties, HTTPClient.REST_PROXY_PASSWORD, null);
+
+        if (!Strings.isNullOrEmpty(proxyUsername) && !Strings.isNullOrEmpty(proxyPassword)) {
+          // currently only basic auth is supported
+          BasicCredentialsProvider credentialProvider = new BasicCredentialsProvider();
+          credentialProvider.setCredentials(
+              new AuthScope(proxyHostname, proxyPort),
+              new UsernamePasswordCredentials(proxyUsername, proxyPassword.toCharArray()));
+
+          withProxyCredentialsProvider(credentialProvider);
+        }
+      }
 
       if (this.proxyCredentialsProvider != null) {
         Preconditions.checkNotNull(
