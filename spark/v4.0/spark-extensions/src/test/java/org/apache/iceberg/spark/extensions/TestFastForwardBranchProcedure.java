@@ -174,11 +174,7 @@ public class TestFastForwardBranchProcedure extends ExtensionsTestBase {
             () ->
                 sql("CALL %s.custom.fast_forward('test_table', 'main', 'newBranch')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .satisfies(
-            exception -> {
-              AnalysisException analysisException = (AnalysisException) exception;
-              assertThat(analysisException.getMessage().contains("does not support procedure"));
-            });
+        .hasMessage("Catalog %s does not support procedures.", catalogName);
 
     assertThatThrownBy(() -> sql("CALL %s.system.fast_forward('test_table', 'main')", catalogName))
         .isInstanceOf(AnalysisException.class)

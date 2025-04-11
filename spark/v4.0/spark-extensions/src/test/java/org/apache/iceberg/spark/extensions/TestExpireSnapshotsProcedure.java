@@ -172,11 +172,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.custom.expire_snapshots('n', 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .satisfies(
-            exception -> {
-              AnalysisException analysisException = (AnalysisException) exception;
-              assertThat(analysisException.getMessage().contains("does not support procedure"));
-            });
+        .hasMessage("Catalog %s does not support procedures.", catalogName);
 
     assertThatThrownBy(() -> sql("CALL %s.system.expire_snapshots()", catalogName))
         .isInstanceOf(AnalysisException.class)
