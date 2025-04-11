@@ -715,7 +715,7 @@ class TestIcebergCommitter extends TestBase {
       processElement(jobId, checkpointId, harness, 1, operatorId.toString(), dataFile);
 
       snapshot = harness.snapshot(++checkpointId, ++timestamp);
-      assertFlinkManifests(0);
+      assertFlinkManifests(1);
     }
 
     // Redeploying flink job from external checkpoint.
@@ -726,6 +726,11 @@ class TestIcebergCommitter extends TestBase {
       harness.getStreamConfig().setOperatorID(operatorId);
       harness.initializeState(snapshot);
       harness.open();
+
+      // test harness has a limitation wherein it is not able to commit pending commits when
+      // initializeState is called, when the checkpointId > 0
+      // so we have to call it explicitly
+      harness.notifyOfCompletedCheckpoint(checkpointId);
 
       // All flink manifests should be cleaned because it has committed the unfinished iceberg
       // transaction.
