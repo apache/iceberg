@@ -1406,11 +1406,15 @@ Each partition field in `fields` is stored as a JSON object with the following p
 
 | V1       | V2       | V3       | Field            | JSON representation | Example      |
 |----------|----------|----------|------------------|---------------------|--------------|
-| required | required | omitted  | **`source-id`**  | `JSON int`          | 1            |
+| required | required | optional | **`source-id`**  | `JSON int`          | 1            |
 |          |          | required | **`source-ids`** | `JSON list of ints` | `[1,2]`      |
 |          | required | required | **`field-id`**   | `JSON int`          | 1000         |
 | required | required | required | **`name`**       | `JSON string`       | `id_bucket`  |
 | required | required | required | **`transform`**  | `JSON string`       | `bucket[16]` |
+
+Notes:
+
+1. For partition fields with a transform with a single argument, `source-id` can still be written.
 
 Supported partition transforms are listed below.
 
@@ -1445,13 +1449,15 @@ Each sort field in the fields list is stored as an object with the following pro
 
 | V1       | V2       | V3       | Field            | JSON representation | Example     |
 |----------|----------|----------|------------------|---------------------|-------------|
-| required | required | required | **`transform`**  | `JSON string`       | `bucket[4]` |
-| required | required | omitted  | **`source-id`**  | `JSON int`          | 1           |
+| required | required | required¹ | **`transform`**  | `JSON string`       | `bucket[4]` |
+| required | required | required¹ | **`source-id`**  | `JSON int`          | 1           |
 |          |          | required | **`source-ids`** | `JSON list of ints` | `[1,2]`     |
 | required | required | required | **`direction`**  | `JSON string`       | `asc`       |
 | required | required | required | **`null-order`** | `JSON string`       | `nulls-last`|
 
-In v3 metadata, writers must use only `source-ids` because v3 requires reader support for multi-arg transforms.
+Notes:
+
+1. For sort fields with a transform with a single argument, the ID of the source field is set on `source-id`, and `source-ids` is omitted.
 
 Older versions of the reference implementation can read tables with transforms unknown to it, ignoring them. But other implementations may break if they encounter unknown transforms. All v3 readers are required to read tables with unknown transforms, ignoring them.
 
@@ -1597,13 +1603,8 @@ All readers are required to read tables with unknown partition transforms, ignor
 Writing v3 metadata:
 
 * Partition Field and Sort Field JSON:
-    * `source-ids` was added and is required
-    * `source-id` is no longer required and should be omitted; always use `source-ids` instead
-
-Reading v1 or v2 metadata for v3:
-
-* Partition Field and Sort Field JSON:
-    * `source-ids` should default to a single-value list of the value of `source-id`
+    * `source-ids` was added and should be written.
+    * `source-id` should still be written in the case of single-argument transforms.
 
 Row-level delete changes:
 
