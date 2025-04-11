@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -66,7 +65,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestAddFilesProcedure extends ExtensionsTestBase {
@@ -100,8 +98,6 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
 
   private final String sourceTableName = "source_table";
   private File fileTableDir;
-
-  @TempDir private Path temp;
 
   @BeforeEach
   public void setupTempDirs() {
@@ -743,7 +739,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
                 "SELECT id, `naMe`, dept, subdept from %s WHERE `naMe` = 'John Doe' ORDER BY id",
                 sourceTableName))
         .as("If this assert breaks it means that Spark has fixed the pushdown issue")
-        .hasSize(0);
+        .isEmpty();
 
     // Pushdown works for iceberg
     assertThat(
@@ -828,6 +824,44 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot find a partition spec in Iceberg table")
         .hasMessageContaining("that matches the partition columns");
+  }
+
+  @TestTemplate
+  public void partitionColumnCountMismatchInFilter() {
+    createPartitionedHiveTable();
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
+    assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files('%s', '%s', map('id', '0', 'dept', '1'))",
+                    catalogName, tableName, sourceTableName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add data files to target table")
+        .hasMessageContaining(
+            "because that table is partitioned, but the number of columns in the provided partition filter (2)"
+                + " is greater than the number of partitioned columns in table (1)");
+  }
+
+  @TestTemplate
+  public void invalidPartitionColumnsInFilter() {
+    createPartitionedHiveTable();
+
+    String icebergTablePartitionNames = "id";
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String",
+        String.format("PARTITIONED BY (%s)", icebergTablePartitionNames));
+    assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files('%s', '%s', map('dept', '1'))",
+                    catalogName, tableName, sourceTableName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add files to target table")
+        .hasMessageContaining(
+            "specified partition filter refers to columns that are not partitioned: [dept]")
+        .hasMessageContaining("Valid partition columns: [%s]", icebergTablePartitionNames);
   }
 
   @TestTemplate
