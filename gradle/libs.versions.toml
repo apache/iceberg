@@ -63,8 +63,8 @@ jakarta-servlet-api = "6.1.0"
 jaxb-api = "2.3.1"
 jaxb-runtime = "2.3.9"
 jetty = "11.0.25"
-junit = "5.11.4"
-junit-platform = "1.11.4"
+junit = "5.12.2"
+junit-platform = "1.12.2"
 kafka = "3.9.0"
 kryo-shaded = "4.0.3"
 microprofile-openapi-api = "3.1.2"
@@ -194,6 +194,7 @@ jetty-server = { module = "org.eclipse.jetty:jetty-server", version.ref = "jetty
 jetty-servlet = { module = "org.eclipse.jetty:jetty-servlet", version.ref = "jetty" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
 junit-suite-api = { module = "org.junit.platform:junit-platform-suite-api", version.ref = "junit-platform" }
 junit-suite-engine = { module = "org.junit.platform:junit-platform-suite-engine", version.ref = "junit-platform" }
 junit-vintage-engine = { module = "org.junit.vintage:junit-vintage-engine", version.ref = "junit" }
