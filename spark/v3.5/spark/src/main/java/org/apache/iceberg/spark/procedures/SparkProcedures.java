@@ -63,6 +63,7 @@ public class SparkProcedures {
     mapBuilder.put("fast_forward", FastForwardBranchProcedure::builder);
     mapBuilder.put("compute_table_stats", ComputeTableStatsProcedure::builder);
     mapBuilder.put("rewrite_table_path", RewriteTablePathProcedure::builder);
+    mapBuilder.put("hive_to_iceberg", Hive2IcebergProcedure::builder);
     return mapBuilder.build();
   }
 
