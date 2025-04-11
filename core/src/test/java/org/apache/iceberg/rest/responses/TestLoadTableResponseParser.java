@@ -20,6 +20,7 @@ package org.apache.iceberg.rest.responses;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.PartitionSpec;
@@ -139,7 +140,7 @@ public class TestLoadTableResponseParser {
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void roundTripSerdeV3andHigher(int formatVersion) {
-    assertThat(formatVersion).isGreaterThanOrEqualTo(3);
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
 
     String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
     TableMetadata metadata =
