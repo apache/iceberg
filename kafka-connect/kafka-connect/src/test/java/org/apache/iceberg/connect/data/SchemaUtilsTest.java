@@ -238,7 +238,7 @@ public class SchemaUtilsTest {
     assertThat(SchemaUtils.toIcebergType(Schema.STRING_SCHEMA, config))
         .isInstanceOf(StringType.class);
     assertThat(SchemaUtils.toIcebergType(Date.SCHEMA, config)).isInstanceOf(DateType.class);
-    assertThat(SchemaUtils.toIcebergType(Time.SCHEMA, config)).isInstanceOf(TimeType.class);
+    assertThat(SchemaUtils.toIcebergType(Time.SCHEMA, config)).isInstanceOf(config.shouldConvertConnectTimeToIcebergIntegerType() ? IntegerType.class : TimeType.class);
 
     Type timestampType = SchemaUtils.toIcebergType(Timestamp.SCHEMA, config);
     assertThat(timestampType).isInstanceOf(TimestampType.class);
@@ -281,7 +281,7 @@ public class SchemaUtilsTest {
     assertThat(SchemaUtils.inferIcebergType("foobar", config)).isInstanceOf(StringType.class);
     assertThat(SchemaUtils.inferIcebergType(true, config)).isInstanceOf(BooleanType.class);
     assertThat(SchemaUtils.inferIcebergType(LocalDate.now(), config)).isInstanceOf(DateType.class);
-    assertThat(SchemaUtils.inferIcebergType(LocalTime.now(), config)).isInstanceOf(TimeType.class);
+    assertThat(SchemaUtils.inferIcebergType(LocalTime.now(), config)).isInstanceOf(config.shouldConvertConnectTimeToIcebergIntegerType() ? IntegerType.class : TimeType.class);
 
     Type timestampType = SchemaUtils.inferIcebergType(new java.util.Date(), config);
     assertThat(timestampType).isInstanceOf(TimestampType.class);
