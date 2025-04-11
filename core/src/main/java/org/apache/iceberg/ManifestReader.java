@@ -42,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PartitionSet;
 
@@ -300,13 +301,17 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private static Schema projection(
       Schema schema, Schema project, Collection<String> columns, boolean caseSensitive) {
     if (columns != null) {
+      Set<String> requiredColumns =
+          Sets.union(Sets.newHashSet(columns), Set.of(DataFile.RECORD_COUNT.name()));
       if (caseSensitive) {
-        return schema.select(columns);
+        return schema.select(requiredColumns);
       } else {
-        return schema.caseInsensitiveSelect(columns);
+        return schema.caseInsensitiveSelect(requiredColumns);
       }
     } else if (project != null) {
-      return project;
+      Set<Integer> ids =
+          Sets.union(TypeUtil.getProjectedIds(project), Set.of(DataFile.RECORD_COUNT.fieldId()));
+      return TypeUtil.project(schema, ids);
     }
 
     return schema;
