@@ -449,8 +449,8 @@ public class TestManifestListVersions {
     return writeManifestList(formatVersion, SNAPSHOT_FIRST_ROW_ID, manifest);
   }
 
-  private InputFile writeManifestList(int formatVersion, long expectedNextRowId, ManifestFile... manifests)
-      throws IOException {
+  private InputFile writeManifestList(
+      int formatVersion, long expectedNextRowId, ManifestFile... manifests) throws IOException {
     OutputFile outputFile = new InMemoryOutputFile();
     ManifestListWriter writer =
         ManifestLists.write(
