@@ -17,6 +17,8 @@
 -- This file was copied from Apache Hive, at:
 -- https://github.com/apache/hive/blob/master/standalone-metastore/metastore-server/src/main/sql/derby/hive-schema-4.0.0.derby.sql
 --
+-- This has been modified slightly due to testing needs.
+--
 -- Timestamp: 2011-09-22 15:32:02.024
 -- Source database is: /home/carl/Work/repos/hive1/metastore/scripts/upgrade/derby/mdb
 -- Connection URL is: jdbc:derby:/home/carl/Work/repos/hive1/metastore/scripts/upgrade/derby/mdb
