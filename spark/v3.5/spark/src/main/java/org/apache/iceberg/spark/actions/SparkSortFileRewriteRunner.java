@@ -26,11 +26,11 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 
-class SparkSortDataRewriter extends SparkShufflingDataRewriter {
+class SparkSortFileRewriteRunner extends SparkShufflingFileRewriteRunner {
 
   private final SortOrder sortOrder;
 
-  SparkSortDataRewriter(SparkSession spark, Table table) {
+  SparkSortFileRewriteRunner(SparkSession spark, Table table) {
     super(spark, table);
     Preconditions.checkArgument(
         table.sortOrder().isSorted(),
@@ -39,7 +39,7 @@ class SparkSortDataRewriter extends SparkShufflingDataRewriter {
     this.sortOrder = table.sortOrder();
   }
 
-  SparkSortDataRewriter(SparkSession spark, Table table, SortOrder sortOrder) {
+  SparkSortFileRewriteRunner(SparkSession spark, Table table, SortOrder sortOrder) {
     super(spark, table);
     Preconditions.checkArgument(
         sortOrder != null && sortOrder.isSorted(),
