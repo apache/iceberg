@@ -146,11 +146,15 @@ public class SparkCatalog extends BaseCatalog {
    * @return an Iceberg catalog
    */
   protected Catalog buildIcebergCatalog(String name, CaseInsensitiveStringMap options) {
-    Configuration conf = SparkUtil.hadoopConfCatalogOverrides(SparkSession.active(), name);
+    Configuration conf =
+        SparkUtil.hadoopConfCatalogOverrides(SparkSession.getActiveSession().get(), name);
     Map<String, String> optionsMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     optionsMap.putAll(options.asCaseSensitiveMap());
-    optionsMap.put(CatalogProperties.APP_ID, SparkSession.active().sparkContext().applicationId());
-    optionsMap.put(CatalogProperties.USER, SparkSession.active().sparkContext().sparkUser());
+    optionsMap.put(
+        CatalogProperties.APP_ID,
+        SparkSession.getActiveSession().get().sparkContext().applicationId());
+    optionsMap.put(
+        CatalogProperties.USER, SparkSession.getActiveSession().get().sparkContext().sparkUser());
     return CatalogUtil.buildIcebergCatalog(name, optionsMap, conf);
   }
 
@@ -751,9 +755,10 @@ public class SparkCatalog extends BaseCatalog {
     Catalog catalog = buildIcebergCatalog(name, options);
 
     this.catalogName = name;
-    SparkSession sparkSession = SparkSession.active();
+    SparkSession sparkSession = SparkSession.getActiveSession().get();
     this.tables =
-        new HadoopTables(SparkUtil.hadoopConfCatalogOverrides(SparkSession.active(), name));
+        new HadoopTables(
+            SparkUtil.hadoopConfCatalogOverrides(SparkSession.getActiveSession().get(), name));
     this.icebergCatalog =
         cacheEnabled
             ? CachingCatalog.wrap(catalog, cacheCaseSensitive, cacheExpirationIntervalMs)

@@ -32,7 +32,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -171,14 +170,8 @@ public class TestPublishChangesProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(
             () -> sql("CALL %s.custom.publish_changes('n', 't', 'not_valid')", catalogName))
-        .isInstanceOf(ParseException.class)
-        .hasMessageContaining("Syntax error")
-        .satisfies(
-            exception -> {
-              ParseException parseException = (ParseException) exception;
-              assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
-              assertThat(parseException.getMessageParameters()).containsEntry("error", "'CALL'");
-            });
+        .isInstanceOf(AnalysisException.class)
+        .hasMessage("Catalog %s does not support procedures.", catalogName);
 
     assertThatThrownBy(() -> sql("CALL %s.system.publish_changes('t')", catalogName))
         .isInstanceOf(AnalysisException.class)

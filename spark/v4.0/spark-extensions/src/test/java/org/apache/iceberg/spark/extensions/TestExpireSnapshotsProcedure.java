@@ -53,7 +53,6 @@ import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Encoders;
-import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -172,13 +171,11 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
         .hasMessage("Named and positional arguments cannot be mixed");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.expire_snapshots('n', 't')", catalogName))
-        .isInstanceOf(ParseException.class)
-        .hasMessageContaining("Syntax error")
+        .isInstanceOf(AnalysisException.class)
         .satisfies(
             exception -> {
-              ParseException parseException = (ParseException) exception;
-              assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
-              assertThat(parseException.getMessageParameters().get("error")).isEqualTo("'CALL'");
+              AnalysisException analysisException = (AnalysisException) exception;
+              assertThat(analysisException.getMessage().contains("does not support procedure"));
             });
 
     assertThatThrownBy(() -> sql("CALL %s.system.expire_snapshots()", catalogName))

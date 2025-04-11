@@ -2530,7 +2530,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                               + "  UPDATE SET t.id = cast(NULL as int)",
                           commitTarget()))
               .isInstanceOf(SparkException.class)
-              .hasMessageContaining("Null value appeared in non-nullable field");
+              .hasMessageContaining("NULL value appeared in non-nullable field");
           assertThatThrownBy(
                   () ->
                       sql(
