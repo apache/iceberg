@@ -53,6 +53,7 @@ Version 3 of the Iceberg spec extends data types and existing metadata structure
 * Multi-argument transforms for partitioning and sorting
 * Row Lineage tracking
 * Binary deletion vectors
+* Table encryption
 
 
 ## Goals
@@ -908,6 +909,7 @@ Table metadata consists of the following fields:
 | _optional_ | _optional_ | _optional_ | **`statistics`**            | A list (optional) of [table statistics](#table-statistics).                                                                                                                                                                                                                                                                                                                                      |
 | _optional_ | _optional_ | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics).                                                                                                                                                                                                                                                                                                                              |
 |            |            | _optional_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot's `first-row-id`. See [Row Lineage](#row-lineage).                                                                                                                                                                                                                                                                                  |
+|            |            | _optional_ | **`key-id`**                | ID of the encryption key that encrypts the manifest list key metadata.                                                                                                                                                                                                                                                                                  |
 
 For serialization details, see Appendix C.
 
@@ -993,6 +995,22 @@ The unified partition type looks like `Struct<field#1, field#2, field#3>`.
 2. `spec#0` has two fields `{field#1, field#2}`
 and then the table has evolved into `spec#1` which has just one field `{field#2}`.
 The unified partition type looks like `Struct<field#1, field#2>`.
+
+#### Encryption Keys
+
+Encryption keys and metadata required for decrypting the manifest list files in encrypted tables.
+There are two types of entries:
+1. `key-metadata`: serialized key-metadata of the encrypted manifest list files. The key-metadata objects include encryption keys and other fields required to decrypt a file. Since these objects are sensitive, the serialized key-metadata byte arrays are encrypted by another key. The encryption is done via the integrity-preserving AES GCM cipher, using the snapshot ID as the AAD (additional authentication data) parameter. The result of the encryption is converted to a string via base64 encoding.
+2. `key`: the AES GCM key that encrypts the manifest list key-metadata. Since these keys are sensitive, they are wrapped/encrypted in a Key Management Service (KMS), using the table master key. The result of the wrapping is converted to a string via base64 encoding.
+
+`encryption-keys` field of table metadata is an optional list of structs with the following fields:
+
+| v1 | v2 |     v3     |     Field name          |   Type.  |                             Description                                                                  |
+|----|----|------------|-------------------------|----------|----------------------------------------------------------------------------------------------------------|
+|    |    | _required_ | **`key-id`**            | `string` | ID of the encryption key. For manifest list file keys, the ID is the snapshot-id (a string representation of the Long in base 10).    |
+|    |    | _required_ | **`key-metadata`**.     | `string` | Encrypted `key-metadata` or wrapped `key`. Base64-encoded.                                                                            |
+|    |    | _optional_ | **`encryption-key-id`** | `string` | ID of the key in this table that encrypted this entry. Omitted for KMS-wrapped keys.                                                  |
+
 
 ### Commit Conflict Resolution and Retry
 
