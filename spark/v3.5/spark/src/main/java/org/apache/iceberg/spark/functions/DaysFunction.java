@@ -31,17 +31,29 @@ import org.apache.spark.sql.types.TimestampType;
  * A Spark function implementation for the Iceberg day transform.
  *
  * <p>Example usage: {@code SELECT system.days('source_col')}.
+ *
+ * <p>Alternate form: {@code SELECT system.day('source_col')}.
  */
 public class DaysFunction extends UnaryUnboundFunction {
+
+  private boolean singular;
+
+  public DaysFunction() {
+    this(false);
+  }
+
+  DaysFunction(boolean singular) {
+    this.singular = singular;
+  }
 
   @Override
   protected BoundFunction doBind(DataType valueType) {
     if (valueType instanceof DateType) {
-      return new DateToDaysFunction();
+      return new DateToDaysFunction(singular);
     } else if (valueType instanceof TimestampType) {
-      return new TimestampToDaysFunction();
+      return new TimestampToDaysFunction(singular);
     } else if (valueType instanceof TimestampNTZType) {
-      return new TimestampNtzToDaysFunction();
+      return new TimestampNtzToDaysFunction(singular);
     } else {
       throw new UnsupportedOperationException(
           "Expected value to be date or timestamp: " + valueType.catalogString());
@@ -57,13 +69,19 @@ public class DaysFunction extends UnaryUnboundFunction {
 
   @Override
   public String name() {
-    return "days";
+    return singular ? "day" : "days";
   }
 
   private abstract static class BaseToDaysFunction extends BaseScalarFunction<Integer> {
+    private boolean singular;
+
+    protected BaseToDaysFunction(boolean singular) {
+      this.singular = singular;
+    }
+
     @Override
     public String name() {
-      return "days";
+      return singular ? "day" : "days";
     }
 
     @Override
@@ -74,6 +92,14 @@ public class DaysFunction extends UnaryUnboundFunction {
 
   // Spark and Iceberg internal representations of dates match so no transformation is required
   public static class DateToDaysFunction extends BaseToDaysFunction {
+    public DateToDaysFunction() {
+      this(false);
+    }
+
+    DateToDaysFunction(boolean singular) {
+      super(singular);
+    }
+
     // magic method used in codegen
     public static int invoke(int days) {
       return days;
@@ -86,7 +112,7 @@ public class DaysFunction extends UnaryUnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.days(date)";
+      return "iceberg." + name() + "(date)";
     }
 
     @Override
@@ -97,6 +123,14 @@ public class DaysFunction extends UnaryUnboundFunction {
   }
 
   public static class TimestampToDaysFunction extends BaseToDaysFunction {
+    public TimestampToDaysFunction() {
+      this(false);
+    }
+
+    TimestampToDaysFunction(boolean singular) {
+      super(singular);
+    }
+
     // magic method used in codegen
     public static int invoke(long micros) {
       return DateTimeUtil.microsToDays(micros);
@@ -109,7 +143,7 @@ public class DaysFunction extends UnaryUnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.days(timestamp)";
+      return "iceberg." + name() + "(timestamp)";
     }
 
     @Override
@@ -120,6 +154,14 @@ public class DaysFunction extends UnaryUnboundFunction {
   }
 
   public static class TimestampNtzToDaysFunction extends BaseToDaysFunction {
+    public TimestampNtzToDaysFunction() {
+      this(false);
+    }
+
+    TimestampNtzToDaysFunction(boolean singular) {
+      super(singular);
+    }
+
     // magic method used in codegen
     public static int invoke(long micros) {
       return DateTimeUtil.microsToDays(micros);
@@ -132,7 +174,7 @@ public class DaysFunction extends UnaryUnboundFunction {
 
     @Override
     public String canonicalName() {
-      return "iceberg.days(timestamp_ntz)";
+      return "iceberg." + name() + "(timestamp_ntz)";
     }
 
     @Override
