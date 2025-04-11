@@ -65,7 +65,7 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
         allowExisting = allowExisting,
         replace = replace)
 
-    case view @ ShowViews(_, pattern, output) =>
+    case view @ ShowViews(CurrentNamespace, pattern, output) =>
       if (ViewUtil.isViewCatalog(catalogManager.currentCatalog)) {
         ShowIcebergViews(ResolvedNamespace(catalogManager.currentCatalog, catalogManager.currentNamespace),
           pattern, output)

@@ -531,8 +531,7 @@ public class TestViews extends ExtensionsTestBase {
       // spark session catalog tries to load a V1 function and has a different error msg
       expectedErrorMsg =
           String.format(
-              "[ROUTINE_NOT_FOUND] The function `%s`.`%s` cannot be found",
-              NAMESPACE, functionName);
+              "[ROUTINE_NOT_FOUND] The routine `%s`.`%s` cannot be found", NAMESPACE, functionName);
     }
 
     // reading from a view that references a TEMP FUNCTION shouldn't be possible
@@ -668,7 +667,7 @@ public class TestViews extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql(sql))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Cannot resolve function `system`.`bucket`");
+        .hasMessageContaining("Cannot resolve routine `system`.`bucket`");
 
     assertThat(sql("SELECT * FROM %s.%s.%s", catalogName, NAMESPACE, viewName))
         .hasSize(1)
