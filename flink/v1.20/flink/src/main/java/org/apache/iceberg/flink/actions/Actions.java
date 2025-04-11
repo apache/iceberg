@@ -49,4 +49,8 @@ public class Actions {
   public RewriteDataFilesAction rewriteDataFiles() {
     return new RewriteDataFilesAction(env, table);
   }
+
+  public CleanOrphanFilesAction cleanOrphanDataFiles() {
+    return new CleanOrphanFilesAction(env, table);
+  }
 }
