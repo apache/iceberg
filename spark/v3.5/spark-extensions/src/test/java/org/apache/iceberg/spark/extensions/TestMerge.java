@@ -52,6 +52,7 @@ import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
@@ -79,7 +80,9 @@ import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
   @BeforeAll
@@ -2530,7 +2533,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                               + "  UPDATE SET t.id = cast(NULL as int)",
                           commitTarget()))
               .isInstanceOf(SparkException.class)
-              .hasMessageContaining("NULL value appeared in non-nullable field");
+              .hasMessageContaining("Null value appeared in non-nullable field");
           assertThatThrownBy(
                   () ->
                       sql(

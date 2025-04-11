@@ -691,7 +691,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
             .buildPositionWriter();
       case PARQUET:
         return Parquet.writeDeletes(outputFile)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .createWriterFunc(GenericParquetWriter::create)
             .withPartition(partition)
             .rowSchema(rowSchema)
             .withSpec(spec)
