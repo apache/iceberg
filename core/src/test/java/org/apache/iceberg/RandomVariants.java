@@ -21,9 +21,11 @@ package org.apache.iceberg;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.Variant;
@@ -107,6 +109,17 @@ public class RandomVariants {
         return Variants.of(type, ByteBuffer.wrap(randomBytes));
       case STRING:
         return Variants.of(type, RandomUtil.generatePrimitive(Types.StringType.get(), random));
+      case TIMENTZ:
+        return Variants.of(type, RandomUtil.generatePrimitive(Types.TimeType.get(), random));
+      case TIMESTAMPTZNS:
+        return Variants.of(
+            type, RandomUtil.generatePrimitive(Types.TimestampNanoType.withZone(), random));
+      case TIMESTAMPNTZNS:
+        return Variants.of(
+            type, RandomUtil.generatePrimitive(Types.TimestampNanoType.withoutZone(), random));
+      case UUID:
+        byte[] uuidBytes = (byte[]) RandomUtil.generatePrimitive(Types.UUIDType.get(), random);
+        return Variants.of(type, UUIDUtil.convert(uuidBytes));
       case ARRAY:
         // for now, generate an object instead of an array
       case OBJECT:
