@@ -1,0 +1,2271 @@
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.distributedDataLocalDeletesPlanningWithoutFilterWithStats
+# Parameters: (type = partition)
+
+# Run progress: 0.00% complete, ETA 00:00:00
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+<failure>
+
+java.lang.RuntimeException: Failed to plan files
+	at org.apache.iceberg.BaseDistributedDataScan.doPlanFiles(BaseDistributedDataScan.java:183)
+	at org.apache.iceberg.SnapshotScan.planFiles(SnapshotScan.java:139)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFiles(PlanningBenchmark.java:388)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFilesWithColumnStats(PlanningBenchmark.java:376)
+	at org.apache.iceberg.spark.PlanningBenchmark.distributedDataLocalDeletesPlanningWithoutFilterWithStats(PlanningBenchmark.java:195)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_distributedDataLocalDeletesPlanningWithoutFilterWithStats_jmhTest.distributedDataLocalDeletesPlanningWithoutFilterWithStats_ss_jmhStub(PlanningBenchmark_distributedDataLocalDeletesPlanningWithoutFilterWithStats_jmhTest.java:422)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_distributedDataLocalDeletesPlanningWithoutFilterWithStats_jmhTest.distributedDataLocalDeletesPlanningWithoutFilterWithStats_SingleShotTime(PlanningBenchmark_distributedDataLocalDeletesPlanningWithoutFilterWithStats_jmhTest.java:377)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:527)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:504)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+Caused by: java.util.concurrent.CompletionException: org.apache.spark.SparkException: Job aborted due to stage failure: Task 142 in stage 0.0 failed 1 times, most recent failure: Lost task 142.0 in stage 0.0 (TID 142) (192.168.50.140 executor driver): TaskResultLost (result lost from block manager)
+Driver stacktrace:
+	at java.base/java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:314)
+	at java.base/java.util.concurrent.CompletableFuture.completeThrowable(CompletableFuture.java:319)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1702)
+	... 3 more
+Caused by: org.apache.spark.SparkException: Job aborted due to stage failure: Task 142 in stage 0.0 failed 1 times, most recent failure: Lost task 142.0 in stage 0.0 (TID 142) (192.168.50.140 executor driver): TaskResultLost (result lost from block manager)
+Driver stacktrace:
+	at org.apache.spark.scheduler.DAGScheduler.failJobAndIndependentStages(DAGScheduler.scala:2856)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$abortStage$2(DAGScheduler.scala:2792)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$abortStage$2$adapted(DAGScheduler.scala:2791)
+	at scala.collection.mutable.ResizableArray.foreach(ResizableArray.scala:62)
+	at scala.collection.mutable.ResizableArray.foreach$(ResizableArray.scala:55)
+	at scala.collection.mutable.ArrayBuffer.foreach(ArrayBuffer.scala:49)
+	at org.apache.spark.scheduler.DAGScheduler.abortStage(DAGScheduler.scala:2791)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$handleTaskSetFailed$1(DAGScheduler.scala:1247)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$handleTaskSetFailed$1$adapted(DAGScheduler.scala:1247)
+	at scala.Option.foreach(Option.scala:407)
+	at org.apache.spark.scheduler.DAGScheduler.handleTaskSetFailed(DAGScheduler.scala:1247)
+	at org.apache.spark.scheduler.DAGSchedulerEventProcessLoop.doOnReceive(DAGScheduler.scala:3060)
+	at org.apache.spark.scheduler.DAGSchedulerEventProcessLoop.onReceive(DAGScheduler.scala:2994)
+	at org.apache.spark.scheduler.DAGSchedulerEventProcessLoop.onReceive(DAGScheduler.scala:2983)
+	at org.apache.spark.util.EventLoop$$anon$1.run(EventLoop.scala:49)
+	at org.apache.spark.scheduler.DAGScheduler.runJob(DAGScheduler.scala:989)
+	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2393)
+	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2414)
+	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2433)
+	at org.apache.spark.api.java.JavaRDDLike.collectPartitions(JavaRDDLike.scala:378)
+	at org.apache.spark.api.java.JavaRDDLike.collectPartitions$(JavaRDDLike.scala:375)
+	at org.apache.spark.api.java.AbstractJavaRDDLike.collectPartitions(JavaRDDLike.scala:45)
+	at org.apache.iceberg.SparkDistributedDataScan.collectPartitions(SparkDistributedDataScan.java:201)
+	at org.apache.iceberg.SparkDistributedDataScan.doPlanDataRemotely(SparkDistributedDataScan.java:136)
+	at org.apache.iceberg.SparkDistributedDataScan.lambda$planDataRemotely$0(SparkDistributedDataScan.java:125)
+	at org.apache.iceberg.spark.JobGroupUtils.withJobGroupInfo(JobGroupUtils.java:59)
+	at org.apache.iceberg.spark.JobGroupUtils.withJobGroupInfo(JobGroupUtils.java:51)
+	at org.apache.iceberg.SparkDistributedDataScan.withJobGroupInfo(SparkDistributedDataScan.java:176)
+	at org.apache.iceberg.SparkDistributedDataScan.planDataRemotely(SparkDistributedDataScan.java:125)
+	at org.apache.iceberg.BaseDistributedDataScan.lambda$newDataFuture$3(BaseDistributedDataScan.java:324)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1700)
+	... 3 more
+
+
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.distributedDataLocalDeletesPlanningWithoutFilterWithStats
+# Parameters: (type = file)
+
+# Run progress: 2.86% complete, ETA 01:34:02
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+[210.719s][warning][gc,alloc] shuffle-client-5-1: Retried waiting for GCLocker too often allocating 4970320 words
+<failure>
+
+java.lang.RuntimeException: Failed to plan files
+	at org.apache.iceberg.BaseDistributedDataScan.doPlanFiles(BaseDistributedDataScan.java:183)
+	at org.apache.iceberg.SnapshotScan.planFiles(SnapshotScan.java:139)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFiles(PlanningBenchmark.java:388)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFilesWithColumnStats(PlanningBenchmark.java:376)
+	at org.apache.iceberg.spark.PlanningBenchmark.distributedDataLocalDeletesPlanningWithoutFilterWithStats(PlanningBenchmark.java:195)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_distributedDataLocalDeletesPlanningWithoutFilterWithStats_jmhTest.distributedDataLocalDeletesPlanningWithoutFilterWithStats_ss_jmhStub(PlanningBenchmark_distributedDataLocalDeletesPlanningWithoutFilterWithStats_jmhTest.java:422)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_distributedDataLocalDeletesPlanningWithoutFilterWithStats_jmhTest.distributedDataLocalDeletesPlanningWithoutFilterWithStats_SingleShotTime(PlanningBenchmark_distributedDataLocalDeletesPlanningWithoutFilterWithStats_jmhTest.java:377)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:527)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:504)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+Caused by: java.util.concurrent.CompletionException: org.apache.spark.SparkException: Job aborted due to stage failure: Task 118 in stage 0.0 failed 1 times, most recent failure: Lost task 118.0 in stage 0.0 (TID 118) (192.168.50.140 executor driver): TaskResultLost (result lost from block manager)
+Driver stacktrace:
+	at java.base/java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:314)
+	at java.base/java.util.concurrent.CompletableFuture.completeThrowable(CompletableFuture.java:319)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1702)
+	... 3 more
+Caused by: org.apache.spark.SparkException: Job aborted due to stage failure: Task 118 in stage 0.0 failed 1 times, most recent failure: Lost task 118.0 in stage 0.0 (TID 118) (192.168.50.140 executor driver): TaskResultLost (result lost from block manager)
+Driver stacktrace:
+	at org.apache.spark.scheduler.DAGScheduler.failJobAndIndependentStages(DAGScheduler.scala:2856)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$abortStage$2(DAGScheduler.scala:2792)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$abortStage$2$adapted(DAGScheduler.scala:2791)
+	at scala.collection.mutable.ResizableArray.foreach(ResizableArray.scala:62)
+	at scala.collection.mutable.ResizableArray.foreach$(ResizableArray.scala:55)
+	at scala.collection.mutable.ArrayBuffer.foreach(ArrayBuffer.scala:49)
+	at org.apache.spark.scheduler.DAGScheduler.abortStage(DAGScheduler.scala:2791)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$handleTaskSetFailed$1(DAGScheduler.scala:1247)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$handleTaskSetFailed$1$adapted(DAGScheduler.scala:1247)
+	at scala.Option.foreach(Option.scala:407)
+	at org.apache.spark.scheduler.DAGScheduler.handleTaskSetFailed(DAGScheduler.scala:1247)
+	at org.apache.spark.scheduler.DAGSchedulerEventProcessLoop.doOnReceive(DAGScheduler.scala:3060)
+	at org.apache.spark.scheduler.DAGSchedulerEventProcessLoop.onReceive(DAGScheduler.scala:2994)
+	at org.apache.spark.scheduler.DAGSchedulerEventProcessLoop.onReceive(DAGScheduler.scala:2983)
+	at org.apache.spark.util.EventLoop$$anon$1.run(EventLoop.scala:49)
+	at org.apache.spark.scheduler.DAGScheduler.runJob(DAGScheduler.scala:989)
+	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2393)
+	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2414)
+	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2433)
+	at org.apache.spark.api.java.JavaRDDLike.collectPartitions(JavaRDDLike.scala:378)
+	at org.apache.spark.api.java.JavaRDDLike.collectPartitions$(JavaRDDLike.scala:375)
+	at org.apache.spark.api.java.AbstractJavaRDDLike.collectPartitions(JavaRDDLike.scala:45)
+	at org.apache.iceberg.SparkDistributedDataScan.collectPartitions(SparkDistributedDataScan.java:201)
+	at org.apache.iceberg.SparkDistributedDataScan.doPlanDataRemotely(SparkDistributedDataScan.java:136)
+	at org.apache.iceberg.SparkDistributedDataScan.lambda$planDataRemotely$0(SparkDistributedDataScan.java:125)
+	at org.apache.iceberg.spark.JobGroupUtils.withJobGroupInfo(JobGroupUtils.java:59)
+	at org.apache.iceberg.spark.JobGroupUtils.withJobGroupInfo(JobGroupUtils.java:51)
+	at org.apache.iceberg.SparkDistributedDataScan.withJobGroupInfo(SparkDistributedDataScan.java:176)
+	at org.apache.iceberg.SparkDistributedDataScan.planDataRemotely(SparkDistributedDataScan.java:125)
+	at org.apache.iceberg.BaseDistributedDataScan.lambda$newDataFuture$3(BaseDistributedDataScan.java:324)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1700)
+	... 3 more
+
+
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.distributedDataLocalDeletesPlanningWithoutFilterWithStats
+# Parameters: (type = dv)
+
+# Run progress: 5.71% complete, ETA 01:45:45
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+[218.722s][warning][gc,alloc] task-result-getter-2: Retried waiting for GCLocker too often allocating 156020 words
+[225.328s][warning][gc,alloc] task-result-getter-2: Retried waiting for GCLocker too often allocating 156032 words
+[227.718s][warning][gc,alloc] Executor task launch worker for task 137.0 in stage 0.0 (TID 137): Retried waiting for GCLocker too often allocating 74999 words
+[250.201s][warning][gc,alloc] Executor task launch worker for task 136.0 in stage 0.0 (TID 136): Retried waiting for GCLocker too often allocating 261034 words
+<failure>
+
+java.lang.RuntimeException: Failed to plan files
+	at org.apache.iceberg.BaseDistributedDataScan.doPlanFiles(BaseDistributedDataScan.java:183)
+	at org.apache.iceberg.SnapshotScan.planFiles(SnapshotScan.java:139)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFiles(PlanningBenchmark.java:388)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFilesWithColumnStats(PlanningBenchmark.java:376)
+	at org.apache.iceberg.spark.PlanningBenchmark.distributedDataLocalDeletesPlanningWithoutFilterWithStats(PlanningBenchmark.java:195)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_distributedDataLocalDeletesPlanningWithoutFilterWithStats_jmhTest.distributedDataLocalDeletesPlanningWithoutFilterWithStats_ss_jmhStub(PlanningBenchmark_distributedDataLocalDeletesPlanningWithoutFilterWithStats_jmhTest.java:422)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_distributedDataLocalDeletesPlanningWithoutFilterWithStats_jmhTest.distributedDataLocalDeletesPlanningWithoutFilterWithStats_SingleShotTime(PlanningBenchmark_distributedDataLocalDeletesPlanningWithoutFilterWithStats_jmhTest.java:377)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:527)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:504)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+Caused by: java.util.concurrent.CompletionException: org.apache.spark.SparkException: Job 0 cancelled because SparkContext was shut down
+	at java.base/java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:314)
+	at java.base/java.util.concurrent.CompletableFuture.completeThrowable(CompletableFuture.java:319)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1702)
+	... 3 more
+Caused by: org.apache.spark.SparkException: Job 0 cancelled because SparkContext was shut down
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$cleanUpAfterSchedulerStop$1(DAGScheduler.scala:1253)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$cleanUpAfterSchedulerStop$1$adapted(DAGScheduler.scala:1251)
+	at scala.collection.mutable.HashSet.foreach(HashSet.scala:79)
+	at org.apache.spark.scheduler.DAGScheduler.cleanUpAfterSchedulerStop(DAGScheduler.scala:1251)
+	at org.apache.spark.scheduler.DAGSchedulerEventProcessLoop.onStop(DAGScheduler.scala:3087)
+	at org.apache.spark.util.EventLoop.stop(EventLoop.scala:84)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$stop$3(DAGScheduler.scala:2973)
+	at org.apache.spark.util.Utils$.tryLogNonFatalError(Utils.scala:1375)
+	at org.apache.spark.scheduler.DAGScheduler.stop(DAGScheduler.scala:2973)
+	at org.apache.spark.SparkContext.$anonfun$stop$12(SparkContext.scala:2258)
+	at org.apache.spark.util.Utils$.tryLogNonFatalError(Utils.scala:1375)
+	at org.apache.spark.SparkContext.stop(SparkContext.scala:2258)
+	at org.apache.spark.SparkContext.stop(SparkContext.scala:2211)
+	at org.apache.spark.SparkContext$$anon$3.run(SparkContext.scala:2198)
+	at org.apache.spark.scheduler.DAGScheduler.runJob(DAGScheduler.scala:989)
+	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2393)
+	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2414)
+	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2433)
+	at org.apache.spark.api.java.JavaRDDLike.collectPartitions(JavaRDDLike.scala:378)
+	at org.apache.spark.api.java.JavaRDDLike.collectPartitions$(JavaRDDLike.scala:375)
+	at org.apache.spark.api.java.AbstractJavaRDDLike.collectPartitions(JavaRDDLike.scala:45)
+	at org.apache.iceberg.SparkDistributedDataScan.collectPartitions(SparkDistributedDataScan.java:201)
+	at org.apache.iceberg.SparkDistributedDataScan.doPlanDataRemotely(SparkDistributedDataScan.java:136)
+	at org.apache.iceberg.SparkDistributedDataScan.lambda$planDataRemotely$0(SparkDistributedDataScan.java:125)
+	at org.apache.iceberg.spark.JobGroupUtils.withJobGroupInfo(JobGroupUtils.java:59)
+	at org.apache.iceberg.spark.JobGroupUtils.withJobGroupInfo(JobGroupUtils.java:51)
+	at org.apache.iceberg.SparkDistributedDataScan.withJobGroupInfo(SparkDistributedDataScan.java:176)
+	at org.apache.iceberg.SparkDistributedDataScan.planDataRemotely(SparkDistributedDataScan.java:125)
+	at org.apache.iceberg.BaseDistributedDataScan.lambda$newDataFuture$3(BaseDistributedDataScan.java:324)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1700)
+	... 3 more
+
+
+<JMH had finished, but forked VM did not exit, are there stray running threads? Waiting 24 seconds more...>
+
+Non-finished threads:
+
+Thread[DestroyJavaVM,5,main]
+  at java.base@11.0.20/java.lang.Shutdown.shutdown(Shutdown.java:186)
+
+
+<JMH had finished, but forked VM did not exit, are there stray running threads? Waiting 19 seconds more...>
+
+Non-finished threads:
+
+Thread[DestroyJavaVM,5,main]
+  at java.base@11.0.20/java.lang.Shutdown.shutdown(Shutdown.java:186)
+
+
+<forked VM failed with exit code 52>
+<stdout last='20 lines'>
+[218.722s][warning][gc,alloc] task-result-getter-2: Retried waiting for GCLocker too often allocating 156020 words
+[225.328s][warning][gc,alloc] task-result-getter-2: Retried waiting for GCLocker too often allocating 156032 words
+[227.718s][warning][gc,alloc] Executor task launch worker for task 137.0 in stage 0.0 (TID 137): Retried waiting for GCLocker too often allocating 74999 words
+[250.201s][warning][gc,alloc] Executor task launch worker for task 136.0 in stage 0.0 (TID 136): Retried waiting for GCLocker too often allocating 261034 words
+</stdout>
+<stderr last='20 lines'>
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+<JMH had finished, but forked VM did not exit, are there stray running threads? Waiting 24 seconds more...>
+
+Non-finished threads:
+
+Thread[DestroyJavaVM,5,main]
+  at java.base@11.0.20/java.lang.Shutdown.shutdown(Shutdown.java:186)
+
+
+<JMH had finished, but forked VM did not exit, are there stray running threads? Waiting 19 seconds more...>
+
+Non-finished threads:
+
+Thread[DestroyJavaVM,5,main]
+  at java.base@11.0.20/java.lang.Shutdown.shutdown(Shutdown.java:186)
+
+
+</stderr>
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithMinMaxFilter
+# Parameters: (type = partition)
+
+# Run progress: 5.71% complete, ETA 01:45:45
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+4.067 s/op
+# Warmup Iteration   2: 2.500 s/op
+# Warmup Iteration   3: 2.690 s/op
+Iteration   1: 2.380 s/op
+Iteration   2: 2.394 s/op
+Iteration   3: 2.404 s/op
+Iteration   4: 2.343 s/op
+Iteration   5: 2.293 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithMinMaxFilter":
+  N = 5
+  mean =      2.363 ±(99.9%) 0.174 s/op
+
+  Histogram, s/op:
+    [2.200, 2.225) = 0 
+    [2.225, 2.250) = 0 
+    [2.250, 2.275) = 0 
+    [2.275, 2.300) = 1 
+    [2.300, 2.325) = 0 
+    [2.325, 2.350) = 1 
+    [2.350, 2.375) = 0 
+    [2.375, 2.400) = 2 
+    [2.400, 2.425) = 1 
+    [2.425, 2.450) = 0 
+    [2.450, 2.475) = 0 
+
+  Percentiles, s/op:
+      p(0.0000) =      2.293 s/op
+     p(50.0000) =      2.380 s/op
+     p(90.0000) =      2.404 s/op
+     p(95.0000) =      2.404 s/op
+     p(99.0000) =      2.404 s/op
+     p(99.9000) =      2.404 s/op
+     p(99.9900) =      2.404 s/op
+     p(99.9990) =      2.404 s/op
+     p(99.9999) =      2.404 s/op
+    p(100.0000) =      2.404 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithMinMaxFilter
+# Parameters: (type = file)
+
+# Run progress: 8.57% complete, ETA 02:22:51
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+7.682 s/op
+# Warmup Iteration   2: 5.816 s/op
+# Warmup Iteration   3: 5.679 s/op
+Iteration   1: 5.694 s/op
+Iteration   2: 5.521 s/op
+Iteration   3: 5.627 s/op
+Iteration   4: 5.571 s/op
+Iteration   5: 5.693 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithMinMaxFilter":
+  N = 5
+  mean =      5.621 ±(99.9%) 0.292 s/op
+
+  Histogram, s/op:
+    [5.500, 5.513) = 0 
+    [5.513, 5.525) = 1 
+    [5.525, 5.538) = 0 
+    [5.538, 5.550) = 0 
+    [5.550, 5.563) = 0 
+    [5.563, 5.575) = 1 
+    [5.575, 5.588) = 0 
+    [5.588, 5.600) = 0 
+    [5.600, 5.613) = 0 
+    [5.613, 5.625) = 0 
+    [5.625, 5.638) = 1 
+    [5.638, 5.650) = 0 
+    [5.650, 5.663) = 0 
+    [5.663, 5.675) = 0 
+    [5.675, 5.688) = 0 
+    [5.688, 5.700) = 2 
+
+  Percentiles, s/op:
+      p(0.0000) =      5.521 s/op
+     p(50.0000) =      5.627 s/op
+     p(90.0000) =      5.694 s/op
+     p(95.0000) =      5.694 s/op
+     p(99.0000) =      5.694 s/op
+     p(99.9000) =      5.694 s/op
+     p(99.9900) =      5.694 s/op
+     p(99.9990) =      5.694 s/op
+     p(99.9999) =      5.694 s/op
+    p(100.0000) =      5.694 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithMinMaxFilter
+# Parameters: (type = dv)
+
+# Run progress: 11.43% complete, ETA 01:59:27
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+5.738 s/op
+# Warmup Iteration   2: 4.100 s/op
+# Warmup Iteration   3: 3.749 s/op
+Iteration   1: 3.953 s/op
+Iteration   2: 3.786 s/op
+Iteration   3: 3.998 s/op
+Iteration   4: 3.709 s/op
+Iteration   5: 3.950 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithMinMaxFilter":
+  N = 5
+  mean =      3.879 ±(99.9%) 0.480 s/op
+
+  Histogram, s/op:
+    [3.700, 3.725) = 1 
+    [3.725, 3.750) = 0 
+    [3.750, 3.775) = 0 
+    [3.775, 3.800) = 1 
+    [3.800, 3.825) = 0 
+    [3.825, 3.850) = 0 
+    [3.850, 3.875) = 0 
+    [3.875, 3.900) = 0 
+    [3.900, 3.925) = 0 
+    [3.925, 3.950) = 1 
+    [3.950, 3.975) = 1 
+
+  Percentiles, s/op:
+      p(0.0000) =      3.709 s/op
+     p(50.0000) =      3.950 s/op
+     p(90.0000) =      3.998 s/op
+     p(95.0000) =      3.998 s/op
+     p(99.0000) =      3.998 s/op
+     p(99.9000) =      3.998 s/op
+     p(99.9900) =      3.998 s/op
+     p(99.9990) =      3.998 s/op
+     p(99.9999) =      3.998 s/op
+    p(100.0000) =      3.998 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithPartitionAndMinMaxFilter
+# Parameters: (type = partition)
+
+# Run progress: 14.29% complete, ETA 01:43:31
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+0.980 s/op
+# Warmup Iteration   2: 0.288 s/op
+# Warmup Iteration   3: 0.147 s/op
+Iteration   1: 0.144 s/op
+Iteration   2: 0.153 s/op
+Iteration   3: 0.206 s/op
+Iteration   4: 0.146 s/op
+Iteration   5: 0.151 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithPartitionAndMinMaxFilter":
+  N = 5
+  mean =      0.160 ±(99.9%) 0.100 s/op
+
+  Histogram, s/op:
+    [0.140, 0.145) = 1 
+    [0.145, 0.150) = 1 
+    [0.150, 0.155) = 2 
+    [0.155, 0.160) = 0 
+    [0.160, 0.165) = 0 
+    [0.165, 0.170) = 0 
+    [0.170, 0.175) = 0 
+    [0.175, 0.180) = 0 
+    [0.180, 0.185) = 0 
+    [0.185, 0.190) = 0 
+    [0.190, 0.195) = 0 
+    [0.195, 0.200) = 0 
+    [0.200, 0.205) = 0 
+
+  Percentiles, s/op:
+      p(0.0000) =      0.144 s/op
+     p(50.0000) =      0.151 s/op
+     p(90.0000) =      0.206 s/op
+     p(95.0000) =      0.206 s/op
+     p(99.0000) =      0.206 s/op
+     p(99.9000) =      0.206 s/op
+     p(99.9900) =      0.206 s/op
+     p(99.9990) =      0.206 s/op
+     p(99.9999) =      0.206 s/op
+    p(100.0000) =      0.206 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithPartitionAndMinMaxFilter
+# Parameters: (type = file)
+
+# Run progress: 17.14% complete, ETA 01:27:57
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+1.125 s/op
+# Warmup Iteration   2: 0.483 s/op
+# Warmup Iteration   3: 0.319 s/op
+Iteration   1: 0.225 s/op
+Iteration   2: 0.213 s/op
+Iteration   3: 0.214 s/op
+Iteration   4: 0.237 s/op
+Iteration   5: 0.206 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithPartitionAndMinMaxFilter":
+  N = 5
+  mean =      0.219 ±(99.9%) 0.047 s/op
+
+  Histogram, s/op:
+    [0.200, 0.203) = 0 
+    [0.203, 0.205) = 0 
+    [0.205, 0.208) = 1 
+    [0.208, 0.210) = 0 
+    [0.210, 0.213) = 0 
+    [0.213, 0.215) = 2 
+    [0.215, 0.218) = 0 
+    [0.218, 0.220) = 0 
+    [0.220, 0.223) = 0 
+    [0.223, 0.225) = 1 
+    [0.225, 0.228) = 0 
+    [0.228, 0.230) = 0 
+    [0.230, 0.233) = 0 
+    [0.233, 0.235) = 0 
+    [0.235, 0.238) = 1 
+
+  Percentiles, s/op:
+      p(0.0000) =      0.206 s/op
+     p(50.0000) =      0.214 s/op
+     p(90.0000) =      0.237 s/op
+     p(95.0000) =      0.237 s/op
+     p(99.0000) =      0.237 s/op
+     p(99.9000) =      0.237 s/op
+     p(99.9900) =      0.237 s/op
+     p(99.9990) =      0.237 s/op
+     p(99.9999) =      0.237 s/op
+    p(100.0000) =      0.237 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithPartitionAndMinMaxFilter
+# Parameters: (type = dv)
+
+# Run progress: 20.00% complete, ETA 01:17:48
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+1.197 s/op
+# Warmup Iteration   2: 0.262 s/op
+# Warmup Iteration   3: 0.193 s/op
+Iteration   1: 0.216 s/op
+Iteration   2: 0.181 s/op
+Iteration   3: 0.180 s/op
+Iteration   4: 0.167 s/op
+Iteration   5: 0.176 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithPartitionAndMinMaxFilter":
+  N = 5
+  mean =      0.184 ±(99.9%) 0.072 s/op
+
+  Histogram, s/op:
+    [0.160, 0.165) = 0 
+    [0.165, 0.170) = 1 
+    [0.170, 0.175) = 0 
+    [0.175, 0.180) = 1 
+    [0.180, 0.185) = 2 
+    [0.185, 0.190) = 0 
+    [0.190, 0.195) = 0 
+    [0.195, 0.200) = 0 
+    [0.200, 0.205) = 0 
+    [0.205, 0.210) = 0 
+    [0.210, 0.215) = 0 
+
+  Percentiles, s/op:
+      p(0.0000) =      0.167 s/op
+     p(50.0000) =      0.180 s/op
+     p(90.0000) =      0.216 s/op
+     p(95.0000) =      0.216 s/op
+     p(99.0000) =      0.216 s/op
+     p(99.9000) =      0.216 s/op
+     p(99.9900) =      0.216 s/op
+     p(99.9990) =      0.216 s/op
+     p(99.9999) =      0.216 s/op
+    p(100.0000) =      0.216 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithoutFilter
+# Parameters: (type = partition)
+
+# Run progress: 22.86% complete, ETA 01:10:09
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+4.428 s/op
+# Warmup Iteration   2: 3.236 s/op
+# Warmup Iteration   3: 3.064 s/op
+Iteration   1: 3.748 s/op
+Iteration   2: 3.996 s/op
+Iteration   3: 3.908 s/op
+Iteration   4: 4.264 s/op
+Iteration   5: 3.482 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithoutFilter":
+  N = 5
+  mean =      3.880 ±(99.9%) 1.120 s/op
+
+  Histogram, s/op:
+    [3.400, 3.450) = 0 
+    [3.450, 3.500) = 1 
+    [3.500, 3.550) = 0 
+    [3.550, 3.600) = 0 
+    [3.600, 3.650) = 0 
+    [3.650, 3.700) = 0 
+    [3.700, 3.750) = 1 
+    [3.750, 3.800) = 0 
+    [3.800, 3.850) = 0 
+    [3.850, 3.900) = 0 
+    [3.900, 3.950) = 1 
+    [3.950, 4.000) = 1 
+    [4.000, 4.050) = 0 
+    [4.050, 4.100) = 0 
+    [4.100, 4.150) = 0 
+    [4.150, 4.200) = 0 
+    [4.200, 4.250) = 0 
+
+  Percentiles, s/op:
+      p(0.0000) =      3.482 s/op
+     p(50.0000) =      3.908 s/op
+     p(90.0000) =      4.264 s/op
+     p(95.0000) =      4.264 s/op
+     p(99.0000) =      4.264 s/op
+     p(99.9000) =      4.264 s/op
+     p(99.9900) =      4.264 s/op
+     p(99.9990) =      4.264 s/op
+     p(99.9999) =      4.264 s/op
+    p(100.0000) =      4.264 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithoutFilter
+# Parameters: (type = file)
+
+# Run progress: 25.71% complete, ETA 01:04:02
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+11.514 s/op
+# Warmup Iteration   2: 11.506 s/op
+# Warmup Iteration   3: 9.531 s/op
+Iteration   1: 9.254 s/op
+Iteration   2: 8.116 s/op
+Iteration   3: 7.951 s/op
+Iteration   4: 8.133 s/op
+Iteration   5: 8.120 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithoutFilter":
+  N = 5
+  mean =      8.315 ±(99.9%) 2.042 s/op
+
+  Histogram, s/op:
+    [ 7.000,  7.250) = 0 
+    [ 7.250,  7.500) = 0 
+    [ 7.500,  7.750) = 0 
+    [ 7.750,  8.000) = 1 
+    [ 8.000,  8.250) = 3 
+    [ 8.250,  8.500) = 0 
+    [ 8.500,  8.750) = 0 
+    [ 8.750,  9.000) = 0 
+    [ 9.000,  9.250) = 0 
+    [ 9.250,  9.500) = 1 
+    [ 9.500,  9.750) = 0 
+
+  Percentiles, s/op:
+      p(0.0000) =      7.951 s/op
+     p(50.0000) =      8.120 s/op
+     p(90.0000) =      9.254 s/op
+     p(95.0000) =      9.254 s/op
+     p(99.0000) =      9.254 s/op
+     p(99.9000) =      9.254 s/op
+     p(99.9900) =      9.254 s/op
+     p(99.9990) =      9.254 s/op
+     p(99.9999) =      9.254 s/op
+    p(100.0000) =      9.254 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithoutFilter
+# Parameters: (type = dv)
+
+# Run progress: 28.57% complete, ETA 01:01:42
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+7.559 s/op
+# Warmup Iteration   2: 5.240 s/op
+# Warmup Iteration   3: 5.159 s/op
+Iteration   1: 5.151 s/op
+Iteration   2: 5.164 s/op
+Iteration   3: 4.829 s/op
+Iteration   4: 4.780 s/op
+Iteration   5: 4.925 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithoutFilter":
+  N = 5
+  mean =      4.970 ±(99.9%) 0.690 s/op
+
+  Histogram, s/op:
+    [4.700, 4.750) = 0 
+    [4.750, 4.800) = 1 
+    [4.800, 4.850) = 1 
+    [4.850, 4.900) = 0 
+    [4.900, 4.950) = 1 
+    [4.950, 5.000) = 0 
+    [5.000, 5.050) = 0 
+    [5.050, 5.100) = 0 
+    [5.100, 5.150) = 0 
+
+  Percentiles, s/op:
+      p(0.0000) =      4.780 s/op
+     p(50.0000) =      4.925 s/op
+     p(90.0000) =      5.164 s/op
+     p(95.0000) =      5.164 s/op
+     p(99.0000) =      5.164 s/op
+     p(99.9000) =      5.164 s/op
+     p(99.9900) =      5.164 s/op
+     p(99.9990) =      5.164 s/op
+     p(99.9999) =      5.164 s/op
+    p(100.0000) =      5.164 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithoutFilterWithStats
+# Parameters: (type = partition)
+
+# Run progress: 31.43% complete, ETA 00:58:20
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+[102.671s][warning][gc,alloc] shuffle-client-5-1: Retried waiting for GCLocker too often allocating 4970641 words
+<failure>
+
+java.lang.RuntimeException: Failed to plan files
+	at org.apache.iceberg.BaseDistributedDataScan.doPlanFiles(BaseDistributedDataScan.java:183)
+	at org.apache.iceberg.SnapshotScan.planFiles(SnapshotScan.java:139)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFiles(PlanningBenchmark.java:388)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFilesWithColumnStats(PlanningBenchmark.java:376)
+	at org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithoutFilterWithStats(PlanningBenchmark.java:187)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_distributedPlanningWithoutFilterWithStats_jmhTest.distributedPlanningWithoutFilterWithStats_ss_jmhStub(PlanningBenchmark_distributedPlanningWithoutFilterWithStats_jmhTest.java:422)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_distributedPlanningWithoutFilterWithStats_jmhTest.distributedPlanningWithoutFilterWithStats_SingleShotTime(PlanningBenchmark_distributedPlanningWithoutFilterWithStats_jmhTest.java:377)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:527)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:504)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+Caused by: java.util.concurrent.CompletionException: org.apache.spark.SparkException: Job aborted due to stage failure: Task 118 in stage 0.0 failed 1 times, most recent failure: Lost task 118.0 in stage 0.0 (TID 148) (192.168.50.140 executor driver): TaskResultLost (result lost from block manager)
+Driver stacktrace:
+	at java.base/java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:314)
+	at java.base/java.util.concurrent.CompletableFuture.completeThrowable(CompletableFuture.java:319)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1702)
+	... 3 more
+Caused by: org.apache.spark.SparkException: Job aborted due to stage failure: Task 118 in stage 0.0 failed 1 times, most recent failure: Lost task 118.0 in stage 0.0 (TID 148) (192.168.50.140 executor driver): TaskResultLost (result lost from block manager)
+Driver stacktrace:
+	at org.apache.spark.scheduler.DAGScheduler.failJobAndIndependentStages(DAGScheduler.scala:2856)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$abortStage$2(DAGScheduler.scala:2792)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$abortStage$2$adapted(DAGScheduler.scala:2791)
+	at scala.collection.mutable.ResizableArray.foreach(ResizableArray.scala:62)
+	at scala.collection.mutable.ResizableArray.foreach$(ResizableArray.scala:55)
+	at scala.collection.mutable.ArrayBuffer.foreach(ArrayBuffer.scala:49)
+	at org.apache.spark.scheduler.DAGScheduler.abortStage(DAGScheduler.scala:2791)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$handleTaskSetFailed$1(DAGScheduler.scala:1247)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$handleTaskSetFailed$1$adapted(DAGScheduler.scala:1247)
+	at scala.Option.foreach(Option.scala:407)
+	at org.apache.spark.scheduler.DAGScheduler.handleTaskSetFailed(DAGScheduler.scala:1247)
+	at org.apache.spark.scheduler.DAGSchedulerEventProcessLoop.doOnReceive(DAGScheduler.scala:3060)
+	at org.apache.spark.scheduler.DAGSchedulerEventProcessLoop.onReceive(DAGScheduler.scala:2994)
+	at org.apache.spark.scheduler.DAGSchedulerEventProcessLoop.onReceive(DAGScheduler.scala:2983)
+	at org.apache.spark.util.EventLoop$$anon$1.run(EventLoop.scala:49)
+	at org.apache.spark.scheduler.DAGScheduler.runJob(DAGScheduler.scala:989)
+	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2393)
+	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2414)
+	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2433)
+	at org.apache.spark.api.java.JavaRDDLike.collectPartitions(JavaRDDLike.scala:378)
+	at org.apache.spark.api.java.JavaRDDLike.collectPartitions$(JavaRDDLike.scala:375)
+	at org.apache.spark.api.java.AbstractJavaRDDLike.collectPartitions(JavaRDDLike.scala:45)
+	at org.apache.iceberg.SparkDistributedDataScan.collectPartitions(SparkDistributedDataScan.java:201)
+	at org.apache.iceberg.SparkDistributedDataScan.doPlanDataRemotely(SparkDistributedDataScan.java:136)
+	at org.apache.iceberg.SparkDistributedDataScan.lambda$planDataRemotely$0(SparkDistributedDataScan.java:125)
+	at org.apache.iceberg.spark.JobGroupUtils.withJobGroupInfo(JobGroupUtils.java:59)
+	at org.apache.iceberg.spark.JobGroupUtils.withJobGroupInfo(JobGroupUtils.java:51)
+	at org.apache.iceberg.SparkDistributedDataScan.withJobGroupInfo(SparkDistributedDataScan.java:176)
+	at org.apache.iceberg.SparkDistributedDataScan.planDataRemotely(SparkDistributedDataScan.java:125)
+	at org.apache.iceberg.BaseDistributedDataScan.lambda$newDataFuture$3(BaseDistributedDataScan.java:324)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1700)
+	... 3 more
+
+
+<JMH had finished, but forked VM did not exit, are there stray running threads? Waiting 24 seconds more...>
+
+Non-finished threads:
+
+Thread[DestroyJavaVM,5,main]
+
+
+<JMH had finished, but forked VM did not exit, are there stray running threads? Waiting 19 seconds more...>
+
+Non-finished threads:
+
+Thread[DestroyJavaVM,5,main]
+
+
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithoutFilterWithStats
+# Parameters: (type = file)
+
+# Run progress: 34.29% complete, ETA 00:55:02
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+[120.058s][warning][gc,alloc] shuffle-client-5-1: Retried waiting for GCLocker too often allocating 4969810 words
+<failure>
+
+java.lang.RuntimeException: Failed to plan files
+	at org.apache.iceberg.BaseDistributedDataScan.doPlanFiles(BaseDistributedDataScan.java:183)
+	at org.apache.iceberg.SnapshotScan.planFiles(SnapshotScan.java:139)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFiles(PlanningBenchmark.java:388)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFilesWithColumnStats(PlanningBenchmark.java:376)
+	at org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithoutFilterWithStats(PlanningBenchmark.java:187)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_distributedPlanningWithoutFilterWithStats_jmhTest.distributedPlanningWithoutFilterWithStats_ss_jmhStub(PlanningBenchmark_distributedPlanningWithoutFilterWithStats_jmhTest.java:422)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_distributedPlanningWithoutFilterWithStats_jmhTest.distributedPlanningWithoutFilterWithStats_SingleShotTime(PlanningBenchmark_distributedPlanningWithoutFilterWithStats_jmhTest.java:377)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:527)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:504)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+Caused by: java.util.concurrent.CompletionException: org.apache.spark.SparkException: Job aborted due to stage failure: Task 131 in stage 1.0 failed 1 times, most recent failure: Lost task 131.0 in stage 1.0 (TID 141) (192.168.50.140 executor driver): TaskResultLost (result lost from block manager)
+Driver stacktrace:
+	at java.base/java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:314)
+	at java.base/java.util.concurrent.CompletableFuture.completeThrowable(CompletableFuture.java:319)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1702)
+	... 3 more
+Caused by: org.apache.spark.SparkException: Job aborted due to stage failure: Task 131 in stage 1.0 failed 1 times, most recent failure: Lost task 131.0 in stage 1.0 (TID 141) (192.168.50.140 executor driver): TaskResultLost (result lost from block manager)
+Driver stacktrace:
+	at org.apache.spark.scheduler.DAGScheduler.failJobAndIndependentStages(DAGScheduler.scala:2856)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$abortStage$2(DAGScheduler.scala:2792)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$abortStage$2$adapted(DAGScheduler.scala:2791)
+	at scala.collection.mutable.ResizableArray.foreach(ResizableArray.scala:62)
+	at scala.collection.mutable.ResizableArray.foreach$(ResizableArray.scala:55)
+	at scala.collection.mutable.ArrayBuffer.foreach(ArrayBuffer.scala:49)
+	at org.apache.spark.scheduler.DAGScheduler.abortStage(DAGScheduler.scala:2791)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$handleTaskSetFailed$1(DAGScheduler.scala:1247)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$handleTaskSetFailed$1$adapted(DAGScheduler.scala:1247)
+	at scala.Option.foreach(Option.scala:407)
+	at org.apache.spark.scheduler.DAGScheduler.handleTaskSetFailed(DAGScheduler.scala:1247)
+	at org.apache.spark.scheduler.DAGSchedulerEventProcessLoop.doOnReceive(DAGScheduler.scala:3060)
+	at org.apache.spark.scheduler.DAGSchedulerEventProcessLoop.onReceive(DAGScheduler.scala:2994)
+	at org.apache.spark.scheduler.DAGSchedulerEventProcessLoop.onReceive(DAGScheduler.scala:2983)
+	at org.apache.spark.util.EventLoop$$anon$1.run(EventLoop.scala:49)
+	at org.apache.spark.scheduler.DAGScheduler.runJob(DAGScheduler.scala:989)
+	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2393)
+	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2414)
+	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2433)
+	at org.apache.spark.api.java.JavaRDDLike.collectPartitions(JavaRDDLike.scala:378)
+	at org.apache.spark.api.java.JavaRDDLike.collectPartitions$(JavaRDDLike.scala:375)
+	at org.apache.spark.api.java.AbstractJavaRDDLike.collectPartitions(JavaRDDLike.scala:45)
+	at org.apache.iceberg.SparkDistributedDataScan.collectPartitions(SparkDistributedDataScan.java:201)
+	at org.apache.iceberg.SparkDistributedDataScan.doPlanDataRemotely(SparkDistributedDataScan.java:136)
+	at org.apache.iceberg.SparkDistributedDataScan.lambda$planDataRemotely$0(SparkDistributedDataScan.java:125)
+	at org.apache.iceberg.spark.JobGroupUtils.withJobGroupInfo(JobGroupUtils.java:59)
+	at org.apache.iceberg.spark.JobGroupUtils.withJobGroupInfo(JobGroupUtils.java:51)
+	at org.apache.iceberg.SparkDistributedDataScan.withJobGroupInfo(SparkDistributedDataScan.java:176)
+	at org.apache.iceberg.SparkDistributedDataScan.planDataRemotely(SparkDistributedDataScan.java:125)
+	at org.apache.iceberg.BaseDistributedDataScan.lambda$newDataFuture$3(BaseDistributedDataScan.java:324)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1700)
+	... 3 more
+
+
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithoutFilterWithStats
+# Parameters: (type = dv)
+
+# Run progress: 37.14% complete, ETA 00:52:05
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+<failure>
+
+java.lang.RuntimeException: Failed to plan files
+	at org.apache.iceberg.BaseDistributedDataScan.doPlanFiles(BaseDistributedDataScan.java:183)
+	at org.apache.iceberg.SnapshotScan.planFiles(SnapshotScan.java:139)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFiles(PlanningBenchmark.java:388)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFilesWithColumnStats(PlanningBenchmark.java:376)
+	at org.apache.iceberg.spark.PlanningBenchmark.distributedPlanningWithoutFilterWithStats(PlanningBenchmark.java:187)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_distributedPlanningWithoutFilterWithStats_jmhTest.distributedPlanningWithoutFilterWithStats_ss_jmhStub(PlanningBenchmark_distributedPlanningWithoutFilterWithStats_jmhTest.java:422)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_distributedPlanningWithoutFilterWithStats_jmhTest.distributedPlanningWithoutFilterWithStats_SingleShotTime(PlanningBenchmark_distributedPlanningWithoutFilterWithStats_jmhTest.java:377)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:527)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:504)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+Caused by: java.util.concurrent.CompletionException: org.apache.spark.SparkException: Job aborted due to stage failure: Task 133 in stage 1.0 failed 1 times, most recent failure: Lost task 133.0 in stage 1.0 (TID 143) (192.168.50.140 executor driver): TaskResultLost (result lost from block manager)
+Driver stacktrace:
+	at java.base/java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:314)
+	at java.base/java.util.concurrent.CompletableFuture.completeThrowable(CompletableFuture.java:319)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1702)
+	... 3 more
+Caused by: org.apache.spark.SparkException: Job aborted due to stage failure: Task 133 in stage 1.0 failed 1 times, most recent failure: Lost task 133.0 in stage 1.0 (TID 143) (192.168.50.140 executor driver): TaskResultLost (result lost from block manager)
+Driver stacktrace:
+	at org.apache.spark.scheduler.DAGScheduler.failJobAndIndependentStages(DAGScheduler.scala:2856)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$abortStage$2(DAGScheduler.scala:2792)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$abortStage$2$adapted(DAGScheduler.scala:2791)
+	at scala.collection.mutable.ResizableArray.foreach(ResizableArray.scala:62)
+	at scala.collection.mutable.ResizableArray.foreach$(ResizableArray.scala:55)
+	at scala.collection.mutable.ArrayBuffer.foreach(ArrayBuffer.scala:49)
+	at org.apache.spark.scheduler.DAGScheduler.abortStage(DAGScheduler.scala:2791)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$handleTaskSetFailed$1(DAGScheduler.scala:1247)
+	at org.apache.spark.scheduler.DAGScheduler.$anonfun$handleTaskSetFailed$1$adapted(DAGScheduler.scala:1247)
+	at scala.Option.foreach(Option.scala:407)
+	at org.apache.spark.scheduler.DAGScheduler.handleTaskSetFailed(DAGScheduler.scala:1247)
+	at org.apache.spark.scheduler.DAGSchedulerEventProcessLoop.doOnReceive(DAGScheduler.scala:3060)
+	at org.apache.spark.scheduler.DAGSchedulerEventProcessLoop.onReceive(DAGScheduler.scala:2994)
+	at org.apache.spark.scheduler.DAGSchedulerEventProcessLoop.onReceive(DAGScheduler.scala:2983)
+	at org.apache.spark.util.EventLoop$$anon$1.run(EventLoop.scala:49)
+	at org.apache.spark.scheduler.DAGScheduler.runJob(DAGScheduler.scala:989)
+	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2393)
+	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2414)
+	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2433)
+	at org.apache.spark.api.java.JavaRDDLike.collectPartitions(JavaRDDLike.scala:378)
+	at org.apache.spark.api.java.JavaRDDLike.collectPartitions$(JavaRDDLike.scala:375)
+	at org.apache.spark.api.java.AbstractJavaRDDLike.collectPartitions(JavaRDDLike.scala:45)
+	at org.apache.iceberg.SparkDistributedDataScan.collectPartitions(SparkDistributedDataScan.java:201)
+	at org.apache.iceberg.SparkDistributedDataScan.doPlanDataRemotely(SparkDistributedDataScan.java:136)
+	at org.apache.iceberg.SparkDistributedDataScan.lambda$planDataRemotely$0(SparkDistributedDataScan.java:125)
+	at org.apache.iceberg.spark.JobGroupUtils.withJobGroupInfo(JobGroupUtils.java:59)
+	at org.apache.iceberg.spark.JobGroupUtils.withJobGroupInfo(JobGroupUtils.java:51)
+	at org.apache.iceberg.SparkDistributedDataScan.withJobGroupInfo(SparkDistributedDataScan.java:176)
+	at org.apache.iceberg.SparkDistributedDataScan.planDataRemotely(SparkDistributedDataScan.java:125)
+	at org.apache.iceberg.BaseDistributedDataScan.lambda$newDataFuture$3(BaseDistributedDataScan.java:324)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1700)
+	... 3 more
+
+
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.localDataDistributedDeletesPlanningWithoutFilterWithStats
+# Parameters: (type = partition)
+
+# Run progress: 40.00% complete, ETA 00:50:33
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+13.654 s/op
+# Warmup Iteration   2: 11.997 s/op
+# Warmup Iteration   3: 9.359 s/op
+Iteration   1: 11.388 s/op
+Iteration   2: 12.193 s/op
+Iteration   3: 10.717 s/op
+Iteration   4: 13.186 s/op
+Iteration   5: 10.953 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.localDataDistributedDeletesPlanningWithoutFilterWithStats":
+  N = 5
+  mean =     11.687 ±(99.9%) 3.885 s/op
+
+  Histogram, s/op:
+    [10.000, 10.250) = 0 
+    [10.250, 10.500) = 0 
+    [10.500, 10.750) = 1 
+    [10.750, 11.000) = 1 
+    [11.000, 11.250) = 0 
+    [11.250, 11.500) = 1 
+    [11.500, 11.750) = 0 
+    [11.750, 12.000) = 0 
+    [12.000, 12.250) = 1 
+    [12.250, 12.500) = 0 
+    [12.500, 12.750) = 0 
+    [12.750, 13.000) = 0 
+    [13.000, 13.250) = 1 
+    [13.250, 13.500) = 0 
+    [13.500, 13.750) = 0 
+
+  Percentiles, s/op:
+      p(0.0000) =     10.717 s/op
+     p(50.0000) =     11.388 s/op
+     p(90.0000) =     13.186 s/op
+     p(95.0000) =     13.186 s/op
+     p(99.0000) =     13.186 s/op
+     p(99.9000) =     13.186 s/op
+     p(99.9900) =     13.186 s/op
+     p(99.9990) =     13.186 s/op
+     p(99.9999) =     13.186 s/op
+    p(100.0000) =     13.186 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.localDataDistributedDeletesPlanningWithoutFilterWithStats
+# Parameters: (type = file)
+
+# Run progress: 42.86% complete, ETA 00:48:11
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+[154.874s][warning][gc,alloc] iceberg-worker-pool-3: Retried waiting for GCLocker too often allocating 208396 words
+[160.749s][warning][gc,alloc] iceberg-worker-pool-4: Retried waiting for GCLocker too often allocating 212602 words
+[177.594s][warning][gc,alloc] iceberg-worker-pool-0: Retried waiting for GCLocker too often allocating 217460 words
+[179.967s][warning][gc,alloc] executor-kill-mark-cleanup: Retried waiting for GCLocker too often allocating 26222 words
+[193.886s][warning][gc,alloc] iceberg-worker-pool-6: Retried waiting for GCLocker too often allocating 209868 words
+[227.382s][warning][gc,alloc] shuffle-server-7-1: Retried waiting for GCLocker too often allocating 6212 words
+[234.321s][warning][gc,alloc] iceberg-worker-pool-7: Retried waiting for GCLocker too often allocating 213106 words
+[326.590s][warning][gc,alloc] iceberg-worker-pool-8: Retried waiting for GCLocker too often allocating 256 words
+[326.590s][warning][gc,alloc] Spark Context Cleaner: Retried waiting for GCLocker too often allocating 386 words
+<failure>
+
+java.lang.RuntimeException: Failed while running parallel task
+	at org.apache.iceberg.util.ParallelIterable$ParallelIterator.checkTasks(ParallelIterable.java:164)
+	at org.apache.iceberg.util.ParallelIterable$ParallelIterator.hasNext(ParallelIterable.java:211)
+	at org.apache.iceberg.relocated.com.google.common.collect.Iterators.addAll(Iterators.java:367)
+	at org.apache.iceberg.relocated.com.google.common.collect.Lists.newArrayList(Lists.java:156)
+	at org.apache.iceberg.relocated.com.google.common.collect.Lists.newArrayList(Lists.java:141)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFiles(PlanningBenchmark.java:389)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFilesWithColumnStats(PlanningBenchmark.java:376)
+	at org.apache.iceberg.spark.PlanningBenchmark.localDataDistributedDeletesPlanningWithoutFilterWithStats(PlanningBenchmark.java:203)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_localDataDistributedDeletesPlanningWithoutFilterWithStats_jmhTest.localDataDistributedDeletesPlanningWithoutFilterWithStats_ss_jmhStub(PlanningBenchmark_localDataDistributedDeletesPlanningWithoutFilterWithStats_jmhTest.java:422)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_localDataDistributedDeletesPlanningWithoutFilterWithStats_jmhTest.localDataDistributedDeletesPlanningWithoutFilterWithStats_SingleShotTime(PlanningBenchmark_localDataDistributedDeletesPlanningWithoutFilterWithStats_jmhTest.java:377)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:527)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:504)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+Caused by: java.lang.OutOfMemoryError: Java heap space
+
+
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.localDataDistributedDeletesPlanningWithoutFilterWithStats
+# Parameters: (type = dv)
+
+# Run progress: 45.71% complete, ETA 00:49:23
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+[141.813s][warning][gc,alloc] iceberg-worker-pool-8: Retried waiting for GCLocker too often allocating 215864 words
+[161.669s][warning][gc,alloc] iceberg-worker-pool-5: Retried waiting for GCLocker too often allocating 191346 words
+[171.159s][warning][gc,alloc] iceberg-worker-pool-4: Retried waiting for GCLocker too often allocating 210491 words
+[191.418s][warning][gc,alloc] dispatcher-event-loop-9: Retried waiting for GCLocker too often allocating 146928 words
+[199.734s][warning][gc,alloc] iceberg-worker-pool-9: Retried waiting for GCLocker too often allocating 232631 words
+[211.650s][warning][gc,alloc] netty-rpc-env-timeout: Retried waiting for GCLocker too often allocating 256 words
+[211.650s][warning][gc,alloc] shuffle-server-7-1: Retried waiting for GCLocker too often allocating 12025 words
+[245.027s][warning][gc,alloc] driver-heartbeater: Retried waiting for GCLocker too often allocating 17064 words
+[273.472s][warning][gc,alloc] iceberg-worker-pool-2: Retried waiting for GCLocker too often allocating 213866 words
+[280.822s][warning][gc,alloc] executor-kill-mark-cleanup: Retried waiting for GCLocker too often allocating 11083 words
+[334.010s][warning][gc,alloc] executor-heartbeater: Retried waiting for GCLocker too often allocating 17042 words
+[334.010s][warning][gc,alloc] netty-rpc-env-timeout: Retried waiting for GCLocker too often allocating 4 words
+[405.531s][warning][gc,alloc] iceberg-worker-pool-4: Retried waiting for GCLocker too often allocating 210490 words
+[410.468s][warning][gc,alloc] netty-rpc-env-timeout: Retried waiting for GCLocker too often allocating 262144 words
+[412.996s][warning][gc,alloc] Spark Context Cleaner: Retried waiting for GCLocker too often allocating 2 words
+[415.945s][warning][gc,alloc] org.apache.iceberg.spark.PlanningBenchmark.localDataDistributedDeletesPlanningWithoutFilterWithStats-jmh-worker-1: Retried waiting for GCLocker too often allocating 588 words
+[421.472s][warning][gc,alloc] shuffle-client-5-1: Retried waiting for GCLocker too often allocating 126824 words
+[421.472s][warning][gc,alloc] iceberg-worker-pool-0: Retried waiting for GCLocker too often allocating 224884 words
+<failure>
+
+java.lang.OutOfMemoryError: Java heap space
+
+
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.localPlanningViaDistributedScanWithoutFilterWithStats
+# Parameters: (type = partition)
+
+# Run progress: 48.57% complete, ETA 00:52:40
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+12.553 s/op
+# Warmup Iteration   2: 12.087 s/op
+# Warmup Iteration   3: 11.580 s/op
+Iteration   1: 11.888 s/op
+Iteration   2: 10.919 s/op
+Iteration   3: 10.882 s/op
+Iteration   4: 10.668 s/op
+Iteration   5: 11.326 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.localPlanningViaDistributedScanWithoutFilterWithStats":
+  N = 5
+  mean =     11.136 ±(99.9%) 1.859 s/op
+
+  Histogram, s/op:
+    [10.000, 10.125) = 0 
+    [10.125, 10.250) = 0 
+    [10.250, 10.375) = 0 
+    [10.375, 10.500) = 0 
+    [10.500, 10.625) = 0 
+    [10.625, 10.750) = 1 
+    [10.750, 10.875) = 0 
+    [10.875, 11.000) = 2 
+    [11.000, 11.125) = 0 
+    [11.125, 11.250) = 0 
+    [11.250, 11.375) = 1 
+    [11.375, 11.500) = 0 
+    [11.500, 11.625) = 0 
+    [11.625, 11.750) = 0 
+    [11.750, 11.875) = 0 
+
+  Percentiles, s/op:
+      p(0.0000) =     10.668 s/op
+     p(50.0000) =     10.919 s/op
+     p(90.0000) =     11.888 s/op
+     p(95.0000) =     11.888 s/op
+     p(99.0000) =     11.888 s/op
+     p(99.9000) =     11.888 s/op
+     p(99.9900) =     11.888 s/op
+     p(99.9990) =     11.888 s/op
+     p(99.9999) =     11.888 s/op
+    p(100.0000) =     11.888 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.localPlanningViaDistributedScanWithoutFilterWithStats
+# Parameters: (type = file)
+
+# Run progress: 51.43% complete, ETA 00:49:16
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+[119.689s][warning][gc,alloc] iceberg-worker-pool-6: Retried waiting for GCLocker too often allocating 220013 words
+[122.422s][warning][gc,alloc] iceberg-worker-pool-5: Retried waiting for GCLocker too often allocating 256 words
+[138.988s][warning][gc,alloc] iceberg-worker-pool-5: Retried waiting for GCLocker too often allocating 4 words
+[144.262s][warning][gc,alloc] iceberg-worker-pool-4: Retried waiting for GCLocker too often allocating 201148 words
+<failure>
+
+java.lang.RuntimeException: Failed while running parallel task
+	at org.apache.iceberg.util.ParallelIterable$ParallelIterator.checkTasks(ParallelIterable.java:164)
+	at org.apache.iceberg.util.ParallelIterable$ParallelIterator.hasNext(ParallelIterable.java:211)
+	at org.apache.iceberg.relocated.com.google.common.collect.Iterators.addAll(Iterators.java:367)
+	at org.apache.iceberg.relocated.com.google.common.collect.Lists.newArrayList(Lists.java:156)
+	at org.apache.iceberg.relocated.com.google.common.collect.Lists.newArrayList(Lists.java:141)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFiles(PlanningBenchmark.java:389)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFilesWithColumnStats(PlanningBenchmark.java:376)
+	at org.apache.iceberg.spark.PlanningBenchmark.localPlanningViaDistributedScanWithoutFilterWithStats(PlanningBenchmark.java:211)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_localPlanningViaDistributedScanWithoutFilterWithStats_jmhTest.localPlanningViaDistributedScanWithoutFilterWithStats_ss_jmhStub(PlanningBenchmark_localPlanningViaDistributedScanWithoutFilterWithStats_jmhTest.java:422)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_localPlanningViaDistributedScanWithoutFilterWithStats_jmhTest.localPlanningViaDistributedScanWithoutFilterWithStats_SingleShotTime(PlanningBenchmark_localPlanningViaDistributedScanWithoutFilterWithStats_jmhTest.java:377)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:527)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:504)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+Caused by: java.lang.OutOfMemoryError: Java heap space
+	at java.base/java.util.LinkedHashMap$LinkedEntrySet.iterator(LinkedHashMap.java:642)
+	at org.apache.iceberg.avro.ValueReaders$ArrayMapReader.read(ValueReaders.java:781)
+	at org.apache.iceberg.avro.ValueReaders$ArrayMapReader.read(ValueReaders.java:752)
+	at org.apache.iceberg.avro.ValueReaders$UnionReader.read(ValueReaders.java:669)
+	at org.apache.iceberg.avro.ValueReaders$PlannedStructReader.read(ValueReaders.java:933)
+	at org.apache.iceberg.avro.ValueReaders$PlannedStructReader.read(ValueReaders.java:933)
+	at org.apache.iceberg.avro.InternalReader.read(InternalReader.java:98)
+	at org.apache.iceberg.avro.NameMappingDatumReader.read(NameMappingDatumReader.java:57)
+	at org.apache.avro.file.DataFileStream.next(DataFileStream.java:264)
+	at org.apache.iceberg.avro.AvroIterable$AvroReuseIterator.next(AvroIterable.java:203)
+	at org.apache.iceberg.io.CloseableIterable$7$1.next(CloseableIterable.java:219)
+	at org.apache.iceberg.io.FilterIterator.advance(FilterIterator.java:65)
+	at org.apache.iceberg.io.FilterIterator.hasNext(FilterIterator.java:49)
+	at org.apache.iceberg.io.FilterIterator.advance(FilterIterator.java:64)
+	at org.apache.iceberg.io.FilterIterator.hasNext(FilterIterator.java:49)
+	at org.apache.iceberg.io.CloseableIterable$7$1.hasNext(CloseableIterable.java:214)
+	at org.apache.iceberg.util.ParallelIterable$Task.get(ParallelIterable.java:283)
+	at org.apache.iceberg.util.ParallelIterable$Task.get(ParallelIterable.java:244)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1700)
+	... 3 more
+
+
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.localPlanningViaDistributedScanWithoutFilterWithStats
+# Parameters: (type = dv)
+
+# Run progress: 54.29% complete, ETA 00:46:00
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+[121.414s][warning][gc,alloc] iceberg-worker-pool-3: Retried waiting for GCLocker too often allocating 224224 words
+[139.328s][warning][gc,alloc] iceberg-worker-pool-2: Retried waiting for GCLocker too often allocating 214244 words
+[166.324s][warning][gc,alloc] executor-kill-mark-cleanup: Retried waiting for GCLocker too often allocating 17047 words
+[189.606s][warning][gc,alloc] iceberg-worker-pool-9: Retried waiting for GCLocker too often allocating 226464 words
+[202.545s][warning][gc,alloc] heartbeat-receiver-event-loop-thread: Retried waiting for GCLocker too often allocating 17383 words
+[230.608s][warning][gc,alloc] spark-listener-group-shared: Retried waiting for GCLocker too often allocating 2438 words
+[233.041s][warning][gc,alloc] heartbeat-receiver-event-loop-thread: Retried waiting for GCLocker too often allocating 3 words
+[235.554s][warning][gc,alloc] spark-listener-group-executorManagement: Retried waiting for GCLocker too often allocating 256 words
+<failure>
+
+java.lang.RuntimeException: Failed while running parallel task
+	at org.apache.iceberg.util.ParallelIterable$ParallelIterator.checkTasks(ParallelIterable.java:164)
+	at org.apache.iceberg.util.ParallelIterable$ParallelIterator.hasNext(ParallelIterable.java:211)
+	at org.apache.iceberg.relocated.com.google.common.collect.Iterators.addAll(Iterators.java:367)
+	at org.apache.iceberg.relocated.com.google.common.collect.Lists.newArrayList(Lists.java:156)
+	at org.apache.iceberg.relocated.com.google.common.collect.Lists.newArrayList(Lists.java:141)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFiles(PlanningBenchmark.java:389)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFilesWithColumnStats(PlanningBenchmark.java:376)
+	at org.apache.iceberg.spark.PlanningBenchmark.localPlanningViaDistributedScanWithoutFilterWithStats(PlanningBenchmark.java:211)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_localPlanningViaDistributedScanWithoutFilterWithStats_jmhTest.localPlanningViaDistributedScanWithoutFilterWithStats_ss_jmhStub(PlanningBenchmark_localPlanningViaDistributedScanWithoutFilterWithStats_jmhTest.java:422)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_localPlanningViaDistributedScanWithoutFilterWithStats_jmhTest.localPlanningViaDistributedScanWithoutFilterWithStats_SingleShotTime(PlanningBenchmark_localPlanningViaDistributedScanWithoutFilterWithStats_jmhTest.java:377)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:527)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:504)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+Caused by: java.lang.OutOfMemoryError: Java heap space
+
+
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithMinMaxFilter
+# Parameters: (type = partition)
+
+# Run progress: 57.14% complete, ETA 00:45:14
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+2.694 s/op
+# Warmup Iteration   2: 2.288 s/op
+# Warmup Iteration   3: 2.200 s/op
+Iteration   1: 2.185 s/op
+Iteration   2: 2.202 s/op
+Iteration   3: 2.200 s/op
+Iteration   4: 2.184 s/op
+Iteration   5: 2.141 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithMinMaxFilter":
+  N = 5
+  mean =      2.182 ±(99.9%) 0.095 s/op
+
+  Histogram, s/op:
+    [2.140, 2.145) = 1 
+    [2.145, 2.150) = 0 
+    [2.150, 2.155) = 0 
+    [2.155, 2.160) = 0 
+    [2.160, 2.165) = 0 
+    [2.165, 2.170) = 0 
+    [2.170, 2.175) = 0 
+    [2.175, 2.180) = 0 
+    [2.180, 2.185) = 1 
+    [2.185, 2.190) = 1 
+    [2.190, 2.195) = 0 
+    [2.195, 2.200) = 0 
+    [2.200, 2.205) = 2 
+
+  Percentiles, s/op:
+      p(0.0000) =      2.141 s/op
+     p(50.0000) =      2.185 s/op
+     p(90.0000) =      2.202 s/op
+     p(95.0000) =      2.202 s/op
+     p(99.0000) =      2.202 s/op
+     p(99.9000) =      2.202 s/op
+     p(99.9900) =      2.202 s/op
+     p(99.9990) =      2.202 s/op
+     p(99.9999) =      2.202 s/op
+    p(100.0000) =      2.202 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithMinMaxFilter
+# Parameters: (type = file)
+
+# Run progress: 60.00% complete, ETA 00:40:59
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+6.506 s/op
+# Warmup Iteration   2: 5.993 s/op
+# Warmup Iteration   3: 5.983 s/op
+Iteration   1: 5.339 s/op
+Iteration   2: 5.770 s/op
+Iteration   3: 5.460 s/op
+Iteration   4: 5.696 s/op
+Iteration   5: 5.333 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithMinMaxFilter":
+  N = 5
+  mean =      5.520 ±(99.9%) 0.782 s/op
+
+  Histogram, s/op:
+    [5.300, 5.350) = 2 
+    [5.350, 5.400) = 0 
+    [5.400, 5.450) = 0 
+    [5.450, 5.500) = 1 
+    [5.500, 5.550) = 0 
+    [5.550, 5.600) = 0 
+    [5.600, 5.650) = 0 
+    [5.650, 5.700) = 1 
+    [5.700, 5.750) = 0 
+
+  Percentiles, s/op:
+      p(0.0000) =      5.333 s/op
+     p(50.0000) =      5.460 s/op
+     p(90.0000) =      5.770 s/op
+     p(95.0000) =      5.770 s/op
+     p(99.0000) =      5.770 s/op
+     p(99.9000) =      5.770 s/op
+     p(99.9900) =      5.770 s/op
+     p(99.9990) =      5.770 s/op
+     p(99.9999) =      5.770 s/op
+    p(100.0000) =      5.770 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithMinMaxFilter
+# Parameters: (type = dv)
+
+# Run progress: 62.86% complete, ETA 00:37:31
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+5.108 s/op
+# Warmup Iteration   2: 3.507 s/op
+# Warmup Iteration   3: 4.211 s/op
+Iteration   1: 3.861 s/op
+Iteration   2: 3.542 s/op
+Iteration   3: 3.896 s/op
+Iteration   4: 3.366 s/op
+Iteration   5: 3.557 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithMinMaxFilter":
+  N = 5
+  mean =      3.644 ±(99.9%) 0.872 s/op
+
+  Histogram, s/op:
+    [3.300, 3.350) = 0 
+    [3.350, 3.400) = 1 
+    [3.400, 3.450) = 0 
+    [3.450, 3.500) = 0 
+    [3.500, 3.550) = 1 
+    [3.550, 3.600) = 1 
+    [3.600, 3.650) = 0 
+    [3.650, 3.700) = 0 
+    [3.700, 3.750) = 0 
+    [3.750, 3.800) = 0 
+    [3.800, 3.850) = 0 
+    [3.850, 3.900) = 2 
+
+  Percentiles, s/op:
+      p(0.0000) =      3.366 s/op
+     p(50.0000) =      3.557 s/op
+     p(90.0000) =      3.896 s/op
+     p(95.0000) =      3.896 s/op
+     p(99.0000) =      3.896 s/op
+     p(99.9000) =      3.896 s/op
+     p(99.9900) =      3.896 s/op
+     p(99.9990) =      3.896 s/op
+     p(99.9999) =      3.896 s/op
+    p(100.0000) =      3.896 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithPartitionAndMinMaxFilter
+# Parameters: (type = partition)
+
+# Run progress: 65.71% complete, ETA 00:34:03
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+0.317 s/op
+# Warmup Iteration   2: 0.194 s/op
+# Warmup Iteration   3: 0.142 s/op
+Iteration   1: 0.149 s/op
+Iteration   2: 0.258 s/op
+Iteration   3: 0.140 s/op
+Iteration   4: 0.137 s/op
+Iteration   5: 0.160 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithPartitionAndMinMaxFilter":
+  N = 5
+  mean =      0.169 ±(99.9%) 0.195 s/op
+
+  Histogram, s/op:
+    [0.100, 0.113) = 0 
+    [0.113, 0.125) = 0 
+    [0.125, 0.138) = 1 
+    [0.138, 0.150) = 2 
+    [0.150, 0.163) = 1 
+    [0.163, 0.175) = 0 
+    [0.175, 0.188) = 0 
+    [0.188, 0.200) = 0 
+    [0.200, 0.213) = 0 
+    [0.213, 0.225) = 0 
+    [0.225, 0.238) = 0 
+    [0.238, 0.250) = 0 
+    [0.250, 0.263) = 1 
+    [0.263, 0.275) = 0 
+    [0.275, 0.288) = 0 
+    [0.288, 0.300) = 0 
+
+  Percentiles, s/op:
+      p(0.0000) =      0.137 s/op
+     p(50.0000) =      0.149 s/op
+     p(90.0000) =      0.258 s/op
+     p(95.0000) =      0.258 s/op
+     p(99.0000) =      0.258 s/op
+     p(99.9000) =      0.258 s/op
+     p(99.9900) =      0.258 s/op
+     p(99.9990) =      0.258 s/op
+     p(99.9999) =      0.258 s/op
+    p(100.0000) =      0.258 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithPartitionAndMinMaxFilter
+# Parameters: (type = file)
+
+# Run progress: 68.57% complete, ETA 00:30:19
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+0.457 s/op
+# Warmup Iteration   2: 0.206 s/op
+# Warmup Iteration   3: 0.210 s/op
+Iteration   1: 0.206 s/op
+Iteration   2: 0.185 s/op
+Iteration   3: 0.185 s/op
+Iteration   4: 0.187 s/op
+Iteration   5: 0.185 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithPartitionAndMinMaxFilter":
+  N = 5
+  mean =      0.190 ±(99.9%) 0.035 s/op
+
+  Histogram, s/op:
+    [0.180, 0.183) = 0 
+    [0.183, 0.185) = 1 
+    [0.185, 0.188) = 3 
+    [0.188, 0.190) = 0 
+    [0.190, 0.193) = 0 
+    [0.193, 0.195) = 0 
+    [0.195, 0.198) = 0 
+    [0.198, 0.200) = 0 
+    [0.200, 0.202) = 0 
+    [0.202, 0.205) = 0 
+    [0.205, 0.208) = 1 
+
+  Percentiles, s/op:
+      p(0.0000) =      0.185 s/op
+     p(50.0000) =      0.185 s/op
+     p(90.0000) =      0.206 s/op
+     p(95.0000) =      0.206 s/op
+     p(99.0000) =      0.206 s/op
+     p(99.9000) =      0.206 s/op
+     p(99.9900) =      0.206 s/op
+     p(99.9990) =      0.206 s/op
+     p(99.9999) =      0.206 s/op
+    p(100.0000) =      0.206 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithPartitionAndMinMaxFilter
+# Parameters: (type = dv)
+
+# Run progress: 71.43% complete, ETA 00:26:58
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+0.388 s/op
+# Warmup Iteration   2: 0.202 s/op
+# Warmup Iteration   3: 0.203 s/op
+Iteration   1: 0.167 s/op
+Iteration   2: 0.170 s/op
+Iteration   3: 0.170 s/op
+Iteration   4: 0.171 s/op
+Iteration   5: 0.164 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithPartitionAndMinMaxFilter":
+  N = 5
+  mean =      0.169 ±(99.9%) 0.012 s/op
+
+  Histogram, s/op:
+    [0.164, 0.165) = 1 
+    [0.165, 0.165) = 0 
+    [0.165, 0.166) = 0 
+    [0.166, 0.166) = 0 
+    [0.166, 0.167) = 0 
+    [0.167, 0.167) = 0 
+    [0.167, 0.168) = 1 
+    [0.168, 0.168) = 0 
+    [0.168, 0.169) = 0 
+    [0.169, 0.169) = 0 
+    [0.169, 0.170) = 0 
+    [0.170, 0.170) = 1 
+    [0.170, 0.171) = 1 
+    [0.171, 0.171) = 0 
+    [0.171, 0.172) = 1 
+    [0.172, 0.172) = 0 
+
+  Percentiles, s/op:
+      p(0.0000) =      0.164 s/op
+     p(50.0000) =      0.170 s/op
+     p(90.0000) =      0.171 s/op
+     p(95.0000) =      0.171 s/op
+     p(99.0000) =      0.171 s/op
+     p(99.9000) =      0.171 s/op
+     p(99.9900) =      0.171 s/op
+     p(99.9990) =      0.171 s/op
+     p(99.9999) =      0.171 s/op
+    p(100.0000) =      0.171 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithoutFilter
+# Parameters: (type = partition)
+
+# Run progress: 74.29% complete, ETA 00:23:48
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+3.337 s/op
+# Warmup Iteration   2: 2.445 s/op
+# Warmup Iteration   3: 2.572 s/op
+Iteration   1: 2.367 s/op
+Iteration   2: 2.292 s/op
+Iteration   3: 2.428 s/op
+Iteration   4: 2.558 s/op
+Iteration   5: 2.681 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithoutFilter":
+  N = 5
+  mean =      2.465 ±(99.9%) 0.596 s/op
+
+  Histogram, s/op:
+    [2.200, 2.250) = 0 
+    [2.250, 2.300) = 1 
+    [2.300, 2.350) = 0 
+    [2.350, 2.400) = 1 
+    [2.400, 2.450) = 1 
+    [2.450, 2.500) = 0 
+    [2.500, 2.550) = 0 
+    [2.550, 2.600) = 1 
+    [2.600, 2.650) = 0 
+
+  Percentiles, s/op:
+      p(0.0000) =      2.292 s/op
+     p(50.0000) =      2.428 s/op
+     p(90.0000) =      2.681 s/op
+     p(95.0000) =      2.681 s/op
+     p(99.0000) =      2.681 s/op
+     p(99.9000) =      2.681 s/op
+     p(99.9900) =      2.681 s/op
+     p(99.9990) =      2.681 s/op
+     p(99.9999) =      2.681 s/op
+    p(100.0000) =      2.681 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithoutFilter
+# Parameters: (type = file)
+
+# Run progress: 77.14% complete, ETA 00:20:45
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+6.736 s/op
+# Warmup Iteration   2: 6.166 s/op
+# Warmup Iteration   3: 5.921 s/op
+Iteration   1: 6.045 s/op
+Iteration   2: 5.494 s/op
+Iteration   3: 5.511 s/op
+Iteration   4: 5.811 s/op
+Iteration   5: 5.948 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithoutFilter":
+  N = 5
+  mean =      5.762 ±(99.9%) 0.967 s/op
+
+  Histogram, s/op:
+    [5.400, 5.450) = 0 
+    [5.450, 5.500) = 1 
+    [5.500, 5.550) = 1 
+    [5.550, 5.600) = 0 
+    [5.600, 5.650) = 0 
+    [5.650, 5.700) = 0 
+    [5.700, 5.750) = 0 
+    [5.750, 5.800) = 0 
+    [5.800, 5.850) = 1 
+    [5.850, 5.900) = 0 
+    [5.900, 5.950) = 1 
+    [5.950, 6.000) = 0 
+    [6.000, 6.050) = 1 
+    [6.050, 6.100) = 0 
+
+  Percentiles, s/op:
+      p(0.0000) =      5.494 s/op
+     p(50.0000) =      5.811 s/op
+     p(90.0000) =      6.045 s/op
+     p(95.0000) =      6.045 s/op
+     p(99.0000) =      6.045 s/op
+     p(99.9000) =      6.045 s/op
+     p(99.9900) =      6.045 s/op
+     p(99.9990) =      6.045 s/op
+     p(99.9999) =      6.045 s/op
+    p(100.0000) =      6.045 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithoutFilter
+# Parameters: (type = dv)
+
+# Run progress: 80.00% complete, ETA 00:18:01
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+4.503 s/op
+# Warmup Iteration   2: 4.211 s/op
+# Warmup Iteration   3: 4.064 s/op
+Iteration   1: 4.347 s/op
+Iteration   2: 4.134 s/op
+Iteration   3: 4.707 s/op
+Iteration   4: 4.070 s/op
+Iteration   5: 4.336 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithoutFilter":
+  N = 5
+  mean =      4.319 ±(99.9%) 0.959 s/op
+
+  Histogram, s/op:
+    [4.000, 4.050) = 0 
+    [4.050, 4.100) = 1 
+    [4.100, 4.150) = 1 
+    [4.150, 4.200) = 0 
+    [4.200, 4.250) = 0 
+    [4.250, 4.300) = 0 
+    [4.300, 4.350) = 2 
+    [4.350, 4.400) = 0 
+    [4.400, 4.450) = 0 
+    [4.450, 4.500) = 0 
+    [4.500, 4.550) = 0 
+    [4.550, 4.600) = 0 
+    [4.600, 4.650) = 0 
+    [4.650, 4.700) = 0 
+    [4.700, 4.750) = 1 
+    [4.750, 4.800) = 0 
+
+  Percentiles, s/op:
+      p(0.0000) =      4.070 s/op
+     p(50.0000) =      4.336 s/op
+     p(90.0000) =      4.707 s/op
+     p(95.0000) =      4.707 s/op
+     p(99.0000) =      4.707 s/op
+     p(99.9000) =      4.707 s/op
+     p(99.9900) =      4.707 s/op
+     p(99.9990) =      4.707 s/op
+     p(99.9999) =      4.707 s/op
+    p(100.0000) =      4.707 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithoutFilterWithStats
+# Parameters: (type = partition)
+
+# Run progress: 82.86% complete, ETA 00:15:18
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+13.754 s/op
+# Warmup Iteration   2: 11.753 s/op
+# Warmup Iteration   3: 11.741 s/op
+Iteration   1: 11.684 s/op
+Iteration   2: 11.989 s/op
+Iteration   3: 12.792 s/op
+Iteration   4: 12.205 s/op
+Iteration   5: 11.052 s/op
+
+
+Result "org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithoutFilterWithStats":
+  N = 5
+  mean =     11.944 ±(99.9%) 2.475 s/op
+
+  Histogram, s/op:
+    [11.000, 11.125) = 1 
+    [11.125, 11.250) = 0 
+    [11.250, 11.375) = 0 
+    [11.375, 11.500) = 0 
+    [11.500, 11.625) = 0 
+    [11.625, 11.750) = 1 
+    [11.750, 11.875) = 0 
+    [11.875, 12.000) = 1 
+    [12.000, 12.125) = 0 
+    [12.125, 12.250) = 1 
+    [12.250, 12.375) = 0 
+    [12.375, 12.500) = 0 
+    [12.500, 12.625) = 0 
+    [12.625, 12.750) = 0 
+    [12.750, 12.875) = 1 
+
+  Percentiles, s/op:
+      p(0.0000) =     11.052 s/op
+     p(50.0000) =     11.989 s/op
+     p(90.0000) =     12.792 s/op
+     p(95.0000) =     12.792 s/op
+     p(99.0000) =     12.792 s/op
+     p(99.9000) =     12.792 s/op
+     p(99.9900) =     12.792 s/op
+     p(99.9990) =     12.792 s/op
+     p(99.9999) =     12.792 s/op
+    p(100.0000) =     12.792 s/op
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithoutFilterWithStats
+# Parameters: (type = file)
+
+# Run progress: 85.71% complete, ETA 00:12:45
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+[134.508s][warning][gc,alloc] iceberg-worker-pool-9: Retried waiting for GCLocker too often allocating 224685 words
+[140.112s][warning][gc,alloc] iceberg-worker-pool-1: Retried waiting for GCLocker too often allocating 201409 words
+[167.646s][warning][gc,alloc] iceberg-worker-pool-7: Retried waiting for GCLocker too often allocating 193465 words
+[186.657s][warning][gc,alloc] iceberg-worker-pool-6: Retried waiting for GCLocker too often allocating 233657 words
+<failure>
+
+java.lang.RuntimeException: Failed while running parallel task
+	at org.apache.iceberg.util.ParallelIterable$ParallelIterator.checkTasks(ParallelIterable.java:164)
+	at org.apache.iceberg.util.ParallelIterable$ParallelIterator.hasNext(ParallelIterable.java:211)
+	at org.apache.iceberg.relocated.com.google.common.collect.Iterators.addAll(Iterators.java:367)
+	at org.apache.iceberg.relocated.com.google.common.collect.Lists.newArrayList(Lists.java:156)
+	at org.apache.iceberg.relocated.com.google.common.collect.Lists.newArrayList(Lists.java:141)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFiles(PlanningBenchmark.java:389)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFilesWithColumnStats(PlanningBenchmark.java:376)
+	at org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithoutFilterWithStats(PlanningBenchmark.java:179)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_localPlanningWithoutFilterWithStats_jmhTest.localPlanningWithoutFilterWithStats_ss_jmhStub(PlanningBenchmark_localPlanningWithoutFilterWithStats_jmhTest.java:422)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_localPlanningWithoutFilterWithStats_jmhTest.localPlanningWithoutFilterWithStats_SingleShotTime(PlanningBenchmark_localPlanningWithoutFilterWithStats_jmhTest.java:377)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:527)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:504)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+Caused by: java.lang.OutOfMemoryError: Java heap space
+	at java.base/java.util.Arrays.copyOf(Arrays.java:3745)
+	at java.base/java.io.ByteArrayOutputStream.grow(ByteArrayOutputStream.java:120)
+	at java.base/java.io.ByteArrayOutputStream.ensureCapacity(ByteArrayOutputStream.java:95)
+	at java.base/java.io.ByteArrayOutputStream.write(ByteArrayOutputStream.java:156)
+	at java.base/java.util.zip.InflaterOutputStream.write(InflaterOutputStream.java:248)
+	at org.apache.avro.file.DeflateCodec.decompress(DeflateCodec.java:83)
+	at org.apache.avro.file.DataFileStream$DataBlock.decompressUsing(DataFileStream.java:394)
+	at org.apache.avro.file.DataFileStream.hasNext(DataFileStream.java:227)
+	at org.apache.iceberg.avro.AvroIterable$AvroReuseIterator.hasNext(AvroIterable.java:193)
+	at org.apache.iceberg.io.CloseableIterable$7$1.hasNext(CloseableIterable.java:214)
+	at org.apache.iceberg.io.FilterIterator.advance(FilterIterator.java:64)
+	at org.apache.iceberg.io.FilterIterator.hasNext(FilterIterator.java:49)
+	at org.apache.iceberg.io.FilterIterator.advance(FilterIterator.java:64)
+	at org.apache.iceberg.io.FilterIterator.hasNext(FilterIterator.java:49)
+	at org.apache.iceberg.io.CloseableIterable$7$1.hasNext(CloseableIterable.java:214)
+	at org.apache.iceberg.util.ParallelIterable$Task.get(ParallelIterable.java:283)
+	at org.apache.iceberg.util.ParallelIterable$Task.get(ParallelIterable.java:244)
+	at java.base/java.util.concurrent.CompletableFuture$AsyncSupply.run(CompletableFuture.java:1700)
+	... 3 more
+
+
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 20 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithoutFilterWithStats
+# Parameters: (type = dv)
+
+# Run progress: 88.57% complete, ETA 00:10:43
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
+[131.794s][warning][gc,alloc] iceberg-worker-pool-1: Retried waiting for GCLocker too often allocating 222214 words
+[172.333s][warning][gc,alloc] iceberg-worker-pool-4: Retried waiting for GCLocker too often allocating 212638 words
+[179.975s][warning][gc,alloc] executor-heartbeater: Retried waiting for GCLocker too often allocating 17047 words
+[185.198s][warning][gc,alloc] iceberg-worker-pool-3: Retried waiting for GCLocker too often allocating 211948 words
+[200.640s][warning][gc,alloc] iceberg-worker-pool-7: Retried waiting for GCLocker too often allocating 223579 words
+[213.203s][warning][gc,alloc] spark-listener-group-appStatus: Retried waiting for GCLocker too often allocating 388 words
+[218.389s][warning][gc,alloc] iceberg-worker-pool-7: Retried waiting for GCLocker too often allocating 4 words
+[228.901s][warning][gc,alloc] iceberg-worker-pool-3: Retried waiting for GCLocker too often allocating 211949 words
+[228.901s][warning][gc,alloc] iceberg-worker-pool-1: Retried waiting for GCLocker too often allocating 214026 words
+[291.784s][warning][gc,alloc] iceberg-worker-pool-7: Retried waiting for GCLocker too often allocating 223578 words
+[294.293s][warning][gc,alloc] spark-listener-group-shared: Retried waiting for GCLocker too often allocating 547 words
+<failure>
+
+java.lang.RuntimeException: Failed while running parallel task
+	at org.apache.iceberg.util.ParallelIterable$ParallelIterator.checkTasks(ParallelIterable.java:164)
+	at org.apache.iceberg.util.ParallelIterable$ParallelIterator.hasNext(ParallelIterable.java:211)
+	at org.apache.iceberg.relocated.com.google.common.collect.Iterators.addAll(Iterators.java:367)
+	at org.apache.iceberg.relocated.com.google.common.collect.Lists.newArrayList(Lists.java:156)
+	at org.apache.iceberg.relocated.com.google.common.collect.Lists.newArrayList(Lists.java:141)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFiles(PlanningBenchmark.java:389)
+	at org.apache.iceberg.spark.PlanningBenchmark.planFilesWithColumnStats(PlanningBenchmark.java:376)
+	at org.apache.iceberg.spark.PlanningBenchmark.localPlanningWithoutFilterWithStats(PlanningBenchmark.java:179)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_localPlanningWithoutFilterWithStats_jmhTest.localPlanningWithoutFilterWithStats_ss_jmhStub(PlanningBenchmark_localPlanningWithoutFilterWithStats_jmhTest.java:422)
+	at org.apache.iceberg.spark.jmh_generated.PlanningBenchmark_localPlanningWithoutFilterWithStats_jmhTest.localPlanningWithoutFilterWithStats_SingleShotTime(PlanningBenchmark_localPlanningWithoutFilterWithStats_jmhTest.java:377)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:527)
+	at org.openjdk.jmh.runner.BenchmarkHandler$BenchmarkTask.call(BenchmarkHandler.java:504)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:515)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+Caused by: java.lang.OutOfMemoryError: Java heap space
+
+
+
+
+# JMH version: 1.37
+# VM version: JDK 11.0.20, OpenJDK 64-Bit Server VM, 11.0.20+8-LTS
+# VM invoker: /Library/Java/JavaVirtualMachines/applejdk-11.0.20.8.2.jdk/Contents/Home/bin/java
+# VM options: -Dfile.encoding=UTF-8 -Djava.io.tmpdir=/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/tmp/jmh -Duser.country=US -Duser.language=en -Duser.variant
+# Blackhole mode: full + dont-inline hint (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 3 iterations, single-shot each
+# Measurement: 5 iterations, single-shot each
+# Timeout: 30 min per iteration
+# Threads: 1 thread
+# Benchmark mode: Single shot invocation time
+# Benchmark: org.apache.iceberg.spark.TaskGroupPlanningBenchmark.planTaskGroups
+
+# Run progress: 91.43% complete, ETA 00:08:14
+# Fork: 1 of 1
+# Warmup Iteration   1: WARNING: An illegal reflective access operation has occurred
+WARNING: Illegal reflective access by org.apache.spark.unsafe.Platform (file:/Users/huaxingao/iceberg2/iceberg/spark/v3.5/spark-extensions/build/libs/iceberg-spark-extensions-3.5_2.12-1.8.0-SNAPSHOT-jmh.jar) to constructor java.nio.DirectByteBuffer(long,int)
+WARNING: Please consider reporting this to the maintainers of org.apache.spark.unsafe.Platform
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+WARNING: All illegal access operations will be denied in a future release
