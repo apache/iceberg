@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.apache.iceberg.MetadataTableType.isViewMetadataTable;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -97,6 +99,7 @@ import org.apache.iceberg.view.ViewMetadata;
 import org.apache.iceberg.view.ViewRepresentation;
 import org.apache.iceberg.view.ViewUtil;
 import org.apache.iceberg.view.ViewVersion;
+import org.apache.iceberg.view.ViewWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -400,13 +403,26 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     } catch (NoSuchTableException original) {
       metadataType = MetadataTableType.from(identifier.name());
+      // attempt to load a metadata table using the identifier's namespace as the base table or
+      // view.
+      TableIdentifier baseIdent = TableIdentifier.of(identifier.namespace().levels());
+      // Currently, metadata Tables for Table and View do not share the same name.
       if (metadataType != null) {
-        // attempt to load a metadata table using the identifier's namespace as the base table
-        TableIdentifier baseIdent = TableIdentifier.of(identifier.namespace().levels());
         try {
           response = loadInternal(context, baseIdent, snapshotMode);
           loadedIdent = baseIdent;
         } catch (NoSuchTableException ignored) {
+          if (isViewMetadataTable(metadataType)) {
+            Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE, () -> original);
+            try {
+              View loadedView = loadView(context, baseIdent);
+              return MetadataTableUtils.createMetadataTableInstance(
+                  new ViewWrapper((BaseView) loadedView), metadataType);
+            } catch (NoSuchTableException e) {
+              // If the view is not found, fall back to the original exception.
+            }
+          }
+
           // the base table does not exist
           throw original;
         }

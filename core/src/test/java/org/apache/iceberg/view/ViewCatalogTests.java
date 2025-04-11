@@ -27,8 +27,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.UUID;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdateLocation;
+import org.apache.iceberg.ViewVersionTable;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -1670,6 +1672,30 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThatThrownBy(() -> updateViewLocation.setLocation("new-location").commit())
         .isInstanceOf(NoSuchViewException.class)
         .hasMessageContaining("View does not exist: ns.view");
+  }
+
+  @Test
+  public void loadViewMetadataTable() {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(identifier.namespace());
+    }
+
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    catalog()
+        .buildView(identifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(identifier.namespace())
+        .withProperty("key", "value")
+        .withQuery("trino", "select * from ns.tbl")
+        .create();
+
+    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
+    Table table = tableCatalog().loadTable(TableIdentifier.of("ns", "view", "version"));
+    assertThat(table).isInstanceOf(ViewVersionTable.class);
+    assertThat(table.schema()).isEqualTo(ViewVersionTable.VIEW_VERSION_SCHEMA);
   }
 
   @Test
