@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -1107,6 +1108,22 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
         "Iceberg table contains correct data",
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testMigrateWithInvalidParallelism() throws IOException {
+    createUnpartitionedHiveTable();
+
+    createIcebergTable(
+        "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.add_files(table => '%s', source_table => '%s', parallelism => %d)",
+                    catalogName, tableName, sourceTableName, -1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Parallelism should be larger than 0");
   }
 
   @TestTemplate
