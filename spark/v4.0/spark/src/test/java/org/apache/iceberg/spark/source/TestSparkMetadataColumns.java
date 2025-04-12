@@ -331,11 +331,11 @@ public class TestSparkMetadataColumns extends TestBase {
       assertThatThrownBy(() -> sql("SELECT _row_id FROM %s", TABLE_NAME))
           .isInstanceOf(AnalysisException.class)
           .hasMessageContaining(
-              "A column or function parameter with name `_row_id` cannot be resolved");
+              "A column, variable, or function parameter with name `_row_id` cannot be resolved");
       assertThatThrownBy(() -> sql("SELECT _last_updated_sequence_number FROM %s", TABLE_NAME))
           .isInstanceOf(AnalysisException.class)
           .hasMessageContaining(
-              "A column or function parameter with name `_last_updated_sequence_number` cannot be resolved");
+              "A column, variable, or function parameter with name `_last_updated_sequence_number` cannot be resolved");
     }
   }
 

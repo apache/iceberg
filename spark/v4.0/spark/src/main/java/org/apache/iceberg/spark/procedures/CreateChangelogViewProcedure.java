@@ -181,7 +181,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
 
     Column[] repartitionSpec = new Column[identifierColumns.length + 1];
     for (int i = 0; i < identifierColumns.length; i++) {
-      repartitionSpec[i] = df.col(identifierColumns[i]);
+      repartitionSpec[i] = df.col(CreateChangelogViewProcedure.delimitedName(identifierColumns[i]));
     }
 
     repartitionSpec[repartitionSpec.length - 1] = df.col(MetadataColumns.CHANGE_ORDINAL.name());
@@ -227,9 +227,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
       return input.asStringArray(IDENTIFIER_COLUMNS_PARAM);
     } else {
       Table table = loadSparkTable(tableIdent).table();
-      return table.schema().identifierFieldNames().stream()
-          .map(CreateChangelogViewProcedure::delimitedName)
-          .toArray(String[]::new);
+      return table.schema().identifierFieldNames().stream().toArray(String[]::new);
     }
   }
 
