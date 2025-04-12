@@ -96,7 +96,6 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
 
     implementation libs.caffeine
 
-    testImplementation 'com.jolbox:bonecp:0.8.0.RELEASE'
     testImplementation(libs.hadoop3.minicluster) {
       exclude group: 'org.apache.avro', module: 'avro'
       // to make sure netty libs only come from project(':iceberg-arrow')
@@ -181,8 +180,6 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     // runtime dependencies for running REST Catalog based integration test
     testRuntimeOnly libs.jetty.servlet
     testRuntimeOnly libs.sqlite.jdbc
-
-    testImplementation 'com.jolbox:bonecp:0.8.0.RELEASE'
     testImplementation libs.avro.avro
     testImplementation libs.parquet.hadoop
     testImplementation libs.awaitility
