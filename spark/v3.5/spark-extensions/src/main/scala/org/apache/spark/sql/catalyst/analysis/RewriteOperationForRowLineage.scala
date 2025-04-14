@@ -39,62 +39,6 @@ trait RewriteOperationForRowLineage extends RewriteRowLevelCommand {
   protected val ROW_LINEAGE_ATTRIBUTES =
     Set(ROW_ID_ATTRIBUTE_NAME, LAST_UPDATED_SEQUENCE_NUMBER_ATTRIBUTE_NAME)
 
-  protected def buildUpdatedWriteDeltaPlan(
-      writeDeltaPlan: WriteDelta,
-      updatedQuery: LogicalPlan,
-      projections: WriteDeltaProjections
-  ): WriteDelta = {
-    val tableAsDsv2 = writeDeltaPlan.table.asInstanceOf[DataSourceV2Relation]
-    val rowLineageAttributes = findRowLineageAttributes(
-      writeDeltaPlan.originalTable.metadataOutput
-    ).map(_._1)
-    writeDeltaPlan.copy(
-      table = updateDsv2RelationOutputWithRowLineage(
-        tableAsDsv2,
-        rowLineageAttributes
-      ),
-      query = updatedQuery,
-      projections = projections
-    )
-  }
-
-  protected def buildUpdatedReplaceDataPlan(
-      replaceDataPlan: ReplaceData,
-      updatedQuery: LogicalPlan
-  ) = {
-    val tableAsDsv2 = replaceDataPlan.table.asInstanceOf[DataSourceV2Relation]
-    val rowLineageAttributes = findRowLineageAttributes(
-      replaceDataPlan.originalTable.metadataOutput
-    ).map(_._1)
-
-    replaceDataPlan.copy(
-      table = updateDsv2RelationOutputWithRowLineage(
-        tableAsDsv2,
-        rowLineageAttributes
-      ),
-      query = updatedQuery
-    )
-  }
-
-  protected def updatePlanForRowLineage(writeCommand: V2WriteCommand) = {
-    val tableSupportsRowLineage = writeCommand match {
-      case writeDelta: WriteDelta =>
-        writeDelta.originalTable.metadataOutput.exists(attr =>
-          attr.name == "_row_id"
-        )
-      case replaceData: ReplaceData =>
-        replaceData.originalTable.metadataOutput.exists(attr =>
-          attr.name == "_row_id"
-        )
-      case _ =>
-        writeCommand.table.metadataOutput.exists(attr => attr.name == "_row_id")
-    }
-
-    tableSupportsRowLineage && findRowLineageAttributes(
-      writeCommand.table.output
-    ).isEmpty
-  }
-
   protected def findRowLineageAttributes(
       expressions: Seq[Expression]
   ): Seq[(Attribute, Int)] = {
@@ -106,24 +50,5 @@ trait RewriteOperationForRowLineage extends RewriteRowLevelCommand {
           expr.asInstanceOf[Attribute].metadata.contains(METADATA_COL_ATTR_KEY)
       }
       .map(tup => (tup._1.asInstanceOf[Attribute], tup._2))
-  }
-
-  protected def findLineageAttribute(
-      expressions: Seq[Expression],
-      lineageAttribute: String
-  ): Int = {
-    findRowLineageAttributes(expressions).collectFirst {
-      case (attr, ordinal) if attr.name == lineageAttribute => ordinal
-    }.get
-  }
-
-  protected def updateDsv2RelationOutputWithRowLineage(
-      relation: DataSourceV2Relation,
-      rowLineageAttributes: Seq[Attribute]
-  ): DataSourceV2Relation = {
-    relation.copy(output =
-      relation.output
-        ++ rowLineageAttributes.map(_.asInstanceOf[AttributeReference])
-    )
   }
 }
