@@ -19,114 +19,53 @@
 
 package org.apache.spark.sql.catalyst.analysis
 
-import org.apache.spark.sql.catalyst.expressions.Alias
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
-import org.apache.spark.sql.catalyst.expressions.Expression
-import org.apache.spark.sql.catalyst.expressions.If
 import org.apache.spark.sql.catalyst.expressions.Literal
-import org.apache.spark.sql.catalyst.expressions.NamedExpression
-import org.apache.spark.sql.catalyst.plans.logical.Expand
+import org.apache.spark.sql.catalyst.plans.logical.Assignment
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.Project
-import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
-import org.apache.spark.sql.catalyst.plans.logical.Union
-import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
-import org.apache.spark.sql.catalyst.util.METADATA_COL_ATTR_KEY
+import org.apache.spark.sql.catalyst.plans.logical.UpdateTable
+import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.types.Metadata
 
 object RewriteUpdateTableForRowLineage extends RewriteOperationForRowLineage {
 
   override def apply(plan: LogicalPlan): LogicalPlan = {
-    RewriteUpdateTable.apply(plan) resolveOperators {
-      case writeDelta@WriteDelta(_, _, _, _, _, _) if updatePlanForRowLineage(writeDelta) => {
-        updateDeltaPlan(writeDelta)
-      }
-
-      case replaceData@ReplaceData(_, _, _, _, _, _) if updatePlanForRowLineage(replaceData) => {
-        updateReplaceDataPlan(replaceData)
+    plan resolveOperators {
+      case updateTable@UpdateTable(table, assignments, condition) if shouldUpdatePlan(updateTable) => {
+        updatePlanWithRowLineage(updateTable)
       }
     }
   }
 
-  def updateDeltaPlan(writeDelta: WriteDelta): LogicalPlan = {
-    writeDelta.query match {
-      case Expand(projections, output, child) => {
-        val rowLineageAttributes = findRowLineageAttributes(output).map(_._1)
-        val rowIdOrdinal = findLineageAttribute(output, ROW_ID_ATTRIBUTE_NAME)
-        val lastUpdatedIdOrdinal = findLineageAttribute(output, LAST_UPDATED_SEQUENCE_NUMBER_ATTRIBUTE_NAME)
-        val updatedInsertProjections = projections(1)
-          .updated(rowIdOrdinal, projections(0)(rowIdOrdinal))
-          .updated(lastUpdatedIdOrdinal, Literal(null))
-        val updatedExpand = Expand(Seq(projections.head, updatedInsertProjections), output, child)
-        val tableAsDsv2 = writeDelta.table.asInstanceOf[DataSourceV2Relation]
-        val relation =
-          writeDelta.originalTable.asInstanceOf[DataSourceV2Relation]
-        val rowAttrs = relation.output
-        val operation = writeDelta.operation
-        val rowIdAttrs = resolveRowIdAttrs(relation, operation)
-        val metadataAttrs = resolveRequiredMetadataAttrs(relation, operation)
-        val updatedProjections = buildWriteDeltaProjections(updatedExpand,
-          rowAttrs ++ rowLineageAttributes, rowIdAttrs, metadataAttrs)
-        WriteDelta(updateDsv2RelationOutputWithRowLineage(
-          tableAsDsv2,
-          rowLineageAttributes),
-          condition = writeDelta.condition,
-          query = updatedExpand,
-          originalTable = writeDelta.originalTable,
-          projections = updatedProjections
-        )
-      }
-      case p => throw new UnsupportedOperationException("Unexpected plan for query " + p)
-    }
+  private def shouldUpdatePlan(updateTable: UpdateTable): Boolean = {
+    val rowLineageAttributes = findRowLineageAttributes(updateTable.metadataOutput).map(tup => tup._1)
+    rowLineageAttributes.nonEmpty &&
+      rowLineageAttributes.forall(updateTable.metadataOutput.contains) &&
+      !updateTable.output.exists(attr => attr.name == ROW_ID_ATTRIBUTE_NAME)
   }
 
-  def updateReplaceDataPlan(replaceData: ReplaceData): LogicalPlan = {
-    replaceData.query match {
-      case Union(children, byName, allowingMissingCol) => {
-        val updatedProjection = children(0) match {
-          case Project(projectList, child) => {
-            val updatedProjectionList =
-              updateRowLineageProjections(projectList, replaceData.condition)
 
-            Project(updatedProjectionList, child)
+  private def updatePlanWithRowLineage(updateTable: UpdateTable): LogicalPlan = {
+    EliminateSubqueryAliases(updateTable.table) match {
+      case r @ DataSourceV2Relation(_: SupportsRowLevelOperations, _, _, _, _) => {
+        val rowLineageAttributes = findRowLineageAttributes(updateTable.metadataOutput
+        ).map(_._1)
+        val lastUpdatedSequence = rowLineageAttributes.filter(
+          attr => attr.name == LAST_UPDATED_SEQUENCE_NUMBER_ATTRIBUTE_NAME).head
+        val updatedAssignments = updateTable.assignments ++
+          Seq(Assignment(lastUpdatedSequence, Literal(null)))
+        val rowLineageAsDataColumns = rowLineageAttributes
+          .map(_.asInstanceOf[AttributeReference]).map {
+            attr => attr.withMetadata(Metadata.empty)
           }
-          case p => throw new UnsupportedOperationException("Unexpected plan for query " + p)
-        }
-        val updatedUnionProjection = children.updated(0, updatedProjection)
-        val updatedQuery = Union(updatedUnionProjection, byName, allowingMissingCol)
 
-        buildUpdatedReplaceDataPlan(replaceData, updatedQuery)
+        val updatedTableWithLineage = r.copy(output =
+          r.output ++ rowLineageAsDataColumns)
+
+        updateTable.copy(table = updatedTableWithLineage, assignments = updatedAssignments)
       }
-      case Project(projectList, child) => {
-        val updatedProjections = updateRowLineageProjections(projectList, replaceData.condition)
-
-        val updated = buildUpdatedReplaceDataPlan(replaceData, Project(updatedProjections, child))
-        // Tricks Spark into treating the output row lineage attributes as data columns so that
-        // analysis succeeds
-        updated
-      }
-
-      case p => throw new UnsupportedOperationException("Unexpected plan for query " + p)
-
     }
-  }
 
-  protected def updateRowLineageProjections(
-      projections: Seq[NamedExpression],
-      condition: Expression): Seq[NamedExpression] = {
-    projections.map {
-      case attr @ AttributeReference(name, _, _, metadata)
-        if ROW_LINEAGE_ATTRIBUTES(name) && metadata.contains(METADATA_COL_ATTR_KEY) =>
-        // Only null out the last updated sequence number based on the condition
-        if (name == LAST_UPDATED_SEQUENCE_NUMBER_ATTRIBUTE_NAME) {
-          Alias(If(condition, Literal(null), attr.withMetadata(Metadata.empty)), name)()
-        } else {
-          // Tricks Spark into treating the output
-          // row lineage attributes as data columns so that  analysis succeeds
-          attr.withMetadata(Metadata.empty)
-        }
-      case other => other
-    }
   }
 }
