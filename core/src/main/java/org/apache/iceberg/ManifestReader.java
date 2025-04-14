@@ -309,9 +309,11 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
         return schema.caseInsensitiveSelect(requiredColumns);
       }
     } else if (project != null) {
-      Set<Integer> ids =
-          Sets.union(TypeUtil.getProjectedIds(project), Set.of(DataFile.RECORD_COUNT.fieldId()));
-      return TypeUtil.project(schema, ids);
+      if (project.findField(DataFile.RECORD_COUNT.name()) == null) {
+        return TypeUtil.join(project, new Schema(DataFile.RECORD_COUNT));
+      }
+
+      return project;
     }
 
     return schema;
