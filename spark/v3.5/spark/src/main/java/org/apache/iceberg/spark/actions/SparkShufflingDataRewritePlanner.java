@@ -29,7 +29,8 @@ import org.apache.iceberg.util.PropertyUtil;
 
 /**
  * Extends the {@link BinPackRewriteFilePlanner} with the possibility to set the expected
- * compression factor.
+ * compression factor which modifies the expected output file size based on the expected compression
+ * configuration parameter.
  */
 class SparkShufflingDataRewritePlanner extends BinPackRewriteFilePlanner {
   /**

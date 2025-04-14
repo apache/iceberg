@@ -34,7 +34,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.spark.sql.SparkSession;
 
 /**
- * Common parent for data and positional delete rewrite runners.
+ * Base class for Spark file rewrite runners which implement the {@link FileRewriteRunner} API for
+ * Spark based file rewrites. This class encapsulates the common interface and attributes for Spark
+ * file rewrite runners. The actual implementation of the file rewrite logic is implemented by the
+ * subclasses.
  *
  * @param <I> the Java type of the plan info like {@link RewriteDataFiles.FileGroupInfo} or {@link
  *     RewritePositionDeleteFiles.FileGroupInfo}
