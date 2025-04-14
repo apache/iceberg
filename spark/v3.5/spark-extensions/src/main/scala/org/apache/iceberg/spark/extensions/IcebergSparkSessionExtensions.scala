@@ -28,6 +28,7 @@ import org.apache.spark.sql.catalyst.analysis.RewriteMergeIntoTableForRowLineage
 import org.apache.spark.sql.catalyst.analysis.RewriteUpdateTableForRowLineage
 import org.apache.spark.sql.catalyst.optimizer.RemoveRowLineageOutputFromOriginalTable
 import org.apache.spark.sql.catalyst.optimizer.ReplaceStaticInvoke
+import org.apache.spark.sql.catalyst.optimizer.RewriteInsertReplaceWhere
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
 
@@ -48,6 +49,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     // optimizer extensions
     extensions.injectOptimizerRule { _ => ReplaceStaticInvoke }
     extensions.injectOptimizerRule { _ => RemoveRowLineageOutputFromOriginalTable}
+    extensions.injectOptimizerRule( _ => RewriteInsertReplaceWhere)
 
     // planner extensions
     extensions.injectPlannerStrategy { spark => ExtendedDataSourceV2Strategy(spark) }
