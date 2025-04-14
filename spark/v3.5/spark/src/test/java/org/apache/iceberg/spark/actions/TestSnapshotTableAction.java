@@ -19,16 +19,16 @@
 package org.apache.iceberg.spark.actions;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -87,24 +87,21 @@ public class TestSnapshotTableAction extends CatalogTestBase {
 
     // Define properties for the destination table, setting its location to the same path as the
     // source table
-    Map<String, String> tableProperties = new HashMap<>();
+    Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put("location", "file:" + location);
 
     // Test that an exception is thrown
     // when the destination table location overlaps with the source table location
-    Exception exception =
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> {
-              SparkActions.get()
-                  .snapshotTable(SOURCE_NAME)
-                  .as(tableName)
-                  .tableProperties(tableProperties)
-                  .execute();
-            });
-
     // Assert that the exception message matches the expected error message
-    assertThat("The destination table location overlaps with the source table location.")
-        .isEqualTo(exception.getMessage());
+    assertThatThrownBy(
+            () ->
+                SparkActions.get()
+                    .snapshotTable(SOURCE_NAME)
+                    .as(tableName)
+                    .tableProperties(tableProperties)
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "The destination table location overlaps with the source table location.");
   }
 }
