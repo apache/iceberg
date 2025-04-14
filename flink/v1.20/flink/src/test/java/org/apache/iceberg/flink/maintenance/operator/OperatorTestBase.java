@@ -94,6 +94,8 @@ public class OperatorTestBase {
   @BeforeEach
   void before() {
     LOCK_FACTORY.open();
+    LOCK_FACTORY.createLock().unlock();
+    LOCK_FACTORY.createRecoveryLock().unlock();
     MetricsReporterFactoryForTests.reset();
   }
 
