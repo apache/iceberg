@@ -22,8 +22,6 @@ import java.math.RoundingMode;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
@@ -31,22 +29,21 @@ import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.SerializableTable;
+import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
+import org.apache.iceberg.actions.FileRewritePlan;
+import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteFileGroup;
-import org.apache.iceberg.actions.RewriteFileGroupPlanner;
-import org.apache.iceberg.actions.RewriteFileGroupPlanner.RewritePlanResult;
-import org.apache.iceberg.actions.SizeBasedDataRewriter;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Plans the rewrite groups using the {@link RewriteFileGroupPlanner}. The input is the {@link
+ * Plans the rewrite groups using the {@link BinPackRewriteFilePlanner}. The input is the {@link
  * Trigger}, the output is zero, or some {@link PlannedGroup}s.
  */
 @Internal
@@ -63,8 +60,6 @@ public class DataFileRewritePlanner
   private final int partialProgressMaxCommits;
   private final long maxRewriteBytes;
   private final Map<String, String> rewriterOptions;
-  private transient SizeBasedDataRewriter rewriter;
-  private transient RewriteFileGroupPlanner planner;
   private transient Counter errorCounter;
 
   public DataFileRewritePlanner(
@@ -95,18 +90,6 @@ public class DataFileRewritePlanner
     this.errorCounter =
         TableMaintenanceMetrics.groupFor(getRuntimeContext(), tableName, taskName, taskIndex)
             .counter(TableMaintenanceMetrics.ERROR_COUNTER);
-
-    this.rewriter =
-        new SizeBasedDataRewriter(tableLoader.loadTable()) {
-          @Override
-          public Set<DataFile> rewrite(List<FileScanTask> group) {
-            // We use the rewriter only for bin-packing the file groups to compact
-            throw new UnsupportedOperationException("Should not be called");
-          }
-        };
-
-    rewriter.init(rewriterOptions);
-    this.planner = new RewriteFileGroupPlanner(rewriter, RewriteJobOrder.NONE);
   }
 
   @Override
@@ -131,17 +114,19 @@ public class DataFileRewritePlanner
         return;
       }
 
-      RewritePlanResult plan =
-          planner.plan(
-              table, Expressions.alwaysTrue(), table.currentSnapshot().snapshotId(), false);
+      BinPackRewriteFilePlanner planner = new BinPackRewriteFilePlanner(table);
+      planner.init(rewriterOptions);
+
+      FileRewritePlan<RewriteDataFiles.FileGroupInfo, FileScanTask, DataFile, RewriteFileGroup>
+          plan = planner.plan();
 
       long rewriteBytes = 0;
       int totalGroupCount = 0;
-      List<RewriteFileGroup> groups = plan.fileGroups().collect(Collectors.toList());
-      ListIterator<RewriteFileGroup> iter = groups.listIterator();
-      while (iter.hasNext()) {
-        RewriteFileGroup group = iter.next();
-        if (rewriteBytes + group.sizeInBytes() > maxRewriteBytes) {
+      List<RewriteFileGroup> groups = Lists.newArrayList(plan.groups().iterator());
+      ListIterator<RewriteFileGroup> groupIterator = groups.listIterator();
+      while (groupIterator.hasNext()) {
+        RewriteFileGroup group = groupIterator.next();
+        if (rewriteBytes + group.inputFilesSizeInBytes() > maxRewriteBytes) {
           // Keep going, maybe some other group might fit in
           LOG.info(
               DataFileRewritePlanner.MESSAGE_PREFIX
@@ -151,9 +136,9 @@ public class DataFileRewritePlanner
               taskIndex,
               ctx.timestamp(),
               group);
-          iter.remove();
+          groupIterator.remove();
         } else {
-          rewriteBytes += group.sizeInBytes();
+          rewriteBytes += group.inputFilesSizeInBytes();
           ++totalGroupCount;
         }
       }
@@ -177,9 +162,7 @@ public class DataFileRewritePlanner
             taskIndex,
             ctx.timestamp(),
             group);
-        out.collect(
-            new PlannedGroup(
-                table, groupsPerCommit, rewriter.splitSize(group.sizeInBytes()), group));
+        out.collect(new PlannedGroup(table, groupsPerCommit, group));
       }
     } catch (Exception e) {
       LOG.info(
@@ -203,14 +186,11 @@ public class DataFileRewritePlanner
   public static class PlannedGroup {
     private final SerializableTable table;
     private final int groupsPerCommit;
-    private final long splitSize;
     private final RewriteFileGroup group;
 
-    private PlannedGroup(
-        SerializableTable table, int groupsPerCommit, long splitSize, RewriteFileGroup group) {
+    private PlannedGroup(SerializableTable table, int groupsPerCommit, RewriteFileGroup group) {
       this.table = table;
       this.groupsPerCommit = groupsPerCommit;
-      this.splitSize = splitSize;
       this.group = group;
     }
 
@@ -220,10 +200,6 @@ public class DataFileRewritePlanner
 
     int groupsPerCommit() {
       return groupsPerCommit;
-    }
-
-    long splitSize() {
-      return splitSize;
     }
 
     RewriteFileGroup group() {

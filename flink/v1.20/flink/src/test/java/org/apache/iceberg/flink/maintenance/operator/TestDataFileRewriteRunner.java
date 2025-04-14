@@ -19,7 +19,7 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.apache.iceberg.actions.RewriteDataFiles.TARGET_FILE_SIZE_BYTES;
-import static org.apache.iceberg.actions.SizeBasedFileRewriter.MIN_INPUT_FILES;
+import static org.apache.iceberg.actions.SizeBasedFileRewritePlanner.MIN_INPUT_FILES;
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.executeRewrite;
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.planDataFileRewrite;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -57,7 +57,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-class TestDataFileRewriteExecutor extends OperatorTestBase {
+class TestDataFileRewriteRunner extends OperatorTestBase {
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   void testExecute(boolean partitioned) throws Exception {
@@ -80,7 +80,7 @@ class TestDataFileRewriteExecutor extends OperatorTestBase {
 
     List<DataFileRewritePlanner.PlannedGroup> planned = planDataFileRewrite(tableLoader());
     assertThat(planned).hasSize(1);
-    List<DataFileRewriteExecutor.ExecutedGroup> actual = executeRewrite(planned);
+    List<DataFileRewriteRunner.ExecutedGroup> actual = executeRewrite(planned);
     assertThat(actual).hasSize(1);
 
     assertRewriteFileGroup(
@@ -103,10 +103,10 @@ class TestDataFileRewriteExecutor extends OperatorTestBase {
     oldPartition.set(0, "p1");
 
     try (OneInputStreamOperatorTestHarness<
-            DataFileRewritePlanner.PlannedGroup, DataFileRewriteExecutor.ExecutedGroup>
+            DataFileRewritePlanner.PlannedGroup, DataFileRewriteRunner.ExecutedGroup>
         testHarness =
             ProcessFunctionTestHarnesses.forProcessFunction(
-                new DataFileRewriteExecutor(
+                new DataFileRewriteRunner(
                     OperatorTestBase.DUMMY_TABLE_NAME, OperatorTestBase.DUMMY_TABLE_NAME, 0))) {
       testHarness.open();
 
@@ -114,7 +114,7 @@ class TestDataFileRewriteExecutor extends OperatorTestBase {
       assertThat(planned).hasSize(1);
 
       testHarness.processElement(planned.get(0), System.currentTimeMillis());
-      List<DataFileRewriteExecutor.ExecutedGroup> actual = testHarness.extractOutputValues();
+      List<DataFileRewriteRunner.ExecutedGroup> actual = testHarness.extractOutputValues();
       assertThat(actual).hasSize(1);
       assertRewriteFileGroup(
           actual.get(0),
@@ -163,7 +163,7 @@ class TestDataFileRewriteExecutor extends OperatorTestBase {
       assertThat(planned).hasSize(2);
       DataFileRewritePlanner.PlannedGroup oldCompact = planned.get(0);
       DataFileRewritePlanner.PlannedGroup newCompact = planned.get(1);
-      if (oldCompact.group().numFiles() == 2) {
+      if (oldCompact.group().inputFileNum() == 2) {
         newCompact = planned.get(0);
         oldCompact = planned.get(1);
       }
@@ -202,10 +202,10 @@ class TestDataFileRewriteExecutor extends OperatorTestBase {
     insert(table, 2, "b");
 
     try (OneInputStreamOperatorTestHarness<
-            DataFileRewritePlanner.PlannedGroup, DataFileRewriteExecutor.ExecutedGroup>
+            DataFileRewritePlanner.PlannedGroup, DataFileRewriteRunner.ExecutedGroup>
         testHarness =
             ProcessFunctionTestHarnesses.forProcessFunction(
-                new DataFileRewriteExecutor(
+                new DataFileRewriteRunner(
                     OperatorTestBase.DUMMY_TABLE_NAME, OperatorTestBase.DUMMY_TABLE_NAME, 0))) {
       testHarness.open();
 
@@ -236,7 +236,7 @@ class TestDataFileRewriteExecutor extends OperatorTestBase {
     List<DataFileRewritePlanner.PlannedGroup> planned = planDataFileRewrite(tableLoader());
     assertThat(planned).hasSize(1);
 
-    List<DataFileRewriteExecutor.ExecutedGroup> actual = executeRewrite(planned);
+    List<DataFileRewriteRunner.ExecutedGroup> actual = executeRewrite(planned);
     assertThat(actual).hasSize(1);
 
     assertRewriteFileGroup(
@@ -268,8 +268,8 @@ class TestDataFileRewriteExecutor extends OperatorTestBase {
 
     // Second run with limit
     long limit =
-        planWithNoLimit.get(0).group().fileScans().get(0).sizeBytes()
-            + planWithNoLimit.get(0).group().fileScans().get(1).sizeBytes();
+        planWithNoLimit.get(0).group().fileScanTasks().get(0).sizeBytes()
+            + planWithNoLimit.get(0).group().fileScanTasks().get(1).sizeBytes();
     List<DataFileRewritePlanner.PlannedGroup> planned;
     try (OneInputStreamOperatorTestHarness<Trigger, DataFileRewritePlanner.PlannedGroup>
         testHarness =
@@ -292,7 +292,7 @@ class TestDataFileRewriteExecutor extends OperatorTestBase {
       assertThat(planned).hasSize(1);
     }
 
-    List<DataFileRewriteExecutor.ExecutedGroup> actual = executeRewrite(planned);
+    List<DataFileRewriteRunner.ExecutedGroup> actual = executeRewrite(planned);
     assertThat(actual).hasSize(1);
 
     assertRewriteFileGroup(
@@ -304,7 +304,7 @@ class TestDataFileRewriteExecutor extends OperatorTestBase {
   }
 
   void assertRewriteFileGroup(
-      DataFileRewriteExecutor.ExecutedGroup actual,
+      DataFileRewriteRunner.ExecutedGroup actual,
       Table table,
       Collection<Record> records,
       int expectedFileNum,

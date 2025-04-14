@@ -54,9 +54,9 @@ import org.slf4j.LoggerFactory;
  * TaskWriterFactory}. The output is an {@link ExecutedGroup}.
  */
 @Internal
-public class DataFileRewriteExecutor
-    extends ProcessFunction<PlannedGroup, DataFileRewriteExecutor.ExecutedGroup> {
-  private static final Logger LOG = LoggerFactory.getLogger(DataFileRewriteExecutor.class);
+public class DataFileRewriteRunner
+    extends ProcessFunction<PlannedGroup, DataFileRewriteRunner.ExecutedGroup> {
+  private static final Logger LOG = LoggerFactory.getLogger(DataFileRewriteRunner.class);
 
   private final String tableName;
   private final String taskName;
@@ -66,7 +66,7 @@ public class DataFileRewriteExecutor
   private transient int attemptId;
   private transient Counter errorCounter;
 
-  public DataFileRewriteExecutor(String tableName, String taskName, int taskIndex) {
+  public DataFileRewriteRunner(String tableName, String taskName, int taskIndex) {
     Preconditions.checkNotNull(tableName, "Table name should no be null");
     Preconditions.checkNotNull(taskName, "Task name should no be null");
     this.tableName = tableName;
@@ -178,7 +178,7 @@ public class DataFileRewriteExecutor
         new RowDataTaskWriterFactory(
             value.table(),
             FlinkSchemaUtil.convert(value.table().schema()),
-            value.splitSize(),
+            value.group().inputSplitSize(),
             FileFormat.fromString(formatString),
             value.table().properties(),
             null,
@@ -197,7 +197,7 @@ public class DataFileRewriteExecutor
             Collections.emptyList());
     return new DataIterator<>(
         reader,
-        new BaseCombinedScanTask(value.group().fileScans()),
+        new BaseCombinedScanTask(value.group().fileScanTasks()),
         value.table().io(),
         value.table().encryption());
   }

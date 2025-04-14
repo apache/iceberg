@@ -22,11 +22,11 @@ import java.util.Map;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
-import org.apache.iceberg.actions.SizeBasedDataRewriter;
-import org.apache.iceberg.actions.SizeBasedFileRewriter;
+import org.apache.iceberg.actions.BinPackRewriteFilePlanner;
+import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewriteCommitter;
-import org.apache.iceberg.flink.maintenance.operator.DataFileRewriteExecutor;
 import org.apache.iceberg.flink.maintenance.operator.DataFileRewritePlanner;
+import org.apache.iceberg.flink.maintenance.operator.DataFileRewriteRunner;
 import org.apache.iceberg.flink.maintenance.operator.TaskResultAggregator;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
@@ -95,54 +95,55 @@ public class RewriteDataFiles {
      */
     public Builder targetFileSizeBytes(long targetFileSizeBytes) {
       this.rewriteOptions.put(
-          SizeBasedFileRewriter.TARGET_FILE_SIZE_BYTES, String.valueOf(targetFileSizeBytes));
+          SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES, String.valueOf(targetFileSizeBytes));
       return this;
     }
 
     /**
      * Configures the min file size considered for rewriting. For more details description see
-     * {@link SizeBasedFileRewriter#MIN_FILE_SIZE_BYTES}.
+     * {@link SizeBasedFileRewritePlanner#MIN_FILE_SIZE_BYTES}.
      *
      * @param minFileSizeBytes min file size
      */
     public Builder minFileSizeBytes(long minFileSizeBytes) {
       this.rewriteOptions.put(
-          SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES, String.valueOf(minFileSizeBytes));
+          SizeBasedFileRewritePlanner.MIN_FILE_SIZE_BYTES, String.valueOf(minFileSizeBytes));
       return this;
     }
 
     /**
      * Configures the max file size considered for rewriting. For more details description see
-     * {@link SizeBasedFileRewriter#MAX_FILE_SIZE_BYTES}.
+     * {@link SizeBasedFileRewritePlanner#MAX_FILE_SIZE_BYTES}.
      *
      * @param maxFileSizeBytes max file size
      */
     public Builder maxFileSizeBytes(long maxFileSizeBytes) {
       this.rewriteOptions.put(
-          SizeBasedFileRewriter.MAX_FILE_SIZE_BYTES, String.valueOf(maxFileSizeBytes));
+          SizeBasedFileRewritePlanner.MAX_FILE_SIZE_BYTES, String.valueOf(maxFileSizeBytes));
       return this;
     }
 
     /**
      * Configures the minimum file number after a rewrite is always initiated. For more details
-     * description see {@link SizeBasedFileRewriter#MIN_INPUT_FILES}.
+     * description see {@link SizeBasedFileRewritePlanner#MIN_INPUT_FILES}.
      *
      * @param minInputFiles min file number
      */
     public Builder minInputFiles(int minInputFiles) {
-      this.rewriteOptions.put(SizeBasedFileRewriter.MIN_INPUT_FILES, String.valueOf(minInputFiles));
+      this.rewriteOptions.put(
+          SizeBasedFileRewritePlanner.MIN_INPUT_FILES, String.valueOf(minInputFiles));
       return this;
     }
 
     /**
      * Configures the minimum delete file number for a file after a rewrite is always initiated. For
-     * more details description see {@link SizeBasedDataRewriter#DELETE_FILE_THRESHOLD}.
+     * more details description see {@link BinPackRewriteFilePlanner#DELETE_FILE_THRESHOLD}.
      *
      * @param deleteFileThreshold min delete file number
      */
     public Builder deleteFileThreshold(int deleteFileThreshold) {
       this.rewriteOptions.put(
-          SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, String.valueOf(deleteFileThreshold));
+          BinPackRewriteFilePlanner.DELETE_FILE_THRESHOLD, String.valueOf(deleteFileThreshold));
       return this;
     }
 
@@ -152,19 +153,20 @@ public class RewriteDataFiles {
      * @param rewriteAll enables a full rewrite
      */
     public Builder rewriteAll(boolean rewriteAll) {
-      this.rewriteOptions.put(SizeBasedFileRewriter.REWRITE_ALL, String.valueOf(rewriteAll));
+      this.rewriteOptions.put(SizeBasedFileRewritePlanner.REWRITE_ALL, String.valueOf(rewriteAll));
       return this;
     }
 
     /**
      * Configures the group size for rewriting. For more details description see {@link
-     * SizeBasedDataRewriter#MAX_FILE_GROUP_SIZE_BYTES}.
+     * SizeBasedFileRewritePlanner#MAX_FILE_GROUP_SIZE_BYTES}.
      *
      * @param maxFileGroupSizeBytes file group size for rewrite
      */
     public Builder maxFileGroupSizeBytes(long maxFileGroupSizeBytes) {
       this.rewriteOptions.put(
-          SizeBasedFileRewriter.MAX_FILE_GROUP_SIZE_BYTES, String.valueOf(maxFileGroupSizeBytes));
+          SizeBasedFileRewritePlanner.MAX_FILE_GROUP_SIZE_BYTES,
+          String.valueOf(maxFileGroupSizeBytes));
       return this;
     }
 
@@ -194,10 +196,10 @@ public class RewriteDataFiles {
               .slotSharingGroup(slotSharingGroup())
               .forceNonParallel();
 
-      SingleOutputStreamOperator<DataFileRewriteExecutor.ExecutedGroup> rewritten =
+      SingleOutputStreamOperator<DataFileRewriteRunner.ExecutedGroup> rewritten =
           planned
               .rebalance()
-              .process(new DataFileRewriteExecutor(tableName(), taskName(), index()))
+              .process(new DataFileRewriteRunner(tableName(), taskName(), index()))
               .name(operatorName(REWRITE_TASK_NAME))
               .uid(REWRITE_TASK_NAME + uidSuffix())
               .slotSharingGroup(slotSharingGroup())

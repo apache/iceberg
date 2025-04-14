@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-import static org.apache.iceberg.actions.SizeBasedFileRewriter.MIN_INPUT_FILES;
+import static org.apache.iceberg.actions.SizeBasedFileRewritePlanner.MIN_INPUT_FILES;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
@@ -57,13 +57,13 @@ class RewriteUtil {
     }
   }
 
-  static List<DataFileRewriteExecutor.ExecutedGroup> executeRewrite(
+  static List<DataFileRewriteRunner.ExecutedGroup> executeRewrite(
       List<DataFileRewritePlanner.PlannedGroup> elements) throws Exception {
     try (OneInputStreamOperatorTestHarness<
-            DataFileRewritePlanner.PlannedGroup, DataFileRewriteExecutor.ExecutedGroup>
+            DataFileRewritePlanner.PlannedGroup, DataFileRewriteRunner.ExecutedGroup>
         testHarness =
             ProcessFunctionTestHarnesses.forProcessFunction(
-                new DataFileRewriteExecutor(
+                new DataFileRewriteRunner(
                     OperatorTestBase.DUMMY_TABLE_NAME, OperatorTestBase.DUMMY_TABLE_NAME, 0))) {
       testHarness.open();
 

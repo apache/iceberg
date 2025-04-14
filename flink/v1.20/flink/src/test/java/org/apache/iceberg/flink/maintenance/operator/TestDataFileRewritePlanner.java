@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-import static org.apache.iceberg.actions.SizeBasedFileRewriter.MIN_INPUT_FILES;
+import static org.apache.iceberg.actions.SizeBasedFileRewritePlanner.MIN_INPUT_FILES;
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.newDataFiles;
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.planDataFileRewrite;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -130,7 +130,7 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
     List<DataFileRewritePlanner.PlannedGroup> actual = planDataFileRewrite(tableLoader());
 
     assertThat(actual).hasSize(1);
-    List<FileScanTask> tasks = actual.get(0).group().fileScans();
+    List<FileScanTask> tasks = actual.get(0).group().fileScanTasks();
     assertThat(tasks).hasSize(2);
     // Find the task with the deletes
     FileScanTask withDelete = tasks.get(0).deletes().isEmpty() ? tasks.get(1) : tasks.get(0);
@@ -158,8 +158,8 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
 
     // Second run with limit
     long limit =
-        planWithNoLimit.get(0).group().fileScans().get(0).sizeBytes()
-            + planWithNoLimit.get(1).group().fileScans().get(0).sizeBytes()
+        planWithNoLimit.get(0).group().fileScanTasks().get(0).sizeBytes()
+            + planWithNoLimit.get(1).group().fileScanTasks().get(0).sizeBytes()
             + 1;
     try (OneInputStreamOperatorTestHarness<Trigger, DataFileRewritePlanner.PlannedGroup>
         testHarness =
@@ -188,7 +188,7 @@ class TestDataFileRewritePlanner extends OperatorTestBase {
         .isEqualTo(table.currentSnapshot().snapshotId());
     assertThat(actual.groupsPerCommit()).isEqualTo(1);
     assertThat(
-            actual.group().fileScans().stream()
+            actual.group().fileScanTasks().stream()
                 .map(s -> s.file().location())
                 .collect(Collectors.toSet()))
         .isEqualTo(files.stream().map(ContentFile::location).collect(Collectors.toSet()));

@@ -44,10 +44,10 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
 
     List<DataFileRewritePlanner.PlannedGroup> planned = planDataFileRewrite(tableLoader());
     assertThat(planned).hasSize(1);
-    List<DataFileRewriteExecutor.ExecutedGroup> rewritten = executeRewrite(planned);
+    List<DataFileRewriteRunner.ExecutedGroup> rewritten = executeRewrite(planned);
     assertThat(rewritten).hasSize(1);
 
-    try (OneInputStreamOperatorTestHarness<DataFileRewriteExecutor.ExecutedGroup, Trigger>
+    try (OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, Trigger>
         testHarness = harness()) {
       testHarness.open();
 
@@ -72,12 +72,12 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
 
     List<DataFileRewritePlanner.PlannedGroup> planned = planDataFileRewrite(tableLoader());
     assertThat(planned).hasSize(2);
-    List<DataFileRewriteExecutor.ExecutedGroup> rewritten = executeRewrite(planned);
+    List<DataFileRewriteRunner.ExecutedGroup> rewritten = executeRewrite(planned);
     assertThat(rewritten).hasSize(2);
     assertThat(rewritten.get(0).groupsPerCommit()).isEqualTo(1);
     assertThat(rewritten.get(1).groupsPerCommit()).isEqualTo(1);
 
-    try (OneInputStreamOperatorTestHarness<DataFileRewriteExecutor.ExecutedGroup, Trigger>
+    try (OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, Trigger>
         testHarness = harness()) {
       testHarness.open();
 
@@ -110,10 +110,10 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
 
     List<DataFileRewritePlanner.PlannedGroup> planned = planDataFileRewrite(tableLoader());
     assertThat(planned).hasSize(3);
-    List<DataFileRewriteExecutor.ExecutedGroup> rewritten = executeRewrite(planned);
+    List<DataFileRewriteRunner.ExecutedGroup> rewritten = executeRewrite(planned);
     assertThat(rewritten).hasSize(3);
 
-    try (OneInputStreamOperatorTestHarness<DataFileRewriteExecutor.ExecutedGroup, Trigger>
+    try (OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, Trigger>
         testHarness = harness()) {
       testHarness.open();
 
@@ -155,10 +155,10 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
 
     List<DataFileRewritePlanner.PlannedGroup> planned = planDataFileRewrite(tableLoader());
     assertThat(planned).hasSize(4);
-    List<DataFileRewriteExecutor.ExecutedGroup> rewritten = executeRewrite(planned);
+    List<DataFileRewriteRunner.ExecutedGroup> rewritten = executeRewrite(planned);
     assertThat(rewritten).hasSize(4);
 
-    try (OneInputStreamOperatorTestHarness<DataFileRewriteExecutor.ExecutedGroup, Trigger>
+    try (OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, Trigger>
         testHarness = harness()) {
       testHarness.open();
 
@@ -166,7 +166,7 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
       assertNoChange(table);
       assertThat(testHarness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNull();
 
-      DataFileRewriteExecutor.ExecutedGroup group = spy(updateBatchSize(rewritten.get(1)));
+      DataFileRewriteRunner.ExecutedGroup group = spy(updateBatchSize(rewritten.get(1)));
       when(group.group()).thenThrow(new RuntimeException("Testing error"));
       testHarness.processElement(group, EVENT_TIME);
 
@@ -183,8 +183,8 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
     }
   }
 
-  private OneInputStreamOperatorTestHarness<DataFileRewriteExecutor.ExecutedGroup, Trigger>
-      harness() throws Exception {
+  private OneInputStreamOperatorTestHarness<DataFileRewriteRunner.ExecutedGroup, Trigger> harness()
+      throws Exception {
     return new OneInputStreamOperatorTestHarness<>(
         new DataFileRewriteCommitter(
             OperatorTestBase.DUMMY_TABLE_NAME,
@@ -193,9 +193,9 @@ class TestDataFileRewriteCommitter extends OperatorTestBase {
             tableLoader()));
   }
 
-  private static DataFileRewriteExecutor.ExecutedGroup updateBatchSize(
-      DataFileRewriteExecutor.ExecutedGroup from) {
-    return new DataFileRewriteExecutor.ExecutedGroup(from.snapshotId(), 2, from.group());
+  private static DataFileRewriteRunner.ExecutedGroup updateBatchSize(
+      DataFileRewriteRunner.ExecutedGroup from) {
+    return new DataFileRewriteRunner.ExecutedGroup(from.snapshotId(), 2, from.group());
   }
 
   private static void assertDataFiles(

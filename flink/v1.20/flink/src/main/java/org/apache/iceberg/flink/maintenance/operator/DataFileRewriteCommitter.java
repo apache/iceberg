@@ -41,12 +41,12 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Commits the rewrite changes using {@link RewriteDataFilesCommitManager}. The input is a {@link
- * DataFileRewriteExecutor.ExecutedGroup}. Only {@link Watermark} is emitted which is chained to
+ * DataFileRewriteRunner.ExecutedGroup}. Only {@link Watermark} is emitted which is chained to
  * {@link TaskResultAggregator} input 1.
  */
 @Internal
 public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
-    implements OneInputStreamOperator<DataFileRewriteExecutor.ExecutedGroup, Trigger> {
+    implements OneInputStreamOperator<DataFileRewriteRunner.ExecutedGroup, Trigger> {
   private static final Logger LOG = LoggerFactory.getLogger(DataFileRewriteCommitter.class);
 
   private final String tableName;
@@ -98,8 +98,8 @@ public class DataFileRewriteCommitter extends AbstractStreamOperator<Trigger>
   }
 
   @Override
-  public void processElement(StreamRecord<DataFileRewriteExecutor.ExecutedGroup> streamRecord) {
-    DataFileRewriteExecutor.ExecutedGroup executedGroup = streamRecord.getValue();
+  public void processElement(StreamRecord<DataFileRewriteRunner.ExecutedGroup> streamRecord) {
+    DataFileRewriteRunner.ExecutedGroup executedGroup = streamRecord.getValue();
     try {
       if (commitService == null) {
         FlinkRewriteDataFilesCommitManager commitManager =
