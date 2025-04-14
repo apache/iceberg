@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.sql.Date;
+import java.util.TimeZone;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.sql.AnalysisException;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +40,9 @@ public class TestSparkDaysFunction extends TestBaseWithCatalog {
     assertThat(scalarSql("SELECT system.days(date('2017-12-01'))"))
         .as("Expected to produce 2017-12-01")
         .isEqualTo(Date.valueOf("2017-12-01"));
+    assertThat(scalarSql("SELECT system.day(date('2017-12-01'))"))
+        .as("Expected to produce 2017-12-01")
+        .isEqualTo(Date.valueOf("2017-12-01"));
     assertThat(scalarSql("SELECT system.days(date('1970-01-01'))"))
         .as("Expected to produce 1970-01-01")
         .isEqualTo(Date.valueOf("1970-01-01"));
@@ -51,6 +55,9 @@ public class TestSparkDaysFunction extends TestBaseWithCatalog {
   @TestTemplate
   public void testTimestamps() {
     assertThat(scalarSql("SELECT system.days(TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00')"))
+        .as("Expected to produce 2017-12-01")
+        .isEqualTo(Date.valueOf("2017-12-01"));
+    assertThat(scalarSql("SELECT system.day(TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00')"))
         .as("Expected to produce 2017-12-01")
         .isEqualTo(Date.valueOf("2017-12-01"));
     assertThat(scalarSql("SELECT system.days(TIMESTAMP '1970-01-01 00:00:01.000001 UTC+00:00')"))
@@ -67,6 +74,9 @@ public class TestSparkDaysFunction extends TestBaseWithCatalog {
     assertThat(scalarSql("SELECT system.days(TIMESTAMP_NTZ '2017-12-01 10:12:55.038194 UTC')"))
         .as("Expected to produce 2017-12-01")
         .isEqualTo(Date.valueOf("2017-12-01"));
+    assertThat(scalarSql("SELECT system.day(TIMESTAMP_NTZ '2017-12-01 10:12:55.038194 UTC')"))
+        .as("Expected to produce 2017-12-01")
+        .isEqualTo(Date.valueOf("2017-12-01"));
     assertThat(scalarSql("SELECT system.days(TIMESTAMP_NTZ '1970-01-01 00:00:01.000001 UTC')"))
         .as("Expected to produce 1970-01-01")
         .isEqualTo(Date.valueOf("1970-01-01"));
@@ -77,10 +87,31 @@ public class TestSparkDaysFunction extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testBuiltInDayFunction() {
+    assertThat(scalarSql("SELECT day(date('2017-12-01'))"))
+        .as("Expected to produce 1")
+        .isEqualTo(1);
+    assertThat(scalarSql("SELECT day(date('1969-12-31'))"))
+        .as("Expected to produce 31")
+        .isEqualTo(31);
+    String tz = TimeZone.getDefault().getID();
+    assertThat(scalarSql(String.format("SELECT day(TIMESTAMP '2017-12-01 10:12:55 %s')", tz)))
+        .as("Expected to produce 1")
+        .isEqualTo(1);
+    assertThat(scalarSql("SELECT day(TIMESTAMP_NTZ '1969-12-31 23:59:58.999999')"))
+        .as("Expected to produce 31")
+        .isEqualTo(31);
+  }
+
+  @TestTemplate
   public void testWrongNumberOfArguments() {
     assertThatThrownBy(() -> scalarSql("SELECT system.days()"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith("Function 'days' cannot process input: (): Wrong number of inputs");
+
+    assertThatThrownBy(() -> scalarSql("SELECT system.day()"))
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageStartingWith("Function 'day' cannot process input: (): Wrong number of inputs");
 
     assertThatThrownBy(
             () -> scalarSql("SELECT system.days(date('1969-12-31'), date('1969-12-31'))"))
