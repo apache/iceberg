@@ -2636,11 +2636,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
     Mockito.verify(adapter)
         .execute(
-            reqMatcher(
-                HTTPMethod.HEAD,
-                "v1/namespaces/" + TABLE.namespace() + "/tables/" + TABLE.name(),
-                Map.of(),
-                Map.of()),
+            reqMatcher(HTTPMethod.HEAD, RESOURCE_PATHS.table(TABLE), Map.of(), Map.of()),
             any(),
             any(),
             any());
@@ -2689,10 +2685,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .execute(
             reqMatcher(
-                HTTPMethod.GET,
-                "v1/namespaces/" + TABLE.namespace() + "/tables/" + TABLE.name(),
-                Map.of(),
-                Map.of("snapshots", "all")),
+                HTTPMethod.GET, RESOURCE_PATHS.table(TABLE), Map.of(), Map.of("snapshots", "all")),
             any(),
             any(),
             any());
