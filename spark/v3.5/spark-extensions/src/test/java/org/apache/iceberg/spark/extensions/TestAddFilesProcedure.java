@@ -1120,8 +1120,8 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
     assertThatThrownBy(
             () ->
                 sql(
-                    "CALL %s.system.add_files(table => '%s', source_table => '%s', parallelism => %d)",
-                    catalogName, tableName, sourceTableName, -1))
+                    "CALL %s.system.add_files(table => '%s', source_table => '%s', parallelism => -1)",
+                    catalogName, tableName, sourceTableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Parallelism should be larger than 0");
   }
