@@ -106,8 +106,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   private static final ResourcePaths RESOURCE_PATHS =
       ResourcePaths.forCatalogProperties(Maps.newHashMap());
 
-  private static final TableIdentifier TBL = TableIdentifier.of("ns", "tbl");
-
   @TempDir public Path temp;
 
   private RESTCatalog restCatalog;

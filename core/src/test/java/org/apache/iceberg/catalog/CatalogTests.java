@@ -89,6 +89,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   protected static final Namespace NS = Namespace.of("newdb");
   protected static final TableIdentifier TABLE = TableIdentifier.of(NS, "newtable");
   protected static final TableIdentifier RENAMED_TABLE = TableIdentifier.of(NS, "table_renamed");
+  protected static final TableIdentifier TBL = TableIdentifier.of("ns", "tbl");
 
   // Schema passed to create tables
   protected static final Schema SCHEMA =
@@ -192,8 +193,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     return false;
   }
 
-  protected String baseTableLocation() {
-    return BASE_TABLE_LOCATION;
+  protected String baseTableLocation(TableIdentifier identifier) {
+    return BASE_TABLE_LOCATION + "/" + identifier.namespace() + "/" + identifier.name();
   }
 
   @Test
@@ -663,7 +664,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Table table =
         catalog
             .buildTable(ident, SCHEMA)
-            .withLocation(baseTableLocation() + "/ns/tbl")
+            .withLocation(baseTableLocation(TBL))
             .withPartitionSpec(SPEC)
             .withSortOrder(WRITE_ORDER)
             .withProperties(properties)
@@ -889,7 +890,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     catalog
         .buildTable(ident, schemaWithDefault)
-        .withLocation(baseTableLocation() + "/ns/tbl")
+        .withLocation(baseTableLocation(TBL))
         .withProperty(TableProperties.FORMAT_VERSION, "3")
         .create();
     assertThat(catalog.tableExists(ident)).as("Table should exist").isTrue();
@@ -913,7 +914,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         ImmutableMap.of("user", "someone", "created-at", "2022-02-25T00:38:19");
     catalog
         .buildTable(ident, SCHEMA)
-        .withLocation(baseTableLocation() + "/ns/tbl")
+        .withLocation(baseTableLocation(TBL))
         .withPartitionSpec(SPEC)
         .withSortOrder(WRITE_ORDER)
         .withProperties(properties)
@@ -2010,7 +2011,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Transaction create =
         catalog
             .buildTable(TABLE, SCHEMA)
-            .withLocation(baseTableLocation() + "/" + TABLE.namespace() + "/" + TABLE.name())
+            .withLocation(baseTableLocation(TABLE))
             .withPartitionSpec(SPEC)
             .withSortOrder(WRITE_ORDER)
             .withProperties(properties)
@@ -2088,7 +2089,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     if (!overridesRequestedLocation()) {
       assertThat(table.location())
           .as("Table location should match requested")
-          .isEqualTo(baseTableLocation() + "/" + TABLE.namespace() + "/" + TABLE.name());
+          .isEqualTo(baseTableLocation(TABLE));
     }
     assertFiles(table, FILE_A, anotherFile);
     assertFilePartitionSpec(table, FILE_A, initialSpecId);
@@ -2111,7 +2112,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Transaction create =
         catalog
             .buildTable(TABLE, SCHEMA)
-            .withLocation(baseTableLocation() + "/" + TABLE.namespace() + "/" + TABLE.name())
+            .withLocation(baseTableLocation(TABLE))
             .withPartitionSpec(SPEC)
             .withSortOrder(WRITE_ORDER)
             .withProperties(properties)
@@ -2154,7 +2155,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     if (!overridesRequestedLocation()) {
       assertThat(table.location())
           .as("Table location should match requested")
-          .isEqualTo(baseTableLocation() + "/" + TABLE.namespace() + "/" + TABLE.name());
+          .isEqualTo(baseTableLocation(TABLE));
     }
 
     assertFiles(table, FILE_A);
@@ -2243,7 +2244,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Transaction createOrReplace =
         catalog
             .buildTable(TABLE, SCHEMA)
-            .withLocation(baseTableLocation() + "/" + TABLE.namespace() + "/" + TABLE.name())
+            .withLocation(baseTableLocation(TABLE))
             .withPartitionSpec(SPEC)
             .withSortOrder(WRITE_ORDER)
             .withProperties(properties)
@@ -2280,7 +2281,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     if (!overridesRequestedLocation()) {
       assertThat(table.location())
           .as("Table location should match requested")
-          .isEqualTo(baseTableLocation() + "/" + TABLE.namespace() + "/" + TABLE.name());
+          .isEqualTo(baseTableLocation(TABLE));
     }
 
     assertFiles(table, FILE_A);
@@ -2355,7 +2356,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Transaction createOrReplace =
         catalog
             .buildTable(TABLE, SCHEMA)
-            .withLocation(baseTableLocation() + "/" + TABLE.namespace() + "/" + TABLE.name())
+            .withLocation(baseTableLocation(TABLE))
             .withPartitionSpec(SPEC)
             .withSortOrder(WRITE_ORDER)
             .withProperties(properties)
@@ -2403,7 +2404,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     if (!overridesRequestedLocation()) {
       assertThat(table.location())
           .as("Table location should be replaced")
-          .isEqualTo(baseTableLocation() + "/" + TABLE.namespace() + "/" + TABLE.name());
+          .isEqualTo(baseTableLocation(TABLE));
     }
 
     assertUUIDsMatch(original, loaded);
@@ -2519,7 +2520,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     Transaction replace =
         catalog
             .buildTable(TABLE, SCHEMA)
-            .withLocation(baseTableLocation() + "/" + TABLE.namespace() + "/" + TABLE.name())
+            .withLocation(baseTableLocation(TABLE))
             .withPartitionSpec(SPEC)
             .withSortOrder(WRITE_ORDER)
             .withProperties(properties)
@@ -2569,7 +2570,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     if (!overridesRequestedLocation()) {
       assertThat(table.location())
           .as("Table location should be replaced")
-          .isEqualTo(baseTableLocation() + "/" + TABLE.namespace() + "/" + TABLE.name());
+          .isEqualTo(baseTableLocation(TABLE));
     }
 
     assertUUIDsMatch(original, loaded);
