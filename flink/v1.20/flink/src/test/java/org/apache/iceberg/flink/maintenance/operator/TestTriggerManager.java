@@ -62,8 +62,8 @@ class TestTriggerManager extends OperatorTestBase {
     Table table = createTable();
     this.lock = LOCK_FACTORY.createLock();
     this.recoveringLock = LOCK_FACTORY.createRecoveryLock();
-    this.lock.unlock();
-    this.recoveringLock.unlock();
+    lock.unlock();
+    recoveringLock.unlock();
     this.tableName = table.name();
   }
 
