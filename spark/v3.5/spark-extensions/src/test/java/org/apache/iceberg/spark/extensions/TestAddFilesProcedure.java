@@ -1111,7 +1111,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testMigrateWithInvalidParallelism() throws IOException {
+  public void testAddFilesWithInvalidParallelism() {
     createUnpartitionedHiveTable();
 
     createIcebergTable(
