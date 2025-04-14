@@ -1457,15 +1457,15 @@ Each sort field in the fields list is stored as an object with the following pro
 
 | V1       | V2       | V3       | Field            | JSON representation | Example     |
 |----------|----------|----------|------------------|---------------------|-------------|
-| required | required | required¹ | **`transform`**  | `JSON string`       | `bucket[4]` |
-| required | required | required¹ | **`source-id`**  | `JSON int`          | 1           |
+| required | required | optional | **`transform`**  | `JSON string`       | `bucket[4]` |
+| required | required | optional | **`source-id`**  | `JSON int`          | 1           |
 |          |          | required | **`source-ids`** | `JSON list of ints` | `[1,2]`     |
 | required | required | required | **`direction`**  | `JSON string`       | `asc`       |
 | required | required | required | **`null-order`** | `JSON string`       | `nulls-last`|
 
 Notes:
 
-1. For sort fields with a transform with a single argument, the ID of the source field is set on `source-id`, and `source-ids` is omitted.
+1. For sort fields with a transform with a single argument, only `source-id` is written. In case of a multi-argument transform, only `source-ids` is written.
 
 Older versions of the reference implementation can read tables with transforms unknown to it, ignoring them. But other implementations may break if they encounter unknown transforms. All v3 readers are required to read tables with unknown transforms, ignoring them.
 
