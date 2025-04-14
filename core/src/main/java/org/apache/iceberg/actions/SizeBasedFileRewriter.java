@@ -195,7 +195,7 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
    * of output files. The final split size is adjusted to be at least as big as the target file size
    * but less than the max write file size.
    */
-  public long splitSize(long inputSize) {
+  protected long splitSize(long inputSize) {
     long estimatedSplitSize = (inputSize / numOutputFiles(inputSize)) + SPLIT_OVERHEAD;
     if (estimatedSplitSize < targetFileSize) {
       return targetFileSize;
