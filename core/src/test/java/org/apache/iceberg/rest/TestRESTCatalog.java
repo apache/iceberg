@@ -1203,7 +1203,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       Map<String, String> expectedContextHeaders,
       Map<String, String> expectedTableHeaders,
       String oauth2ServerUri) {
-    TableIdentifier ident = TableIdentifier.of("ns", "tbl");
     Map<String, String> catalogHeaders = ImmutableMap.of("Authorization", "Bearer " + catalogToken);
 
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
@@ -1230,7 +1229,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.doAnswer(addTableConfig)
         .when(adapter)
         .execute(
-            reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(ident), expectedContextHeaders),
+            reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(TBL), expectedContextHeaders),
             eq(LoadTableResponse.class),
             any(),
             any());
