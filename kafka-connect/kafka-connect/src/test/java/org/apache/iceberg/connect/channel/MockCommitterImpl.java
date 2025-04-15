@@ -20,49 +20,28 @@ package org.apache.iceberg.connect.channel;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.Committer;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
-import org.apache.kafka.connect.sink.SinkTaskContext;
 
 public class MockCommitterImpl implements Committer {
   private boolean isWorkerStarted = false;
   private boolean isCoordinatorStarted = false;
-  private List<SinkRecord> records = Lists.newArrayList();
+  private final List<SinkRecord> records = Lists.newArrayList();
 
   @Override
-  public void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
-    throw new UnsupportedOperationException(
-        "The method start(Catalog, IcebergSinkConfig, SinkTaskContext) is deprecated and will be removed in 2.0.0. "
-            + "Use start(Catalog, IcebergSinkConfig, SinkTaskContext, Collection<TopicPartition>) instead.");
-  }
-
-  @Override
-  public void open(
-      Catalog catalog,
-      IcebergSinkConfig config,
-      SinkTaskContext context,
-      Collection<TopicPartition> addedPartitions) {
+  public void open(Collection<TopicPartition> addedPartitions) {
     isCoordinatorStarted =
         addedPartitions.stream().anyMatch(topicPartition -> topicPartition.partition() == 0);
-  }
-
-  @Override
-  public void stop() {
-    throw new UnsupportedOperationException(
-        "The method stop() is deprecated and will be removed in 2.0.0. "
-            + "Use stop(Collection<TopicPartition>) instead.");
   }
 
   @Override
   public void close(Collection<TopicPartition> closedPartitions) {
     isWorkerStarted = false;
     isCoordinatorStarted =
-        !(closedPartitions.stream().anyMatch(topicPartition -> topicPartition.partition() == 0));
+        closedPartitions.stream().noneMatch(topicPartition -> topicPartition.partition() == 0);
   }
 
   @Override
@@ -74,7 +53,7 @@ public class MockCommitterImpl implements Committer {
   }
 
   @Override
-  public void configure(Map<String, String> config) {}
+  public void configure(IcebergSinkConfig config) {}
 
   public boolean isCoordinatorStarted() {
     return isCoordinatorStarted;

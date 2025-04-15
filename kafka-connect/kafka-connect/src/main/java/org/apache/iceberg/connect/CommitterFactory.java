@@ -36,7 +36,7 @@ class CommitterFactory {
     Committer committer;
     try {
       committer = ctor.newInstance();
-
+      committer.configure(config);
     } catch (ClassCastException e) {
       throw new IllegalArgumentException(
           String.format(

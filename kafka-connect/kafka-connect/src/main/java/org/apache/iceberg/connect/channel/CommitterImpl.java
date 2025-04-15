@@ -20,8 +20,10 @@ package org.apache.iceberg.connect.channel;
 
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.connect.CatalogUtils;
 import org.apache.iceberg.connect.Committer;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.data.SinkWriter;
@@ -48,19 +50,6 @@ public class CommitterImpl implements Committer {
   private SinkTaskContext context;
   private KafkaClientFactory clientFactory;
   private Collection<MemberDescription> membersWhenWorkerIsCoordinator;
-  private final AtomicBoolean isInitialized = new AtomicBoolean(false);
-
-  private void initialize(
-      Catalog icebergCatalog,
-      IcebergSinkConfig icebergSinkConfig,
-      SinkTaskContext sinkTaskContext) {
-    if (isInitialized.compareAndSet(false, true)) {
-      this.catalog = icebergCatalog;
-      this.config = icebergSinkConfig;
-      this.context = sinkTaskContext;
-      this.clientFactory = new KafkaClientFactory(config.kafkaProps());
-    }
-  }
 
   static class TopicPartitionComparator implements Comparator<TopicPartition> {
 
@@ -105,33 +94,11 @@ public class CommitterImpl implements Committer {
   }
 
   @Override
-  public void start(
-      Catalog icebergCatalog,
-      IcebergSinkConfig icebergSinkConfig,
-      SinkTaskContext sinkTaskContext) {
-    throw new UnsupportedOperationException(
-        "The method start(Catalog, IcebergSinkConfig, SinkTaskContext) is deprecated and will be removed in 2.0.0. "
-            + "Use start(Catalog, IcebergSinkConfig, SinkTaskContext, Collection<TopicPartition>) instead.");
-  }
-
-  @Override
-  public void open(
-      Catalog icebergCatalog,
-      IcebergSinkConfig icebergSinkConfig,
-      SinkTaskContext sinkTaskContext,
-      Collection<TopicPartition> addedPartitions) {
-    initialize(icebergCatalog, icebergSinkConfig, sinkTaskContext);
+  public void open(Collection<TopicPartition> addedPartitions) {
     if (hasLeaderPartition(addedPartitions)) {
       LOG.info("Committer received leader partition. Starting Coordinator.");
       startCoordinator();
     }
-  }
-
-  @Override
-  public void stop() {
-    throw new UnsupportedOperationException(
-        "The method stop() is deprecated and will be removed in 2.0.0. "
-            + "Use stop(Collection<TopicPartition>) instead.");
   }
 
   @Override
@@ -141,6 +108,20 @@ public class CommitterImpl implements Committer {
       stopCoordinator();
     }
     stopWorker();
+    Set<TopicPartition> oldAssignment = context.assignment().stream().collect(Collectors.toSet());
+    oldAssignment.removeAll(closedPartitions);
+    if (oldAssignment.isEmpty()) {
+      if (catalog != null) {
+        if (catalog instanceof AutoCloseable) {
+          try {
+            ((AutoCloseable) catalog).close();
+          } catch (Exception e) {
+            LOG.warn("An error occurred closing catalog instance, ignoring...", e);
+          }
+        }
+        catalog = null;
+      }
+    }
     KafkaUtils.seekToLastCommittedOffsets(context);
   }
 
@@ -151,6 +132,14 @@ public class CommitterImpl implements Committer {
       worker.save(sinkRecords);
     }
     processControlEvents();
+  }
+
+  @Override
+  public void configure(IcebergSinkConfig icebergSinkConfig) {
+    this.config = icebergSinkConfig;
+    this.context = icebergSinkConfig.context();
+    this.catalog = CatalogUtils.loadCatalog(icebergSinkConfig);
+    this.clientFactory = new KafkaClientFactory(icebergSinkConfig.kafkaProps());
   }
 
   private void processControlEvents() {

@@ -27,7 +27,6 @@ import org.apache.kafka.connect.sink.SinkTask;
 
 public class MockIcebergSinkTask extends SinkTask {
 
-  private IcebergSinkConfig config;
   private Committer committer;
 
   @Override
@@ -37,13 +36,13 @@ public class MockIcebergSinkTask extends SinkTask {
 
   @Override
   public void start(Map<String, String> props) {
-    config = new IcebergSinkConfig(props);
+    IcebergSinkConfig config = new IcebergSinkConfig(props, context);
     committer = CommitterFactory.createCommitter(config);
   }
 
   @Override
   public void open(Collection<TopicPartition> partitions) {
-    committer.open(null, config, context, partitions);
+    committer.open(partitions);
   }
 
   @Override

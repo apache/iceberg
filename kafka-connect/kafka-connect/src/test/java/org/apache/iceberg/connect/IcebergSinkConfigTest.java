@@ -45,7 +45,7 @@ public class IcebergSinkConfigTest {
             "iceberg.catalog.type", "rest",
             "iceberg.tables", "db.landing",
             "iceberg.tables.dynamic-enabled", "true");
-    assertThatThrownBy(() -> new IcebergSinkConfig(props))
+    assertThatThrownBy(() -> new IcebergSinkConfig(props, null))
         .isInstanceOf(ConfigException.class)
         .hasMessage("Cannot specify both static and dynamic table names");
   }
@@ -57,7 +57,7 @@ public class IcebergSinkConfigTest {
             "iceberg.catalog.type", "rest",
             "topics", "source-topic",
             "iceberg.tables", "db.landing");
-    IcebergSinkConfig config = new IcebergSinkConfig(props);
+    IcebergSinkConfig config = new IcebergSinkConfig(props, null);
     assertThat(config.commitIntervalMs()).isEqualTo(300_000);
   }
 
@@ -121,7 +121,7 @@ public class IcebergSinkConfigTest {
             "iceberg.catalog.type", "rest",
             "iceberg.tables", "db.landing",
             "iceberg.committer.impl", "org.apache.iceberg.connect.channel.MockCommitterImpl");
-    IcebergSinkConfig config = new IcebergSinkConfig(props);
+    IcebergSinkConfig config = new IcebergSinkConfig(props, null);
     Committer committer = CommitterFactory.createCommitter(config);
     assertThat(committer).isInstanceOf(MockCommitterImpl.class);
   }
@@ -130,10 +130,13 @@ public class IcebergSinkConfigTest {
   public void testDynamicCommitterImplLoadingWhenCommitterConfigIsAbsent() {
     Map<String, String> props =
         ImmutableMap.of(
-            "topics", "source-topic",
-            "iceberg.catalog.type", "rest",
-            "iceberg.tables", "db.landing");
-    IcebergSinkConfig config = new IcebergSinkConfig(props);
+            "topics",
+            "source-topic",
+            "iceberg.catalog.catalog-impl",
+            CatalogUtilsTest.TestCatalog.class.getName(),
+            "iceberg.tables",
+            "db.landing");
+    IcebergSinkConfig config = new IcebergSinkConfig(props, null);
     Committer committer = CommitterFactory.createCommitter(config);
     assertThat(committer).isInstanceOf(CommitterImpl.class);
   }

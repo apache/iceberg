@@ -41,6 +41,7 @@ import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.connect.json.JsonConverter;
 import org.apache.kafka.connect.json.JsonConverterConfig;
+import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.apache.kafka.connect.storage.ConverterConfig;
 import org.apache.kafka.connect.storage.ConverterType;
 import org.slf4j.Logger;
@@ -250,9 +251,9 @@ public class IcebergSinkConfig extends AbstractConfig {
   private final Map<String, String> writeProps;
   private final Map<String, TableSinkConfig> tableConfigMap = Maps.newHashMap();
   private final JsonConverter jsonConverter;
-  private final Map<String, String> committerConfig;
+  private final SinkTaskContext context;
 
-  public IcebergSinkConfig(Map<String, String> originalProps) {
+  public IcebergSinkConfig(Map<String, String> originalProps, SinkTaskContext context) {
     super(CONFIG_DEF, originalProps);
     this.originalProps = originalProps;
 
@@ -266,9 +267,6 @@ public class IcebergSinkConfig extends AbstractConfig {
         PropertyUtil.propertiesWithPrefix(originalProps, AUTO_CREATE_PROP_PREFIX);
     this.writeProps = PropertyUtil.propertiesWithPrefix(originalProps, WRITE_PROP_PREFIX);
 
-    this.committerConfig =
-        PropertyUtil.propertiesWithPrefix(originalProps, COMMITER_IMPL_CONFIG_PREFIX);
-
     this.jsonConverter = new JsonConverter();
     jsonConverter.configure(
         ImmutableMap.of(
@@ -278,6 +276,8 @@ public class IcebergSinkConfig extends AbstractConfig {
             ConverterType.VALUE.getName()));
 
     validate();
+
+    this.context = context;
   }
 
   private void validate() {
@@ -298,12 +298,12 @@ public class IcebergSinkConfig extends AbstractConfig {
     }
   }
 
-  public String committerImpl() {
-    return getString(COMMITTER_IMPL_CONFIG);
+  public SinkTaskContext context() {
+    return context;
   }
 
-  public Map<String, String> committerConfig() {
-    return committerConfig;
+  public String committerImpl() {
+    return getString(COMMITTER_IMPL_CONFIG);
   }
 
   public String connectorName() {

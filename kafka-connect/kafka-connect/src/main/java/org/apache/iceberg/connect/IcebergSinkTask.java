@@ -20,21 +20,14 @@ package org.apache.iceberg.connect;
 
 import java.util.Collection;
 import java.util.Map;
-import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTask;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class IcebergSinkTask extends SinkTask {
 
-  private static final Logger LOG = LoggerFactory.getLogger(IcebergSinkTask.class);
-
-  private IcebergSinkConfig config;
-  private Catalog catalog;
   private Committer committer;
 
   @Override
@@ -44,15 +37,14 @@ public class IcebergSinkTask extends SinkTask {
 
   @Override
   public void start(Map<String, String> props) {
-    this.config = new IcebergSinkConfig(props);
-    this.catalog = CatalogUtils.loadCatalog(config);
+    IcebergSinkConfig config = new IcebergSinkConfig(props, context);
     this.committer = CommitterFactory.createCommitter(config);
-    this.committer.configure(config.committerConfig());
+    this.committer.configure(config);
   }
 
   @Override
   public void open(Collection<TopicPartition> partitions) {
-    committer.open(catalog, config, context, partitions);
+    committer.open(partitions);
   }
 
   @Override
@@ -64,17 +56,6 @@ public class IcebergSinkTask extends SinkTask {
     if (committer != null) {
       committer.close(context.assignment());
       committer = null;
-    }
-
-    if (catalog != null) {
-      if (catalog instanceof AutoCloseable) {
-        try {
-          ((AutoCloseable) catalog).close();
-        } catch (Exception e) {
-          LOG.warn("An error occurred closing catalog instance, ignoring...", e);
-        }
-      }
-      catalog = null;
     }
   }
 
