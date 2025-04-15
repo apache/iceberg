@@ -1255,29 +1255,29 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             required(2, "data", Types.StringType.get()));
 
     if (requiresNamespaceCreate()) {
-      catalog.createNamespace(TBL.namespace());
+      catalog.createNamespace(ident.namespace());
     }
 
-    Table table = catalog.createTable(TBL, expectedSchema);
+    Table table = catalog.createTable(ident, expectedSchema);
     assertThat(table.schema().asStruct())
         .as("Schema should match")
         .isEqualTo(expectedSchema.asStruct());
 
-    Table loaded = catalog.loadTable(TBL); // the first load will send the token
+    Table loaded = catalog.loadTable(ident); // the first load will send the token
     assertThat(loaded.schema().asStruct())
         .as("Schema should match")
         .isEqualTo(expectedSchema.asStruct());
 
     loaded.refresh(); // refresh to force reload
 
-    verify(adapter)
+    Mockito.verify(adapter)
         .execute(
             reqMatcher(HTTPMethod.GET, "v1/config", catalogHeaders),
             eq(ConfigResponse.class),
             any(),
             any());
     // session client credentials flow
-    verify(adapter)
+    Mockito.verify(adapter)
         .execute(
             reqMatcher(HTTPMethod.POST, oauth2ServerUri, catalogHeaders),
             eq(OAuthTokenResponse.class),
@@ -1285,7 +1285,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
 
     // create table request
-    verify(adapter)
+    Mockito.verify(adapter)
         .execute(
             reqMatcher(HTTPMethod.POST, "v1/namespaces/ns/tables", expectedContextHeaders),
             eq(LoadTableResponse.class),
@@ -1295,7 +1295,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // if the table returned a bearer token or a credential, there will be no token request
     if (!tableConfig.containsKey("token") && !tableConfig.containsKey("credential")) {
       // token exchange to get a table token
-      verify(adapter, times(1))
+      Mockito.verify(adapter, times(1))
           .execute(
               reqMatcher(HTTPMethod.POST, oauth2ServerUri, expectedContextHeaders),
               eq(OAuthTokenResponse.class),
@@ -1305,25 +1305,25 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     if (expectedContextHeaders.equals(expectedTableHeaders)) {
       // load table from catalog + refresh loaded table
-      verify(adapter, times(2))
+      Mockito.verify(adapter, times(2))
           .execute(
-              reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(TBL), expectedTableHeaders),
+              reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(ident), expectedTableHeaders),
               eq(LoadTableResponse.class),
               any(),
               any());
     } else {
       // load table from catalog
-      verify(adapter)
+      Mockito.verify(adapter)
           .execute(
-              reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(TBL), expectedContextHeaders),
+              reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(ident), expectedContextHeaders),
               eq(LoadTableResponse.class),
               any(),
               any());
 
       // refresh loaded table
-      verify(adapter)
+      Mockito.verify(adapter)
           .execute(
-              reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(TBL), expectedTableHeaders),
+              reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(ident), expectedTableHeaders),
               eq(LoadTableResponse.class),
               any(),
               any());
