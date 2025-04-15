@@ -160,6 +160,11 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     }
   }
 
+  @Override
+  protected boolean validateToIdentifier() {
+    return true;
+  }
+
   @ParameterizedTest
   @ValueSource(ints = {21, 30})
   public void testPaginationForListViews(int numberOfItems) {
