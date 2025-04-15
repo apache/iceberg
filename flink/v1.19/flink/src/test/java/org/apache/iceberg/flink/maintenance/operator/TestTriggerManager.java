@@ -59,6 +59,7 @@ class TestTriggerManager extends OperatorTestBase {
 
   @BeforeEach
   void before() {
+    super.before();
     Table table = createTable();
     this.lock = LOCK_FACTORY.createLock();
     this.recoveringLock = LOCK_FACTORY.createRecoveryLock();
