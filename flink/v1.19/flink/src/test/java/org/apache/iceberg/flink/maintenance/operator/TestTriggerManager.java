@@ -292,6 +292,24 @@ class TestTriggerManager extends OperatorTestBase {
   }
 
   @Test
+  void testNewJobReleasesExistingLock() throws Exception {
+    // Lock first to mock previous job orphaned lock
+    lock.tryLock();
+    recoveringLock.tryLock();
+
+    TableLoader tableLoader = tableLoader();
+    TriggerManager manager = manager(tableLoader);
+    try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
+        harness(manager)) {
+      testHarness.open();
+
+      // Check the new job weather remove the orphaned lock
+      assertThat(lock.isHeld()).isFalse();
+      assertThat(recoveringLock.isHeld()).isFalse();
+    }
+  }
+
+  @Test
   void testMinFireDelay() throws Exception {
     TableLoader tableLoader = tableLoader();
     TriggerManager manager = manager(tableLoader, DELAY, 1);
