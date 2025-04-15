@@ -1255,15 +1255,15 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             required(2, "data", Types.StringType.get()));
 
     if (requiresNamespaceCreate()) {
-      catalog.createNamespace(ident.namespace());
+      catalog.createNamespace(TBL.namespace());
     }
 
-    Table table = catalog.createTable(ident, expectedSchema);
+    Table table = catalog.createTable(TBL, expectedSchema);
     assertThat(table.schema().asStruct())
         .as("Schema should match")
         .isEqualTo(expectedSchema.asStruct());
 
-    Table loaded = catalog.loadTable(ident); // the first load will send the token
+    Table loaded = catalog.loadTable(TBL); // the first load will send the token
     assertThat(loaded.schema().asStruct())
         .as("Schema should match")
         .isEqualTo(expectedSchema.asStruct());
@@ -1307,7 +1307,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       // load table from catalog + refresh loaded table
       Mockito.verify(adapter, times(2))
           .execute(
-              reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(ident), expectedTableHeaders),
+              reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(TBL), expectedTableHeaders),
               eq(LoadTableResponse.class),
               any(),
               any());
@@ -1315,7 +1315,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       // load table from catalog
       Mockito.verify(adapter)
           .execute(
-              reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(ident), expectedContextHeaders),
+              reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(TBL), expectedContextHeaders),
               eq(LoadTableResponse.class),
               any(),
               any());
@@ -1323,7 +1323,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       // refresh loaded table
       Mockito.verify(adapter)
           .execute(
-              reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(ident), expectedTableHeaders),
+              reqMatcher(HTTPMethod.GET, RESOURCE_PATHS.table(TBL), expectedTableHeaders),
               eq(LoadTableResponse.class),
               any(),
               any());
