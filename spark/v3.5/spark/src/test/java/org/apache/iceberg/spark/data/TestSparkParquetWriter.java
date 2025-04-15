@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX;
-import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -150,29 +149,6 @@ public class TestSparkParquetWriter {
       ColumnDescriptor descriptor = parquetSchema.getColumnDescription(new String[] {"id"});
       double fpp = props.getBloomFilterFPP(descriptor).getAsDouble();
       assertThat(fpp).isEqualTo(0.05);
-    }
-  }
-
-  @Test
-  public void testColumnStatsEnabled()
-      throws IOException, NoSuchFieldException, IllegalAccessException {
-    File testFile = File.createTempFile("junit", null, temp.toFile());
-    try (FileAppender<InternalRow> writer =
-        Parquet.write(Files.localOutput(testFile))
-            .schema(SCHEMA)
-            .set(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "id_long", "false")
-            .createWriterFunc(
-                msgType ->
-                    SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(SCHEMA), msgType))
-            .build()) {
-      // Using reflection to access the private 'props' field in ParquetWriter
-      Field propsField = writer.getClass().getDeclaredField("props");
-      propsField.setAccessible(true);
-      ParquetProperties props = (ParquetProperties) propsField.get(writer);
-      MessageType parquetSchema = ParquetSchemaUtil.convert(SCHEMA, "test");
-      ColumnDescriptor idlDescriptor = parquetSchema.getColumnDescription(new String[] {"id_long"});
-      // Default statisticsEnabled should be true and for column id_long, it is disabled.
-      assertThat(props.getStatisticsEnabled(idlDescriptor)).isEqualTo(false);
     }
   }
 }

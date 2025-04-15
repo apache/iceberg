@@ -444,8 +444,8 @@ public class Parquet {
                 .withDictionaryPageSize(dictionaryPageSize)
                 .withMinRowCountForPageSizeCheck(rowGroupCheckMinRecordCount)
                 .withMaxRowCountForPageSizeCheck(rowGroupCheckMaxRecordCount)
-                .withMaxBloomFilterBytes(bloomFilterMaxBytes);
-        propsBuilder.withStatisticsEnabled(defaultColumnStatsEnabled);
+                .withMaxBloomFilterBytes(bloomFilterMaxBytes)
+                .withStatisticsEnabled(defaultColumnStatsEnabled);
 
         setBloomFilterConfig(
             context,
