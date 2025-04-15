@@ -594,7 +594,7 @@ class TestTriggerManager extends OperatorTestBase {
 
   private static Stream<Arguments> parametersForTestRecovery() {
     return Stream.of(
-        Arguments.of(true, false),
+        Arguments.of(true, true),
         Arguments.of(true, false),
         Arguments.of(false, true),
         Arguments.of(false, false));
