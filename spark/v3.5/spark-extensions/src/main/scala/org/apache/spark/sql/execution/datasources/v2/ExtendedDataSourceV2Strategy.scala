@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.iceberg.MetadataColumns
 import org.apache.iceberg.spark.Spark3Util
 import org.apache.iceberg.spark.SparkCatalog
 import org.apache.iceberg.spark.SparkSessionCatalog
@@ -43,6 +44,7 @@ import org.apache.spark.sql.catalyst.plans.logical.DropTag
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.OrderAwareCoalesce
 import org.apache.spark.sql.catalyst.plans.logical.RenameTable
+import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetViewProperties
@@ -50,6 +52,7 @@ import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrderi
 import org.apache.spark.sql.catalyst.plans.logical.ShowCreateTable
 import org.apache.spark.sql.catalyst.plans.logical.ShowTableProperties
 import org.apache.spark.sql.catalyst.plans.logical.UnsetViewProperties
+import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
 import org.apache.spark.sql.catalyst.plans.logical.views.CreateIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.DropIcebergView
 import org.apache.spark.sql.catalyst.plans.logical.views.ResolvedV2View

@@ -46,6 +46,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
 
     // optimizer extensions
     extensions.injectOptimizerRule { _ => ReplaceStaticInvoke }
+    extensions.injectOptimizerRule { _ => RemoveRowLineageOutputFromOriginalTable}
 
     // planner extensions
     extensions.injectPlannerStrategy { spark => ExtendedDataSourceV2Strategy(spark) }

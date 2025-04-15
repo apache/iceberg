@@ -25,8 +25,9 @@ import org.apache.spark.sql.catalyst.plans.logical.Assignment
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.MergeIntoTable
 import org.apache.spark.sql.catalyst.plans.logical.UpdateAction
+import org.apache.spark.sql.catalyst.util.METADATA_COL_ATTR_KEY
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
-import org.apache.spark.sql.types.Metadata
+import org.apache.spark.sql.types.MetadataBuilder
 
 object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage {
 
@@ -68,7 +69,6 @@ object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage 
           case p => p
         }
 
-
         val updatedNotMatchedBySourceActions = notMatchedBySourceActions.map {
           case UpdateAction(cond, actions) => {
             UpdateAction(cond, actions ++ Seq(Assignment(rowId, rowId),
@@ -78,14 +78,23 @@ object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage 
           case p => p
         }
 
-        val rowLineageAsDataColumns = rowLineageAttributes.map(_.asInstanceOf[AttributeReference]).map {
-          attr => attr.withMetadata(Metadata.empty)
+        // Treat row lineage columns as data columns by removing the metadata attribute
+        // This works around the logic in
+        // ExposesMetadataColumns, used later in metadata attribute resolution,
+        // which prevents surfacing other metadata columns when a single metadata column is in the output
+        val rowLineageAsDataColumns = rowLineageAttributes
+          .map(_.asInstanceOf[AttributeReference]).map {
+          attr => attr.withMetadata(
+            new MetadataBuilder()
+              .withMetadata(attr.metadata)
+              .remove(METADATA_COL_ATTR_KEY).build())
         }
 
         val updatedTableWithLineage = r.copy(output =
           r.output ++ rowLineageAsDataColumns)
 
-        mergeIntoTable.copy(targetTable = updatedTableWithLineage,
+        mergeIntoTable.copy(
+          targetTable = updatedTableWithLineage,
           matchedActions = updatedMatchedAssignments,
           notMatchedBySourceActions = updatedNotMatchedBySourceActions)
       }
