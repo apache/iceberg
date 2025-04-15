@@ -292,7 +292,7 @@ class TestTriggerManager extends OperatorTestBase {
   }
 
   @Test
-  void testNewJobReleasesPreviousJobHoldLock() throws Exception {
+  void testNewJobReleasesExistingLock() throws Exception {
     // Lock first to mock previous job orphaned lock
     lock.tryLock();
     recoveringLock.tryLock();
