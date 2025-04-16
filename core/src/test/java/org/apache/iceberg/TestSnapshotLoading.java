@@ -187,8 +187,7 @@ public class TestSnapshotLoading extends TestBase {
 
   @TestTemplate
   public void testBuildingNewMetadataTriggersSnapshotLoad() {
-    TableMetadata newTableMetadata =
-        TableMetadata.buildFrom(latestTableMetadata).removeRef(SnapshotRef.MAIN_BRANCH).build();
+    TableMetadata.buildFrom(latestTableMetadata).removeRef(SnapshotRef.MAIN_BRANCH).build();
 
     verify(snapshotsSupplierMock, times(1)).get();
   }
