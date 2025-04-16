@@ -49,6 +49,7 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
 
   private final InputFile inputFile;
   private final Optional<Expression> filterPredicate;
+  private final long[] rowRange;
   private final Function<DType, VortexRowReader<T>> rowReaderFunc;
   private final Function<DType, VortexBatchReader<T>> batchReaderFunction;
   private final List<String> projection;
@@ -57,12 +58,14 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
       InputFile inputFile,
       Schema icebergSchema,
       Optional<Expression> filterPredicate,
+      long[] rowRange,
       Function<DType, VortexRowReader<T>> readerFunction,
       Function<DType, VortexBatchReader<T>> batchReaderFunction) {
     this.inputFile = inputFile;
     // We have the file schema, we need to assign Iceberg IDs to the entire file schema
     this.projection = Lists.transform(icebergSchema.columns(), Types.NestedField::name);
     this.filterPredicate = filterPredicate;
+    this.rowRange = rowRange;
     this.rowReaderFunc = readerFunction;
     this.batchReaderFunction = batchReaderFunction;
   }
@@ -80,19 +83,25 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
               return ConvertFilterToVortex.convert(fileSchema, icebergExpression);
             });
 
+    Optional<long[]> rowRange = Optional.ofNullable(this.rowRange);
+
     ArrayStream batchStream =
         vortexFile.newScan(
-            ScanOptions.builder().addAllColumns(projection).predicate(scanPredicate).build());
+            ScanOptions.builder()
+                .addAllColumns(projection)
+                .predicate(scanPredicate)
+                .rowRange(rowRange)
+                .build());
     Preconditions.checkNotNull(batchStream, "batchStream");
 
+    DType dtype = batchStream.getDataType();
+    CloseableIterator<Array> batchIterator = CloseableIterator.withClose(batchStream);
+
     if (rowReaderFunc != null) {
-      VortexRowReader<T> rowFunction = rowReaderFunc.apply(batchStream.getDataType());
-      return new VortexRowIterator<>(batchStream, rowFunction);
+      VortexRowReader<T> rowFunction = rowReaderFunc.apply(dtype);
+      return new VortexRowIterator<>(batchIterator, rowFunction);
     } else {
-      VortexBatchReader<T> batchTransform = batchReaderFunction.apply(batchStream.getDataType());
-      PrefetchingIterator<Array> iter =
-          new PrefetchingIterator<>(batchStream, 16 * 1024 * 1024, Array::nbytes);
-      CloseableIterator<Array> batchIterator = new VortexBatchIterator(iter);
+      VortexBatchReader<T> batchTransform = batchReaderFunction.apply(dtype);
       return CloseableIterator.transform(batchIterator, batchTransform::read);
     }
   }
@@ -107,6 +116,11 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     switch (path.getScheme()) {
       case "s3a":
         return Files.open(path, s3PropertiesFromHadoopConf(hadoopInputFile.getConf()));
+      case "wasb":
+      case "wasbs":
+      case "abfs":
+      case "abfss":
+        return Files.open(path, azurePropertiesFromHadoopConf(hadoopInputFile.getConf()));
       case "file":
         return Files.open(path, Map.of());
       default:
@@ -155,42 +169,38 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     return properties.asProperties();
   }
 
-  static class VortexBatchIterator implements CloseableIterator<Array> {
-    private PrefetchingIterator<Array> stream;
+  static final String ACCESS_KEY_PREFIX = "fs.azure.account.key.";
+  static final String FIXED_TOKEN_PREFIX = "fs.azure.sas.fixed.token.";
 
-    private VortexBatchIterator(PrefetchingIterator<Array> stream) {
-      this.stream = stream;
-    }
+  private static Map<String, String> azurePropertiesFromHadoopConf(Configuration hadoopConf) {
+    VortexAzureProperties properties = new VortexAzureProperties();
 
-    @Override
-    public Array next() {
-      return stream.next();
-    }
-
-    @Override
-    public boolean hasNext() {
-      return stream.hasNext();
-    }
-
-    @Override
-    public void close() {
-      if (stream != null) {
-        stream.close();
+    // TODO(aduffy): match on storage account name.
+    for (Map.Entry<String, String> entry : hadoopConf) {
+      String configKey = entry.getKey();
+      if (configKey.startsWith(ACCESS_KEY_PREFIX)) {
+        properties.setAccessKey(entry.getValue());
+      } else if (configKey.startsWith(FIXED_TOKEN_PREFIX)) {
+        properties.setSasKey(entry.getValue());
+      } else {
+        LOG.trace("Ignoring unknown azure connector property: {}={}", configKey, entry.getValue());
       }
-      stream = null;
     }
+
+    return properties.asProperties();
   }
 
-  static class VortexRowIterator<T> implements CloseableIterator<T> {
-    private final ArrayStream stream;
+  static class VortexRowIterator<T> extends CloseableGroup implements CloseableIterator<T> {
+    private final CloseableIterator<Array> stream;
     private final VortexRowReader<T> rowReader;
 
     private Array currentBatch = null;
     private int batchIndex = 0;
     private int batchLen = 0;
 
-    VortexRowIterator(ArrayStream stream, VortexRowReader<T> rowReader) {
+    VortexRowIterator(CloseableIterator<Array> stream, VortexRowReader<T> rowReader) {
       this.stream = stream;
+      addCloseable(stream);
       this.rowReader = rowReader;
       if (stream.hasNext()) {
         currentBatch = stream.next();

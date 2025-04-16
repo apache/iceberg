@@ -56,7 +56,13 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
   }
 
   public static Expression convert(Schema schema, org.apache.iceberg.expressions.Expression expr) {
-    return ExpressionVisitors.visit(expr, new ConvertFilterToVortex(schema));
+    org.apache.iceberg.expressions.Expression pushedNot = Expressions.rewriteNot(expr);
+    Expression converted = ExpressionVisitors.visit(pushedNot, new ConvertFilterToVortex(schema));
+    if (converted == UnconvertibleExpr.INSTANCE) {
+      return ALWAYS_TRUE;
+    } else {
+      return converted;
+    }
   }
 
   @Override
@@ -66,7 +72,7 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
 
   @Override
   public Expression alwaysTrue() {
-    return ALWAYS_FALSE;
+    return ALWAYS_TRUE;
   }
 
   @Override
@@ -77,6 +83,9 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
       return ALWAYS_FALSE;
     } else if (child == ALWAYS_FALSE) {
       return ALWAYS_TRUE;
+    } else if (child == UnconvertibleExpr.INSTANCE) {
+      // propagate convertibility
+      return UnconvertibleExpr.INSTANCE;
     } else {
       return Not.of(child);
     }
@@ -84,7 +93,15 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
 
   @Override
   public Expression and(Expression leftResult, Expression rightResult) {
-    return Binary.and(leftResult, rightResult);
+    if (leftResult == UnconvertibleExpr.INSTANCE && rightResult == UnconvertibleExpr.INSTANCE) {
+      return ALWAYS_TRUE;
+    } else if (leftResult == UnconvertibleExpr.INSTANCE) {
+      return rightResult;
+    } else if (rightResult == UnconvertibleExpr.INSTANCE) {
+      return leftResult;
+    } else {
+      return Binary.and(leftResult, rightResult);
+    }
   }
 
   @Override
@@ -112,7 +129,7 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
       return fromUnaryPredicate(pred.op(), vortexTerm);
     } else {
       // Set predicates are not supported currently.
-      return ALWAYS_TRUE;
+      return UnconvertibleExpr.INSTANCE;
     }
   }
 
@@ -126,7 +143,7 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
     } else if (bound == Expressions.alwaysFalse()) {
       return ALWAYS_FALSE;
     }
-    throw new UnsupportedOperationException("Cannot convert to Vortex filter: " + pred);
+    return UnconvertibleExpr.INSTANCE;
   }
 
   private org.apache.iceberg.expressions.Expression bind(UnboundPredicate<?> pred) {
@@ -197,6 +214,13 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
   // Always true is not a real binary op...
   Expression fromBinaryPredicate(
       org.apache.iceberg.expressions.Expression.Operation op, Expression left, Expression right) {
+
+    if (left == UnconvertibleExpr.INSTANCE && right == UnconvertibleExpr.INSTANCE) {
+      return UnconvertibleExpr.INSTANCE;
+    } else if (left == UnconvertibleExpr.INSTANCE) {
+      return right;
+    }
+
     switch (op) {
       case TRUE:
         return ALWAYS_TRUE;
@@ -218,11 +242,8 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
         return Binary.and(left, right);
       case OR:
         return Binary.or(left, right);
-
-        // These filters cannot be translated into Vortex operations, so we do not use them for
-        // pruning and instead return full results to the query engine for post-filtering.
       default:
-        return ALWAYS_TRUE;
+        return UnconvertibleExpr.INSTANCE;
     }
   }
 
@@ -243,6 +264,20 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
         }
       default:
         return ALWAYS_TRUE;
+    }
+  }
+
+  enum UnconvertibleExpr implements Expression {
+    INSTANCE;
+
+    @Override
+    public String type() {
+      return "unconvertible";
+    }
+
+    @Override
+    public <T> T accept(Visitor<T> visitor) {
+      return null;
     }
   }
 }

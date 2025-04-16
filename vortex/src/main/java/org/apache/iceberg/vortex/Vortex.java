@@ -19,9 +19,11 @@
 package org.apache.iceberg.vortex;
 
 import dev.vortex.api.DType;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
@@ -31,6 +33,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Types;
 
 /** Entrypoint to working with Vortex {@link FileFormat formatted} content files. */
 public final class Vortex {
@@ -108,6 +111,7 @@ public final class Vortex {
     private BatchReaderFunction<?> batchReaderFunction;
     private Map<Integer, ?> idToConstant;
     private Optional<Expression> filterPredicate = Optional.empty();
+    private long[] rowRange;
 
     ReadBuilder(InputFile inputFile) {
       this.inputFile = inputFile;
@@ -127,14 +131,12 @@ public final class Vortex {
 
     @Override
     public ReadBuilder split(long newStart, long newLength) {
-      // TODO(aduffy): support splitting? These are in terms of file bytes, which is pretty
-      //  annoying.
+      this.rowRange = new long[] {newStart, newStart + newLength};
       return this;
     }
 
     @Override
-    public ReadBuilder filter(Expression newFilter) {
-      // At least print the filter.
+    public ReadBuilder filter(Expression newFilter, boolean _filterCaseSensitive) {
       this.filterPredicate = Optional.of(newFilter);
       return this;
     }
@@ -197,7 +199,23 @@ public final class Vortex {
                   (VortexBatchReader<D>)
                       batchReaderFunction.batchRead(schema, fileSchema, idToConstant);
 
-      return new VortexIterable<>(inputFile, schema, filterPredicate, readerFunc, batchReaderFunc);
+      // Remove any constant fields from our iterable.
+      if (idToConstant != null) {
+        List<Types.NestedField> readerFields =
+            schema.columns().stream()
+                .filter(field -> !idToConstant.containsKey(field.fieldId()))
+                .collect(Collectors.toList());
+        return new VortexIterable<>(
+            inputFile,
+            new Schema(readerFields),
+            filterPredicate,
+            rowRange,
+            readerFunc,
+            batchReaderFunc);
+      } else {
+        return new VortexIterable<>(
+            inputFile, schema, filterPredicate, rowRange, readerFunc, batchReaderFunc);
+      }
     }
   }
 }

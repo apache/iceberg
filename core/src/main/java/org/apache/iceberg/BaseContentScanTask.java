@@ -109,6 +109,18 @@ abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends C
             new FixedSizeSplitScanTaskIterator<>(
                 self(), length(), targetSplitSize, this::newSplitTask);
       }
+    } else if (file.format().isRowSplittable()) {
+      // splitOffsets for row-splittable formats are reported in row-ranges, not byte ranges.
+      long[] splitOffsets = splitOffsets(file);
+      if (splitOffsets != null && ArrayUtil.isStrictlyAscending(splitOffsets)) {
+        return () ->
+            new OffsetsAwareSplitScanTaskIterator<>(
+                self(), file.recordCount(), splitOffsets, this::newSplitTask);
+      } else {
+        return () ->
+            new FixedSizeSplitScanTaskIterator<>(
+                self(), file.recordCount(), targetSplitSize, this::newSplitTask /* 64k */);
+      }
     }
 
     return ImmutableList.of(self());
