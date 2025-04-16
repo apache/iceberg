@@ -675,7 +675,7 @@ project(':iceberg-bigquery') {
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
 
-    compileOnly("org.apache.hadoop:hadoop-common:3.4.1")
+    compileOnly libs.hadoop3.common
     compileOnly("org.apache.hive:hive-metastore:4.0.1") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
@@ -695,8 +695,6 @@ project(':iceberg-bigquery') {
 
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-
-    testImplementation 'org.mockito:mockito-core:5.12.0'
   }
 }
 

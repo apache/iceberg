@@ -149,8 +149,7 @@ GCP:
     - any-glob-to-any-file: [
       'gcp/**/*',
       'gcp-bundle/**/*',
-      'bigquery/**/*',
-      'bigquery-bundle/**/*'
+      'bigquery/**/*'
     ]
 
 DELL:

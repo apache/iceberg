@@ -135,7 +135,7 @@ public final class BigQueryMetaStoreClientImpl implements BigQueryMetaStoreClien
                   // exceptions.
                   httpRequest.setThrowExceptionOnExecuteError(false);
                 })
-            .setApplicationName("BigQuery Iceberg Catalog Plugin")
+            .setApplicationName("BigQuery Metastore Iceberg Catalog Plugin")
             .build();
     this.bigqueryOptions = options;
   }
@@ -280,7 +280,7 @@ public final class BigQueryMetaStoreClientImpl implements BigQueryMetaStoreClien
 
   @Override
   public Table createTable(Table table) {
-    // Ensure it is an Iceberg table supported by the BQ metastore catalog.
+    // Ensure it is an Iceberg table supported by the BigQuery metastore catalog.
     validateTable(table);
     // TODO (b/399885863): Ensure table creation is idempotent when handling retries.
     Table response = null;

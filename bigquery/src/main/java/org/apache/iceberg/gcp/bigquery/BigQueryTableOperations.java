@@ -21,6 +21,7 @@ package org.apache.iceberg.gcp.bigquery;
 import com.google.api.services.bigquery.model.ExternalCatalogTableOptions;
 import com.google.api.services.bigquery.model.Table;
 import com.google.api.services.bigquery.model.TableReference;
+import java.util.Locale;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
@@ -195,7 +196,7 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
     try {
       client.patchTable(tableReference, table);
     } catch (ValidationException e) {
-      if (e.getMessage().toLowerCase().contains("etag mismatch")) {
+      if (e.getMessage().toLowerCase(Locale.ENGLISH).contains("etag mismatch")) {
         throw new CommitFailedException(
             "Updating table failed due to conflict updates (etag mismatch). Retry the update");
       }
