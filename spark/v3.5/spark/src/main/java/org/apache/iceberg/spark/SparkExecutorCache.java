@@ -70,10 +70,10 @@ public class SparkExecutorCache {
    *
    * <p>Note this method returns null if caching is disabled.
    */
-  public static SparkExecutorCache getOrCreate() {
+  public static SparkExecutorCache getOrCreate(boolean forDeletes) {
     if (instance == null) {
       Conf conf = new Conf();
-      if (conf.cacheEnabled()) {
+      if (conf.cacheEnabled(forDeletes)) {
         synchronized (SparkExecutorCache.class) {
           if (instance == null) {
             SparkExecutorCache.instance = new SparkExecutorCache(conf);
@@ -193,11 +193,26 @@ public class SparkExecutorCache {
   static class Conf {
     private final SparkConfParser confParser = new SparkConfParser();
 
-    public boolean cacheEnabled() {
+    public boolean cacheEnabled(boolean forDeletes) {
+      if (forDeletes) {
+        return executorCacheEnabledForDeletes() && executorCacheEnabled();
+      }
+      return executorCacheEnabled();
+    }
+
+    public boolean executorCacheEnabled() {
       return confParser
           .booleanConf()
           .sessionConf(SparkSQLProperties.EXECUTOR_CACHE_ENABLED)
           .defaultValue(SparkSQLProperties.EXECUTOR_CACHE_ENABLED_DEFAULT)
+          .parse();
+    }
+
+    public boolean executorCacheEnabledForDeletes() {
+      return confParser
+          .booleanConf()
+          .sessionConf(SparkSQLProperties.EXECUTOR_CACHE_DELETES_ENABLED)
+          .defaultValue(SparkSQLProperties.EXECUTOR_CACHE_DELETES_ENABLED_DEFAULT)
           .parse();
     }
 
