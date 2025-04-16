@@ -34,7 +34,7 @@ public class TestZkLockFactory {
   private final String testLockId = "tableName";
 
   @Before
-  public void setUp() throws Exception {
+  public void before() throws Exception {
     // Start test Zookeeper server
     zkTestServer = new TestingServer();
     // Create lock factory instance
@@ -49,7 +49,7 @@ public class TestZkLockFactory {
   }
 
   @After
-  public void tearDown() throws IOException {
+  public void after() throws IOException {
     if (lockFactory != null) {
       lockFactory.close();
     }
