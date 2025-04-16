@@ -210,7 +210,7 @@ public class S3FileIO
     DeleteObjectRequest deleteRequest =
         DeleteObjectRequest.builder().bucket(location.bucket()).key(location.key()).build();
 
-    client.s3Client().deleteObject(deleteRequest);
+    client.s3().deleteObject(deleteRequest);
   }
 
   @Override
@@ -307,7 +307,7 @@ public class S3FileIO
     GetObjectTaggingRequest getObjectTaggingRequest =
         GetObjectTaggingRequest.builder().bucket(bucket).key(objectKey).build();
     GetObjectTaggingResponse getObjectTaggingResponse =
-        client.s3Client().getObjectTagging(getObjectTaggingRequest);
+        client.s3().getObjectTagging(getObjectTaggingRequest);
     // Get existing tags, if any and then add the delete tags
     Set<Tag> tags = Sets.newHashSet();
     if (getObjectTaggingResponse.hasTagSet()) {
@@ -321,7 +321,7 @@ public class S3FileIO
             .key(objectKey)
             .tagging(Tagging.builder().tagSet(tags).build())
             .build();
-    client.s3Client().putObjectTagging(putObjectTaggingRequest);
+    client.s3().putObjectTagging(putObjectTaggingRequest);
   }
 
   private List<String> deleteBatch(
@@ -337,7 +337,7 @@ public class S3FileIO
             .build();
     List<String> failures = Lists.newArrayList();
     try {
-      DeleteObjectsResponse response = client.s3Client().deleteObjects(request);
+      DeleteObjectsResponse response = client.s3().deleteObjects(request);
       if (response.hasErrors()) {
         failures.addAll(
             response.errors().stream()
@@ -369,7 +369,7 @@ public class S3FileIO
         ListObjectsV2Request.builder().bucket(s3uri.bucket()).prefix(s3uri.key()).build();
 
     return () ->
-        client.s3Client().listObjectsV2Paginator(request).stream()
+        client.s3().listObjectsV2Paginator(request).stream()
             .flatMap(r -> r.contents().stream())
             .map(
                 o ->
@@ -402,7 +402,7 @@ public class S3FileIO
    */
   @Deprecated
   public S3Client client() {
-    return clientForStoragePath("s3").s3Client();
+    return clientForStoragePath("s3").s3();
   }
 
   /**
@@ -414,7 +414,7 @@ public class S3FileIO
    */
   @Deprecated
   public S3AsyncClient asyncClient() {
-    return clientForStoragePath("s3").s3AsyncClient();
+    return clientForStoragePath("s3").s3Async();
   }
 
   public PrefixedS3Client clientForStoragePath(String storagePath) {
@@ -562,7 +562,7 @@ public class S3FileIO
     S3URI location = new S3URI(path, client.s3FileIOProperties().bucketToAccessPointMapping());
     ListObjectVersionsIterable response =
         client
-            .s3Client()
+            .s3()
             .listObjectVersionsPaginator(
                 builder -> builder.bucket(location.bucket()).prefix(location.key()));
 
@@ -586,7 +586,7 @@ public class S3FileIO
       // Perform a copy instead of deleting the delete marker
       // so that recovery does not rely on delete permissions
       client
-          .s3Client()
+          .s3()
           .copyObject(
               builder ->
                   builder
