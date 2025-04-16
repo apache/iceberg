@@ -110,6 +110,6 @@ class PublishChangesProcedure extends BaseProcedure {
 
   @Override
   public String description() {
-    return "ApplyWapChangesProcedure";
+    return "PublishChangesProcedure";
   }
 }

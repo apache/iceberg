@@ -260,6 +260,6 @@ class AddFilesProcedure extends BaseProcedure {
 
   @Override
   public String description() {
-    return "AddFiles";
+    return "AddFilesProcedure";
   }
 }
