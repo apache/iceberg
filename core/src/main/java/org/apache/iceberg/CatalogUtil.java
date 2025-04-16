@@ -83,7 +83,8 @@ public class CatalogUtil {
   public static final String ICEBERG_CATALOG_GLUE = "org.apache.iceberg.aws.glue.GlueCatalog";
   public static final String ICEBERG_CATALOG_NESSIE = "org.apache.iceberg.nessie.NessieCatalog";
   public static final String ICEBERG_CATALOG_JDBC = "org.apache.iceberg.jdbc.JdbcCatalog";
-  public static final String ICEBERG_CATALOG_BIGQUERY = "org.apache.iceberg.gcp.bigquery.BigQueryMetastoreCatalog";
+  public static final String ICEBERG_CATALOG_BIGQUERY =
+      "org.apache.iceberg.gcp.bigquery.BigQueryMetastoreCatalog";
 
   private CatalogUtil() {}
 
