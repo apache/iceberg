@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 
-import com.google.common.collect.Iterables;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -30,6 +29,7 @@ import java.util.Map;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.junit.jupiter.api.AfterEach;
@@ -596,32 +596,32 @@ public class TestRowLineageAssignment {
         FILE_C.recordCount() + FILE_B.recordCount());
   }
 
-  private ManifestContent content(int ordinal) {
+  private static ManifestContent content(int ordinal) {
     return ManifestContent.values()[ordinal];
   }
 
-  private void checkManifestListAssignment(InputFile in, Long... firstRowIds) {
+  private static void checkManifestListAssignment(InputFile in, Long... firstRowIds) {
     try (CloseableIterable<Record> reader =
         InternalData.read(FileFormat.AVRO, in)
             .project(ManifestFile.schema().select("first_row_id", "content"))
             .build()) {
 
       // all row IDs must be assigned at write time
-      int i = 0;
+      int index = 0;
       for (Record manifest : reader) {
         if (content((Integer) manifest.getField("content")) != ManifestContent.DATA) {
           assertThat(manifest.getField("first_row_id"))
-              .as("Row ID for delete manifest (%s) should be null", i)
+              .as("Row ID for delete manifest (%s) should be null", index)
               .isNull();
-        } else if (i < firstRowIds.length) {
+        } else if (index < firstRowIds.length) {
           assertThat(manifest.getField("first_row_id"))
-              .as("Row ID for data manifest (%s) should match", i)
-              .isEqualTo(firstRowIds[i]);
+              .as("Row ID for data manifest (%s) should match", index)
+              .isEqualTo(firstRowIds[index]);
         } else {
-          fail("No expected first row ID for manifest: %s=%s", i, manifest);
+          fail("No expected first row ID for manifest: %s=%s", index, manifest);
         }
 
-        i += 1;
+        index += 1;
       }
 
     } catch (IOException e) {
@@ -629,37 +629,38 @@ public class TestRowLineageAssignment {
     }
 
     // also check that the values are read correctly
-    int i = 0;
+    int index = 0;
     for (ManifestFile manifest : ManifestLists.read(in)) {
       if (manifest.content() != ManifestContent.DATA) {
         assertThat(manifest.firstRowId()).isNull();
-      } else if (i < firstRowIds.length) {
-        assertThat(manifest.firstRowId()).isEqualTo(firstRowIds[i]);
+      } else if (index < firstRowIds.length) {
+        assertThat(manifest.firstRowId()).isEqualTo(firstRowIds[index]);
       } else {
         fail("No expected first row ID for manifest: " + manifest);
       }
 
-      i += 1;
+      index += 1;
     }
   }
 
-  private void checkDataFileAssignment(Table table, ManifestFile manifest, Long... firstRowIds) {
+  private static void checkDataFileAssignment(
+      Table table, ManifestFile manifest, Long... firstRowIds) {
     // all row IDs must be assigned at write time
-    int i = 0;
+    int index = 0;
     try (ManifestReader<DataFile> reader =
         ManifestFiles.read(manifest, table.io(), table.specs())) {
 
       for (DataFile file : reader) {
         assertThat(file.content()).isEqualTo(FileContent.DATA);
-        if (i < firstRowIds.length) {
+        if (index < firstRowIds.length) {
           assertThat(file.firstRowId())
-              .as("Row ID for data file (%s) should match", i)
-              .isEqualTo(firstRowIds[i]);
+              .as("Row ID for data file (%s) should match", index)
+              .isEqualTo(firstRowIds[index]);
         } else {
           fail("No expected first row ID for file: " + manifest);
         }
 
-        i += 1;
+        index += 1;
       }
 
     } catch (IOException e) {
