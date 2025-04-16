@@ -16,38 +16,42 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.io;
 
-import java.util.Locale;
+/** Creates a placeholder for FileIO. */
+public class DummyFileIO implements FileIO {
+  @Override
+  public InputFile newInputFile(String path) {
+    return new InputFile() {
+      @Override
+      public long getLength() {
+        return 0L;
+      }
 
-public enum MetadataTableType {
-  ENTRIES,
-  FILES,
-  DATA_FILES,
-  DELETE_FILES,
-  HISTORY,
-  METADATA_LOG_ENTRIES,
-  SNAPSHOTS,
-  REFS,
-  MANIFESTS,
-  PARTITIONS,
-  ALL_DATA_FILES,
-  ALL_DELETE_FILES,
-  ALL_FILES,
-  ALL_MANIFESTS,
-  ALL_ENTRIES,
-  POSITION_DELETES,
-  VERSION;
+      @Override
+      public SeekableInputStream newStream() {
+        throw new UnsupportedOperationException();
+      }
 
-  public static MetadataTableType from(String name) {
-    try {
-      return MetadataTableType.valueOf(name.toUpperCase(Locale.ROOT));
-    } catch (IllegalArgumentException ignored) {
-      return null;
-    }
+      @Override
+      public String location() {
+        return path;
+      }
+
+      @Override
+      public boolean exists() {
+        return true;
+      }
+    };
   }
 
-  public static boolean isViewMetadataTable(MetadataTableType metadataTableType) {
-    return VERSION.equals(metadataTableType);
+  @Override
+  public OutputFile newOutputFile(String path) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public void deleteFile(String path) {
+    throw new UnsupportedOperationException();
   }
 }

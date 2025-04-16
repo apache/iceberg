@@ -1,0 +1,125 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg;
+
+import java.util.stream.Collectors;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.view.SQLViewRepresentation;
+import org.apache.iceberg.view.ViewVersion;
+import org.apache.iceberg.view.ViewWrapper;
+
+public class ViewVersionTable extends BaseMetadataTable {
+  public static final Schema VIEW_VERSION_SCHEMA =
+      new Schema(
+          Types.NestedField.required(1, "version-id", Types.IntegerType.get()),
+          Types.NestedField.required(2, "schema-id", Types.IntegerType.get()),
+          Types.NestedField.required(3, "timestamp-ms", Types.TimestampType.withZone()),
+          Types.NestedField.required(
+              4,
+              "summary",
+              Types.MapType.ofRequired(6, 7, Types.StringType.get(), Types.StringType.get())),
+          Types.NestedField.required(
+              8,
+              "representations",
+              Types.ListType.ofRequired(
+                  9,
+                  Types.StructType.of(
+                      Types.NestedField.required(10, "type", Types.StringType.get()),
+                      Types.NestedField.required(11, "sql", Types.StringType.get()),
+                      Types.NestedField.required(12, "dialect", Types.StringType.get())))),
+          Types.NestedField.optional(13, "default-catalog", Types.StringType.get()),
+          Types.NestedField.required(14, "default-namespace", Types.StringType.get()));
+
+  ViewVersionTable(ViewWrapper viewWrapper) {
+    super(viewWrapper, viewWrapper.name() + ".version");
+    this.viewWrapper = viewWrapper;
+  }
+
+  private final ViewWrapper viewWrapper;
+
+  @Override
+  public TableScan newScan() {
+    return new ViewVersionTableScan(viewWrapper);
+  }
+
+  @Override
+  public Schema schema() {
+    return VIEW_VERSION_SCHEMA;
+  }
+
+  private DataTask task(BaseTableScan scan) {
+    return StaticDataTask.of(
+        viewWrapper.io().newInputFile(location()),
+        schema(),
+        scan.schema(),
+        viewWrapper.wrappedView().operations().current().versions(),
+        ViewVersionTable::viewVersionToRow);
+  }
+
+  @Override
+  MetadataTableType metadataTableType() {
+    return MetadataTableType.VERSION;
+  }
+
+  private class ViewVersionTableScan extends BaseMetadataTableScan {
+    ViewVersionTableScan(Table table) {
+      super(table, VIEW_VERSION_SCHEMA, MetadataTableType.VERSION);
+    }
+
+    ViewVersionTableScan(Table table, TableScanContext context) {
+      super(table, VIEW_VERSION_SCHEMA, MetadataTableType.VERSION, context);
+    }
+
+    @Override
+    protected TableScan newRefinedScan(Table table, Schema schema, TableScanContext context) {
+      return new ViewVersionTableScan(table, context);
+    }
+
+    @Override
+    protected CloseableIterable<FileScanTask> doPlanFiles() {
+      return CloseableIterable.withNoopClose(ViewVersionTable.this.task(this));
+    }
+
+    @Override
+    public CloseableIterable<FileScanTask> planFiles() {
+      return CloseableIterable.withNoopClose(ViewVersionTable.this.task(this));
+    }
+  }
+
+  private static StaticDataTask.Row viewVersionToRow(ViewVersion version) {
+    return StaticDataTask.Row.of(
+        version.versionId(),
+        version.schemaId(),
+        version.timestampMillis() * 1000,
+        version.summary(),
+        version.representations().stream()
+            .map(
+                r -> {
+                  SQLViewRepresentation sqlViewRepresentation = (SQLViewRepresentation) r;
+                  return StaticDataTask.Row.of(
+                      sqlViewRepresentation.type(),
+                      sqlViewRepresentation.sql(),
+                      sqlViewRepresentation.dialect());
+                })
+            .collect(Collectors.toList()),
+        version.defaultCatalog(),
+        version.defaultNamespace().toString());
+  }
+}
