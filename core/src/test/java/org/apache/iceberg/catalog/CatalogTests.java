@@ -918,7 +918,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
-  public void loadTableWithNonExistingNamespace() {
+  public void testLoadTableWithNonExistingNamespace() {
     TableIdentifier ident = TableIdentifier.of("non-existing", "tbl");
     assertThat(catalog().tableExists(ident)).as("Table should not exist").isFalse();
     assertThatThrownBy(() -> catalog().loadTable(ident))
