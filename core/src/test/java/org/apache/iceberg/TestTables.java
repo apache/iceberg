@@ -39,14 +39,6 @@ public class TestTables {
 
   private TestTables() {}
 
-  private static TestTable upgrade(File temp, String name, int newFormatVersion) {
-    TestTable table = load(temp, name);
-    TableOperations ops = table.ops();
-    TableMetadata base = ops.current();
-    ops.commit(base, ops.current().upgradeToFormatVersion(newFormatVersion));
-    return table;
-  }
-
   public static TestTable create(
       File temp, String name, Schema schema, PartitionSpec spec, int formatVersion) {
     return create(temp, name, schema, spec, SortOrder.unsorted(), formatVersion);

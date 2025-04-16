@@ -104,8 +104,7 @@ public class TestPartitionSpecInfo {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () -> {
-              PartitionSpec spec =
-                  PartitionSpec.builderFor(schema).caseSensitive(true).identity("DATA").build();
+              PartitionSpec.builderFor(schema).caseSensitive(true).identity("DATA").build();
             })
         .withMessage("Cannot find source column: DATA");
   }
@@ -122,7 +121,6 @@ public class TestPartitionSpecInfo {
         PartitionSpec.builderFor(table.schema()).identity("data").withSpecId(1).build();
     table.ops().commit(base, base.updatePartitionSpec(newSpec));
 
-    int initialColSize = table.schema().columns().size();
     table.updateSchema().deleteColumn("id").commit();
 
     final Schema expectedSchema = new Schema(required(2, "data", Types.StringType.get()));

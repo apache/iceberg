@@ -114,8 +114,6 @@ public class TestSnapshot extends TestBase {
 
     table.updateSpec().addField(Expressions.truncate("data", 2)).commit();
 
-    int specId = table.spec().specId();
-
     DataFile secondSnapshotDataFile = newDataFile("data_bucket=8/data_trunc_2=aa");
     DeleteFile secondSnapshotDeleteFile = newDeletes(secondSnapshotDataFile);
 

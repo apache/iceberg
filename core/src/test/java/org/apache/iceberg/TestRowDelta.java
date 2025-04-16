@@ -546,7 +546,6 @@ public class TestRowDelta extends V2TableTestBase {
         table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()).addDeletes(fileBDeletes()),
         branch);
 
-    long deltaSnapshotId = latestSnapshot(table, branch).snapshotId();
     assertThat(latestSnapshot(table, branch).sequenceNumber()).isEqualTo(1);
     assertThat(table.ops().current().lastSequenceNumber()).isEqualTo(1);
 
