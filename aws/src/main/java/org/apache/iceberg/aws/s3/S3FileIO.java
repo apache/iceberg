@@ -172,8 +172,7 @@ public class S3FileIO
     this.s3 = s3;
     this.s3Async = s3Async;
     this.createStack = Thread.currentThread().getStackTrace();
-    s3ClientCache()
-        .put("s3", new PrefixedS3Client("s3", s3FileIOProperties.properties(), s3, s3Async));
+    this.properties = SerializableMap.copyOf(s3FileIOProperties.properties());
   }
 
   @Override
@@ -450,6 +449,24 @@ public class S3FileIO
                             }
                           })
                   .build();
+
+          s3ClientCache.put("s3", new PrefixedS3Client("s3", properties, s3, s3Async));
+          storageCredentials.stream()
+              .filter(c -> c.prefix().startsWith("s3"))
+              .collect(Collectors.toList())
+              .forEach(
+                  storageCredential -> {
+                    Map<String, String> propertiesWithCredentials =
+                        ImmutableMap.<String, String>builder()
+                            .putAll(properties)
+                            .putAll(storageCredential.config())
+                            .buildKeepingLast();
+
+                    s3ClientCache.put(
+                        storageCredential.prefix(),
+                        new PrefixedS3Client(
+                            storageCredential.prefix(), propertiesWithCredentials, s3, s3Async));
+                  });
         }
       }
     }
@@ -492,28 +509,6 @@ public class S3FileIO
         this.credential = ((CredentialSupplier) clientFactory).getCredential();
       }
     }
-
-    List<StorageCredential> s3Credentials =
-        storageCredentials.stream()
-            .filter(c -> c.prefix().startsWith("s3"))
-            .collect(Collectors.toList());
-
-    // TODO: cache needs to be re-initialized after ser/de
-    s3ClientCache().put("s3", new PrefixedS3Client("s3", properties, s3, s3Async));
-    s3Credentials.forEach(
-        storageCredential -> {
-          Map<String, String> propertiesWithCredentials =
-              ImmutableMap.<String, String>builder()
-                  .putAll(properties)
-                  .putAll(storageCredential.config())
-                  .buildKeepingLast();
-
-          s3ClientCache()
-              .put(
-                  storageCredential.prefix(),
-                  new PrefixedS3Client(
-                      storageCredential.prefix(), propertiesWithCredentials, s3, s3Async));
-        });
 
     initMetrics(properties);
   }
