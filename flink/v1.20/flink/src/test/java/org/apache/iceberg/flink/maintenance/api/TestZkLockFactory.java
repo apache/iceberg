@@ -18,107 +18,32 @@
  */
 package org.apache.iceberg.flink.maintenance.api;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-
 import java.io.IOException;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
 
-public class TestZkLockFactory {
-  private TestingServer zkTestServer;
-  private ZkLockFactory lockFactory;
+public class TestZkLockFactory extends TestLockFactoryBase {
   private final String testLockId = "tableName";
+  private TestingServer zkTestServer;
 
-  @Before
-  public void before() throws Exception {
-    // Start test Zookeeper server
-    zkTestServer = new TestingServer();
-    // Create lock factory instance
-    lockFactory =
-        new ZkLockFactory(
-            zkTestServer.getConnectString(),
-            testLockId,
-            5000,
-            3000,
-            new ZkLockFactory.ExponentialBackoffRetryWrapper(1000, 3));
-    lockFactory.open();
+  @Override
+  TriggerLockFactory lockFactory() {
+
+    try {
+      zkTestServer = new TestingServer();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+
+    return new ZkLockFactory(zkTestServer.getConnectString(), testLockId, 5000, 3000, 1000, 3);
   }
 
   @After
   public void after() throws IOException {
-    if (lockFactory != null) {
-      lockFactory.close();
-    }
+    super.after();
+
     if (zkTestServer != null) {
       zkTestServer.close();
     }
-  }
-
-  @Test
-  public void testCreateLock() {
-    // Test creating normal lock
-    TriggerLockFactory.Lock lock = lockFactory.createLock();
-    assertNotNull("Lock object should not be null", lock);
-
-    // Test basic lock functionality
-    assertTrue("First lock attempt should succeed", lock.tryLock());
-    assertTrue("Lock should be held after acquisition", lock.isHeld());
-    lock.unlock();
-    assertFalse("Lock should not be held after release", lock.isHeld());
-  }
-
-  @Test
-  public void testCreateRecoveryLock() {
-    // Test creating recovery lock
-    TriggerLockFactory.Lock recoveryLock = lockFactory.createRecoveryLock();
-    assertNotNull("Recovery lock object should not be null", recoveryLock);
-
-    // Test basic recovery lock functionality
-    assertTrue("First recovery lock attempt should succeed", recoveryLock.tryLock());
-    assertTrue("Recovery lock should be held after acquisition", recoveryLock.isHeld());
-    recoveryLock.unlock();
-    assertFalse("Recovery lock should not be held after release", recoveryLock.isHeld());
-  }
-
-  @Test
-  public void testLockExclusivity() {
-    TriggerLockFactory.Lock lock1 = lockFactory.createLock();
-    TriggerLockFactory.Lock lock2 = lockFactory.createLock();
-
-    // First lock acquisition should succeed
-    assertTrue(lock1.tryLock());
-    // Second lock acquisition should fail
-    assertFalse(lock2.tryLock());
-
-    // After releasing first lock, second can be acquired
-    lock1.unlock();
-    assertTrue(lock2.tryLock());
-    lock2.unlock();
-  }
-
-  @Test
-  public void testDifferentLockTypes() {
-    TriggerLockFactory.Lock normalLock = lockFactory.createLock();
-    TriggerLockFactory.Lock recoveryLock = lockFactory.createRecoveryLock();
-
-    assertTrue(normalLock.tryLock());
-    assertTrue(recoveryLock.tryLock());
-
-    normalLock.unlock();
-    recoveryLock.unlock();
-  }
-
-  @Test
-  public void testReopenFactory() throws IOException {
-    lockFactory.close();
-    lockFactory.open();
-
-    TriggerLockFactory.Lock lock = lockFactory.createLock();
-    assertTrue(lock.tryLock());
-    lock.unlock();
   }
 }

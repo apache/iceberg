@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.maintenance.api;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -36,36 +35,41 @@ import org.slf4j.LoggerFactory;
 public class ZkLockFactory implements TriggerLockFactory {
   private static final Logger LOG = LoggerFactory.getLogger(ZkLockFactory.class);
 
-  private static final String LOCK_BASE_PATH = "/iceberg/flink/maintenance/locks";
+  private static final String LOCK_BASE_PATH = "/iceberg/flink/maintenance/locks/";
 
   private final String connectString;
   private final String lockId;
   private final int sessionTimeoutMs;
   private final int connectionTimeoutMs;
-  private final ExponentialBackoffRetryWrapper retryWrapper;
+  private final int baseSleepTimeMs;
+  private final int maxRetries;
   private transient CuratorFramework client;
 
   /**
    * Create Zookeeper lock factory
    *
    * @param connectString Zookeeper connection string
-   * @param lockId Lock ID to distinguish different jobs
+   * @param lockId which should identify the job and the table
    * @param sessionTimeoutMs Session timeout in milliseconds
    * @param connectionTimeoutMs Connection timeout in milliseconds
+   * @param baseSleepTimeMs Base sleep time in milliseconds
+   * @param maxRetries Maximum number of retries
    */
   public ZkLockFactory(
       String connectString,
       String lockId,
       int sessionTimeoutMs,
       int connectionTimeoutMs,
-      ExponentialBackoffRetryWrapper retryWrapper) {
+      int baseSleepTimeMs,
+      int maxRetries) {
     Preconditions.checkNotNull(connectString, "Zookeeper connection string cannot be null");
     Preconditions.checkNotNull(lockId, "Lock ID cannot be null");
     this.connectString = connectString;
     this.lockId = lockId;
     this.sessionTimeoutMs = sessionTimeoutMs;
     this.connectionTimeoutMs = connectionTimeoutMs;
-    this.retryWrapper = retryWrapper;
+    this.baseSleepTimeMs = baseSleepTimeMs;
+    this.maxRetries = maxRetries;
   }
 
   @Override
@@ -75,7 +79,7 @@ public class ZkLockFactory implements TriggerLockFactory {
             .connectString(connectString)
             .sessionTimeoutMs(sessionTimeoutMs)
             .connectionTimeoutMs(connectionTimeoutMs)
-            .retryPolicy(retryWrapper.getRetryPolicy())
+            .retryPolicy(new ExponentialBackoffRetry(baseSleepTimeMs, maxRetries))
             .build();
     client.start();
 
@@ -91,12 +95,12 @@ public class ZkLockFactory implements TriggerLockFactory {
 
   @Override
   public Lock createLock() {
-    return new ZkLock(client, LOCK_BASE_PATH + "/maintenance/" + lockId);
+    return new ZkLock(client, LOCK_BASE_PATH + lockId + "/task");
   }
 
   @Override
   public Lock createRecoveryLock() {
-    return new ZkLock(client, LOCK_BASE_PATH + "/recovery/" + lockId);
+    return new ZkLock(client, LOCK_BASE_PATH + lockId + "/recovery");
   }
 
   @Override
@@ -175,23 +179,6 @@ public class ZkLockFactory implements TriggerLockFactory {
         LOG.info("Failed to get lock value: {}", lockPath, e);
         return null;
       }
-    }
-  }
-
-  // Since ExponentialBackoffRetry contains non-serializable fields, it needs to be wrapped and
-  // lazily initialized.
-  public static class ExponentialBackoffRetryWrapper implements Serializable {
-    private transient ExponentialBackoffRetry retryPolicy;
-
-    public ExponentialBackoffRetryWrapper(int baseSleepTimeMs, int maxRetries) {
-      this.retryPolicy = new ExponentialBackoffRetry(baseSleepTimeMs, maxRetries);
-    }
-
-    public ExponentialBackoffRetry getRetryPolicy() {
-      if (retryPolicy == null) {
-        retryPolicy = new ExponentialBackoffRetry(1000, 3);
-      }
-      return retryPolicy;
     }
   }
 }
