@@ -264,7 +264,7 @@ class IcebergToGlueConverter {
       }
 
       Map<String, String> existingColumnMap = null;
-      if (existingTable != null) {
+      if (existingTable != null && existingTable.storageDescriptor() != null) {
         List<Column> existingColumns = existingTable.storageDescriptor().columns();
         existingColumnMap =
             existingColumns.stream()
