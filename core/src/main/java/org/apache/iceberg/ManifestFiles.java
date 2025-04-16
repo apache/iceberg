@@ -131,7 +131,12 @@ public class ManifestFiles {
     InputFile file = newInputFile(io, manifest);
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest);
     return new ManifestReader<>(
-        file, manifest.partitionSpecId(), specsById, inheritableMetadata, FileType.DATA_FILES);
+        file,
+        manifest.partitionSpecId(),
+        specsById,
+        inheritableMetadata,
+        manifest.firstRowId(),
+        FileType.DATA_FILES);
   }
 
   /**
@@ -316,9 +321,11 @@ public class ManifestFiles {
       long snapshotId,
       SnapshotSummary.Builder summaryBuilder) {
     // use metadata that will add the current snapshot's ID for the rewrite
+    // read first_row_id as null because this copies the incoming manifest before commit
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.forCopy(snapshotId);
     try (ManifestReader<DataFile> reader =
-        new ManifestReader<>(toCopy, specId, specsById, inheritableMetadata, FileType.DATA_FILES)) {
+        new ManifestReader<>(
+            toCopy, specId, specsById, inheritableMetadata, null, FileType.DATA_FILES)) {
       return copyManifestInternal(
           formatVersion,
           firstRowId,
@@ -345,7 +352,8 @@ public class ManifestFiles {
     // exception if it is not
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.empty();
     try (ManifestReader<DataFile> reader =
-        new ManifestReader<>(toCopy, specId, specsById, inheritableMetadata, FileType.DATA_FILES)) {
+        new ManifestReader<>(
+            toCopy, specId, specsById, inheritableMetadata, firstRowId, FileType.DATA_FILES)) {
       return copyManifestInternal(
           formatVersion,
           firstRowId,

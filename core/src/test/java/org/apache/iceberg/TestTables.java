@@ -328,9 +328,13 @@ public class TestTables {
 
     @Override
     public long newSnapshotId() {
-      long nextSnapshotId = lastSnapshotId + 1;
-      this.lastSnapshotId = nextSnapshotId;
-      return nextSnapshotId;
+      if (current().propertyAsBoolean("random-snapshot-ids", false)) {
+        return SnapshotIdGeneratorUtil.generateSnapshotID();
+      } else {
+        long nextSnapshotId = lastSnapshotId + 1;
+        this.lastSnapshotId = nextSnapshotId;
+        return nextSnapshotId;
+      }
     }
   }
 

@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Evaluator;
@@ -42,7 +43,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PartitionSet;
 
@@ -81,6 +81,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
   private final InputFile file;
   private final InheritableMetadata inheritableMetadata;
+  private final Long firstRowId;
   private final FileType content;
   private final PartitionSpec spec;
   private final Schema fileSchema;
@@ -104,8 +105,22 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       Map<Integer, PartitionSpec> specsById,
       InheritableMetadata inheritableMetadata,
       FileType content) {
+    this(file, specId, specsById, inheritableMetadata, null, content);
+  }
+
+  protected ManifestReader(
+      InputFile file,
+      int specId,
+      Map<Integer, PartitionSpec> specsById,
+      InheritableMetadata inheritableMetadata,
+      Long firstRowId,
+      FileType content) {
+    Preconditions.checkArgument(
+        firstRowId == null || content == FileType.DATA_FILES,
+        "First row ID is not valid for delete manifests");
     this.file = file;
     this.inheritableMetadata = inheritableMetadata;
+    this.firstRowId = firstRowId;
     this.content = content;
 
     if (specsById != null) {
@@ -260,6 +275,9 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
     List<Types.NestedField> fields = Lists.newArrayList();
     fields.addAll(projection.asStruct().fields());
+    if (projection.findField(DataFile.RECORD_COUNT.fieldId()) == null) {
+      fields.add(DataFile.RECORD_COUNT);
+    }
     fields.add(MetadataColumns.ROW_POSITION);
 
     CloseableIterable<ManifestEntry<F>> reader =
@@ -273,7 +291,9 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
     addCloseable(reader);
 
-    return CloseableIterable.transform(reader, inheritableMetadata::apply);
+    CloseableIterable<ManifestEntry<F>> withMetadata =
+        CloseableIterable.transform(reader, inheritableMetadata::apply);
+    return CloseableIterable.transform(withMetadata, idAssigner(firstRowId));
   }
 
   CloseableIterable<ManifestEntry<F>> liveEntries() {
@@ -301,18 +321,12 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
   private static Schema projection(
       Schema schema, Schema project, Collection<String> columns, boolean caseSensitive) {
     if (columns != null) {
-      Set<String> requiredColumns =
-          Sets.union(Sets.newHashSet(columns), Set.of(DataFile.RECORD_COUNT.name()));
       if (caseSensitive) {
-        return schema.select(requiredColumns);
+        return schema.select(columns);
       } else {
-        return schema.caseInsensitiveSelect(requiredColumns);
+        return schema.caseInsensitiveSelect(columns);
       }
     } else if (project != null) {
-      if (project.findField(DataFile.RECORD_COUNT.name()) == null) {
-        return TypeUtil.join(project, new Schema(DataFile.RECORD_COUNT));
-      }
-
       return project;
     }
 
@@ -375,6 +389,30 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       List<String> projectColumns = Lists.newArrayList(columns);
       projectColumns.addAll(STATS_COLUMNS); // order doesn't matter
       return projectColumns;
+    }
+  }
+
+  private static <F extends ContentFile<F>> Function<ManifestEntry<F>, ManifestEntry<F>> idAssigner(
+      Long firstRowId) {
+    if (firstRowId != null) {
+      return new Function<>() {
+        long nextRowId = firstRowId;
+
+        @Override
+        public ManifestEntry<F> apply(ManifestEntry<F> entry) {
+          if (entry.file() instanceof BaseFile) {
+            BaseFile<?> file = (BaseFile<?>) entry.file();
+            if (null == file.firstRowId()) {
+              file.setFirstRowId(nextRowId);
+              nextRowId += file.recordCount();
+            }
+          }
+
+          return entry;
+        }
+      };
+    } else {
+      return Function.identity();
     }
   }
 }
