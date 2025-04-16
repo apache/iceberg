@@ -918,6 +918,15 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void loadTableWithNonExistingNamespace() {
+    TableIdentifier ident = TableIdentifier.of("non-existing", "tbl");
+    assertThat(catalog().tableExists(ident)).as("Table should not exist").isFalse();
+    assertThatThrownBy(() -> catalog().loadTable(ident))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageStartingWith("Table does not exist: %s", ident);
+  }
+
+  @Test
   public void testLoadMetadataTable() {
     C catalog = catalog();
 
