@@ -1457,9 +1457,9 @@ Each sort field in the fields list is stored as an object with the following pro
 
 | V1       | V2       | V3       | Field            | JSON representation | Example     |
 |----------|----------|----------|------------------|---------------------|-------------|
-| required | required | optional | **`transform`**  | `JSON string`       | `bucket[4]` |
+| required | required | required | **`transform`**  | `JSON string`       | `bucket[4]` |
 | required | required | optional | **`source-id`**  | `JSON int`          | 1           |
-|          |          | required | **`source-ids`** | `JSON list of ints` | `[1,2]`     |
+|          |          | optional | **`source-ids`** | `JSON list of ints` | `[1,2]`     |
 | required | required | required | **`direction`**  | `JSON string`       | `asc`       |
 | required | required | required | **`null-order`** | `JSON string`       | `nulls-last`|
 
