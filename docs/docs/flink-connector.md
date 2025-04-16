@@ -24,7 +24,7 @@ Apache Flink supports creating Iceberg table directly without creating the expli
 In Flink, the SQL `CREATE TABLE test (..) WITH ('connector'='iceberg', ...)` will create a Flink table in current Flink catalog (use [GenericInMemoryCatalog](https://ci.apache.org/projects/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/table/catalogs/#genericinmemorycatalog) by default),
 which is just mapping to the underlying iceberg table instead of maintaining iceberg table directly in current Flink catalog.
 
-To create the table in Flink SQL by using SQL syntax `CREATE TABLE test (..) WITH ('connector'='iceberg', ...)`,  Flink iceberg connector allows setting the catalog properties through table properties. The valid property values are described on the [Flink Configuration](flink-configuration.md#catalog-configuration) page in detail. Here are some examples below:
+To create the table in Flink SQL by using SQL syntax `CREATE TABLE test (..) WITH ('connector'='iceberg', ...)`,  Flink iceberg connector allows setting the catalog properties through table properties. The valid property values are described on the [Flink Configuration](flink-configuration.md#catalog-configuration) page in detail.
 
 ## Table managed in Hive catalog.
 
