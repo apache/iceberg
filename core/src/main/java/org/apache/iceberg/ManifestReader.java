@@ -396,7 +396,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       Long firstRowId) {
     if (firstRowId != null) {
       return new Function<>() {
-        long nextRowId = firstRowId;
+        private long nextRowId = firstRowId;
 
         @Override
         public ManifestEntry<F> apply(ManifestEntry<F> entry) {

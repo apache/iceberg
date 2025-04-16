@@ -328,7 +328,8 @@ public class TestTables {
 
     @Override
     public long newSnapshotId() {
-      if (current().propertyAsBoolean("random-snapshot-ids", false)) {
+      TableMetadata current = current();
+      if (current != null && current.propertyAsBoolean("random-snapshot-ids", false)) {
         return SnapshotIdGeneratorUtil.generateSnapshotID();
       } else {
         long nextSnapshotId = lastSnapshotId + 1;
