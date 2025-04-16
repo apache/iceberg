@@ -106,9 +106,11 @@ class SnapshotTableProcedure extends BaseProcedure {
       action.tableLocation(snapshotLocation);
     }
 
-    int parallelism = input.asInt(PARALLELISM_PARAM, 1);
-    Preconditions.checkArgument(parallelism > 0, "Parallelism should be larger than 0");
-    action = action.executeWith(SparkTableUtil.migrationService(parallelism));
+    Integer parallelism = input.asInt(PARALLELISM_PARAM, null);
+    if (parallelism != null) {
+      Preconditions.checkArgument(parallelism > 0, "Parallelism should be larger than 0");
+      action = action.executeWith(SparkTableUtil.migrationService(parallelism));
+    }
 
     SnapshotTable.Result result = action.tableProperties(properties).execute();
     return new InternalRow[] {newInternalRow(result.importedDataFilesCount())};
