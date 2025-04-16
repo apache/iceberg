@@ -39,7 +39,6 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
-import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -149,7 +148,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
     glueCatalogWithoutWarehouse.initialize(
         CATALOG_NAME,
         null,
-        new AwsProperties(),
+        new GlueProperties(),
         new S3FileIOProperties(),
         GLUE,
         LockManagers.defaultLockManager(),
@@ -455,7 +454,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Schema schema = new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
     PartitionSpec partitionSpec = PartitionSpec.builderFor(schema).build();
     String tableName = getRandomName();
-    AwsProperties properties = new AwsProperties();
+    GlueProperties properties = new GlueProperties();
     properties.setGlueCatalogSkipArchive(false);
     glueCatalog.initialize(
         CATALOG_NAME,
@@ -741,7 +740,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
     glueCatalog.initialize(
         CATALOG_NAME,
         testBucketPath,
-        new AwsProperties(properties),
+        new GlueProperties(properties),
         new S3FileIOProperties(properties),
         GLUE,
         null);

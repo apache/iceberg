@@ -35,7 +35,6 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
-import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -88,7 +87,7 @@ public class TestDynamoDbCatalog {
     catalog.initialize(
         "test",
         ImmutableMap.of(
-            AwsProperties.DYNAMODB_TABLE_NAME,
+            DynamoDbProperties.DYNAMODB_TABLE_NAME,
             catalogTableName,
             CatalogProperties.WAREHOUSE_LOCATION,
             "s3://" + testBucket + "/" + genRandomName()));

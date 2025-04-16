@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 
-import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -49,14 +48,14 @@ public class TestDynamoDbCatalog {
   public void before() {
     dynamo = Mockito.mock(DynamoDbClient.class);
     dynamoCatalog = new DynamoDbCatalog();
-    dynamoCatalog.initialize(CATALOG_NAME, WAREHOUSE_PATH, new AwsProperties(), dynamo, null);
+    dynamoCatalog.initialize(CATALOG_NAME, WAREHOUSE_PATH, new DynamoDbProperties(), dynamo, null);
   }
 
   @Test
   public void testConstructorWarehousePathWithEndSlash() {
     DynamoDbCatalog catalogWithSlash = new DynamoDbCatalog();
     catalogWithSlash.initialize(
-        CATALOG_NAME, WAREHOUSE_PATH + "/", new AwsProperties(), dynamo, null);
+        CATALOG_NAME, WAREHOUSE_PATH + "/", new DynamoDbProperties(), dynamo, null);
     Mockito.doReturn(GetItemResponse.builder().item(Maps.newHashMap()).build())
         .when(dynamo)
         .getItem(any(GetItemRequest.class));

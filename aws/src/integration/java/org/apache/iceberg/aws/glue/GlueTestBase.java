@@ -29,7 +29,6 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
-import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -82,20 +81,20 @@ public class GlueTestBase {
   @BeforeAll
   public static void beforeClass() {
     glueCatalog = new GlueCatalog();
-    AwsProperties awsProperties = new AwsProperties();
+    GlueProperties glueProperties = new GlueProperties();
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
     s3FileIOProperties.setDeleteBatchSize(10);
     glueCatalog.initialize(
         CATALOG_NAME,
         TEST_BUCKET_PATH,
-        awsProperties,
+        glueProperties,
         s3FileIOProperties,
         GLUE,
         null,
         ImmutableMap.of());
 
     glueCatalogWithSkipNameValidation = new GlueCatalog();
-    AwsProperties propertiesSkipNameValidation = new AwsProperties();
+    GlueProperties propertiesSkipNameValidation = new GlueProperties();
     propertiesSkipNameValidation.setGlueCatalogSkipNameValidation(true);
     glueCatalogWithSkipNameValidation.initialize(
         CATALOG_NAME,

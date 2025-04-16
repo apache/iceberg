@@ -76,7 +76,11 @@ public class AwsProperties implements Serializable {
    */
   @Deprecated public static final String GLUE_CATALOG_SKIP_ARCHIVE = "glue.skip-archive";
 
-  public static final boolean GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT = true;
+  /**
+   * @deprecated since 1.10.0, will be removed in 2.0.0; use {@link
+   *     org.apache.iceberg.aws.glue.GlueProperties#GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT} instead.
+   */
+  @Deprecated public static final boolean GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT = true;
 
   /**
    * If Glue should skip name validations It is recommended to stick to Glue best practice in

@@ -21,6 +21,7 @@ package org.apache.iceberg.aws.lakeformation;
 import java.util.Map;
 import org.apache.iceberg.aws.AssumeRoleAwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.aws.glue.GlueProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -38,9 +39,9 @@ import software.amazon.awssdk.services.s3.S3Client;
 
 /**
  * This implementation of AwsClientFactory is used by default if {@link
- * org.apache.iceberg.aws.AwsProperties#GLUE_LAKEFORMATION_ENABLED} is set to true. It uses the
- * default credential chain to assume role. Third-party engines can further extend this class to any
- * custom credential setup.
+ * org.apache.iceberg.aws.glue.GlueProperties#GLUE_LAKEFORMATION_ENABLED} is set to true. It uses
+ * the default credential chain to assume role. Third-party engines can further extend this class to
+ * any custom credential setup.
  *
  * <p>It extends AssumeRoleAwsClientFactory to reuse the assuming-role approach for all clients
  * except S3 and KMS. If a table is registered with LakeFormation, the S3/KMS client will use
@@ -70,8 +71,8 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
         AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX);
     this.dbName = catalogProperties.get(AwsProperties.LAKE_FORMATION_DB_NAME);
     this.tableName = catalogProperties.get(AwsProperties.LAKE_FORMATION_TABLE_NAME);
-    this.glueCatalogId = catalogProperties.get(AwsProperties.GLUE_CATALOG_ID);
-    this.glueAccountId = catalogProperties.get(AwsProperties.GLUE_ACCOUNT_ID);
+    this.glueCatalogId = catalogProperties.get(GlueProperties.GLUE_CATALOG_ID);
+    this.glueAccountId = catalogProperties.get(GlueProperties.GLUE_ACCOUNT_ID);
   }
 
   @Override
@@ -127,7 +128,7 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
     Preconditions.checkArgument(
         glueAccountId != null && !glueAccountId.isEmpty(),
         "%s can not be empty",
-        AwsProperties.GLUE_ACCOUNT_ID);
+        GlueProperties.GLUE_ACCOUNT_ID);
     String partitionName = PartitionMetadata.of(Region.of(region())).id();
     return String.format(
         "arn:%s:glue:%s:%s:table/%s/%s", partitionName, region(), glueAccountId, dbName, tableName);

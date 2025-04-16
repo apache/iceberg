@@ -29,6 +29,7 @@ import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.HttpClientProperties;
 import org.apache.iceberg.aws.glue.GlueCatalog;
+import org.apache.iceberg.aws.glue.GlueProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.awaitility.Awaitility;
@@ -94,7 +95,7 @@ public class TestLakeFormationAwsClientFactory {
                 .build());
     assumeRoleProperties = Maps.newHashMap();
     assumeRoleProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_REGION, "us-east-1");
-    assumeRoleProperties.put(AwsProperties.GLUE_LAKEFORMATION_ENABLED, "true");
+    assumeRoleProperties.put(GlueProperties.GLUE_LAKEFORMATION_ENABLED, "true");
     assumeRoleProperties.put(
         HttpClientProperties.CLIENT_TYPE, HttpClientProperties.CLIENT_TYPE_APACHE);
     assumeRoleProperties.put(AwsProperties.CLIENT_ASSUME_ROLE_ARN, response.role().arn());

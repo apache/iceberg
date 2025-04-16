@@ -32,7 +32,6 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.aws.AwsClientFactories;
-import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -108,7 +107,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
   private Configuration hadoopConf;
   private String catalogName;
   private String warehousePath;
-  private AwsProperties awsProperties;
+  private DynamoDbProperties dynamoProperties;
   private FileIO fileIO;
   private CloseableGroup closeableGroup;
   private Map<String, String> catalogProperties;
@@ -121,20 +120,20 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
     initialize(
         name,
         properties.get(CatalogProperties.WAREHOUSE_LOCATION),
-        new AwsProperties(properties),
+        new DynamoDbProperties(properties),
         AwsClientFactories.from(properties).dynamo(),
         initializeFileIO(properties));
   }
 
   @VisibleForTesting
   void initialize(
-      String name, String path, AwsProperties properties, DynamoDbClient client, FileIO io) {
+      String name, String path, DynamoDbProperties dynamoProps, DynamoDbClient client, FileIO io) {
     Preconditions.checkArgument(
         !Strings.isNullOrEmpty(path),
         "Cannot initialize DynamoDbCatalog because warehousePath must not be null or empty");
 
     this.catalogName = name;
-    this.awsProperties = properties;
+    this.dynamoProperties = dynamoProps;
     this.warehousePath = LocationUtil.stripTrailingSlash(path);
     this.dynamo = client;
     this.fileIO = io;
@@ -156,7 +155,8 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
     validateTableIdentifier(tableIdentifier);
-    return new DynamoDbTableOperations(dynamo, awsProperties, catalogName, fileIO, tableIdentifier);
+    return new DynamoDbTableOperations(
+        dynamo, dynamoProperties, catalogName, fileIO, tableIdentifier);
   }
 
   @Override
@@ -165,7 +165,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
     GetItemResponse response =
         dynamo.getItem(
             GetItemRequest.builder()
-                .tableName(awsProperties.dynamoDbTableName())
+                .tableName(dynamoProperties.dynamoDbTableName())
                 .consistentRead(true)
                 .key(namespacePrimaryKey(tableIdentifier.namespace()))
                 .build());
@@ -197,7 +197,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
     try {
       dynamo.putItem(
           PutItemRequest.builder()
-              .tableName(awsProperties.dynamoDbTableName())
+              .tableName(dynamoProperties.dynamoDbTableName())
               .conditionExpression("attribute_not_exists(" + DynamoDbCatalog.COL_VERSION + ")")
               .item(values)
               .build());
@@ -224,7 +224,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
       QueryResponse response =
           dynamo.query(
               QueryRequest.builder()
-                  .tableName(awsProperties.dynamoDbTableName())
+                  .tableName(dynamoProperties.dynamoDbTableName())
                   .consistentRead(true)
                   .keyConditionExpression(condition)
                   .expressionAttributeValues(conditionValues)
@@ -251,7 +251,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
     GetItemResponse response =
         dynamo.getItem(
             GetItemRequest.builder()
-                .tableName(awsProperties.dynamoDbTableName())
+                .tableName(dynamoProperties.dynamoDbTableName())
                 .consistentRead(true)
                 .key(namespacePrimaryKey(namespace))
                 .build());
@@ -275,7 +275,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
     try {
       dynamo.deleteItem(
           DeleteItemRequest.builder()
-              .tableName(awsProperties.dynamoDbTableName())
+              .tableName(dynamoProperties.dynamoDbTableName())
               .key(namespacePrimaryKey(namespace))
               .conditionExpression("attribute_exists(" + COL_NAMESPACE + ")")
               .build());
@@ -338,7 +338,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
       QueryResponse response =
           dynamo.query(
               QueryRequest.builder()
-                  .tableName(awsProperties.dynamoDbTableName())
+                  .tableName(dynamoProperties.dynamoDbTableName())
                   .indexName(GSI_NAMESPACE_IDENTIFIER)
                   .keyConditionExpression(condition)
                   .expressionAttributeValues(conditionValues)
@@ -366,7 +366,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
       GetItemResponse response =
           dynamo.getItem(
               GetItemRequest.builder()
-                  .tableName(awsProperties.dynamoDbTableName())
+                  .tableName(dynamoProperties.dynamoDbTableName())
                   .consistentRead(true)
                   .key(key)
                   .build());
@@ -389,7 +389,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
       }
       dynamo.deleteItem(
           DeleteItemRequest.builder()
-              .tableName(awsProperties.dynamoDbTableName())
+              .tableName(dynamoProperties.dynamoDbTableName())
               .key(tablePrimaryKey(identifier))
               .conditionExpression(COL_VERSION + " = :v")
               .expressionAttributeValues(ImmutableMap.of(":v", response.item().get(COL_VERSION)))
@@ -420,7 +420,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
     GetItemResponse fromResponse =
         dynamo.getItem(
             GetItemRequest.builder()
-                .tableName(awsProperties.dynamoDbTableName())
+                .tableName(dynamoProperties.dynamoDbTableName())
                 .consistentRead(true)
                 .key(fromKey)
                 .build());
@@ -433,7 +433,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
     GetItemResponse toResponse =
         dynamo.getItem(
             GetItemRequest.builder()
-                .tableName(awsProperties.dynamoDbTableName())
+                .tableName(dynamoProperties.dynamoDbTableName())
                 .consistentRead(true)
                 .key(toKey)
                 .build());
@@ -455,7 +455,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
                 TransactWriteItem.builder()
                     .delete(
                         Delete.builder()
-                            .tableName(awsProperties.dynamoDbTableName())
+                            .tableName(dynamoProperties.dynamoDbTableName())
                             .key(fromKey)
                             .conditionExpression(COL_VERSION + " = :v")
                             .expressionAttributeValues(
@@ -465,7 +465,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
                 TransactWriteItem.builder()
                     .put(
                         Put.builder()
-                            .tableName(awsProperties.dynamoDbTableName())
+                            .tableName(dynamoProperties.dynamoDbTableName())
                             .item(toKey)
                             .conditionExpression("attribute_not_exists(" + COL_VERSION + ")")
                             .build())
@@ -585,15 +585,16 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
   }
 
   private void ensureCatalogTableExistsOrCreate() {
-    if (dynamoDbTableExists(awsProperties.dynamoDbTableName())) {
+    if (dynamoDbTableExists(dynamoProperties.dynamoDbTableName())) {
       return;
     }
 
     LOG.info(
-        "DynamoDb catalog table {} not found, trying to create", awsProperties.dynamoDbTableName());
+        "DynamoDb catalog table {} not found, trying to create",
+        dynamoProperties.dynamoDbTableName());
     dynamo.createTable(
         CreateTableRequest.builder()
-            .tableName(awsProperties.dynamoDbTableName())
+            .tableName(dynamoProperties.dynamoDbTableName())
             .keySchema(
                 KeySchemaElement.builder()
                     .attributeName(COL_IDENTIFIER)
@@ -631,7 +632,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
             .build());
 
     // wait for the dynamo table to complete provisioning, which takes around 10 seconds
-    Tasks.foreach(awsProperties.dynamoDbTableName())
+    Tasks.foreach(dynamoProperties.dynamoDbTableName())
         .retry(CATALOG_TABLE_CREATION_WAIT_ATTEMPTS_MAX)
         .throwFailureWhenFinished()
         .onlyRetryOn(IllegalStateException.class)
@@ -666,7 +667,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
       GetItemResponse response =
           dynamo.getItem(
               GetItemRequest.builder()
-                  .tableName(awsProperties.dynamoDbTableName())
+                  .tableName(dynamoProperties.dynamoDbTableName())
                   .consistentRead(true)
                   .key(key)
                   .build());
@@ -678,7 +679,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
       attributeValues.put(":v", response.item().get(COL_VERSION));
       dynamo.updateItem(
           UpdateItemRequest.builder()
-              .tableName(awsProperties.dynamoDbTableName())
+              .tableName(dynamoProperties.dynamoDbTableName())
               .key(key)
               .conditionExpression(COL_VERSION + " = :v")
               .updateExpression(updateExpression)

@@ -26,7 +26,6 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.LockManager;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.aws.util.RetryDetector;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -68,7 +67,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   private static final String GLUE_EXTERNAL_TABLE_TYPE = "EXTERNAL_TABLE";
 
   private final GlueClient glue;
-  private final AwsProperties awsProperties;
+  private final GlueProperties glueProperties;
   private final String databaseName;
   private final String tableName;
   private final String fullTableName;
@@ -90,18 +89,18 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       GlueClient glue,
       LockManager lockManager,
       String catalogName,
-      AwsProperties awsProperties,
+      GlueProperties glueProperties,
       Map<String, String> tableCatalogProperties,
       Object hadoopConf,
       TableIdentifier tableIdentifier) {
     this.glue = glue;
-    this.awsProperties = awsProperties;
+    this.glueProperties = new GlueProperties();
     this.databaseName =
         IcebergToGlueConverter.getDatabaseName(
-            tableIdentifier, awsProperties.glueCatalogSkipNameValidation());
+            tableIdentifier, glueProperties.glueCatalogSkipNameValidation());
     this.tableName =
         IcebergToGlueConverter.getTableName(
-            tableIdentifier, awsProperties.glueCatalogSkipNameValidation());
+            tableIdentifier, glueProperties.glueCatalogSkipNameValidation());
     this.fullTableName = String.format("%s.%s.%s", catalogName, databaseName, tableName);
     this.commitLockEntityId = String.format("%s.%s", databaseName, tableName);
     this.tableCatalogProperties = tableCatalogProperties;
@@ -225,7 +224,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   }
 
   private boolean createGlueTempTableIfNecessary(TableMetadata base, String metadataLocation) {
-    if (awsProperties.glueLakeFormationEnabled() && base == null) {
+    if (glueProperties.glueLakeFormationEnabled() && base == null) {
       // LakeFormation credential require TableArn as input，so creating a dummy table
       // beforehand for create table scenario
       glue.createTable(
@@ -278,7 +277,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       GetTableResponse response =
           glue.getTable(
               GetTableRequest.builder()
-                  .catalogId(awsProperties.glueCatalogId())
+                  .catalogId(glueProperties.glueCatalogId())
                   .databaseName(databaseName)
                   .name(tableName)
                   .build());
@@ -311,9 +310,9 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       UpdateTableRequest.Builder updateTableRequest =
           UpdateTableRequest.builder()
               .overrideConfiguration(c -> c.addMetricPublisher(retryDetector))
-              .catalogId(awsProperties.glueCatalogId())
+              .catalogId(glueProperties.glueCatalogId())
               .databaseName(databaseName)
-              .skipArchive(awsProperties.glueCatalogSkipArchive())
+              .skipArchive(glueProperties.glueCatalogSkipArchive())
               .tableInput(
                   TableInput.builder()
                       .applyMutation(
@@ -335,7 +334,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       glue.createTable(
           CreateTableRequest.builder()
               .overrideConfiguration(c -> c.addMetricPublisher(retryDetector))
-              .catalogId(awsProperties.glueCatalogId())
+              .catalogId(glueProperties.glueCatalogId())
               .databaseName(databaseName)
               .tableInput(
                   TableInput.builder()
