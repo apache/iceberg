@@ -18,13 +18,14 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static scala.collection.JavaConverters.seqAsJavaList;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.expressions.Expression;
@@ -39,22 +40,16 @@ import org.apache.spark.sql.catalyst.plans.logical.NamedArgument;
 import org.apache.spark.sql.catalyst.plans.logical.PositionalArgument;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import scala.collection.JavaConverters;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 public class TestCallStatementParser {
-
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
 
   private static SparkSession spark = null;
   private static ParserInterface parser = null;
 
-  @BeforeClass
+  @BeforeAll
   public static void startSpark() {
     TestCallStatementParser.spark =
         SparkSession.builder()
@@ -65,7 +60,7 @@ public class TestCallStatementParser {
     TestCallStatementParser.parser = spark.sessionState().sqlParser();
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopSpark() {
     SparkSession currentSpark = TestCallStatementParser.spark;
     TestCallStatementParser.spark = null;
@@ -81,8 +76,8 @@ public class TestCallStatementParser {
         .satisfies(
             exception -> {
               ParseException parseException = (ParseException) exception;
-              Assert.assertEquals("PARSE_SYNTAX_ERROR", parseException.getErrorClass());
-              Assert.assertEquals("'CALL'", parseException.getMessageParameters().get("error"));
+              assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
+              assertThat(parseException.getMessageParameters()).containsEntry("error", "'CALL'");
             });
   }
 
@@ -90,10 +85,8 @@ public class TestCallStatementParser {
   public void testCallWithBackticks() throws ParseException {
     CallStatement call =
         (CallStatement) parser.parsePlan("CALL cat.`system`.`rollback_to_snapshot`()");
-    Assert.assertEquals(
-        ImmutableList.of("cat", "system", "rollback_to_snapshot"),
-        JavaConverters.seqAsJavaList(call.name()));
-    Assert.assertEquals(0, call.args().size());
+    assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "rollback_to_snapshot");
+    assertThat(seqAsJavaList(call.args())).isEmpty();
   }
 
   @Test
@@ -102,11 +95,9 @@ public class TestCallStatementParser {
         (CallStatement)
             parser.parsePlan(
                 "CALL c.system.rollback_to_snapshot(1, '2', 3L, true, 1.0D, 9.0e1, 900e-1BD)");
-    Assert.assertEquals(
-        ImmutableList.of("c", "system", "rollback_to_snapshot"),
-        JavaConverters.seqAsJavaList(call.name()));
+    assertThat(seqAsJavaList(call.name())).containsExactly("c", "system", "rollback_to_snapshot");
 
-    Assert.assertEquals(7, call.args().size());
+    assertThat(seqAsJavaList(call.args())).hasSize(7);
 
     checkArg(call, 0, 1, DataTypes.IntegerType);
     checkArg(call, 1, "2", DataTypes.StringType);
@@ -123,11 +114,9 @@ public class TestCallStatementParser {
         (CallStatement)
             parser.parsePlan(
                 "CALL cat.system.rollback_to_snapshot(c1 => 1, c2 => '2', c3 => true)");
-    Assert.assertEquals(
-        ImmutableList.of("cat", "system", "rollback_to_snapshot"),
-        JavaConverters.seqAsJavaList(call.name()));
+    assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "rollback_to_snapshot");
 
-    Assert.assertEquals(3, call.args().size());
+    assertThat(seqAsJavaList(call.args())).hasSize(3);
 
     checkArg(call, 0, "c1", 1, DataTypes.IntegerType);
     checkArg(call, 1, "c2", "2", DataTypes.StringType);
@@ -138,11 +127,9 @@ public class TestCallStatementParser {
   public void testCallWithMixedArgs() throws ParseException {
     CallStatement call =
         (CallStatement) parser.parsePlan("CALL cat.system.rollback_to_snapshot(c1 => 1, '2')");
-    Assert.assertEquals(
-        ImmutableList.of("cat", "system", "rollback_to_snapshot"),
-        JavaConverters.seqAsJavaList(call.name()));
+    assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "rollback_to_snapshot");
 
-    Assert.assertEquals(2, call.args().size());
+    assertThat(seqAsJavaList(call.args())).hasSize(2);
 
     checkArg(call, 0, "c1", 1, DataTypes.IntegerType);
     checkArg(call, 1, "2", DataTypes.StringType);
@@ -154,11 +141,9 @@ public class TestCallStatementParser {
         (CallStatement)
             parser.parsePlan(
                 "CALL cat.system.rollback_to_snapshot(TIMESTAMP '2017-02-03T10:37:30.00Z')");
-    Assert.assertEquals(
-        ImmutableList.of("cat", "system", "rollback_to_snapshot"),
-        JavaConverters.seqAsJavaList(call.name()));
+    assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "rollback_to_snapshot");
 
-    Assert.assertEquals(1, call.args().size());
+    assertThat(seqAsJavaList(call.args())).hasSize(1);
 
     checkArg(
         call, 0, Timestamp.from(Instant.parse("2017-02-03T10:37:30.00Z")), DataTypes.TimestampType);
@@ -169,11 +154,9 @@ public class TestCallStatementParser {
     CallStatement call =
         (CallStatement)
             parser.parsePlan("CALL cat.system.rollback_to_snapshot('${spark.extra.prop}')");
-    Assert.assertEquals(
-        ImmutableList.of("cat", "system", "rollback_to_snapshot"),
-        JavaConverters.seqAsJavaList(call.name()));
+    assertThat(seqAsJavaList(call.name())).containsExactly("cat", "system", "rollback_to_snapshot");
 
-    Assert.assertEquals(1, call.args().size());
+    assertThat(seqAsJavaList(call.args())).hasSize(1);
 
     checkArg(call, 0, "value", DataTypes.StringType);
   }
@@ -202,11 +185,8 @@ public class TestCallStatementParser {
                 + "cat.system.rollback_to_snapshot('${spark.extra.prop}')");
     for (String sqlText : callStatementsWithComments) {
       CallStatement call = (CallStatement) parser.parsePlan(sqlText);
-      Assert.assertEquals(
-          ImmutableList.of("cat", "system", "rollback_to_snapshot"),
-          JavaConverters.seqAsJavaList(call.name()));
-
-      Assert.assertEquals(1, call.args().size());
+      assertThat(seqAsJavaList(call.name()))
+          .containsExactly("cat", "system", "rollback_to_snapshot");
 
       checkArg(call, 0, "value", DataTypes.StringType);
     }
@@ -226,7 +206,7 @@ public class TestCallStatementParser {
 
     if (expectedName != null) {
       NamedArgument arg = checkCast(call.args().apply(index), NamedArgument.class);
-      Assert.assertEquals(expectedName, arg.name());
+      assertThat(arg.name()).isEqualTo(expectedName);
     } else {
       CallArgument arg = call.args().apply(index);
       checkCast(arg, PositionalArgument.class);
@@ -234,8 +214,8 @@ public class TestCallStatementParser {
 
     Expression expectedExpr = toSparkLiteral(expectedValue, expectedType);
     Expression actualExpr = call.args().apply(index).expr();
-    Assert.assertEquals("Arg types must match", expectedExpr.dataType(), actualExpr.dataType());
-    Assert.assertEquals("Arg must match", expectedExpr, actualExpr);
+    assertThat(actualExpr.dataType()).as("Arg types must match").isEqualTo(expectedExpr.dataType());
+    assertThat(actualExpr).as("Arg must match").isEqualTo(expectedExpr);
   }
 
   private Literal toSparkLiteral(Object value, DataType dataType) {
@@ -243,8 +223,7 @@ public class TestCallStatementParser {
   }
 
   private <T> T checkCast(Object value, Class<T> expectedClass) {
-    Assert.assertTrue(
-        "Expected instance of " + expectedClass.getName(), expectedClass.isInstance(value));
+    assertThat(value).isInstanceOf(expectedClass);
     return expectedClass.cast(value);
   }
 }

@@ -226,11 +226,13 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     }
 
     val distributionMode = if (distributionSpec != null) {
-      DistributionMode.HASH
-    } else if (orderingSpec.UNORDERED != null || orderingSpec.LOCALLY != null) {
-      DistributionMode.NONE
+      Some(DistributionMode.HASH)
+    } else if (orderingSpec.UNORDERED != null) {
+      Some(DistributionMode.NONE)
+    } else if (orderingSpec.LOCALLY() != null) {
+      None
     } else {
-      DistributionMode.RANGE
+      Some(DistributionMode.RANGE)
     }
 
     val ordering = if (orderingSpec != null && orderingSpec.order != null) {
