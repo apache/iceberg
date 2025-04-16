@@ -207,310 +207,310 @@ This binary artifact contains code from the following projects:
 
 --------------------------------------------------------------------------------
 
-Group: commons-codec  Name: commons-codec  Version: 1.17.1
+Group: commons-codec  Name: commons-codec
 Project URL: https://commons.apache.org/proper/commons-codec/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: commons-logging  Name: commons-logging  Version: 1.2
+Group: commons-logging  Name: commons-logging
 Project URL: http://commons.apache.org/proper/commons-logging/
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-buffer  Version: 4.1.115.Final
+Group: io.netty  Name: netty-buffer
 Project URL: https://netty.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-codec  Version: 4.1.115.Final
+Group: io.netty  Name: netty-codec
 Project URL: https://netty.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-codec-http  Version: 4.1.115.Final
+Group: io.netty  Name: netty-codec-http
 Project URL: https://netty.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-codec-http2  Version: 4.1.115.Final
+Group: io.netty  Name: netty-codec-http2
 Project URL: https://netty.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-common  Version: 4.1.115.Final
+Group: io.netty  Name: netty-common
 Project URL: https://netty.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-handler  Version: 4.1.115.Final
+Group: io.netty  Name: netty-handler
 Project URL: https://netty.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-resolver  Version: 4.1.115.Final
+Group: io.netty  Name: netty-resolver
 Project URL: https://netty.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport  Version: 4.1.115.Final
+Group: io.netty  Name: netty-transport
 Project URL: https://netty.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport-classes-epoll  Version: 4.1.115.Final
+Group: io.netty  Name: netty-transport-classes-epoll
 Project URL: https://netty.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-transport-native-unix-common  Version: 4.1.115.Final
+Group: io.netty  Name: netty-transport-native-unix-common
 Project URL: https://netty.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: org.apache.httpcomponents  Name: httpclient  Version: 4.5.13
+Group: org.apache.httpcomponents  Name: httpclient
 Project URL: http://hc.apache.org/httpcomponents-client
 License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: org.apache.httpcomponents  Name: httpcore  Version: 4.4.16
+Group: org.apache.httpcomponents  Name: httpcore
 Project URL: http://hc.apache.org/httpcomponents-core-ga
 License: Apache License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: org.reactivestreams  Name: reactive-streams  Version: 1.0.4
+Group: org.reactivestreams  Name: reactive-streams
 Project URL: http://reactive-streams.org
 License: CC0 - http://creativecommons.org/publicdomain/zero/1.0/
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: annotations  Version: 2.29.52
+Group: software.amazon.awssdk  Name: annotations
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: apache-client  Version: 2.29.52
+Group: software.amazon.awssdk  Name: apache-client
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: arns  Version: 2.29.52
+Group: software.amazon.awssdk  Name: arns
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: auth  Version: 2.29.52
+Group: software.amazon.awssdk  Name: auth
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: aws-core  Version: 2.29.52
+Group: software.amazon.awssdk  Name: aws-core
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: aws-json-protocol  Version: 2.29.52
+Group: software.amazon.awssdk  Name: aws-json-protocol
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: aws-query-protocol  Version: 2.29.52
+Group: software.amazon.awssdk  Name: aws-query-protocol
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: aws-xml-protocol  Version: 2.29.52
+Group: software.amazon.awssdk  Name: aws-xml-protocol
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: checksums  Version: 2.29.52
+Group: software.amazon.awssdk  Name: checksums
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: checksums-spi  Version: 2.29.52
+Group: software.amazon.awssdk  Name: checksums-spi
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: crt-core  Version: 2.29.52
+Group: software.amazon.awssdk  Name: crt-core
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: dynamodb  Version: 2.29.52
+Group: software.amazon.awssdk  Name: dynamodb
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: endpoints-spi  Version: 2.29.52
+Group: software.amazon.awssdk  Name: endpoints-spi
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: glue  Version: 2.29.52
+Group: software.amazon.awssdk  Name: glue
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: http-auth  Version: 2.29.52
+Group: software.amazon.awssdk  Name: http-auth
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: http-auth-aws  Version: 2.29.52
+Group: software.amazon.awssdk  Name: http-auth-aws
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: http-auth-aws-crt  Version: 2.29.52
+Group: software.amazon.awssdk  Name: http-auth-aws-crt
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: http-auth-aws-eventstream  Version: 2.29.52
+Group: software.amazon.awssdk  Name: http-auth-aws-eventstream
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: http-auth-spi  Version: 2.29.52
+Group: software.amazon.awssdk  Name: http-auth-spi
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: http-client-spi  Version: 2.29.52
+Group: software.amazon.awssdk  Name: http-client-spi
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: iam  Version: 2.29.52
+Group: software.amazon.awssdk  Name: iam
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: identity-spi  Version: 2.29.52
+Group: software.amazon.awssdk  Name: identity-spi
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: json-utils  Version: 2.29.52
+Group: software.amazon.awssdk  Name: json-utils
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: kms  Version: 2.29.52
+Group: software.amazon.awssdk  Name: kms
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: lakeformation  Version: 2.29.52
+Group: software.amazon.awssdk  Name: lakeformation
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: metrics-spi  Version: 2.29.52
+Group: software.amazon.awssdk  Name: metrics-spi
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: netty-nio-client  Version: 2.29.52
+Group: software.amazon.awssdk  Name: netty-nio-client
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: profiles  Version: 2.29.52
+Group: software.amazon.awssdk  Name: profiles
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: protocol-core  Version: 2.29.52
+Group: software.amazon.awssdk  Name: protocol-core
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: regions  Version: 2.29.52
+Group: software.amazon.awssdk  Name: regions
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: s3  Version: 2.29.52
+Group: software.amazon.awssdk  Name: s3
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: sdk-core  Version: 2.29.52
+Group: software.amazon.awssdk  Name: sdk-core
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: sso  Version: 2.29.52
+Group: software.amazon.awssdk  Name: sso
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: sts  Version: 2.29.52
+Group: software.amazon.awssdk  Name: sts
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: third-party-jackson-core  Version: 2.29.52
+Group: software.amazon.awssdk  Name: third-party-jackson-core
 Project URL: https://aws.amazon.com/sdkforjava
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: utils  Version: 2.29.52
+Group: software.amazon.awssdk  Name: utils
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk.crt  Name: aws-crt  Version: 0.33.3
+Group: software.amazon.awssdk.crt  Name: aws-crt
 Project URL: https://github.com/awslabs/aws-crt-java
 License: The Apache Software License, Version 2.0 - http://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.eventstream  Name: eventstream  Version: 1.0.1
+Group: software.amazon.eventstream  Name: eventstream
 Project URL: https://github.com/awslabs/aws-eventstream-java
 License: Apache License, Version 2.0 - https://aws.amazon.com/apache2.0
