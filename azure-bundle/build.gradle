@@ -27,6 +27,9 @@ project(":iceberg-azure-bundle") {
     implementation platform(libs.azuresdk.bom)
     implementation "com.azure:azure-storage-file-datalake"
     implementation "com.azure:azure-identity"
+    implementation 'io.netty:netty-common:4.1.118.Final'
+    implementation 'io.netty:netty-handler:4.1.118.Final'
+    implementation 'net.minidev:json-smart:2.5.2'
   }
 
   shadowJar {
