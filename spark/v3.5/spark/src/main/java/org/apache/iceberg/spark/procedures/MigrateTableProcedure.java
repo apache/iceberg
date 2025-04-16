@@ -105,10 +105,12 @@ class MigrateTableProcedure extends BaseProcedure {
       migrateTableSparkAction = migrateTableSparkAction.backupTableName(backupTableName);
     }
 
-    int parallelism = input.asInt(PARALLELISM_PARAM, 1);
-    Preconditions.checkArgument(parallelism > 0, "Parallelism should be larger than 0");
-    migrateTableSparkAction =
-        migrateTableSparkAction.executeWith(SparkTableUtil.migrationService(parallelism));
+    Integer parallelism = input.asInt(PARALLELISM_PARAM, null);
+    if (parallelism != null) {
+      Preconditions.checkArgument(parallelism > 0, "Parallelism should be larger than 0");
+      migrateTableSparkAction =
+          migrateTableSparkAction.executeWith(SparkTableUtil.migrationService(parallelism));
+    }
 
     MigrateTable.Result result = migrateTableSparkAction.execute();
     return new InternalRow[] {newInternalRow(result.migratedDataFilesCount())};
