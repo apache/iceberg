@@ -402,6 +402,7 @@ class EnableRowLineageUpdate(BaseUpdate):
 class OperationType(BaseModel):
     __root__: Literal[
         'create-table',
+        'register-table',
         'drop-table',
         'update-table',
         'rename-table',
@@ -528,11 +529,13 @@ class NamespaceReference(BaseModel):
 class TableReference(BaseModel):
     reference_type: str = Field('table', alias='reference-type', const=True)
     identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
 
 
 class ViewReference(BaseModel):
     reference_type: str = Field('view', alias='reference-type', const=True)
     identifier: TableIdentifier
+    view_uuid: UUID = Field(..., alias='view-uuid')
 
 
 class RegisterTableRequest(BaseModel):
@@ -735,6 +738,7 @@ class DropTableOperation(BaseModel):
         ..., alias='operation-type', const=True
     )
     identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
     purge: Optional[bool] = Field(None, description='Whether purge flag was set')
 
 
@@ -743,6 +747,7 @@ class DropViewOperation(BaseModel):
         ..., alias='operation-type', const=True
     )
     identifier: TableIdentifier
+    view_uuid: UUID = Field(..., alias='view-uuid')
 
 
 class CreateNamespaceOperation(CreateNamespaceResponse):
@@ -1041,10 +1046,10 @@ class GetEventsRequest(BaseModel):
         alias='page-size',
         description='The maximum number of events to return in a single response. If not provided, the server may choose a default page size.\n',
     )
-    after_sequence: Optional[int] = Field(
+    after_timestamp_ms: Optional[int] = Field(
         None,
-        alias='after-sequence',
-        description='The sequence number to start consuming events from (exclusive). If not provided, the first available sequence number is used.\n',
+        alias='after-timestamp-ms',
+        description='The (server) timestamp in milliseconds to start consuming events from (inclusive). If not provided, the first available timestamp is used.\n',
     )
     operation_types: Optional[List[OperationType]] = Field(
         None,
@@ -1072,6 +1077,7 @@ class RenameTableOperation(RenameTableRequest):
     operation_type: Literal['rename-table', 'rename-view'] = Field(
         ..., alias='operation-type', const=True
     )
+    table_uuid: UUID = Field(..., alias='table-uuid')
 
 
 class StatisticsFile(BaseModel):
@@ -1493,16 +1499,20 @@ class CommitTableResponse(BaseModel):
 
 class EventsResponse(BaseModel):
     next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
-    highest_processed_sequence: int = Field(
+    highest_processed_timestamp_ms: int = Field(
         ...,
-        alias='highest-processed-sequence',
-        description='The highest sequence number processed by the server when generating this response.  This may not necessarily appear in the returned changes if it was filtered out.\nClients can use this value as the `after-sequence` parameter in subsequent  requests to continue retrieving changes after this point.\n',
+        alias='highest-processed-timestamp-ms',
+        description='The highest timestamp processed by the server when generating this response.  This may not necessarily appear in the returned changes if it was filtered out.\nClients can use this value as the `after-timestamp-ms` parameter in subsequent  requests to continue retrieving changes after this point.\n',
     )
     events: List[Event]
 
 
 class Event(BaseModel):
-    sequence: int = Field(..., description='Sequence number of this event')
+    event_id: str = Field(
+        ...,
+        alias='event-id',
+        description='Unique ID of this event. Clients should perform deduplication based on this ID.',
+    )
     transaction: str = Field(
         ...,
         description='ID of the transaction this change belongs to. If multiple changes have the same transaction ID, they are part of the same atomic transaction.\n',
@@ -1515,13 +1525,14 @@ class Event(BaseModel):
     timestamp_ms: int = Field(
         ...,
         alias='timestamp-ms',
-        description='Timestamp when this transaction occurred (epoch millis)',
+        description='Timestamp when this transaction occurred (epoch milliseconds). Timestamps are not guaranteed to be unique. Typically all events in a transaction will have the same timestamp.\n',
     )
     user: str = Field(
         ..., description='The id of the user who performed this transaction'
     )
     operation: Union[
         CreateTableOperation,
+        RegisterTableOperation,
         DropTableOperation,
         UpdateTableOperation,
         RenameTableOperation,
@@ -1539,6 +1550,16 @@ class CreateTableOperation(BaseModel):
         ..., alias='operation-type', const=True
     )
     identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
+    metadata: TableMetadata
+
+
+class RegisterTableOperation(BaseModel):
+    operation_type: Literal['register-table'] = Field(
+        ..., alias='operation-type', const=True
+    )
+    identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
     metadata: TableMetadata
 
 
@@ -1547,6 +1568,7 @@ class UpdateTableOperation(BaseModel):
         ..., alias='operation-type', const=True
     )
     identifier: TableIdentifier
+    table_uuid: UUID = Field(..., alias='table-uuid')
     updates: List[TableUpdate]
 
 
@@ -1555,6 +1577,7 @@ class CreateViewOperation(BaseModel):
         ..., alias='operation-type', const=True
     )
     identifier: TableIdentifier
+    view_uuid: UUID = Field(..., alias='view-uuid')
     metadata: ViewMetadata
 
 
@@ -1563,6 +1586,7 @@ class ReplaceViewOperation(BaseModel):
         ..., alias='operation-type', const=True
     )
     identifier: TableIdentifier
+    view_uuid: UUID = Field(..., alias='view-uuid')
     updates: List[ViewUpdate]
 
 

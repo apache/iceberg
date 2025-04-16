@@ -1776,22 +1776,23 @@ paths:
         - Catalog API
       summary: Get events for changes to catalog objects
       description: >
-        Returns a chronological sequence of changes to catalog objects (tables, namespaces, views) 
+        Returns a sequence of changes to catalog objects (tables, namespaces, views) 
         that allows clients to efficiently track metadata modifications without polling individual 
-        resources. Consumers track their progress through sequence-based offsets, enabling resumable 
+        resources. Consumers track their progress through a next-page-token, enabling resumable 
         synchronization after downtime or errors.
 
         This endpoint primarily supports use cases like catalog federation, workflow triggering, 
         and basic audit capabilities.
 
         When a request includes a `next-page-token`, it takes precedence over 
-        all other filters including `after-sequence` and `operation-type`.
+        all other filters including `after-timestamp-ms` and `operation-type`.
         The server encodes all necessary state in the token to ensure 
         consistent filtering across pages. Clients should use the returned `next-page-token` for 
         subsequent requests.
 
         Consumers should be prepared to handle 410 Gone responses when requested sequences are
-        outside the server's retention window.
+        outside the server's retention window. Consumers should also de-duplicate received events based
+        on the event's `event-id`. Consistency guarantees vary between server implementations.
       operationId: getEvents
       requestBody:
         content:
@@ -3080,6 +3081,7 @@ components:
       type: string
       enum:
         - create-table
+        - register-table
         - drop-table
         - update-table
         - rename-table
@@ -3480,12 +3482,12 @@ components:
           description: >
             The maximum number of events to return in a single response.
             If not provided, the server may choose a default page size.
-        after-sequence:
+        after-timestamp-ms:
           type: integer
           format: int64
           description: >
-            The sequence number to start consuming events from (exclusive).
-            If not provided, the first available sequence number is used.
+            The (server) timestamp in milliseconds to start consuming events from (inclusive).
+            If not provided, the first available timestamp is used.
         operation-types:
           type: array
           items:
@@ -3534,24 +3536,32 @@ components:
       required:
         - reference-type
         - identifier
+        - table-uuid
       properties:
         reference-type:
           type: string
           const: "table"
         identifier:
           $ref: "#/components/schemas/TableIdentifier"
+        table-uuid:
+          type: string
+          format: uuid
 
     ViewReference:
       type: object
       required:
         - reference-type
         - identifier
+        - view-uuid
       properties:
         reference-type:
           type: string
           const: "view"
         identifier:
           $ref: "#/components/schemas/TableIdentifier"
+        view-uuid:
+          type: string
+          format: uuid
 
     CommitViewRequest:
       type: object
@@ -4071,17 +4081,17 @@ components:
     EventsResponse:
       type: object
       required:
-        - highest-processed-sequence
+        - highest-processed-timestamp-ms
         - events
       properties:
         next-page-token:
           $ref: "#/components/schemas/PageToken"
-        highest-processed-sequence:
+        highest-processed-timestamp-ms:
           description: >
-            The highest sequence number processed by the server when generating this response. 
+            The highest timestamp processed by the server when generating this response. 
             This may not necessarily appear in the returned changes if it was filtered out.
 
-            Clients can use this value as the `after-sequence` parameter in subsequent 
+            Clients can use this value as the `after-timestamp-ms` parameter in subsequent 
             requests to continue retrieving changes after this point.
           type: integer
           format: int64
@@ -4093,17 +4103,16 @@ components:
     Event:
       type: object
       required:
-        - sequence
+        - event-id
         - transaction
         - event-count
         - timestamp-ms
         - user
         - operation
       properties:
-        sequence:
-          type: integer
-          format: int64
-          description: Sequence number of this event
+        event-id:
+          type: string
+          description: Unique ID of this event. Clients should perform deduplication based on this ID.
         transaction:
           description: >
             ID of the transaction this change belongs to. If multiple changes have the same transaction ID,
@@ -4115,7 +4124,10 @@ components:
         timestamp-ms:
           type: integer
           format: int64
-          description: Timestamp when this transaction occurred (epoch millis)
+          description: >
+            Timestamp when this transaction occurred (epoch milliseconds).
+            Timestamps are not guaranteed to be unique. Typically all events in
+            a transaction will have the same timestamp.
         user:
           type: string
           description: The id of the user who performed this transaction
@@ -4125,6 +4137,7 @@ components:
             propertyName: operation-type
             mapping:
               create-table: "#/components/schemas/CreateTableOperation"
+              register-table: "#/components/schemas/RegisterTableOperation"
               drop-table: "#/components/schemas/DropTableOperation"
               update-table: "#/components/schemas/UpdateTableOperation"
               rename-table: "#/components/schemas/RenameTableOperation"
@@ -4137,6 +4150,7 @@ components:
               drop-namespace: "#/components/schemas/DropNamespaceOperation"
           oneOf:
             - $ref: "#/components/schemas/CreateTableOperation"
+            - $ref: "#/components/schemas/RegisterTableOperation"
             - $ref: "#/components/schemas/DropTableOperation"
             - $ref: "#/components/schemas/UpdateTableOperation"
             - $ref: "#/components/schemas/RenameTableOperation"
@@ -4152,6 +4166,7 @@ components:
       required:
         - operation-type
         - identifier
+        - table-uuid
         - metadata
       properties:
         operation-type:
@@ -4159,6 +4174,27 @@ components:
           const: "create-table"
         identifier:
           $ref: "#/components/schemas/TableIdentifier"
+        table-uuid:
+          type: string
+          format: uuid
+        metadata:
+          $ref: "#/components/schemas/TableMetadata"
+
+    RegisterTableOperation:
+      required:
+        - operation-type
+        - identifier
+        - table-uuid
+        - metadata
+      properties:
+        operation-type:
+          $ref: "#/components/schemas/OperationType"
+          const: "register-table"
+        identifier:
+          $ref: "#/components/schemas/TableIdentifier"
+        table-uuid:
+          type: string
+          format: uuid
         metadata:
           $ref: "#/components/schemas/TableMetadata"
 
@@ -4166,12 +4202,16 @@ components:
       required:
         - operation-type
         - identifier
+        - table-uuid
       properties:
         operation-type:
           $ref: "#/components/schemas/OperationType"
           const: "drop-table"
         identifier:
           $ref: "#/components/schemas/TableIdentifier"
+        table-uuid:
+          type: string
+          format: uuid
         purge:
           type: boolean
           description: Whether purge flag was set
@@ -4180,6 +4220,7 @@ components:
       required:
         - operation-type
         - identifier
+        - table-uuid
         - updates
       properties:
         operation-type:
@@ -4187,6 +4228,9 @@ components:
           const: "update-table"
         identifier:
           $ref: "#/components/schemas/TableIdentifier"
+        table-uuid:
+          type: string
+          format: uuid
         updates:
           type: array
           items:
@@ -4197,22 +4241,30 @@ components:
         - $ref: "#/components/schemas/RenameTableRequest"
       required:
         - operation-type
+        - table-uuid
       properties:
         operation-type:
           $ref: "#/components/schemas/OperationType"
           const: "rename-table"
+        table-uuid:
+          type: string
+          format: uuid
 
     CreateViewOperation:
       required:
         - operation-type
         - identifier
+        - view-uuid
         - metadata
       properties:
         operation-type:
           $ref: "#/components/schemas/OperationType"
           const: "create-view"
         identifier:
-          $ref: "#/components/schemas/TableIdentifier"
+          $ref: "#/components/schemas/TableIdentifier"#
+        view-uuid:
+          type: string
+          format: uuid
         metadata:
           $ref: "#/components/schemas/ViewMetadata"
 
@@ -4220,17 +4272,22 @@ components:
       required:
         - operation-type
         - identifier
+        - view-uuid
       properties:
         operation-type:
           $ref: "#/components/schemas/OperationType"
           const: "drop-view"
         identifier:
           $ref: "#/components/schemas/TableIdentifier"
+        view-uuid:
+          type: string
+          format: uuid
 
     ReplaceViewOperation:
       required:
         - operation-type
         - identifier
+        - view-uuid
         - updates
       properties:
         operation-type:
@@ -4238,6 +4295,9 @@ components:
           const: "replace-view"
         identifier:
           $ref: "#/components/schemas/TableIdentifier"
+        view-uuid:
+          type: string
+          format: uuid
         updates:
           type: array
           items:
