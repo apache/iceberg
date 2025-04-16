@@ -77,10 +77,8 @@ public class S3OutputFile extends BaseS3File implements OutputFile, NativelyEncr
   public static S3OutputFile fromLocation(
       String location, PrefixedS3Client client, MetricsContext metrics) {
     return new S3OutputFile(
-        client.s3Client(),
-        client.s3FileIOProperties().isS3AnalyticsAcceleratorEnabled()
-            ? client.s3AsyncClient()
-            : null,
+        client.s3(),
+        client.s3FileIOProperties().isS3AnalyticsAcceleratorEnabled() ? client.s3Async() : null,
         new S3URI(location, client.s3FileIOProperties().bucketToAccessPointMapping()),
         client.s3FileIOProperties(),
         metrics);

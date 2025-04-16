@@ -126,10 +126,8 @@ public class S3InputFile extends BaseS3File implements InputFile, NativelyEncryp
   public static S3InputFile fromLocation(
       String location, long length, PrefixedS3Client client, MetricsContext metrics) {
     return new S3InputFile(
-        client.s3Client(),
-        client.s3FileIOProperties().isS3AnalyticsAcceleratorEnabled()
-            ? client.s3AsyncClient()
-            : null,
+        client.s3(),
+        client.s3FileIOProperties().isS3AnalyticsAcceleratorEnabled() ? client.s3Async() : null,
         new S3URI(location, client.s3FileIOProperties().bucketToAccessPointMapping()),
         length > 0 ? length : null,
         client.s3FileIOProperties(),

@@ -53,7 +53,7 @@ public class PrefixedS3Client implements AutoCloseable {
         this.s3 = ((AwsClientFactory) clientFactory)::s3;
       }
       if (s3FileIOProperties.isPreloadClientEnabled()) {
-        s3Client();
+        s3();
       }
     }
 
@@ -73,7 +73,7 @@ public class PrefixedS3Client implements AutoCloseable {
     return prefix;
   }
 
-  public S3Client s3Client() {
+  public S3Client s3() {
     if (s3Client == null) {
       synchronized (this) {
         if (s3Client == null) {
@@ -85,7 +85,7 @@ public class PrefixedS3Client implements AutoCloseable {
     return s3Client;
   }
 
-  public S3AsyncClient s3AsyncClient() {
+  public S3AsyncClient s3Async() {
     if (s3AsyncClient == null) {
       synchronized (this) {
         if (s3AsyncClient == null) {
