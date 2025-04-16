@@ -20,7 +20,7 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.curator.framework.CuratorFramework;
@@ -128,7 +128,7 @@ public class ZkLockFactory implements TriggerLockFactory {
         client
             .create()
             .creatingParentsIfNeeded()
-            .forPath(lockPath, newInstanceId.getBytes(Charset.defaultCharset()));
+            .forPath(lockPath, newInstanceId.getBytes(StandardCharsets.UTF_8));
         return true;
       } catch (KeeperException.NodeExistsException e) {
         // Check if the lock creation was successful behind the scenes.
@@ -170,7 +170,7 @@ public class ZkLockFactory implements TriggerLockFactory {
     public String instanceId() {
       try {
         byte[] data = client.getData().forPath(lockPath);
-        return new String(data, Charset.defaultCharset());
+        return new String(data, StandardCharsets.UTF_8);
       } catch (Exception e) {
         LOG.info("Failed to get lock value: {}", lockPath, e);
         return null;
