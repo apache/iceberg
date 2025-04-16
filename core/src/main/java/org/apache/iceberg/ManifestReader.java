@@ -400,7 +400,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
 
         @Override
         public ManifestEntry<F> apply(ManifestEntry<F> entry) {
-          if (entry.file() instanceof BaseFile) {
+          if (entry.file() instanceof BaseFile && entry.status() != ManifestEntry.Status.DELETED) {
             BaseFile<?> file = (BaseFile<?>) entry.file();
             if (null == file.firstRowId()) {
               file.setFirstRowId(nextRowId);
