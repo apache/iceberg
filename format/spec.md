@@ -440,7 +440,7 @@ The existing manifests are written with the `first_row_id` assigned when the man
 
 The first added manifest, `added1`, is assigned the same `first_row_id` as the snapshot and each of the remaining added manifests are assigned a `first_row_id` based on the number of rows in preceding manifests that were assigned a `first_row_id`.
 
-Note that the second file, `added2`, changes the `first_row_id` of the next manifest even though it contains no added data files because any data file without a `first_row_id` could be assigned one, even if it has existing status.
+Note that the second file, `added2`, changes the `first_row_id` of the next manifest even though it contains no added data files because any data file without a `first_row_id` could be assigned one, even if it has existing status. This is optional if the writer knows that existing data files in the manifest have assigned `first_row_id` values.
 
 Within `added1`, the first added manifest, each data file's `first_row_id` follows a similar pattern:
 
@@ -461,7 +461,7 @@ When the new snapshot is committed, the table's `next-row-id` must also be updat
 
 ##### Row Lineage for Upgraded Tables 
 
-When a table is upgraded to v3, existing snapshots are not modified and do not have `first-row-id` set. For such snapshots without `first-row-id`, `first_row_id` values for data files and data manifests are null, and values for `_row_id` are read as null for all rows. When `first_row_id` is null, inherited row ID values are also null.
+When a table is upgraded to v3, its `next-row-id` is initailized to 0 and existing snapshots are not modified (that is, `first-row-id` remains unset or null). For such snapshots without `first-row-id`, `first_row_id` values for data files and data manifests are null, and values for `_row_id` are read as null for all rows. When `first_row_id` is null, inherited row ID values are also null.
 
 Snapshots that are created after upgrading to v3 must set the snapshot's `first-row-id` and assign row IDs to existing and added files in the snapshot. When writing the manifest list, all data manifests must be assigned a `first_row_id`, which assigns a `first_row_id` to all data files via inheritance.
 
@@ -738,7 +738,7 @@ Valid snapshots are stored as a list in table metadata. For serialization, see A
 
 #### Snapshot Row IDs
 
-A snapshot's `first-row-id` is assigned to the table's current `next-row-id` on each commit attempt. If a commit is retried, the `first-row-id` must be reassigned. If a commit contains no new rows, `first-row-id` should be omitted.
+A snapshot's `first-row-id` is assigned to the table's current `next-row-id` on each commit attempt. If a commit is retried, the `first-row-id` must be reassigned based on the table's current `next-row-id`. The `first-row-id` field is required even if a commit does not assign any ID space.
 
 The snapshot's `first-row-id` is the starting `first_row_id` assigned to manifests in the snapshot's manifest list.
 
@@ -790,9 +790,11 @@ Notes:
 
 #### First Row ID Assignment
 
-The `first_row_id` for existing manifests must be preserved when writing a new manifest list. The value of `first_row_id` for delete manifests is always `null`. The `first_row_id` is only assigned for new data manifests that do not have a `first_row_id`.
+The `first_row_id` for existing manifests must be preserved when writing a new manifest list. The value of `first_row_id` for delete manifests is always `null`. The `first_row_id` is only assigned for data manifests that do not have a `first_row_id`. Assignment must account for data files that will be assigned `first_row_id` values when the manifest is read.
 
-The `first_row_id` field for a new data manifest is assigned the value of the snapshot's `first_row_id` plus the sum of `added_rows_count` and `existing_rows_count` for all new data manifests that preceded it in the manifest list; that is, those that had a null `first_row_id` and were assigned one.
+The first manifest without a `first_row_id` is assigned a value that is greater than or equal to the `first_row_id` of the snapshot. Subsequent manifests without a `first_row_id` are assigned one based on the previous manifest to be assigned a `first_row_id`. Each assigned `first_row_id` must increase by the row count of all files that will be assigned a `first_row_id` via inheritance in the last assigned manifest. That is, each `first_row_id` must be greater than or equal to the last assigned `first_row_id` plus the total record count of data files with a null `first_row_id` in the last assigned manifest.
+
+A simple and valid approach is to estimate the number of rows in data files that will be assigned a `first_row_id` using the the manifest's `added_rows_count` and `existing_rows_count`: `first_row_id = last_assigned.first_row_id + last_assigned.added_rows_count + last_assigned.existing_rows_count`.
 
 ### Scan Planning
 
@@ -915,7 +917,9 @@ Table metadata consists of the following fields:
 
 For serialization details, see Appendix C.
 
-When a new snapshot is added, the table's `next-row-id` should be updated to the previous `next-row-id` plus the sum of `record_count` for all data files added in the snapshot (this is also equal to the sum of `added_rows_count` for all manifests added in the snapshot). This ensures that `next-row-id` is always higher than any assigned row ID in the table.
+When a new snapshot is added, the table's `next-row-id` should be increased by the sum of `record_count` for all data files that will be assigned a `first_row_id` via inheritance in the snapshot. The `next-row-id` must always be higher than any assigned row ID in the table.
+
+A simple and valid approach is estimate of the number of rows in data files that will be assigned a `first_row_id` using the manifests' `added_rows_count` and `existing_rows_count`. Using the last assigned manifest, this is `next-row-id = last_assigned.first_row_id + last_assigned.added_rows_count + last_assigned.existing_rows_count`.
 
 #### Table Statistics
 
