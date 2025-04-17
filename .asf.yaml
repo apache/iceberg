@@ -40,6 +40,12 @@ github:
 
       required_linear_history: true
 
+    1.8.x:
+      required_pull_request_reviews:
+        required_approving_review_count: 1
+
+      required_linear_history: true
+
   del_branch_on_merge: true
   
   features:
