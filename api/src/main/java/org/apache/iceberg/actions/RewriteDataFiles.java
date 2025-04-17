@@ -87,6 +87,12 @@ public interface RewriteDataFiles
   int MAX_CONCURRENT_FILE_GROUP_REWRITES_DEFAULT = 5;
 
   /**
+   * The max number of files to be rewritten.By default, this value will be null (To rewrite all the
+   * files)
+   */
+  String MAX_FILES_TO_REWRITE = "max-files-to-rewrite";
+
+  /**
    * The output file size that this rewrite strategy will attempt to generate when rewriting files.
    * By default this will use the "write.target-file-size-bytes value" in the table properties of
    * the table being updated.
