@@ -30,9 +30,7 @@ class TestEnvironmentUtil {
   @Test
   public void testEnvironmentSubstitution() {
     Optional<Map.Entry<String, String>> envEntry = System.getenv().entrySet().stream().findFirst();
-    assumeThat(envEntry.isPresent())
-        .isEqualTo(true)
-        .as("Expecting at least one env. variable to be present");
+    assumeThat(envEntry).as("Expecting at least one env. variable to be present").isPresent();
     Map<String, String> resolvedProps =
         EnvironmentUtil.resolveAll(ImmutableMap.of("env-test", "env:" + envEntry.get().getKey()));
     assertThat(resolvedProps)
