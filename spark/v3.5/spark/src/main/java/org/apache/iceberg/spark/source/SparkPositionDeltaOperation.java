@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Table;
@@ -97,15 +99,17 @@ class SparkPositionDeltaOperation implements RowLevelOperation, SupportsDelta {
 
   @Override
   public NamedReference[] requiredMetadataAttributes() {
-    NamedReference specId = Expressions.column(MetadataColumns.SPEC_ID.name());
-    NamedReference partition = Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME);
-    if (TableUtil.formatVersion(table) >= 3) {
-      NamedReference rowId = Expressions.column(MetadataColumns.ROW_ID.name());
-      NamedReference lastUpdatedSequenceNumber =
-          Expressions.column(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name());
-      return new NamedReference[] {specId, partition, rowId, lastUpdatedSequenceNumber};
+    List<NamedReference> metadataAttributes = new ArrayList<>();
+    metadataAttributes.add(Expressions.column(MetadataColumns.SPEC_ID.name()));
+    metadataAttributes.add(Expressions.column(MetadataColumns.PARTITION_COLUMN_NAME));
+
+    if (TableUtil.supportsRowLineage(table)) {
+      metadataAttributes.add(Expressions.column(MetadataColumns.ROW_ID.name()));
+      metadataAttributes.add(
+          Expressions.column(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name()));
     }
-    return new NamedReference[] {specId, partition};
+
+    return metadataAttributes.toArray(new NamedReference[0]);
   }
 
   @Override

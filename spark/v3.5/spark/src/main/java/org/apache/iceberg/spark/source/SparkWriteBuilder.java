@@ -121,7 +121,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     // Validate
     Schema writeSchema =
         validateOrMergeWriteSchema(
-            table, dsSchema, writeConf, TableUtil.formatVersion(table) >= 3 && overwriteFiles);
+            table, dsSchema, writeConf, TableUtil.supportsRowLineage(table) && overwriteFiles);
 
     SparkUtil.validatePartitionTransforms(table.spec());
 
@@ -188,7 +188,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
           table.updateSchema().caseSensitive(caseSensitive).unionByNameWith(newSchema);
       Schema mergedSchema = update.apply();
       if (writeIncludesRowLineage) {
-        mergedSchema = TypeUtil.join(mergedSchema, rowLineageSchema(table));
+        mergedSchema = TypeUtil.join(mergedSchema, TableUtil.schemaWithRowLineage(table));
       }
 
       // reconvert the dsSchema without assignment to use the ids assigned by UpdateSchema
@@ -200,23 +200,13 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
       // if the validation passed, update the table schema
       update.commit();
     } else {
-      Schema schema = table.schema();
-      if (writeIncludesRowLineage) {
-        schema = TypeUtil.join(schema, rowLineageSchema(table));
-      }
-
+      Schema schema =
+          writeIncludesRowLineage ? TableUtil.schemaWithRowLineage(table) : table.schema();
       writeSchema = SparkSchemaUtil.convert(schema, dsSchema, caseSensitive);
       TypeUtil.validateWriteSchema(
           table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
     }
 
     return writeSchema;
-  }
-
-  private static Schema rowLineageSchema(Table table) {
-    return new Schema(
-        MetadataColumns.metadataColumn(table, MetadataColumns.ROW_ID.name()).asOptional(),
-        MetadataColumns.metadataColumn(table, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())
-            .asOptional());
   }
 }

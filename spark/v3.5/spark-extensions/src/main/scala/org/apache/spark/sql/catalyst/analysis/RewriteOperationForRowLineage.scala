@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.catalyst.analysis
 
+import org.apache.iceberg.MetadataColumns
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.Expression
@@ -29,26 +30,30 @@ import org.apache.spark.sql.catalyst.plans.logical.WriteDelta
 import org.apache.spark.sql.catalyst.util.METADATA_COL_ATTR_KEY
 import org.apache.spark.sql.catalyst.util.WriteDeltaProjections
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
+import org.apache.spark.sql.types.MetadataBuilder
 
 trait RewriteOperationForRowLineage extends RewriteRowLevelCommand {
 
-  protected val ROW_ID_ATTRIBUTE_NAME = "_row_id"
-  protected val LAST_UPDATED_SEQUENCE_NUMBER_ATTRIBUTE_NAME =
-    "_last_updated_sequence_number"
+  protected val ROW_ID_ATTRIBUTE_NAME = MetadataColumns.ROW_ID.name()
+  protected val LAST_UPDATED_SEQUENCE_NUMBER_ATTRIBUTE_NAME = MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name()
 
   protected val ROW_LINEAGE_ATTRIBUTES =
     Set(ROW_ID_ATTRIBUTE_NAME, LAST_UPDATED_SEQUENCE_NUMBER_ATTRIBUTE_NAME)
 
   protected def findRowLineageAttributes(
       expressions: Seq[Expression]
-  ): Seq[(Attribute, Int)] = {
+  ): Seq[AttributeReference] = {
+    expressions.collect {
+      case attr: AttributeReference
+        if ROW_LINEAGE_ATTRIBUTES.contains(attr.name) &&
+          attr.metadata.contains(METADATA_COL_ATTR_KEY) => attr
+    }
+  }
 
-    expressions.zipWithIndex
-      .filter { case (expr, _) =>
-        expr.isInstanceOf[Attribute] &&
-          ROW_LINEAGE_ATTRIBUTES.contains(expr.asInstanceOf[Attribute].name) &&
-          expr.asInstanceOf[Attribute].metadata.contains(METADATA_COL_ATTR_KEY)
-      }
-      .map(tup => (tup._1.asInstanceOf[Attribute], tup._2))
+  protected def removeMetadataColumnAttribute(attr: AttributeReference): AttributeReference = {
+    attr.withMetadata(
+      new MetadataBuilder()
+        .withMetadata(attr.metadata)
+        .remove(METADATA_COL_ATTR_KEY).build())
   }
 }
