@@ -86,17 +86,10 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
     if (info.schema() == null || info.schema().isEmpty()) {
       return null;
     } else {
-      Schema writeSchema = table.schema();
-      if (TableUtil.formatVersion(table) >= 3) {
-        Schema rowLineageSchema =
-            new Schema(
-                MetadataColumns.metadataColumn(table, MetadataColumns.ROW_ID.name()).asOptional(),
-                MetadataColumns.metadataColumn(
-                        table, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name())
-                    .asOptional());
-        writeSchema = TypeUtil.join(table.schema(), rowLineageSchema);
-      }
-
+      Schema writeSchema =
+          TableUtil.supportsRowLineage(table)
+              ? TableUtil.schemaWithRowLineage(table)
+              : table.schema();
       Schema dataSchema = SparkSchemaUtil.convert(writeSchema, info.schema());
       validateSchema("data", writeSchema, dataSchema);
       return dataSchema;
@@ -116,15 +109,9 @@ class SparkPositionDeltaWriteBuilder implements DeltaWriteBuilder {
         new Schema(
             MetadataColumns.SPEC_ID,
             MetadataColumns.metadataColumn(table, MetadataColumns.PARTITION_COLUMN_NAME));
-    if (TableUtil.formatVersion(table) >= 3) {
+    if (TableUtil.supportsRowLineage(table)) {
       expectedMetadataSchema =
-          new Schema(
-              MetadataColumns.SPEC_ID,
-              MetadataColumns.metadataColumn(table, MetadataColumns.PARTITION_COLUMN_NAME)
-                  .asOptional(),
-              MetadataColumns.metadataColumn(table, MetadataColumns.ROW_ID.name()).asOptional(),
-              MetadataColumns.metadataColumn(
-                  table, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.name()));
+          TypeUtil.join(expectedMetadataSchema, TableUtil.schemaWithRowLineage(table));
     }
 
     StructType metadataSparkType = info.metadataSchema().get();

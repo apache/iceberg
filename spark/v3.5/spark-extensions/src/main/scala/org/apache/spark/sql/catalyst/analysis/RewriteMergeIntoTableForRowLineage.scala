@@ -19,15 +19,12 @@
 
 package org.apache.spark.sql.catalyst.analysis
 
-import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.plans.logical.Assignment
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.MergeIntoTable
 import org.apache.spark.sql.catalyst.plans.logical.UpdateAction
-import org.apache.spark.sql.catalyst.util.METADATA_COL_ATTR_KEY
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
-import org.apache.spark.sql.types.MetadataBuilder
 
 object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage {
 
@@ -35,45 +32,35 @@ object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage 
     plan.resolveOperators {
       case m @ MergeIntoTable(_, _, _, matchedActions, _, notMatchedBySourceActions)
         if m.resolved && m.rewritable && m.aligned &&
-          (matchedActions.nonEmpty || notMatchedBySourceActions.nonEmpty)
-          && shouldUpdatePlan(m) => {
-            updateMergeIntoForRowLineage(m)
-        }
-      }
+          (matchedActions.nonEmpty || notMatchedBySourceActions.nonEmpty) &&
+          shouldUpdatePlan(m) =>
+        updateMergeIntoForRowLineage(m)
     }
-
-  private def shouldUpdatePlan(mergeIntoTable: MergeIntoTable): Boolean = {
-    val rowLineageAttributes = findRowLineageAttributes(mergeIntoTable.targetTable.metadataOutput).map(tup => tup._1)
-    rowLineageAttributes.nonEmpty &&
-    rowLineageAttributes.forall(mergeIntoTable.targetTable.metadataOutput.contains) &&
-      !mergeIntoTable.targetTable.output.exists(attr => attr.name == ROW_ID_ATTRIBUTE_NAME)
   }
 
   protected def updateMergeIntoForRowLineage(mergeIntoTable: MergeIntoTable): LogicalPlan = {
     EliminateSubqueryAliases(mergeIntoTable.targetTable) match {
-      case r: DataSourceV2Relation => {
+      case r: DataSourceV2Relation =>
         val matchedActions = mergeIntoTable.matchedActions
         val notMatchedBySourceActions = mergeIntoTable.notMatchedBySourceActions
-        val rowLineageAttributes = findRowLineageAttributes(r.metadataOutput
-        ).map(_._1)
-        val rowId = rowLineageAttributes.filter(attr => attr.name == ROW_ID_ATTRIBUTE_NAME).head
+        val rowLineageAttributes = findRowLineageAttributes(r.metadataOutput)
+        val rowId = rowLineageAttributes.filter(
+          attr => attr.name == ROW_ID_ATTRIBUTE_NAME).head
         val lastUpdatedSequence = rowLineageAttributes.filter(
           attr => attr.name == LAST_UPDATED_SEQUENCE_NUMBER_ATTRIBUTE_NAME).head
 
-        val updatedMatchedAssignments = matchedActions.map {
-          case UpdateAction(cond, actions) => {
+        val matchedAssignmentsForLineage = matchedActions.map {
+          case UpdateAction(cond, actions) =>
             UpdateAction(cond, actions ++ Seq(Assignment(rowId, rowId),
               Assignment(lastUpdatedSequence, Literal(null))))
-          }
 
           case p => p
         }
 
-        val updatedNotMatchedBySourceActions = notMatchedBySourceActions.map {
-          case UpdateAction(cond, actions) => {
+        val notMatchedBySourceActionsForLineage = notMatchedBySourceActions.map {
+          case UpdateAction(cond, actions) =>
             UpdateAction(cond, actions ++ Seq(Assignment(rowId, rowId),
               Assignment(lastUpdatedSequence, Literal(null))))
-          }
 
           case p => p
         }
@@ -82,22 +69,24 @@ object RewriteMergeIntoTableForRowLineage extends RewriteOperationForRowLineage 
         // This works around the logic in
         // ExposesMetadataColumns, used later in metadata attribute resolution,
         // which prevents surfacing other metadata columns when a single metadata column is in the output
-        val rowLineageAsDataColumns = rowLineageAttributes
-          .map(_.asInstanceOf[AttributeReference]).map {
-          attr => attr.withMetadata(
-            new MetadataBuilder()
-              .withMetadata(attr.metadata)
-              .remove(METADATA_COL_ATTR_KEY).build())
-        }
+        val rowLineageAsDataColumns = rowLineageAttributes.map(removeMetadataColumnAttribute)
 
-        val updatedTableWithLineage = r.copy(output =
+        val tableWithLineage = r.copy(output =
           r.output ++ rowLineageAsDataColumns)
 
         mergeIntoTable.copy(
-          targetTable = updatedTableWithLineage,
-          matchedActions = updatedMatchedAssignments,
-          notMatchedBySourceActions = updatedNotMatchedBySourceActions)
-      }
+          targetTable = tableWithLineage,
+          matchedActions = matchedAssignmentsForLineage,
+          notMatchedBySourceActions = notMatchedBySourceActionsForLineage)
     }
+  }
+
+  private def shouldUpdatePlan(mergeIntoTable: MergeIntoTable): Boolean = {
+    val metadataOutput = mergeIntoTable.targetTable.metadataOutput
+    val rowLineageAttrs = findRowLineageAttributes(metadataOutput)
+    val allLineageAttrsPresent = rowLineageAttrs.nonEmpty && rowLineageAttrs.forall(metadataOutput.contains)
+    val rowIdAbsentFromOutput = !mergeIntoTable.targetTable.output.exists(_.name == ROW_ID_ATTRIBUTE_NAME)
+
+    allLineageAttrsPresent && rowIdAbsentFromOutput
   }
 }

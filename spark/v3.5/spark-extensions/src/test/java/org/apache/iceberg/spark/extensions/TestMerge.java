@@ -1337,7 +1337,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               row(1, "emp-id-1"), // updated
               row(2, "emp-id-2") // new
               );
-
       assertEquals(
           "Should have expected rows",
           expectedRows,
