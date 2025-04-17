@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
@@ -43,9 +42,13 @@ public class TestViewMetadata {
   }
 
   private ViewVersion newViewVersion(int id, int schemaId, String sql) {
+    return newViewVersion(id, schemaId, System.currentTimeMillis(), sql);
+  }
+
+  private ViewVersion newViewVersion(int id, int schemaId, long timestampMillis, String sql) {
     return ImmutableViewVersion.builder()
         .versionId(id)
-        .timestampMillis(System.currentTimeMillis())
+        .timestampMillis(timestampMillis)
         .defaultCatalog("prod")
         .defaultNamespace(Namespace.of("default"))
         .putSummary("user", "some-user")
@@ -399,43 +402,66 @@ public class TestViewMetadata {
 
   @Test
   public void versionHistoryEntryMaintainCorrectTimeline() {
-    ViewVersion viewVersionOne = newViewVersion(1, "select * from ns.tbl");
-    ViewVersion viewVersionTwo = newViewVersion(2, "select count(*) from ns.tbl");
-    ViewVersion viewVersionThree = newViewVersion(3, "select count(*) as count from ns.tbl");
+    ViewVersion viewVersionOne = newViewVersion(1, 0, 1000, "select * from ns.tbl");
+    ViewVersion viewVersionTwo = newViewVersion(2, 0, 2000, "select count(*) from ns.tbl");
+    ViewVersion viewVersionThree =
+        newViewVersion(3, 0, 3000, "select count(*) as count from ns.tbl");
 
-    long ts1 = viewVersionOne.timestampMillis();
-    long ts2 = viewVersionTwo.timestampMillis();
-    long ts3 = viewVersionThree.timestampMillis();
-
-    // Create initial view metadata
     ViewMetadata viewMetadata =
         ViewMetadata.builder()
             .setLocation("location")
             .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
             .addVersion(viewVersionOne)
+            .addVersion(viewVersionTwo)
             .setCurrentVersionId(1)
             .build();
 
-    // Update view metadata with multiple view versions in the same builder
-    ViewMetadata updated =
-        ViewMetadata.buildFrom(viewMetadata)
-            .addVersion(viewVersionTwo)
-            .addVersion(viewVersionThree)
-            .setCurrentVersionId(3)
-            .build();
+    // setting an existing view version as the new current should update the timestamp in the
+    // history
+    ViewMetadata updated = ViewMetadata.buildFrom(viewMetadata).setCurrentVersionId(2).build();
 
-    // Reactivate an old view version as current version
-    ViewMetadata reactiveOldView = ViewMetadata.buildFrom(updated).setCurrentVersionId(1).build();
-    List<ViewHistoryEntry> history = reactiveOldView.history();
+    List<ViewHistoryEntry> history = updated.history();
+    assertThat(history)
+        .hasSize(2)
+        .element(0)
+        .isEqualTo(ImmutableViewHistoryEntry.builder().versionId(1).timestampMillis(1000).build());
+    assertThat(history)
+        .element(1)
+        .satisfies(
+            v -> {
+              assertThat(v.versionId()).isEqualTo(2);
+              assertThat(v.timestampMillis())
+                  .isGreaterThan(3000)
+                  .isLessThanOrEqualTo(System.currentTimeMillis());
+            });
 
-    List<Integer> versionIds =
-        history.stream().map(ViewHistoryEntry::versionId).collect(Collectors.toList());
-    assertThat(versionIds).containsExactly(1, 3, 1);
+    // adding a new view version and setting it as current should use the view version's timestamp
+    // in the history (which has been set to a fixed value for testing)
+    updated =
+        ViewMetadata.buildFrom(updated).addVersion(viewVersionThree).setCurrentVersionId(3).build();
+    List<ViewHistoryEntry> historyTwo = updated.history();
+    assertThat(historyTwo)
+        .hasSize(3)
+        .containsAll(history)
+        .element(2)
+        .isEqualTo(ImmutableViewHistoryEntry.builder().versionId(3).timestampMillis(3000).build());
 
-    // Verify timestamps in the history entries
-    assertThat(history.get(0).timestampMillis()).isEqualTo(ts1).isLessThanOrEqualTo(ts2);
-    assertThat(history.get(1).timestampMillis()).isEqualTo(ts3).isGreaterThanOrEqualTo(ts2);
-    assertThat(history.get(2).timestampMillis()).isGreaterThanOrEqualTo(ts3);
+    // setting an older view version as the new current (aka doing a rollback) should update the
+    // timestamp in the history
+    ViewMetadata reactiveOldViewVersion =
+        ViewMetadata.buildFrom(updated).setCurrentVersionId(1).build();
+    List<ViewHistoryEntry> historyThree = reactiveOldViewVersion.history();
+    assertThat(historyThree)
+        .hasSize(4)
+        .containsAll(historyTwo)
+        .element(3)
+        .satisfies(
+            v -> {
+              assertThat(v.versionId()).isEqualTo(1);
+              assertThat(v.timestampMillis())
+                  .isGreaterThan(3000)
+                  .isLessThanOrEqualTo(System.currentTimeMillis());
+            });
   }
 
   @Test

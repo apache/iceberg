@@ -251,21 +251,15 @@ public interface ViewMetadata extends Serializable {
 
       // Use the timestamp from the view version if it was added in current set of changes;
       // otherwise, use the current system time. This handles cases where the view version
-      // was created in a past commit and is being re-activated.
+      // was set as current in the past and is being re-activated.
       boolean versionAddedInThisChange =
-          changes.stream()
-              .anyMatch(
-                  change ->
-                      change instanceof MetadataUpdate.AddViewVersion
-                          && ((MetadataUpdate.AddViewVersion) change).viewVersion().versionId()
-                              == newVersionId);
-
-      long timestamp =
-          versionAddedInThisChange ? version.timestampMillis() : System.currentTimeMillis();
+          changes(MetadataUpdate.AddViewVersion.class)
+              .anyMatch(added -> added.viewVersion().versionId() == newVersionId);
 
       this.historyEntry =
           ImmutableViewHistoryEntry.builder()
-              .timestampMillis(timestamp)
+              .timestampMillis(
+                  versionAddedInThisChange ? version.timestampMillis() : System.currentTimeMillis())
               .versionId(version.versionId())
               .build();
 
