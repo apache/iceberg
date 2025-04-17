@@ -35,6 +35,13 @@ public enum StreamingStartingStrategy {
   INCREMENTAL_FROM_LATEST_SNAPSHOT,
 
   /**
+   * Start incremental mode from the latest snapshot exclusive.
+   *
+   * <p>If it is an empty map, all future append snapshots should be discovered.
+   */
+  INCREMENTAL_FROM_LATEST_SNAPSHOT_EXCLUSIVE,
+
+  /**
    * Start incremental mode from the earliest snapshot inclusive.
    *
    * <p>If it is an empty map, all future append snapshots should be discovered.

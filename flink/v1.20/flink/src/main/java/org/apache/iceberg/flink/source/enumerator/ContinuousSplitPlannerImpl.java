@@ -180,6 +180,15 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
       // For TABLE_SCAN_THEN_INCREMENTAL, incremental mode starts exclusive from the startSnapshot
       toPosition =
           IcebergEnumeratorPosition.of(startSnapshot.snapshotId(), startSnapshot.timestampMillis());
+    } else if (scanContext.streamingStartingStrategy()
+        == StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT_EXCLUSIVE) {
+      splits = Collections.emptyList();
+      toPosition =
+          IcebergEnumeratorPosition.of(startSnapshot.snapshotId(), startSnapshot.timestampMillis());
+      LOG.info(
+          "Start incremental scan with start snapshot (exclusive): id = {}, timestamp = {}",
+          startSnapshot.snapshotId(),
+          startSnapshot.timestampMillis());
     } else {
       // For all other modes, starting snapshot should be consumed inclusively.
       // Use parentId to achieve the inclusive behavior. It is fine if parentId is null.
@@ -216,6 +225,7 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
     switch (scanContext.streamingStartingStrategy()) {
       case TABLE_SCAN_THEN_INCREMENTAL:
       case INCREMENTAL_FROM_LATEST_SNAPSHOT:
+      case INCREMENTAL_FROM_LATEST_SNAPSHOT_EXCLUSIVE:
         return Optional.ofNullable(table.currentSnapshot());
       case INCREMENTAL_FROM_EARLIEST_SNAPSHOT:
         return Optional.ofNullable(SnapshotUtil.oldestAncestor(table));

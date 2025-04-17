@@ -89,6 +89,23 @@ public class TestContinuousSplitPlannerImplStartStrategy {
   }
 
   @Test
+  public void testForLatestSnapshotStrategyExclusive() throws IOException {
+    ScanContext scanContext =
+        ScanContext.builder()
+            .streaming(true)
+            .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT_EXCLUSIVE)
+            .build();
+
+    assertThat(ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext))
+        .isNotPresent();
+
+    appendThreeSnapshots();
+    Snapshot startSnapshot =
+        ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext).get();
+    assertThat(startSnapshot.snapshotId()).isEqualTo(snapshot3.snapshotId());
+  }
+
+  @Test
   public void testForLatestSnapshotStrategy() throws IOException {
     ScanContext scanContext =
         ScanContext.builder()
