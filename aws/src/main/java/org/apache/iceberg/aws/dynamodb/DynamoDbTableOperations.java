@@ -25,7 +25,6 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.util.RetryDetector;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -49,19 +48,19 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(DynamoDbTableOperations.class);
 
   private final DynamoDbClient dynamo;
-  private final AwsProperties awsProperties;
+  private final DynamoDbProperties dynamoProperties;
   private final TableIdentifier tableIdentifier;
   private final String fullTableName;
   private final FileIO fileIO;
 
   DynamoDbTableOperations(
       DynamoDbClient dynamo,
-      AwsProperties awsProperties,
+      DynamoDbProperties dynamoProperties,
       String catalogName,
       FileIO fileIO,
       TableIdentifier tableIdentifier) {
     this.dynamo = dynamo;
-    this.awsProperties = awsProperties;
+    this.dynamoProperties = dynamoProperties;
     this.fullTableName = String.format("%s.%s", catalogName, tableIdentifier);
     this.tableIdentifier = tableIdentifier;
     this.fileIO = fileIO;
@@ -83,7 +82,7 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
     GetItemResponse table =
         dynamo.getItem(
             GetItemRequest.builder()
-                .tableName(awsProperties.dynamoDbTableName())
+                .tableName(dynamoProperties.dynamoDbTableName())
                 .consistentRead(true)
                 .key(DynamoDbCatalog.tablePrimaryKey(tableIdentifier))
                 .build());
@@ -112,7 +111,7 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
       GetItemResponse table =
           dynamo.getItem(
               GetItemRequest.builder()
-                  .tableName(awsProperties.dynamoDbTableName())
+                  .tableName(dynamoProperties.dynamoDbTableName())
                   .consistentRead(true)
                   .key(tableKey)
                   .build());
@@ -223,7 +222,7 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
       dynamo.updateItem(
           UpdateItemRequest.builder()
               .overrideConfiguration(c -> c.addMetricPublisher(retryDetector))
-              .tableName(awsProperties.dynamoDbTableName())
+              .tableName(dynamoProperties.dynamoDbTableName())
               .key(tableKey)
               .conditionExpression(DynamoDbCatalog.COL_VERSION + " = :v")
               .updateExpression(updateExpression)
@@ -241,7 +240,7 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
       dynamo.putItem(
           PutItemRequest.builder()
               .overrideConfiguration(c -> c.addMetricPublisher(retryDetector))
-              .tableName(awsProperties.dynamoDbTableName())
+              .tableName(dynamoProperties.dynamoDbTableName())
               .item(values)
               .conditionExpression("attribute_not_exists(" + DynamoDbCatalog.COL_VERSION + ")")
               .build());
