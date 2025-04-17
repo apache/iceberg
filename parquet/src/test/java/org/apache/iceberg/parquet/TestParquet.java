@@ -31,6 +31,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -39,12 +41,20 @@ import java.util.function.Function;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.PositionedReadable;
+import org.apache.hadoop.fs.Seekable;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.io.DelegatingInputStream;
+import org.apache.iceberg.io.DelegatingOutputStream;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.PositionOutputStream;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -217,6 +227,212 @@ public class TestParquet {
 
     assertThat(recordRead.get("arraybytes")).isEqualTo(expectedByteList);
     assertThat(recordRead.get("topbytes")).isEqualTo(expectedBinary);
+  }
+
+  private static class CloseAwareInputStream extends InputStream
+      implements Seekable, PositionedReadable {
+
+    boolean isClosed = false;
+
+    @Override
+    public void close() throws IOException {
+      super.close();
+      this.isClosed = true;
+    }
+
+    @Override
+    public int read() throws IOException {
+      return 0;
+    }
+
+    @Override
+    public int read(long l, byte[] bytes, int i, int i1) throws IOException {
+      return 0;
+    }
+
+    @Override
+    public void readFully(long l, byte[] bytes, int i, int i1) throws IOException {}
+
+    @Override
+    public void readFully(long l, byte[] bytes) throws IOException {}
+
+    @Override
+    public void seek(long l) throws IOException {}
+
+    @Override
+    public long getPos() throws IOException {
+      return 0;
+    }
+
+    @Override
+    public boolean seekToNewSource(long l) throws IOException {
+      return false;
+    }
+  }
+
+  private static class CloseAwareFSDataInputStream extends FSDataInputStream {
+
+    boolean isClosed = false;
+
+    CloseAwareFSDataInputStream(CloseAwareInputStream in) {
+      super(in);
+    }
+
+    @Override
+    public void close() throws IOException {
+      super.close();
+      this.isClosed = true;
+    }
+  }
+
+  private static class CloseAwareDelegatingInputStream extends SeekableInputStream
+      implements DelegatingInputStream {
+
+    boolean isClosed = false;
+    private final InputStream delegate;
+
+    CloseAwareDelegatingInputStream(InputStream delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override
+    public int read() throws IOException {
+      return 0;
+    }
+
+    @Override
+    public void close() throws IOException {
+      super.close();
+      this.getDelegate().close();
+      this.isClosed = true;
+    }
+
+    @Override
+    public InputStream getDelegate() {
+      return delegate;
+    }
+
+    @Override
+    public long getPos() {
+      return 0;
+    }
+
+    @Override
+    public void seek(long l) {}
+  }
+
+  @Test
+  @SuppressWarnings("checkstyle:NestedTryDepth")
+  public void testDelegatingInputStreamCloseProperly() throws IOException {
+    // prepare the underlying stream
+    try (CloseAwareInputStream underlying = new CloseAwareInputStream()) {
+      // special case for hadoop stream
+      try (CloseAwareFSDataInputStream fsInput = new CloseAwareFSDataInputStream(underlying)) {
+        // then prepare the delegating stream
+        try (CloseAwareDelegatingInputStream delegating =
+            new CloseAwareDelegatingInputStream(fsInput)) {
+          // ok, call the testing target, ensure no leek.
+          try (org.apache.parquet.io.SeekableInputStream unused = ParquetIO.stream(delegating)) {
+            assertThat(underlying.isClosed).isFalse();
+            assertThat(fsInput.isClosed).isFalse();
+            assertThat(delegating.isClosed).isFalse();
+          } finally {
+            // a try-catch-finally for `unused` stream.
+            // implies all stream crated before should be closed without leaking behavior.
+            assertThat(delegating.isClosed).isTrue();
+            assertThat(fsInput.isClosed).isTrue();
+            assertThat(underlying.isClosed).isTrue();
+          }
+        }
+      }
+    }
+  }
+
+  private static class CloseAwareOutputStream extends OutputStream {
+
+    boolean isClosed = false;
+
+    @Override
+    public void write(int b) {}
+
+    @Override
+    public void close() throws IOException {
+      super.close();
+      this.isClosed = true;
+    }
+  }
+
+  private static class CloseAwareFSDataOutputStream extends FSDataOutputStream {
+
+    boolean isClosed = false;
+
+    CloseAwareFSDataOutputStream(OutputStream out) throws IOException {
+      super(out, null);
+    }
+
+    @Override
+    public void close() throws IOException {
+      super.close();
+      this.isClosed = true;
+    }
+  }
+
+  private static class CloseAwareDelegatingOutputStream extends PositionOutputStream
+      implements DelegatingOutputStream {
+
+    boolean isClosed = false;
+    private final OutputStream delegate;
+
+    CloseAwareDelegatingOutputStream(OutputStream delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override
+    public void close() throws IOException {
+      super.close();
+      this.getDelegate().close();
+      this.isClosed = true;
+    }
+
+    @Override
+    public OutputStream getDelegate() {
+      return delegate;
+    }
+
+    @Override
+    public long getPos() {
+      return 0;
+    }
+
+    @Override
+    public void write(int b) {}
+  }
+
+  @Test
+  @SuppressWarnings("checkstyle:NestedTryDepth")
+  public void testDelegatingOutputStreamCloseProperly() throws IOException {
+    // prepare the underlying stream
+    try (CloseAwareOutputStream underlying = new CloseAwareOutputStream()) {
+      // special case for hadoop stream
+      try (CloseAwareFSDataOutputStream fsOutput = new CloseAwareFSDataOutputStream(underlying)) {
+        // then prepare the delegating stream
+        try (CloseAwareDelegatingOutputStream delegating =
+            new CloseAwareDelegatingOutputStream(fsOutput)) {
+          // ok, call the testing target, ensure no leek.
+          try (org.apache.parquet.io.PositionOutputStream unused = ParquetIO.stream(delegating)) {
+            assertThat(underlying.isClosed).isFalse();
+            assertThat(fsOutput.isClosed).isFalse();
+            assertThat(delegating.isClosed).isFalse();
+          } finally {
+            // a try-catch-finally for `unused` stream.
+            // implies all stream crated before should be closed without leaking behavior.
+            assertThat(delegating.isClosed).isTrue();
+            assertThat(fsOutput.isClosed).isTrue();
+            assertThat(underlying.isClosed).isTrue();
+          }
+        }
+      }
+    }
   }
 
   private Pair<File, Long> generateFile(
