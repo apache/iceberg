@@ -394,4 +394,21 @@ public class TestSchemaConversions {
       assertThat(variantSchema.getField("value").schema().getType()).isEqualTo(Schema.Type.BYTES);
     }
   }
+
+  @Test
+  public void testExternalAvroRecordSchema() {
+    Schema schema =
+        SchemaBuilder.record("TestRecord")
+            .namespace("com.example")
+            .fields()
+            .requiredString("name")
+            .requiredInt("age")
+            .endRecord();
+    Type expectedIcebergType =
+        Types.StructType.of(
+            required(1, "name", Types.StringType.get()),
+            required(2, "age", Types.IntegerType.get()));
+
+    assertThat(AvroSchemaUtil.convert(schema)).isEqualTo(expectedIcebergType);
+  }
 }
