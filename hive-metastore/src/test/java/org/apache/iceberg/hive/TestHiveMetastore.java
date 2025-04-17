@@ -282,7 +282,7 @@ public class TestHiveMetastore {
     // Setting this to avoid thrift exception during running Iceberg tests outside Iceberg.
     conf.set(
         HiveConf.ConfVars.HIVE_IN_TEST.varname, HiveConf.ConfVars.HIVE_IN_TEST.getDefaultValue());
-    conf.set("datanucleus.connectionPoolingType", "DBCP");
+    conf.set("datanucleus.connectionPoolingType", "HikariCP");
   }
 
   private static void setupMetastoreDB(String dbURL) throws SQLException, IOException {
