@@ -81,7 +81,6 @@ class SnapshotTableProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
 
     String source = input.asString(SOURCE_TABLE_PARAM, null);
