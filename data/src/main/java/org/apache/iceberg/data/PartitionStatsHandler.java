@@ -25,10 +25,14 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ImmutableGenericPartitionStatisticsFile;
+import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.PartitionStats;
@@ -52,6 +56,9 @@ import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.PartitionMap;
+import org.apache.iceberg.util.SnapshotUtil;
 
 /**
  * Computes, writes and reads the {@link PartitionStatisticsFile}. Uses generic readers and writers
@@ -118,11 +125,12 @@ public class PartitionStatsHandler {
    *     present.
    */
   public static PartitionStatisticsFile computeAndWriteStatsFile(Table table) throws IOException {
+    Preconditions.checkArgument(table != null, "Table cannot be null");
     if (table.currentSnapshot() == null) {
       return null;
     }
 
-    return computeAndWriteStatsFile(table, table.currentSnapshot().snapshotId());
+    return computeAndWrite(table, table.currentSnapshot().snapshotId(), true /* recompute */);
   }
 
   /**
@@ -135,18 +143,111 @@ public class PartitionStatsHandler {
    */
   public static PartitionStatisticsFile computeAndWriteStatsFile(Table table, long snapshotId)
       throws IOException {
+    return computeAndWrite(table, snapshotId, true /* recompute */);
+  }
+
+  /**
+   * Incrementally computes the stats after the snapshot that has partition stats file till the
+   * given snapshot and writes the combined result into a {@link PartitionStatisticsFile} after
+   * merging the stats.
+   *
+   * @param table The {@link Table} for which the partition statistics is computed.
+   * @param snapshotId snapshot for which partition statistics are computed.
+   * @return {@link PartitionStatisticsFile} for the given snapshot, or null if no statistics are
+   *     present.
+   */
+  public static PartitionStatisticsFile computeAndWriteStatsFileIncremental(
+      Table table, long snapshotId) throws IOException {
+    return computeAndWrite(table, snapshotId, false /* recompute */);
+  }
+
+  private static PartitionStatisticsFile computeAndWrite(
+      Table table, long snapshotId, boolean recompute) throws IOException {
+    Preconditions.checkArgument(table != null, "Table cannot be null");
     Snapshot snapshot = table.snapshot(snapshotId);
     Preconditions.checkArgument(snapshot != null, "Snapshot not found: %s", snapshotId);
 
-    Collection<PartitionStats> stats = PartitionStatsUtil.computeStats(table, snapshot);
+    StructType partitionType = Partitioning.partitionType(table);
+
+    Collection<PartitionStats> stats;
+    if (recompute) {
+      stats = PartitionStatsUtil.computeStats(table, snapshot);
+    } else {
+      stats = incrementalComputeAndMerge(table, snapshot, partitionType);
+    }
+
     if (stats.isEmpty()) {
       return null;
     }
 
-    StructType partitionType = Partitioning.partitionType(table);
     List<PartitionStats> sortedStats = PartitionStatsUtil.sortStats(stats, partitionType);
     return writePartitionStatsFile(
         table, snapshot.snapshotId(), schema(partitionType), sortedStats);
+  }
+
+  private static Collection<PartitionStats> incrementalComputeAndMerge(
+      Table table, Snapshot snapshot, StructType partitionType) throws IOException {
+    PartitionStatisticsFile statisticsFile = latestStatsFile(table, snapshot.snapshotId());
+    if (statisticsFile == null) {
+      throw new RuntimeException(
+          "Previous stats not found for incremental compute. Try full compute");
+    }
+
+    PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
+    // read previous stats, note that partition field will be read as GenericRecord
+    try (CloseableIterable<PartitionStats> oldStats =
+        readPartitionStatsFile(schema(partitionType), Files.localInput(statisticsFile.path()))) {
+      oldStats.forEach(
+          partitionStats ->
+              statsMap.put(partitionStats.specId(), partitionStats.partition(), partitionStats));
+    }
+
+    // incrementally compute the new stats, partition field will be written as PartitionData
+    PartitionMap<PartitionStats> incrementalStatsMap =
+        PartitionStatsUtil.computeStatsIncremental(
+            table, table.snapshot(statisticsFile.snapshotId()), snapshot);
+
+    // convert PartitionData into GenericRecord and merge stats
+    incrementalStatsMap.forEach(
+        (key, value) ->
+            statsMap.merge(
+                Pair.of(key.first(), partitionDataToRecord((PartitionData) key.second())),
+                value,
+                (existingEntry, newEntry) -> {
+                  existingEntry.appendStats(newEntry);
+                  return existingEntry;
+                }));
+
+    return statsMap.values();
+  }
+
+  private static GenericRecord partitionDataToRecord(PartitionData data) {
+    GenericRecord record = GenericRecord.create(data.getPartitionType());
+    for (int index = 0; index < record.size(); index++) {
+      record.set(index, data.get(index));
+    }
+
+    return record;
+  }
+
+  @VisibleForTesting
+  static PartitionStatisticsFile latestStatsFile(Table table, long snapshotId) {
+    List<PartitionStatisticsFile> partitionStatisticsFiles = table.partitionStatisticsFiles();
+    if (partitionStatisticsFiles.isEmpty()) {
+      return null;
+    }
+
+    Map<Long, PartitionStatisticsFile> stats =
+        partitionStatisticsFiles.stream()
+            .collect(Collectors.toMap(PartitionStatisticsFile::snapshotId, file -> file));
+    for (Snapshot snapshot : SnapshotUtil.ancestorsOf(snapshotId, table::snapshot)) {
+      if (stats.containsKey(snapshot.snapshotId())) {
+        return stats.get(snapshot.snapshotId());
+      }
+    }
+
+    throw new RuntimeException(
+        "Unable to find the latest stats for snapshot history of " + snapshotId);
   }
 
   @VisibleForTesting
