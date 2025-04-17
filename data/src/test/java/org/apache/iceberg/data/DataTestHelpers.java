@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.variants.Variant;
@@ -31,12 +32,26 @@ public class DataTestHelpers {
   private DataTestHelpers() {}
 
   public static void assertEquals(Types.StructType struct, Record expected, Record actual) {
+    assertEquals(struct, expected, actual, null);
+  }
+
+  public static void assertEquals(
+      Types.StructType struct, Record expected, Record actual, Long defaultRowId) {
     Types.StructType expectedType = expected.struct();
     for (Types.NestedField field : struct.fields()) {
       Types.NestedField expectedField = expectedType.field(field.fieldId());
       if (expectedField != null) {
-        assertEquals(
-            field.type(), expected.getField(expectedField.name()), actual.getField(field.name()));
+        if (expectedField.fieldId() == MetadataColumns.ROW_ID.fieldId()) {
+          Long expectedRowId = (Long) expected.getField(expectedField.name());
+          if (expectedRowId != null) {
+            assertEquals(field.type(), expectedRowId, actual.getField(field.name()));
+          } else {
+            assertEquals(field.type(), defaultRowId, actual.getField(field.name()));
+          }
+        } else {
+          assertEquals(
+              field.type(), expected.getField(expectedField.name()), actual.getField(field.name()));
+        }
       } else {
         assertEquals(
             field.type(),

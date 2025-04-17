@@ -28,9 +28,11 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -52,6 +54,10 @@ import org.junit.jupiter.params.provider.FieldSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public abstract class DataTest {
+
+  protected static final long FIRST_ROW_ID = 2_000L;
+  protected static final Map<Integer, Object> ID_TO_CONSTANT =
+      Map.of(MetadataColumns.ROW_ID.fieldId(), FIRST_ROW_ID);
 
   protected abstract void writeAndValidate(Schema schema) throws IOException;
 
@@ -136,6 +142,10 @@ public abstract class DataTest {
   }
 
   protected boolean supportsGeospatial() {
+    return false;
+  }
+
+  protected boolean supportsRowIds() {
     return false;
   }
 
@@ -598,5 +608,26 @@ public abstract class DataTest {
           // NullPointerException or IllegalArgumentException.
           () -> writeAndValidate(schema, ImmutableList.of(genericRecord)));
     }
+  }
+
+  @Test
+  public void testRowIds() throws Exception {
+    Assumptions.assumeThat(supportsRowIds()).as("_row_id support is not implemented").isTrue();
+    Schema schema =
+        new Schema(
+            required(1, "id", LongType.get()),
+            required(2, "data", Types.StringType.get()),
+            MetadataColumns.ROW_ID);
+
+    GenericRecord record = GenericRecord.create(schema);
+
+    writeAndValidate(
+        schema,
+        List.of(
+            record.copy(Map.of("id", 1L, "data", "a")),
+            record.copy(Map.of("id", 2L, "data", "b")),
+            record.copy(Map.of("id", 3L, "data", "c", "_row_id", 1_000L)),
+            record.copy(Map.of("id", 4L, "data", "d", "_row_id", 1_001L)),
+            record.copy(Map.of("id", 5L, "data", "e"))));
   }
 }

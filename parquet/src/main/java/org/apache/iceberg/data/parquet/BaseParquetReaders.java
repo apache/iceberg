@@ -254,7 +254,14 @@ abstract class BaseParquetReaders<T> {
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
         ParquetValueReader<?> reader = readersById.get(id);
-        if (idToConstant.containsKey(id)) {
+        if (id == MetadataColumns.ROW_ID.fieldId()) {
+          Long baseRowId = (Long) idToConstant.get(id);
+          if (baseRowId != null) {
+            reorderedFields.add(ParquetValueReaders.rowIds(baseRowId, reader));
+          } else {
+            reorderedFields.add(ParquetValueReaders.nulls());
+          }
+        } else if (idToConstant.containsKey(id)) {
           // containsKey is used because the constant may be null
           int fieldMaxDefinitionLevel =
               maxDefinitionLevelsById.getOrDefault(id, defaultMaxDefinitionLevel);
