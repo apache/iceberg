@@ -34,7 +34,7 @@ github:
     rebase: true
 
   protected_branches:
-    main:
+    1.8.x:
       required_pull_request_reviews:
         required_approving_review_count: 1
 
