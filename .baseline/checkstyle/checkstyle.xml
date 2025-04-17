@@ -442,7 +442,7 @@
         <module name="IllegalImport">
             <property name="id" value="BanAssumeTrueUsage"/>
             <property name="illegalPkgs" value="org.junit.jupiter.api.Assumptions"/>
-            <message key="import.illegal" value="Prefer using Assertions.assumeThat(...).as(...) instead."/>
+            <message key="import.illegal" value="Prefer using Assertions.assumeThat(...).isTrue() instead."/>
         </module>
         <module name="IllegalImport">
             <property name="id" value="BanHamcrestUsage"/>
