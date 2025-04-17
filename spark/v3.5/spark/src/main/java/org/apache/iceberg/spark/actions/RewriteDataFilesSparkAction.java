@@ -94,7 +94,7 @@ public class RewriteDataFilesSparkAction
   private boolean removeDanglingDeletes;
   private boolean useStartingSequenceNumber;
   private boolean caseSensitive;
-  private Integer maxFilesToRewrite;
+  private int maxFilesToRewrite;
 
   RewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark.cloneSession());
@@ -349,7 +349,8 @@ public class RewriteDataFilesSparkAction
 
   Stream<RewriteFileGroup> toGroupStream(
       RewriteExecutionContext ctx, Map<StructLike, List<List<FileScanTask>>> groupsByPartition) {
-    if (maxFilesToRewrite == null) {
+
+    if (maxFilesToRewrite == 0) {
       return groupsByPartition.entrySet().stream()
           .filter(e -> !e.getValue().isEmpty())
           .flatMap(
@@ -370,7 +371,6 @@ public class RewriteDataFilesSparkAction
     AtomicInteger fileCountRunner = new AtomicInteger(0);
 
     groupsByPartition.entrySet().stream()
-        .parallel()
         .filter(e -> !e.getValue().isEmpty())
         .forEach(
             entry -> {
@@ -428,7 +428,7 @@ public class RewriteDataFilesSparkAction
     planner.init(options());
     runner.init(options());
 
-    maxFilesToRewrite = PropertyUtil.propertyAsNullableInt(options(), MAX_FILES_TO_REWRITE);
+    maxFilesToRewrite = PropertyUtil.propertyAsInt(options(), MAX_FILES_TO_REWRITE, 0);
 
     maxConcurrentFileGroupRewrites =
         PropertyUtil.propertyAsInt(
@@ -469,7 +469,7 @@ public class RewriteDataFilesSparkAction
         PARTIAL_PROGRESS_ENABLED);
 
     Preconditions.checkArgument(
-        maxFilesToRewrite >= 1,
+            maxFilesToRewrite >= 0,
         "Cannot set %s to %s, the value must be positive.",
         MAX_FILES_TO_REWRITE,
         maxFilesToRewrite);
