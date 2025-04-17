@@ -2743,7 +2743,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
   @Test
   public void testConcurrentReplaceTransactionSchemaConflict() {
-    assumeThat(supportsServerSideRetry()).isTrue().as("Schema conflicts are detected server-side");
+    assumeThat(supportsServerSideRetry()).as("Schema conflicts are detected server-side").isTrue();
 
     C catalog = catalog();
 
