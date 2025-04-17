@@ -280,12 +280,12 @@ public class TestManifestWriterVersions {
     ManifestFile manifest = writeAndReadManifestList(writeManifest(1), 1);
     checkManifest(manifest, 0L);
 
-    // rewrite existing metadata with v2 manifest list
+    // rewrite existing metadata with a manifest list
     ManifestFile manifest3 = writeAndReadManifestList(manifest, 3);
     // the ManifestFile did not change and should still have its original sequence number, 0
     checkManifest(manifest3, 0L);
 
-    // should not inherit the v2 sequence number because it was a rewrite
+    // should not inherit the sequence number because it was a rewrite
     checkEntry(readManifest(manifest3), 0L, 0L, FileContent.DATA, FIRST_ROW_ID);
   }
 

@@ -368,7 +368,7 @@ public class TestRowLineageMetadata {
   }
 
   @TestTemplate
-  public void testRewrite() {
+  public void testMetadataRewrite() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
 
     TestTables.TestTable table =

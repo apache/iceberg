@@ -416,6 +416,41 @@ public class TestRowLineageAssignment {
   }
 
   @Test
+  public void testDeleteAssignmentAfterUpgrade(@TempDir File altLocation) {
+    // data manifests: [added(FILE_C)], [existing(FILE_A), deleted(FILE_B)]
+    testTableUpgrade(altLocation);
+
+    BaseTable upgradeTable = TestTables.load(altLocation, "test_upgrade");
+    long startingFirstRowId = upgradeTable.operations().current().nextRowId();
+
+    List<ManifestFile> existingManifests =
+        upgradeTable.currentSnapshot().dataManifests(upgradeTable.io());
+    assertThat(existingManifests.size()).isEqualTo(2);
+
+    // any commit (even empty) should assign first_row_id to the entire metadata tree
+    upgradeTable.newDelete().deleteFile(FILE_C).commit();
+    // data manifests: [deleted(FILE_C)], [existing(FILE_A), deleted(FILE_B)]
+
+    assertThat(upgradeTable.operations().current().nextRowId())
+        .as("next-row-id should be updated to include the assigned data")
+        .isEqualTo(startingFirstRowId + FILE_A.recordCount());
+
+    Snapshot assigned = upgradeTable.currentSnapshot();
+
+    assertThat(assigned.firstRowId()).isEqualTo(startingFirstRowId);
+    InputFile manifestList = table.io().newInputFile(assigned.manifestListLocation());
+    // the first manifest has added FILE_C, the second has deleted FILE_A and existing FILE_B
+    checkManifestListAssignment(manifestList, 0L, 0L);
+
+    List<ManifestFile> manifests = assigned.dataManifests(upgradeTable.io());
+    assertThat(manifests.size()).isEqualTo(2);
+    checkDataFileAssignment(upgradeTable, manifests.get(0), 0L);
+    checkDataFileAssignment(upgradeTable, manifests.get(1), 0L);
+    // the existing manifests were reused without modification
+    assertThat(manifests.get(1).path()).isEqualTo(existingManifests.get(1).path());
+  }
+
+  @Test
   public void testBranchAssignmentAfterUpgrade(@TempDir File altLocation) {
     // data manifests: [added(FILE_C)], [existing(FILE_A), deleted(FILE_B)]
     testTableUpgrade(altLocation);
