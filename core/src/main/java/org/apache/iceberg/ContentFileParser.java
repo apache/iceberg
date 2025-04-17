@@ -113,6 +113,8 @@ class ContentFileParser {
       generator.writeNumberField(SORT_ORDER_ID, contentFile.sortOrderId());
     }
 
+    JsonUtil.writeLongFieldIfPresent(FIRST_ROW_ID, contentFile.firstRowId(), generator);
+
     if (contentFile instanceof DeleteFile) {
       DeleteFile deleteFile = (DeleteFile) contentFile;
 
