@@ -505,7 +505,7 @@ assertThat(array[0]).isEqualTo("value0");
 assertThat(array[1]).isEqualTo("value1");
 
 // better: all checks can be combined and the content of the array will be shown if any check fails
-assertThat(array).containsExactly("value0", "value1");
+assertThat(array).hasSize(2).containsExactly("value0", "value1");
 
 // better: if a specific element is checked, the content and its index will be also shown
 assertThat(array).contains("value1", atIndex(1));
