@@ -249,8 +249,8 @@ public interface ViewMetadata extends Serializable {
         changes.add(new MetadataUpdate.SetCurrentViewVersion(newVersionId));
       }
 
-      // Use the timestamp from the view version if it was added in current set of changes;
-      // otherwise, use the current system time. This handles cases where the view version
+      // Use the timestamp from the view version if it was added in current set of changes.
+      // Otherwise, use the current system time. This handles cases where the view version
       // was set as current in the past and is being re-activated.
       boolean versionAddedInThisChange =
           changes(MetadataUpdate.AddViewVersion.class)
