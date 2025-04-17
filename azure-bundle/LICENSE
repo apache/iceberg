@@ -327,7 +327,7 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-codec-dns  Version: 4.1.115.Final
+Group: io.netty  Name: netty-codec-dns  Version: 4.1.112.Final
 Project URL: https://netty.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
@@ -375,19 +375,19 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-resolver-dns  Version: 4.1.115.Final
+Group: io.netty  Name: netty-resolver-dns  Version: 4.1.112.Final
 Project URL: https://netty.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-resolver-dns-classes-macos  Version: 4.1.115.Final
+Group: io.netty  Name: netty-resolver-dns-classes-macos  Version: 4.1.112.Final
 Project URL: https://netty.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
-Group: io.netty  Name: netty-resolver-dns-native-macos  Version: 4.1.115.Final
+Group: io.netty  Name: netty-resolver-dns-native-macos  Version: 4.1.112.Final
 Project URL: https://netty.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
