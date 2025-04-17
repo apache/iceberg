@@ -432,21 +432,27 @@ public class S3FileIO
   @Override
   public void initialize(Map<String, String> props) {
     this.properties = SerializableMap.copyOf(props);
-    Map<String, String> propertiesWithCredentials =
-        ImmutableMap.<String, String>builder()
-            .putAll(properties)
-            .putAll(storageCredentialConfig())
-            .buildKeepingLast();
 
-    this.s3FileIOProperties = new S3FileIOProperties(propertiesWithCredentials);
+    this.s3FileIOProperties = new S3FileIOProperties(properties);
     this.createStack =
         PropertyUtil.propertyAsBoolean(props, "init-creation-stacktrace", true)
             ? Thread.currentThread().getStackTrace()
             : null;
 
+    Map<String, String> propertiesWithStorageCredentials =
+        ImmutableMap.<String, String>builder()
+            .putAll(properties)
+            .putAll(
+                StorageCredential.toMap(
+                    storageCredentials.stream()
+                        .filter(c -> c.prefix().startsWith("s3"))
+                        .collect(Collectors.toList())))
+            .build();
+
     // Do not override s3 client if it was provided
     if (s3 == null) {
-      Object clientFactory = S3FileIOAwsClientFactories.initialize(props);
+      Object clientFactory =
+          S3FileIOAwsClientFactories.initialize(propertiesWithStorageCredentials);
       if (clientFactory instanceof S3FileIOAwsClientFactory) {
         this.s3 = ((S3FileIOAwsClientFactory) clientFactory)::s3;
       }
@@ -463,7 +469,8 @@ public class S3FileIO
 
     // Do not override s3Async client if it was provided
     if (s3Async == null) {
-      Object clientFactory = S3FileIOAwsClientFactories.initialize(props);
+      Object clientFactory =
+          S3FileIOAwsClientFactories.initialize(propertiesWithStorageCredentials);
       if (clientFactory instanceof S3FileIOAwsClientFactory) {
         this.s3Async = ((S3FileIOAwsClientFactory) clientFactory)::s3Async;
       }
@@ -574,17 +581,5 @@ public class S3FileIO
   @Override
   public List<StorageCredential> credentials() {
     return ImmutableList.copyOf(storageCredentials);
-  }
-
-  private Map<String, String> storageCredentialConfig() {
-    List<StorageCredential> s3Credentials =
-        storageCredentials.stream()
-            .filter(c -> c.prefix().startsWith("s3"))
-            .collect(Collectors.toList());
-
-    Preconditions.checkState(
-        s3Credentials.size() <= 1, "Invalid S3 Credentials: only one S3 credential should exist");
-
-    return s3Credentials.isEmpty() ? Map.of() : s3Credentials.get(0).config();
   }
 }
