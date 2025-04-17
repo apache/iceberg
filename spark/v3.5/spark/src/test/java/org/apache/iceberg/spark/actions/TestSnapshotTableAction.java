@@ -20,7 +20,7 @@ package org.apache.iceberg.spark.actions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -74,8 +74,9 @@ public class TestSnapshotTableAction extends CatalogTestBase {
   public void testTableLocationOverlapThrowsException() throws IOException {
     // Ensure the test runs only for non-Hadoop-based catalogs,
     // because path-based tables cannot have a custom location set.
-    assumeTrue(
-        !catalogName.equals("testhadoop"), "Cannot set a custom location for a path-based table.");
+    assumeThat(catalogName)
+        .as("Cannot set a custom location for a path-based table.")
+        .isNotEqualTo("testhadoop");
 
     String location = Files.createTempDirectory(temp, "junit").toFile().toString();
 
