@@ -26,6 +26,7 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
+import org.apache.iceberg.expressions.PathUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Comparators;
@@ -287,7 +288,7 @@ class ParquetVariantUtil {
 
     public String fieldName() {
       if (null == lazyFieldName) {
-        this.lazyFieldName = String.join(".", fieldNames);
+        this.lazyFieldName = PathUtil.toNormalizedPath(fieldNames);
       }
 
       return lazyFieldName;
