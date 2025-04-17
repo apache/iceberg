@@ -1905,6 +1905,51 @@ public class TestRewriteDataFilesAction extends TestBase {
         .collect(Collectors.toList());
   }
 
+  @TestTemplate
+  public void testRewriteMaxFilesOption() {
+    Table table = createTablePartitioned(4, 2);
+    writeRecords(10, SCALE, 1);
+    writeRecords(20, SCALE, 2);
+    writeRecords(30, SCALE, 3);
+    writeRecords(40, SCALE, 4);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+    Result result =
+        actions()
+            .rewriteDataFiles(table)
+            .option(RewriteDataFiles.MAX_FILES_TO_REWRITE, "50000")
+            .execute();
+    table.refresh();
+    int filesReWritten = result.rewrittenDataFilesCount();
+    assertThat(50000 >= filesReWritten);
+  }
+
+  @TestTemplate
+  public void testRewriteMaxFilesOptionEquality() {
+    Table table = createTablePartitioned(4, 2);
+    writeRecords(10, SCALE, 1);
+    writeRecords(20, SCALE, 2);
+    writeRecords(30, SCALE, 3);
+    writeRecords(40, SCALE, 4);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+    Result result =
+        actions()
+            .rewriteDataFiles(table)
+            .option(RewriteDataFiles.MAX_FILES_TO_REWRITE, "10")
+            .execute();
+    table.refresh();
+    int filesReWritten = result.rewrittenDataFilesCount();
+    assertThat(filesReWritten == 10);
+  }
+
+  private Stream<RewriteFileGroup> toGroupStream(Table table, RewriteDataFilesSparkAction rewrite) {
+    rewrite.validateAndInitOptions();
+    StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition =
+        rewrite.planFileGroups(table.currentSnapshot().snapshotId());
+
+    return rewrite.toGroupStream(
+        new RewriteExecutionContext(fileGroupsByPartition), fileGroupsByPartition);
+  }
+
   protected List<Object[]> currentData() {
     return rowsToJava(
         spark.read().format("iceberg").load(tableLocation).sort("c1", "c2", "c3").collectAsList());
