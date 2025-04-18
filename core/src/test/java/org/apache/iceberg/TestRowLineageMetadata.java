@@ -359,10 +359,38 @@ public class TestRowLineageMetadata {
 
     table.newRewrite().deleteFile(filePart1).deleteFile(filePart2).addFile(fileCompacted).commit();
 
-    // Rewrites are currently just treated as appends. In the future we could treat these as no-ops
+    // rewrites produce new manifests without first-row-id or any information about how many rows
+    // are new. without tracking a new metric for a manifest (e.g., assigned-rows) or assuming that
+    // rewrites do not assign any new IDs, replace will allocate ranges like normal writes.
     assertThat(table.currentSnapshot().firstRowId()).isEqualTo(60);
     assertThat(table.currentSnapshot().addedRows()).isEqualTo(60);
     assertThat(table.ops().current().nextRowId()).isEqualTo(120);
+  }
+
+  @TestTemplate
+  public void testMetadataRewrite() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE);
+
+    TestTables.TestTable table =
+        TestTables.create(
+            tableDir, "test", TEST_SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
+
+    assertThat(table.ops().current().nextRowId()).isEqualTo(0L);
+
+    DataFile file1 = fileWithRows(30);
+    DataFile file2 = fileWithRows(30);
+
+    table.newAppend().appendFile(file1).appendFile(file2).commit();
+
+    assertThat(table.currentSnapshot().firstRowId()).isEqualTo(0);
+    assertThat(table.currentSnapshot().addedRows()).isEqualTo(60);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(60);
+
+    table.rewriteManifests().commit();
+
+    assertThat(table.currentSnapshot().firstRowId()).isEqualTo(60);
+    assertThat(table.currentSnapshot().addedRows()).isEqualTo(0);
+    assertThat(table.ops().current().nextRowId()).isEqualTo(60);
   }
 
   private final AtomicInteger fileNum = new AtomicInteger(0);

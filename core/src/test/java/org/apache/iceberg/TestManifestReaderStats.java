@@ -154,7 +154,7 @@ public class TestManifestReaderStats extends TestBase {
       assertThat(entry.nanValueCounts()).isNull();
       assertThat(entry.lowerBounds()).isNull();
       assertThat(entry.upperBounds()).isNull();
-      assertNullRecordCount(entry);
+      assertThat(entry.recordCount()).isEqualTo(FILE.recordCount());
     }
   }
 
@@ -177,7 +177,7 @@ public class TestManifestReaderStats extends TestBase {
       assertThat(dataFile.nanValueCounts()).isNull();
       assertThat(dataFile.lowerBounds()).isNull();
       assertThat(dataFile.upperBounds()).isNull();
-      assertNullRecordCount(dataFile);
+      assertThat(dataFile.recordCount()).isEqualTo(FILE.recordCount());
     }
   }
 
@@ -199,7 +199,7 @@ public class TestManifestReaderStats extends TestBase {
       assertThat(dataFile.nanValueCounts()).isNull();
       assertThat(dataFile.lowerBounds()).isNull();
       assertThat(dataFile.upperBounds()).isNull();
-      assertNullRecordCount(dataFile);
+      assertThat(dataFile.recordCount()).isEqualTo(FILE.recordCount());
     }
   }
 
@@ -264,12 +264,5 @@ public class TestManifestReaderStats extends TestBase {
 
     assertThat(dataFile.location())
         .isEqualTo(FILE_PATH); // always select file path in all test cases
-  }
-
-  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
-  private void assertNullRecordCount(DataFile dataFile) {
-    // record count is a primitive type, accessing null record count will throw NPE
-    // no check on the underlying error msg as it might be missing based on the JDK version
-    assertThatThrownBy(dataFile::recordCount).isInstanceOf(NullPointerException.class);
   }
 }

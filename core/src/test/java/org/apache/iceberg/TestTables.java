@@ -39,6 +39,14 @@ public class TestTables {
 
   private TestTables() {}
 
+  public static TestTable upgrade(File temp, String name, int newFormatVersion) {
+    TestTable table = load(temp, name);
+    TableOperations ops = table.ops();
+    TableMetadata base = ops.current();
+    ops.commit(base, ops.current().upgradeToFormatVersion(newFormatVersion));
+    return table;
+  }
+
   public static TestTable create(
       File temp, String name, Schema schema, PartitionSpec spec, int formatVersion) {
     return create(temp, name, schema, spec, SortOrder.unsorted(), formatVersion);
@@ -328,9 +336,15 @@ public class TestTables {
 
     @Override
     public long newSnapshotId() {
-      long nextSnapshotId = lastSnapshotId + 1;
-      this.lastSnapshotId = nextSnapshotId;
-      return nextSnapshotId;
+      TableMetadata currentMetadata = current();
+      if (currentMetadata != null
+          && currentMetadata.propertyAsBoolean("random-snapshot-ids", false)) {
+        return SnapshotIdGeneratorUtil.generateSnapshotID();
+      } else {
+        long nextSnapshotId = lastSnapshotId + 1;
+        this.lastSnapshotId = nextSnapshotId;
+        return nextSnapshotId;
+      }
     }
   }
 

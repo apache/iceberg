@@ -70,6 +70,7 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
         equalityFieldIds,
         sortOrderId,
         keyMetadata,
+        null /* delete files do not use first-row-id */,
         referencedDataFile,
         contentOffset,
         contentSizeInBytes);

@@ -887,11 +887,14 @@ public class TestHelpers {
     file.put(3, 0); // specId
   }
 
+  // suppress the readable metrics and first-row-id that are not in manifest files
+  private static final Set<String> DERIVED_FIELDS = Set.of("readable_metrics", "first_row_id");
+
   public static Dataset<Row> selectNonDerived(Dataset<Row> metadataTable) {
     StructField[] fields = metadataTable.schema().fields();
     return metadataTable.select(
         Stream.of(fields)
-            .filter(f -> !f.name().equals("readable_metrics")) // derived field
+            .filter(f -> !DERIVED_FIELDS.contains(f.name()))
             .map(f -> new Column(f.name()))
             .toArray(Column[]::new));
   }
