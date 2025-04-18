@@ -35,6 +35,7 @@ import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.RewriteJobOrder;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
@@ -103,6 +104,7 @@ public class RewriteDataFilesSparkAction
   private boolean useStartingSequenceNumber;
   private RewriteJobOrder rewriteJobOrder;
   private FileRewriter<FileScanTask, DataFile> rewriter = null;
+  private String targetBranch = SnapshotRef.MAIN_BRANCH;
   private boolean caseSensitive;
 
   RewriteDataFilesSparkAction(SparkSession spark, Table table) {
@@ -151,6 +153,26 @@ public class RewriteDataFilesSparkAction
   }
 
   @Override
+  public RewriteDataFiles targetBranch(String branch) {
+    this.targetBranch = branch;
+    SnapshotRef ref = table.refs().get(this.targetBranch);
+    Preconditions.checkArgument(
+        ref != null, String.format("Branch does not exist: %s", targetBranch));
+    Preconditions.checkArgument(
+        ref.isBranch(), String.format("Ref %s is not a branch", targetBranch));
+    return this;
+  }
+
+  protected long startingSnapshotId() {
+    if (SnapshotRef.MAIN_BRANCH.equals(this.targetBranch)) {
+      return table.currentSnapshot().snapshotId();
+    } else {
+      SnapshotRef ref = table.refs().get(this.targetBranch);
+      return ref.snapshotId();
+    }
+  }
+
+  @Override
   public RewriteDataFilesSparkAction filter(Expression expression) {
     filter = Expressions.and(filter, expression);
     return this;
@@ -162,7 +184,7 @@ public class RewriteDataFilesSparkAction
       return EMPTY_RESULT;
     }
 
-    long startingSnapshotId = table.currentSnapshot().snapshotId();
+    long startingSnapshotId = startingSnapshotId();
 
     // Default to BinPack if no strategy selected
     if (this.rewriter == null) {
@@ -276,7 +298,7 @@ public class RewriteDataFilesSparkAction
   @VisibleForTesting
   RewriteDataFilesCommitManager commitManager(long startingSnapshotId) {
     return new RewriteDataFilesCommitManager(
-        table, startingSnapshotId, useStartingSequenceNumber, commitSummary());
+        table, startingSnapshotId, useStartingSequenceNumber, commitSummary(), targetBranch);
   }
 
   private Builder doExecute(
