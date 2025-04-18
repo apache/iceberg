@@ -99,6 +99,6 @@ public class TestSnapshotTableAction extends CatalogTestBase {
                     .execute())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
-            "The destination table location overlaps with the source table location.");
+            "The destination table location overlaps with the source table location");
   }
 }
