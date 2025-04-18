@@ -53,7 +53,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.BaseMetastoreTableOperations;
@@ -73,7 +72,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /** A client of Google Bigquery Metastore functions over the BigQuery service. */
-public final class BigQueryMetaStoreClientImpl implements BigQueryMetaStoreClient {
+public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClient {
 
   public static final ExceptionHandler.Interceptor EXCEPTION_HANDLER_INTERCEPTOR =
       new ExceptionHandler.Interceptor() {
@@ -111,13 +110,17 @@ public final class BigQueryMetaStoreClientImpl implements BigQueryMetaStoreClien
   public static final ExceptionHandler BIGQUERY_EXCEPTION_HANDLER =
       ExceptionHandler.newBuilder()
           .abortOn(RuntimeException.class)
-          .retryOn(java.net.ConnectException.class) // retry on Connection Exception
-          .retryOn(java.net.UnknownHostException.class) // retry on UnknownHostException
+          .retryOn(
+              java.net.ConnectException
+                  .class) // Retry on connection failures due to transient network issues.
+          .retryOn(
+              java.net.UnknownHostException
+                  .class) // Retry to recover from temporary DNS resolution failures.
           .addInterceptors(EXCEPTION_HANDLER_INTERCEPTOR)
           .build();
 
   /** Constructs a client of the Google BigQuery service. */
-  public BigQueryMetaStoreClientImpl(BigQueryOptions options)
+  public BigQueryMetastoreClientImpl(BigQueryOptions options)
       throws IOException, GeneralSecurityException {
     // Initialize client that will be used to send requests. This client only needs to be created
     // once, and can be reused for multiple requests
@@ -142,17 +145,11 @@ public final class BigQueryMetaStoreClientImpl implements BigQueryMetaStoreClien
 
   @Override
   public Dataset createDataset(Dataset dataset) {
-    // TODO (b/399885863): Ensure Dataset creation is idempotent when handling retries.
     Dataset response = null;
     try {
       response =
           BigQueryRetryHelper.runWithRetries(
-              new Callable<Dataset>() {
-                @Override
-                public Dataset call() {
-                  return create(dataset);
-                }
-              },
+              () -> create(dataset),
               bigqueryOptions.getRetrySettings(),
               BIGQUERY_EXCEPTION_HANDLER,
               bigqueryOptions.getClock(),
@@ -282,17 +279,12 @@ public final class BigQueryMetaStoreClientImpl implements BigQueryMetaStoreClien
   public Table createTable(Table table) {
     // Ensure it is an Iceberg table supported by the BigQuery metastore catalog.
     validateTable(table);
-    // TODO (b/399885863): Ensure table creation is idempotent when handling retries.
+    // TODO: Ensure table creation is idempotent when handling retries.
     Table response = null;
     try {
       response =
           BigQueryRetryHelper.runWithRetries(
-              new Callable<Table>() {
-                @Override
-                public Table call() {
-                  return create(table);
-                }
-              },
+              () -> create(table),
               bigqueryOptions.getRetrySettings(),
               BIGQUERY_EXCEPTION_HANDLER,
               bigqueryOptions.getClock(),
@@ -318,7 +310,7 @@ public final class BigQueryMetaStoreClientImpl implements BigQueryMetaStoreClien
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     } catch (AlreadyExistsException e) {
-      throw new AlreadyExistsException("Table already exists", e);
+      throw new AlreadyExistsException(String.format("Table %s already exists", table), e);
     }
   }
 
@@ -364,12 +356,7 @@ public final class BigQueryMetaStoreClientImpl implements BigQueryMetaStoreClien
     try {
       response =
           BigQueryRetryHelper.runWithRetries(
-              new Callable<Table>() {
-                @Override
-                public Table call() {
-                  return patch(tableReference, updatedTable, table.getEtag());
-                }
-              },
+              () -> patch(tableReference, updatedTable, table.getEtag()),
               bigqueryOptions.getRetrySettings(),
               BIGQUERY_EXCEPTION_HANDLER,
               bigqueryOptions.getClock(),
@@ -396,42 +383,9 @@ public final class BigQueryMetaStoreClientImpl implements BigQueryMetaStoreClien
 
       if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
         String responseString = response.parseAsString();
-        if (responseString.toLowerCase(Locale.ROOT).contains("not found: connection")) {
+        if (responseString.toLowerCase(Locale.ENGLISH).contains("not found: connection")) {
           throw new BadRequestException(responseString);
         }
-        throw new NoSuchTableException(response.getStatusMessage());
-      }
-      return convertExceptionIfUnsuccessful(response).parseAs(Table.class);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
-  }
-
-  @Override
-  @SuppressWarnings("FormatStringAnnotation")
-  public Table renameTable(TableReference tableToRename, String newTableId) {
-    Table table = getTable(tableToRename); // Verify table first
-    Table patch =
-        new Table()
-            .setTableReference(
-                new TableReference()
-                    .setProjectId(table.getTableReference().getProjectId())
-                    .setDatasetId(table.getTableReference().getDatasetId())
-                    .setTableId(newTableId));
-
-    try {
-      HttpResponse response =
-          client
-              .tables()
-              .patch(
-                  tableToRename.getProjectId(),
-                  tableToRename.getDatasetId(),
-                  tableToRename.getTableId(),
-                  patch)
-              .setRequestHeaders(new HttpHeaders().setIfMatch(table.getEtag()))
-              .executeUnparsed();
-
-      if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
         throw new NoSuchTableException(response.getStatusMessage());
       }
       return convertExceptionIfUnsuccessful(response).parseAs(Table.class);
@@ -489,8 +443,9 @@ public final class BigQueryMetaStoreClientImpl implements BigQueryMetaStoreClien
         tablesStream = Stream.concat(tablesStream, tablesPageStream);
       } while (nextPageToken != null && !nextPageToken.isEmpty());
 
-      // TODO(b/345839927): The server should return more metadata here to distinguish Iceberg
-      // BQMS tables for us to filter out those results since invoking `getTable` on them would
+      // The server should return more metadata here (e.g. BigQuery Non Iceberg tables) to
+      // distinguish Iceberg
+      // tables for us to filter out those results since invoking `getTable` on them would
       // correctly raise a `NoSuchIcebergTableException` for being inoperable by this plugin.
       if (filterUnsupportedTables) {
         tablesStream =
@@ -535,25 +490,30 @@ public final class BigQueryMetaStoreClientImpl implements BigQueryMetaStoreClien
   }
 
   /**
-   * Returns true when it is a BigQuery Metastore Iceberg table, defined by having the
-   * ExternalCatalogTableOptions object and a parameter of METADATA_LOCATION_PROP as part of its
-   * parameters map.
+   * Checks if the given table represents a BigQuery Metastore Iceberg table. A table is considered
+   * an Iceberg table if it has ExternalCatalogTableOptions, a non-empty parameters map containing
+   * both METADATA_LOCATION_PROP and TABLE_TYPE_PROP with the value ICEBERG_TABLE_TYPE_VALUE.
    *
-   * @param table to check
+   * @param table The table to check.
+   * @return true if the table is a BigQuery Metastore Iceberg table, false otherwise.
    */
-  private boolean isValidIcebergTable(Table table) {
-    return table.getExternalCatalogTableOptions() != null
-        && !table.getExternalCatalogTableOptions().isEmpty()
-        && table.getExternalCatalogTableOptions().getParameters() != null
-        && table
-            .getExternalCatalogTableOptions()
-            .getParameters()
-            .containsKey(BaseMetastoreTableOperations.METADATA_LOCATION_PROP)
-        && BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(
-            table
-                .getExternalCatalogTableOptions()
-                .getParameters()
-                .get(BaseMetastoreTableOperations.TABLE_TYPE_PROP));
+  private static boolean isValidIcebergTable(Table table) {
+    if (table.getExternalCatalogTableOptions() == null
+        || table.getExternalCatalogTableOptions().isEmpty()
+        || table.getExternalCatalogTableOptions().getParameters() == null) {
+      return false;
+    }
+
+    java.util.Map<String, String> parameters =
+        table.getExternalCatalogTableOptions().getParameters();
+
+    if (!parameters.containsKey(BaseMetastoreTableOperations.METADATA_LOCATION_PROP)
+        || !parameters.containsKey(BaseMetastoreTableOperations.TABLE_TYPE_PROP)) {
+      return false;
+    }
+
+    String tableType = parameters.get(BaseMetastoreTableOperations.TABLE_TYPE_PROP);
+    return BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(tableType);
   }
 
   private Table validateTable(Table table) {
@@ -568,7 +528,8 @@ public final class BigQueryMetaStoreClientImpl implements BigQueryMetaStoreClien
    * resource-specific exceptions like NoSuchTableException, NoSuchNamespaceException, etc.
    */
   @SuppressWarnings("FormatStringAnnotation")
-  private HttpResponse convertExceptionIfUnsuccessful(HttpResponse response) throws IOException {
+  private static HttpResponse convertExceptionIfUnsuccessful(HttpResponse response)
+      throws IOException {
     if (response.isSuccessStatusCode()) {
       return response;
     }

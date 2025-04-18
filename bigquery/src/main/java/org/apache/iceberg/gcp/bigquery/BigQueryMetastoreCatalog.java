@@ -80,7 +80,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
   private Configuration conf;
   private String projectId;
   private String location;
-  private BigQueryMetaStoreClient client;
+  private BigQueryMetastoreClient client;
   private boolean filterUnsupportedTables;
 
   // Must have a no-arg constructor to be dynamically loaded
@@ -107,10 +107,10 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
 
     try {
       if (testingEnabled) {
-        client = new FakeBigQueryMetaStoreClient(options);
+        client = new FakeBigQueryMetastoreClient(options);
 
       } else {
-        client = new BigQueryMetaStoreClientImpl(options);
+        client = new BigQueryMetastoreClientImpl(options);
       }
     } catch (IOException e) {
       throw new ServiceFailureException(e, "Creating BigQuery client failed");
@@ -126,7 +126,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
       Map<String, String> properties,
       String initialProjectId,
       String initialLocation,
-      BigQueryMetaStoreClient bigQueryMetaStoreClient) {
+      BigQueryMetastoreClient bigQueryMetaStoreClient) {
     this.catalogPluginName = inputName;
     this.catalogProperties = ImmutableMap.copyOf(properties);
     this.projectId = initialProjectId;
@@ -183,7 +183,9 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     }
     return String.format(
         "%s/%s",
-        Strings.isNullOrEmpty(locationUri) ? datasetReference.getDatasetId() : locationUri,
+        Strings.isNullOrEmpty(locationUri)
+            ? datasetReference.getDatasetId()
+            : LocationUtil.stripTrailingSlash(locationUri),
         identifier.name());
   }
 
@@ -250,10 +252,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     }
 
     // TODO(b/354981675): Enable once supported by the API.
-    throw new UnsupportedOperationException(
-        String.format(
-            "Table rename operation is unsupported. Try the SQL operation directly on BigQuery: \"ALTER TABLE %s RENAME TO %s;\"",
-            from.name(), to.name()));
+    throw new UnsupportedOperationException("Table rename operation is unsupported.");
   }
 
   @Override

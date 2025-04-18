@@ -63,8 +63,8 @@ public class BigQueryTableOperationsTest {
   private static final TableReference TABLE_REFERENCE =
       new TableReference().setProjectId(GCP_PROJECT).setDatasetId(DATASET_ID).setTableId(TABLE_ID);
 
-  private final BigQueryMetaStoreClient bigQueryMetaStoreClient =
-      mock(BigQueryMetaStoreClient.class);
+  private final BigQueryMetastoreClient bigQueryMetaStoreClient =
+      mock(BigQueryMetastoreClient.class);
 
   private BigQueryMetastoreCatalog bigQueryMetastoreCatalog;
   private BigQueryTableOperations tableOps;

@@ -85,7 +85,7 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
 
   @TempDir private File tempFolder;
   private BigQueryMetastoreCatalog catalog;
-  private BigQueryMetaStoreClient fakeBigQueryMetaStoreClient;
+  private BigQueryMetastoreClient fakeBigQueryMetastoreClient;
   private String warehouseLocation;
 
   @BeforeEach

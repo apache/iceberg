@@ -32,7 +32,7 @@ import java.util.Set;
  * A client of Google BigQuery Metastore functions over the BigQuery service. Uses the Google
  * BigQuery API.
  */
-public interface BigQueryMetaStoreClient {
+public interface BigQueryMetastoreClient {
 
   /**
    * Creates and returns a new dataset.
@@ -102,14 +102,6 @@ public interface BigQueryMetaStoreClient {
    * @param table to patch
    */
   Table patchTable(TableReference tableReference, Table table);
-
-  /**
-   * Renames a table.
-   *
-   * @param tableToRename full table reference
-   * @param newTableId new table identifier
-   */
-  Table renameTable(TableReference tableToRename, String newTableId);
 
   /**
    * Deletes a table.

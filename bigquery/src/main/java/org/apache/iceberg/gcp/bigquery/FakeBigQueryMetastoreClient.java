@@ -40,20 +40,12 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-public class FakeBigQueryMetaStoreClient implements BigQueryMetaStoreClient {
+public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
   private final Map<DatasetReference, Dataset> datasets = Maps.newHashMap();
   private final Map<TableReference, Table> tables = Maps.newHashMap();
 
-  public FakeBigQueryMetaStoreClient(BigQueryOptions options)
+  public FakeBigQueryMetastoreClient(BigQueryOptions options)
       throws IOException, GeneralSecurityException {}
-
-  public Map<DatasetReference, Dataset> datasets() {
-    return datasets;
-  }
-
-  public Map<TableReference, Table> tables() {
-    return tables;
-  }
 
   @Override
   public Dataset createDataset(Dataset dataset) {
@@ -169,11 +161,6 @@ public class FakeBigQueryMetaStoreClient implements BigQueryMetaStoreClient {
     existingTable.setEtag(generateEtag());
     existingTable.setExternalCatalogTableOptions(table.getExternalCatalogTableOptions());
     return existingTable;
-  }
-
-  @Override
-  public Table renameTable(TableReference tableToRename, String newTableId) {
-    throw new UnsupportedOperationException("Rename table is not supported");
   }
 
   @Override

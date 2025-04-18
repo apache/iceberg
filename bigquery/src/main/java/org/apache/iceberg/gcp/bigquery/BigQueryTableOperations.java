@@ -48,13 +48,13 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
 
   public static final String TABLE_PROPERTIES_BQ_CONNECTION = "bq_connection";
 
-  private final BigQueryMetaStoreClient client;
+  private final BigQueryMetastoreClient client;
   private final FileIO fileIO;
   private final TableReference tableReference;
   private final Configuration conf;
 
   BigQueryTableOperations(
-      BigQueryMetaStoreClient client,
+      BigQueryMetastoreClient client,
       FileIO fileIO,
       String project,
       String dataset,
@@ -106,12 +106,9 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
       throw e;
     } catch (Throwable e) {
       LOG.error("Exception thrown on commit: ", e);
-
-      if (commitStatus == BaseMetastoreOperations.CommitStatus.FAILURE
-          && e instanceof AlreadyExistsException) {
+      if (e instanceof AlreadyExistsException) {
         throw e;
       }
-
       commitStatus =
           BaseMetastoreOperations.CommitStatus.valueOf(
               checkCommitStatus(newMetadataLocation, metadata).name());
