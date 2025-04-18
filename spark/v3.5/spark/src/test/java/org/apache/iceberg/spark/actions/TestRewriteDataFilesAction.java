@@ -1891,13 +1891,13 @@ public class TestRewriteDataFilesAction extends TestBase {
   @TestTemplate
   public void testRewriteMaxFilesOption() {
     Table table = createTablePartitioned(5, 4);
-    shouldHaveFiles(table,20);
+    shouldHaveFiles(table, 20);
     int desiredMaxFileCount = 5000;
     Result result =
-            actions()
-                    .rewriteDataFiles(table)
-                    .option(RewriteDataFiles.MAX_FILES_TO_REWRITE, String.valueOf(desiredMaxFileCount))
-                    .execute();
+        actions()
+            .rewriteDataFiles(table)
+            .option(RewriteDataFiles.MAX_FILES_TO_REWRITE, String.valueOf(desiredMaxFileCount))
+            .execute();
     table.refresh();
     int filesReWritten = result.rewrittenDataFilesCount();
     assertThat(filesReWritten).isLessThanOrEqualTo(desiredMaxFileCount);
@@ -1910,13 +1910,13 @@ public class TestRewriteDataFilesAction extends TestBase {
     writeRecords(2, SCALE, 2);
     writeRecords(3, SCALE, 3);
     writeRecords(4, SCALE, 4);
-    shouldHaveFiles(table,50);
+    shouldHaveFiles(table, 50);
     int desiredMaxFileCount = 10;
     Result result =
-            actions()
-                    .rewriteDataFiles(table)
-                    .option(RewriteDataFiles.MAX_FILES_TO_REWRITE, "10")
-                    .execute();
+        actions()
+            .rewriteDataFiles(table)
+            .option(RewriteDataFiles.MAX_FILES_TO_REWRITE, "10")
+            .execute();
     table.refresh();
     int filesReWritten = result.rewrittenDataFilesCount();
     assertThat(filesReWritten).isEqualTo(desiredMaxFileCount);

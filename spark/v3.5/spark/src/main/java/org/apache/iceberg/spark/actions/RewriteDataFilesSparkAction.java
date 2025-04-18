@@ -469,7 +469,7 @@ public class RewriteDataFilesSparkAction
         PARTIAL_PROGRESS_ENABLED);
 
     Preconditions.checkArgument(
-            maxFilesToRewrite >= 0,
+        maxFilesToRewrite >= 0,
         "Cannot set %s to %s, the value must be positive.",
         MAX_FILES_TO_REWRITE,
         maxFilesToRewrite);
