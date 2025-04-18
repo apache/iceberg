@@ -26,7 +26,6 @@ import java.io.File;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -38,7 +37,7 @@ import org.junit.jupiter.api.io.TempDir;
 public class TestRowLineageMetadata {
   @Parameters(name = "formatVersion = {0}")
   private static List<Integer> formatVersion() {
-    return Ints.asList(TestHelpers.ALL_VERSIONS);
+    return TestHelpers.ALL_VERSIONS;
   }
 
   @Parameter private int formatVersion;
