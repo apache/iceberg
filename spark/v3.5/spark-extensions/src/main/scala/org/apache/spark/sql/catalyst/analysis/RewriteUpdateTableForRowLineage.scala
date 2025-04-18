@@ -35,6 +35,9 @@ object RewriteUpdateTableForRowLineage extends RewriteOperationForRowLineage {
     }
   }
 
+  // The plan should only be updated if row lineage metadata attributes are present
+  // in the target table AND lineage attributes are not already
+  // on the output of operation which indicates the rule already ran
   private def shouldUpdatePlan(updateTable: UpdateTable): Boolean = {
     val rowLineageAttrs = findRowLineageAttributes(updateTable.metadataOutput)
     val allLineageAttrsPresent = rowLineageAttrs.nonEmpty && rowLineageAttrs.forall(updateTable.metadataOutput.contains)

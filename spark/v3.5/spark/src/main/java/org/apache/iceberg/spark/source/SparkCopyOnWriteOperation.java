@@ -21,12 +21,12 @@ package org.apache.iceberg.spark.source;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DELETE;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPDATE;
 
-import java.util.ArrayList;
 import java.util.List;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.NamedReference;
@@ -98,7 +98,7 @@ class SparkCopyOnWriteOperation implements RowLevelOperation {
 
   @Override
   public NamedReference[] requiredMetadataAttributes() {
-    List<NamedReference> metadataAttributes = new ArrayList<>();
+    List<NamedReference> metadataAttributes = Lists.newArrayList();
     metadataAttributes.add(Expressions.column(MetadataColumns.FILE_PATH.name()));
 
     if (TableUtil.supportsRowLineage(table)) {

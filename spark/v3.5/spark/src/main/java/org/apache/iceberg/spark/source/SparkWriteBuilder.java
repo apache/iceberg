@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.IsolationLevel;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
@@ -118,10 +117,13 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
 
   @Override
   public Write build() {
-    // Validate
+    // The write schema should only include row lineage in the output if it's an overwrite
+    // operation.
+    // In any other case, only null row IDs and sequence numbers would be produced which
+    // means the row lineage columns can be excluded from the output files
+    boolean writeIncludesRowLineage = TableUtil.supportsRowLineage(table) && overwriteFiles;
     Schema writeSchema =
-        validateOrMergeWriteSchema(
-            table, dsSchema, writeConf, TableUtil.supportsRowLineage(table) && overwriteFiles);
+        validateOrMergeWriteSchema(table, dsSchema, writeConf, writeIncludesRowLineage);
 
     SparkUtil.validatePartitionTransforms(table.spec());
 

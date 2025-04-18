@@ -23,7 +23,7 @@ import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-public class TestMergeOnReadRowLineagePropagation extends TestRowLineagePropagation {
+public class TestMergeOnReadWithLineage extends TestRowLevelOperationsWithLineage {
 
   @Override
   protected Map<String, String> extraTableProperties() {
