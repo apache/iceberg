@@ -1016,10 +1016,11 @@ public class TestVariantReaders {
     GroupType variantType = variant("var", 2, list(outerElementType));
     MessageType parquetSchema = parquetSchema(variantType);
 
-    List<GenericRecord> outer1 =
-        elements(
-            outerElementType,
-            List.of(Variants.array(Variants.of("comedy"), Variants.of("drama")), Variants.array()));
+    ValueArray inner1 = Variants.array();
+    inner1.add(Variants.of("comedy"));
+    inner1.add(Variants.of("drama"));
+
+    List<GenericRecord> outer1 = elements(outerElementType, List.of(inner1, Variants.array()));
     GenericRecord var =
         record(
             variantType,

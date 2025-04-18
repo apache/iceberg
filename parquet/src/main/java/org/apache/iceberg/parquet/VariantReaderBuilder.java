@@ -162,14 +162,14 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
 
   @Override
   public VariantValueReader array(
-      GroupType array, ParquetValueReader<?> valueReader, ParquetValueReader<?> elementResult) {
+      GroupType array, ParquetValueReader<?> valueReader, ParquetValueReader<?> elementReader) {
     int valueDL =
         valueReader != null ? schema.getMaxDefinitionLevel(path(VALUE)) - 1 : Integer.MAX_VALUE;
     int typedDL = schema.getMaxDefinitionLevel(path(TYPED_VALUE)) - 1;
     int repeatedDL = schema.getMaxDefinitionLevel(path(TYPED_VALUE, LIST)) - 1;
     int repeatedRL = schema.getMaxRepetitionLevel(path(TYPED_VALUE, LIST)) - 1;
     VariantValueReader typedReader =
-        ParquetVariantReaders.array(repeatedDL, repeatedRL, elementResult);
+        ParquetVariantReaders.array(repeatedDL, repeatedRL, elementReader);
 
     return ParquetVariantReaders.shredded(valueDL, valueReader, typedDL, typedReader);
   }

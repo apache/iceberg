@@ -100,7 +100,7 @@ public class ParquetVariantReaders {
       int repeatedDefinitionLevel,
       int repeatedRepetitionLevel,
       ParquetValueReader<?> elementReader) {
-    return new ListReader(
+    return new ArrayReader(
         repeatedDefinitionLevel, repeatedRepetitionLevel, (VariantValueReader) elementReader);
   }
 
@@ -341,14 +341,14 @@ public class ParquetVariantReaders {
     }
   }
 
-  private static class ListReader implements VariantValueReader {
+  private static class ArrayReader implements VariantValueReader {
     private final int definitionLevel;
     private final int repetitionLevel;
     private final VariantValueReader reader;
     private final TripleIterator<?> column;
     private final List<TripleIterator<?>> children;
 
-    protected ListReader(int definitionLevel, int repetitionLevel, VariantValueReader reader) {
+    protected ArrayReader(int definitionLevel, int repetitionLevel, VariantValueReader reader) {
       this.definitionLevel = definitionLevel;
       this.repetitionLevel = repetitionLevel;
       this.reader = reader;
